@@ -76,15 +76,19 @@ This index points agents to the current MVP documentation pack.
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicToolApi`.
 
-22. `plugins/minemusic/.codex-plugin/plugin.json`
+22. `src/stage/session-handbook-store.ts`
+    - File-backed session Handbook document store used by Stage context and
+      Handbook read tools.
+
+23. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-23. `plugins/minemusic/.mcp.json`
+24. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-24. `plugins/minemusic/skills/minemusic/SKILL.md`
+25. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
-      tools for music requests.
+      tools and the session Handbook reference for music requests.
 
 ## Agent Rule
 

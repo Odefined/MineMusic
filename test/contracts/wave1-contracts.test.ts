@@ -263,6 +263,33 @@ const stageKernel: StageKernelPort = {
     ok: true,
     value: { ...session, id: sessionId },
   }),
+  readContext: async ({ sessionId }) => ({
+    ok: true,
+    value: {
+      session: { ...session, id: sessionId },
+      handbookRef: {
+        sessionId,
+        path: `.minemusic/stage/sessions/${sessionId}/HANDBOOK.md`,
+        revision: "sha256:test",
+        updatedAt: "2026-05-17T00:00:00.000Z",
+        status: "ready",
+      },
+      memorySummaries: [],
+    },
+  }),
+  readSessionHandbook: async ({ sessionId }) => ({
+    ok: true,
+    value: {
+      ref: {
+        sessionId,
+        path: `.minemusic/stage/sessions/${sessionId}/HANDBOOK.md`,
+        revision: "sha256:test",
+        updatedAt: "2026-05-17T00:00:00.000Z",
+        status: "ready",
+      },
+      content: "# MineMusic Session Handbook\n",
+    },
+  }),
   updateSession: async ({ sessionId, patch }) => ({
     ok: true,
     value: { ...session, ...patch, id: sessionId },

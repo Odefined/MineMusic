@@ -21,6 +21,7 @@ import type {
 
 export const stableToolNames = [
   "stage.context.read",
+  "stage.handbook.read",
   "stage.materials.prepare",
   "music.material.ground",
   "music.links.refresh",
@@ -32,6 +33,7 @@ export const stableToolNames = [
 
 type ToolDispatchOptions = {
   stage: StageKernelPort;
+  instruments: InstrumentCatalogPort;
   source: SourceResolutionPort;
   events: EventPort;
   memory: MemoryPort;
@@ -61,12 +63,17 @@ export function createInstrumentCatalog(): InstrumentCatalogPort {
 
 export function createToolDispatch({
   stage,
+  instruments,
   source,
   events,
   memory,
   effects,
 }: ToolDispatchOptions): ToolDispatchPort {
-  const discoveryToolNames = new Set<ToolName>(["stage.context.read", "session.update"]);
+  const discoveryToolNames = new Set<ToolName>([
+    "stage.context.read",
+    "stage.handbook.read",
+    "session.update",
+  ]);
 
   return {
     async call({ sessionId, toolName, payload }) {
@@ -80,7 +87,12 @@ export function createToolDispatch({
       }
 
       if (!discoveryToolNames.has(toolName)) {
-        const availability = await ensureToolAvailableForSession(stage, sessionId, toolName);
+        const availability = await ensureToolAvailableForSession(
+          stage,
+          instruments,
+          sessionId,
+          toolName,
+        );
 
         if (!availability.ok) {
           return availability;
@@ -89,23 +101,11 @@ export function createToolDispatch({
 
       switch (toolName) {
         case "stage.context.read": {
-          const session = await stage.getSession({ sessionId });
-
-          if (!session.ok) {
-            return session;
-          }
-
-          const handbook = await stage.compileHandbook({ sessionId });
-
-          if (!handbook.ok) {
-            return handbook;
-          }
-
-          return ok({
-            session: session.value,
-            handbook: handbook.value,
-          });
+          return stage.readContext({ sessionId });
         }
+
+        case "stage.handbook.read":
+          return stage.readSessionHandbook({ sessionId });
 
         case "stage.materials.prepare":
           return stage.prepareMaterials(
@@ -162,9 +162,15 @@ export function createToolDispatch({
 export const instrumentToolDescriptors: ToolDescriptor[] = [
   {
     name: "stage.context.read",
-    description: "Read governed session context and the compiled handbook.",
+    description: "Read dynamic session context and the session handbook document reference.",
     inputSchemaRef: "StageContextReadInput",
     outputSchemaRef: "StageContextReadOutput",
+  },
+  {
+    name: "stage.handbook.read",
+    description: "Read the current session's static MineMusic handbook document.",
+    inputSchemaRef: "StageHandbookReadInput",
+    outputSchemaRef: "SessionHandbook",
   },
   {
     name: "stage.materials.prepare",
@@ -230,16 +236,23 @@ function isStableToolName(toolName: ToolName | string): toolName is ToolName {
 
 async function ensureToolAvailableForSession(
   stage: StageKernelPort,
+  instruments: InstrumentCatalogPort,
   sessionId: string,
   toolName: ToolName,
 ): Promise<Result<void>> {
-  const handbook = await stage.compileHandbook({ sessionId });
+  const session = await stage.getSession({ sessionId });
 
-  if (!handbook.ok) {
-    return handbook;
+  if (!session.ok) {
+    return session;
   }
 
-  const isAvailable = handbook.value.availableInstruments.some((instrument) =>
+  const catalog = await instruments.list({ session: session.value });
+
+  if (!catalog.ok) {
+    return catalog;
+  }
+
+  const isAvailable = catalog.value.some((instrument) =>
     instrument.tools.some((tool) => tool.name === toolName),
   );
 

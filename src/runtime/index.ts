@@ -5,6 +5,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
+import { join } from "node:path";
 import { createCanonicalStore } from "../canonical/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
@@ -23,6 +24,7 @@ import type {
 } from "../ports/index.js";
 import { createSourceResolutionService } from "../source/index.js";
 import { createStageKernel } from "../stage/index.js";
+import { createFileSessionHandbookStore } from "../stage/session-handbook-store.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryEffectProposalRepository,
@@ -48,23 +50,27 @@ export type MineMusicRuntimeOptions = {
   session: StageSession;
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
+  handbookBaseDirectory?: string;
 };
 
 export type MineMusicRuntimeWithSourceProviderOptions = {
   session: StageSession;
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
+  handbookBaseDirectory?: string;
 };
 
 export function createMineMusicRuntime({
   session,
   sourceMaterials,
   canonicalRecords = [],
+  handbookBaseDirectory,
 }: MineMusicRuntimeOptions): MineMusicRuntime {
   return createMineMusicRuntimeWithSourceProvider({
     session,
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
+    ...(handbookBaseDirectory === undefined ? {} : { handbookBaseDirectory }),
   });
 }
 
@@ -72,6 +78,7 @@ export function createMineMusicRuntimeWithSourceProvider({
   session,
   sourceProvider,
   canonicalRecords = [],
+  handbookBaseDirectory = join(process.cwd(), ".minemusic/stage/sessions"),
 }: MineMusicRuntimeWithSourceProviderOptions): MineMusicRuntime {
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
@@ -86,6 +93,7 @@ export function createMineMusicRuntimeWithSourceProvider({
   });
   const events = createEventService({ repository: eventRepository });
   const effects = createEffectBoundary({ repository: effectRepository });
+  const instruments = createInstrumentCatalog();
   const memory = createMemoryService({
     repository: memoryRepository,
     events,
@@ -93,15 +101,19 @@ export function createMineMusicRuntimeWithSourceProvider({
   });
   const stage = createStageKernel({
     sessions: [session],
-    instruments: createInstrumentCatalog(),
+    instruments,
     memory,
     events,
     effects,
     source,
     canonical,
+    handbookStore: createFileSessionHandbookStore({
+      baseDirectory: handbookBaseDirectory,
+    }),
   });
   const dispatch = createToolDispatch({
     stage,
+    instruments,
     source,
     events,
     memory,

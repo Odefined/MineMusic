@@ -11,6 +11,9 @@ import type {
   MusicMaterial,
   Ref,
   Result,
+  SessionHandbook,
+  SessionHandbookRef,
+  StageContext,
   SourceQuery,
   StageEvent,
   StageSession,
@@ -19,6 +22,10 @@ import type {
 
 export interface StageKernelPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;
+
+  readContext(input: { sessionId: string }): Promise<Result<StageContext>>;
+
+  readSessionHandbook(input: { sessionId: string }): Promise<Result<SessionHandbook>>;
 
   updateSession(input: {
     sessionId: string;
@@ -129,6 +136,11 @@ export interface Repository<TRecord, TKey> {
   get(key: TKey): Promise<Result<TRecord | null>>;
   put(record: TRecord): Promise<Result<TRecord>>;
   list(query?: unknown): Promise<Result<TRecord[]>>;
+}
+
+export interface SessionHandbookStorePort {
+  ensure(input: { sessionId: string; content: string }): Promise<Result<SessionHandbookRef>>;
+  read(input: { sessionId: string }): Promise<Result<SessionHandbook | null>>;
 }
 
 export type CanonicalRecordRepository = Repository<CanonicalRecord, Ref>;

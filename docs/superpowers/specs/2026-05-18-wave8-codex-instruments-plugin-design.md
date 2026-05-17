@@ -52,6 +52,7 @@ It contains the current MVP tools plus a new Stage Kernel tool:
 
 ```text
 stage.context.read
+stage.handbook.read
 stage.materials.prepare
 music.material.ground
 music.links.refresh
@@ -62,9 +63,10 @@ session.update
 ```
 
 `stage.context.read` must remain the first recommended call because it returns
-the dynamic Handbook and available instruments. `stage.materials.prepare` must
-be tool-visible so Codex does not present raw source results without Stage
-Kernel gating.
+dynamic session context and a `handbookRef` for the session-scoped Handbook
+document. `stage.handbook.read` reads that document on demand.
+`stage.materials.prepare` must be tool-visible so Codex does not present raw
+source results without Stage Kernel gating.
 
 ## Codex Plugin Shape
 
@@ -116,8 +118,10 @@ not enforce that the session has the instrument enabled.
 
 Wave 8 should add a small enforcement boundary:
 
-- `stage.context.read` remains available so Codex can discover Handbook and
-  instruments.
+- `stage.context.read` remains available so Codex can discover dynamic context
+  and the current session Handbook reference.
+- `stage.handbook.read` remains available so Codex can inspect the current
+  session Handbook on demand.
 - `session.update` remains available so session state can recover.
 - other instrument tools require the current session to expose an instrument
   containing that tool.
@@ -132,6 +136,7 @@ making the MineMusic namespace explicit:
 
 ```text
 minemusic.stage.context.read
+minemusic.stage.handbook.read
 minemusic.stage.materials.prepare
 minemusic.music.material.ground
 minemusic.music.links.refresh
@@ -180,9 +185,11 @@ MCP tests should not require a live Codex app session.
 
 - Codex plugin packaging exists under `plugins/minemusic`.
 - The MCP server registers tools from MineMusic instrument descriptors.
-- `stage.context.read` returns Handbook and available instruments.
+- `stage.context.read` returns dynamic session context and a `handbookRef`.
+- `stage.handbook.read` returns the session-scoped Handbook markdown document.
 - `stage.materials.prepare` is Codex-visible and applies Stage Kernel gating.
-- Tool Dispatch enforces active instrument availability for normal tool calls.
+- Tool Dispatch enforces active instrument availability through
+  `InstrumentCatalogPort` for normal tool calls.
 - MCP wrappers call Tool API / Tool Dispatch, not provider or runtime internals.
 - Normal tests pass.
 - Default and explicit NetEase smoke results are documented.

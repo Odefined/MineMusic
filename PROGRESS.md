@@ -118,7 +118,7 @@
   `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
 - Added `stage.materials.prepare` as a stable instrument/tool API entry and
   routed the fixture transcript through the tool-visible Stage Kernel gate.
-- Added Handbook-based instrument enforcement in Tool Dispatch while keeping
+- Added initial instrument enforcement in Tool Dispatch while keeping
   `stage.context.read` available for discovery and `session.update` available
   for recovery.
 - Added `createMineMusicRuntimeWithSourceProvider(...)` for host surfaces that
@@ -137,11 +137,21 @@
 - Corrected the MineMusic workflow skill so listening environments such as
   writing code are treated as agent interpretation context, not as literal song
   title/provider-search text.
+- Split dynamic Stage context from the Handbook surface. `stage.context.read`
+  now returns session state, memory summaries, and a session-scoped
+  `handbookRef`; `stage.handbook.read` reads the static session Handbook
+  markdown document on demand.
+- Added a file-backed session Handbook store under `src/stage/` and ignored the
+  runtime `.minemusic/` handbook directory.
+- Updated Tool Dispatch to check instrument availability through
+  `InstrumentCatalogPort` instead of compiling a Handbook as a side effect.
 
 ## Next
 
 - Verify the repo-local plugin in a fresh Codex plugin session before claiming
   live Codex tool and skill visibility.
+- Define explicit refresh semantics for already-created session Handbooks when
+  plugin, tool, or policy guidance changes.
 - Decide whether to merge `codex/wave8-codex-instruments-plugin` back to
   `main`, push a PR, keep the branch, or discard the branch.
 - Later implementation should target durable storage and richer host-surface

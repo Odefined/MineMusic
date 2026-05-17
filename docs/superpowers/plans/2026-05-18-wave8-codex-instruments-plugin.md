@@ -4,7 +4,7 @@
 
 **Goal:** Expose MineMusic to Codex as a repo-local MCP plugin whose public surface is the `minemusic.mvp` instrument and its Stage-governed tools.
 
-**Architecture:** Codex talks to an MCP server under `src/surfaces/mcp/server.ts`. The MCP server registers tools derived from MineMusic instrument descriptors, prefixes them with `minemusic.`, and delegates to `MineMusicToolApi` / `ToolDispatchPort`. Stage Kernel remains first-class through `stage.context.read`, `Handbook`, and the new `stage.materials.prepare` tool.
+**Architecture:** Codex talks to an MCP server under `src/surfaces/mcp/server.ts`. The MCP server registers tools derived from MineMusic instrument descriptors, prefixes them with `minemusic.`, and delegates to `MineMusicToolApi` / `ToolDispatchPort`. Stage Kernel remains first-class through `stage.context.read`, session-scoped Handbook documents, `stage.handbook.read`, and the new `stage.materials.prepare` tool.
 
 **Tech Stack:** TypeScript ES modules, `@modelcontextprotocol/sdk`, `zod`, existing MineMusic contracts/ports/runtime, repo-local Codex plugin manifest files.
 
@@ -57,7 +57,7 @@ Expected: failure because `stage.materials.prepare` is not yet a `ToolName`.
 
 - [x] **Step 3: Implement minimal code**
 
-Add `stage.materials.prepare` to `ToolName`, `stableToolNames`, `toolDescriptors`, and `createToolDispatch(...)`. For non-discovery tools, check the compiled Handbook's `availableInstruments` before dispatch. Allow `stage.context.read` and `session.update` without instrument enforcement.
+Add `stage.materials.prepare` to `ToolName`, `stableToolNames`, `toolDescriptors`, and `createToolDispatch(...)`. For non-discovery tools, check `InstrumentCatalogPort` availability before dispatch. Allow `stage.context.read`, `stage.handbook.read`, and `session.update` without instrument enforcement.
 
 - [x] **Step 4: Run GREEN**
 
@@ -133,7 +133,8 @@ and add:
 Tests should assert:
 
 - `createMineMusicMcpToolDefinitions(...)` returns names prefixed with `minemusic.`.
-- `minemusic.stage.context.read` returns JSON text containing `handbook.availableInstruments`.
+- `minemusic.stage.context.read` returns JSON text containing `handbookRef`.
+- `minemusic.stage.handbook.read` returns JSON text containing the session Handbook document.
 - `minemusic.stage.materials.prepare` delegates through Tool API and returns gated material.
 
 - [x] **Step 3: Run RED**

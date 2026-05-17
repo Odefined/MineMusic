@@ -102,6 +102,7 @@ export type DomainEvent = {
 export type DomainEventType =
   | "stage.session.updated"
   | "stage.handbook.compiled"
+  | "stage.handbook.created"
   | "stage.materials.prepared"
   | "instrument.called"
   | "instrument.failed"

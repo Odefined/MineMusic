@@ -16,9 +16,9 @@ smoke command. The local NetEase service is currently verified through explicit
 live smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP
 plugin surface. The Codex surface exposes MineMusic instruments, not runtime
 internals, and deterministic MCP/plugin packaging tests pass. The repo-local
-plugin now includes a MineMusic workflow skill and explicit MCP input schemas
-for argument-bearing tools. Fresh Codex app plugin visibility is not yet
-claimed.
+plugin now includes a MineMusic workflow skill, explicit MCP input schemas for
+argument-bearing tools, and a session-scoped handbook reader. Fresh Codex app
+plugin visibility is not yet claimed.
 
 ## Source Basis
 
@@ -67,7 +67,12 @@ The current docs are based on `proposal.md` only.
   playable-link refresh, canonical-ref attachment from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.
 - Stage Kernel is exported from `src/stage/index.ts` with session continuity,
-  Handbook compilation, `StageVibe` propagation, and material-state gating.
+  Handbook compilation compatibility, session-scoped Handbook document
+  references, `StageVibe` propagation, and material-state gating.
+- `stage.context.read` returns dynamic session context and a `handbookRef` for
+  the current session. It does not embed the Handbook body.
+- `stage.handbook.read` returns the current session's static Handbook markdown
+  document on demand.
 - Instrument registry and tool dispatch are exported from
   `src/instruments/index.ts` with stable LLM-visible tool names and dependency
   injection through public ports.
@@ -102,9 +107,10 @@ The current docs are based on `proposal.md` only.
   `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
 - `stage.materials.prepare` is a stable Tool API / Instrument tool, so Stage
   Kernel material gating is Codex-visible.
-- Tool Dispatch enforces the current Handbook's available instruments for
-  normal instrument tools. `stage.context.read` remains available for
-  discovery, and `session.update` remains available for recovery.
+- Tool Dispatch enforces current instrument availability through
+  `InstrumentCatalogPort`, not by compiling a Handbook. `stage.context.read`
+  and `stage.handbook.read` remain available for discovery/reference, and
+  `session.update` remains available for recovery.
 - The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
   `MineMusicToolApi`, not provider or repository internals. Argument-bearing
@@ -113,7 +119,8 @@ The current docs are based on `proposal.md` only.
   marketplace entry at `.agents/plugins/marketplace.json`.
 - The repo-local plugin includes a workflow skill at
   `plugins/minemusic/skills/minemusic/SKILL.md`. The skill triggers on music
-  requests and routes agents through `stage.context.read`,
+  requests and routes agents through `stage.context.read`, the returned
+  `handbookRef` / `stage.handbook.read`,
   `music.material.ground`, and `stage.materials.prepare`.
 - The workflow skill now distinguishes listening context from provider search
   text. Environment terms such as writing code, study, walking, late night, or
@@ -125,6 +132,8 @@ The current docs are based on `proposal.md` only.
 - Durable storage repositories beyond in-memory infrastructure.
 - Packaged Plugin Edge providers beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
+- Explicit Handbook refresh semantics for plugin/policy updates after a session
+  Handbook has already been created.
 - Fresh Codex app plugin installation and interactive tool visibility in a new
   Codex session.
 

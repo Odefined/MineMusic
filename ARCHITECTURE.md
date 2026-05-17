@@ -32,6 +32,7 @@ LLM Agent Runtime
   -> Stage Layer
      -> Stage Kernel
      -> Handbook
+     -> session-scoped Handbook document reference
      -> StageSession
      -> Instruments
      -> MusicMaterial state
@@ -87,8 +88,10 @@ is the rule that lets several people or agents implement modules in parallel.
 ```text
 1. User asks for music naturally.
 2. LLM interprets the musical situation.
-3. Stage Kernel compiles Handbook and StageSession context.
-4. LLM uses instruments to request context, grounding, or links.
+3. Stage Kernel returns dynamic StageSession context plus a reference to the
+   session-scoped static Handbook document.
+4. LLM uses the session Handbook as workflow guidance and instruments to
+   request grounding, prepared materials, or links.
 5. Source Resolution and optional Knowledge providers return MusicMaterial.
 6. Canonical Store anchors material when possible.
 7. Stage Kernel marks each material state honestly.
@@ -174,7 +177,15 @@ Stage Kernel depends on `InstrumentCatalogPort` for Handbook compilation. Tool
 dispatch may call Stage and core ports through composition-root injection, but
 Stage Kernel must not depend on `ToolDispatchPort`.
 
+Stage context and Handbook are separate surfaces. `stage.context.read` returns
+dynamic runtime context and a `handbookRef` pointing to the current session's
+static Handbook markdown document. It does not embed the Handbook body.
+`stage.handbook.read` reads that session document on demand. Tool availability
+is checked through `InstrumentCatalogPort`, not by compiling or reading a
+Handbook as a side effect.
+
 Codex-visible tools are derived from MineMusic instrument descriptors. The
 host-facing MCP names are prefixed, for example
-`minemusic.stage.context.read` and `minemusic.stage.materials.prepare`, while
-the internal public API remains the stable `ToolName` union.
+`minemusic.stage.context.read`, `minemusic.stage.handbook.read`, and
+`minemusic.stage.materials.prepare`, while the internal public API remains the
+stable `ToolName` union.

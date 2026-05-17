@@ -117,6 +117,25 @@ export type Handbook = {
   memorySummaries: string[];
   pluginGuidance: string[];
 };
+
+export type SessionHandbookRef = {
+  sessionId: string;
+  path: string;
+  revision: string;
+  updatedAt: string;
+  status: "ready";
+};
+
+export type SessionHandbook = {
+  ref: SessionHandbookRef;
+  content: string;
+};
+
+export type StageContext = {
+  session: StageSession;
+  handbookRef: SessionHandbookRef;
+  memorySummaries: string[];
+};
 ```
 
 ## Canonical Store Types
@@ -274,6 +293,7 @@ Rules:
 ```ts
 export type ToolName =
   | "stage.context.read"
+  | "stage.handbook.read"
   | "stage.materials.prepare"
   | "music.material.ground"
   | "music.links.refresh"
@@ -328,6 +348,7 @@ export type DomainEvent = {
 export type DomainEventType =
   | "stage.session.updated"
   | "stage.handbook.compiled"
+  | "stage.handbook.created"
   | "stage.materials.prepared"
   | "instrument.called"
   | "instrument.failed"

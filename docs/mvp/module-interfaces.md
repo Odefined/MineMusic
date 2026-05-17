@@ -83,14 +83,22 @@ Purpose:
 - Assemble the LLM-facing stage.
 - Gate material state before LLM use.
 - Route core requests without exposing provider internals.
-- Preserve `StageVibe` as soft session guidance and include it in the Handbook
-  when present.
+- Preserve `StageVibe` as soft session guidance and include it in session
+  context / Handbook guidance when present.
 
 Public port:
 
 ```ts
 export interface StageKernelPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;
+
+  readContext(input: {
+    sessionId: string;
+  }): Promise<Result<StageContext>>;
+
+  readSessionHandbook(input: {
+    sessionId: string;
+  }): Promise<Result<SessionHandbook>>;
 
   updateSession(input: {
     sessionId: string;
@@ -122,6 +130,7 @@ Publishes domain events:
 
 - `stage.session.updated`
 - `stage.handbook.compiled`
+- `stage.handbook.created`
 - `stage.materials.prepared`
 
 Must not expose:
@@ -159,6 +168,7 @@ export interface ToolDispatchPort {
 
 export type ToolName =
   | "stage.context.read"
+  | "stage.handbook.read"
   | "stage.materials.prepare"
   | "music.material.ground"
   | "music.links.refresh"
@@ -172,8 +182,8 @@ Consumes:
 
 - `InstrumentCatalogPort` consumes no Stage Kernel port.
 - `ToolDispatchPort` consumes `StageKernelPort`, `SourceResolutionPort`,
-  `EventPort`, `MemoryPort`, and `EffectBoundaryPort` through dependency
-  injection at the composition root.
+  `InstrumentCatalogPort`, `EventPort`, `MemoryPort`, and
+  `EffectBoundaryPort` through dependency injection at the composition root.
 
 Publishes domain events:
 
@@ -499,6 +509,17 @@ export type EventRepository = Repository<StageEvent, string>;
 export type MemoryRepository = Repository<MemoryEntry, string>;
 export type SessionRepository = Repository<StageSession, string>;
 export type EffectProposalRepository = Repository<EffectProposal, string>;
+
+export interface SessionHandbookStorePort {
+  ensure(input: {
+    sessionId: string;
+    content: string;
+  }): Promise<Result<SessionHandbookRef>>;
+
+  read(input: {
+    sessionId: string;
+  }): Promise<Result<SessionHandbook | null>>;
+}
 ```
 
 Consumes:

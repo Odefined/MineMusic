@@ -37,6 +37,16 @@ const session: StageSession = {
   activeInstruments: ["minemusic.mvp"],
 };
 
+function testHandbookRef(sessionId: string) {
+  return {
+    sessionId,
+    path: `.minemusic/stage/sessions/${sessionId}/HANDBOOK.md`,
+    revision: "sha256:test",
+    updatedAt: "2026-05-17T00:00:00.000Z",
+    status: "ready" as const,
+  };
+}
+
 async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void> {
   const catalog = createInstrumentCatalog();
   const descriptors = await assertOk(catalog.list({ session }));
@@ -56,6 +66,10 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     groundTool.description.includes("source-searchable"),
     "grounding tool description should not imply provider search is semantic recommendation",
   );
+  assert(
+    toolNames.includes("stage.handbook.read"),
+    "catalog should expose the session handbook reader as a stable tool",
+  );
 }
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
@@ -65,6 +79,27 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     getSession: async ({ sessionId }) => {
       calls.push("stage.getSession");
       return { ok: true, value: { ...session, id: sessionId } };
+    },
+    readContext: async ({ sessionId }) => {
+      calls.push("stage.readContext");
+      return {
+        ok: true,
+        value: {
+          session: { ...session, id: sessionId },
+          handbookRef: testHandbookRef(sessionId),
+          memorySummaries: [],
+        },
+      };
+    },
+    readSessionHandbook: async ({ sessionId }) => {
+      calls.push("stage.readSessionHandbook");
+      return {
+        ok: true,
+        value: {
+          ref: testHandbookRef(sessionId),
+          content: "# MineMusic Session Handbook\n",
+        },
+      };
     },
     updateSession: async ({ patch }) => {
       calls.push("stage.updateSession");
@@ -127,9 +162,10 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     },
     decide: async () => ({ ok: true, value: undefined }),
   };
-  const dispatch = createToolDispatch({ stage, source, events, memory, effects });
+  const dispatch = createToolDispatch({ stage, instruments: catalog, source, events, memory, effects });
 
   await assertOk(dispatch.call({ sessionId: session.id, toolName: "stage.context.read", payload: {} }));
+  await assertOk(dispatch.call({ sessionId: session.id, toolName: "stage.handbook.read", payload: {} }));
   await assertOk(
     dispatch.call({
       sessionId: session.id,
@@ -219,8 +255,10 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     }),
   );
 
-  assert(calls.includes("stage.getSession"), "stage.context.read should call StageKernelPort");
-  assert(calls.includes("stage.compileHandbook"), "stage.context.read should compile handbook");
+  assert(calls.includes("stage.getSession"), "tool availability should read Stage session");
+  assert(calls.includes("stage.readContext"), "stage.context.read should read Stage context");
+  assert(calls.includes("stage.readSessionHandbook"), "stage.handbook.read should read the session handbook");
+  assert(!calls.includes("stage.compileHandbook"), "tool dispatch should not compile handbooks for context or availability");
   assert(calls.includes("stage.prepareMaterials"), "stage.materials.prepare should call StageKernelPort");
   assert(calls.includes("source.ground"), "music.material.ground should call SourceResolutionPort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceResolutionPort");
@@ -237,6 +275,21 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
   };
   const stage: StageKernelPort = {
     getSession: async () => ({ ok: true, value: restrictedSession }),
+    readContext: async () => ({
+      ok: true,
+      value: {
+        session: restrictedSession,
+        handbookRef: testHandbookRef(restrictedSession.id),
+        memorySummaries: [],
+      },
+    }),
+    readSessionHandbook: async () => ({
+      ok: true,
+      value: {
+        ref: testHandbookRef(restrictedSession.id),
+        content: "# MineMusic Session Handbook\n",
+      },
+    }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...restrictedSession, ...patch } }),
     compileHandbook: async () => {
       const instruments = await createInstrumentCatalog().list({ session: restrictedSession });
@@ -258,6 +311,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
   };
   const dispatch = createToolDispatch({
     stage,
+    instruments: createInstrumentCatalog(),
     source: {
       ground: async () => ({ ok: true, value: [] }),
       refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
@@ -306,6 +360,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   const dispatch = createToolDispatch({
     stage: {} as StageKernelPort,
+    instruments: createInstrumentCatalog(),
     source: {} as SourceResolutionPort,
     events: {} as EventPort,
     memory: {} as MemoryPort,

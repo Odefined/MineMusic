@@ -38,6 +38,10 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     internalToolNameFor("minemusic.stage.materials.prepare") === "stage.materials.prepare",
     "MCP tools should map back to internal tool names",
   );
+  assert(
+    codexToolNameFor("stage.handbook.read") === "minemusic.stage.handbook.read",
+    "MCP should expose the session handbook reader with the MineMusic prefix",
+  );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
 }
 
@@ -89,6 +93,10 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     hasSchemaKey(schemasByName.get("minemusic.events.record"), "event"),
     "event tool schema should declare event input",
   );
+  assert(
+    schemaIsEmpty(schemasByName.get("minemusic.stage.handbook.read")),
+    "handbook read tool schema should not require arguments",
+  );
 }
 
 async function dispatchesMcpPayloadsToRuntimeToolApi(): Promise<void> {
@@ -125,6 +133,10 @@ async function dispatchesMcpPayloadsToRuntimeToolApi(): Promise<void> {
 
 function hasSchemaKey(schema: unknown, key: string): boolean {
   return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
+}
+
+function schemaIsEmpty(schema: unknown): boolean {
+  return typeof schema === "object" && schema !== null && Object.keys(schema).length === 0;
 }
 
 await mapsInternalToolsToCodexPrefixedMcpTools();

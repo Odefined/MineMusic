@@ -43,6 +43,7 @@ const musicMaterialSchema = z.object({
 }).passthrough();
 const inputSchemas = {
   "stage.context.read": {},
+  "stage.handbook.read": {},
   "stage.materials.prepare": {
     materials: z.array(musicMaterialSchema),
     purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),

@@ -28,6 +28,18 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
     "MineMusic skill should route music requests through the current context tool",
   );
   assert(
+    skillText.includes("minemusic.stage.handbook.read"),
+    "MineMusic skill should tell agents how to read the session handbook on demand",
+  );
+  assert(
+    skillText.includes("handbookRef"),
+    "MineMusic skill should treat the handbook as a session-scoped document reference",
+  );
+  assert(
+    !skillText.includes("follow the returned Handbook"),
+    "MineMusic skill should not imply context embeds the handbook content",
+  );
+  assert(
     skillText.includes("minemusic.stage.materials.prepare"),
     "MineMusic skill should require Stage material preparation before presenting links",
   );

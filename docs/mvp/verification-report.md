@@ -114,9 +114,9 @@ Codex MCP plugin surface:
 
 - `stage.materials.prepare` is included in the stable Tool API / instrument
   tool set.
-- Tool Dispatch rejects normal instrument tools when the current Handbook does
-  not expose them, while `stage.context.read` and `session.update` remain
-  available.
+- Tool Dispatch rejects normal instrument tools when the current instrument
+  catalog does not expose them, while `stage.context.read`,
+  `stage.handbook.read`, and `session.update` remain available.
 - MCP tool definitions use `minemusic.*` names and map back to internal
   `ToolName` values.
 - Argument-bearing MCP tools expose explicit input schemas for query,
