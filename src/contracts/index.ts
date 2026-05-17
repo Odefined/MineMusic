@@ -208,6 +208,7 @@ export type EffectDecision =
 
 export type ToolName =
   | "stage.context.read"
+  | "stage.materials.prepare"
   | "music.material.ground"
   | "music.links.refresh"
   | "events.record"

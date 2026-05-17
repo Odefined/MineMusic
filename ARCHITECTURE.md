@@ -26,6 +26,9 @@ editing, collection management, music intelligence, or notifications.
 
 ```text
 LLM Agent Runtime
+  -> Host Surface Layer
+     -> Codex MCP plugin
+     -> MCP tool name prefixing
   -> Stage Layer
      -> Stage Kernel
      -> Handbook
@@ -55,6 +58,11 @@ LLM Agent Runtime
 
 Each layer depends only on the public contracts of the layer below it. Plugin
 packages do not define core business boundaries.
+
+The Codex host surface is a thin MCP adapter. It exposes MineMusic instrument
+tools with a `minemusic.` prefix and delegates calls to `MineMusicToolApi` /
+`ToolDispatchPort`. It must not call source providers, repositories, or Stage
+Kernel private internals directly.
 
 ## Module Port Model
 
@@ -95,6 +103,7 @@ is the rule that lets several people or agents implement modules in parallel.
 | Module | Owns | Does Not Own |
 | --- | --- | --- |
 | Stage Kernel | LLM-facing governance, Handbook compilation, StageSession continuity, instrument exposure, material-state gating | source internals, durable identity schema internals, storage details |
+| Codex MCP Surface | repo-local plugin metadata, MCP tool registration, prefixed host tool names | recommendation policy, provider implementation, Stage private internals |
 | Instrument Catalog / Tool Dispatch | LLM-visible instruments and governed tool names | provider implementation, final recommendation judgment, Stage private internals |
 | Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
 | Source Resolution | source refs, availability, playable links, provider evidence | canonical authority, memory decisions |
@@ -164,3 +173,8 @@ concrete plugin packages.
 Stage Kernel depends on `InstrumentCatalogPort` for Handbook compilation. Tool
 dispatch may call Stage and core ports through composition-root injection, but
 Stage Kernel must not depend on `ToolDispatchPort`.
+
+Codex-visible tools are derived from MineMusic instrument descriptors. The
+host-facing MCP names are prefixed, for example
+`minemusic.stage.context.read` and `minemusic.stage.materials.prepare`, while
+the internal public API remains the stable `ToolName` union.

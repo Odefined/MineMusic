@@ -159,6 +159,7 @@ export interface ToolDispatchPort {
 
 export type ToolName =
   | "stage.context.read"
+  | "stage.materials.prepare"
   | "music.material.ground"
   | "music.links.refresh"
   | "events.record"

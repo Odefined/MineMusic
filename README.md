@@ -50,14 +50,17 @@ effect boundaries.
 
 ## Development
 
-Waves 1 through 7 have established the TypeScript contract, public-port
+Waves 1 through 8 have established the TypeScript contract, public-port
 harness, in-memory repository foundation, plugin registry foundation, core
 domain module skeletons, Stage Kernel, instrument registry, Tool API facade,
 fixture end-to-end MVP slice, final review documentation, and a read-only
-NetEase source provider adapter with opt-in live smoke validation.
+NetEase source provider adapter with opt-in live smoke validation. Wave 8 adds
+a repo-local Codex MCP plugin surface that exposes MineMusic instruments with
+`minemusic.*` tool names and delegates to the existing Tool API.
 
 ```bash
 npm test
+npm run mcp:minemusic
 npm run smoke:netease
 ```
 
@@ -69,6 +72,13 @@ instrument, provider, tool API, and integration runtime tests.
 validate against a local NetEase Cloud Music API service. The default endpoint
 is `http://127.0.0.1:3000`, and it can be changed with
 `MINEMUSIC_NETEASE_BASE_URL`.
+
+The repo-local Codex plugin manifest lives at
+`plugins/minemusic/.codex-plugin/plugin.json`, with MCP startup config in
+`plugins/minemusic/.mcp.json` and the local marketplace entry in
+`.agents/plugins/marketplace.json`. Fresh Codex app visibility still needs to
+be verified in a new plugin session before treating it as installed runtime
+state.
 
 ## Non-Goals
 

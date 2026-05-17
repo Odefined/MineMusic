@@ -21,6 +21,7 @@ import type {
 
 export const stableToolNames = [
   "stage.context.read",
+  "stage.materials.prepare",
   "music.material.ground",
   "music.links.refresh",
   "events.record",
@@ -51,7 +52,7 @@ export function createInstrumentCatalog(): InstrumentCatalogPort {
         {
           id: "minemusic.mvp",
           label: "MineMusic MVP",
-          tools: toolDescriptors,
+          tools: instrumentToolDescriptors,
         },
       ]);
     },
@@ -65,8 +66,27 @@ export function createToolDispatch({
   memory,
   effects,
 }: ToolDispatchOptions): ToolDispatchPort {
+  const discoveryToolNames = new Set<ToolName>(["stage.context.read", "session.update"]);
+
   return {
     async call({ sessionId, toolName, payload }) {
+      if (!isStableToolName(toolName)) {
+        return fail({
+          code: "instrument.tool_not_found",
+          message: `Tool '${String(toolName)}' is not registered.`,
+          module: "instruments",
+          retryable: false,
+        });
+      }
+
+      if (!discoveryToolNames.has(toolName)) {
+        const availability = await ensureToolAvailableForSession(stage, sessionId, toolName);
+
+        if (!availability.ok) {
+          return availability;
+        }
+      }
+
       switch (toolName) {
         case "stage.context.read": {
           const session = await stage.getSession({ sessionId });
@@ -86,6 +106,15 @@ export function createToolDispatch({
             handbook: handbook.value,
           });
         }
+
+        case "stage.materials.prepare":
+          return stage.prepareMaterials(
+            readPayload<{
+              sessionId: string;
+              materials: MusicMaterial[];
+              purpose: Parameters<StageKernelPort["prepareMaterials"]>[0]["purpose"];
+            }>(payload, { sessionId }),
+          );
 
         case "music.material.ground":
           return source.ground(readPayload<{
@@ -130,12 +159,18 @@ export function createToolDispatch({
   };
 }
 
-const toolDescriptors: ToolDescriptor[] = [
+export const instrumentToolDescriptors: ToolDescriptor[] = [
   {
     name: "stage.context.read",
     description: "Read governed session context and the compiled handbook.",
     inputSchemaRef: "StageContextReadInput",
     outputSchemaRef: "StageContextReadOutput",
+  },
+  {
+    name: "stage.materials.prepare",
+    description: "Prepare grounded materials through Stage Kernel gating before presentation.",
+    inputSchemaRef: "StageMaterialsPrepareInput",
+    outputSchemaRef: "MusicMaterial[]",
   },
   {
     name: "music.material.ground",
@@ -187,6 +222,37 @@ function readPayload<TPayload extends object>(
     ...(defaults ?? {}),
     ...payloadObject,
   } as TPayload;
+}
+
+function isStableToolName(toolName: ToolName | string): toolName is ToolName {
+  return (stableToolNames as readonly string[]).includes(String(toolName));
+}
+
+async function ensureToolAvailableForSession(
+  stage: StageKernelPort,
+  sessionId: string,
+  toolName: ToolName,
+): Promise<Result<void>> {
+  const handbook = await stage.compileHandbook({ sessionId });
+
+  if (!handbook.ok) {
+    return handbook;
+  }
+
+  const isAvailable = handbook.value.availableInstruments.some((instrument) =>
+    instrument.tools.some((tool) => tool.name === toolName),
+  );
+
+  if (!isAvailable) {
+    return fail({
+      code: "instrument.tool_not_found",
+      message: `Tool '${toolName}' is not available for session '${sessionId}'.`,
+      module: "instruments",
+      retryable: false,
+    });
+  }
+
+  return ok(undefined);
 }
 
 function ok<T>(value: T): Result<T> {

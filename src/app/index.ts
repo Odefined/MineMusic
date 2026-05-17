@@ -53,8 +53,7 @@ export async function runRecommendationTranscript(
   }
 
   const groundedMaterials = groundedResult.value as MusicMaterial[];
-  const preparedResult = await runtime.stage.prepareMaterials({
-    sessionId: input.sessionId,
+  const preparedResult = await runtime.toolApi.tools["stage.materials.prepare"]({
     materials: groundedMaterials,
     purpose: "recommendation",
   });
@@ -63,7 +62,7 @@ export async function runRecommendationTranscript(
     return preparedResult;
   }
 
-  const presentedMaterials = preparedResult.value;
+  const presentedMaterials = preparedResult.value as MusicMaterial[];
   const response = buildRecommendationResponse(presentedMaterials);
   const eventResult = await runtime.toolApi.tools["events.record"]({
     event: {

@@ -3,7 +3,8 @@
 ## Scope
 
 This report covers the Wave 5 fixture end-to-end MVP slice, Wave 6 final review
-verification, and Wave 7 deterministic NetEase provider-adapter verification.
+verification, Wave 7 deterministic NetEase provider-adapter verification, and
+Wave 8 deterministic Codex MCP plugin-surface verification.
 
 The verified path is:
 
@@ -13,7 +14,7 @@ natural request
 -> Stage context read
 -> Source Resolution fixture provider
 -> Canonical Store identity attachment
--> Stage material preparation
+-> Stage material preparation through tool-visible `stage.materials.prepare`
 -> recommendation response with source-backed link
 -> factual event recording
 -> memory proposal
@@ -21,9 +22,10 @@ natural request
 ```
 
 This report claims successful live NetEase search-link smoke validation against
-the current local service. It does not claim durable storage, autonomous DJ
-behavior, playback execution, queue mutation, playlist writes, or source
-writeback.
+the current local service. It also claims deterministic MCP/plugin packaging
+verification. It does not claim fresh Codex app plugin visibility, durable
+storage, autonomous DJ behavior, playback execution, queue mutation, playlist
+writes, or source writeback.
 
 ## Verification Object
 
@@ -35,6 +37,12 @@ writeback.
 - `src/providers/netease/index.ts`
 - `test/providers/netease-source-provider.test.ts`
 - `test/live/netease-source-smoke.ts`
+- `src/surfaces/mcp/server.ts`
+- `test/surfaces/mcp-server.test.ts`
+- `test/plugins/plugin-packaging.test.ts`
+- `plugins/minemusic/.codex-plugin/plugin.json`
+- `plugins/minemusic/.mcp.json`
+- `.agents/plugins/marketplace.json`
 
 ## Method
 
@@ -46,6 +54,8 @@ The end-to-end slice constructs a runtime with:
 - Stage Kernel.
 - Instrument Catalog and Tool Dispatch.
 - Tool API facade.
+- Codex MCP helper tests that create prefixed `minemusic.*` tool definitions
+  from the same instrument descriptors.
 
 The test runs `runRecommendationTranscript(...)` for a realistic request:
 
@@ -99,11 +109,27 @@ NetEase provider adapter:
 - Link refresh can reconstruct a NetEase web song URL from a NetEase source
   ref.
 
+Codex MCP plugin surface:
+
+- `stage.materials.prepare` is included in the stable Tool API / instrument
+  tool set.
+- Tool Dispatch rejects normal instrument tools when the current Handbook does
+  not expose them, while `stage.context.read` and `session.update` remain
+  available.
+- MCP tool definitions use `minemusic.*` names and map back to internal
+  `ToolName` values.
+- MCP handlers delegate through `MineMusicToolApi` and return JSON text
+  containing the MineMusic `Result<T>` payload.
+- Plugin manifest, MCP config, and repo-local marketplace config have no
+  scaffold TODOs and point at `npm --prefix /Users/jiajuzang/Documents/Codex/MineMusic run mcp:minemusic`.
+
 ## Thin Stubs
 
 - Source access is a fixture provider.
 - NetEase live access is represented by an adapter and opt-in smoke command,
   not by always-on runtime composition.
+- Codex plugin packaging is repo-local and deterministic. It has not yet been
+  verified in a fresh live Codex plugin session.
 - Storage is in-memory.
 - The transcript runner is deterministic and does not claim to be an LLM.
 - Music Knowledge remains a thin service and is not on this critical path.
@@ -119,7 +145,8 @@ git diff --check
 ```
 
 All listed commands passed for Wave 7 deterministic verification in this
-workspace. `npm run smoke:netease` passed through the default skip path.
+workspace and Wave 8 deterministic MCP/plugin verification in this workspace.
+`npm run smoke:netease` passed through the default skip path.
 
 The explicit live command:
 
@@ -134,4 +161,5 @@ NetEase provider adapter.
 ## Remaining Work
 
 - Durable repository implementations.
-- Real host-surface integration.
+- Fresh Codex app plugin-session validation.
+- Broader host-surface integration beyond the repo-local MCP plugin surface.

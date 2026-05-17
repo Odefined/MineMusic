@@ -50,11 +50,29 @@ export type MineMusicRuntimeOptions = {
   canonicalRecords?: CanonicalRecord[];
 };
 
+export type MineMusicRuntimeWithSourceProviderOptions = {
+  session: StageSession;
+  sourceProvider: SourceProvider;
+  canonicalRecords?: CanonicalRecord[];
+};
+
 export function createMineMusicRuntime({
   session,
   sourceMaterials,
   canonicalRecords = [],
 }: MineMusicRuntimeOptions): MineMusicRuntime {
+  return createMineMusicRuntimeWithSourceProvider({
+    session,
+    sourceProvider: createFixtureSourceProvider(sourceMaterials),
+    canonicalRecords,
+  });
+}
+
+export function createMineMusicRuntimeWithSourceProvider({
+  session,
+  sourceProvider,
+  canonicalRecords = [],
+}: MineMusicRuntimeWithSourceProviderOptions): MineMusicRuntime {
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
@@ -93,12 +111,11 @@ export function createMineMusicRuntime({
     sessionId: session.id,
     dispatch,
   });
-  const fixtureSourceProvider = createFixtureSourceProvider(sourceMaterials);
   const ready = seedRuntime({
     canonicalRecords,
     canonicalRepository,
     plugins,
-    sourceProvider: fixtureSourceProvider,
+    sourceProvider,
   });
 
   return {

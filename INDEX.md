@@ -64,6 +64,24 @@ This index points agents to the current MVP documentation pack.
 18. `src/providers/netease/index.ts`
     - Read-only NetEase source provider adapter implementing `SourceProvider`.
 
+19. `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`
+    - Wave 8 design for exposing MineMusic instruments to Codex through a
+      repo-local MCP plugin.
+
+20. `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`
+    - Wave 8 implementation plan for Stage materials tooling, MCP registration,
+      and plugin packaging.
+
+21. `src/surfaces/mcp/server.ts`
+    - Codex-facing MCP server that derives prefixed tools from MineMusic
+      instrument descriptors and delegates to `MineMusicToolApi`.
+
+22. `plugins/minemusic/.codex-plugin/plugin.json`
+    - Repo-local Codex plugin manifest for the MineMusic MCP surface.
+
+23. `plugins/minemusic/.mcp.json`
+    - MCP startup config for the MineMusic plugin.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

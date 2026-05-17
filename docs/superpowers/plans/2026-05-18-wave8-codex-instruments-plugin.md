@@ -19,6 +19,7 @@
 - Create `src/surfaces/mcp/server.ts` for the MCP server and tool registration helpers.
 - Create `test/instruments/instrument-registry.test.ts` additions for `stage.materials.prepare` and enforcement.
 - Create `test/surfaces/mcp-server.test.ts` for MCP tool descriptor and call behavior.
+- Create `test/plugins/plugin-packaging.test.ts` for repo-local plugin config.
 - Create `plugins/minemusic/.codex-plugin/plugin.json`.
 - Create `plugins/minemusic/.mcp.json`.
 - Create or update `.agents/plugins/marketplace.json`.
@@ -34,7 +35,7 @@
 - Modify: `src/app/index.ts`
 - Test: `test/instruments/instrument-registry.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Add tests that assert:
 
@@ -44,7 +45,7 @@ stableToolNames.includes("stage.materials.prepare")
 
 and that `createToolDispatch(...).call({ toolName: "stage.materials.prepare", ... })` returns materials prepared by Stage Kernel. Add a second test where the session has `activeInstruments: ["other.instrument"]` and calling `music.material.ground` returns `instrument.tool_not_found`.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -54,11 +55,11 @@ npm run build:test
 
 Expected: failure because `stage.materials.prepare` is not yet a `ToolName`.
 
-- [ ] **Step 3: Implement minimal code**
+- [x] **Step 3: Implement minimal code**
 
 Add `stage.materials.prepare` to `ToolName`, `stableToolNames`, `toolDescriptors`, and `createToolDispatch(...)`. For non-discovery tools, check the compiled Handbook's `availableInstruments` before dispatch. Allow `stage.context.read` and `session.update` without instrument enforcement.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run:
 
@@ -74,11 +75,11 @@ Expected: all deterministic tests pass.
 - Modify: `src/runtime/index.ts`
 - Test: `test/surfaces/mcp-server.test.ts`
 
-- [ ] **Step 1: Write failing runtime test**
+- [x] **Step 1: Write failing runtime test**
 
 Add a test helper expectation that a Codex runtime can be created with the NetEase source provider without requiring fixture source materials.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -88,11 +89,11 @@ npm run build:test
 
 Expected: failure because the helper does not exist.
 
-- [ ] **Step 3: Implement runtime helper**
+- [x] **Step 3: Implement runtime helper**
 
 Add `createMineMusicRuntimeWithSourceProvider(...)` or equivalent. It should share the existing composition path, seed optional canonical records, and register the supplied source provider.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run:
 
@@ -110,14 +111,14 @@ Expected: all deterministic tests pass.
 - Test: `test/surfaces/mcp-server.test.ts`
 - Modify: `test/run-runtime-tests.ts`
 
-- [ ] **Step 1: Add explicit dependencies**
+- [x] **Step 1: Add explicit dependencies**
 
 Add:
 
 ```json
 "dependencies": {
   "@modelcontextprotocol/sdk": "^1.29.0",
-  "zod": "^4.0.0"
+  "zod": "^3.25.76"
 }
 ```
 
@@ -127,7 +128,7 @@ and add:
 "mcp:minemusic": "npm run build:test && node .tmp-test/src/surfaces/mcp/server.js"
 ```
 
-- [ ] **Step 2: Write failing MCP tests**
+- [x] **Step 2: Write failing MCP tests**
 
 Tests should assert:
 
@@ -135,7 +136,7 @@ Tests should assert:
 - `minemusic.stage.context.read` returns JSON text containing `handbook.availableInstruments`.
 - `minemusic.stage.materials.prepare` delegates through Tool API and returns gated material.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run:
 
@@ -145,7 +146,7 @@ npm run build:test
 
 Expected: failure because `src/surfaces/mcp/server.ts` does not exist.
 
-- [ ] **Step 4: Implement MCP server**
+- [x] **Step 4: Implement MCP server**
 
 Use `McpServer`, `StdioServerTransport`, and `zod`. Export pure helper functions for tests:
 
@@ -163,7 +164,7 @@ MCP handlers return:
 }
 ```
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run:
 
@@ -179,9 +180,9 @@ Expected: all deterministic tests pass.
 - Create: `plugins/minemusic/.codex-plugin/plugin.json`
 - Create: `plugins/minemusic/.mcp.json`
 - Create or modify: `.agents/plugins/marketplace.json`
-- Test: `test/surfaces/mcp-server.test.ts`
+- Test: `test/plugins/plugin-packaging.test.ts`
 
-- [ ] **Step 1: Write failing packaging test**
+- [x] **Step 1: Write failing packaging test**
 
 Add a test that reads the plugin manifest, MCP config, and marketplace file and asserts:
 
@@ -190,7 +191,7 @@ Add a test that reads the plugin manifest, MCP config, and marketplace file and 
 - MCP config contains a `minemusic` server with command `npm` and args including `run` and `mcp:minemusic`.
 - marketplace contains a local `./plugins/minemusic` entry.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run:
 
@@ -198,13 +199,14 @@ Run:
 npm run build:test
 ```
 
-Expected: failure because plugin files do not exist.
+Expected: failure because the marketplace file does not exist and scaffold
+manifest placeholders are not acceptable.
 
-- [ ] **Step 3: Create plugin files**
+- [x] **Step 3: Create plugin files**
 
 Create the repo-local plugin files with concrete metadata. The plugin is local and requires no external authentication.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run:
 
@@ -223,11 +225,11 @@ Expected: all deterministic tests pass.
 - Modify: `README.md`
 - Modify: `docs/mvp/verification-report.md`
 
-- [ ] **Step 1: Update docs**
+- [x] **Step 1: Update docs**
 
 Record Wave 8 as a Codex MCP plugin surface. State that Codex sees MineMusic instruments, not runtime internals. Also record that live Codex session visibility is not claimed unless tested in a fresh Codex plugin session.
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
 Run:
 
@@ -242,7 +244,7 @@ git diff --name-only
 
 Expected: deterministic checks pass, default smoke skips, live smoke passes if local NetEase remains reachable on port 3000, and diff includes only Wave 8 files.
 
-- [ ] **Step 3: Commit implementation**
+- [x] **Step 3: Commit implementation**
 
 Commit the implementation:
 

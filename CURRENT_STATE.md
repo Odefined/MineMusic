@@ -2,17 +2,21 @@
 
 ## Status
 
-MineMusic is at the Wave 7 live source-provider adapter implementation stage on
-`codex/wave7-live-source-provider`.
+MineMusic is at the Wave 8 Codex instruments plugin implementation stage on
+`codex/wave8-codex-instruments-plugin`.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
 core domain service skeletons, Stage Kernel, instrument registry, Tool API
-facade, a fixture end-to-end MVP slice, and contract/runtime tests.
+facade, a fixture end-to-end MVP slice, a read-only NetEase provider adapter,
+and contract/runtime tests.
 Wave 6 final review found and fixed one Stage Kernel public-method robustness
 issue. Wave 7 adds a read-only NetEase source provider adapter and opt-in live
 smoke command. The local NetEase service is currently verified through explicit
-live smoke against `http://127.0.0.1:3000`.
+live smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP
+plugin surface. The Codex surface exposes MineMusic instruments, not runtime
+internals, and deterministic MCP/plugin packaging tests pass. Fresh Codex app
+plugin visibility is not yet claimed.
 
 ## Source Basis
 
@@ -70,6 +74,9 @@ The current docs are based on `proposal.md` only.
 - Runtime composition is exported from `src/runtime/index.ts` and wires
   in-memory storage, fixture providers, core ports, Stage Kernel, Instrument
   dispatch, and Tool API.
+- Runtime composition also exports `createMineMusicRuntimeWithSourceProvider`
+  for host surfaces that need to register a concrete source provider without
+  fixture source materials.
 - The fixture transcript runner is exported from `src/app/index.ts`.
 - Fixture integration data lives in `fixtures/integration/mvp-fixture.ts`.
 - Fixture end-to-end verification is documented in
@@ -87,25 +94,40 @@ The current docs are based on `proposal.md` only.
   Source Resolution plugin-slot integration, and source-ref link refresh.
 - `npm run smoke:netease` provides opt-in live validation and skips unless
   `MINEMUSIC_LIVE_NETEASE=1`.
+- The Wave 8 Codex instruments plugin design is documented in
+  `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`.
+- The Wave 8 implementation plan is documented in
+  `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
+- `stage.materials.prepare` is a stable Tool API / Instrument tool, so Stage
+  Kernel material gating is Codex-visible.
+- Tool Dispatch enforces the current Handbook's available instruments for
+  normal instrument tools. `stage.context.read` remains available for
+  discovery, and `session.update` remains available for recovery.
+- The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
+  It prefixes tool names with `minemusic.` and delegates to
+  `MineMusicToolApi`, not provider or repository internals.
+- Repo-local Codex plugin packaging lives in `plugins/minemusic` with a local
+  marketplace entry at `.agents/plugins/marketplace.json`.
 
 ## Not Yet Implemented
 
 - Durable storage repositories beyond in-memory infrastructure.
-- Live NetEase provider success with a running local service.
-- Packaged Plugin Edge providers beyond the in-repo NetEase adapter.
-- Host-surface validation beyond the fixture MVP slice.
+- Packaged Plugin Edge providers beyond the in-repo NetEase adapter and
+  repo-local Codex MCP surface.
+- Fresh Codex app plugin installation and interactive tool visibility in a new
+  Codex session.
 
 ## Verification
 
-- `npm test` passes as of Wave 7 deterministic provider implementation.
-- `npm run typecheck` passes as of Wave 7 deterministic provider
+- `npm test` passes as of Wave 8 deterministic MCP/plugin implementation.
+- `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
 - `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
   `http://127.0.0.1:3000` in this session.
-- `git diff --check` passes as of Wave 7 deterministic provider
+- `git diff --check` passes as of Wave 8 deterministic MCP/plugin
   implementation.
-- Branch integration for Waves 1 through 6 is complete on `main`.
+- Branch integration for Waves 1 through 7 is complete on `main`.
 
 ## Known Constraints
 

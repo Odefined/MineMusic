@@ -52,6 +52,7 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   const calls: string[] = [];
+  const catalog = createInstrumentCatalog();
   const stage: StageKernelPort = {
     getSession: async ({ sessionId }) => {
       calls.push("stage.getSession");
@@ -63,19 +64,25 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     },
     compileHandbook: async () => {
       calls.push("stage.compileHandbook");
+      const instruments = await catalog.list({ session });
+      assert(instruments.ok, "test catalog should list instruments");
+
       return {
         ok: true,
         value: {
           sessionId: session.id,
           rules: [],
-          availableInstruments: [],
+          availableInstruments: instruments.value,
           permissionBoundaries: [],
           memorySummaries: [],
           pluginGuidance: [],
         },
       };
     },
-    prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    prepareMaterials: async ({ materials }) => {
+      calls.push("stage.prepareMaterials");
+      return { ok: true, value: materials };
+    },
   };
   const source: SourceResolutionPort = {
     ground: async () => {
@@ -182,6 +189,23 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   await assertOk(
     dispatch.call({
       sessionId: session.id,
+      toolName: "stage.materials.prepare",
+      payload: {
+        materials: [
+          {
+            id: "material-for-stage",
+            kind: "recording",
+            label: "Material For Stage",
+            state: "grounded",
+          } satisfies MusicMaterial,
+        ],
+        purpose: "recommendation",
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
       toolName: "session.update",
       payload: { sessionId: session.id, patch: { notes: "updated" } },
     }),
@@ -189,12 +213,86 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
 
   assert(calls.includes("stage.getSession"), "stage.context.read should call StageKernelPort");
   assert(calls.includes("stage.compileHandbook"), "stage.context.read should compile handbook");
+  assert(calls.includes("stage.prepareMaterials"), "stage.materials.prepare should call StageKernelPort");
   assert(calls.includes("source.ground"), "music.material.ground should call SourceResolutionPort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceResolutionPort");
   assert(calls.includes("events.record"), "events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("effects.propose"), "effects.propose should call EffectBoundaryPort");
   assert(calls.includes("stage.updateSession"), "session.update should call StageKernelPort");
+}
+
+async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promise<void> {
+  const restrictedSession: StageSession = {
+    ...session,
+    activeInstruments: ["other.instrument"],
+  };
+  const stage: StageKernelPort = {
+    getSession: async () => ({ ok: true, value: restrictedSession }),
+    updateSession: async ({ patch }) => ({ ok: true, value: { ...restrictedSession, ...patch } }),
+    compileHandbook: async () => {
+      const instruments = await createInstrumentCatalog().list({ session: restrictedSession });
+      assert(instruments.ok, "test catalog should list instruments");
+
+      return {
+        ok: true,
+        value: {
+          sessionId: restrictedSession.id,
+          rules: [],
+          availableInstruments: instruments.value,
+          permissionBoundaries: [],
+          memorySummaries: [],
+          pluginGuidance: [],
+        },
+      };
+    },
+    prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+  };
+  const dispatch = createToolDispatch({
+    stage,
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "now" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+  });
+
+  const context = await dispatch.call({
+    sessionId: restrictedSession.id,
+    toolName: "stage.context.read",
+    payload: {},
+  });
+  assert(context.ok, "stage.context.read should remain available for instrument discovery");
+
+  const update = await dispatch.call({
+    sessionId: restrictedSession.id,
+    toolName: "session.update",
+    payload: { sessionId: restrictedSession.id, patch: { notes: "recover" } },
+  });
+  assert(update.ok, "session.update should remain available for recovery");
+
+  const result = await dispatch.call({
+    sessionId: restrictedSession.id,
+    toolName: "music.material.ground",
+    payload: { query: { text: "quiet" } },
+  });
+  assert(!result.ok, "instrument tools should fail when no active instrument exposes them");
+  assert(result.error.code === "instrument.tool_not_found", "instrument gating should use stable tool error");
 }
 
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {
@@ -217,4 +315,5 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
 
 await listsStableLlmVisibleToolsWithoutProviderDetails();
 await dispatchesStableToolNamesThroughInjectedPorts();
+await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
 await reportsUnknownToolsAsResultErrors();

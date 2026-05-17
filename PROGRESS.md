@@ -110,10 +110,31 @@
   skips unless `MINEMUSIC_LIVE_NETEASE=1`.
 - Explicit live smoke against `http://127.0.0.1:3000` passes, so live NetEase
   search-link validation is claimed for the current local service.
+- Merged `codex/wave7-live-source-provider` locally back to `main`.
+- Entered Wave 8 on branch `codex/wave8-codex-instruments-plugin`.
+- Added the Wave 8 Codex instruments plugin design spec at
+  `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`.
+- Added the Wave 8 implementation plan at
+  `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
+- Added `stage.materials.prepare` as a stable instrument/tool API entry and
+  routed the fixture transcript through the tool-visible Stage Kernel gate.
+- Added Handbook-based instrument enforcement in Tool Dispatch while keeping
+  `stage.context.read` available for discovery and `session.update` available
+  for recovery.
+- Added `createMineMusicRuntimeWithSourceProvider(...)` for host surfaces that
+  need a concrete source provider runtime.
+- Added a Codex-facing MCP server in `src/surfaces/mcp/server.ts` with
+  `minemusic.*` tool names derived from MineMusic instrument descriptors.
+- Added repo-local Codex plugin packaging under `plugins/minemusic` and a local
+  marketplace entry at `.agents/plugins/marketplace.json`.
+- Added deterministic tests for instrument enforcement, source-provider runtime
+  composition, MCP tool definitions/handlers, and plugin packaging.
 
 ## Next
 
-- Decide whether to merge `codex/wave7-live-source-provider` back to `main`,
-  push a PR, keep the branch, or discard the branch.
-- Later implementation should target durable storage and host surface validation
-  without moving recommendation logic into host adapters.
+- Verify the repo-local plugin in a fresh Codex plugin session before claiming
+  live Codex tool visibility.
+- Decide whether to merge `codex/wave8-codex-instruments-plugin` back to
+  `main`, push a PR, keep the branch, or discard the branch.
+- Later implementation should target durable storage and richer host-surface
+  validation without moving recommendation logic into host adapters.
