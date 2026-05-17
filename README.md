@@ -50,18 +50,25 @@ effect boundaries.
 
 ## Development
 
-Waves 1 through 6 have established the TypeScript contract, public-port
+Waves 1 through 7 have established the TypeScript contract, public-port
 harness, in-memory repository foundation, plugin registry foundation, core
 domain module skeletons, Stage Kernel, instrument registry, Tool API facade,
-fixture end-to-end MVP slice, and final review documentation.
+fixture end-to-end MVP slice, final review documentation, and a read-only
+NetEase source provider adapter with opt-in live smoke validation.
 
 ```bash
 npm test
+npm run smoke:netease
 ```
 
 The test command runs TypeScript contract/type checks, compiles tests into
 `.tmp-test/`, and executes storage, plugin registry, core domain, stage,
-instrument, tool API, and integration runtime tests.
+instrument, provider, tool API, and integration runtime tests.
+
+`npm run smoke:netease` skips by default. Set `MINEMUSIC_LIVE_NETEASE=1` to
+validate against a local NetEase Cloud Music API service. The default endpoint
+is `http://127.0.0.1:1300`, and it can be changed with
+`MINEMUSIC_NETEASE_BASE_URL`.
 
 ## Non-Goals
 

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build:test": "tsc -p tsconfig.test.json",
+    "smoke:netease": "npm run build:test && node .tmp-test/test/live/netease-source-smoke.js",
     "test": "npm run typecheck && npm run test:runtime",
     "test:runtime": "npm run build:test && node .tmp-test/test/run-runtime-tests.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"

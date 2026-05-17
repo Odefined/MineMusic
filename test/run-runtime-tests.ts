@@ -6,6 +6,7 @@ import "./effects/effect-boundary.test.js";
 import "./memory/memory-service.test.js";
 import "./knowledge/music-knowledge.test.js";
 import "./source/source-resolution.test.js";
+import "./providers/netease-source-provider.test.js";
 import "./stage/stage-kernel.test.js";
 import "./instruments/instrument-registry.test.js";
 import "./tool_api/tool-api.test.js";

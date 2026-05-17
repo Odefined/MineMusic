@@ -57,6 +57,13 @@ This index points agents to the current MVP documentation pack.
     - Wave 7 design for validating one live read-only source provider through
       the existing source provider slot.
 
+17. `docs/superpowers/plans/2026-05-18-wave7-live-source-provider.md`
+    - Wave 7 implementation plan for the NetEase provider adapter and opt-in
+      live smoke.
+
+18. `src/providers/netease/index.ts`
+    - Read-only NetEase source provider adapter implementing `SourceProvider`.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

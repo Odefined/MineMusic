@@ -2,8 +2,7 @@
 
 ## Status
 
-MineMusic is at the Wave 6 final-reviewed fixture MVP implementation
-foundation, with Wave 7 live source-provider validation now planned on
+MineMusic is at the Wave 7 live source-provider adapter implementation stage on
 `codex/wave7-live-source-provider`.
 
 The current implementation contains TypeScript shared contracts, public module
@@ -11,7 +10,10 @@ ports, in-memory repository infrastructure, plugin registry infrastructure, and
 core domain service skeletons, Stage Kernel, instrument registry, Tool API
 facade, a fixture end-to-end MVP slice, and contract/runtime tests.
 Wave 6 final review found and fixed one Stage Kernel public-method robustness
-issue. No live provider or host-surface behavior is claimed complete.
+issue. Wave 7 adds a read-only NetEase source provider adapter and opt-in live
+smoke command. The local NetEase service is not currently verified as live:
+explicit live smoke against `http://127.0.0.1:1300` reports provider
+unavailable.
 
 ## Source Basis
 
@@ -78,18 +80,33 @@ The current docs are based on `proposal.md` only.
 - The Wave 1-6 implementation branch was merged locally into `main`.
 - Wave 7 live source-provider validation design is documented in
   `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
+- Wave 7 implementation plan is documented in
+  `docs/superpowers/plans/2026-05-18-wave7-live-source-provider.md`.
+- NetEase source provider adapter is exported from
+  `src/providers/netease/index.ts`.
+- NetEase provider tests cover fixture payload mapping, blocked material,
+  Source Resolution plugin-slot integration, and source-ref link refresh.
+- `npm run smoke:netease` provides opt-in live validation and skips unless
+  `MINEMUSIC_LIVE_NETEASE=1`.
 
 ## Not Yet Implemented
 
-- Concrete Plugin Edge providers.
 - Durable storage repositories beyond in-memory infrastructure.
-- Live provider or host-surface validation beyond the fixture MVP slice.
+- Live NetEase provider success with a running local service.
+- Packaged Plugin Edge providers beyond the in-repo NetEase adapter.
+- Host-surface validation beyond the fixture MVP slice.
 
 ## Verification
 
-- `npm test` passes as of Wave 6.
-- `npm run typecheck` passes as of Wave 6.
-- `git diff --check` passes as of Wave 6.
+- `npm test` passes as of Wave 7 deterministic provider implementation.
+- `npm run typecheck` passes as of Wave 7 deterministic provider
+  implementation.
+- `npm run smoke:netease` skips successfully unless explicitly enabled.
+- `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` currently fails with
+  `source.provider_unavailable` because `http://127.0.0.1:1300` is not
+  reachable in this session.
+- `git diff --check` passes as of Wave 7 deterministic provider
+  implementation.
 - Branch integration for Waves 1 through 6 is complete on `main`.
 
 ## Known Constraints
