@@ -20,9 +20,10 @@ natural request
 -> effect proposal
 ```
 
-This report does not claim successful live NetEase service validation, durable
-storage, autonomous DJ behavior, playback execution, queue mutation, playlist
-writes, or source writeback.
+This report claims successful live NetEase search-link smoke validation against
+the current local service. It does not claim durable storage, autonomous DJ
+behavior, playback execution, queue mutation, playlist writes, or source
+writeback.
 
 ## Verification Object
 
@@ -126,13 +127,11 @@ The explicit live command:
 MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease
 ```
 
-was also run in this workspace and failed with
-`source.provider_unavailable NetEase provider is unavailable at
-http://127.0.0.1:1300.` This means the live NetEase service is not verified in
-the current session.
+was also run in this workspace and passed against
+`http://127.0.0.1:3000`, returning at least one live material through the
+NetEase provider adapter.
 
 ## Remaining Work
 
-- Successful live NetEase smoke with a reachable local service.
 - Durable repository implementations.
 - Real host-surface integration.

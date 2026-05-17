@@ -67,7 +67,7 @@ instrument, provider, tool API, and integration runtime tests.
 
 `npm run smoke:netease` skips by default. Set `MINEMUSIC_LIVE_NETEASE=1` to
 validate against a local NetEase Cloud Music API service. The default endpoint
-is `http://127.0.0.1:1300`, and it can be changed with
+is `http://127.0.0.1:3000`, and it can be changed with
 `MINEMUSIC_NETEASE_BASE_URL`.
 
 ## Non-Goals

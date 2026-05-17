@@ -96,8 +96,8 @@
   `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
 - Updated current state and verification notes to remove the stale branch
   integration blocker.
-- Corrected the planned local NetEase Cloud Music API endpoint to default to
-  `http://127.0.0.1:1300`.
+- Corrected the local NetEase Cloud Music API endpoint to default to
+  `http://127.0.0.1:3000` after live endpoint confirmation.
 - Added Wave 7 implementation plan at
   `docs/superpowers/plans/2026-05-18-wave7-live-source-provider.md`.
 - Added read-only NetEase source provider adapter in
@@ -108,13 +108,12 @@
   source-ref link refresh.
 - Added `npm run smoke:netease` with opt-in live validation. Default smoke
   skips unless `MINEMUSIC_LIVE_NETEASE=1`.
-- Explicit live smoke against `http://127.0.0.1:1300` currently reports
-  `source.provider_unavailable`, so live NetEase service success is not claimed.
+- Explicit live smoke against `http://127.0.0.1:3000` passes, so live NetEase
+  search-link validation is claimed for the current local service.
 
 ## Next
 
-- Start or point to a reachable NetEase Cloud Music API service on
-  `http://127.0.0.1:1300`, then rerun
-  `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease`.
+- Decide whether to merge `codex/wave7-live-source-provider` back to `main`,
+  push a PR, keep the branch, or discard the branch.
 - Later implementation should target durable storage and host surface validation
   without moving recommendation logic into host adapters.

@@ -11,9 +11,8 @@ core domain service skeletons, Stage Kernel, instrument registry, Tool API
 facade, a fixture end-to-end MVP slice, and contract/runtime tests.
 Wave 6 final review found and fixed one Stage Kernel public-method robustness
 issue. Wave 7 adds a read-only NetEase source provider adapter and opt-in live
-smoke command. The local NetEase service is not currently verified as live:
-explicit live smoke against `http://127.0.0.1:1300` reports provider
-unavailable.
+smoke command. The local NetEase service is currently verified through explicit
+live smoke against `http://127.0.0.1:3000`.
 
 ## Source Basis
 
@@ -102,9 +101,8 @@ The current docs are based on `proposal.md` only.
 - `npm run typecheck` passes as of Wave 7 deterministic provider
   implementation.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
-- `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` currently fails with
-  `source.provider_unavailable` because `http://127.0.0.1:1300` is not
-  reachable in this session.
+- `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
+  `http://127.0.0.1:3000` in this session.
 - `git diff --check` passes as of Wave 7 deterministic provider
   implementation.
 - Branch integration for Waves 1 through 6 is complete on `main`.

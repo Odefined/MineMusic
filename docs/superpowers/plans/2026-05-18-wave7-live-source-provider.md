@@ -51,7 +51,7 @@ Expected: TypeScript fails because `src/providers/netease/index.ts` does not exi
 Create `createNetEaseSourceProvider(...)` with:
 
 ```typescript
-export const defaultNetEaseBaseUrl = "http://127.0.0.1:1300";
+export const defaultNetEaseBaseUrl = "http://127.0.0.1:3000";
 export function createNetEaseSourceProvider(options: NetEaseSourceProviderOptions = {}): SourceProvider;
 ```
 
@@ -118,7 +118,7 @@ Expected: all runtime tests pass.
 The script must:
 
 - skip unless `MINEMUSIC_LIVE_NETEASE=1`.
-- default to `http://127.0.0.1:1300`.
+- default to `http://127.0.0.1:3000`.
 - allow override with `MINEMUSIC_NETEASE_BASE_URL`.
 - use the provider adapter rather than duplicating HTTP logic.
 - exit nonzero when explicitly enabled and the provider cannot return any material.

@@ -65,7 +65,7 @@ Wave 7 should implement a single provider adapter in a provider-owned path, for
 example `src/providers/netease/index.ts`.
 
 The local NetEase Cloud Music API endpoint for this workspace should default to
-`http://127.0.0.1:1300`, based on the user's current environment note. The
+`http://127.0.0.1:3000`, based on the user's corrected environment note. The
 implementation must still verify the endpoint shape before treating the
 response as provider evidence, and the base URL should remain configurable for
 other environments.
@@ -123,7 +123,7 @@ Wave 7 needs three test layers:
 1. adapter unit tests with local fixture payloads from the live provider shape.
 2. integration tests proving the adapter can be registered through
    `PluginRegistryPort` and consumed by `SourceResolutionPort`.
-3. an opt-in live smoke command that defaults to `http://127.0.0.1:1300` and is
+3. an opt-in live smoke command that defaults to `http://127.0.0.1:3000` and is
    skipped unless live provider access is explicitly enabled.
 
 The normal verification path remains:

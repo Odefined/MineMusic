@@ -8,7 +8,7 @@ import type {
   StageError,
 } from "../../contracts/index.js";
 
-export const defaultNetEaseBaseUrl = "http://127.0.0.1:1300";
+export const defaultNetEaseBaseUrl = "http://127.0.0.1:3000";
 
 export type NetEaseRequestInput = {
   path: string;
