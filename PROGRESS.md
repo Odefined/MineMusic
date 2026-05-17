@@ -96,6 +96,8 @@
   `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
 - Updated current state and verification notes to remove the stale branch
   integration blocker.
+- Corrected the planned local NetEase Cloud Music API endpoint to default to
+  `http://127.0.0.1:1300`.
 
 ## Next
 
