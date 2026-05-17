@@ -24,6 +24,9 @@ This report does not claim live provider validation, durable storage,
 autonomous DJ behavior, playback execution, queue mutation, playlist writes, or
 source writeback.
 
+Wave 7 live source-provider validation is planned separately in
+`docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
+
 ## Verification Object
 
 - `src/runtime/index.ts`
@@ -103,4 +106,3 @@ All listed commands passed for Wave 6 final review in this workspace.
 - Live provider validation.
 - Durable repository implementations.
 - Real host-surface integration.
-- Branch integration decision.

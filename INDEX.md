@@ -53,6 +53,10 @@ This index points agents to the current MVP documentation pack.
 15. `PROGRESS.md`
     - Change log for the MVP documentation baseline.
 
+16. `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`
+    - Wave 7 design for validating one live read-only source provider through
+      the existing source provider slot.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

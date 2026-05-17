@@ -3,7 +3,8 @@
 ## Status
 
 MineMusic is at the Wave 6 final-reviewed fixture MVP implementation
-foundation.
+foundation, with Wave 7 live source-provider validation now planned on
+`codex/wave7-live-source-provider`.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -74,19 +75,22 @@ The current docs are based on `proposal.md` only.
   `docs/mvp/verification-report.md`.
 - Wave 6 final review is documented in `docs/mvp/final-review.md`.
 - Stage Kernel public methods are covered for detached public-port usage.
+- The Wave 1-6 implementation branch was merged locally into `main`.
+- Wave 7 live source-provider validation design is documented in
+  `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
 
 ## Not Yet Implemented
 
 - Concrete Plugin Edge providers.
 - Durable storage repositories beyond in-memory infrastructure.
 - Live provider or host-surface validation beyond the fixture MVP slice.
-- Branch integration.
 
 ## Verification
 
 - `npm test` passes as of Wave 6.
 - `npm run typecheck` passes as of Wave 6.
 - `git diff --check` passes as of Wave 6.
+- Branch integration for Waves 1 through 6 is complete on `main`.
 
 ## Known Constraints
 

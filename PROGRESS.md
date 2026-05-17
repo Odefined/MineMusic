@@ -86,10 +86,21 @@
 - Updated verification and state docs to distinguish the fixture MVP slice from
   live provider or durable-storage completion.
 - Verified Wave 6 with `npm test`, `npm run typecheck`, and `git diff --check`.
+- Merged `codex/wave1-foundation` locally into `main` after Wave 6
+  verification.
+
+## 2026-05-18
+
+- Entered Wave 7 planning on branch `codex/wave7-live-source-provider`.
+- Added the Wave 7 live source-provider design spec at
+  `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
+- Updated current state and verification notes to remove the stale branch
+  integration blocker.
 
 ## Next
 
-- Decide whether to merge locally, push a PR, keep the branch, or discard the
-  branch.
-- Future implementation should target live providers, durable storage, and host
-  surface validation without moving recommendation logic into host adapters.
+- Review the Wave 7 design spec before implementation planning.
+- After approval, create an implementation plan for a read-only live source
+  provider adapter and opt-in live smoke validation.
+- Later implementation should target durable storage and host surface validation
+  without moving recommendation logic into host adapters.
