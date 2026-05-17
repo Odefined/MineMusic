@@ -26,9 +26,22 @@
   including separate `InstrumentCatalogPort` and `ToolDispatchPort`.
 - Added contract/type tests in `test/contracts/wave1-contracts.test.ts`.
 - Verified Wave 1 with `npm test` and `npm run typecheck`.
+- Entered Wave 2 for storage and plugin registry foundations.
+- Switched the TypeScript test harness to NodeNext ESM imports and added
+  `tsconfig.test.json` for compiled runtime tests.
+- Added in-memory repositories in `src/storage/index.ts` for sessions,
+  canonical records, events, memory entries, and effect proposals.
+- Added repository runtime tests in
+  `test/storage/in-memory-repositories.test.ts`, including instance isolation
+  and returned-copy checks.
+- Added plugin registry infrastructure in `src/plugins/index.ts` with
+  slot-scoped provider registration, provider listing, provider lookup, and
+  stable `plugin.provider_not_found` errors.
+- Added plugin registry runtime tests in `test/plugins/plugin-registry.test.ts`.
+- Verified Wave 2 with `npm test`.
 
 ## Next
 
-- Continue with Wave 2 storage and plugin registry foundations.
+- Continue with Wave 3 core domain modules.
 - Keep downstream modules importing only `src/contracts/**` and `src/ports/**`
   rather than other modules' private implementations.

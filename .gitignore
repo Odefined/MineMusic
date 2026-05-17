@@ -1,6 +1,7 @@
 .DS_Store
 node_modules/
 .npm-cache/
+.tmp-test/
 
 # Old snapshots and large local artifacts are not authority for the fresh MVP.
 archive 2/

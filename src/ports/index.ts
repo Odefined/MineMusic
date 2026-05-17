@@ -15,7 +15,7 @@ import type {
   StageEvent,
   StageSession,
   ToolName,
-} from "../contracts";
+} from "../contracts/index.js";
 
 export interface StageKernelPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;

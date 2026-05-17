@@ -18,8 +18,8 @@ import type {
   StageSession,
   StageWarning,
   ToolName,
-} from "../../src/contracts";
-import { stageErrorCodes } from "../../src/contracts";
+} from "../../src/contracts/index.js";
+import { stageErrorCodes } from "../../src/contracts/index.js";
 import type {
   CanonicalRecordRepository,
   CanonicalStorePort,
@@ -37,7 +37,7 @@ import type {
   SourceResolutionPort,
   StageKernelPort,
   ToolDispatchPort,
-} from "../../src/ports";
+} from "../../src/ports/index.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,

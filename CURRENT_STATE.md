@@ -2,10 +2,11 @@
 
 ## Status
 
-MineMusic is at the Wave 1 MVP implementation foundation.
+MineMusic is at the Wave 2 MVP implementation foundation.
 
 The current implementation contains TypeScript shared contracts, public module
-ports, and contract/type tests. No runtime module behavior is claimed complete.
+ports, in-memory repository infrastructure, plugin registry infrastructure, and
+contract/runtime tests. Core domain services are not yet implemented.
 
 ## Source Basis
 
@@ -34,6 +35,12 @@ The current docs are based on `proposal.md` only.
 - Shared contracts are exported from `src/contracts/index.ts`.
 - Public ports and repository interfaces are exported from `src/ports/index.ts`.
 - Contract/type coverage exists in `test/contracts/wave1-contracts.test.ts`.
+- Wave 2 runtime test harness compiles test files into `.tmp-test/`.
+- In-memory repositories are exported from `src/storage/index.ts` for sessions,
+  canonical records, events, memory entries, and effect proposals.
+- Plugin registry infrastructure is exported from `src/plugins/index.ts` with
+  slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
+  behavior.
 
 ## Not Yet Implemented
 
@@ -44,14 +51,14 @@ The current docs are based on `proposal.md` only.
 - Event Service.
 - Memory Service.
 - Effect Boundary.
-- Plugin Edge providers.
-- Storage repositories.
+- Concrete Plugin Edge providers.
+- Durable storage repositories beyond in-memory infrastructure.
 - End-to-end MVP runtime validation.
 
 ## Verification
 
-- `npm test` passes as of Wave 1.
-- `npm run typecheck` passes as of Wave 1.
+- `npm test` passes as of Wave 2.
+- `npm run typecheck` passes as of Wave 2.
 
 ## Known Constraints
 

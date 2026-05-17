@@ -46,14 +46,15 @@ effect boundaries.
 
 ## Development
 
-Wave 1 has established the TypeScript contract and public-port harness.
+Waves 1 and 2 have established the TypeScript contract, public-port harness,
+in-memory repository foundation, and plugin registry foundation.
 
 ```bash
 npm test
 ```
 
-The test command runs TypeScript type checks over `src/**/*.ts` and
-`test/**/*.ts`.
+The test command runs TypeScript type checks, compiles tests into `.tmp-test/`,
+and executes the storage and plugin registry runtime tests.
 
 ## Non-Goals
 
