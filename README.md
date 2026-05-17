@@ -2,8 +2,9 @@
 
 MineMusic is a music stage for an LLM music partner, secretary, and agent.
 
-This repository is currently in a fresh MVP documentation stage. The only
-product source for this document pack is `proposal.md`.
+This repository is currently in an MVP implementation-foundation stage. The
+product source remains `proposal.md`, and the implementation contracts follow
+the MVP documentation pack.
 
 The MVP goal is to prove one user-facing chain:
 
@@ -42,6 +43,17 @@ effect boundaries.
 - `docs/mvp/agent-collaboration.md`: communication protocol for multiple agents.
 - `plan/subagent_mvp_master_plan.md`: coordinator plan for completing the MVP
   with subagents.
+
+## Development
+
+Wave 1 has established the TypeScript contract and public-port harness.
+
+```bash
+npm test
+```
+
+The test command runs TypeScript type checks over `src/**/*.ts` and
+`test/**/*.ts`.
 
 ## Non-Goals
 

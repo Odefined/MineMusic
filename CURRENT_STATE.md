@@ -2,11 +2,10 @@
 
 ## Status
 
-MineMusic is at a fresh MVP documentation baseline.
+MineMusic is at the Wave 1 MVP implementation foundation.
 
-No implementation is claimed complete by this document pack. The current
-deliverable is an architecture and interface contract set that independent
-agents can use to implement the MVP modules.
+The current implementation contains TypeScript shared contracts, public module
+ports, and contract/type tests. No runtime module behavior is claimed complete.
 
 ## Source Basis
 
@@ -31,10 +30,13 @@ The current docs are based on `proposal.md` only.
   `ToolDispatchPort` to avoid a circular public-port contract.
 - `StageVibe` is part of session/Handbook guidance, and Music Knowledge remains
   a thin MVP stub unless later promoted.
+- Wave 1 TypeScript build harness exists in `package.json` and `tsconfig.json`.
+- Shared contracts are exported from `src/contracts/index.ts`.
+- Public ports and repository interfaces are exported from `src/ports/index.ts`.
+- Contract/type coverage exists in `test/contracts/wave1-contracts.test.ts`.
 
 ## Not Yet Implemented
 
-- Shared TypeScript contracts.
 - Stage Kernel.
 - Instrument registry and LLM-facing tool surface.
 - Canonical Store.
@@ -45,6 +47,11 @@ The current docs are based on `proposal.md` only.
 - Plugin Edge providers.
 - Storage repositories.
 - End-to-end MVP runtime validation.
+
+## Verification
+
+- `npm test` passes as of Wave 1.
+- `npm run typecheck` passes as of Wave 1.
 
 ## Known Constraints
 

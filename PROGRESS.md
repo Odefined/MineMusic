@@ -15,9 +15,20 @@
   split into catalog and dispatch ports, `StageVibe` is explicit, Music
   Knowledge is marked as a thin stub, and source-only event targets are bounded.
 - Marked implementation as not yet started.
+- Entered Wave 1 on branch `codex/wave1-foundation`.
+- Added the TypeScript build/typecheck harness in `package.json` and
+  `tsconfig.json`.
+- Added shared MVP contracts in `src/contracts/index.ts`, including
+  `Result<T>`, `StageError`, `StageWarning`, `DomainEvent`, material states,
+  providers, instrument descriptors, proposals, and stable error-code
+  definitions.
+- Added public module ports and repository interfaces in `src/ports/index.ts`,
+  including separate `InstrumentCatalogPort` and `ToolDispatchPort`.
+- Added contract/type tests in `test/contracts/wave1-contracts.test.ts`.
+- Verified Wave 1 with `npm test` and `npm run typecheck`.
 
 ## Next
 
-- Freeze shared contracts for the MVP.
-- Assign independent implementation agents by workstream.
-- Implement modules in phase order from `plan/mvp_phase_plan.md`.
+- Continue with Wave 2 storage and plugin registry foundations.
+- Keep downstream modules importing only `src/contracts/**` and `src/ports/**`
+  rather than other modules' private implementations.
