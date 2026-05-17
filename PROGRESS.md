@@ -134,6 +134,9 @@
   manifest to expose `./skills/`.
 - Replaced the generic MCP passthrough input schema with explicit schemas for
   argument-bearing MineMusic tools.
+- Corrected the MineMusic workflow skill so listening environments such as
+  writing code are treated as agent interpretation context, not as literal song
+  title/provider-search text.
 
 ## Next
 

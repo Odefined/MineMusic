@@ -35,6 +35,22 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
     skillText.includes("minemusic.music.material.ground"),
     "MineMusic skill should route grounding through the current material tool",
   );
+  assert(
+    skillText.includes("listening context"),
+    "MineMusic skill should distinguish listening context from source search text",
+  );
+  assert(
+    skillText.includes("source-searchable candidate"),
+    "MineMusic skill should require agent-selected source-searchable candidates",
+  );
+  assert(
+    skillText.includes("Do not send environment words"),
+    "MineMusic skill should forbid using environment terms as literal song searches",
+  );
+  assert(
+    !skillText.includes("with the user's wording"),
+    "MineMusic skill should not tell agents to search providers with the raw user request",
+  );
   assert(!skillText.includes("minemusic.context.read"), "MineMusic skill should not mention the old context tool");
   assert(!skillText.includes("minemusic.candidates.build"), "MineMusic skill should not mention the old candidate tool");
   assert(!skillText.includes("minemusic.memory.propose_update"), "MineMusic skill should not mention old memory tool");

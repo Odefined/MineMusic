@@ -174,7 +174,7 @@ export const instrumentToolDescriptors: ToolDescriptor[] = [
   },
   {
     name: "music.material.ground",
-    description: "Ground a natural music query through source resolution.",
+    description: "Ground a source-searchable candidate through source resolution.",
     inputSchemaRef: "SourceQuery",
     outputSchemaRef: "MusicMaterial[]",
   },

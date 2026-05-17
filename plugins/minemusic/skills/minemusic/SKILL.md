@@ -12,19 +12,27 @@ guidance, event records, memory proposals, and effect proposals.
 ## Required Flow
 
 1. Call `minemusic.stage.context.read` first and follow the returned Handbook.
-2. For recommendations or playable-link requests, call
-   `minemusic.music.material.ground` with the user's wording:
+2. Interpret the user's listening context yourself. "Writing code", "walking",
+   "late night", or "not too sleepy" are listening context, not literal song
+   titles.
+3. Choose one or more source-searchable candidate queries from your musical
+   judgment, such as a song title plus artist, an artist name, or a concrete
+   album/track query. Do not send environment words like "coding", "study", or
+   "sleepy" as literal provider searches unless the user actually asked for a
+   song/title with that word.
+4. For recommendations or playable-link requests, call
+   `minemusic.music.material.ground` with the source-searchable candidate:
 
 ```json
 {
   "query": {
-    "text": "user's music request",
+    "text": "candidate song or artist query",
     "limit": 3
   }
 }
 ```
 
-3. Before presenting any material or link, call
+5. Before presenting any material or link, call
    `minemusic.stage.materials.prepare`:
 
 ```json
@@ -34,14 +42,14 @@ guidance, event records, memory proposals, and effect proposals.
 }
 ```
 
-4. Present prepared material honestly. A direct playable link needs a prepared
+6. Present prepared material honestly. A direct playable link needs a prepared
    material in `confirmed_playable` or `source_only_playable` state with a
    `playableLinks` entry.
-5. Record user feedback such as liked, disliked, wrong version, not playable,
+7. Record user feedback such as liked, disliked, wrong version, not playable,
    too loud, too boring, or accepted with `minemusic.events.record`.
-6. For durable preference learning, call `minemusic.memory.propose`; do not
+8. For durable preference learning, call `minemusic.memory.propose`; do not
    write memory directly.
-7. For external actions such as open, play, queue, save, source writeback, or
+9. For external actions such as open, play, queue, save, source writeback, or
    notification, call `minemusic.effects.propose`; do not execute the action
    directly.
 

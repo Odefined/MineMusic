@@ -48,6 +48,14 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     descriptors.every((descriptor) => !descriptor.label.includes("fixture") && !descriptor.label.includes("provider")),
     "instrument catalog should hide provider internals",
   );
+  const groundTool = descriptors
+    .flatMap((descriptor) => descriptor.tools)
+    .find((tool) => tool.name === "music.material.ground");
+  assert(groundTool !== undefined, "catalog should expose the material grounding tool");
+  assert(
+    groundTool.description.includes("source-searchable"),
+    "grounding tool description should not imply provider search is semantic recommendation",
+  );
 }
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {

@@ -115,6 +115,10 @@ The current docs are based on `proposal.md` only.
   `plugins/minemusic/skills/minemusic/SKILL.md`. The skill triggers on music
   requests and routes agents through `stage.context.read`,
   `music.material.ground`, and `stage.materials.prepare`.
+- The workflow skill now distinguishes listening context from provider search
+  text. Environment terms such as writing code, study, walking, late night, or
+  not too sleepy are musical context for the agent to interpret, not literal
+  source-search strings.
 
 ## Not Yet Implemented
 
