@@ -23,12 +23,55 @@ export type MineMusicMcpToolResult = {
 export type MineMusicMcpToolDefinition = {
   name: string;
   description: string;
-  inputSchema: z.ZodObject<{}, z.core.$strip>;
+  inputSchema: z.ZodRawShape;
   handler: (payload: Record<string, unknown>) => Promise<MineMusicMcpToolResult>;
 };
 
 const mcpToolPrefix = "minemusic.";
-const payloadSchema = z.object({}).passthrough();
+const refSchema = z.object({
+  namespace: z.string(),
+  kind: z.string(),
+  id: z.string(),
+  label: z.string().optional(),
+  url: z.string().optional(),
+});
+const musicMaterialSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  label: z.string(),
+  state: z.string(),
+}).passthrough();
+const inputSchemas = {
+  "stage.context.read": {},
+  "stage.materials.prepare": {
+    materials: z.array(musicMaterialSchema),
+    purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
+  },
+  "music.material.ground": {
+    query: z.object({
+      text: z.string().optional(),
+      canonicalRef: refSchema.optional(),
+      sourceRef: refSchema.optional(),
+      limit: z.number().int().positive().optional(),
+    }),
+  },
+  "music.links.refresh": {
+    material: musicMaterialSchema,
+  },
+  "events.record": {
+    event: z.object({}).passthrough(),
+  },
+  "memory.propose": {
+    proposal: z.object({}).passthrough(),
+  },
+  "effects.propose": {
+    proposal: z.object({}).passthrough(),
+  },
+  "session.update": {
+    patch: z.object({}).passthrough(),
+    sessionId: z.string().optional(),
+  },
+} satisfies Record<ToolName, z.ZodRawShape>;
 
 export function codexToolNameFor(toolName: ToolName): string {
   return `${mcpToolPrefix}${toolName}`;
@@ -54,7 +97,7 @@ export function createMineMusicMcpToolDefinitions(
   return instrumentToolDescriptors.map((descriptor) => ({
     name: codexToolNameFor(descriptor.name),
     description: descriptor.description,
-    inputSchema: payloadSchema,
+    inputSchema: inputSchemas[descriptor.name],
     handler: async (payload) => {
       await runtime.ready;
 

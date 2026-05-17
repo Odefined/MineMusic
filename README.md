@@ -75,9 +75,10 @@ is `http://127.0.0.1:3000`, and it can be changed with
 
 The repo-local Codex plugin manifest lives at
 `plugins/minemusic/.codex-plugin/plugin.json`, with MCP startup config in
-`plugins/minemusic/.mcp.json` and the local marketplace entry in
-`.agents/plugins/marketplace.json`. Fresh Codex app visibility still needs to
-be verified in a new plugin session before treating it as installed runtime
+`plugins/minemusic/.mcp.json`, workflow skill instructions in
+`plugins/minemusic/skills/minemusic/SKILL.md`, and the local marketplace entry
+in `.agents/plugins/marketplace.json`. Fresh Codex app visibility still needs
+to be verified in a new plugin session before treating it as installed runtime
 state.
 
 ## Non-Goals

@@ -61,6 +61,36 @@ async function exposesStableToolsThroughMcpDefinitions(): Promise<void> {
   );
 }
 
+async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void> {
+  const runtime = createMineMusicRuntimeWithSourceProvider({
+    session,
+    sourceProvider,
+  });
+  await runtime.ready;
+
+  const definitions = createMineMusicMcpToolDefinitions(runtime);
+  const schemasByName = new Map(
+    definitions.map((definition) => [definition.name, definition.inputSchema] as const),
+  );
+
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.ground"), "query"),
+    "grounding tool schema should declare query input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materials"),
+    "stage materials tool schema should declare materials input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "purpose"),
+    "stage materials tool schema should declare purpose input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.events.record"), "event"),
+    "event tool schema should declare event input",
+  );
+}
+
 async function dispatchesMcpPayloadsToRuntimeToolApi(): Promise<void> {
   const runtime = createMineMusicRuntimeWithSourceProvider({
     session,
@@ -93,6 +123,11 @@ async function dispatchesMcpPayloadsToRuntimeToolApi(): Promise<void> {
   assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve runtime result payload");
 }
 
+function hasSchemaKey(schema: unknown, key: string): boolean {
+  return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
+}
+
 await mapsInternalToolsToCodexPrefixedMcpTools();
 await exposesStableToolsThroughMcpDefinitions();
+await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToRuntimeToolApi();

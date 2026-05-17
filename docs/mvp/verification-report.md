@@ -42,6 +42,7 @@ writes, or source writeback.
 - `test/plugins/plugin-packaging.test.ts`
 - `plugins/minemusic/.codex-plugin/plugin.json`
 - `plugins/minemusic/.mcp.json`
+- `plugins/minemusic/skills/minemusic/SKILL.md`
 - `.agents/plugins/marketplace.json`
 
 ## Method
@@ -118,10 +119,13 @@ Codex MCP plugin surface:
   available.
 - MCP tool definitions use `minemusic.*` names and map back to internal
   `ToolName` values.
+- Argument-bearing MCP tools expose explicit input schemas for query,
+  materials/purpose, material, event, proposal, and session patch payloads.
 - MCP handlers delegate through `MineMusicToolApi` and return JSON text
   containing the MineMusic `Result<T>` payload.
-- Plugin manifest, MCP config, and repo-local marketplace config have no
-  scaffold TODOs and point at `npm --prefix /Users/jiajuzang/Documents/Codex/MineMusic run mcp:minemusic`.
+- Plugin manifest, MCP config, workflow skill, and repo-local marketplace
+  config have no scaffold TODOs or stale old MineMusic tool names, and point at
+  `npm --prefix /Users/jiajuzang/Documents/Codex/MineMusic run mcp:minemusic`.
 
 ## Thin Stubs
 

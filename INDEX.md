@@ -82,6 +82,10 @@ This index points agents to the current MVP documentation pack.
 23. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
+24. `plugins/minemusic/skills/minemusic/SKILL.md`
+    - Codex workflow skill that tells agents when and how to use MineMusic MCP
+      tools for music requests.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

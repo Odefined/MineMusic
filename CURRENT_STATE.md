@@ -15,8 +15,10 @@ issue. Wave 7 adds a read-only NetEase source provider adapter and opt-in live
 smoke command. The local NetEase service is currently verified through explicit
 live smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP
 plugin surface. The Codex surface exposes MineMusic instruments, not runtime
-internals, and deterministic MCP/plugin packaging tests pass. Fresh Codex app
-plugin visibility is not yet claimed.
+internals, and deterministic MCP/plugin packaging tests pass. The repo-local
+plugin now includes a MineMusic workflow skill and explicit MCP input schemas
+for argument-bearing tools. Fresh Codex app plugin visibility is not yet
+claimed.
 
 ## Source Basis
 
@@ -105,9 +107,14 @@ The current docs are based on `proposal.md` only.
   discovery, and `session.update` remains available for recovery.
 - The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
-  `MineMusicToolApi`, not provider or repository internals.
+  `MineMusicToolApi`, not provider or repository internals. Argument-bearing
+  tools expose explicit input schemas rather than an empty passthrough shape.
 - Repo-local Codex plugin packaging lives in `plugins/minemusic` with a local
   marketplace entry at `.agents/plugins/marketplace.json`.
+- The repo-local plugin includes a workflow skill at
+  `plugins/minemusic/skills/minemusic/SKILL.md`. The skill triggers on music
+  requests and routes agents through `stage.context.read`,
+  `music.material.ground`, and `stage.materials.prepare`.
 
 ## Not Yet Implemented
 

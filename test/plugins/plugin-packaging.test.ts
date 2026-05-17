@@ -16,10 +16,28 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   const pluginJson = await readsJson(join(root, "plugins/minemusic/.codex-plugin/plugin.json"));
   const mcpJson = await readsJson(join(root, "plugins/minemusic/.mcp.json"));
   const marketplaceJson = await readsJson(join(root, ".agents/plugins/marketplace.json"));
+  const skillText = await readFile(join(root, "plugins/minemusic/skills/minemusic/SKILL.md"), "utf8");
 
   assert(pluginJson.name === "minemusic", "plugin name should match local plugin directory");
   assert(pluginJson.mcpServers === "./.mcp.json", "plugin should point Codex at its MCP config");
+  assert(pluginJson.skills === "./skills/", "plugin should include the MineMusic workflow skill");
   assert(!JSON.stringify(pluginJson).includes("[TODO:"), "plugin.json should not keep scaffold TODOs");
+  assert(skillText.includes("name: minemusic"), "MineMusic skill should declare its skill name");
+  assert(
+    skillText.includes("minemusic.stage.context.read"),
+    "MineMusic skill should route music requests through the current context tool",
+  );
+  assert(
+    skillText.includes("minemusic.stage.materials.prepare"),
+    "MineMusic skill should require Stage material preparation before presenting links",
+  );
+  assert(
+    skillText.includes("minemusic.music.material.ground"),
+    "MineMusic skill should route grounding through the current material tool",
+  );
+  assert(!skillText.includes("minemusic.context.read"), "MineMusic skill should not mention the old context tool");
+  assert(!skillText.includes("minemusic.candidates.build"), "MineMusic skill should not mention the old candidate tool");
+  assert(!skillText.includes("minemusic.memory.propose_update"), "MineMusic skill should not mention old memory tool");
 
   const mcpServers = mcpJson.mcpServers as Record<string, unknown>;
   const server = mcpServers.minemusic as { command?: unknown; args?: unknown };

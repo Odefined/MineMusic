@@ -129,11 +129,16 @@
   marketplace entry at `.agents/plugins/marketplace.json`.
 - Added deterministic tests for instrument enforcement, source-provider runtime
   composition, MCP tool definitions/handlers, and plugin packaging.
+- Added a repo-local MineMusic workflow skill under
+  `plugins/minemusic/skills/minemusic/SKILL.md`, and updated the plugin
+  manifest to expose `./skills/`.
+- Replaced the generic MCP passthrough input schema with explicit schemas for
+  argument-bearing MineMusic tools.
 
 ## Next
 
 - Verify the repo-local plugin in a fresh Codex plugin session before claiming
-  live Codex tool visibility.
+  live Codex tool and skill visibility.
 - Decide whether to merge `codex/wave8-codex-instruments-plugin` back to
   `main`, push a PR, keep the branch, or discard the branch.
 - Later implementation should target durable storage and richer host-surface
