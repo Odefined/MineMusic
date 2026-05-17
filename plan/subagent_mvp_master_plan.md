@@ -235,6 +235,8 @@ Deliverables:
 - public port definitions.
 - `Result<T>`, `StageError`, `StageWarning`, `DomainEvent`, and error code
   definitions.
+- `InstrumentCatalogPort` and `ToolDispatchPort` as separate ports, so Stage
+  Kernel never depends on tool dispatch.
 - contract tests or type tests.
 
 Exit criteria:
@@ -338,7 +340,7 @@ Required behavior:
 - produce honest material states.
 - distinguish `confirmed_playable` from `source_only_playable`.
 
-Subagent: Music Knowledge Subagent.
+Subagent: Music Knowledge Thin Stub Subagent.
 
 Owned write paths:
 
@@ -354,6 +356,8 @@ Required behavior:
 
 - query knowledge providers.
 - return material and evidence without claiming playability.
+- remain outside the MVP critical path unless the coordinator accepts an
+  interface change.
 
 Subagent: Event Service Subagent.
 
@@ -440,12 +444,13 @@ Consumes:
 - `EffectBoundaryPort`
 - `SourceResolutionPort`
 - `CanonicalStorePort`
-- `InstrumentRegistryPort`
+- `InstrumentCatalogPort`
 
 Required behavior:
 
 - get and update sessions.
 - compile Handbook.
+- carry `StageVibe` from `StageSession` into the Handbook.
 - prepare materials for LLM use.
 - gate material states according to purpose.
 
@@ -460,7 +465,7 @@ Owned write paths:
 
 Consumes:
 
-- `InstrumentRegistryPort`
+- `InstrumentCatalogPort`
 - core module public ports.
 
 Required behavior:
@@ -470,6 +475,9 @@ Required behavior:
 - hide provider internals.
 - route `stage.context.read`, `music.material.ground`, `music.links.refresh`,
   `events.record`, `memory.propose`, `effects.propose`, and `session.update`.
+- keep `InstrumentCatalogPort` independent from `StageKernelPort`; only
+  `ToolDispatchPort` may call Stage and core ports through injected public
+  dependencies.
 
 Wave exit criteria:
 

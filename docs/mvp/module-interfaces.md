@@ -72,7 +72,9 @@ export type ModuleId =
 
 No module throws across a public port for expected domain failures such as
 unresolved identity, missing playable links, blocked material, or rejected
-effects.
+effects. The shared `Result<T>` contract is also defined in
+`docs/mvp/interface-contracts.md`; implementation must keep the two files in
+sync.
 
 ## Stage Kernel Port
 
@@ -81,6 +83,8 @@ Purpose:
 - Assemble the LLM-facing stage.
 - Gate material state before LLM use.
 - Route core requests without exposing provider internals.
+- Preserve `StageVibe` as soft session guidance and include it in the Handbook
+  when present.
 
 Public port:
 
@@ -107,7 +111,7 @@ export interface StageKernelPort {
 
 Consumes:
 
-- `InstrumentRegistryPort`
+- `InstrumentCatalogPort`
 - `MemoryPort`
 - `EventPort`
 - `EffectBoundaryPort`
@@ -125,22 +129,27 @@ Must not expose:
 - source provider internals.
 - storage implementation.
 - final recommendation decision.
+- `ToolDispatchPort`.
 
-## Instrument Registry Port
+## Instrument Catalog And Tool Dispatch Ports
 
 Purpose:
 
-- Define the LLM-visible tool surface.
+- Define the LLM-visible tool catalog.
 - Dispatch tool calls to public module ports.
+- Keep catalog listing separate from tool dispatch so Stage Kernel can compile a
+  Handbook without depending on a dispatcher that calls Stage Kernel back.
 
 Public port:
 
 ```ts
-export interface InstrumentRegistryPort {
+export interface InstrumentCatalogPort {
   list(input: {
     session: StageSession;
   }): Promise<Result<InstrumentDescriptor[]>>;
+}
 
+export interface ToolDispatchPort {
   call(input: {
     sessionId: string;
     toolName: ToolName;
@@ -160,11 +169,10 @@ export type ToolName =
 
 Consumes:
 
-- `StageKernelPort`
-- `SourceResolutionPort`
-- `EventPort`
-- `MemoryPort`
-- `EffectBoundaryPort`
+- `InstrumentCatalogPort` consumes no Stage Kernel port.
+- `ToolDispatchPort` consumes `StageKernelPort`, `SourceResolutionPort`,
+  `EventPort`, `MemoryPort`, and `EffectBoundaryPort` through dependency
+  injection at the composition root.
 
 Publishes domain events:
 
@@ -176,6 +184,7 @@ Must not expose:
 - plugin provider names unless returned as source evidence.
 - storage records.
 - non-public module methods.
+- a reverse import from Stage Kernel private implementation.
 
 ## Canonical Store Port
 
@@ -269,6 +278,8 @@ Must not expose:
 Purpose:
 
 - Return facts, relationships, metadata, related material, and identity evidence.
+- Remain a thin MVP stub unless explicitly promoted by an accepted contract
+  change.
 
 Public port:
 
@@ -295,6 +306,7 @@ Must not expose:
 - playable link claims.
 - canonical writes.
 - memory writes.
+- a critical-path requirement for source-backed recommendation.
 
 ## Event Port
 
@@ -328,6 +340,13 @@ Must not expose:
 
 - derived preference claims.
 - effect execution.
+
+Targeting rule:
+
+- For `source_only_playable` material, `EventPort.record` should target a
+  canonical or provisional canonical ref when one exists. If only a source ref
+  exists, the event may target that source ref, but the payload must preserve the
+  source-only material state and must not imply durable identity.
 
 ## Memory Port
 

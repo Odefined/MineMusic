@@ -19,16 +19,17 @@ Owns:
 
 - Handbook compilation.
 - StageSession continuity.
+- StageVibe propagation into the Handbook.
 - active instrument selection.
 - material-state gating before LLM use.
 - routing event, memory, and effect requests to core services.
 
 Public API:
 
-- `compileHandbook(sessionId)`
-- `getSession(sessionId)`
-- `updateSession(sessionId, patch)`
-- `prepareMaterials(sessionId, materials)`
+- `StageKernelPort.compileHandbook(input)`
+- `StageKernelPort.getSession(input)`
+- `StageKernelPort.updateSession(input)`
+- `StageKernelPort.prepareMaterials(input)`
 
 Must not own:
 
@@ -37,25 +38,28 @@ Must not own:
 - durable memory writes.
 - effect execution.
 - final recommendation choice.
+- tool dispatch.
 
 ## Instrument Registry
 
 Owns:
 
 - LLM-visible instrument descriptors.
-- governed tool dispatch.
+- LLM-visible instrument catalog.
+- governed tool dispatch through a separate dispatch port.
 - schema references for tool input and output.
 
 Public API:
 
-- `list(session)`
-- `call(toolName, input)`
+- `InstrumentCatalogPort.list(input)`
+- `ToolDispatchPort.call(input)`
 
 Must not own:
 
 - provider-specific behavior.
 - music business policy outside tool governance.
 - storage details.
+- Stage Kernel private implementation.
 
 ## Canonical Store
 
@@ -68,10 +72,10 @@ Owns:
 
 Public API:
 
-- `get(ref)`
-- `resolveExternalRef(ref)`
-- `createProvisional(input)`
-- `attachExternalRef(input)`
+- `CanonicalStorePort.get(input)`
+- `CanonicalStorePort.resolveExternalRef(input)`
+- `CanonicalStorePort.createProvisional(input)`
+- `CanonicalStorePort.attachExternalRef(input)`
 
 Must not own:
 
@@ -91,8 +95,8 @@ Owns:
 
 Public API:
 
-- `ground(query)`
-- `refreshPlayableLinks(material)`
+- `SourceResolutionPort.ground(input)`
+- `SourceResolutionPort.refreshPlayableLinks(input)`
 
 Must not own:
 
@@ -111,13 +115,14 @@ Owns:
 
 Public API:
 
-- `query(query)`
+- `MusicKnowledgePort.query(input)`
 
 Must not own:
 
 - playable link claims.
 - canonical writes.
 - durable memory.
+- MVP critical-path ownership.
 
 ## Event Service
 
@@ -128,8 +133,8 @@ Owns:
 
 Public API:
 
-- `record(event)`
-- `listBySession(sessionId)`
+- `EventPort.record(input)`
+- `EventPort.listBySession(input)`
 
 Must not own:
 
@@ -147,9 +152,9 @@ Owns:
 
 Public API:
 
-- `summarizeForSession(sessionId)`
-- `propose(input)`
-- `accept(proposalId)`
+- `MemoryPort.summarizeForSession(input)`
+- `MemoryPort.propose(input)`
+- `MemoryPort.accept(input)`
 
 Must not own:
 
@@ -168,8 +173,8 @@ Owns:
 
 Public API:
 
-- `propose(input)`
-- `decide(decision)`
+- `EffectBoundaryPort.propose(input)`
+- `EffectBoundaryPort.decide(input)`
 
 Must not own:
 
@@ -187,9 +192,9 @@ Owns:
 
 Public API:
 
-- `registerProvider(slot, provider)`
-- `listProviders(slot)`
-- `getProvider(slot, id)`
+- `PluginRegistryPort.registerProvider(input)`
+- `PluginRegistryPort.listProviders(input)`
+- `PluginRegistryPort.getProvider(input)`
 
 Must not own:
 

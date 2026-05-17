@@ -77,7 +77,7 @@ Owns:
 Inputs:
 
 - shared contracts.
-- `InstrumentRegistryPort` from `src/ports`.
+- `InstrumentCatalogPort` and `ToolDispatchPort` from `src/ports`.
 - public APIs from core services.
 
 Outputs:

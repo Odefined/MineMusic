@@ -10,6 +10,10 @@
   protocols for parallel human/agent implementation.
 - Added `plan/subagent_mvp_master_plan.md` to define coordinator-led subagent
   waves, write scopes, review gates, and completion criteria.
+- Repaired pre-execution contract drift: public ports now consistently use
+  single-object arguments plus `Result<T>`, Stage/Instrument dependencies are
+  split into catalog and dispatch ports, `StageVibe` is explicit, Music
+  Knowledge is marked as a thin stub, and source-only event targets are bounded.
 - Marked implementation as not yet started.
 
 ## Next

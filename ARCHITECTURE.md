@@ -95,7 +95,7 @@ is the rule that lets several people or agents implement modules in parallel.
 | Module | Owns | Does Not Own |
 | --- | --- | --- |
 | Stage Kernel | LLM-facing governance, Handbook compilation, StageSession continuity, instrument exposure, material-state gating | source internals, durable identity schema internals, storage details |
-| Instrument Registry | LLM-visible instruments and governed tool names | provider implementation, final recommendation judgment |
+| Instrument Catalog / Tool Dispatch | LLM-visible instruments and governed tool names | provider implementation, final recommendation judgment, Stage private internals |
 | Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
 | Source Resolution | source refs, availability, playable links, provider evidence | canonical authority, memory decisions |
 | Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |
@@ -160,3 +160,7 @@ new preference behavior -> Memory Service protocol
 
 Core modules depend on slot interfaces and MineMusic-owned contracts, not on
 concrete plugin packages.
+
+Stage Kernel depends on `InstrumentCatalogPort` for Handbook compilation. Tool
+dispatch may call Stage and core ports through composition-root injection, but
+Stage Kernel must not depend on `ToolDispatchPort`.

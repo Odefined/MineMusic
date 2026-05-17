@@ -33,7 +33,7 @@ effect boundaries.
 
 ## MVP Docs
 
-- `docs/mvp/interface-contracts.md`: shared contracts and public module APIs.
+- `docs/mvp/interface-contracts.md`: shared data contracts.
 - `docs/mvp/module-interfaces.md`: public ports for every MVP module.
 - `docs/mvp/communication-protocols.md`: how modules call, notify, propose, and
   request interface changes.

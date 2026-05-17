@@ -24,9 +24,16 @@ No other communication form is allowed for MVP module integration.
 Allowed direction:
 
 ```text
-Stage Kernel
-  -> Instrument Registry
+LLM Adapter or Runtime Composition
+  -> ToolDispatchPort
+    -> StageKernelPort
+    -> Core ports
+
+StageKernelPort
+  -> InstrumentCatalogPort
   -> Core ports
+
+Core ports
   -> Plugin Edge ports
   -> Storage ports
 ```
@@ -42,6 +49,8 @@ plugin provider -> Stage Kernel private file
 storage implementation -> domain policy module
 source provider -> Memory Service private file
 knowledge provider -> Canonical Store write method outside public port
+Stage Kernel -> ToolDispatchPort
+Instrument Catalog -> Stage Kernel private file
 ```
 
 ## Port Call Protocol
@@ -204,6 +213,35 @@ use a material item.
 
 Only Source Resolution and Stage Kernel may upgrade material state for LLM use.
 Other modules may add evidence, but they do not silently make material playable.
+
+## Event Target Protocol
+
+Events record what happened; they are not automatically long-term taste.
+
+Target priority:
+
+```text
+canonical ref
+provisional canonical ref
+source ref with explicit source-only state
+plain text in payload
+```
+
+For `source_only_playable` material, an event may be recorded against a source
+ref only when no canonical or provisional canonical ref exists. In that case,
+the payload must include enough context to prevent later code from treating the
+source ref as MineMusic canonical identity:
+
+```ts
+{
+  materialState: "source_only_playable",
+  sourceRef: Ref,
+  canonicalRef: null
+}
+```
+
+Wrong-version feedback should create or resolve a canonical or provisional
+canonical target before becoming durable memory.
 
 ## Error Protocol
 

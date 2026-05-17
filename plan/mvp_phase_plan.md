@@ -43,6 +43,7 @@ Deliverables:
 
 - `src/contracts/*`
 - `src/ports/*`
+- `InstrumentCatalogPort` and `ToolDispatchPort` as separate public ports.
 - repository interfaces for canonical records, events, memory entries, sessions,
   and effect proposals.
 - type-level tests or schema validation for shared contracts.
@@ -67,6 +68,7 @@ Deliverables:
 - Event recording service.
 - Memory proposal service.
 - Effect proposal and approval boundary.
+- source-only event targeting rules that do not imply canonical identity.
 
 Exit criteria:
 
@@ -108,6 +110,8 @@ Deliverables:
 - one minimal provider or fixture provider.
 - material state assignment for playable, unresolved, exploration, and blocked
   cases.
+- explicit source-only event targeting behavior for source-backed links without
+  settled canonical identity.
 
 Exit criteria:
 
@@ -127,6 +131,7 @@ Deliverables:
 
 - Handbook compiler.
 - StageSession service.
+- StageVibe carried as soft session guidance.
 - instrument registry.
 - LLM-facing tool surface for context read, candidate grounding, event record,
   memory proposal, effect proposal, and session update.
@@ -135,6 +140,8 @@ Exit criteria:
 
 - The LLM can use instruments without knowing provider internals.
 - The Stage Kernel gates material state and effect proposal semantics.
+- Stage Kernel depends only on the instrument catalog, while tool dispatch calls
+  Stage and core ports through composition-root injection.
 
 ## Phase 6: End-To-End MVP Slice
 

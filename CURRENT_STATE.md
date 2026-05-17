@@ -26,6 +26,11 @@ The current docs are based on `proposal.md` only.
   boundaries.
 - A subagent orchestration plan now exists for implementing the MVP with
   isolated write scopes and review gates.
+- Contract docs distinguish shared data contracts from public module ports.
+- Stage/Instrument coordination is split into `InstrumentCatalogPort` and
+  `ToolDispatchPort` to avoid a circular public-port contract.
+- `StageVibe` is part of session/Handbook guidance, and Music Knowledge remains
+  a thin MVP stub unless later promoted.
 
 ## Not Yet Implemented
 
@@ -49,3 +54,5 @@ The current docs are based on `proposal.md` only.
 - Do not turn weak LLM guesses into durable memory.
 - Do not treat normal link display as playback.
 - Do not build heavy recommender scoring into the MVP path.
+- Do not treat a `source_only_playable` event target as durable canonical
+  identity.

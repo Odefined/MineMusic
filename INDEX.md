@@ -15,8 +15,7 @@ This index points agents to the current MVP documentation pack.
    - Layer model, runtime flow, and module ownership.
 
 4. `docs/mvp/interface-contracts.md`
-   - Shared data contracts and public APIs.
-   - Agents must treat this as the boundary between modules.
+   - Shared data contracts used by public module ports.
 
 5. `docs/mvp/module-interfaces.md`
    - Public module ports, consumed ports, published events, and forbidden leaks.
