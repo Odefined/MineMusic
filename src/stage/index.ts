@@ -35,17 +35,18 @@ export function createStageKernel({
   canonical: _canonical,
 }: StageKernelOptions): StageKernelPort {
   const sessionsById = new Map(sessions.map((session) => [session.id, cloneSession(session)]));
+  const getSession: StageKernelPort["getSession"] = async ({ sessionId }) => {
+    const session = sessionsById.get(sessionId);
+
+    if (session === undefined) {
+      return sessionNotFound(sessionId);
+    }
+
+    return ok(cloneSession(session));
+  };
 
   return {
-    async getSession({ sessionId }) {
-      const session = sessionsById.get(sessionId);
-
-      if (session === undefined) {
-        return sessionNotFound(sessionId);
-      }
-
-      return ok(cloneSession(session));
-    },
+    getSession,
 
     async updateSession({ sessionId, patch }) {
       const session = sessionsById.get(sessionId);
@@ -74,7 +75,7 @@ export function createStageKernel({
     },
 
     async compileHandbook({ sessionId }) {
-      const sessionResult = await this.getSession({ sessionId });
+      const sessionResult = await getSession({ sessionId });
 
       if (!sessionResult.ok) {
         return sessionResult;
@@ -123,7 +124,7 @@ export function createStageKernel({
     },
 
     async prepareMaterials({ sessionId, materials, purpose }) {
-      const sessionResult = await this.getSession({ sessionId });
+      const sessionResult = await getSession({ sessionId });
 
       if (!sessionResult.ok) {
         return sessionResult;

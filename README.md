@@ -43,15 +43,17 @@ effect boundaries.
 - `docs/mvp/agent-collaboration.md`: communication protocol for multiple agents.
 - `docs/mvp/verification-report.md`: fixture end-to-end MVP verification
   report.
+- `docs/mvp/final-review.md`: final spec/code-quality review for the fixture
+  MVP implementation.
 - `plan/subagent_mvp_master_plan.md`: coordinator plan for completing the MVP
   with subagents.
 
 ## Development
 
-Waves 1 through 5 have established the TypeScript contract, public-port
+Waves 1 through 6 have established the TypeScript contract, public-port
 harness, in-memory repository foundation, plugin registry foundation, core
 domain module skeletons, Stage Kernel, instrument registry, Tool API facade,
-and a fixture end-to-end MVP slice.
+fixture end-to-end MVP slice, and final review documentation.
 
 ```bash
 npm test

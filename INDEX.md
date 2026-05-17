@@ -44,10 +44,13 @@ This index points agents to the current MVP documentation pack.
 12. `docs/mvp/verification-report.md`
    - Fixture end-to-end MVP verification report.
 
-13. `CURRENT_STATE.md`
+13. `docs/mvp/final-review.md`
+   - Wave 6 final spec/code-quality review and residual risk report.
+
+14. `CURRENT_STATE.md`
    - Current implementation status.
 
-14. `PROGRESS.md`
+15. `PROGRESS.md`
     - Change log for the MVP documentation baseline.
 
 ## Agent Rule

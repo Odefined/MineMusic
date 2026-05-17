@@ -214,7 +214,40 @@ async function reportsMissingSessionAsResultError(): Promise<void> {
   assert(result.error.code === "stage.session_not_found", "missing session should use stable stage error");
 }
 
+async function supportsDetachedPublicPortMethods(): Promise<void> {
+  const stage = createStageKernel({
+    sessions: [session],
+    ...createDependencies(),
+  });
+  const { compileHandbook, prepareMaterials } = stage;
+  const handbook = await assertOk(compileHandbook({ sessionId: session.id }));
+  const prepared = await assertOk(
+    prepareMaterials({
+      sessionId: session.id,
+      purpose: "recommendation",
+      materials: [
+        {
+          id: "grounded",
+          kind: "recording",
+          label: "Grounded",
+          state: "grounded",
+          playableLinks: [
+            {
+              url: "https://example.test/grounded",
+              sourceRef: { namespace: "source:fixture", kind: "track", id: "track-1" },
+            },
+          ],
+        },
+      ],
+    }),
+  );
+
+  assert(handbook.sessionId === session.id, "detached compileHandbook should still use port state");
+  assert(prepared[0]?.playableLinks === undefined, "detached prepareMaterials should still gate materials");
+}
+
 await compilesHandbookWithStageVibeAndInstruments();
 await updatesSessionWithoutOwningToolDispatch();
 await gatesMaterialStatesForRecommendationUse();
 await reportsMissingSessionAsResultError();
+await supportsDetachedPublicPortMethods();

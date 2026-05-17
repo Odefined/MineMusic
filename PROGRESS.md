@@ -76,9 +76,20 @@
 - Added `docs/mvp/verification-report.md` documenting verified behavior, thin
   stubs, commands, and remaining work.
 - Verified Wave 5 with `npm test`.
+- Entered Wave 6 final review and documentation sync.
+- Found and fixed a Stage Kernel public-port robustness issue: detached
+  `compileHandbook` / `prepareMaterials` calls no longer depend on `this`.
+- Added regression coverage for detached Stage Kernel public methods in
+  `test/stage/stage-kernel.test.ts`.
+- Added `docs/mvp/final-review.md` with spec review, code-quality review,
+  accepted constraints, verification commands, and residual risk.
+- Updated verification and state docs to distinguish the fixture MVP slice from
+  live provider or durable-storage completion.
+- Verified Wave 6 with `npm test`, `npm run typecheck`, and `git diff --check`.
 
 ## Next
 
-- Continue with Wave 6 final review and documentation sync.
-- Keep downstream modules importing only `src/contracts/**` and `src/ports/**`
-  rather than other modules' private implementations.
+- Decide whether to merge locally, push a PR, keep the branch, or discard the
+  branch.
+- Future implementation should target live providers, durable storage, and host
+  surface validation without moving recommendation logic into host adapters.

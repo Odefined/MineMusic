@@ -2,7 +2,8 @@
 
 ## Scope
 
-This report covers the Wave 5 fixture end-to-end MVP slice.
+This report covers the Wave 5 fixture end-to-end MVP slice and Wave 6 final
+review verification.
 
 The verified path is:
 
@@ -29,6 +30,7 @@ source writeback.
 - `src/app/index.ts`
 - `fixtures/integration/mvp-fixture.ts`
 - `test/integration/mvp-slice.test.ts`
+- `docs/mvp/final-review.md`
 
 ## Method
 
@@ -94,11 +96,11 @@ npm run typecheck
 git diff --check
 ```
 
-All listed commands passed for Wave 5 in this workspace.
+All listed commands passed for Wave 6 final review in this workspace.
 
 ## Remaining Work
 
 - Live provider validation.
 - Durable repository implementations.
 - Real host-surface integration.
-- Full documentation sync and final review.
+- Branch integration decision.

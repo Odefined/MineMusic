@@ -2,12 +2,15 @@
 
 ## Status
 
-MineMusic is at the Wave 5 MVP implementation foundation.
+MineMusic is at the Wave 6 final-reviewed fixture MVP implementation
+foundation.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
 core domain service skeletons, Stage Kernel, instrument registry, Tool API
 facade, a fixture end-to-end MVP slice, and contract/runtime tests.
+Wave 6 final review found and fixed one Stage Kernel public-method robustness
+issue. No live provider or host-surface behavior is claimed complete.
 
 ## Source Basis
 
@@ -69,17 +72,21 @@ The current docs are based on `proposal.md` only.
 - Fixture integration data lives in `fixtures/integration/mvp-fixture.ts`.
 - Fixture end-to-end verification is documented in
   `docs/mvp/verification-report.md`.
+- Wave 6 final review is documented in `docs/mvp/final-review.md`.
+- Stage Kernel public methods are covered for detached public-port usage.
 
 ## Not Yet Implemented
 
 - Concrete Plugin Edge providers.
 - Durable storage repositories beyond in-memory infrastructure.
 - Live provider or host-surface validation beyond the fixture MVP slice.
+- Branch integration.
 
 ## Verification
 
-- `npm test` passes as of Wave 5.
-- `npm run typecheck` passes as of Wave 5.
+- `npm test` passes as of Wave 6.
+- `npm run typecheck` passes as of Wave 6.
+- `git diff --check` passes as of Wave 6.
 
 ## Known Constraints
 
