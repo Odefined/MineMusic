@@ -6,7 +6,7 @@
   "scripts": {
     "build:test": "tsc -p tsconfig.test.json",
     "test": "npm run typecheck && npm run test:runtime",
-    "test:runtime": "npm run build:test && node .tmp-test/test/storage/in-memory-repositories.test.js && node .tmp-test/test/plugins/plugin-registry.test.js",
+    "test:runtime": "npm run build:test && node .tmp-test/test/run-runtime-tests.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {

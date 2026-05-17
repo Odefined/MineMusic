@@ -41,10 +41,13 @@ This index points agents to the current MVP documentation pack.
    - Coordinator plan for using subagents to implement the MVP with isolated
      write scopes, review gates, and integration waves.
 
-12. `CURRENT_STATE.md`
+12. `docs/mvp/verification-report.md`
+   - Fixture end-to-end MVP verification report.
+
+13. `CURRENT_STATE.md`
    - Current implementation status.
 
-13. `PROGRESS.md`
+14. `PROGRESS.md`
     - Change log for the MVP documentation baseline.
 
 ## Agent Rule

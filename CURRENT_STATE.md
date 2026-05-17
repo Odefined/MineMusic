@@ -2,11 +2,12 @@
 
 ## Status
 
-MineMusic is at the Wave 2 MVP implementation foundation.
+MineMusic is at the Wave 5 MVP implementation foundation.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
-contract/runtime tests. Core domain services are not yet implemented.
+core domain service skeletons, Stage Kernel, instrument registry, Tool API
+facade, a fixture end-to-end MVP slice, and contract/runtime tests.
 
 ## Source Basis
 
@@ -41,24 +42,44 @@ The current docs are based on `proposal.md` only.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
+- Canonical Store is exported from `src/canonical/index.ts` with get, external
+  ref resolution, provisional record creation, and external ref attachment.
+- Event Service is exported from `src/events/index.ts` with factual event
+  recording and session event listing.
+- Effect Boundary is exported from `src/effects/index.ts` with proposal and
+  decision handling.
+- Memory Service is exported from `src/memory/index.ts` with evidence-gated
+  proposals, effect-boundary acceptance, and summaries.
+- Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
+  query service that strips playability claims.
+- Source Resolution is exported from `src/source/index.ts` with provider search,
+  playable-link refresh, canonical-ref attachment from source refs, and honest
+  `confirmed_playable` / `source_only_playable` states.
+- Stage Kernel is exported from `src/stage/index.ts` with session continuity,
+  Handbook compilation, `StageVibe` propagation, and material-state gating.
+- Instrument registry and tool dispatch are exported from
+  `src/instruments/index.ts` with stable LLM-visible tool names and dependency
+  injection through public ports.
+- Tool API facade is exported from `src/tool_api/index.ts` and exposes stable
+  tool functions backed by `ToolDispatchPort`.
+- Runtime composition is exported from `src/runtime/index.ts` and wires
+  in-memory storage, fixture providers, core ports, Stage Kernel, Instrument
+  dispatch, and Tool API.
+- The fixture transcript runner is exported from `src/app/index.ts`.
+- Fixture integration data lives in `fixtures/integration/mvp-fixture.ts`.
+- Fixture end-to-end verification is documented in
+  `docs/mvp/verification-report.md`.
 
 ## Not Yet Implemented
 
-- Stage Kernel.
-- Instrument registry and LLM-facing tool surface.
-- Canonical Store.
-- Source Resolution.
-- Event Service.
-- Memory Service.
-- Effect Boundary.
 - Concrete Plugin Edge providers.
 - Durable storage repositories beyond in-memory infrastructure.
-- End-to-end MVP runtime validation.
+- Live provider or host-surface validation beyond the fixture MVP slice.
 
 ## Verification
 
-- `npm test` passes as of Wave 2.
-- `npm run typecheck` passes as of Wave 2.
+- `npm test` passes as of Wave 5.
+- `npm run typecheck` passes as of Wave 5.
 
 ## Known Constraints
 

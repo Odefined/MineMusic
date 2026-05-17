@@ -41,20 +41,25 @@ effect boundaries.
 - `docs/mvp/module-boundaries.md`: ownership and encapsulation rules.
 - `docs/mvp/workstreams.md`: ownership areas for assigning parallel work.
 - `docs/mvp/agent-collaboration.md`: communication protocol for multiple agents.
+- `docs/mvp/verification-report.md`: fixture end-to-end MVP verification
+  report.
 - `plan/subagent_mvp_master_plan.md`: coordinator plan for completing the MVP
   with subagents.
 
 ## Development
 
-Waves 1 and 2 have established the TypeScript contract, public-port harness,
-in-memory repository foundation, and plugin registry foundation.
+Waves 1 through 5 have established the TypeScript contract, public-port
+harness, in-memory repository foundation, plugin registry foundation, core
+domain module skeletons, Stage Kernel, instrument registry, Tool API facade,
+and a fixture end-to-end MVP slice.
 
 ```bash
 npm test
 ```
 
-The test command runs TypeScript type checks, compiles tests into `.tmp-test/`,
-and executes the storage and plugin registry runtime tests.
+The test command runs TypeScript contract/type checks, compiles tests into
+`.tmp-test/`, and executes storage, plugin registry, core domain, stage,
+instrument, tool API, and integration runtime tests.
 
 ## Non-Goals
 

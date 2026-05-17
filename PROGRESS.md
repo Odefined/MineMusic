@@ -39,9 +39,46 @@
   stable `plugin.provider_not_found` errors.
 - Added plugin registry runtime tests in `test/plugins/plugin-registry.test.ts`.
 - Verified Wave 2 with `npm test`.
+- Entered Wave 3 for core domain modules.
+- Added Canonical Store in `src/canonical/index.ts` with provisional records,
+  external ref resolution, external ref attachment, and conflict rejection.
+- Added Event Service in `src/events/index.ts` with factual event recording and
+  session-scoped listing.
+- Added Effect Boundary in `src/effects/index.ts` with proposal and decision
+  handling.
+- Added Memory Service in `src/memory/index.ts` with evidence-gated proposals,
+  effect-boundary acceptance, and text summaries.
+- Added Music Knowledge thin service in `src/knowledge/index.ts`, keeping
+  provider output grounded and stripping playable-link claims.
+- Added Source Resolution in `src/source/index.ts` with provider search,
+  playable-link refresh, canonical-ref attachment, and `confirmed_playable`
+  versus `source_only_playable` distinction.
+- Added runtime tests for every Wave 3 module and consolidated runtime execution
+  through `test/run-runtime-tests.ts`.
+- Verified Wave 3 with `npm test`.
+- Entered Wave 4 for Stage Kernel and Instruments.
+- Added Stage Kernel in `src/stage/index.ts` with session get/update,
+  Handbook compilation, `StageVibe` propagation, memory summaries, instrument
+  listing, and material-state gating for LLM-facing use.
+- Added instrument catalog and tool dispatch in `src/instruments/index.ts` with
+  stable public tool names and dispatch through injected public ports.
+- Added Tool API facade in `src/tool_api/index.ts` exposing stable tool
+  functions backed by `ToolDispatchPort`.
+- Added runtime tests for Stage Kernel, Instrument Registry, and Tool API.
+- Verified Wave 4 with `npm test`.
+- Entered Wave 5 for composition and the fixture end-to-end MVP slice.
+- Added runtime composition in `src/runtime/index.ts`, wiring in-memory storage,
+  fixture source provider registration, core domain ports, Stage Kernel,
+  Instrument dispatch, and Tool API.
+- Added fixture transcript runner in `src/app/index.ts`.
+- Added integration fixture data in `fixtures/integration/mvp-fixture.ts`.
+- Added end-to-end integration coverage in `test/integration/mvp-slice.test.ts`.
+- Added `docs/mvp/verification-report.md` documenting verified behavior, thin
+  stubs, commands, and remaining work.
+- Verified Wave 5 with `npm test`.
 
 ## Next
 
-- Continue with Wave 3 core domain modules.
+- Continue with Wave 6 final review and documentation sync.
 - Keep downstream modules importing only `src/contracts/**` and `src/ports/**`
   rather than other modules' private implementations.
