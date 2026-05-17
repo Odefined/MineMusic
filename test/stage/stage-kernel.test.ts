@@ -1,7 +1,3 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
 import type {
   CanonicalRecord,
   EffectProposal,
@@ -20,7 +16,6 @@ import type {
   MemoryPort,
   SourceResolutionPort,
 } from "../../src/ports/index.js";
-import { createFileSessionHandbookStore } from "../../src/stage/session-handbook-store.js";
 import { createStageKernel } from "../../src/stage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -126,87 +121,19 @@ function createDependencies(eventsSeen: string[] = []) {
   return { instruments, memory, events, effects, source, canonical };
 }
 
-async function compilesHandbookWithStageVibeAndInstruments(): Promise<void> {
-  const eventsSeen: string[] = [];
+async function readsContextWithoutHandbookMaterial(): Promise<void> {
   const stage = createStageKernel({
     sessions: [session],
-    ...createDependencies(eventsSeen),
-  });
-
-  const handbook = await assertOk(stage.compileHandbook({ sessionId: session.id }));
-
-  assert(handbook.sessionId === session.id, "handbook should use the requested session");
-  assert(handbook.stageVibe?.text === session.vibe?.text, "StageVibe should carry into handbook");
-  assert(handbook.availableInstruments[0]?.tools[0]?.name === "music.material.ground", "handbook should list instruments");
-  assert(handbook.memorySummaries[0] === "Likes calm coding music.", "handbook should include memory summaries");
-  assert(eventsSeen.includes("stage.handbook.compiled"), "handbook compile should record a factual event");
-}
-
-async function readsContextWithSessionScopedHandbookRef(): Promise<void> {
-  const eventsSeen: string[] = [];
-  const baseDirectory = await mkdtemp(join(tmpdir(), "minemusic-handbook-"));
-  const stage = createStageKernel({
-    sessions: [session],
-    handbookStore: createFileSessionHandbookStore({ baseDirectory }),
-    ...createDependencies(eventsSeen),
-  });
-
-  try {
-    const context = await assertOk(stage.readContext({ sessionId: session.id }));
-
-    assert(context.session.id === session.id, "context should include the current session");
-    assert(context.memorySummaries[0] === "Likes calm coding music.", "context should include dynamic memory summaries");
-    assert(
-      context.handbookRef.path.endsWith("session-1/HANDBOOK.md"),
-      "context should point at the session-scoped handbook document",
-    );
-    assert(!("handbook" in context), "stage context should not embed the handbook object");
-
-    const handbookText = await readFile(context.handbookRef.path, "utf8");
-    assert(handbookText.includes("# MineMusic Session Handbook"), "session handbook should be a readable markdown document");
-    assert(
-      handbookText.includes("Only present playable links"),
-      "session handbook should include policy guidance",
-    );
-    assert(
-      eventsSeen.filter((eventType) => eventType === "stage.handbook.created").length === 1,
-      "first context read should create exactly one static handbook document",
-    );
-    assert(
-      !eventsSeen.includes("stage.handbook.compiled"),
-      "context reads should not compile or record dynamic handbook events",
-    );
-
-    const secondContext = await assertOk(stage.readContext({ sessionId: session.id }));
-    assert(secondContext.handbookRef.path === context.handbookRef.path, "same session should keep the same handbook path");
-    assert(
-      eventsSeen.filter((eventType) => eventType === "stage.handbook.created").length === 1,
-      "re-reading context should not rewrite the static handbook",
-    );
-  } finally {
-    await rm(baseDirectory, { force: true, recursive: true });
-  }
-}
-
-async function readsSessionHandbookOnDemand(): Promise<void> {
-  const baseDirectory = await mkdtemp(join(tmpdir(), "minemusic-handbook-"));
-  const stage = createStageKernel({
-    sessions: [session],
-    handbookStore: createFileSessionHandbookStore({ baseDirectory }),
     ...createDependencies(),
   });
 
-  try {
-    const handbook = await assertOk(stage.readSessionHandbook({ sessionId: session.id }));
+  const context = await assertOk(stage.readContext({ sessionId: session.id }));
 
-    assert(handbook.ref.sessionId === session.id, "handbook reader should return the requested session ref");
-    assert(
-      handbook.content.includes("## Available Instruments"),
-      "handbook reader should return the static markdown content",
-    );
-  } finally {
-    await rm(baseDirectory, { force: true, recursive: true });
-  }
+  assert(context.session.id === session.id, "context should include the current session");
+  assert(context.session.vibe?.text === session.vibe?.text, "context should preserve dynamic StageVibe");
+  assert(context.memorySummaries[0] === "Likes calm coding music.", "context should include dynamic memory summaries");
+  assert(!("handbook" in context), "stage context should not embed handbook content");
+  assert(!("handbookRef" in context), "stage context should not point at a handbook file");
 }
 
 async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
@@ -291,8 +218,8 @@ async function supportsDetachedPublicPortMethods(): Promise<void> {
     sessions: [session],
     ...createDependencies(),
   });
-  const { compileHandbook, prepareMaterials } = stage;
-  const handbook = await assertOk(compileHandbook({ sessionId: session.id }));
+  const { readContext, prepareMaterials } = stage;
+  const context = await assertOk(readContext({ sessionId: session.id }));
   const prepared = await assertOk(
     prepareMaterials({
       sessionId: session.id,
@@ -314,13 +241,11 @@ async function supportsDetachedPublicPortMethods(): Promise<void> {
     }),
   );
 
-  assert(handbook.sessionId === session.id, "detached compileHandbook should still use port state");
+  assert(context.session.id === session.id, "detached readContext should still use port state");
   assert(prepared[0]?.playableLinks === undefined, "detached prepareMaterials should still gate materials");
 }
 
-await compilesHandbookWithStageVibeAndInstruments();
-await readsContextWithSessionScopedHandbookRef();
-await readsSessionHandbookOnDemand();
+await readsContextWithoutHandbookMaterial();
 await updatesSessionWithoutOwningToolDispatch();
 await gatesMaterialStatesForRecommendationUse();
 await reportsMissingSessionAsResultError();

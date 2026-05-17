@@ -129,12 +129,13 @@ Expected owners:
 
 Deliverables:
 
-- Handbook compiler.
+- dynamic session context.
 - StageSession service.
 - StageVibe carried as soft session guidance.
 - instrument registry.
-- LLM-facing tool surface for context read, candidate grounding, event record,
-  memory proposal, effect proposal, and session update.
+- LLM-facing tool surface for context read, Handbook lookup, candidate
+  grounding, event record, memory proposal, effect proposal, and session
+  update.
 
 Exit criteria:
 

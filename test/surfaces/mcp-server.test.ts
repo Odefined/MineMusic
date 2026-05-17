@@ -39,8 +39,8 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP tools should map back to internal tool names",
   );
   assert(
-    codexToolNameFor("stage.handbook.read") === "minemusic.stage.handbook.read",
-    "MCP should expose the session handbook reader with the MineMusic prefix",
+    codexToolNameFor("handbook.tool.read") === "minemusic.handbook.tool.read",
+    "MCP should expose precise handbook tool lookup with the MineMusic prefix",
   );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
 }
@@ -94,8 +94,12 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "event tool schema should declare event input",
   );
   assert(
-    schemaIsEmpty(schemasByName.get("minemusic.stage.handbook.read")),
-    "handbook read tool schema should not require arguments",
+    schemaIsEmpty(schemasByName.get("minemusic.handbook.overview.read")),
+    "handbook overview tool schema should not require arguments",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.handbook.tool.read"), "toolName"),
+    "handbook tool lookup schema should declare toolName input",
   );
 }
 

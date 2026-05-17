@@ -43,11 +43,10 @@ Result: one issue found and fixed during Wave 6.
 
 Fixed issue:
 
-- `StageKernelPort.compileHandbook` and `StageKernelPort.prepareMaterials`
-  previously depended on method receiver state through `this.getSession`.
-  Detached public-port methods could fail. A regression test now covers
-  detached public method calls, and `src/stage/index.ts` uses closure state
-  instead.
+- Stage Kernel public methods previously depended on method receiver state
+  through `this.getSession`. Detached public-port methods could fail. A
+  regression test now covers detached public method calls, and
+  `src/stage/index.ts` uses closure state instead.
 
 Remaining accepted constraints:
 

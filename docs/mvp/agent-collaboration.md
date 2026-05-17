@@ -115,7 +115,7 @@ Contracts:
 
 Stage Kernel:
 
-- session, Handbook, and material-state gating tests.
+- session context and material-state gating tests.
 
 Instrument Registry:
 

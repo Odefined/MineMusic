@@ -46,7 +46,7 @@ Owns:
 
 - `src/stage/**`
 - StageSession handling.
-- Handbook compiler.
+- dynamic session context.
 - material preparation and gating.
 
 Inputs:
@@ -59,7 +59,7 @@ Inputs:
 Outputs:
 
 - stage service public API.
-- tests for Handbook compilation, session update, and material-state gating.
+- tests for dynamic context, session update, and material-state gating.
 
 ## Workstream C: Instrument Registry And Tool Surface
 

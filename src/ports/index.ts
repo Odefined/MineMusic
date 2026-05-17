@@ -3,7 +3,6 @@ import type {
   CapabilitySlot,
   EffectDecision,
   EffectProposal,
-  Handbook,
   InstrumentDescriptor,
   KnowledgeQuery,
   MemoryEntry,
@@ -11,8 +10,6 @@ import type {
   MusicMaterial,
   Ref,
   Result,
-  SessionHandbook,
-  SessionHandbookRef,
   StageContext,
   SourceQuery,
   StageEvent,
@@ -25,14 +22,10 @@ export interface StageKernelPort {
 
   readContext(input: { sessionId: string }): Promise<Result<StageContext>>;
 
-  readSessionHandbook(input: { sessionId: string }): Promise<Result<SessionHandbook>>;
-
   updateSession(input: {
     sessionId: string;
     patch: Partial<StageSession>;
   }): Promise<Result<StageSession>>;
-
-  compileHandbook(input: { sessionId: string }): Promise<Result<Handbook>>;
 
   prepareMaterials(input: {
     sessionId: string;
@@ -136,11 +129,6 @@ export interface Repository<TRecord, TKey> {
   get(key: TKey): Promise<Result<TRecord | null>>;
   put(record: TRecord): Promise<Result<TRecord>>;
   list(query?: unknown): Promise<Result<TRecord[]>>;
-}
-
-export interface SessionHandbookStorePort {
-  ensure(input: { sessionId: string; content: string }): Promise<Result<SessionHandbookRef>>;
-  read(input: { sessionId: string }): Promise<Result<SessionHandbook | null>>;
 }
 
 export type CanonicalRecordRepository = Repository<CanonicalRecord, Ref>;

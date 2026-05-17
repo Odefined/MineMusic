@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Expose MineMusic to Codex as a repo-local MCP plugin whose public surface is the `minemusic.mvp` instrument and its Stage-governed tools.
+**Goal:** Expose MineMusic to Codex as a repo-local MCP plugin whose public surface is `minemusic.handbook`, `minemusic.mvp`, and their Stage-governed tools.
 
-**Architecture:** Codex talks to an MCP server under `src/surfaces/mcp/server.ts`. The MCP server registers tools derived from MineMusic instrument descriptors, prefixes them with `minemusic.`, and delegates to `MineMusicToolApi` / `ToolDispatchPort`. Stage Kernel remains first-class through `stage.context.read`, session-scoped Handbook documents, `stage.handbook.read`, and the new `stage.materials.prepare` tool.
+**Architecture:** Codex talks to an MCP server under `src/surfaces/mcp/server.ts`. The MCP server registers tools derived from MineMusic instrument descriptors, prefixes them with `minemusic.`, and delegates to `MineMusicToolApi` / `ToolDispatchPort`. Stage Kernel remains first-class through `stage.context.read` and the new `stage.materials.prepare` tool. Handbook overview and exact tool docs are generated from the instrument catalog into the MineMusic skill's `HANDBOOK.md` and exposed through `handbook.overview.read`, `handbook.instrument.read`, and `handbook.tool.read`.
 
 **Tech Stack:** TypeScript ES modules, `@modelcontextprotocol/sdk`, `zod`, existing MineMusic contracts/ports/runtime, repo-local Codex plugin manifest files.
 
@@ -57,7 +57,7 @@ Expected: failure because `stage.materials.prepare` is not yet a `ToolName`.
 
 - [x] **Step 3: Implement minimal code**
 
-Add `stage.materials.prepare` to `ToolName`, `stableToolNames`, `toolDescriptors`, and `createToolDispatch(...)`. For non-discovery tools, check `InstrumentCatalogPort` availability before dispatch. Allow `stage.context.read`, `stage.handbook.read`, and `session.update` without instrument enforcement.
+Add `stage.materials.prepare` to `ToolName`, `stableToolNames`, `toolDescriptors`, and `createToolDispatch(...)`. For non-discovery tools, check `InstrumentCatalogPort` availability before dispatch. Allow `stage.context.read`, `handbook.*` lookup tools, and `session.update` without instrument enforcement.
 
 - [x] **Step 4: Run GREEN**
 
@@ -133,8 +133,8 @@ and add:
 Tests should assert:
 
 - `createMineMusicMcpToolDefinitions(...)` returns names prefixed with `minemusic.`.
-- `minemusic.stage.context.read` returns JSON text containing `handbookRef`.
-- `minemusic.stage.handbook.read` returns JSON text containing the session Handbook document.
+- `minemusic.stage.context.read` returns JSON text containing dynamic session context without Handbook content or file references.
+- `minemusic.handbook.tool.read` returns JSON text containing the requested generated tool entry.
 - `minemusic.stage.materials.prepare` delegates through Tool API and returns gated material.
 
 - [x] **Step 3: Run RED**

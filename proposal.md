@@ -273,7 +273,7 @@ The Stage Kernel is responsible for the LLM-facing stage.
 It manages:
 
 ```text
-Handbook compilation
+dynamic session context
 StageSession continuity
 instrument exposure
 tool invocation governance

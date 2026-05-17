@@ -1,5 +1,6 @@
 import type {
   EffectProposal,
+  InstrumentDescriptor,
   MemoryProposal,
   MusicMaterial,
   Result,
@@ -9,6 +10,11 @@ import type {
   ToolDescriptor,
   ToolName,
 } from "../contracts/index.js";
+import {
+  buildInstrumentHandbook,
+  readHandbookInstrument,
+  readHandbookTool,
+} from "../handbook/index.js";
 import type {
   EffectBoundaryPort,
   EventPort,
@@ -21,7 +27,9 @@ import type {
 
 export const stableToolNames = [
   "stage.context.read",
-  "stage.handbook.read",
+  "handbook.overview.read",
+  "handbook.instrument.read",
+  "handbook.tool.read",
   "stage.materials.prepare",
   "music.material.ground",
   "music.links.refresh",
@@ -43,20 +51,26 @@ type ToolDispatchOptions = {
 export function createInstrumentCatalog(): InstrumentCatalogPort {
   return {
     async list({ session }) {
-      if (
-        session.activeInstruments.length > 0 &&
-        !session.activeInstruments.includes("minemusic.mvp")
-      ) {
-        return ok([]);
-      }
-
-      return ok([
+      const instruments = [
         {
+          id: "minemusic.handbook",
+          label: "MineMusic Handbook",
+          tools: handbookToolDescriptors,
+        },
+      ];
+
+      if (
+        session.activeInstruments.length === 0 ||
+        session.activeInstruments.includes("minemusic.mvp")
+      ) {
+        instruments.push({
           id: "minemusic.mvp",
           label: "MineMusic MVP",
-          tools: instrumentToolDescriptors,
-        },
-      ]);
+          tools: mvpToolDescriptors,
+        });
+      }
+
+      return ok(instruments);
     },
   };
 }
@@ -71,7 +85,9 @@ export function createToolDispatch({
 }: ToolDispatchOptions): ToolDispatchPort {
   const discoveryToolNames = new Set<ToolName>([
     "stage.context.read",
-    "stage.handbook.read",
+    "handbook.overview.read",
+    "handbook.instrument.read",
+    "handbook.tool.read",
     "session.update",
   ]);
 
@@ -104,8 +120,41 @@ export function createToolDispatch({
           return stage.readContext({ sessionId });
         }
 
-        case "stage.handbook.read":
-          return stage.readSessionHandbook({ sessionId });
+        case "handbook.overview.read": {
+          const instrumentsResult = await listInstrumentsForSession(stage, instruments, sessionId);
+
+          if (!instrumentsResult.ok) {
+            return instrumentsResult;
+          }
+
+          return ok(buildInstrumentHandbook(instrumentsResult.value));
+        }
+
+        case "handbook.instrument.read": {
+          const instrumentsResult = await listInstrumentsForSession(stage, instruments, sessionId);
+
+          if (!instrumentsResult.ok) {
+            return instrumentsResult;
+          }
+
+          return readHandbookInstrument({
+            instruments: instrumentsResult.value,
+            instrumentId: readPayload<{ instrumentId: string }>(payload).instrumentId,
+          });
+        }
+
+        case "handbook.tool.read": {
+          const instrumentsResult = await listInstrumentsForSession(stage, instruments, sessionId);
+
+          if (!instrumentsResult.ok) {
+            return instrumentsResult;
+          }
+
+          return readHandbookTool({
+            instruments: instrumentsResult.value,
+            toolName: readPayload<{ toolName: ToolName | string }>(payload).toolName,
+          });
+        }
 
         case "stage.materials.prepare":
           return stage.prepareMaterials(
@@ -159,18 +208,33 @@ export function createToolDispatch({
   };
 }
 
-export const instrumentToolDescriptors: ToolDescriptor[] = [
+export const handbookToolDescriptors: ToolDescriptor[] = [
   {
-    name: "stage.context.read",
-    description: "Read dynamic session context and the session handbook document reference.",
-    inputSchemaRef: "StageContextReadInput",
-    outputSchemaRef: "StageContextReadOutput",
+    name: "handbook.overview.read",
+    description: "Read the generated overview of current MineMusic instruments and tools.",
+    inputSchemaRef: "HandbookOverviewReadInput",
+    outputSchemaRef: "Handbook",
   },
   {
-    name: "stage.handbook.read",
-    description: "Read the current session's static MineMusic handbook document.",
-    inputSchemaRef: "StageHandbookReadInput",
-    outputSchemaRef: "SessionHandbook",
+    name: "handbook.instrument.read",
+    description: "Read the handbook entry for one available MineMusic instrument.",
+    inputSchemaRef: "HandbookInstrumentReadInput",
+    outputSchemaRef: "HandbookInstrumentEntry",
+  },
+  {
+    name: "handbook.tool.read",
+    description: "Read input, output, effect, and description metadata for one available MineMusic tool.",
+    inputSchemaRef: "HandbookToolReadInput",
+    outputSchemaRef: "HandbookToolEntry",
+  },
+];
+
+export const mvpToolDescriptors: ToolDescriptor[] = [
+  {
+    name: "stage.context.read",
+    description: "Read dynamic session context.",
+    inputSchemaRef: "StageContextReadInput",
+    outputSchemaRef: "StageContextReadOutput",
   },
   {
     name: "stage.materials.prepare",
@@ -217,6 +281,11 @@ export const instrumentToolDescriptors: ToolDescriptor[] = [
   },
 ];
 
+export const agentToolDescriptors: ToolDescriptor[] = [
+  ...handbookToolDescriptors,
+  ...mvpToolDescriptors,
+];
+
 function readPayload<TPayload extends object>(
   payload: unknown,
   defaults?: Partial<TPayload>,
@@ -240,13 +309,7 @@ async function ensureToolAvailableForSession(
   sessionId: string,
   toolName: ToolName,
 ): Promise<Result<void>> {
-  const session = await stage.getSession({ sessionId });
-
-  if (!session.ok) {
-    return session;
-  }
-
-  const catalog = await instruments.list({ session: session.value });
+  const catalog = await listInstrumentsForSession(stage, instruments, sessionId);
 
   if (!catalog.ok) {
     return catalog;
@@ -266,6 +329,20 @@ async function ensureToolAvailableForSession(
   }
 
   return ok(undefined);
+}
+
+async function listInstrumentsForSession(
+  stage: StageKernelPort,
+  instruments: InstrumentCatalogPort,
+  sessionId: string,
+): Promise<Result<InstrumentDescriptor[]>> {
+  const session = await stage.getSession({ sessionId });
+
+  if (!session.ok) {
+    return session;
+  }
+
+  return instruments.list({ session: session.value });
 }
 
 function ok<T>(value: T): Result<T> {

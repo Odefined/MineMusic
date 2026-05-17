@@ -1,3 +1,7 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import type { MusicMaterial, Result, SourceProvider, StageSession } from "../../src/contracts/index.js";
 import { createMineMusicRuntimeWithSourceProvider } from "../../src/runtime/index.js";
 
@@ -81,4 +85,37 @@ async function createsRuntimeWithInjectedSourceProvider(): Promise<void> {
   );
 }
 
+async function writesInstrumentHandbookOnRuntimeReady(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-handbook-"));
+  const handbookPath = join(directory, "HANDBOOK.md");
+  const sourceProvider: SourceProvider = {
+    id: "runtime-test-provider",
+    async search() {
+      return { ok: true, value: [] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: [] };
+    },
+  };
+
+  try {
+    const runtime = createMineMusicRuntimeWithSourceProvider({
+      session,
+      sourceProvider,
+      handbookPath,
+    });
+    await runtime.ready;
+
+    const content = await readFile(handbookPath, "utf8");
+
+    assert(content.includes("# MineMusic Instrument Handbook"), "runtime should write the handbook overview file");
+    assert(content.includes("`handbook.tool.read`"), "handbook should document precise handbook lookup");
+    assert(content.includes("`music.material.ground`"), "handbook should document music tools from the catalog");
+    assert(!content.includes("runtime-test-provider"), "handbook should not expose provider implementation names");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 await createsRuntimeWithInjectedSourceProvider();
+await writesInstrumentHandbookOnRuntimeReady();

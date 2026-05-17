@@ -25,7 +25,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 }
 
 async function provesGroundedRecommendationMvpSlice(): Promise<void> {
-  const handbookBaseDirectory = await mkdtemp(join(tmpdir(), "minemusic-handbook-"));
+  const runtimeDirectory = await mkdtemp(join(tmpdir(), "minemusic-runtime-"));
   const runtime = createMineMusicRuntime({
     session: {
       id: "session-integration",
@@ -38,7 +38,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       },
     },
     sourceMaterials: [fixtureKnownMaterial, fixtureExplorationMaterial],
-    handbookBaseDirectory,
+    handbookPath: join(runtimeDirectory, "HANDBOOK.md"),
     canonicalRecords: [
       {
         ref: fixtureCanonicalRef,
@@ -107,7 +107,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       "external action should remain represented as an effect proposal",
     );
   } finally {
-    await rm(handbookBaseDirectory, { force: true, recursive: true });
+    await rm(runtimeDirectory, { force: true, recursive: true });
   }
 }
 

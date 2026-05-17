@@ -17,6 +17,7 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   const mcpJson = await readsJson(join(root, "plugins/minemusic/.mcp.json"));
   const marketplaceJson = await readsJson(join(root, ".agents/plugins/marketplace.json"));
   const skillText = await readFile(join(root, "plugins/minemusic/skills/minemusic/SKILL.md"), "utf8");
+  const handbookText = await readFile(join(root, "plugins/minemusic/skills/minemusic/HANDBOOK.md"), "utf8");
 
   assert(pluginJson.name === "minemusic", "plugin name should match local plugin directory");
   assert(pluginJson.mcpServers === "./.mcp.json", "plugin should point Codex at its MCP config");
@@ -28,17 +29,22 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
     "MineMusic skill should route music requests through the current context tool",
   );
   assert(
-    skillText.includes("minemusic.stage.handbook.read"),
-    "MineMusic skill should tell agents how to read the session handbook on demand",
+    skillText.includes("HANDBOOK.md"),
+    "MineMusic skill should point agents at the generated instrument handbook file",
   );
   assert(
-    skillText.includes("handbookRef"),
-    "MineMusic skill should treat the handbook as a session-scoped document reference",
+    skillText.includes("minemusic.handbook.tool.read"),
+    "MineMusic skill should mention precise handbook tool lookup",
   );
   assert(
-    !skillText.includes("follow the returned Handbook"),
-    "MineMusic skill should not imply context embeds the handbook content",
+    !skillText.includes("handbookRef"),
+    "MineMusic skill should not treat context as carrying a handbook reference",
   );
+  assert(!skillText.includes("session handbook"), "MineMusic skill should not mention session handbook files");
+  assert(handbookText.includes("# MineMusic Instrument Handbook"), "plugin should ship a generated handbook overview");
+  assert(handbookText.includes("`music.material.ground`"), "handbook should document the grounding tool");
+  assert(handbookText.includes("Input: `SourceQuery`"), "handbook should document tool input schema refs");
+  assert(handbookText.includes("Output: `MusicMaterial[]`"), "handbook should document tool output schema refs");
   assert(
     skillText.includes("minemusic.stage.materials.prepare"),
     "MineMusic skill should require Stage material preparation before presenting links",

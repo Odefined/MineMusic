@@ -17,17 +17,17 @@ agents.
 
 Owns:
 
-- Handbook compilation.
+- dynamic session context.
 - StageSession continuity.
-- StageVibe propagation into the Handbook.
+- StageVibe propagation through session state.
 - active instrument selection.
 - material-state gating before LLM use.
 - routing event, memory, and effect requests to core services.
 
 Public API:
 
-- `StageKernelPort.compileHandbook(input)`
 - `StageKernelPort.getSession(input)`
+- `StageKernelPort.readContext(input)`
 - `StageKernelPort.updateSession(input)`
 - `StageKernelPort.prepareMaterials(input)`
 

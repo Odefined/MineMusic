@@ -58,8 +58,8 @@
 - Verified Wave 3 with `npm test`.
 - Entered Wave 4 for Stage Kernel and Instruments.
 - Added Stage Kernel in `src/stage/index.ts` with session get/update,
-  Handbook compilation, `StageVibe` propagation, memory summaries, instrument
-  listing, and material-state gating for LLM-facing use.
+  `StageVibe` propagation, memory summaries, instrument coordination, and
+  material-state gating for LLM-facing use.
 - Added instrument catalog and tool dispatch in `src/instruments/index.ts` with
   stable public tool names and dispatch through injected public ports.
 - Added Tool API facade in `src/tool_api/index.ts` exposing stable tool
@@ -77,8 +77,8 @@
   stubs, commands, and remaining work.
 - Verified Wave 5 with `npm test`.
 - Entered Wave 6 final review and documentation sync.
-- Found and fixed a Stage Kernel public-port robustness issue: detached
-  `compileHandbook` / `prepareMaterials` calls no longer depend on `this`.
+- Found and fixed a Stage Kernel public-port robustness issue: detached public
+  method calls no longer depend on `this`.
 - Added regression coverage for detached Stage Kernel public methods in
   `test/stage/stage-kernel.test.ts`.
 - Added `docs/mvp/final-review.md` with spec review, code-quality review,
@@ -138,11 +138,10 @@
   writing code are treated as agent interpretation context, not as literal song
   title/provider-search text.
 - Split dynamic Stage context from the Handbook surface. `stage.context.read`
-  now returns session state, memory summaries, and a session-scoped
-  `handbookRef`; `stage.handbook.read` reads the static session Handbook
-  markdown document on demand.
-- Added a file-backed session Handbook store under `src/stage/` and ignored the
-  runtime `.minemusic/` handbook directory.
+  now returns only session state and memory summaries; Handbook overview and
+  exact tool lookup live under the `minemusic.handbook` instrument.
+- Added instrument-catalog Handbook generation under `src/handbook/` and a
+  skill-local `plugins/minemusic/skills/minemusic/HANDBOOK.md`.
 - Updated Tool Dispatch to check instrument availability through
   `InstrumentCatalogPort` instead of compiling a Handbook as a side effect.
 
@@ -150,8 +149,8 @@
 
 - Verify the repo-local plugin in a fresh Codex plugin session before claiming
   live Codex tool and skill visibility.
-- Define explicit refresh semantics for already-created session Handbooks when
-  plugin, tool, or policy guidance changes.
+- Validate Handbook refresh behavior in more host surfaces when plugin tool
+  descriptors change outside runtime startup.
 - Decide whether to merge `codex/wave8-codex-instruments-plugin` back to
   `main`, push a PR, keep the branch, or discard the branch.
 - Later implementation should target durable storage and richer host-surface

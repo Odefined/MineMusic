@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { createCanonicalStore } from "../canonical/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
+import { writeInstrumentHandbookFile } from "../handbook/index.js";
 import { createInstrumentCatalog, createToolDispatch } from "../instruments/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
@@ -24,7 +25,6 @@ import type {
 } from "../ports/index.js";
 import { createSourceResolutionService } from "../source/index.js";
 import { createStageKernel } from "../stage/index.js";
-import { createFileSessionHandbookStore } from "../stage/session-handbook-store.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryEffectProposalRepository,
@@ -50,27 +50,27 @@ export type MineMusicRuntimeOptions = {
   session: StageSession;
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
-  handbookBaseDirectory?: string;
+  handbookPath?: string;
 };
 
 export type MineMusicRuntimeWithSourceProviderOptions = {
   session: StageSession;
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
-  handbookBaseDirectory?: string;
+  handbookPath?: string;
 };
 
 export function createMineMusicRuntime({
   session,
   sourceMaterials,
   canonicalRecords = [],
-  handbookBaseDirectory,
+  handbookPath,
 }: MineMusicRuntimeOptions): MineMusicRuntime {
   return createMineMusicRuntimeWithSourceProvider({
     session,
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
-    ...(handbookBaseDirectory === undefined ? {} : { handbookBaseDirectory }),
+    ...(handbookPath === undefined ? {} : { handbookPath }),
   });
 }
 
@@ -78,7 +78,7 @@ export function createMineMusicRuntimeWithSourceProvider({
   session,
   sourceProvider,
   canonicalRecords = [],
-  handbookBaseDirectory = join(process.cwd(), ".minemusic/stage/sessions"),
+  handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicRuntimeWithSourceProviderOptions): MineMusicRuntime {
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
@@ -107,9 +107,6 @@ export function createMineMusicRuntimeWithSourceProvider({
     effects,
     source,
     canonical,
-    handbookStore: createFileSessionHandbookStore({
-      baseDirectory: handbookBaseDirectory,
-    }),
   });
   const dispatch = createToolDispatch({
     stage,
@@ -126,6 +123,9 @@ export function createMineMusicRuntimeWithSourceProvider({
   const ready = seedRuntime({
     canonicalRecords,
     canonicalRepository,
+    handbookPath,
+    instruments,
+    session,
     plugins,
     sourceProvider,
   });
@@ -172,11 +172,17 @@ function createFixtureSourceProvider(sourceMaterials: MusicMaterial[]): SourcePr
 async function seedRuntime({
   canonicalRecords,
   canonicalRepository,
+  handbookPath,
+  instruments,
+  session,
   plugins,
   sourceProvider,
 }: {
   canonicalRecords: CanonicalRecord[];
   canonicalRepository: ReturnType<typeof createInMemoryCanonicalRecordRepository>;
+  handbookPath: string;
+  instruments: ReturnType<typeof createInstrumentCatalog>;
+  session: StageSession;
   plugins: PluginRegistryPort;
   sourceProvider: SourceProvider;
 }): Promise<void> {
@@ -191,6 +197,13 @@ async function seedRuntime({
     provider: sourceProvider,
   });
   throwIfFailed(registerResult);
+
+  const instrumentsResult = await instruments.list({ session });
+  const handbookResult = await writeInstrumentHandbookFile({
+    path: handbookPath,
+    instruments: throwIfFailed(instrumentsResult),
+  });
+  throwIfFailed(handbookResult);
 }
 
 function throwIfFailed<T>(result: Result<T>): T {

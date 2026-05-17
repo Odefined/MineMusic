@@ -12,16 +12,16 @@ Codex plugin
 -> Stage Kernel / Source / Events / Memory / Effects
 ```
 
-Codex must see `minemusic.mvp` as an instrument, not as a loose list of
-runtime internals. The plugin surface is a host adapter only; it does not own
-recommendation policy, provider logic, playback, or durable storage.
+Codex must see MineMusic instruments, not a loose list of runtime internals.
+The plugin surface is a host adapter only; it does not own recommendation
+policy, provider logic, playback, or durable storage.
 
 ## Current Repository Evidence
 
-- `src/instruments/index.ts` defines `minemusic.mvp` and `ToolDescriptor`
-  entries.
-- `src/stage/index.ts` compiles a dynamic `Handbook` with available instruments,
-  rules, permission boundaries, memory summaries, and provider guidance.
+- `src/instruments/index.ts` defines `minemusic.handbook`, `minemusic.mvp`,
+  and `ToolDescriptor` entries.
+- `src/handbook/index.ts` renders a generated Handbook from current
+  agent-visible instrument descriptors.
 - `src/tool_api/index.ts` exposes `MineMusicToolApi` as a stable wrapper around
   `ToolDispatchPort`.
 - `src/runtime/index.ts` composes Stage Kernel, Instrument Catalog, Tool
@@ -40,19 +40,23 @@ In human terms:
 
 - an instrument is a toolbox for a mode of work.
 - a tool is one button inside that toolbox.
-- the Handbook is the current session's instruction sheet for using the toolbox.
+- the Handbook is a generated overview of the current agent-visible toolbox.
 
-For Wave 8, the only instrument is:
+For Wave 8, Codex sees two instrument surfaces:
 
 ```text
+minemusic.handbook
 minemusic.mvp
 ```
 
-It contains the current MVP tools plus a new Stage Kernel tool:
+They contain the Handbook lookup tools, the current MVP tools, and a new Stage
+Kernel material-gating tool:
 
 ```text
+handbook.overview.read
+handbook.instrument.read
+handbook.tool.read
 stage.context.read
-stage.handbook.read
 stage.materials.prepare
 music.material.ground
 music.links.refresh
@@ -62,9 +66,9 @@ effects.propose
 session.update
 ```
 
-`stage.context.read` must remain the first recommended call because it returns
-dynamic session context and a `handbookRef` for the session-scoped Handbook
-document. `stage.handbook.read` reads that document on demand.
+`stage.context.read` returns dynamic session context only. The skill-local
+`HANDBOOK.md` gives the overview, and `handbook.tool.read` /
+`handbook.instrument.read` read exact generated entries on demand.
 `stage.materials.prepare` must be tool-visible so Codex does not present raw
 source results without Stage Kernel gating.
 
@@ -119,9 +123,9 @@ not enforce that the session has the instrument enabled.
 Wave 8 should add a small enforcement boundary:
 
 - `stage.context.read` remains available so Codex can discover dynamic context
-  and the current session Handbook reference.
-- `stage.handbook.read` remains available so Codex can inspect the current
-  session Handbook on demand.
+- `handbook.overview.read`, `handbook.instrument.read`, and
+  `handbook.tool.read` remain available so Codex can inspect the generated
+  agent-visible tool surface on demand.
 - `session.update` remains available so session state can recover.
 - other instrument tools require the current session to expose an instrument
   containing that tool.
@@ -136,7 +140,7 @@ making the MineMusic namespace explicit:
 
 ```text
 minemusic.stage.context.read
-minemusic.stage.handbook.read
+minemusic.handbook.tool.read
 minemusic.stage.materials.prepare
 minemusic.music.material.ground
 minemusic.music.links.refresh
@@ -185,8 +189,12 @@ MCP tests should not require a live Codex app session.
 
 - Codex plugin packaging exists under `plugins/minemusic`.
 - The MCP server registers tools from MineMusic instrument descriptors.
-- `stage.context.read` returns dynamic session context and a `handbookRef`.
-- `stage.handbook.read` returns the session-scoped Handbook markdown document.
+- `stage.context.read` returns dynamic session context without Handbook content
+  or file references.
+- `HANDBOOK.md` exists in the MineMusic skill directory and is generated from
+  current agent-visible instrument descriptors.
+- `handbook.overview.read`, `handbook.instrument.read`, and
+  `handbook.tool.read` return generated Handbook entries on demand.
 - `stage.materials.prepare` is Codex-visible and applies Stage Kernel gating.
 - Tool Dispatch enforces active instrument availability through
   `InstrumentCatalogPort` for normal tool calls.

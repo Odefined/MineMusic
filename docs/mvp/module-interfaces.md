@@ -83,8 +83,8 @@ Purpose:
 - Assemble the LLM-facing stage.
 - Gate material state before LLM use.
 - Route core requests without exposing provider internals.
-- Preserve `StageVibe` as soft session guidance and include it in session
-  context / Handbook guidance when present.
+- Preserve `StageVibe` as soft session guidance in session context when
+  present.
 
 Public port:
 
@@ -96,18 +96,10 @@ export interface StageKernelPort {
     sessionId: string;
   }): Promise<Result<StageContext>>;
 
-  readSessionHandbook(input: {
-    sessionId: string;
-  }): Promise<Result<SessionHandbook>>;
-
   updateSession(input: {
     sessionId: string;
     patch: Partial<StageSession>;
   }): Promise<Result<StageSession>>;
-
-  compileHandbook(input: {
-    sessionId: string;
-  }): Promise<Result<Handbook>>;
 
   prepareMaterials(input: {
     sessionId: string;
@@ -129,8 +121,6 @@ Consumes:
 Publishes domain events:
 
 - `stage.session.updated`
-- `stage.handbook.compiled`
-- `stage.handbook.created`
 - `stage.materials.prepared`
 
 Must not expose:
@@ -146,8 +136,9 @@ Purpose:
 
 - Define the LLM-visible tool catalog.
 - Dispatch tool calls to public module ports.
-- Keep catalog listing separate from tool dispatch so Stage Kernel can compile a
-  Handbook without depending on a dispatcher that calls Stage Kernel back.
+- Keep catalog listing separate from tool dispatch so Handbook generation can
+  read instrument descriptors without depending on a dispatcher that calls Stage
+  Kernel back.
 
 Public port:
 
@@ -168,7 +159,9 @@ export interface ToolDispatchPort {
 
 export type ToolName =
   | "stage.context.read"
-  | "stage.handbook.read"
+  | "handbook.overview.read"
+  | "handbook.instrument.read"
+  | "handbook.tool.read"
   | "stage.materials.prepare"
   | "music.material.ground"
   | "music.links.refresh"
@@ -509,17 +502,6 @@ export type EventRepository = Repository<StageEvent, string>;
 export type MemoryRepository = Repository<MemoryEntry, string>;
 export type SessionRepository = Repository<StageSession, string>;
 export type EffectProposalRepository = Repository<EffectProposal, string>;
-
-export interface SessionHandbookStorePort {
-  ensure(input: {
-    sessionId: string;
-    content: string;
-  }): Promise<Result<SessionHandbookRef>>;
-
-  read(input: {
-    sessionId: string;
-  }): Promise<Result<SessionHandbook | null>>;
-}
 ```
 
 Consumes:

@@ -4,6 +4,7 @@ import type {
   EffectDecision,
   EffectProposal,
   Handbook,
+  HandbookToolEntry,
   MemoryEntry,
   MemoryProposal,
   ModuleId,
@@ -74,8 +75,8 @@ type _stageSessionHasVibe = Expect<
 
 type _allStageMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<StageKernelPort, "getSession"> &
+    MethodAcceptsSingleObject<StageKernelPort, "readContext"> &
     MethodAcceptsSingleObject<StageKernelPort, "updateSession"> &
-    MethodAcceptsSingleObject<StageKernelPort, "compileHandbook"> &
     MethodAcceptsSingleObject<StageKernelPort, "prepareMaterials">
 >;
 
@@ -237,13 +238,9 @@ const session: StageSession = {
 };
 
 const handbook: Handbook = {
-  sessionId: session.id,
-  rules: ["Only present playable links when source-backed."],
-  stageVibe,
-  availableInstruments: [],
-  permissionBoundaries: ["Normal link display is not playback."],
-  memorySummaries: [],
-  pluginGuidance: [],
+  revision: "sha256:test",
+  content: "# MineMusic Instrument Handbook\n",
+  instruments: [],
 };
 
 const sourceProvider: SourceProvider = {
@@ -267,36 +264,12 @@ const stageKernel: StageKernelPort = {
     ok: true,
     value: {
       session: { ...session, id: sessionId },
-      handbookRef: {
-        sessionId,
-        path: `.minemusic/stage/sessions/${sessionId}/HANDBOOK.md`,
-        revision: "sha256:test",
-        updatedAt: "2026-05-17T00:00:00.000Z",
-        status: "ready",
-      },
       memorySummaries: [],
-    },
-  }),
-  readSessionHandbook: async ({ sessionId }) => ({
-    ok: true,
-    value: {
-      ref: {
-        sessionId,
-        path: `.minemusic/stage/sessions/${sessionId}/HANDBOOK.md`,
-        revision: "sha256:test",
-        updatedAt: "2026-05-17T00:00:00.000Z",
-        status: "ready",
-      },
-      content: "# MineMusic Session Handbook\n",
     },
   }),
   updateSession: async ({ sessionId, patch }) => ({
     ok: true,
     value: { ...session, ...patch, id: sessionId },
-  }),
-  compileHandbook: async ({ sessionId }) => ({
-    ok: true,
-    value: { ...handbook, sessionId },
   }),
   prepareMaterials: async ({ materials }) => ({
     ok: true,
@@ -325,6 +298,19 @@ const instrumentCatalog: InstrumentCatalogPort = {
 };
 
 const toolName: ToolName = "music.material.ground";
+const handbookToolEntry: HandbookToolEntry = {
+  instrument: {
+    id: "mvp",
+    label: "MVP Instruments",
+  },
+  tool: {
+    name: toolName,
+    description: "Ground a music request through source providers.",
+    inputSchemaRef: "SourceQuery",
+    outputSchemaRef: "MusicMaterial[]",
+  },
+  content: "#### `music.material.ground`\n",
+};
 
 const toolDispatch: ToolDispatchPort = {
   call: async ({ toolName }) => ({
@@ -449,6 +435,7 @@ void [
   stageKernel,
   instrumentCatalog,
   toolName,
+  handbookToolEntry,
   toolDispatch,
   canonicalStore,
   sourceResolution,

@@ -17,8 +17,9 @@ live smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP
 plugin surface. The Codex surface exposes MineMusic instruments, not runtime
 internals, and deterministic MCP/plugin packaging tests pass. The repo-local
 plugin now includes a MineMusic workflow skill, explicit MCP input schemas for
-argument-bearing tools, and a session-scoped handbook reader. Fresh Codex app
-plugin visibility is not yet claimed.
+argument-bearing tools, a generated skill-local `HANDBOOK.md`, and
+`minemusic.handbook.*` lookup tools. Fresh Codex app plugin visibility is not
+yet claimed.
 
 ## Source Basis
 
@@ -41,8 +42,8 @@ The current docs are based on `proposal.md` only.
 - Contract docs distinguish shared data contracts from public module ports.
 - Stage/Instrument coordination is split into `InstrumentCatalogPort` and
   `ToolDispatchPort` to avoid a circular public-port contract.
-- `StageVibe` is part of session/Handbook guidance, and Music Knowledge remains
-  a thin MVP stub unless later promoted.
+- `StageVibe` is part of session guidance, and Music Knowledge remains a thin
+  MVP stub unless later promoted.
 - Wave 1 TypeScript build harness exists in `package.json` and `tsconfig.json`.
 - Shared contracts are exported from `src/contracts/index.ts`.
 - Public ports and repository interfaces are exported from `src/ports/index.ts`.
@@ -67,12 +68,16 @@ The current docs are based on `proposal.md` only.
   playable-link refresh, canonical-ref attachment from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.
 - Stage Kernel is exported from `src/stage/index.ts` with session continuity,
-  Handbook compilation compatibility, session-scoped Handbook document
-  references, `StageVibe` propagation, and material-state gating.
-- `stage.context.read` returns dynamic session context and a `handbookRef` for
-  the current session. It does not embed the Handbook body.
-- `stage.handbook.read` returns the current session's static Handbook markdown
-  document on demand.
+  dynamic session context, `StageVibe` propagation through session state, and
+  material-state gating.
+- `stage.context.read` returns dynamic session context only: session state and
+  memory summaries. It does not embed or point at a Handbook.
+- The MineMusic Handbook is generated from current agent-visible
+  `InstrumentDescriptor` / `ToolDescriptor` entries and written to
+  `plugins/minemusic/skills/minemusic/HANDBOOK.md` at runtime startup.
+- The `minemusic.handbook` instrument exposes `handbook.overview.read`,
+  `handbook.instrument.read`, and `handbook.tool.read` for on-demand Handbook
+  lookup.
 - Instrument registry and tool dispatch are exported from
   `src/instruments/index.ts` with stable LLM-visible tool names and dependency
   injection through public ports.
@@ -108,9 +113,9 @@ The current docs are based on `proposal.md` only.
 - `stage.materials.prepare` is a stable Tool API / Instrument tool, so Stage
   Kernel material gating is Codex-visible.
 - Tool Dispatch enforces current instrument availability through
-  `InstrumentCatalogPort`, not by compiling a Handbook. `stage.context.read`
-  and `stage.handbook.read` remain available for discovery/reference, and
-  `session.update` remains available for recovery.
+  `InstrumentCatalogPort`, not by compiling a Handbook. `stage.context.read`,
+  the `handbook.*` lookup tools, and `session.update` remain available for
+  discovery/reference/recovery.
 - The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
   `MineMusicToolApi`, not provider or repository internals. Argument-bearing
@@ -119,9 +124,9 @@ The current docs are based on `proposal.md` only.
   marketplace entry at `.agents/plugins/marketplace.json`.
 - The repo-local plugin includes a workflow skill at
   `plugins/minemusic/skills/minemusic/SKILL.md`. The skill triggers on music
-  requests and routes agents through `stage.context.read`, the returned
-  `handbookRef` / `stage.handbook.read`,
-  `music.material.ground`, and `stage.materials.prepare`.
+  requests and routes agents through the skill-local `HANDBOOK.md`,
+  `handbook.tool.read`, `stage.context.read`, `music.material.ground`, and
+  `stage.materials.prepare`.
 - The workflow skill now distinguishes listening context from provider search
   text. Environment terms such as writing code, study, walking, late night, or
   not too sleepy are musical context for the agent to interpret, not literal
@@ -132,8 +137,8 @@ The current docs are based on `proposal.md` only.
 - Durable storage repositories beyond in-memory infrastructure.
 - Packaged Plugin Edge providers beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- Explicit Handbook refresh semantics for plugin/policy updates after a session
-  Handbook has already been created.
+- More host-surface validation for Handbook refresh when plugin tool
+  descriptors change outside runtime startup.
 - Fresh Codex app plugin installation and interactive tool visibility in a new
   Codex session.
 

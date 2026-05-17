@@ -32,7 +32,6 @@ LLM Agent Runtime
   -> Stage Layer
      -> Stage Kernel
      -> Handbook
-     -> session-scoped Handbook document reference
      -> StageSession
      -> Instruments
      -> MusicMaterial state
@@ -88,14 +87,16 @@ is the rule that lets several people or agents implement modules in parallel.
 ```text
 1. User asks for music naturally.
 2. LLM interprets the musical situation.
-3. Stage Kernel returns dynamic StageSession context plus a reference to the
-   session-scoped static Handbook document.
-4. LLM uses the session Handbook as workflow guidance and instruments to
+3. LLM reads the skill-local `HANDBOOK.md` for the current instrument overview
+   when needed.
+4. Stage Kernel returns dynamic StageSession context through
+   `stage.context.read`.
+5. LLM uses `handbook.tool.read` for exact tool details and instruments to
    request grounding, prepared materials, or links.
-5. Source Resolution and optional Knowledge providers return MusicMaterial.
-6. Canonical Store anchors material when possible.
-7. Stage Kernel marks each material state honestly.
-8. LLM selects and explains recommendations.
+6. Source Resolution and optional Knowledge providers return MusicMaterial.
+7. Canonical Store anchors material when possible.
+8. Stage Kernel marks each material state honestly.
+9. LLM selects and explains recommendations.
 9. Event Service records what happened.
 10. Memory Service receives proposals for evidence-backed memory.
 11. Effect Boundary governs durable writes and external actions.
@@ -105,7 +106,7 @@ is the rule that lets several people or agents implement modules in parallel.
 
 | Module | Owns | Does Not Own |
 | --- | --- | --- |
-| Stage Kernel | LLM-facing governance, Handbook compilation, StageSession continuity, instrument exposure, material-state gating | source internals, durable identity schema internals, storage details |
+| Stage Kernel | LLM-facing governance, dynamic session context, StageSession continuity, material-state gating | source internals, durable identity schema internals, storage details |
 | Codex MCP Surface | repo-local plugin metadata, MCP tool registration, prefixed host tool names | recommendation policy, provider implementation, Stage private internals |
 | Instrument Catalog / Tool Dispatch | LLM-visible instruments and governed tool names | provider implementation, final recommendation judgment, Stage private internals |
 | Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
@@ -173,19 +174,23 @@ new preference behavior -> Memory Service protocol
 Core modules depend on slot interfaces and MineMusic-owned contracts, not on
 concrete plugin packages.
 
-Stage Kernel depends on `InstrumentCatalogPort` for Handbook compilation. Tool
-dispatch may call Stage and core ports through composition-root injection, but
-Stage Kernel must not depend on `ToolDispatchPort`.
+Stage Kernel receives `InstrumentCatalogPort` at composition time, but Handbook
+generation is owned outside Stage Kernel. Tool dispatch may call Stage and core
+ports through composition-root injection, but Stage Kernel must not depend on
+`ToolDispatchPort`.
 
 Stage context and Handbook are separate surfaces. `stage.context.read` returns
-dynamic runtime context and a `handbookRef` pointing to the current session's
-static Handbook markdown document. It does not embed the Handbook body.
-`stage.handbook.read` reads that session document on demand. Tool availability
-is checked through `InstrumentCatalogPort`, not by compiling or reading a
-Handbook as a side effect.
+dynamic runtime context only: session state and memory summaries. It does not
+embed the Handbook body and does not return a Handbook file reference. The
+Handbook is generated from current agent-visible `InstrumentDescriptor` /
+`ToolDescriptor` entries and written to the MineMusic skill's `HANDBOOK.md`;
+the `minemusic.handbook` instrument also exposes `handbook.overview.read`,
+`handbook.instrument.read`, and `handbook.tool.read` for on-demand lookup. Tool
+availability is checked through `InstrumentCatalogPort`, not by compiling or
+reading a Handbook as a side effect.
 
 Codex-visible tools are derived from MineMusic instrument descriptors. The
 host-facing MCP names are prefixed, for example
-`minemusic.stage.context.read`, `minemusic.stage.handbook.read`, and
+`minemusic.stage.context.read`, `minemusic.handbook.tool.read`, and
 `minemusic.stage.materials.prepare`, while the internal public API remains the
 stable `ToolName` union.

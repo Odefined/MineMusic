@@ -11,20 +11,20 @@ guidance, event records, memory proposals, and effect proposals.
 
 ## Required Flow
 
-1. Call `minemusic.stage.context.read` first. It returns dynamic session
-   context plus `handbookRef`; it does not embed the handbook text.
-2. Use the session handbook referenced by `handbookRef` as the current workflow
-   manual. When you need to inspect it through a tool, call
-   `minemusic.stage.handbook.read`.
-3. Interpret the user's listening context yourself. "Writing code", "walking",
+1. Read `HANDBOOK.md` in this skill directory when you need the current
+   MineMusic instrument and tool overview.
+2. For precise tool input/output details, call
+   `minemusic.handbook.tool.read`.
+3. Call `minemusic.stage.context.read` for dynamic session context.
+4. Interpret the user's listening context yourself. "Writing code", "walking",
    "late night", or "not too sleepy" are listening context, not literal song
    titles.
-4. Choose one or more source-searchable candidate queries from your musical
+5. Choose one or more source-searchable candidate queries from your musical
    judgment, such as a song title plus artist, an artist name, or a concrete
    album/track query. Do not send environment words like "coding", "study", or
    "sleepy" as literal provider searches unless the user actually asked for a
    song/title with that word.
-5. For recommendations or playable-link requests, call
+6. For recommendations or playable-link requests, call
    `minemusic.music.material.ground` with the source-searchable candidate:
 
 ```json
@@ -36,7 +36,7 @@ guidance, event records, memory proposals, and effect proposals.
 }
 ```
 
-6. Before presenting any material or link, call
+7. Before presenting any material or link, call
    `minemusic.stage.materials.prepare`:
 
 ```json
@@ -46,14 +46,14 @@ guidance, event records, memory proposals, and effect proposals.
 }
 ```
 
-7. Present prepared material honestly. A direct playable link needs a prepared
+8. Present prepared material honestly. A direct playable link needs a prepared
    material in `confirmed_playable` or `source_only_playable` state with a
    `playableLinks` entry.
-8. Record user feedback such as liked, disliked, wrong version, not playable,
+9. Record user feedback such as liked, disliked, wrong version, not playable,
    too loud, too boring, or accepted with `minemusic.events.record`.
-9. For durable preference learning, call `minemusic.memory.propose`; do not
+10. For durable preference learning, call `minemusic.memory.propose`; do not
    write memory directly.
-10. For external actions such as open, play, queue, save, source writeback, or
+11. For external actions such as open, play, queue, save, source writeback, or
    notification, call `minemusic.effects.propose`; do not execute the action
    directly.
 

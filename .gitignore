@@ -2,7 +2,6 @@
 node_modules/
 .npm-cache/
 .tmp-test/
-.minemusic/
 
 # Old snapshots and large local artifacts are not authority for the fresh MVP.
 archive 2/

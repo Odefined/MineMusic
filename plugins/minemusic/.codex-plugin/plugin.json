@@ -16,7 +16,7 @@
   "interface": {
     "displayName": "MineMusic",
     "shortDescription": "Use MineMusic instruments from Codex.",
-    "longDescription": "Expose the MineMusic MVP instrument through a local MCP server. Codex can read the Handbook, ground music material, prepare recommendations through Stage Kernel gates, record events, and propose memory or effects without executing playback.",
+    "longDescription": "Expose MineMusic handbook and MVP instruments through a local MCP server. Codex can read generated tool guidance, ground music material, prepare recommendations through Stage Kernel gates, record events, and propose memory or effects without executing playback.",
     "developerName": "MineMusic",
     "category": "Productivity",
     "capabilities": [
@@ -26,7 +26,7 @@
     ],
     "defaultPrompt": [
       "Use MineMusic to find a source-backed song link.",
-      "Read my MineMusic Handbook for this session.",
+      "Read the MineMusic instrument handbook.",
       "Ground a music request through NetEase."
     ],
     "brandColor": "#2563EB"

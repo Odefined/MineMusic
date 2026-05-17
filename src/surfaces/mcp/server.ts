@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod/v4";
 
 import type { Result, StageSession, ToolName } from "../../contracts/index.js";
-import { instrumentToolDescriptors, stableToolNames } from "../../instruments/index.js";
+import { agentToolDescriptors, stableToolNames } from "../../instruments/index.js";
 import { createNetEaseSourceProvider } from "../../providers/netease/index.js";
 import {
   createMineMusicRuntimeWithSourceProvider,
@@ -43,7 +43,13 @@ const musicMaterialSchema = z.object({
 }).passthrough();
 const inputSchemas = {
   "stage.context.read": {},
-  "stage.handbook.read": {},
+  "handbook.overview.read": {},
+  "handbook.instrument.read": {
+    instrumentId: z.string(),
+  },
+  "handbook.tool.read": {
+    toolName: z.string(),
+  },
   "stage.materials.prepare": {
     materials: z.array(musicMaterialSchema),
     purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
@@ -95,7 +101,7 @@ export function internalToolNameFor(mcpToolName: string): ToolName | null {
 export function createMineMusicMcpToolDefinitions(
   runtime: MineMusicRuntime,
 ): MineMusicMcpToolDefinition[] {
-  return instrumentToolDescriptors.map((descriptor) => ({
+  return agentToolDescriptors.map((descriptor) => ({
     name: codexToolNameFor(descriptor.name),
     description: descriptor.description,
     inputSchema: inputSchemas[descriptor.name],

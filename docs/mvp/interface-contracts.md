@@ -109,31 +109,24 @@ export type StageVibe = {
 };
 
 export type Handbook = {
-  sessionId: string;
-  rules: string[];
-  stageVibe?: StageVibe;
-  availableInstruments: InstrumentDescriptor[];
-  permissionBoundaries: string[];
-  memorySummaries: string[];
-  pluginGuidance: string[];
-};
-
-export type SessionHandbookRef = {
-  sessionId: string;
-  path: string;
   revision: string;
-  updatedAt: string;
-  status: "ready";
+  content: string;
+  instruments: InstrumentDescriptor[];
 };
 
-export type SessionHandbook = {
-  ref: SessionHandbookRef;
+export type HandbookInstrumentEntry = {
+  instrument: InstrumentDescriptor;
+  content: string;
+};
+
+export type HandbookToolEntry = {
+  instrument: Pick<InstrumentDescriptor, "id" | "label">;
+  tool: ToolDescriptor;
   content: string;
 };
 
 export type StageContext = {
   session: StageSession;
-  handbookRef: SessionHandbookRef;
   memorySummaries: string[];
 };
 ```
@@ -293,7 +286,9 @@ Rules:
 ```ts
 export type ToolName =
   | "stage.context.read"
-  | "stage.handbook.read"
+  | "handbook.overview.read"
+  | "handbook.instrument.read"
+  | "handbook.tool.read"
   | "stage.materials.prepare"
   | "music.material.ground"
   | "music.links.refresh"
@@ -347,8 +342,6 @@ export type DomainEvent = {
 
 export type DomainEventType =
   | "stage.session.updated"
-  | "stage.handbook.compiled"
-  | "stage.handbook.created"
   | "stage.materials.prepared"
   | "instrument.called"
   | "instrument.failed"
