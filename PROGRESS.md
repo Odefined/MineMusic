@@ -144,6 +144,9 @@
   skill-local `plugins/minemusic/skills/minemusic/HANDBOOK.md`.
 - Updated Tool Dispatch to check instrument availability through
   `InstrumentCatalogPort` instead of compiling a Handbook as a side effect.
+- Replaced the agent-facing material tool with `music.material.resolve`.
+  Resolve accepts single candidates or candidate sets, checks Canonical Store
+  first, and uses source grounding internally before Stage preparation.
 
 ## Next
 

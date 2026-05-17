@@ -16,7 +16,7 @@
   "interface": {
     "displayName": "MineMusic",
     "shortDescription": "Use MineMusic instruments from Codex.",
-    "longDescription": "Expose MineMusic handbook and MVP instruments through a local MCP server. Codex can read generated tool guidance, ground music material, prepare recommendations through Stage Kernel gates, record events, and propose memory or effects without executing playback.",
+    "longDescription": "Expose MineMusic handbook and MVP instruments through a local MCP server. Codex can read generated tool guidance, resolve music material through canonical-first source resolution, prepare recommendations through Stage Kernel gates, record events, and propose memory or effects without executing playback.",
     "developerName": "MineMusic",
     "category": "Productivity",
     "capabilities": [

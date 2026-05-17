@@ -52,10 +52,10 @@ function createDependencies(eventsSeen: string[] = []) {
           label: "MineMusic MVP",
           tools: [
             {
-              name: "music.material.ground",
-              description: "Ground candidates through source providers.",
-              inputSchemaRef: "SourceQuery",
-              outputSchemaRef: "MusicMaterial[]",
+              name: "music.material.resolve",
+              description: "Resolve candidates through canonical-first source resolution.",
+              inputSchemaRef: "MaterialResolveRequest",
+              outputSchemaRef: "MaterialResolveResult",
             },
           ],
         },
@@ -92,11 +92,13 @@ function createDependencies(eventsSeen: string[] = []) {
     decide: async () => ({ ok: true, value: undefined }),
   };
   const source: SourceResolutionPort = {
+    resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
     ground: async () => ({ ok: true, value: [] }),
     refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
   };
   const canonical: CanonicalStorePort = {
     get: async () => ({ ok: true, value: null }),
+    findByLabel: async () => ({ ok: true, value: [] }),
     resolveExternalRef: async () => ({ ok: true, value: null }),
     createProvisional: async ({ kind, label }) => ({
       ok: true,

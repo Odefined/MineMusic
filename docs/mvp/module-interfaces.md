@@ -163,7 +163,7 @@ export type ToolName =
   | "handbook.instrument.read"
   | "handbook.tool.read"
   | "stage.materials.prepare"
-  | "music.material.ground"
+  | "music.material.resolve"
   | "music.links.refresh"
   | "events.record"
   | "memory.propose"
@@ -203,6 +203,11 @@ Public port:
 export interface CanonicalStorePort {
   get(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;
 
+  findByLabel(input: {
+    label: string;
+    kind?: string;
+  }): Promise<Result<CanonicalRecord[]>>;
+
   resolveExternalRef(input: {
     ref: Ref;
   }): Promise<Result<CanonicalRecord | null>>;
@@ -239,6 +244,8 @@ Must not expose:
 
 Purpose:
 
+- Resolve agent-supplied music candidates through canonical-first source
+  resolution.
 - Search source providers.
 - Return source-backed playable links.
 - Mark material state honestly.
@@ -247,6 +254,8 @@ Public port:
 
 ```ts
 export interface SourceResolutionPort {
+  resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>>;
+
   ground(input: {
     query: SourceQuery;
     sessionId?: string;

@@ -95,6 +95,7 @@ Owns:
 
 Public API:
 
+- `SourceResolutionPort.resolve(input)`
 - `SourceResolutionPort.ground(input)`
 - `SourceResolutionPort.refreshPlayableLinks(input)`
 

@@ -23,6 +23,24 @@ export function createCanonicalStore({
       return repository.get(ref);
     },
 
+    async findByLabel({ label, kind }) {
+      const records = await repository.list();
+
+      if (!records.ok) {
+        return records;
+      }
+
+      const normalizedLabel = normalizeLabel(label);
+
+      return ok(
+        records.value.filter(
+          (record) =>
+            normalizeLabel(record.label) === normalizedLabel &&
+            (kind === undefined || record.kind === kind || record.ref.kind === kind),
+        ),
+      );
+    },
+
     async resolveExternalRef({ ref }) {
       const records = await repository.list();
 
@@ -120,6 +138,10 @@ async function findExternalRefConflict(
 
 function sameRef(left: Ref, right: Ref): boolean {
   return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
+}
+
+function normalizeLabel(label: string): string {
+  return label.trim().toLocaleLowerCase();
 }
 
 function createDefaultIdFactory(prefix: string): () => string {

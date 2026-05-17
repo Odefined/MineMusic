@@ -126,9 +126,9 @@ Codex MCP plugin surface:
 - Plugin manifest, MCP config, workflow skill, and repo-local marketplace
   config have no scaffold TODOs or stale old MineMusic tool names, and point at
   `npm --prefix /Users/jiajuzang/Documents/Codex/MineMusic run mcp:minemusic`.
-- The workflow skill explicitly separates listening context from
-  source-searchable candidate text, so environment words such as writing code
-  are not treated as literal song-title searches.
+- The workflow skill explicitly separates listening context from music
+  candidates, so environment words such as writing code are not treated as
+  literal song-title searches.
 
 ## Thin Stubs
 

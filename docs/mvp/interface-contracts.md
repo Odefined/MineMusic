@@ -161,6 +161,55 @@ export type SourceQuery = {
   limit?: number;
 };
 
+export type MusicCandidate = {
+  id: string;
+  label: string;
+  expectedKind?: "track" | "recording" | "artist" | "album" | "playlist" | string;
+  query?: SourceQuery;
+  canonicalRef?: Ref;
+  sourceRef?: Ref;
+  reason?: string;
+  context?: string;
+};
+
+export type MaterialResolveRequest = {
+  sessionId?: string;
+  limitPerCandidate?: number;
+} & (
+  | {
+      kind: "single";
+      candidate: MusicCandidate;
+    }
+  | {
+      kind: "candidate_set";
+      candidates: MusicCandidate[];
+    }
+);
+
+export type MaterialResolveStatus =
+  | "resolved"
+  | "source_only"
+  | "unresolved"
+  | "blocked";
+
+export type ResolvedCandidate = {
+  candidate: MusicCandidate;
+  materials: MusicMaterial[];
+  status: MaterialResolveStatus;
+  canonicalRef?: Ref;
+  reason?: string;
+};
+
+export type MaterialResolveResult =
+  | {
+      kind: "single";
+      result: ResolvedCandidate;
+    }
+  | {
+      kind: "candidate_set";
+      results: ResolvedCandidate[];
+    };
+
 export interface SourceProvider {
   id: string;
   search(input: {
@@ -178,6 +227,8 @@ Rules:
 
 - Source providers own availability and source-backed playable links.
 - A provider may return source-only material.
+- `MaterialResolveRequest` is the agent-facing source-resolution input.
+- `SourceQuery` is the lower-level provider-search input used during resolve.
 - The service must mark unresolved and exploration states honestly.
 - Public methods for source behavior live in `SourceResolutionPort`.
 
@@ -290,7 +341,7 @@ export type ToolName =
   | "handbook.instrument.read"
   | "handbook.tool.read"
   | "stage.materials.prepare"
-  | "music.material.ground"
+  | "music.material.resolve"
   | "music.links.refresh"
   | "events.record"
   | "memory.propose"

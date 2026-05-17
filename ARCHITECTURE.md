@@ -91,11 +91,12 @@ is the rule that lets several people or agents implement modules in parallel.
    when needed.
 4. Stage Kernel returns dynamic StageSession context through
    `stage.context.read`.
-5. LLM uses `handbook.tool.read` for exact tool details and instruments to
-   request grounding, prepared materials, or links.
-6. Source Resolution and optional Knowledge providers return MusicMaterial.
-7. Canonical Store anchors material when possible.
-8. Stage Kernel marks each material state honestly.
+5. LLM uses `handbook.tool.read` for exact tool details and sends music
+   candidates to `music.material.resolve`.
+6. Source Resolution checks Canonical Store first, then uses source grounding
+   as evidence when needed.
+7. Source Resolution returns MusicMaterial with honest material state.
+8. Stage Kernel prepares material before presentation.
 9. LLM selects and explains recommendations.
 9. Event Service records what happened.
 10. Memory Service receives proposals for evidence-backed memory.
@@ -110,7 +111,7 @@ is the rule that lets several people or agents implement modules in parallel.
 | Codex MCP Surface | repo-local plugin metadata, MCP tool registration, prefixed host tool names | recommendation policy, provider implementation, Stage private internals |
 | Instrument Catalog / Tool Dispatch | LLM-visible instruments and governed tool names | provider implementation, final recommendation judgment, Stage private internals |
 | Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
-| Source Resolution | source refs, availability, playable links, provider evidence | canonical authority, memory decisions |
+| Source Resolution | canonical-first material resolution, source refs, availability, playable links, provider evidence | canonical authority, memory decisions |
 | Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |
 | Event Service | factual event history | derived preference claims |
 | Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals | raw event logging, external side effects |

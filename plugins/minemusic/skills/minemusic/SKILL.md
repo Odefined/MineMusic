@@ -6,8 +6,9 @@ description: "Use when the user asks for music recommendations, songs, artists, 
 # MineMusic
 
 Use MineMusic as the workflow layer for music requests. The agent supplies
-musical judgment and wording; MineMusic supplies source grounding, Stage
-guidance, event records, memory proposals, and effect proposals.
+musical judgment and wording; MineMusic supplies canonical-first material
+resolution, source grounding, Stage guidance, event records, memory proposals,
+and effect proposals.
 
 ## Required Flow
 
@@ -19,20 +20,30 @@ guidance, event records, memory proposals, and effect proposals.
 4. Interpret the user's listening context yourself. "Writing code", "walking",
    "late night", or "not too sleepy" are listening context, not literal song
    titles.
-5. Choose one or more source-searchable candidate queries from your musical
-   judgment, such as a song title plus artist, an artist name, or a concrete
-   album/track query. Do not send environment words like "coding", "study", or
-   "sleepy" as literal provider searches unless the user actually asked for a
-   song/title with that word.
+5. Choose one or more music candidates from your musical judgment, such as a
+   song title plus artist, an artist name, or a concrete album/track candidate.
+   Do not send environment words like "coding", "study", or "sleepy" as
+   literal provider searches unless the user actually asked for a song/title
+   with that word.
 6. For recommendations or playable-link requests, call
-   `minemusic.music.material.ground` with the source-searchable candidate:
+   `minemusic.music.material.resolve` with the candidate or candidate set.
+   Resolve is the primary operation; source grounding is an internal evidence
+   step and should not be driven one candidate at a time by the agent:
 
 ```json
 {
-  "query": {
-    "text": "candidate song or artist query",
-    "limit": 3
-  }
+  "kind": "candidate_set",
+  "candidates": [
+    {
+      "id": "candidate-1",
+      "label": "candidate song or artist",
+      "expectedKind": "track",
+      "query": {
+        "text": "candidate song or artist",
+        "limit": 3
+      }
+    }
+  ]
 }
 ```
 

@@ -33,11 +33,11 @@ Output: `StageContextReadOutput`
 Description: Prepare grounded materials through Stage Kernel gating before presentation.
 Input: `StageMaterialsPrepareInput`
 Output: `MusicMaterial[]`
-#### `music.material.ground`
+#### `music.material.resolve`
 
-Description: Ground a source-searchable candidate through source resolution.
-Input: `SourceQuery`
-Output: `MusicMaterial[]`
+Description: Resolve music candidates through canonical-first source resolution.
+Input: `MaterialResolveRequest`
+Output: `MaterialResolveResult`
 #### `music.links.refresh`
 
 Description: Refresh source-backed playable links for a material item.

@@ -43,7 +43,7 @@ Add tests that assert:
 stableToolNames.includes("stage.materials.prepare")
 ```
 
-and that `createToolDispatch(...).call({ toolName: "stage.materials.prepare", ... })` returns materials prepared by Stage Kernel. Add a second test where the session has `activeInstruments: ["other.instrument"]` and calling `music.material.ground` returns `instrument.tool_not_found`.
+and that `createToolDispatch(...).call({ toolName: "stage.materials.prepare", ... })` returns materials prepared by Stage Kernel. Add a second test where the session has `activeInstruments: ["other.instrument"]` and calling `music.material.resolve` returns `instrument.tool_not_found`.
 
 - [x] **Step 2: Run RED**
 

@@ -5,6 +5,8 @@ import type {
   EffectProposal,
   InstrumentDescriptor,
   KnowledgeQuery,
+  MaterialResolveRequest,
+  MaterialResolveResult,
   MemoryEntry,
   MemoryProposal,
   MusicMaterial,
@@ -49,6 +51,11 @@ export interface ToolDispatchPort {
 export interface CanonicalStorePort {
   get(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;
 
+  findByLabel(input: {
+    label: string;
+    kind?: string;
+  }): Promise<Result<CanonicalRecord[]>>;
+
   resolveExternalRef(input: {
     ref: Ref;
   }): Promise<Result<CanonicalRecord | null>>;
@@ -66,6 +73,8 @@ export interface CanonicalStorePort {
 }
 
 export interface SourceResolutionPort {
+  resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>>;
+
   ground(input: {
     query: SourceQuery;
     sessionId?: string;

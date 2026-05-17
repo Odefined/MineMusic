@@ -2,7 +2,13 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { MusicMaterial, Result, SourceProvider, StageSession } from "../../src/contracts/index.js";
+import type {
+  MaterialResolveResult,
+  MusicMaterial,
+  Result,
+  SourceProvider,
+  StageSession,
+} from "../../src/contracts/index.js";
 import { createMineMusicRuntimeWithSourceProvider } from "../../src/runtime/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -68,16 +74,23 @@ async function createsRuntimeWithInjectedSourceProvider(): Promise<void> {
   });
   await runtime.ready;
 
-  const materials = await assertOk(
-    runtime.toolApi.tools["music.material.ground"]({
-      query: {
-        text: "coding",
-        limit: 1,
+  const resolveResult = await assertOk(
+    runtime.toolApi.tools["music.material.resolve"]({
+      kind: "single",
+      candidate: {
+        id: "coding",
+        label: "Coding Track",
+        query: {
+          text: "coding",
+          limit: 1,
+        },
       },
-    }) as Promise<Result<MusicMaterial[]>>,
+    }) as Promise<Result<MaterialResolveResult>>,
   );
+  assert(resolveResult.kind === "single", "runtime should return a single resolve result");
+  const materials = resolveResult.result.materials;
 
-  assert(calls.includes("provider.search"), "runtime should route source grounding to injected provider");
+  assert(calls.includes("provider.search"), "runtime should route material resolve to injected provider");
   assert(materials[0]?.label === "Provider Coding Track", "runtime should return provider material through tool API");
   assert(
     materials[0]?.state === "source_only_playable",
@@ -110,7 +123,7 @@ async function writesInstrumentHandbookOnRuntimeReady(): Promise<void> {
 
     assert(content.includes("# MineMusic Instrument Handbook"), "runtime should write the handbook overview file");
     assert(content.includes("`handbook.tool.read`"), "handbook should document precise handbook lookup");
-    assert(content.includes("`music.material.ground`"), "handbook should document music tools from the catalog");
+    assert(content.includes("`music.material.resolve`"), "handbook should document music tools from the catalog");
     assert(!content.includes("runtime-test-provider"), "handbook should not expose provider implementation names");
   } finally {
     await rm(directory, { force: true, recursive: true });

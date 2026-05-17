@@ -1,10 +1,10 @@
 import type {
   EffectProposal,
   InstrumentDescriptor,
+  MaterialResolveRequest,
   MemoryProposal,
   MusicMaterial,
   Result,
-  SourceQuery,
   StageError,
   StageEvent,
   ToolDescriptor,
@@ -31,7 +31,7 @@ export const stableToolNames = [
   "handbook.instrument.read",
   "handbook.tool.read",
   "stage.materials.prepare",
-  "music.material.ground",
+  "music.material.resolve",
   "music.links.refresh",
   "events.record",
   "memory.propose",
@@ -165,11 +165,8 @@ export function createToolDispatch({
             }>(payload, { sessionId }),
           );
 
-        case "music.material.ground":
-          return source.ground(readPayload<{
-            query: SourceQuery;
-            sessionId?: string;
-          }>(payload, { sessionId }));
+        case "music.material.resolve":
+          return source.resolve(readPayload<MaterialResolveRequest>(payload, { sessionId }));
 
         case "music.links.refresh":
           return source.refreshPlayableLinks(
@@ -243,10 +240,10 @@ export const mvpToolDescriptors: ToolDescriptor[] = [
     outputSchemaRef: "MusicMaterial[]",
   },
   {
-    name: "music.material.ground",
-    description: "Ground a source-searchable candidate through source resolution.",
-    inputSchemaRef: "SourceQuery",
-    outputSchemaRef: "MusicMaterial[]",
+    name: "music.material.resolve",
+    description: "Resolve music candidates through canonical-first source resolution.",
+    inputSchemaRef: "MaterialResolveRequest",
+    outputSchemaRef: "MaterialResolveResult",
   },
   {
     name: "music.links.refresh",

@@ -42,25 +42,26 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   );
   assert(!skillText.includes("session handbook"), "MineMusic skill should not mention session handbook files");
   assert(handbookText.includes("# MineMusic Instrument Handbook"), "plugin should ship a generated handbook overview");
-  assert(handbookText.includes("`music.material.ground`"), "handbook should document the grounding tool");
-  assert(handbookText.includes("Input: `SourceQuery`"), "handbook should document tool input schema refs");
-  assert(handbookText.includes("Output: `MusicMaterial[]`"), "handbook should document tool output schema refs");
+  assert(handbookText.includes("`music.material.resolve`"), "handbook should document the resolve tool");
+  assert(handbookText.includes("Input: `MaterialResolveRequest`"), "handbook should document tool input schema refs");
+  assert(handbookText.includes("Output: `MaterialResolveResult`"), "handbook should document tool output schema refs");
   assert(
     skillText.includes("minemusic.stage.materials.prepare"),
     "MineMusic skill should require Stage material preparation before presenting links",
   );
   assert(
-    skillText.includes("minemusic.music.material.ground"),
-    "MineMusic skill should route grounding through the current material tool",
+    skillText.includes("minemusic.music.material.resolve"),
+    "MineMusic skill should route recommendations through the current material resolve tool",
   );
   assert(
     skillText.includes("listening context"),
     "MineMusic skill should distinguish listening context from source search text",
   );
   assert(
-    skillText.includes("source-searchable candidate"),
-    "MineMusic skill should require agent-selected source-searchable candidates",
+    skillText.includes("music candidates"),
+    "MineMusic skill should require agent-selected music candidates",
   );
+  assert(!skillText.includes("minemusic.music.material.ground"), "MineMusic skill should not route agents to ground directly");
   assert(
     skillText.includes("Do not send environment words"),
     "MineMusic skill should forbid using environment terms as literal song searches",

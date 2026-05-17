@@ -1,5 +1,6 @@
 import type {
   EffectProposal,
+  MaterialResolveResult,
   MemoryProposal,
   MusicMaterial,
   Result,
@@ -41,18 +42,24 @@ export async function runRecommendationTranscript(
   const context = contextResult.value as {
     session: StageSession;
   };
-  const groundedResult = await runtime.toolApi.tools["music.material.ground"]({
-    query: {
-      text: input.request,
-      limit: 5,
+  const resolvedResult = await runtime.toolApi.tools["music.material.resolve"]({
+    kind: "single",
+    candidate: {
+      id: "user-request",
+      label: input.request,
+      query: {
+        text: input.request,
+        limit: 5,
+      },
     },
   });
 
-  if (!groundedResult.ok) {
-    return groundedResult;
+  if (!resolvedResult.ok) {
+    return resolvedResult;
   }
 
-  const groundedMaterials = groundedResult.value as MusicMaterial[];
+  const resolved = resolvedResult.value as MaterialResolveResult;
+  const groundedMaterials = resolved.kind === "single" ? resolved.result.materials : [];
   const preparedResult = await runtime.toolApi.tools["stage.materials.prepare"]({
     materials: groundedMaterials,
     purpose: "recommendation",

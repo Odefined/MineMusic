@@ -42,6 +42,10 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     codexToolNameFor("handbook.tool.read") === "minemusic.handbook.tool.read",
     "MCP should expose precise handbook tool lookup with the MineMusic prefix",
   );
+  assert(
+    codexToolNameFor("music.material.resolve") === "minemusic.music.material.resolve",
+    "MCP should expose canonical-first material resolve with the MineMusic prefix",
+  );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
 }
 
@@ -78,8 +82,16 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   );
 
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.material.ground"), "query"),
-    "grounding tool schema should declare query input",
+    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "kind"),
+    "resolve tool schema should declare discriminant input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidate"),
+    "resolve tool schema should declare single-candidate input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidates"),
+    "resolve tool schema should declare candidate-set input",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materials"),

@@ -41,6 +41,22 @@ const musicMaterialSchema = z.object({
   label: z.string(),
   state: z.string(),
 }).passthrough();
+const sourceQuerySchema = z.object({
+  text: z.string().optional(),
+  canonicalRef: refSchema.optional(),
+  sourceRef: refSchema.optional(),
+  limit: z.number().int().positive().optional(),
+});
+const musicCandidateSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  expectedKind: z.string().optional(),
+  query: sourceQuerySchema.optional(),
+  canonicalRef: refSchema.optional(),
+  sourceRef: refSchema.optional(),
+  reason: z.string().optional(),
+  context: z.string().optional(),
+});
 const inputSchemas = {
   "stage.context.read": {},
   "handbook.overview.read": {},
@@ -54,13 +70,12 @@ const inputSchemas = {
     materials: z.array(musicMaterialSchema),
     purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
   },
-  "music.material.ground": {
-    query: z.object({
-      text: z.string().optional(),
-      canonicalRef: refSchema.optional(),
-      sourceRef: refSchema.optional(),
-      limit: z.number().int().positive().optional(),
-    }),
+  "music.material.resolve": {
+    kind: z.enum(["single", "candidate_set"]),
+    candidate: musicCandidateSchema.optional(),
+    candidates: z.array(musicCandidateSchema).optional(),
+    sessionId: z.string().optional(),
+    limitPerCandidate: z.number().int().positive().optional(),
   },
   "music.links.refresh": {
     material: musicMaterialSchema,

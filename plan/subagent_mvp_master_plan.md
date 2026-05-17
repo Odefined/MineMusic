@@ -474,7 +474,7 @@ Required behavior:
 - dispatch stable tool names.
 - hide provider internals.
 - route `stage.context.read`, `stage.materials.prepare`,
-  `music.material.ground`, `music.links.refresh`, `events.record`,
+  `music.material.resolve`, `music.links.refresh`, `events.record`,
   `memory.propose`, `effects.propose`, and `session.update`.
 - keep `InstrumentCatalogPort` independent from `StageKernelPort`; only
   `ToolDispatchPort` may call Stage and core ports through injected public

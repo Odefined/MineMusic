@@ -5,6 +5,7 @@ import type {
   EffectProposal,
   Handbook,
   HandbookToolEntry,
+  MaterialResolveResult,
   MemoryEntry,
   MemoryProposal,
   ModuleId,
@@ -286,10 +287,10 @@ const instrumentCatalog: InstrumentCatalogPort = {
         label: "MVP Instruments",
         tools: [
           {
-            name: "music.material.ground",
-            description: "Ground a music request through source providers.",
-            inputSchemaRef: "SourceQuery",
-            outputSchemaRef: "MusicMaterial[]",
+            name: "music.material.resolve",
+            description: "Resolve music candidates through canonical-first source resolution.",
+            inputSchemaRef: "MaterialResolveRequest",
+            outputSchemaRef: "MaterialResolveResult",
           },
         ],
       },
@@ -297,7 +298,7 @@ const instrumentCatalog: InstrumentCatalogPort = {
   }),
 };
 
-const toolName: ToolName = "music.material.ground";
+const toolName: ToolName = "music.material.resolve";
 const handbookToolEntry: HandbookToolEntry = {
   instrument: {
     id: "mvp",
@@ -305,11 +306,11 @@ const handbookToolEntry: HandbookToolEntry = {
   },
   tool: {
     name: toolName,
-    description: "Ground a music request through source providers.",
-    inputSchemaRef: "SourceQuery",
-    outputSchemaRef: "MusicMaterial[]",
+    description: "Resolve music candidates through canonical-first source resolution.",
+    inputSchemaRef: "MaterialResolveRequest",
+    outputSchemaRef: "MaterialResolveResult",
   },
-  content: "#### `music.material.ground`\n",
+  content: "#### `music.material.resolve`\n",
 };
 
 const toolDispatch: ToolDispatchPort = {
@@ -321,6 +322,7 @@ const toolDispatch: ToolDispatchPort = {
 
 const canonicalStore: CanonicalStorePort = {
   get: async () => ({ ok: true, value: null }),
+  findByLabel: async () => ({ ok: true, value: [] }),
   resolveExternalRef: async () => ({ ok: true, value: null }),
   createProvisional: async ({ kind, label, evidence }) => ({
     ok: true,
@@ -345,6 +347,17 @@ const canonicalStore: CanonicalStorePort = {
 };
 
 const sourceResolution: SourceResolutionPort = {
+  resolve: async () => ({
+    ok: true,
+    value: {
+      kind: "single",
+      result: {
+        candidate: { id: "candidate", label: "Candidate" },
+        materials: [],
+        status: "unresolved",
+      },
+    } satisfies MaterialResolveResult,
+  }),
   ground: async ({ query }) => sourceProvider.search({ query }),
   refreshPlayableLinks: async ({ material }) => ({
     ok: true,

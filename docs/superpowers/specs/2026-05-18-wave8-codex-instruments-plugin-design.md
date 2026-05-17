@@ -58,7 +58,7 @@ handbook.instrument.read
 handbook.tool.read
 stage.context.read
 stage.materials.prepare
-music.material.ground
+music.material.resolve
 music.links.refresh
 events.record
 memory.propose
@@ -111,7 +111,7 @@ The MCP server creates an explicit MineMusic runtime for Codex use. It should:
 - keep fixture runtime paths available for existing tests.
 - avoid autoplay, queue mutation, source writeback, and host-specific policy.
 
-If the NetEase service is unavailable, grounding tools return normal
+If the NetEase service is unavailable, material resolution tools return normal
 MineMusic `Result<T>` errors. The MCP wrapper should surface those errors as
 structured JSON text without inventing fallback recommendations.
 
@@ -142,7 +142,7 @@ making the MineMusic namespace explicit:
 minemusic.stage.context.read
 minemusic.handbook.tool.read
 minemusic.stage.materials.prepare
-minemusic.music.material.ground
+minemusic.music.material.resolve
 minemusic.music.links.refresh
 minemusic.events.record
 minemusic.memory.propose

@@ -125,7 +125,7 @@ The current docs are based on `proposal.md` only.
 - The repo-local plugin includes a workflow skill at
   `plugins/minemusic/skills/minemusic/SKILL.md`. The skill triggers on music
   requests and routes agents through the skill-local `HANDBOOK.md`,
-  `handbook.tool.read`, `stage.context.read`, `music.material.ground`, and
+  `handbook.tool.read`, `stage.context.read`, `music.material.resolve`, and
   `stage.materials.prepare`.
 - The workflow skill now distinguishes listening context from provider search
   text. Environment terms such as writing code, study, walking, late night, or

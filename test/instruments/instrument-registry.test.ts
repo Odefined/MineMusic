@@ -50,11 +50,11 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
   );
   const groundTool = descriptors
     .flatMap((descriptor) => descriptor.tools)
-    .find((tool) => tool.name === "music.material.ground");
-  assert(groundTool !== undefined, "catalog should expose the material grounding tool");
+    .find((tool) => tool.name === "music.material.resolve");
+  assert(groundTool !== undefined, "catalog should expose the material resolve tool");
   assert(
-    groundTool.description.includes("source-searchable"),
-    "grounding tool description should not imply provider search is semantic recommendation",
+    groundTool.description.includes("canonical-first"),
+    "resolve tool description should make canonical-first orchestration explicit",
   );
   assert(
     descriptors.some((descriptor) => descriptor.id === "minemusic.handbook"),
@@ -94,6 +94,16 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     },
   };
   const source: SourceResolutionPort = {
+    resolve: async () => {
+      calls.push("source.resolve");
+      return {
+        ok: true,
+        value: {
+          kind: "candidate_set",
+          results: [],
+        },
+      };
+    },
     ground: async () => {
       calls.push("source.ground");
       return { ok: true, value: [] };
@@ -136,14 +146,17 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     dispatch.call({
       sessionId: session.id,
       toolName: "handbook.tool.read",
-      payload: { toolName: "music.material.ground" },
+      payload: { toolName: "music.material.resolve" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.material.ground",
-      payload: { query: { text: "quiet" } },
+      toolName: "music.material.resolve",
+      payload: {
+        kind: "candidate_set",
+        candidates: [{ id: "quiet", label: "Quiet Track", query: { text: "quiet" } }],
+      },
     }),
   );
   await assertOk(
@@ -238,11 +251,11 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     typeof toolEntry === "object" &&
       toolEntry !== null &&
       "tool" in toolEntry &&
-      (toolEntry as { tool?: { name?: unknown } }).tool?.name === "music.material.ground",
+      (toolEntry as { tool?: { name?: unknown } }).tool?.name === "music.material.resolve",
     "handbook.tool.read should return the requested tool descriptor",
   );
   assert(calls.includes("stage.prepareMaterials"), "stage.materials.prepare should call StageKernelPort");
-  assert(calls.includes("source.ground"), "music.material.ground should call SourceResolutionPort");
+  assert(calls.includes("source.resolve"), "music.material.resolve should call SourceResolutionPort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceResolutionPort");
   assert(calls.includes("events.record"), "events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
@@ -271,6 +284,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
     stage,
     instruments: createInstrumentCatalog(),
     source: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
       ground: async () => ({ ok: true, value: [] }),
       refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
     },
@@ -315,8 +329,8 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
 
   const result = await dispatch.call({
     sessionId: restrictedSession.id,
-    toolName: "music.material.ground",
-    payload: { query: { text: "quiet" } },
+    toolName: "music.material.resolve",
+    payload: { kind: "single", candidate: { id: "quiet", label: "Quiet", query: { text: "quiet" } } },
   });
   assert(!result.ok, "instrument tools should fail when no active instrument exposes them");
   assert(result.error.code === "instrument.tool_not_found", "instrument gating should use stable tool error");
