@@ -4,14 +4,14 @@
 
 ## Terminology Note
 
-This historical Wave 8 plan uses the legacy `Stage Modules` term. Current
-architecture vocabulary maps that code to Session Context and Material Gate
-inside Stage Modules. Stage Core now means runtime composition and lifecycle in
-`src/stage_core/index.ts`.
+This historical Wave 8 plan predates the current Stage Core / Stage Interface /
+Stage Modules layout. Current code uses Stage Core for runtime composition,
+Stage Interface for callable tools and instruments, and separate Stage Modules
+for Session Context / Material Gate.
 
 **Goal:** Expose MineMusic to Codex as a repo-local MCP plugin whose public surface is `minemusic.handbook`, `minemusic.mvp`, and their Stage-governed tools.
 
-**Architecture:** Codex talks to an MCP server under `src/surfaces/mcp/server.ts`. The MCP server registers tools derived from MineMusic instrument descriptors, prefixes them with `minemusic.`, and delegates to `MineMusicStageInterface` / `ToolDispatchPort`. Stage Modules remains first-class through `stage.context.read` and the new `stage.materials.prepare` tool. Handbook overview and exact tool docs are generated from the instrument catalog into the MineMusic skill's `HANDBOOK.md` and exposed through `handbook.overview.read`, `handbook.instrument.read`, and `handbook.tool.read`.
+**Architecture:** Codex talks to an MCP server under `src/surfaces/mcp/server.ts`. The MCP server registers tools derived from MineMusic instrument descriptors, prefixes them with `minemusic.`, and delegates to `MineMusicStageInterface`. Session Context remains visible through `stage.context.read`, and Material Gate remains visible through `stage.materials.prepare`. Handbook overview and exact tool docs are generated from the Stage Interface instrument catalog into the MineMusic skill's `HANDBOOK.md` and exposed through `handbook.overview.read`, `handbook.instrument.read`, and `handbook.tool.read`.
 
 **Tech Stack:** TypeScript ES modules, `@modelcontextprotocol/sdk`, `zod`, existing MineMusic contracts/ports/runtime, repo-local Codex plugin manifest files.
 

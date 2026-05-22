@@ -2,10 +2,10 @@
 
 ## Terminology Note
 
-This historical Wave 8 design uses the legacy `Stage Modules` term. Current
-architecture vocabulary maps that code to Session Context and Material Gate
-inside Stage Modules. Stage Core now means runtime composition and lifecycle in
-`src/stage_core/index.ts`.
+This historical Wave 8 design predates the current Stage Core / Stage Interface
+/ Stage Modules layout. Current code uses Stage Core for runtime composition,
+Stage Interface for callable tools and instruments, and separate Stage Modules
+for Session Context / Material Gate.
 
 ## Goal
 
@@ -14,8 +14,8 @@ server while preserving the MineMusic boundary:
 
 ```text
 Codex plugin
--> MineMusic instrument
--> Tool Dispatch
+-> MineMusic Stage Interface instrument
+-> Stage Interface dispatch
 -> Session Context / Material Gate / Source / Events / Memory / Effects
 ```
 
@@ -25,17 +25,18 @@ policy, provider logic, playback, or durable storage.
 
 ## Current Repository Evidence
 
-- `src/stage_interface/index.ts` defines `minemusic.handbook`, `minemusic.mvp`,
-  and `ToolDescriptor` entries.
+- `src/stage_interface/instruments.ts` defines `minemusic.handbook` and
+  `minemusic.mvp`.
+- `src/stage_interface/tools.ts` defines stable tool names and `ToolDescriptor`
+  entries.
 - `src/handbook/index.ts` renders a generated Handbook from current
   agent-visible instrument descriptors.
-- `src/stage_interface/index.ts` exposes `MineMusicStageInterface` as a stable wrapper around
-  `ToolDispatchPort`.
-- `src/stage_core/index.ts` composes Stage Modules, Instrument Catalog, Tool
-  Dispatch, Stage Interface, Source Resolution, repositories, and provider slots.
-- `src/app/index.ts` currently calls `runtime.stage.prepareMaterials(...)`
-  directly after grounding, which means material preparation is not yet a
-  Codex-visible instrument tool.
+- `src/stage_interface/facade.ts` exposes `MineMusicStageInterface` as a stable
+  wrapper around `ToolDispatchPort`.
+- `src/stage_core/index.ts` composes Session Context, Material Gate, Stage
+  Interface, Source Resolution, repositories, and provider slots.
+- `src/app/index.ts` routes material preparation through
+  `stageCore.stageInterface.tools["stage.materials.prepare"]`.
 - `src/providers/netease/index.ts` already validates live source access through
   the provider slot.
 
@@ -124,7 +125,7 @@ structured JSON text without inventing fallback recommendations.
 
 ## Instrument Enforcement
 
-The current Instrument Catalog reports available tools, but Tool Dispatch does
+The current Stage Interface instrument catalog reports available tools, but dispatch does
 not enforce that the session has the instrument enabled.
 
 Wave 8 should add a small enforcement boundary:
@@ -165,8 +166,8 @@ Internally, the wrapper strips the `minemusic.` prefix and calls the existing
 Wave 8 needs deterministic tests for:
 
 1. `stage.materials.prepare` is listed in `minemusic.mvp`.
-2. `stage.materials.prepare` can be called through Tool Dispatch and Stage Interface.
-3. Tool Dispatch rejects non-discovery instrument tools when no current
+2. `stage.materials.prepare` can be called through Stage Interface dispatch.
+3. Stage Interface dispatch rejects non-discovery instrument tools when no current
    instrument exposes them.
 4. MCP tool descriptors are derived from the instrument descriptors and include
    the `minemusic.` prefix.
@@ -203,9 +204,9 @@ MCP tests should not require a live Codex app session.
 - `handbook.overview.read`, `handbook.instrument.read`, and
   `handbook.tool.read` return generated Handbook entries on demand.
 - `stage.materials.prepare` is Codex-visible and applies Material Gate checks.
-- Tool Dispatch enforces active instrument availability through
+- Stage Interface dispatch enforces active instrument availability through
   `InstrumentCatalogPort` for normal tool calls.
-- MCP wrappers call Stage Interface / Tool Dispatch, not provider or runtime internals.
+- MCP wrappers call Stage Interface, not provider or runtime internals.
 - Normal tests pass.
 - Default and explicit NetEase smoke results are documented.
 - State docs no longer claim Wave 7 is the current branch after merge.

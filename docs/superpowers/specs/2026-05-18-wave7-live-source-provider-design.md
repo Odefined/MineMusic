@@ -2,10 +2,10 @@
 
 ## Terminology Note
 
-This historical Wave 7 design uses the legacy `Stage Modules` term. Current
-architecture vocabulary maps that code to Session Context and Material Gate
-inside Stage Modules. Stage Core now means runtime composition and lifecycle in
-`src/stage_core/index.ts`.
+This historical Wave 7 design predates the current Stage Core / Stage Interface
+/ Stage Modules layout. Current code uses Stage Core for runtime composition,
+Stage Interface for callable tools and instruments, and separate Stage Modules
+for Session Context / Material Gate.
 
 ## Goal
 
