@@ -2,6 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Terminology Note
+
+This historical Wave 8 plan uses the legacy `Stage Kernel` term. Current
+architecture vocabulary maps that code to Session Context and Material Gate
+inside Stage Modules. Stage Core now means runtime composition and lifecycle in
+`src/runtime/index.ts`.
+
 **Goal:** Expose MineMusic to Codex as a repo-local MCP plugin whose public surface is `minemusic.handbook`, `minemusic.mvp`, and their Stage-governed tools.
 
 **Architecture:** Codex talks to an MCP server under `src/surfaces/mcp/server.ts`. The MCP server registers tools derived from MineMusic instrument descriptors, prefixes them with `minemusic.`, and delegates to `MineMusicToolApi` / `ToolDispatchPort`. Stage Kernel remains first-class through `stage.context.read` and the new `stage.materials.prepare` tool. Handbook overview and exact tool docs are generated from the instrument catalog into the MineMusic skill's `HANDBOOK.md` and exposed through `handbook.overview.read`, `handbook.instrument.read`, and `handbook.tool.read`.

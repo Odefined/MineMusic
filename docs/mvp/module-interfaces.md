@@ -6,6 +6,8 @@ Each module is a black box behind a public port. Teams, humans, and agents may
 implement modules independently if they obey these ports and communicate only
 through the protocols in `docs/mvp/communication-protocols.md`.
 
+Project vocabulary lives in `CONTEXT.md`.
+
 ## Import Rule
 
 Implementation files may import:
@@ -21,15 +23,19 @@ Recommended layout:
 ```text
 src/contracts/        shared data contracts
 src/ports/            public module interfaces
-src/stage/            Stage Kernel implementation
-src/instruments/      Instrument Registry implementation
+src/runtime/          Stage Core runtime composition
+src/stage_interface/  future home for Stage Interface
+src/stage/            current Session Context and Material Gate implementation
+src/instruments/      current Instrument Catalog and Tool Dispatch implementation
+src/handbook/         Handbook renderer and lookup helpers
+src/tool_api/         current host-facing Stage Interface facade
 src/canonical/        Canonical Store implementation
 src/source/           Source Resolution implementation
 src/knowledge/        Music Knowledge implementation
 src/events/           Event Service implementation
 src/memory/           Memory Service implementation
 src/effects/          Effect Boundary implementation
-src/plugins/          Plugin Edge implementation
+src/plugins/          Plugin Slots implementation
 src/storage/          Storage implementations
 ```
 
@@ -76,15 +82,55 @@ effects. The shared `Result<T>` contract is also defined in
 `docs/mvp/interface-contracts.md`; implementation must keep the two files in
 sync.
 
-## Stage Kernel Port
+## Stage Core Runtime Interface
 
 Purpose:
 
-- Assemble the LLM-facing stage.
-- Gate material state before LLM use.
-- Route core requests without exposing provider internals.
+- Assemble a MineMusic runtime.
+- Create repositories, Plugin Slots, Core Capabilities, Stage Modules, and
+  Stage Interface.
+- Register provider adapters during startup.
+- Initialize runtime artifacts such as the generated Handbook.
+- Expose `runtime.ready` and the runtime object used by Host Adapters and tests.
+
+Current implementation:
+
+- `src/runtime/index.ts`
+- `createMineMusicRuntime(input)`
+- `createMineMusicRuntimeWithSourceProvider(input)`
+- `MineMusicRuntime`
+
+Stage Core is a composition module rather than a domain port. It may import
+module factories to construct the runtime graph. It must not move module-owned
+business behavior into composition.
+
+Consumes:
+
+- module factories.
+- repository factories.
+- provider adapters.
+- startup options.
+
+Must not expose:
+
+- host protocol details.
+- provider implementation internals.
+- repository implementation internals beyond returned runtime handles.
+- final recommendation decision.
+
+## Session Context And Material Gate Port
+
+Current code name:
+
+- `StageKernelPort`
+
+Purpose:
+
+- Provide dynamic session context before LLM use.
 - Preserve `StageVibe` as soft session guidance in session context when
   present.
+- Update session state.
+- Gate material state before presentation.
 
 Public port:
 
@@ -111,12 +157,8 @@ export interface StageKernelPort {
 
 Consumes:
 
-- `InstrumentCatalogPort`
 - `MemoryPort`
 - `EventPort`
-- `EffectBoundaryPort`
-- `SourceResolutionPort`
-- `CanonicalStorePort`
 
 Publishes domain events:
 
@@ -130,6 +172,33 @@ Must not expose:
 - final recommendation decision.
 - `ToolDispatchPort`.
 
+Future interface direction:
+
+- Split this into `SessionContextPort` and `MaterialGatePort` once Stage
+  Interface owns external call flow and callers no longer depend directly on
+  the legacy `StageKernelPort` name.
+
+## Stage Interface Ports
+
+Purpose:
+
+- Expose MineMusic instruments, tools, Handbook lookup, and governed callable
+  operations to Host Adapters and LLM-facing flows.
+- Keep tool metadata, host schemas, Handbook entries, and dispatch behavior
+  local to one interface.
+- Hide MineMusic-owned ordering for common flows where possible.
+
+Current implementation:
+
+- `InstrumentCatalogPort`
+- `ToolDispatchPort`
+- `MineMusicToolApi`
+
+Future interface direction:
+
+- Move the Stage Interface implementation into `src/stage_interface/**` or make
+  `src/tool_api/**` the explicit facade while keeping compatibility exports.
+
 ## Instrument Catalog And Tool Dispatch Ports
 
 Purpose:
@@ -137,8 +206,8 @@ Purpose:
 - Define the LLM-visible tool catalog.
 - Dispatch tool calls to public module ports.
 - Keep catalog listing separate from tool dispatch so Handbook generation can
-  read instrument descriptors without depending on a dispatcher that calls Stage
-  Kernel back.
+  read instrument descriptors without depending on a dispatcher that calls
+  Session Context back.
 
 Public port:
 
@@ -173,7 +242,7 @@ export type ToolName =
 
 Consumes:
 
-- `InstrumentCatalogPort` consumes no Stage Kernel port.
+- `InstrumentCatalogPort` consumes no Session Context implementation.
 - `ToolDispatchPort` consumes `StageKernelPort`, `SourceResolutionPort`,
   `InstrumentCatalogPort`, `EventPort`, `MemoryPort`, and
   `EffectBoundaryPort` through dependency injection at the composition root.
@@ -188,7 +257,7 @@ Must not expose:
 - plugin provider names unless returned as source evidence.
 - storage records.
 - non-public module methods.
-- a reverse import from Stage Kernel private implementation.
+- a reverse import from Session Context or Material Gate private implementation.
 
 ## Canonical Store Port
 
@@ -271,7 +340,7 @@ export interface SourceResolutionPort {
 Consumes:
 
 - `CanonicalStorePort`
-- Source Slot providers from Plugin Edge.
+- Source Slot adapters from Plugin Slots.
 
 Publishes domain events:
 
@@ -307,7 +376,7 @@ export interface MusicKnowledgePort {
 
 Consumes:
 
-- Knowledge Slot providers from Plugin Edge.
+- Knowledge Slot adapters from Plugin Slots.
 - optional Identity Signal Slot providers.
 
 Publishes domain events:
@@ -425,7 +494,7 @@ export interface EffectBoundaryPort {
 
 Consumes:
 
-- Effect Slot providers from Plugin Edge.
+- Effect Slot adapters from Plugin Slots.
 - effect proposal repository from Storage.
 
 Publishes domain events:
@@ -441,7 +510,7 @@ Must not expose:
 - normal playable-link display.
 - provider-specific action details.
 
-## Plugin Edge Port
+## Plugin Slots Port
 
 Purpose:
 
@@ -515,7 +584,7 @@ export type EffectProposalRepository = Repository<EffectProposal, string>;
 
 Consumes:
 
-- storage provider from Plugin Edge or local implementation.
+- storage adapter from Plugin Slots or local implementation.
 
 Publishes domain events:
 

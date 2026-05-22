@@ -24,17 +24,25 @@ No other communication form is allowed for MVP module integration.
 Allowed direction:
 
 ```text
-LLM Adapter or Runtime Composition
-  -> ToolDispatchPort
-    -> StageKernelPort
+Host Adapter
+  -> Stage Interface
+
+Stage Core
+  -> Stage Interface
+  -> Stage Modules
+  -> Core ports
+  -> Plugin Slot ports
+  -> Storage ports
+
+Stage Interface
+  -> Session Context / Material Gate
     -> Core ports
 
-StageKernelPort
-  -> InstrumentCatalogPort
+Session Context / Material Gate
   -> Core ports
 
 Core ports
-  -> Plugin Edge ports
+  -> Plugin Slot ports
   -> Storage ports
 ```
 
@@ -45,12 +53,13 @@ Forbidden:
 
 ```text
 module implementation -> another module private file
-plugin provider -> Stage Kernel private file
+plugin provider -> Stage Module private file
 storage implementation -> domain policy module
 source provider -> Memory Service private file
 knowledge provider -> Canonical Store write method outside public port
-Stage Kernel -> ToolDispatchPort
-Instrument Catalog -> Stage Kernel private file
+Session Context / Material Gate -> ToolDispatchPort
+Instrument Catalog -> Session Context private implementation
+Host Adapter -> Core Capability private implementation
 ```
 
 ## Port Call Protocol
@@ -210,8 +219,9 @@ use a material item.
 | `blocked` | rule, permission, or source condition blocks use | do not recommend as playable |
 | `verbal_only` | conversation-only idea | no action or durable target |
 
-Only Source Resolution and Stage Kernel may upgrade material state for LLM use.
-Other modules may add evidence, but they do not silently make material playable.
+Only Source Resolution and Material Gate may upgrade or downgrade material state
+for LLM-facing use. Other modules may add evidence, but they do not silently
+make material playable.
 
 ## Event Target Protocol
 

@@ -1,5 +1,12 @@
 # Wave 7 Live Source Provider Design
 
+## Terminology Note
+
+This historical Wave 7 design uses the legacy `Stage Kernel` term. Current
+architecture vocabulary maps that code to Session Context and Material Gate
+inside Stage Modules. Stage Core now means runtime composition and lifecycle in
+`src/runtime/index.ts`.
+
 ## Goal
 
 Wave 7 validates the fixture MVP chain against one real read-only source

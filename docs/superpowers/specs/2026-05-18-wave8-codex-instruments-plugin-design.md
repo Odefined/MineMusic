@@ -1,5 +1,12 @@
 # Wave 8 Codex Instruments Plugin Design
 
+## Terminology Note
+
+This historical Wave 8 design uses the legacy `Stage Kernel` term. Current
+architecture vocabulary maps that code to Session Context and Material Gate
+inside Stage Modules. Stage Core now means runtime composition and lifecycle in
+`src/runtime/index.ts`.
+
 ## Goal
 
 Wave 8 connects MineMusic to Codex as a repo-local Codex plugin through an MCP

@@ -3,67 +3,208 @@
 This document defines strict module ownership for independent implementation
 agents.
 
+Project vocabulary lives in `CONTEXT.md`.
+
 ## Global Encapsulation Rules
 
 1. Shared contracts live in `src/contracts`.
-2. Modules may import shared contracts.
-3. Modules must not import another module's private files.
-4. Cross-module calls go through public interfaces.
-5. Plugin packages register providers through capability slots.
-6. Storage implementations sit behind repository interfaces.
-7. Interface changes require a written change request before implementation.
+2. Public ports live in `src/ports`.
+3. Modules may import shared contracts and public ports.
+4. Modules must not import another module's private files.
+5. Cross-module calls go through public interfaces.
+6. Plugin packages register adapters through Plugin Slots.
+7. Storage implementations sit behind repository interfaces.
+8. Interface changes require a written change request before implementation.
 
-## Stage Kernel
+Stage Core is the construction exception: it may import module factories because
+its job is to assemble a runtime. It must not move module-owned domain logic
+into the composition layer.
 
-Owns:
+## Host Adapters
 
-- dynamic session context.
-- StageSession continuity.
-- StageVibe propagation through session state.
-- active instrument selection.
-- material-state gating before LLM use.
-- routing event, memory, and effect requests to core services.
+Own:
+
+- host protocol translation.
+- host startup environment.
+- host-facing tool-name prefixing.
+- host result formatting.
 
 Public API:
 
-- `StageKernelPort.getSession(input)`
-- `StageKernelPort.readContext(input)`
-- `StageKernelPort.updateSession(input)`
-- `StageKernelPort.prepareMaterials(input)`
+- host-specific server entrypoints, such as the Codex MCP server.
 
 Must not own:
 
-- canonical persistence internals.
-- source provider implementation.
-- durable memory writes.
-- effect execution.
+- MineMusic tool truth.
+- recommendation policy.
+- provider implementation.
+- repositories.
+- Core Capability private implementation.
+
+## Stage Core
+
+Own:
+
+- runtime composition.
+- module factory wiring.
+- provider registration during runtime startup.
+- initialization of generated runtime artifacts such as the Handbook.
+- `runtime.ready`.
+- runtime lifecycle and the returned runtime object.
+
+Current implementation:
+
+- `src/runtime/index.ts`
+
+Public API:
+
+- `createMineMusicRuntime(input)`
+- `createMineMusicRuntimeWithSourceProvider(input)`
+- the returned `MineMusicRuntime`
+
+Must not own:
+
+- source matching logic.
+- canonical identity decisions.
+- memory derivation.
+- effect execution policy.
+- host protocol details.
 - final recommendation choice.
-- tool dispatch.
 
-## Instrument Registry
+## Stage Interface
 
-Owns:
+Own:
 
-- LLM-visible instrument descriptors.
-- LLM-visible instrument catalog.
-- governed tool dispatch through a separate dispatch port.
-- schema references for tool input and output.
+- LLM-visible instruments.
+- tool catalog and tool metadata.
+- Handbook lookup surface.
+- governed tool dispatch.
+- stable host-facing callable surface.
+- MineMusic-owned ordering for common flows.
+
+Current implementation:
+
+- `src/instruments/index.ts`
+- `src/tool_api/index.ts`
+- `src/handbook/index.ts`
 
 Public API:
 
 - `InstrumentCatalogPort.list(input)`
 - `ToolDispatchPort.call(input)`
+- `MineMusicToolApi.tools`
 
 Must not own:
 
 - provider-specific behavior.
-- music business policy outside tool governance.
 - storage details.
-- Stage Kernel private implementation.
+- final recommendation judgment.
+- Host Adapter transport code.
+- Core Capability private implementation.
+
+## Session Context
+
+Own:
+
+- session lookup.
+- session update.
+- `StageVibe` propagation through session state.
+- active instrument state.
+- dynamic context returned to the LLM.
+- memory summaries included in dynamic context.
+
+Current implementation:
+
+- part of `src/stage/index.ts` under the legacy `StageKernelPort` name.
+
+Public API:
+
+- currently `StageKernelPort.getSession(input)`
+- currently `StageKernelPort.readContext(input)`
+- currently `StageKernelPort.updateSession(input)`
+
+Must not own:
+
+- source provider behavior.
+- canonical persistence internals.
+- durable memory writes.
+- effect execution.
+- final recommendation choice.
+
+## Material Gate
+
+Own:
+
+- presentation safety for `MusicMaterial`.
+- stripping playable links when material state or purpose does not allow
+  presentation.
+- material-prepared event emission.
+
+Current implementation:
+
+- part of `src/stage/index.ts` under the legacy `StageKernelPort` name.
+
+Public API:
+
+- currently `StageKernelPort.prepareMaterials(input)`
+
+Must not own:
+
+- source search.
+- playable-link retrieval.
+- canonical identity.
+- memory writes.
+- final recommendation choice.
+
+## Instrument Catalog
+
+Own:
+
+- LLM-visible instrument descriptors.
+- available tool lists per session.
+- schema references for tool input and output.
+
+Current implementation:
+
+- part of `src/instruments/index.ts`.
+
+Public API:
+
+- `InstrumentCatalogPort.list(input)`
+
+Must not own:
+
+- tool execution.
+- provider-specific behavior.
+- storage details.
+- Session Context private implementation.
+
+## Tool Dispatch
+
+Own:
+
+- tool availability checks against Instrument Catalog.
+- routing tool calls to public module ports.
+- stable tool-not-found errors.
+
+Current implementation:
+
+- part of `src/instruments/index.ts`.
+
+Public API:
+
+- `ToolDispatchPort.call(input)`
+
+Must not own:
+
+- host protocol formatting.
+- provider implementation.
+- final recommendation judgment.
+- private implementation of routed modules.
 
 ## Canonical Store
 
-Owns:
+Own:
 
 - MineMusic canonical refs.
 - canonical records.
@@ -73,6 +214,7 @@ Owns:
 Public API:
 
 - `CanonicalStorePort.get(input)`
+- `CanonicalStorePort.findByLabel(input)`
 - `CanonicalStorePort.resolveExternalRef(input)`
 - `CanonicalStorePort.createProvisional(input)`
 - `CanonicalStorePort.attachExternalRef(input)`
@@ -86,8 +228,9 @@ Must not own:
 
 ## Source Resolution
 
-Owns:
+Own:
 
+- canonical-first source resolution.
 - source search.
 - source refs.
 - playable link retrieval.
@@ -107,7 +250,7 @@ Must not own:
 
 ## Music Knowledge
 
-Owns:
+Own:
 
 - metadata lookup.
 - relationship lookup.
@@ -127,7 +270,7 @@ Must not own:
 
 ## Event Service
 
-Owns:
+Own:
 
 - factual event records.
 - session event listing.
@@ -144,7 +287,7 @@ Must not own:
 
 ## Memory Service
 
-Owns:
+Own:
 
 - memory summaries.
 - memory proposals.
@@ -165,7 +308,7 @@ Must not own:
 
 ## Effect Boundary
 
-Owns:
+Own:
 
 - effect proposals.
 - confirmation policy.
@@ -183,13 +326,18 @@ Must not own:
 - normal playable link display.
 - source provider internals.
 
-## Plugin Edge
+## Plugin Slots
 
-Owns:
+Own:
 
-- capability slot provider registration.
-- provider lifecycle.
-- adapter-specific translation.
+- capability slot registration.
+- provider lookup.
+- provider listing.
+- adapter-specific registration records.
+
+Current implementation:
+
+- `src/plugins/index.ts`
 
 Public API:
 
@@ -205,7 +353,7 @@ Must not own:
 
 ## Storage Layer
 
-Owns:
+Own:
 
 - repository implementations.
 - persistence configuration.

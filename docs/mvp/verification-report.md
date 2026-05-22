@@ -1,5 +1,13 @@
 # MVP Verification Report
 
+## Terminology Note
+
+This report records historical Wave 5 through Wave 8 verification. Some
+verified code still uses the legacy `StageKernelPort` name. Current
+architecture vocabulary maps that code to Session Context and Material Gate
+inside Stage Modules, while Stage Core means `src/runtime/index.ts` runtime
+composition and lifecycle.
+
 ## Scope
 
 This report covers the Wave 5 fixture end-to-end MVP slice, Wave 6 final review
@@ -52,7 +60,7 @@ The end-to-end slice constructs a runtime with:
 - in-memory repositories.
 - a fixture source provider.
 - a fixture canonical record attached to a fixture source ref.
-- Stage Kernel.
+- Session Context and Material Gate through the legacy `StageKernelPort`.
 - Instrument Catalog and Tool Dispatch.
 - Tool API facade.
 - Codex MCP helper tests that create prefixed `minemusic.*` tool definitions

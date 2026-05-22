@@ -1,5 +1,12 @@
 # MVP Final Review
 
+## Terminology Note
+
+This review records the Wave 1 through Wave 6 implementation using the
+terminology that existed at the time. Current architecture vocabulary maps the
+legacy `StageKernelPort` code to Session Context and Material Gate behavior.
+Stage Core now means `src/runtime/index.ts` runtime composition and lifecycle.
+
 ## Scope
 
 This review covers the Wave 1 through Wave 6 MVP implementation currently on

@@ -148,6 +148,31 @@
   Resolve accepts single candidates or candidate sets, checks Canonical Store
   first, and uses source grounding internally before Stage preparation.
 
+## 2026-05-22
+
+- Saved the Stage Interface architecture review at
+  `docs/architecture-reviews/2026-05-22-stage-interface-review.html`.
+  The review identifies deepening candidates around Stage Interface,
+  Instruments, Tools, Stage Core, internal capabilities, and host adapters.
+
+## 2026-05-23
+
+- Reconciled the architecture documentation around a single layer model:
+  Host Adapters, Stage Core, Stage Interface, Stage Modules, Core Capabilities,
+  Plugin Slots, and Storage.
+- Added `CONTEXT.md` as the project vocabulary source. It records that Stage
+  Core means runtime composition and lifecycle, while the current
+  `StageKernelPort` code name maps to Session Context and Material Gate
+  behavior.
+- Added `docs/adr/0001-stage-core-runtime-composition.md` to preserve the
+  accepted naming decision and keep future architecture reviews from
+  reintroducing the old Stage Core / Stage Kernel ambiguity.
+- Updated `proposal.md`, `ARCHITECTURE.md`, `docs/mvp/module-interfaces.md`,
+  `docs/mvp/module-boundaries.md`, `docs/mvp/communication-protocols.md`,
+  `docs/mvp/workstreams.md`, `docs/mvp/agent-collaboration.md`, `README.md`,
+  `CURRENT_STATE.md`, and `INDEX.md` to stop treating Stage Kernel as the
+  architecture center.
+
 ## Next
 
 - Verify the repo-local plugin in a fresh Codex plugin session before claiming

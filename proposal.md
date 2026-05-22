@@ -1,4 +1,4 @@
-# MineMusic Stage Kernel Proposal
+# MineMusic Stage Proposal
 
 ## 1. Product Definition
 
@@ -138,44 +138,43 @@ This keeps extension points stable while letting implementations vary.
 ```text
 User
   -> LLM Agent Runtime
-    -> MineMusic Stage Kernel
-      -> Handbook
-      -> StageSession
-      -> Instruments
-      -> Grounding
-      -> Material State
-      -> Effect Proposal
-        -> Core Capability Layer
-          -> Canonical Store
-          -> Source Resolution
-          -> Music Knowledge
-          -> Memory
-          -> Events
-          -> Effects
-            -> Plugin Edge Layer
-              -> capability slots
-              -> plugin packages
-              -> adapters
+    -> Host Adapter
+      -> Stage Core
+        -> Stage Interface
+          -> Stage Modules
+            -> Core Capability Layer
+              -> Plugin Slot Layer
                 -> Storage Layer
 ```
 
-The Stage Kernel is the LLM-facing governance layer of MineMusic.
+The Stage Core is the runtime composition and lifecycle module for MineMusic.
+It creates the runtime graph, registers providers, initializes generated
+runtime artifacts, and exposes the ready stage to Host Adapters.
 
-It prepares context, exposes instruments, grounds music material, records
-events, and routes effect proposals. It is the stage interface the LLM performs
-on.
+The Stage Interface is the LLM-facing and host-facing interface. It exposes
+instruments, tools, Handbook lookup, and governed MineMusic flows. It is the
+interface the LLM performs on.
 
-The system has four conceptual layers:
+The system has six conceptual layers:
 
 ```text
-Stage Layer
-  Gives the LLM a Handbook, instruments, material states, and effect proposals.
+Host Adapter Layer
+  Translates Codex MCP, future CLI, or future Web transports into Stage
+  Interface calls.
+
+Stage Core
+  Assembles modules, registers providers, initializes runtime artifacts, and
+  owns runtime lifecycle.
+
+Stage Interface And Stage Modules
+  Gives the LLM instruments, tools, Handbook lookup, Session Context, Material
+  Gate behavior, material states, and proposals.
 
 Core Capability Layer
   Owns MineMusic business abilities such as identity, source resolution,
   memory, events, effects, and music knowledge coordination.
 
-Plugin Edge Layer
+Plugin Slot Layer
   Connects replaceable source, knowledge, identity-signal, context, effect,
   playback, and storage providers through capability slots.
 
@@ -183,9 +182,10 @@ Storage Layer
   Owns persistence details behind repositories and stores.
 ```
 
-The Stage Kernel should stay small enough to understand. Durable music concepts
-belong in the Core Capability Layer. Replaceable external behavior belongs at
-the Plugin Edge Layer. Persistence details belong in the Storage Layer.
+Stage Core should own assembly, not every business implementation. Durable
+music concepts belong in the Core Capability Layer. Replaceable external
+behavior belongs at the Plugin Slot Layer. Persistence details belong in the
+Storage Layer.
 
 ---
 
@@ -266,35 +266,47 @@ effect. MineMusic handles the boundary.
 
 ---
 
-## 5. Stage Kernel Responsibilities
+## 5. Stage Responsibilities
 
-The Stage Kernel is responsible for the LLM-facing stage.
+MineMusic separates stage responsibilities so one name does not hide several
+different jobs.
 
-It manages:
+Stage Core manages:
 
 ```text
-dynamic session context
-StageSession continuity
-instrument exposure
-tool invocation governance
-music material grounding
-canonical identity lookup
-memory proposal routing
-effect proposal routing
-event recording
-audit visibility
+runtime composition
+module wiring
+provider registration
+runtime initialization
+generated Handbook initialization
+runtime readiness
+lifecycle of one MineMusic stage instance
 ```
 
-The Stage Kernel cares about:
+Stage Interface manages:
 
 ```text
-which instruments are available
-which source links are grounded
-which music objects have stable identity
-which actions require permission
-which events should be recorded
-which memory writes are supported by evidence
-which results are unresolved or blocked
+instrument exposure
+tool metadata
+tool invocation governance
+Handbook lookup
+common MineMusic flow ordering
+host-facing callable surface
+```
+
+Stage Modules manage:
+
+```text
+Session Context
+  StageSession continuity
+  StageVibe propagation
+  active instruments
+  dynamic context
+
+Material Gate
+  presentation safety
+  playable-link exposure by purpose
+  material-state gating before LLM use
 ```
 
 The LLM handles:
@@ -310,8 +322,9 @@ when to search
 when to stop
 ```
 
-This split keeps the LLM musically free while making system consequences
-traceable.
+Core Capabilities handle identity, source resolution, memory, events, effects,
+and knowledge. This split keeps the LLM musically free while making system
+consequences traceable.
 
 ---
 
@@ -321,7 +334,8 @@ traceable.
 
 The Handbook is the LLM's session-scoped working manual.
 
-It is compiled by the Stage Kernel from:
+It is generated from the Stage Interface instrument catalog and runtime
+initialization state:
 
 ```text
 global stage rules
@@ -763,9 +777,9 @@ one tool -> governed operation over an instrument
 ```
 
 For example, a single plugin may provide both source access and context slices.
-Another plugin may provide knowledge facts plus identity signals. The runtime
-registers each capability separately, so core services depend on slot
-interfaces rather than concrete plugin packages.
+Another plugin may provide knowledge facts plus identity signals. Stage Core
+registers each capability separately during runtime composition, so core
+services depend on slot interfaces rather than concrete plugin packages.
 
 Slots describe what a capability does. Plugins describe who implements it.
 Instruments describe what the LLM can use. Tools describe the callable actions.
@@ -949,7 +963,9 @@ Architecture should be defined by ownership, not by long exclusion lists.
 
 ```text
 LLM owns musical expression and final recommendation.
-Stage Kernel owns LLM-facing governance.
+Stage Core owns runtime composition and lifecycle.
+Stage Interface owns the LLM-facing callable interface.
+Stage Modules own Session Context and Material Gate behavior.
 Canonical Store owns identity anchors.
 Source plugins own access and playability evidence.
 Memory owns derived preferences and rules.
@@ -993,7 +1009,8 @@ The core judgment is:
 Identity, source access, memory, events, and effects are separate.
 Playable links require source grounding.
 Durable memory requires explicit or evidence-backed support.
-The Stage Kernel exposes a governed stage, not a rigid recommendation pipeline.
+Stage Core assembles the runtime; Stage Interface exposes a governed stage, not
+a rigid recommendation pipeline.
 Plugins extend capability slots; they do not define core business boundaries.
 The system should protect consequences without reducing music to scores.
 ```

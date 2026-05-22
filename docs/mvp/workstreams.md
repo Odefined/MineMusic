@@ -34,13 +34,45 @@ Must coordinate with:
 
 - every module agent before changing public contract names.
 
-## Workstream B: Stage Kernel
+## Workstream B: Stage Core
 
-Owner role: Stage Kernel Agent.
+Owner role: Stage Core Agent.
 
 Purpose:
 
-- Build the LLM-facing governance layer.
+- Assemble and initialize the MineMusic runtime.
+
+Owns:
+
+- `src/runtime/**`
+
+Inputs:
+
+- module factories from all implementation workstreams.
+- provider adapters.
+- repository factories.
+- startup configuration.
+
+Outputs:
+
+- runtime factory.
+- provider registration during startup.
+- generated Handbook initialization.
+- `runtime.ready`.
+- runtime composition tests.
+
+Rule:
+
+- Stage Core may import module factories for construction, but it must not move
+  module-owned business behavior into composition.
+
+## Workstream C: Stage Modules
+
+Owner role: Stage Modules Agent.
+
+Purpose:
+
+- Build Session Context and Material Gate behavior.
 
 Owns:
 
@@ -53,44 +85,56 @@ Inputs:
 
 - contracts from Workstream A.
 - `StageKernelPort` from `src/ports`.
-- Instrument Registry public API.
-- Memory, Event, Effect, Source, and Canonical public APIs.
+- Memory and Event public APIs.
 
 Outputs:
 
-- stage service public API.
+- Session Context behavior.
+- Material Gate behavior.
 - tests for dynamic context, session update, and material-state gating.
 
-## Workstream C: Instrument Registry And Tool Surface
+Rule:
 
-Owner role: Instrument Agent.
+- `StageKernelPort` is the current legacy port name. Future work may split it
+  into `SessionContextPort` and `MaterialGatePort` after Stage Interface owns
+  external call flow.
+
+## Workstream D: Stage Interface
+
+Owner role: Stage Interface Agent.
 
 Purpose:
 
 - Expose stable LLM-visible instruments and governed tools.
+- Keep tool metadata, host schemas, Handbook entries, and dispatch behavior
+  local to one interface.
 
 Owns:
 
 - `src/instruments/**`
 - `src/tool_api/**`
+- `src/handbook/**`
 
 Inputs:
 
 - shared contracts.
 - `InstrumentCatalogPort` and `ToolDispatchPort` from `src/ports`.
 - public APIs from core services.
+- Session Context and Material Gate public APIs.
 
 Outputs:
 
 - instrument registry.
 - tool descriptors.
 - tool dispatch tests.
+- host-facing callable surface.
+- Handbook lookup tests.
 
 Rule:
 
 - Tool names are public API. Rename only through an interface change request.
 
-## Workstream D: Canonical Store
+## Workstream E: Canonical Store
 
 Owner role: Identity Agent.
 
@@ -116,7 +160,7 @@ Outputs:
 - provisional canonical creation.
 - tests for source ref attachment and provisional targets.
 
-## Workstream E: Source Resolution And Provider Slot
+## Workstream F: Source Resolution And Provider Slot
 
 Owner role: Source Agent.
 
@@ -143,7 +187,7 @@ Outputs:
 - tests for `confirmed_playable`, `source_only_playable`, `exploration`,
   `unresolved`, and `blocked` behavior.
 
-## Workstream F: Events, Memory, And Effects
+## Workstream G: Events, Memory, And Effects
 
 Owner role: Consequence Agent.
 
@@ -170,7 +214,7 @@ Outputs:
 - tests proving events do not automatically become memory and normal link
   display is not playback.
 
-## Workstream G: Plugin Edge And Storage
+## Workstream H: Plugin Slots And Storage
 
 Owner role: Platform Agent.
 
@@ -195,7 +239,36 @@ Outputs:
 - storage repositories.
 - tests for provider registration and repository isolation.
 
-## Workstream H: Integration And Verification
+## Workstream I: Host Adapters
+
+Owner role: Host Adapter Agent.
+
+Purpose:
+
+- Translate host protocols into Stage Interface calls.
+
+Owns:
+
+- `src/surfaces/**`
+- `plugins/**`
+
+Inputs:
+
+- Stage Interface callable surface.
+- host startup configuration.
+
+Outputs:
+
+- Codex MCP adapter.
+- plugin packaging.
+- host adapter tests.
+
+Rule:
+
+- Host Adapters must not call Core Capability private implementation or
+  provider adapters directly.
+
+## Workstream J: Integration And Verification
 
 Owner role: Integration Agent.
 

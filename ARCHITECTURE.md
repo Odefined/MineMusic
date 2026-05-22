@@ -16,26 +16,51 @@ event records
 effect boundaries
 instrument governance
 capability slots
+runtime lifecycle
 ```
 
 The MVP proves a grounded recommendation flow with playable links when
 available. It does not prove playback control, autonomous DJ behavior, playlist
 editing, collection management, music intelligence, or notifications.
 
+## Vocabulary Source
+
+Project vocabulary lives in `CONTEXT.md`.
+
+Important naming decision:
+
+- `Stage Core` means runtime composition and lifecycle.
+- `Stage Interface` means the LLM-facing and host-facing callable interface.
+- `Stage Modules` are the smaller LLM-facing modules used by Stage Interface,
+  such as Session Context and Material Gate.
+- `Stage Kernel` is a legacy implementation name for the current
+  `StageKernelPort` / `src/stage/index.ts` shape.
+
 ## Layer Model
 
 ```text
 LLM Agent Runtime
-  -> Host Surface Layer
-     -> Codex MCP plugin
-     -> MCP tool name prefixing
-  -> Stage Layer
-     -> Stage Kernel
+  -> Host Adapter Layer
+     -> Codex MCP adapter
+     -> future CLI adapter
+     -> future Web adapter
+  -> Stage Core
+     -> runtime composition
+     -> provider registration
+     -> initialization
+     -> runtime.ready
+     -> runtime lifecycle
+  -> Stage Interface
+     -> instruments
+     -> tools
      -> Handbook
-     -> StageSession
-     -> Instruments
-     -> MusicMaterial state
-     -> EffectProposal
+     -> governed tool dispatch
+     -> common MineMusic flow ordering
+  -> Stage Modules
+     -> Session Context
+     -> Material Gate
+     -> Instrument Catalog
+     -> Handbook renderer
   -> Core Capability Layer
      -> Canonical Store
      -> Source Resolution
@@ -43,26 +68,88 @@ LLM Agent Runtime
      -> Event Service
      -> Memory Service
      -> Effect Boundary
-  -> Plugin Edge Layer
-     -> Source Slot providers
-     -> Knowledge Slot providers
-     -> Identity Signal Slot providers
-     -> Context Slot providers
-     -> Effect Slot providers
-     -> Playback Slot providers
-     -> Storage Slot providers
+  -> Plugin Slot Layer
+     -> Source Slot adapters
+     -> Knowledge Slot adapters
+     -> Identity Signal Slot adapters
+     -> Context Slot adapters
+     -> Effect Slot adapters
+     -> Playback Slot adapters
+     -> Storage Slot adapters
   -> Storage Layer
      -> repositories
      -> durable stores
 ```
 
-Each layer depends only on the public contracts of the layer below it. Plugin
-packages do not define core business boundaries.
+Each layer depends only on the public contracts of the layer below it, except
+Stage Core, which is the composition layer and therefore imports module
+factories to assemble a runtime.
 
-The Codex host surface is a thin MCP adapter. It exposes MineMusic instrument
-tools with a `minemusic.` prefix and delegates calls to `MineMusicToolApi` /
-`ToolDispatchPort`. It must not call source providers, repositories, or Stage
-Kernel private internals directly.
+Plugin packages do not define core business boundaries. They register adapters
+into Plugin Slots.
+
+## Current Code Mapping
+
+| Architecture term | Current implementation |
+| --- | --- |
+| Host Adapter | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
+| Stage Core | `src/runtime/index.ts` |
+| Stage Interface | `src/instruments/index.ts`, `src/tool_api/index.ts`, `src/handbook/index.ts` |
+| Session Context | part of `src/stage/index.ts` through `StageKernelPort.getSession`, `readContext`, and `updateSession` |
+| Material Gate | part of `src/stage/index.ts` through `StageKernelPort.prepareMaterials` |
+| Core Capabilities | `src/canonical`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
+| Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
+| Storage | `src/storage/index.ts` |
+
+`StageKernelPort` remains the current code contract for Session Context and
+Material Gate. Future implementation work should either rename it or split it
+into smaller Stage Module ports once callers are migrated through Stage
+Interface.
+
+## Ownership Rules
+
+| Module | Owns | Does Not Own |
+| --- | --- | --- |
+| Host Adapter | host protocol, tool-name prefixing, host result formatting, host startup env | music policy, provider behavior, storage, tool truth, core capability calls |
+| Stage Core | runtime graph assembly, provider registration, initialization, `runtime.ready`, runtime lifecycle | domain logic inside core capabilities, host protocol, final recommendation judgment |
+| Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
+| Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
+| Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
+| Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
+| Source Resolution | canonical-first material resolution, source refs, availability, playable links, provider evidence | canonical authority, memory decisions |
+| Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |
+| Event Service | factual event history | derived preference claims |
+| Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals | raw event logging, external side effects |
+| Effect Boundary | permission and execution boundary for durable writes and external actions | ordinary text recommendation, musical expression |
+| Plugin Slots | replaceable adapters for capabilities | MineMusic business policy |
+| Storage Layer | persistence implementations behind repositories | domain decisions |
+
+## Runtime Flow
+
+```text
+1. Host Adapter starts or receives a MineMusic runtime.
+2. Stage Core assembles repositories, Plugin Slots, Core Capabilities, Stage
+   Modules, and Stage Interface.
+3. Stage Core registers source or other providers and initializes runtime
+   artifacts such as the generated Handbook.
+4. User asks for music naturally.
+5. LLM interprets the musical situation.
+6. LLM or Host Adapter uses Stage Interface tools.
+7. Stage Interface reads Session Context and Handbook entries when needed.
+8. Stage Interface sends music candidates to Source Resolution.
+9. Source Resolution checks Canonical Store first, then uses Source Slot
+   adapters as evidence when needed.
+10. Source Resolution returns `MusicMaterial` with honest material state.
+11. Stage Interface sends material through Material Gate before presentation.
+12. LLM selects and explains recommendations.
+13. Stage Interface or the LLM records factual events and proposes memory or
+   effects when appropriate.
+14. Event Service, Memory Service, and Effect Boundary keep consequences
+   governed through their own ports.
+```
+
+The LLM still owns the final recommendation. Stage Interface may hide MineMusic
+ordering such as "resolve before prepare" but must not become a recommender.
 
 ## Module Port Model
 
@@ -79,45 +166,61 @@ provider slots
 interface change requests
 ```
 
-Private implementation imports across module boundaries are not allowed. This
-is the rule that lets several people or agents implement modules in parallel.
+Private implementation imports across module boundaries are not allowed. Stage
+Core is the exception for construction only: it imports factories to assemble a
+runtime, then exposes composed ports.
 
-## MVP Runtime Flow
+## Host Adapter Policy
+
+The Codex MCP surface is a Host Adapter. It exposes MineMusic instrument tools
+with a `minemusic.` prefix and delegates calls to Stage Interface. It must not
+call source providers, repositories, or core capability implementations
+directly.
+
+Host-specific schemas should be derived from Stage Interface tool metadata where
+possible. The host adapter should not become the source of truth for MineMusic
+tool shape.
+
+## Stage Core Policy
+
+Stage Core owns "how the stage is assembled and kept ready":
 
 ```text
-1. User asks for music naturally.
-2. LLM interprets the musical situation.
-3. LLM reads the skill-local `HANDBOOK.md` for the current instrument overview
-   when needed.
-4. Stage Kernel returns dynamic StageSession context through
-   `stage.context.read`.
-5. LLM uses `handbook.tool.read` for exact tool details and sends music
-   candidates to `music.material.resolve`.
-6. Source Resolution checks Canonical Store first, then uses source grounding
-   as evidence when needed.
-7. Source Resolution returns MusicMaterial with honest material state.
-8. Stage Kernel prepares material before presentation.
-9. LLM selects and explains recommendations.
-9. Event Service records what happened.
-10. Memory Service receives proposals for evidence-backed memory.
-11. Effect Boundary governs durable writes and external actions.
+create repositories
+create Plugin Registry / Plugin Slots
+create Core Capabilities
+create Stage Modules
+create Stage Interface
+register providers
+write generated Handbook
+expose runtime.ready
+return a runtime object
 ```
 
-## Core Ownership Rules
+Stage Core may know module factories because its job is composition. It should
+not absorb the internal implementation of Source Resolution, Memory Service,
+Effect Boundary, or other Core Capabilities.
 
-| Module | Owns | Does Not Own |
-| --- | --- | --- |
-| Stage Kernel | LLM-facing governance, dynamic session context, StageSession continuity, material-state gating | source internals, durable identity schema internals, storage details |
-| Codex MCP Surface | repo-local plugin metadata, MCP tool registration, prefixed host tool names | recommendation policy, provider implementation, Stage private internals |
-| Instrument Catalog / Tool Dispatch | LLM-visible instruments and governed tool names | provider implementation, final recommendation judgment, Stage private internals |
-| Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
-| Source Resolution | canonical-first material resolution, source refs, availability, playable links, provider evidence | canonical authority, memory decisions |
-| Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |
-| Event Service | factual event history | derived preference claims |
-| Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals | raw event logging, external side effects |
-| Effect Boundary | permission and execution boundary for durable writes and external actions | ordinary text recommendation, musical expression |
-| Plugin Edge | replaceable providers for capability slots | MineMusic business policy |
-| Storage Layer | persistence implementations behind repositories | domain decisions |
+## Stage Interface Policy
+
+Stage Interface is the external seam for LLMs, Host Adapters, and integration
+tests.
+
+It owns:
+
+```text
+instrument catalog
+tool metadata
+Handbook lookup
+tool dispatch
+host-facing callable surface
+MineMusic-owned ordering for common flows
+```
+
+The current implementation spreads this across `src/instruments`,
+`src/tool_api`, and `src/handbook`. Future work should make this a deeper
+module so tool names, tool metadata, host schemas, Handbook entries, and
+dispatch behavior change in one place.
 
 ## Material State Policy
 
@@ -136,6 +239,9 @@ verbal_only
 Only `confirmed_playable` and `source_only_playable` may be presented as
 playable links. Durable memory should prefer a canonical ref or provisional
 canonical ref before falling back to source refs or plain text.
+
+Source Resolution owns source-backed state upgrades. Material Gate owns
+presentation safety before material reaches the LLM or user.
 
 ## Effect Policy
 
@@ -158,40 +264,40 @@ thin stubs unless the phase plan explicitly asks for a concrete provider.
 
 ## Extension Policy
 
-New capabilities attach to capability slots:
+New capabilities attach to Plugin Slots:
 
 ```text
-new source access -> Source Slot provider
-new music facts -> Knowledge Slot provider
-new identity evidence -> Identity Signal Slot provider
-new context slice -> Context Slot provider
-new external action -> Effect Slot provider
-new playback surface -> Playback Slot provider
-new persistence backend -> Storage Slot provider
-new session behavior -> StageSession posture
+new source access -> Source Slot adapter
+new music facts -> Knowledge Slot adapter
+new identity evidence -> Identity Signal Slot adapter
+new context slice -> Context Slot adapter
+new external action -> Effect Slot adapter
+new playback surface -> Playback Slot adapter
+new persistence backend -> Storage Slot adapter
+new session behavior -> Session Context or Stage Interface
+new presentation behavior -> Material Gate
 new preference behavior -> Memory Service protocol
 ```
 
-Core modules depend on slot interfaces and MineMusic-owned contracts, not on
-concrete plugin packages.
+Core Capabilities depend on slot interfaces and MineMusic-owned contracts, not
+on concrete plugin packages.
 
-Stage Kernel receives `InstrumentCatalogPort` at composition time, but Handbook
-generation is owned outside Stage Kernel. Tool dispatch may call Stage and core
-ports through composition-root injection, but Stage Kernel must not depend on
-`ToolDispatchPort`.
+## Handbook And Tool Availability
 
 Stage context and Handbook are separate surfaces. `stage.context.read` returns
 dynamic runtime context only: session state and memory summaries. It does not
-embed the Handbook body and does not return a Handbook file reference. The
-Handbook is generated from current agent-visible `InstrumentDescriptor` /
+embed the Handbook body and does not return a Handbook file reference.
+
+The Handbook is generated from current agent-visible `InstrumentDescriptor` /
 `ToolDescriptor` entries and written to the MineMusic skill's `HANDBOOK.md`;
 the `minemusic.handbook` instrument also exposes `handbook.overview.read`,
-`handbook.instrument.read`, and `handbook.tool.read` for on-demand lookup. Tool
-availability is checked through `InstrumentCatalogPort`, not by compiling or
-reading a Handbook as a side effect.
+`handbook.instrument.read`, and `handbook.tool.read` for on-demand lookup.
+
+Tool availability is checked through `InstrumentCatalogPort`, not by compiling
+or reading a Handbook as a side effect.
 
 Codex-visible tools are derived from MineMusic instrument descriptors. The
 host-facing MCP names are prefixed, for example
 `minemusic.stage.context.read`, `minemusic.handbook.tool.read`, and
-`minemusic.stage.materials.prepare`, while the internal public API remains the
-stable `ToolName` union.
+`minemusic.stage.materials.prepare`, while the internal public tool names remain
+the stable `ToolName` union.

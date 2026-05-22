@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review - MineMusic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam-line { border-style: dashed; }
+      .deep {
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        color: white;
+      }
+      .module {
+        border: 1px solid #cbd5e1;
+        border-radius: 0.5rem;
+        background: white;
+        padding: 0.75rem;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+      }
+      .thin {
+        border-color: #f59e0b;
+        background: #fffbeb;
+      }
+      .leak {
+        color: #dc2626;
+        border-color: #dc2626;
+      }
+      .arrow {
+        color: #64748b;
+        font-size: 0.75rem;
+        line-height: 1rem;
+        text-align: center;
+      }
+      .surface {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+      }
+      .mass {
+        display: grid;
+        grid-template-columns: 5rem 1fr;
+        gap: 0.5rem;
+        align-items: stretch;
+      }
+      .mass-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-12">
+      <header class="space-y-6">
+        <div class="flex items-start justify-between gap-6">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-slate-500">MineMusic</p>
+            <h1 class="text-4xl font-semibold tracking-tight">Architecture review</h1>
+            <p class="mt-2 text-slate-600">2026-05-22 · Stage Interface, Instruments, Stage Core</p>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <div class="flex items-center gap-2"><span class="inline-block h-4 w-8 rounded border border-slate-300 bg-white"></span>module</div>
+            <div class="mt-2 flex items-center gap-2"><span class="inline-block h-4 w-8 rounded border-2 border-dashed border-slate-400"></span>seam</div>
+            <div class="mt-2 flex items-center gap-2"><span class="inline-block h-4 w-8 rounded bg-slate-900"></span>deep module</div>
+            <div class="mt-2 flex items-center gap-2 text-red-600"><span class="inline-block h-4 w-8 rounded border border-red-600"></span>leakage</div>
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
+          <p><strong>Source note.</strong> No <code>CONTEXT.md</code> or <code>docs/adr/</code> exists in this repo. Candidate names use project vocabulary from <code>proposal.md</code>, <code>ARCHITECTURE.md</code>, and the current TypeScript modules.</p>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+        <article id="stage-interface-seam" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-semibold">Make Stage Interface the external seam</h2>
+            <div class="flex gap-2">
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Strong</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">in-process</span>
+            </div>
+          </div>
+          <div class="mt-4 font-mono text-sm text-slate-600">
+            <p>src/tool_api/index.ts · src/instruments/index.ts · src/surfaces/mcp/server.ts · src/runtime/index.ts · ARCHITECTURE.md · docs/mvp/module-interfaces.md</p>
+          </div>
+          <div class="mt-6 grid gap-6 lg:grid-cols-2">
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">Before</p>
+              <pre class="mermaid">
+flowchart TB
+  L[LLM / MCP] --> T[ToolDispatch]
+  T --> S[Stage Kernel]
+  T --> R[Source Resolution]
+  T --> E[Events]
+  T --> M[Memory]
+  T --> F[Effects]
+  S -. confused seam .- T
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class T leak;
+              </pre>
+            </div>
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">After</p>
+              <div class="space-y-3">
+                <div class="module text-center">MCP / CLI / WebUI / agents</div>
+                <div class="arrow">cross one seam</div>
+                <div class="module deep text-center">
+                  <div class="text-xs uppercase tracking-wider opacity-70">deep module</div>
+                  <div class="text-lg font-semibold">Stage Interface</div>
+                  <div class="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-200">
+                    <div class="rounded bg-white/10 p-2">Instruments</div>
+                    <div class="rounded bg-white/10 p-2">Tools</div>
+                    <div class="rounded bg-white/10 p-2">Handbook</div>
+                  </div>
+                </div>
+                <div class="arrow">internal routing</div>
+                <div class="module text-center">Stage Core</div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Problem</p><p class="mt-1 text-sm">ToolDispatch is the actual external seam, while the proposal names the stage as the caller-facing module.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Solution</p><p class="mt-1 text-sm">Deepen a Stage Interface module that owns instruments, tool descriptors, Handbook lookup, and command routing.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Benefits</p><ul class="mt-1 list-disc pl-5 text-sm"><li>leverage: one caller interface</li><li>locality: routing policy concentrates</li><li>tests hit one seam</li></ul></div>
+          </div>
+        </article>
+
+        <article id="stage-core-capabilities" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-semibold">Move capabilities behind Stage Core</h2>
+            <div class="flex gap-2">
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Strong</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">ports & adapters</span>
+            </div>
+          </div>
+          <div class="mt-4 font-mono text-sm text-slate-600">
+            <p>src/stage/index.ts · src/source/index.ts · src/canonical/index.ts · src/events/index.ts · src/memory/index.ts · src/effects/index.ts · src/runtime/index.ts</p>
+          </div>
+          <div class="mt-6 grid gap-6 lg:grid-cols-2">
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">Before</p>
+              <div class="grid grid-cols-2 gap-3 text-center text-sm">
+                <div class="module thin">Stage Core<br><span class="text-xs text-slate-500">session / prepare</span></div>
+                <div class="module">Source</div>
+                <div class="module">Canonical</div>
+                <div class="module">Events</div>
+                <div class="module">Memory</div>
+                <div class="module">Effects</div>
+              </div>
+              <p class="mt-4 text-center text-xs text-red-600">Callers must know the choreography.</p>
+            </div>
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">After</p>
+              <div class="module deep">
+                <div class="text-xs uppercase tracking-wider text-slate-300">Stage Core</div>
+                <div class="mt-3 grid grid-cols-2 gap-3 text-center text-sm text-slate-900">
+                  <div class="rounded bg-white p-3">Identity</div>
+                  <div class="rounded bg-white p-3">Source grounding</div>
+                  <div class="rounded bg-white p-3">Event log</div>
+                  <div class="rounded bg-white p-3">Memory proposal</div>
+                  <div class="rounded bg-white p-3">Effect proposal</div>
+                  <div class="rounded bg-white p-3">Material policy</div>
+                </div>
+              </div>
+              <p class="mt-4 text-center text-xs text-slate-500">Internal seams stay private to the implementation.</p>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Problem</p><p class="mt-1 text-sm">Stage Core is shallow: its interface is small, but the real stage behaviour lives as peer modules.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Solution</p><p class="mt-1 text-sm">Keep capability modules, but make their seams internal to Stage Core rather than external to caller flow.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Benefits</p><ul class="mt-1 list-disc pl-5 text-sm"><li>locality: policy sits together</li><li>leverage: one stage flow</li><li>less caller choreography</li></ul></div>
+          </div>
+        </article>
+
+        <article id="instruments-first-class" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-semibold">Restore Instruments as first-class modules</h2>
+            <div class="flex gap-2">
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Strong</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">in-process</span>
+            </div>
+          </div>
+          <div class="mt-4 font-mono text-sm text-slate-600">
+            <p>src/instruments/index.ts · src/handbook/index.ts · plugins/minemusic/skills/minemusic/HANDBOOK.md · plugins/minemusic/skills/minemusic/SKILL.md</p>
+          </div>
+          <div class="mt-6 grid gap-6 lg:grid-cols-2">
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">Before</p>
+              <div class="space-y-3">
+                <div class="module thin">
+                  <div class="mass">
+                    <div class="mass-label">interface</div>
+                    <div class="h-12 rounded bg-amber-200"></div>
+                    <div class="mass-label">implementation</div>
+                    <div class="h-14 rounded bg-amber-300"></div>
+                  </div>
+                  <p class="mt-2 text-center text-xs">Instrument Catalog mostly mirrors tool arrays.</p>
+                </div>
+                <div class="module">Handbook reads descriptors separately.</div>
+              </div>
+            </div>
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">After</p>
+              <div class="module deep">
+                <div class="text-xs uppercase tracking-wider text-slate-300">Stage Interface</div>
+                <div class="mt-4 grid gap-3">
+                  <div class="rounded bg-white p-3 text-slate-900">
+                    <p class="font-semibold">Instrument: minemusic.handbook</p>
+                    <p class="text-xs text-slate-500">overview · instrument · tool</p>
+                  </div>
+                  <div class="rounded bg-white p-3 text-slate-900">
+                    <p class="font-semibold">Instrument: minemusic.mvp</p>
+                    <p class="text-xs text-slate-500">context · resolve · prepare · event · memory · effect</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Problem</p><p class="mt-1 text-sm">Tools are easier to see than instruments, so the stage vocabulary gets flattened.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Solution</p><p class="mt-1 text-sm">Make instruments the organizing module; tools sit under instruments; Handbook renders that structure.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Benefits</p><ul class="mt-1 list-disc pl-5 text-sm"><li>leverage: agent mental model</li><li>locality: Handbook generation</li><li>interface matches proposal</li></ul></div>
+          </div>
+        </article>
+
+        <article id="capability-depth" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-semibold">Deepen thin capability modules before exposing them</h2>
+            <div class="flex gap-2">
+              <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">Worth exploring</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">local-substitutable</span>
+            </div>
+          </div>
+          <div class="mt-4 font-mono text-sm text-slate-600">
+            <p>src/events/index.ts · src/memory/index.ts · src/effects/index.ts · test/events/event-service.test.ts · test/memory/memory-service.test.ts · test/effects/effect-boundary.test.ts</p>
+          </div>
+          <div class="mt-6 grid gap-6 lg:grid-cols-2">
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">Before</p>
+              <div class="space-y-2">
+                <div class="module thin">Events: assign id, write record</div>
+                <div class="module thin">Memory: check non-empty evidence ids</div>
+                <div class="module thin">Effects: store proposal, store decision</div>
+              </div>
+              <p class="mt-4 text-center text-xs text-red-600">Important invariants are still caller discipline.</p>
+            </div>
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">After</p>
+              <div class="module deep">
+                <p class="text-lg font-semibold">Stage consequence capability</p>
+                <div class="mt-3 grid gap-2 text-sm text-slate-900">
+                  <div class="rounded bg-white p-2">event target rule</div>
+                  <div class="rounded bg-white p-2">evidence lookup</div>
+                  <div class="rounded bg-white p-2">effect confirmation</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Problem</p><p class="mt-1 text-sm">Several modules are shallow; deleting them would remove little complexity today.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Solution</p><p class="mt-1 text-sm">Either keep them internal and shallow for now, or deepen them around invariants before broad exposure.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Benefits</p><ul class="mt-1 list-disc pl-5 text-sm"><li>locality: invariant tests</li><li>leverage: consequence rules</li><li>fewer fake seams</li></ul></div>
+          </div>
+        </article>
+
+        <article id="host-adapters" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-semibold">Keep host adapters thin</h2>
+            <div class="flex gap-2">
+              <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">Worth exploring</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">ports & adapters</span>
+            </div>
+          </div>
+          <div class="mt-4 font-mono text-sm text-slate-600">
+            <p>src/surfaces/mcp/server.ts · plugins/minemusic/.mcp.json · plugins/minemusic/.codex-plugin/plugin.json · src/runtime/index.ts</p>
+          </div>
+          <div class="mt-6 grid gap-6 lg:grid-cols-2">
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">Before</p>
+              <pre class="mermaid">
+flowchart TB
+  MCP[MCP module] --> Runtime[Runtime creation]
+  MCP --> NetEase[NetEase adapter]
+  MCP --> Tools[Tool definitions]
+  Tools --> Dispatch[ToolDispatch]
+              </pre>
+            </div>
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">After</p>
+              <pre class="mermaid">
+flowchart TB
+  MCP[MCP adapter] --> StageInterface[Stage Interface]
+  CLI[CLI adapter] --> StageInterface
+  WebUI[WebUI adapter] --> StageInterface
+  StageInterface --> Runtime[Runtime composition]
+              </pre>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Problem</p><p class="mt-1 text-sm">The MCP module knows tool shape and default runtime shape, so future hosts may repeat knowledge.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Solution</p><p class="mt-1 text-sm">Host adapters translate transport only; Stage Interface owns the command contract and descriptors.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Benefits</p><ul class="mt-1 list-disc pl-5 text-sm"><li>leverage: one host contract</li><li>locality: host variance</li><li>new adapters stay small</li></ul></div>
+          </div>
+        </article>
+
+        <article id="documentation-reset" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-semibold">Rewrite the architecture documents around one vocabulary</h2>
+            <div class="flex gap-2">
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Strong</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">in-process</span>
+            </div>
+          </div>
+          <div class="mt-4 font-mono text-sm text-slate-600">
+            <p>proposal.md · ARCHITECTURE.md · docs/mvp/module-interfaces.md · docs/mvp/module-boundaries.md · docs/mvp/communication-protocols.md · plan/mvp_phase_plan.md · CURRENT_STATE.md · PROGRESS.md · README.md · INDEX.md</p>
+          </div>
+          <div class="mt-6 grid gap-6 lg:grid-cols-2">
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">Before</p>
+              <div class="grid gap-2 text-sm">
+                <div class="module thin">proposal: Stage Kernel as caller-facing stage</div>
+                <div class="module thin">architecture: Host Surface + Stage Layer + ToolDispatch</div>
+                <div class="module thin">code: ToolDispatch is the execution seam</div>
+              </div>
+            </div>
+            <div class="surface p-4">
+              <p class="mb-3 text-xs uppercase tracking-wider text-slate-500">After</p>
+              <div class="module deep">
+                <p class="text-lg font-semibold">One vocabulary</p>
+                <div class="mt-3 grid gap-2 text-sm text-slate-900">
+                  <div class="rounded bg-white p-2">Stage Interface</div>
+                  <div class="rounded bg-white p-2">Instruments and Tools</div>
+                  <div class="rounded bg-white p-2">Stage Core</div>
+                  <div class="rounded bg-white p-2">Internal capabilities</div>
+                  <div class="rounded bg-white p-2">Adapters</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 grid gap-4 md:grid-cols-3">
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Problem</p><p class="mt-1 text-sm">The docs preserve earlier decisions and newer corrections side by side, so readers must reconcile them manually.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Solution</p><p class="mt-1 text-sm">Rewrite the docs as a single architecture story after the chosen module shape is accepted.</p></div>
+            <div><p class="text-xs uppercase tracking-wider text-slate-500">Benefits</p><ul class="mt-1 list-disc pl-5 text-sm"><li>locality: one vocabulary</li><li>leverage: easier reviews</li><li>tests map to modules</li></ul></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
+        <p class="text-xs uppercase tracking-wider text-emerald-800">Top recommendation</p>
+        <h2 class="mt-2 text-2xl font-semibold text-emerald-950">Start with “Make Stage Interface the external seam”.</h2>
+        <p class="mt-2 text-emerald-950">It gives the most leverage: Instruments stay visible, ToolDispatch becomes an implementation detail, and Stage Core can deepen without exposing caller choreography.</p>
+        <a class="mt-4 inline-block rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white" href="#stage-interface-seam">Jump to candidate</a>
+      </section>
+    </main>
+  </body>
+</html>

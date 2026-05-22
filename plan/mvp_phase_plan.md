@@ -102,7 +102,7 @@ Goal: return source-backed playable links and honest material states.
 Expected owners:
 
 - Source Resolution Agent.
-- Plugin Edge Agent.
+- Plugin Slots Agent.
 
 Deliverables:
 
@@ -118,20 +118,25 @@ Exit criteria:
 - `confirmed_playable` and `source_only_playable` are distinguishable.
 - Exploration material cannot be presented as confirmed playable.
 
-## Phase 5: Stage Kernel And Instruments
+## Phase 5: Stage Core, Stage Modules, And Stage Interface
 
-Goal: expose a governed LLM-facing stage.
+Goal: assemble the runtime and expose a governed LLM-facing stage.
 
 Expected owners:
 
-- Stage Kernel Agent.
-- Instrument Registry Agent.
+- Stage Core Agent.
+- Stage Modules Agent.
+- Stage Interface Agent.
 
 Deliverables:
 
+- runtime composition.
+- provider registration during startup.
+- generated Handbook initialization.
 - dynamic session context.
 - StageSession service.
 - StageVibe carried as soft session guidance.
+- Material Gate behavior for presentation safety.
 - instrument registry.
 - LLM-facing tool surface for context read, Handbook lookup, candidate
   grounding, event record, memory proposal, effect proposal, and session
@@ -140,9 +145,12 @@ Deliverables:
 Exit criteria:
 
 - The LLM can use instruments without knowing provider internals.
-- The Stage Kernel gates material state and effect proposal semantics.
-- Stage Kernel depends only on the instrument catalog, while tool dispatch calls
-  Stage and core ports through composition-root injection.
+- Stage Core assembles the runtime without absorbing module-owned business
+  logic.
+- Material Gate gates material state before presentation.
+- Stage Interface owns instruments, tools, Handbook lookup, and governed
+  dispatch while tool dispatch calls Stage Modules and core ports through
+  Stage Core injection.
 
 ## Phase 6: End-To-End MVP Slice
 

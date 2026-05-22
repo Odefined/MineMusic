@@ -113,11 +113,17 @@ Contracts:
 
 - type or schema validation.
 
-Stage Kernel:
+Stage Core:
+
+- runtime composition tests.
+- provider registration startup tests.
+- generated Handbook initialization tests.
+
+Stage Modules:
 
 - session context and material-state gating tests.
 
-Instrument Registry:
+Stage Interface:
 
 - tool descriptor and dispatch tests.
 
@@ -133,9 +139,13 @@ Events, Memory, Effects:
 
 - separation tests for event, memory proposal, and effect proposal behavior.
 
-Plugin Edge and Storage:
+Plugin Slots and Storage:
 
 - provider registration and repository isolation tests.
+
+Host Adapters:
+
+- host protocol translation and Stage Interface delegation tests.
 
 Integration:
 

@@ -420,16 +420,37 @@ Wave exit criteria:
 - no module imports another module's private implementation.
 - interface changes, if any, are reviewed and reflected in docs.
 
-### Wave 4: Stage Kernel And Instruments
+### Wave 4: Stage Core, Stage Modules, And Stage Interface
 
 Purpose:
 
-- expose the governed LLM-facing stage.
+- assemble the runtime and expose the governed LLM-facing stage.
 
-These two subagents may work in parallel only if they depend on public ports and
+These subagents may work in parallel only if they depend on public ports and
 do not edit each other's owned paths.
 
-Subagent: Stage Kernel Subagent.
+Subagent: Stage Core Subagent.
+
+Owned write paths:
+
+- `src/runtime/**`
+- `test/runtime/**`
+
+Consumes:
+
+- module factories from previous waves.
+- provider adapters.
+- repository factories.
+
+Required behavior:
+
+- construct the runtime graph.
+- register providers during startup.
+- initialize generated Handbook output.
+- expose `runtime.ready`.
+- avoid moving module-owned business behavior into runtime composition.
+
+Subagent: Stage Modules Subagent.
 
 Owned write paths:
 
@@ -441,25 +462,21 @@ Consumes:
 - `StageKernelPort`
 - `MemoryPort`
 - `EventPort`
-- `EffectBoundaryPort`
-- `SourceResolutionPort`
-- `CanonicalStorePort`
-- `InstrumentCatalogPort`
 
 Required behavior:
 
 - get and update sessions.
-- compile Handbook.
-- carry `StageVibe` from `StageSession` into the Handbook.
+- carry `StageVibe` through Session Context.
 - prepare materials for LLM use.
 - gate material states according to purpose.
 
-Subagent: Instrument Registry Subagent.
+Subagent: Stage Interface Subagent.
 
 Owned write paths:
 
 - `src/instruments/**`
 - `src/tool_api/**`
+- `src/handbook/**`
 - `test/instruments/**`
 - `test/tool_api/**`
 
@@ -471,32 +488,32 @@ Consumes:
 Required behavior:
 
 - list LLM-visible instruments.
+- expose Handbook lookup.
 - dispatch stable tool names.
 - hide provider internals.
 - route `stage.context.read`, `stage.materials.prepare`,
   `music.material.resolve`, `music.links.refresh`, `events.record`,
   `memory.propose`, `effects.propose`, and `session.update`.
-- keep `InstrumentCatalogPort` independent from `StageKernelPort`; only
-  `ToolDispatchPort` may call Stage and core ports through injected public
-  dependencies.
+- keep `InstrumentCatalogPort` independent from Session Context private
+  implementation; only `ToolDispatchPort` may call Stage Modules and core ports
+  through injected public dependencies.
 
 Wave exit criteria:
 
-- Stage and Instrument tests pass.
-- any Stage/Instrument cycle is handled by dependency injection or a
+- Stage Core, Stage Modules, and Stage Interface tests pass.
+- any Stage Interface / Stage Module cycle is handled by dependency injection or a
   composition root, not private cross-imports.
 
 ### Wave 5: Composition And End-To-End MVP Slice
 
 Purpose:
 
-- wire modules through public ports and prove the MVP chain.
+- prove the MVP chain through Stage Core and public ports.
 
 Subagent: Integration Subagent.
 
 Owned write paths:
 
-- `src/runtime/**`
 - `src/app/**`
 - `test/integration/**`
 - `fixtures/integration/**`
