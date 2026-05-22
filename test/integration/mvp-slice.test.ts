@@ -10,7 +10,7 @@ import {
 } from "../../fixtures/integration/mvp-fixture.js";
 import type { Result } from "../../src/contracts/index.js";
 import { runRecommendationTranscript } from "../../src/app/index.js";
-import { createMineMusicRuntime } from "../../src/runtime/index.js";
+import { createMineMusicStageCore } from "../../src/runtime/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -26,7 +26,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 
 async function provesGroundedRecommendationMvpSlice(): Promise<void> {
   const runtimeDirectory = await mkdtemp(join(tmpdir(), "minemusic-runtime-"));
-  const runtime = createMineMusicRuntime({
+  const stageCore = createMineMusicStageCore({
     session: {
       id: "session-integration",
       posture: "recommendation",
@@ -52,7 +52,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
 
   try {
     const transcript = await assertOk(
-      runRecommendationTranscript(runtime, {
+      runRecommendationTranscript(stageCore, {
         sessionId: "session-integration",
         request: "I need quiet but not sleepy coding music.",
         memoryText: "User likes quiet coding music that still has motion.",

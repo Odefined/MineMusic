@@ -19,7 +19,7 @@ import type {
   ToolName,
 } from "../contracts/index.js";
 
-export interface StageKernelPort {
+export interface SessionContextPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;
 
   readContext(input: { sessionId: string }): Promise<Result<StageContext>>;
@@ -28,13 +28,17 @@ export interface StageKernelPort {
     sessionId: string;
     patch: Partial<StageSession>;
   }): Promise<Result<StageSession>>;
+}
 
+export interface MaterialGatePort {
   prepareMaterials(input: {
     sessionId: string;
     materials: MusicMaterial[];
     purpose: "recommendation" | "memory" | "effect" | "conversation";
   }): Promise<Result<MusicMaterial[]>>;
 }
+
+export type StageModulesPort = SessionContextPort & MaterialGatePort;
 
 export interface InstrumentCatalogPort {
   list(input: { session: StageSession }): Promise<Result<InstrumentDescriptor[]>>;

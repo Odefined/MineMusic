@@ -1,6 +1,4 @@
 import type {
-  CanonicalRecord,
-  EffectProposal,
   MemoryEntry,
   MusicMaterial,
   Ref,
@@ -9,14 +7,10 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import type {
-  CanonicalStorePort,
-  EffectBoundaryPort,
   EventPort,
-  InstrumentCatalogPort,
   MemoryPort,
-  SourceResolutionPort,
 } from "../../src/ports/index.js";
-import { createStageKernel } from "../../src/stage/index.js";
+import { createStageModules } from "../../src/stage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -43,25 +37,6 @@ const session: StageSession = {
 };
 
 function createDependencies(eventsSeen: string[] = []) {
-  const instruments: InstrumentCatalogPort = {
-    list: async ({ session }) => ({
-      ok: true,
-      value: [
-        {
-          id: session.activeInstruments[0] ?? "minemusic.mvp",
-          label: "MineMusic MVP",
-          tools: [
-            {
-              name: "music.material.resolve",
-              description: "Resolve candidates through canonical-first source resolution.",
-              inputSchemaRef: "MaterialResolveRequest",
-              outputSchemaRef: "MaterialResolveResult",
-            },
-          ],
-        },
-      ],
-    }),
-  };
   const memory: MemoryPort = {
     summarizeForSession: async () => ({
       ok: true,
@@ -87,49 +62,16 @@ function createDependencies(eventsSeen: string[] = []) {
     },
     listBySession: async () => ({ ok: true, value: [] as StageEvent[] }),
   };
-  const effects: EffectBoundaryPort = {
-    propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } as EffectProposal }),
-    decide: async () => ({ ok: true, value: undefined }),
-  };
-  const source: SourceResolutionPort = {
-    resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
-    ground: async () => ({ ok: true, value: [] }),
-    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
-  };
-  const canonical: CanonicalStorePort = {
-    get: async () => ({ ok: true, value: null }),
-    findByLabel: async () => ({ ok: true, value: [] }),
-    resolveExternalRef: async () => ({ ok: true, value: null }),
-    createProvisional: async ({ kind, label }) => ({
-      ok: true,
-      value: {
-        ref: { namespace: "minemusic", kind, id: "canonical-1", label },
-        kind,
-        label,
-        status: "provisional",
-      } satisfies CanonicalRecord,
-    }),
-    attachExternalRef: async ({ canonicalRef }) => ({
-      ok: true,
-      value: {
-        ref: canonicalRef,
-        kind: canonicalRef.kind,
-        label: canonicalRef.label ?? canonicalRef.id,
-        status: "active",
-      } satisfies CanonicalRecord,
-    }),
-  };
-
-  return { instruments, memory, events, effects, source, canonical };
+  return { memory, events };
 }
 
 async function readsContextWithoutHandbookMaterial(): Promise<void> {
-  const stage = createStageKernel({
+  const stageModules = createStageModules({
     sessions: [session],
     ...createDependencies(),
   });
 
-  const context = await assertOk(stage.readContext({ sessionId: session.id }));
+  const context = await assertOk(stageModules.readContext({ sessionId: session.id }));
 
   assert(context.session.id === session.id, "context should include the current session");
   assert(context.session.vibe?.text === session.vibe?.text, "context should preserve dynamic StageVibe");
@@ -140,13 +82,13 @@ async function readsContextWithoutHandbookMaterial(): Promise<void> {
 
 async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
   const eventsSeen: string[] = [];
-  const stage = createStageKernel({
+  const stageModules = createStageModules({
     sessions: [session],
     ...createDependencies(eventsSeen),
   });
 
   const updated = await assertOk(
-    stage.updateSession({
+    stageModules.updateSession({
       sessionId: session.id,
       patch: {
         notes: "User wants less sleepy music.",
@@ -154,11 +96,11 @@ async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
       },
     }),
   );
-  const loaded = await assertOk(stage.getSession({ sessionId: session.id }));
+  const loaded = await assertOk(stageModules.getSession({ sessionId: session.id }));
 
   assert(updated.notes === "User wants less sleepy music.", "updateSession should apply patch");
   assert(loaded.notes === updated.notes, "getSession should return updated session");
-  assert(eventsSeen.includes("stage.session.updated",), "session update should record event");
+  assert(eventsSeen.includes("stage.session.updated"), "session update should record event");
 }
 
 async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
@@ -186,13 +128,13 @@ async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
       playableLinks: [{ url: "https://example.test/blocked", sourceRef }],
     },
   ];
-  const stage = createStageKernel({
+  const stageModules = createStageModules({
     sessions: [session],
     ...createDependencies(),
   });
 
   const prepared = await assertOk(
-    stage.prepareMaterials({
+    stageModules.prepareMaterials({
       sessionId: session.id,
       materials,
       purpose: "recommendation",
@@ -205,22 +147,22 @@ async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
 }
 
 async function reportsMissingSessionAsResultError(): Promise<void> {
-  const stage = createStageKernel({
+  const stageModules = createStageModules({
     sessions: [session],
     ...createDependencies(),
   });
-  const result = await stage.getSession({ sessionId: "missing" });
+  const result = await stageModules.getSession({ sessionId: "missing" });
 
   assert(!result.ok, "missing sessions should fail via Result");
   assert(result.error.code === "stage.session_not_found", "missing session should use stable stage error");
 }
 
 async function supportsDetachedPublicPortMethods(): Promise<void> {
-  const stage = createStageKernel({
+  const stageModules = createStageModules({
     sessions: [session],
     ...createDependencies(),
   });
-  const { readContext, prepareMaterials } = stage;
+  const { readContext, prepareMaterials } = stageModules;
   const context = await assertOk(readContext({ sessionId: session.id }));
   const prepared = await assertOk(
     prepareMaterials({

@@ -1,6 +1,6 @@
 import type { MusicMaterial, Result, SourceProvider, StageSession } from "../../src/contracts/index.js";
-import { stableToolNames } from "../../src/instruments/index.js";
-import { createMineMusicRuntimeWithSourceProvider } from "../../src/runtime/index.js";
+import { createMineMusicStageCoreWithSourceProvider } from "../../src/runtime/index.js";
+import { stableToolNames } from "../../src/stage_interface/index.js";
 import {
   codexToolNameFor,
   createMineMusicMcpToolDefinitions,
@@ -50,13 +50,13 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
 }
 
 async function exposesStableToolsThroughMcpDefinitions(): Promise<void> {
-  const runtime = createMineMusicRuntimeWithSourceProvider({
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
     session,
     sourceProvider,
   });
-  await runtime.ready;
+  await stageCore.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(runtime);
+  const definitions = createMineMusicMcpToolDefinitions(stageCore);
   const names = definitions.map((definition) => definition.name);
 
   assert(
@@ -70,13 +70,13 @@ async function exposesStableToolsThroughMcpDefinitions(): Promise<void> {
 }
 
 async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void> {
-  const runtime = createMineMusicRuntimeWithSourceProvider({
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
     session,
     sourceProvider,
   });
-  await runtime.ready;
+  await stageCore.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(runtime);
+  const definitions = createMineMusicMcpToolDefinitions(stageCore);
   const schemasByName = new Map(
     definitions.map((definition) => [definition.name, definition.inputSchema] as const),
   );
@@ -115,14 +115,14 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   );
 }
 
-async function dispatchesMcpPayloadsToRuntimeToolApi(): Promise<void> {
-  const runtime = createMineMusicRuntimeWithSourceProvider({
+async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
     session,
     sourceProvider,
   });
-  await runtime.ready;
+  await stageCore.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(runtime);
+  const definitions = createMineMusicMcpToolDefinitions(stageCore);
   const prepareTool = definitions.find(
     (definition) => definition.name === "minemusic.stage.materials.prepare",
   );
@@ -143,7 +143,7 @@ async function dispatchesMcpPayloadsToRuntimeToolApi(): Promise<void> {
   assert(firstContent?.type === "text", "MCP handler should return text content");
 
   const result = JSON.parse(firstContent.text) as Result<MusicMaterial[]>;
-  assert(result.ok, "MCP handler should return the tool API result");
+  assert(result.ok, "MCP handler should return the Stage Interface result");
   assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve runtime result payload");
 }
 
@@ -158,4 +158,4 @@ function schemaIsEmpty(schema: unknown): boolean {
 await mapsInternalToolsToCodexPrefixedMcpTools();
 await exposesStableToolsThroughMcpDefinitions();
 await exposesUsefulInputSchemasForArgumentBearingTools();
-await dispatchesMcpPayloadsToRuntimeToolApi();
+await dispatchesMcpPayloadsToStageInterface();

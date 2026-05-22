@@ -64,8 +64,9 @@ Stage Interface is the external seam for Codex, future hosts, and integration
 tests. Host Adapters should call Stage Interface rather than core capability
 modules directly.
 
-Current code mapping: `src/instruments/index.ts`, `src/tool_api/index.ts`,
-`src/handbook/index.ts`, and the dispatch-facing part of `src/runtime/index.ts`.
+Current code mapping: `src/stage_interface/index.ts`,
+`src/instruments/index.ts`, `src/handbook/index.ts`, and the dispatch-facing
+part of `src/runtime/index.ts`.
 
 ### Stage Modules
 
@@ -80,8 +81,8 @@ Current Stage Modules:
 - Instrument Catalog: available instruments and tool descriptors.
 - Handbook: rendered instrument and tool reference.
 
-Current code mapping: `src/stage/index.ts` currently contains Session Context
-and Material Gate behavior under the legacy `StageKernelPort` name.
+Current code mapping: `src/stage/index.ts` exports Stage Modules through
+`SessionContextPort`, `MaterialGatePort`, and `StageModulesPort`.
 
 ### Core Capabilities
 
@@ -130,6 +131,6 @@ Use `Stage Core` for runtime composition and lifecycle.
 Do not use `Stage Core` to mean Session Context, Material Gate, or a module that
 contains every capability implementation.
 
-Use `Stage Kernel` only when referring to the current legacy code name
-`StageKernelPort` / `src/stage/index.ts`. New architecture text should prefer
-`Stage Modules`, `Session Context`, and `Material Gate`.
+Do not use `Stage Kernel` for current architecture or current code. Historical
+Wave 4-8 notes may use that old term, but new architecture text and new code
+should use `Stage Modules`, `Session Context`, and `Material Gate`.

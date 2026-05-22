@@ -58,8 +58,8 @@ This index points agents to the current MVP documentation pack.
 
 16. `docs/adr/0001-stage-core-runtime-composition.md`
    - Accepted naming decision: Stage Core means runtime composition and
-     lifecycle; current `StageKernelPort` maps to Session Context and Material
-     Gate.
+     lifecycle; current code uses Stage Modules for Session Context and
+     Material Gate.
 
 17. `CURRENT_STATE.md`
    - Current implementation status.
@@ -88,23 +88,26 @@ This index points agents to the current MVP documentation pack.
 
 24. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
-      instrument descriptors and delegates to `MineMusicToolApi`.
+      instrument descriptors and delegates to `MineMusicStageInterface`.
 
-25. `src/handbook/index.ts`
+25. `src/stage_interface/index.ts`
+    - Host-facing Stage Interface facade and stable tool callable surface.
+
+26. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-26. `plugins/minemusic/.codex-plugin/plugin.json`
+27. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-27. `plugins/minemusic/.mcp.json`
+28. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-28. `plugins/minemusic/skills/minemusic/SKILL.md`
+29. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-29. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+30. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 

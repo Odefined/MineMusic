@@ -84,7 +84,8 @@ Owns:
 Inputs:
 
 - contracts from Workstream A.
-- `StageKernelPort` from `src/ports`.
+- `SessionContextPort`, `MaterialGatePort`, and `StageModulesPort` from
+  `src/ports`.
 - Memory and Event public APIs.
 
 Outputs:
@@ -95,9 +96,8 @@ Outputs:
 
 Rule:
 
-- `StageKernelPort` is the current legacy port name. Future work may split it
-  into `SessionContextPort` and `MaterialGatePort` after Stage Interface owns
-  external call flow.
+- Keep Session Context and Material Gate behavior separate even when the
+  current factory returns a combined `StageModulesPort`.
 
 ## Workstream D: Stage Interface
 
@@ -111,8 +111,8 @@ Purpose:
 
 Owns:
 
+- `src/stage_interface/**`
 - `src/instruments/**`
-- `src/tool_api/**`
 - `src/handbook/**`
 
 Inputs:

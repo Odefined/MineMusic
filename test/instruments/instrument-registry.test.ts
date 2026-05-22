@@ -11,7 +11,7 @@ import type {
   EventPort,
   MemoryPort,
   SourceResolutionPort,
-  StageKernelPort,
+  StageModulesPort,
 } from "../../src/ports/index.js";
 import {
   createInstrumentCatalog,
@@ -69,13 +69,13 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   const calls: string[] = [];
   const catalog = createInstrumentCatalog();
-  const stage: StageKernelPort = {
+  const stageModules: StageModulesPort = {
     getSession: async ({ sessionId }) => {
-      calls.push("stage.getSession");
+      calls.push("stageModules.getSession");
       return { ok: true, value: { ...session, id: sessionId } };
     },
     readContext: async ({ sessionId }) => {
-      calls.push("stage.readContext");
+      calls.push("stageModules.readContext");
       return {
         ok: true,
         value: {
@@ -85,11 +85,11 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       };
     },
     updateSession: async ({ patch }) => {
-      calls.push("stage.updateSession");
+      calls.push("stageModules.updateSession");
       return { ok: true, value: { ...session, ...patch } };
     },
     prepareMaterials: async ({ materials }) => {
-      calls.push("stage.prepareMaterials");
+      calls.push("stageModules.prepareMaterials");
       return { ok: true, value: materials };
     },
   };
@@ -138,7 +138,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     },
     decide: async () => ({ ok: true, value: undefined }),
   };
-  const dispatch = createToolDispatch({ stage, instruments: catalog, source, events, memory, effects });
+  const dispatch = createToolDispatch({ stageModules, instruments: catalog, source, events, memory, effects });
 
   await assertOk(dispatch.call({ sessionId: session.id, toolName: "stage.context.read", payload: {} }));
   const overview = await assertOk(dispatch.call({ sessionId: session.id, toolName: "handbook.overview.read", payload: {} }));
@@ -241,8 +241,8 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     }),
   );
 
-  assert(calls.includes("stage.getSession"), "tool availability should read Stage session");
-  assert(calls.includes("stage.readContext"), "stage.context.read should read Stage context");
+  assert(calls.includes("stageModules.getSession"), "tool availability should read Stage session");
+  assert(calls.includes("stageModules.readContext"), "stage.context.read should read Stage context");
   assert(
     typeof overview === "object" && overview !== null && "content" in overview,
     "handbook overview should return rendered readable content",
@@ -254,13 +254,13 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       (toolEntry as { tool?: { name?: unknown } }).tool?.name === "music.material.resolve",
     "handbook.tool.read should return the requested tool descriptor",
   );
-  assert(calls.includes("stage.prepareMaterials"), "stage.materials.prepare should call StageKernelPort");
+  assert(calls.includes("stageModules.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
   assert(calls.includes("source.resolve"), "music.material.resolve should call SourceResolutionPort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceResolutionPort");
   assert(calls.includes("events.record"), "events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("effects.propose"), "effects.propose should call EffectBoundaryPort");
-  assert(calls.includes("stage.updateSession"), "session.update should call StageKernelPort");
+  assert(calls.includes("stageModules.updateSession"), "session.update should call SessionContextPort");
 }
 
 async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promise<void> {
@@ -268,7 +268,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
     ...session,
     activeInstruments: ["other.instrument"],
   };
-  const stage: StageKernelPort = {
+  const stageModules: StageModulesPort = {
     getSession: async () => ({ ok: true, value: restrictedSession }),
     readContext: async () => ({
       ok: true,
@@ -281,7 +281,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
     prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
   };
   const dispatch = createToolDispatch({
-    stage,
+    stageModules,
     instruments: createInstrumentCatalog(),
     source: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
@@ -338,7 +338,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
 
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   const dispatch = createToolDispatch({
-    stage: {} as StageKernelPort,
+    stageModules: {} as StageModulesPort,
     instruments: createInstrumentCatalog(),
     source: {} as SourceResolutionPort,
     events: {} as EventPort,

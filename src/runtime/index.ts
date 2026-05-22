@@ -10,7 +10,6 @@ import { createCanonicalStore } from "../canonical/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { writeInstrumentHandbookFile } from "../handbook/index.js";
-import { createInstrumentCatalog, createToolDispatch } from "../instruments/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
 import type {
@@ -20,24 +19,29 @@ import type {
   MemoryPort,
   PluginRegistryPort,
   SourceResolutionPort,
-  StageKernelPort,
+  StageModulesPort,
   ToolDispatchPort,
 } from "../ports/index.js";
 import { createSourceResolutionService } from "../source/index.js";
-import { createStageKernel } from "../stage/index.js";
+import { createStageModules } from "../stage/index.js";
+import {
+  createInstrumentCatalog,
+  createMineMusicStageInterface,
+  createToolDispatch,
+  type MineMusicStageInterface,
+} from "../stage_interface/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryEffectProposalRepository,
   createInMemoryEventRepository,
   createInMemoryMemoryRepository,
 } from "../storage/index.js";
-import { createMineMusicToolApi, type MineMusicToolApi } from "../tool_api/index.js";
 
-export type MineMusicRuntime = {
+export type MineMusicStageCore = {
   ready: Promise<void>;
-  toolApi: MineMusicToolApi;
+  stageInterface: MineMusicStageInterface;
   dispatch: ToolDispatchPort;
-  stage: StageKernelPort;
+  stageModules: StageModulesPort;
   canonical: CanonicalStorePort;
   source: SourceResolutionPort;
   events: EventPort;
@@ -46,27 +50,27 @@ export type MineMusicRuntime = {
   plugins: PluginRegistryPort;
 };
 
-export type MineMusicRuntimeOptions = {
+export type MineMusicStageCoreOptions = {
   session: StageSession;
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
   handbookPath?: string;
 };
 
-export type MineMusicRuntimeWithSourceProviderOptions = {
+export type MineMusicStageCoreWithSourceProviderOptions = {
   session: StageSession;
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
   handbookPath?: string;
 };
 
-export function createMineMusicRuntime({
+export function createMineMusicStageCore({
   session,
   sourceMaterials,
   canonicalRecords = [],
   handbookPath,
-}: MineMusicRuntimeOptions): MineMusicRuntime {
-  return createMineMusicRuntimeWithSourceProvider({
+}: MineMusicStageCoreOptions): MineMusicStageCore {
+  return createMineMusicStageCoreWithSourceProvider({
     session,
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
@@ -74,12 +78,12 @@ export function createMineMusicRuntime({
   });
 }
 
-export function createMineMusicRuntimeWithSourceProvider({
+export function createMineMusicStageCoreWithSourceProvider({
   session,
   sourceProvider,
   canonicalRecords = [],
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
-}: MineMusicRuntimeWithSourceProviderOptions): MineMusicRuntime {
+}: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
@@ -99,24 +103,20 @@ export function createMineMusicRuntimeWithSourceProvider({
     events,
     effects,
   });
-  const stage = createStageKernel({
+  const stageModules = createStageModules({
     sessions: [session],
-    instruments,
     memory,
     events,
-    effects,
-    source,
-    canonical,
   });
   const dispatch = createToolDispatch({
-    stage,
+    stageModules,
     instruments,
     source,
     events,
     memory,
     effects,
   });
-  const toolApi = createMineMusicToolApi({
+  const stageInterface = createMineMusicStageInterface({
     sessionId: session.id,
     dispatch,
   });
@@ -132,9 +132,9 @@ export function createMineMusicRuntimeWithSourceProvider({
 
   return {
     ready,
-    toolApi,
+    stageInterface,
     dispatch,
-    stage,
+    stageModules,
     canonical,
     source,
     events,

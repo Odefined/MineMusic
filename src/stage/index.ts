@@ -6,36 +6,26 @@ import type {
   StageSession,
 } from "../contracts/index.js";
 import type {
-  CanonicalStorePort,
-  EffectBoundaryPort,
   EventPort,
-  InstrumentCatalogPort,
+  MaterialGatePort,
   MemoryPort,
-  SourceResolutionPort,
-  StageKernelPort,
+  SessionContextPort,
+  StageModulesPort,
 } from "../ports/index.js";
 
-type StageKernelOptions = {
+type StageModulesOptions = {
   sessions?: StageSession[];
-  instruments: InstrumentCatalogPort;
   memory: MemoryPort;
   events: EventPort;
-  effects: EffectBoundaryPort;
-  source: SourceResolutionPort;
-  canonical: CanonicalStorePort;
 };
 
-export function createStageKernel({
+export function createStageModules({
   sessions = [],
-  instruments: _instruments,
   memory,
   events,
-  effects: _effects,
-  source: _source,
-  canonical: _canonical,
-}: StageKernelOptions): StageKernelPort {
+}: StageModulesOptions): StageModulesPort {
   const sessionsById = new Map(sessions.map((session) => [session.id, cloneSession(session)]));
-  const getSession: StageKernelPort["getSession"] = async ({ sessionId }) => {
+  const getSession: SessionContextPort["getSession"] = async ({ sessionId }) => {
     const session = sessionsById.get(sessionId);
 
     if (session === undefined) {
@@ -122,9 +112,11 @@ export function createStageKernel({
   };
 }
 
+type MaterialGatePurpose = Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"];
+
 function gateMaterialForPurpose(
   material: MusicMaterial,
-  purpose: "recommendation" | "memory" | "effect" | "conversation",
+  purpose: MaterialGatePurpose,
 ): MusicMaterial {
   if (purpose === "conversation") {
     return cloneMaterial(material);

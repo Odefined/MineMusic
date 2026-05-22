@@ -7,27 +7,27 @@ MineMusic is at the Wave 8 Codex instruments plugin implementation stage on
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
-core domain service skeletons, Stage Core runtime composition, Session Context
-and Material Gate behavior under the legacy `StageKernelPort` name, instrument
-registry, Tool API facade, a fixture end-to-end MVP slice, a read-only NetEase
-provider adapter, and contract/runtime tests.
-Wave 6 final review found and fixed one legacy `StageKernelPort` public-method
-robustness issue. Wave 7 adds a read-only NetEase source provider adapter and
-opt-in live smoke command. The local NetEase service is currently verified
-through explicit live smoke against `http://127.0.0.1:3000`. Wave 8 adds a
-repo-local Codex MCP plugin surface. The Codex surface exposes MineMusic
-instruments, not runtime internals, and deterministic MCP/plugin packaging
-tests pass. The repo-local plugin now includes a MineMusic workflow skill,
-explicit MCP input schemas for argument-bearing tools, a generated skill-local
-`HANDBOOK.md`, and `minemusic.handbook.*` lookup tools. Fresh Codex app plugin
-visibility is not yet claimed.
+core domain service skeletons, Stage Core runtime composition, Stage Modules
+for Session Context and Material Gate, Stage Interface facade, instrument
+registry, a fixture end-to-end MVP slice, a read-only NetEase provider adapter,
+and contract/runtime tests.
+Wave 7 adds a read-only NetEase source provider adapter and opt-in live smoke
+command. The local NetEase service is currently verified through explicit live
+smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP plugin
+surface. The Codex surface exposes MineMusic instruments, not runtime
+internals, and deterministic MCP/plugin packaging tests pass. The repo-local
+plugin now includes a MineMusic workflow skill, explicit MCP input schemas for
+argument-bearing tools, a generated skill-local `HANDBOOK.md`, and
+`minemusic.handbook.*` lookup tools. The 2026-05-23 architecture refactor
+renamed the current code to Stage Core / Stage Interface / Stage Modules.
+Fresh Codex app plugin visibility is not yet claimed.
 
 ## Source Basis
 
 The current docs are based on `proposal.md` plus the vocabulary decision in
 `CONTEXT.md`: Stage Core is runtime composition and lifecycle; Session Context
-and Material Gate are Stage Modules; `StageKernelPort` is the current legacy
-code name for those Stage Module behaviors.
+and Material Gate are Stage Modules; Stage Interface is the callable
+host-facing and LLM-facing surface.
 
 ## Established
 
@@ -44,10 +44,11 @@ code name for those Stage Module behaviors.
 - Stage Core means runtime composition and lifecycle. In current code this maps
   to `src/runtime/index.ts`.
 - Stage Interface means the LLM-facing and host-facing callable surface. In
-  current code this is spread across `src/instruments/index.ts`,
-  `src/tool_api/index.ts`, and `src/handbook/index.ts`.
-- `src/stage/index.ts` currently contains Session Context and Material Gate
-  behavior under the legacy `StageKernelPort` name; it is not the Stage Core.
+  current code this is centered in `src/stage_interface/index.ts`, with
+  descriptors and dispatch in `src/instruments/index.ts` and Handbook rendering
+  in `src/handbook/index.ts`.
+- `src/stage/index.ts` exports Stage Modules for Session Context and Material
+  Gate; it is not the Stage Core.
 - ADR-0001 records this naming decision so future architecture reviews do not
   reintroduce Stage Core / Stage Kernel ambiguity.
 - A subagent orchestration plan now exists for implementing the MVP with
@@ -81,9 +82,9 @@ code name for those Stage Module behaviors.
   playable-link refresh, canonical-ref attachment from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.
 - Session Context and Material Gate are exported from `src/stage/index.ts`
-  through the current legacy `StageKernelPort`, with session continuity,
-  dynamic session context, `StageVibe` propagation through session state, and
-  material-state gating.
+  through `SessionContextPort`, `MaterialGatePort`, and `StageModulesPort`,
+  with session continuity, dynamic session context, `StageVibe` propagation
+  through session state, and material-state gating.
 - `stage.context.read` returns dynamic session context only: session state and
   memory summaries. It does not embed or point at a Handbook.
 - The MineMusic Handbook is generated from current agent-visible
@@ -95,21 +96,20 @@ code name for those Stage Module behaviors.
 - Instrument registry and tool dispatch are exported from
   `src/instruments/index.ts` with stable LLM-visible tool names and dependency
   injection through public ports.
-- Tool API facade is exported from `src/tool_api/index.ts` and exposes stable
-  tool functions backed by `ToolDispatchPort`.
+- Stage Interface facade is exported from `src/stage_interface/index.ts` and
+  exposes stable tool functions backed by `ToolDispatchPort`.
 - Stage Core runtime composition is exported from `src/runtime/index.ts` and
   wires in-memory storage, fixture providers, core ports, Session Context /
-  Material Gate, Instrument dispatch, and Tool API.
-- Stage Core also exports `createMineMusicRuntimeWithSourceProvider` for host
-  surfaces that need to register a concrete source provider without fixture
-  source materials.
+  Material Gate, Instrument dispatch, and Stage Interface.
+- Stage Core also exports `createMineMusicStageCoreWithSourceProvider` for
+  host surfaces that need to register a concrete source provider without
+  fixture source materials.
 - The fixture transcript runner is exported from `src/app/index.ts`.
 - Fixture integration data lives in `fixtures/integration/mvp-fixture.ts`.
 - Fixture end-to-end verification is documented in
   `docs/mvp/verification-report.md`.
 - Wave 6 final review is documented in `docs/mvp/final-review.md`.
-- Legacy `StageKernelPort` public methods are covered for detached public-port
-  usage.
+- Stage Module public methods are covered for detached public-port usage.
 - The Wave 1-6 implementation branch was merged locally into `main`.
 - Wave 7 live source-provider validation design is documented in
   `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
@@ -125,15 +125,15 @@ code name for those Stage Module behaviors.
   `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`.
 - The Wave 8 implementation plan is documented in
   `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
-- `stage.materials.prepare` is a stable Tool API / Instrument tool, so Material
-  Gate behavior is Codex-visible.
+- `stage.materials.prepare` is a stable Stage Interface / Instrument tool, so
+  Material Gate behavior is Codex-visible.
 - Tool Dispatch enforces current instrument availability through
   `InstrumentCatalogPort`, not by compiling a Handbook. `stage.context.read`,
   the `handbook.*` lookup tools, and `session.update` remain available for
   discovery/reference/recovery.
 - The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
-  `MineMusicToolApi`, not provider or repository internals. Argument-bearing
+  `MineMusicStageInterface`, not provider or repository internals. Argument-bearing
   tools expose explicit input schemas rather than an empty passthrough shape.
 - Repo-local Codex plugin packaging lives in `plugins/minemusic` with a local
   marketplace entry at `.agents/plugins/marketplace.json`.
@@ -149,12 +149,8 @@ code name for those Stage Module behaviors.
 
 ## Not Yet Implemented
 
-- Code has not yet been renamed to match the new Stage Core / Stage Interface /
-  Stage Modules vocabulary. `StageKernelPort` remains the current code name for
-  Session Context and Material Gate.
-- Stage Interface is not yet one deep module; tool metadata, Handbook lookup,
-  Tool API, and Tool Dispatch are still spread across `src/instruments`,
-  `src/tool_api`, and `src/handbook`.
+- Stage Interface can still be deepened: host schemas, tool metadata, Handbook
+  rendering, and dispatch are not yet fully owned by one implementation file.
 - Durable storage repositories beyond in-memory infrastructure.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.

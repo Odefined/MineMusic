@@ -2,19 +2,28 @@ import type { Result, ToolName } from "../contracts/index.js";
 import type { ToolDispatchPort } from "../ports/index.js";
 import { stableToolNames } from "../instruments/index.js";
 
-export type MineMusicToolApi = {
+export {
+  agentToolDescriptors,
+  createInstrumentCatalog,
+  createToolDispatch,
+  handbookToolDescriptors,
+  mvpToolDescriptors,
+  stableToolNames,
+} from "../instruments/index.js";
+
+export type MineMusicStageInterface = {
   tools: Record<ToolName, (payload: unknown) => Promise<Result<unknown>>>;
 };
 
-type MineMusicToolApiOptions = {
+export type MineMusicStageInterfaceOptions = {
   sessionId: string;
   dispatch: ToolDispatchPort;
 };
 
-export function createMineMusicToolApi({
+export function createMineMusicStageInterface({
   sessionId,
   dispatch,
-}: MineMusicToolApiOptions): MineMusicToolApi {
+}: MineMusicStageInterfaceOptions): MineMusicStageInterface {
   const tools = Object.fromEntries(
     stableToolNames.map((toolName) => [
       toolName,

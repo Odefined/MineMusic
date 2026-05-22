@@ -3,9 +3,10 @@
 ## Terminology Note
 
 This review records the Wave 1 through Wave 6 implementation using the
-terminology that existed at the time. Current architecture vocabulary maps the
-legacy `StageKernelPort` code to Session Context and Material Gate behavior.
-Stage Core now means `src/runtime/index.ts` runtime composition and lifecycle.
+terminology that existed at the time. As of the 2026-05-23 architecture
+refactor, current code uses Stage Modules for Session Context and Material
+Gate, Stage Interface for callable tools, and Stage Core for
+`src/runtime/index.ts` runtime composition and lifecycle.
 
 ## Scope
 

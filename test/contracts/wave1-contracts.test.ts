@@ -30,14 +30,16 @@ import type {
   EventPort,
   EventRepository,
   InstrumentCatalogPort,
+  MaterialGatePort,
   MemoryPort,
   MemoryRepository,
   MusicKnowledgePort,
   PluginRegistryPort,
   Repository,
   SessionRepository,
+  SessionContextPort,
   SourceResolutionPort,
-  StageKernelPort,
+  StageModulesPort,
   ToolDispatchPort,
 } from "../../src/ports/index.js";
 
@@ -74,11 +76,15 @@ type _stageSessionHasVibe = Expect<
   >
 >;
 
-type _allStageMethodsUseSingleObjectInputs = Expect<
-  MethodAcceptsSingleObject<StageKernelPort, "getSession"> &
-    MethodAcceptsSingleObject<StageKernelPort, "readContext"> &
-    MethodAcceptsSingleObject<StageKernelPort, "updateSession"> &
-    MethodAcceptsSingleObject<StageKernelPort, "prepareMaterials">
+type _allStageModuleMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<SessionContextPort, "getSession"> &
+    MethodAcceptsSingleObject<SessionContextPort, "readContext"> &
+    MethodAcceptsSingleObject<SessionContextPort, "updateSession"> &
+    MethodAcceptsSingleObject<MaterialGatePort, "prepareMaterials">
+>;
+
+type _stageModulesComposeSessionContextAndMaterialGate = Expect<
+  Equal<keyof StageModulesPort, keyof SessionContextPort | keyof MaterialGatePort>
 >;
 
 type _catalogAndDispatchStaySeparate = Expect<
@@ -256,7 +262,7 @@ const sourceProvider: SourceProvider = {
   }),
 };
 
-const stageKernel: StageKernelPort = {
+const stageModules: StageModulesPort = {
   getSession: async ({ sessionId }) => ({
     ok: true,
     value: { ...session, id: sessionId },
@@ -445,7 +451,7 @@ void [
   effectDecision,
   handbook,
   sourceProvider,
-  stageKernel,
+  stageModules,
   instrumentCatalog,
   toolName,
   handbookToolEntry,

@@ -19,9 +19,11 @@ import type {
   EffectBoundaryPort,
   EventPort,
   InstrumentCatalogPort,
+  MaterialGatePort,
   MemoryPort,
+  SessionContextPort,
   SourceResolutionPort,
-  StageKernelPort,
+  StageModulesPort,
   ToolDispatchPort,
 } from "../ports/index.js";
 
@@ -40,7 +42,7 @@ export const stableToolNames = [
 ] as const satisfies readonly ToolName[];
 
 type ToolDispatchOptions = {
-  stage: StageKernelPort;
+  stageModules: StageModulesPort;
   instruments: InstrumentCatalogPort;
   source: SourceResolutionPort;
   events: EventPort;
@@ -76,7 +78,7 @@ export function createInstrumentCatalog(): InstrumentCatalogPort {
 }
 
 export function createToolDispatch({
-  stage,
+  stageModules,
   instruments,
   source,
   events,
@@ -104,7 +106,7 @@ export function createToolDispatch({
 
       if (!discoveryToolNames.has(toolName)) {
         const availability = await ensureToolAvailableForSession(
-          stage,
+          stageModules,
           instruments,
           sessionId,
           toolName,
@@ -117,11 +119,11 @@ export function createToolDispatch({
 
       switch (toolName) {
         case "stage.context.read": {
-          return stage.readContext({ sessionId });
+          return stageModules.readContext({ sessionId });
         }
 
         case "handbook.overview.read": {
-          const instrumentsResult = await listInstrumentsForSession(stage, instruments, sessionId);
+          const instrumentsResult = await listInstrumentsForSession(stageModules, instruments, sessionId);
 
           if (!instrumentsResult.ok) {
             return instrumentsResult;
@@ -131,7 +133,7 @@ export function createToolDispatch({
         }
 
         case "handbook.instrument.read": {
-          const instrumentsResult = await listInstrumentsForSession(stage, instruments, sessionId);
+          const instrumentsResult = await listInstrumentsForSession(stageModules, instruments, sessionId);
 
           if (!instrumentsResult.ok) {
             return instrumentsResult;
@@ -144,7 +146,7 @@ export function createToolDispatch({
         }
 
         case "handbook.tool.read": {
-          const instrumentsResult = await listInstrumentsForSession(stage, instruments, sessionId);
+          const instrumentsResult = await listInstrumentsForSession(stageModules, instruments, sessionId);
 
           if (!instrumentsResult.ok) {
             return instrumentsResult;
@@ -157,11 +159,11 @@ export function createToolDispatch({
         }
 
         case "stage.materials.prepare":
-          return stage.prepareMaterials(
+          return stageModules.prepareMaterials(
             readPayload<{
               sessionId: string;
               materials: MusicMaterial[];
-              purpose: Parameters<StageKernelPort["prepareMaterials"]>[0]["purpose"];
+              purpose: Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"];
             }>(payload, { sessionId }),
           );
 
@@ -186,10 +188,10 @@ export function createToolDispatch({
           return effects.propose(readPayload<{ proposal: Omit<EffectProposal, "id"> }>(payload));
 
         case "session.update":
-          return stage.updateSession(
+          return stageModules.updateSession(
             readPayload<{
               sessionId: string;
-              patch: Parameters<StageKernelPort["updateSession"]>[0]["patch"];
+              patch: Parameters<SessionContextPort["updateSession"]>[0]["patch"];
             }>(payload, { sessionId }),
           );
 
@@ -235,7 +237,7 @@ export const mvpToolDescriptors: ToolDescriptor[] = [
   },
   {
     name: "stage.materials.prepare",
-    description: "Prepare grounded materials through Stage Kernel gating before presentation.",
+    description: "Prepare grounded materials through the Material Gate before presentation.",
     inputSchemaRef: "StageMaterialsPrepareInput",
     outputSchemaRef: "MusicMaterial[]",
   },
@@ -272,7 +274,7 @@ export const mvpToolDescriptors: ToolDescriptor[] = [
   },
   {
     name: "session.update",
-    description: "Update soft session state through the Stage Kernel.",
+    description: "Update soft session state through Session Context.",
     inputSchemaRef: "StageSessionPatch",
     outputSchemaRef: "StageSession",
   },
@@ -301,12 +303,12 @@ function isStableToolName(toolName: ToolName | string): toolName is ToolName {
 }
 
 async function ensureToolAvailableForSession(
-  stage: StageKernelPort,
+  sessionContext: SessionContextPort,
   instruments: InstrumentCatalogPort,
   sessionId: string,
   toolName: ToolName,
 ): Promise<Result<void>> {
-  const catalog = await listInstrumentsForSession(stage, instruments, sessionId);
+  const catalog = await listInstrumentsForSession(sessionContext, instruments, sessionId);
 
   if (!catalog.ok) {
     return catalog;
@@ -329,11 +331,11 @@ async function ensureToolAvailableForSession(
 }
 
 async function listInstrumentsForSession(
-  stage: StageKernelPort,
+  sessionContext: SessionContextPort,
   instruments: InstrumentCatalogPort,
   sessionId: string,
 ): Promise<Result<InstrumentDescriptor[]>> {
-  const session = await stage.getSession({ sessionId });
+  const session = await sessionContext.getSession({ sessionId });
 
   if (!session.ok) {
     return session;

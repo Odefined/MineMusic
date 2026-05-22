@@ -4,12 +4,12 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod/v4";
 
 import type { Result, StageSession, ToolName } from "../../contracts/index.js";
-import { agentToolDescriptors, stableToolNames } from "../../instruments/index.js";
 import { createNetEaseSourceProvider } from "../../providers/netease/index.js";
 import {
-  createMineMusicRuntimeWithSourceProvider,
-  type MineMusicRuntime,
+  createMineMusicStageCoreWithSourceProvider,
+  type MineMusicStageCore,
 } from "../../runtime/index.js";
+import { agentToolDescriptors, stableToolNames } from "../../stage_interface/index.js";
 
 export type MineMusicMcpTextContent = {
   type: "text";
@@ -114,7 +114,7 @@ export function internalToolNameFor(mcpToolName: string): ToolName | null {
 }
 
 export function createMineMusicMcpToolDefinitions(
-  runtime: MineMusicRuntime,
+  runtime: MineMusicStageCore,
 ): MineMusicMcpToolDefinition[] {
   return agentToolDescriptors.map((descriptor) => ({
     name: codexToolNameFor(descriptor.name),
@@ -123,7 +123,7 @@ export function createMineMusicMcpToolDefinitions(
     handler: async (payload) => {
       await runtime.ready;
 
-      const result = await runtime.toolApi.tools[descriptor.name](payload);
+      const result = await runtime.stageInterface.tools[descriptor.name](payload);
 
       return asTextResult(result);
     },
@@ -131,7 +131,7 @@ export function createMineMusicMcpToolDefinitions(
 }
 
 export function createMineMusicMcpServer(
-  runtime: MineMusicRuntime = createDefaultMineMusicMcpRuntime(),
+  runtime: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
 ): McpServer {
   const server = new McpServer({
     name: "minemusic",
@@ -153,7 +153,7 @@ export function createMineMusicMcpServer(
 }
 
 export async function runMineMusicMcpServer(
-  runtime: MineMusicRuntime = createDefaultMineMusicMcpRuntime(),
+  runtime: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
 ): Promise<void> {
   await runtime.ready;
 
@@ -161,10 +161,10 @@ export async function runMineMusicMcpServer(
   await server.connect(new StdioServerTransport());
 }
 
-export function createDefaultMineMusicMcpRuntime(
+export function createDefaultMineMusicMcpStageCore(
   env: Record<string, string | undefined> = process.env,
-): MineMusicRuntime {
-  return createMineMusicRuntimeWithSourceProvider({
+): MineMusicStageCore {
+  return createMineMusicStageCoreWithSourceProvider({
     session: createDefaultCodexSession(env),
     sourceProvider: createNetEaseSourceProvider(
       env.MINEMUSIC_NETEASE_BASE_URL === undefined

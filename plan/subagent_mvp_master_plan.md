@@ -459,7 +459,9 @@ Owned write paths:
 
 Consumes:
 
-- `StageKernelPort`
+- `SessionContextPort`
+- `MaterialGatePort`
+- `StageModulesPort`
 - `MemoryPort`
 - `EventPort`
 
@@ -474,11 +476,11 @@ Subagent: Stage Interface Subagent.
 
 Owned write paths:
 
+- `src/stage_interface/**`
 - `src/instruments/**`
-- `src/tool_api/**`
 - `src/handbook/**`
 - `test/instruments/**`
-- `test/tool_api/**`
+- `test/stage_interface/**`
 
 Consumes:
 

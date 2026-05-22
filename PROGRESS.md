@@ -161,9 +161,8 @@
   Host Adapters, Stage Core, Stage Interface, Stage Modules, Core Capabilities,
   Plugin Slots, and Storage.
 - Added `CONTEXT.md` as the project vocabulary source. It records that Stage
-  Core means runtime composition and lifecycle, while the current
-  `StageKernelPort` code name maps to Session Context and Material Gate
-  behavior.
+  Core means runtime composition and lifecycle, while Session Context and
+  Material Gate are Stage Modules.
 - Added `docs/adr/0001-stage-core-runtime-composition.md` to preserve the
   accepted naming decision and keep future architecture reviews from
   reintroducing the old Stage Core / Stage Kernel ambiguity.
@@ -172,6 +171,13 @@
   `docs/mvp/workstreams.md`, `docs/mvp/agent-collaboration.md`, `README.md`,
   `CURRENT_STATE.md`, and `INDEX.md` to stop treating Stage Kernel as the
   architecture center.
+- Refactored the code to match the vocabulary: `src/runtime/index.ts` exports
+  `MineMusicStageCore`, `src/stage/index.ts` exports `createStageModules`,
+  public ports use `SessionContextPort` / `MaterialGatePort` /
+  `StageModulesPort`, and `src/stage_interface/index.ts` owns the host-facing
+  `MineMusicStageInterface` facade.
+- Removed the old Tool API facade and updated runtime, MCP, app, and tests to
+  call through Stage Interface directly.
 
 ## Next
 

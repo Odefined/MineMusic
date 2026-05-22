@@ -30,7 +30,7 @@ Input: `StageContextReadInput`
 Output: `StageContextReadOutput`
 #### `stage.materials.prepare`
 
-Description: Prepare grounded materials through Stage Kernel gating before presentation.
+Description: Prepare grounded materials through the Material Gate before presentation.
 Input: `StageMaterialsPrepareInput`
 Output: `MusicMaterial[]`
 #### `music.material.resolve`
@@ -61,7 +61,7 @@ Output: `EffectProposal`
 Effect kind: `proposal`
 #### `session.update`
 
-Description: Update soft session state through the Stage Kernel.
+Description: Update soft session state through Session Context.
 Input: `StageSessionPatch`
 Output: `StageSession`
 

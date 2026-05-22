@@ -3,10 +3,10 @@
 ## Terminology Note
 
 This report records historical Wave 5 through Wave 8 verification. Some
-verified code still uses the legacy `StageKernelPort` name. Current
-architecture vocabulary maps that code to Session Context and Material Gate
-inside Stage Modules, while Stage Core means `src/runtime/index.ts` runtime
-composition and lifecycle.
+phrasing reflects the vocabulary that existed during those waves. As of the
+2026-05-23 architecture refactor, current code uses Stage Modules for Session
+Context and Material Gate, Stage Interface for callable tools, and Stage Core
+for `src/runtime/index.ts` runtime composition and lifecycle.
 
 ## Scope
 
@@ -18,7 +18,7 @@ The verified path is:
 
 ```text
 natural request
--> Tool API
+-> Stage Interface
 -> Stage context read
 -> Source Resolution fixture provider
 -> Canonical Store identity attachment
@@ -60,9 +60,9 @@ The end-to-end slice constructs a runtime with:
 - in-memory repositories.
 - a fixture source provider.
 - a fixture canonical record attached to a fixture source ref.
-- Session Context and Material Gate through the legacy `StageKernelPort`.
+- Session Context and Material Gate through Stage Modules.
 - Instrument Catalog and Tool Dispatch.
-- Tool API facade.
+- Stage Interface facade.
 - Codex MCP helper tests that create prefixed `minemusic.*` tool definitions
   from the same instrument descriptors.
 
@@ -120,7 +120,7 @@ NetEase provider adapter:
 
 Codex MCP plugin surface:
 
-- `stage.materials.prepare` is included in the stable Tool API / instrument
+- `stage.materials.prepare` is included in the stable Stage Interface / instrument
   tool set.
 - Tool Dispatch rejects normal instrument tools when the current instrument
   catalog does not expose them, while `stage.context.read`, `handbook.*` lookup
@@ -129,7 +129,7 @@ Codex MCP plugin surface:
   `ToolName` values.
 - Argument-bearing MCP tools expose explicit input schemas for query,
   materials/purpose, material, event, proposal, and session patch payloads.
-- MCP handlers delegate through `MineMusicToolApi` and return JSON text
+- MCP handlers delegate through `MineMusicStageInterface` and return JSON text
   containing the MineMusic `Result<T>` payload.
 - Plugin manifest, MCP config, workflow skill, and repo-local marketplace
   config have no scaffold TODOs or stale old MineMusic tool names, and point at

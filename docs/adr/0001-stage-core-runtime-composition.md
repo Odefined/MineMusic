@@ -38,8 +38,7 @@ Source Resolution, Canonical Store, Event Service, Memory Service, Effect
 Boundary, Music Knowledge, Plugin Slots, and Storage keep their own module
 ownership.
 
-The current `StageKernelPort` name is legacy implementation vocabulary. It maps
-to two Stage Modules:
+The current Stage Modules are exposed through explicit ports:
 
 - Session Context.
 - Material Gate.
@@ -47,12 +46,12 @@ to two Stage Modules:
 ## Consequences
 
 - `src/runtime/index.ts` is the current Stage Core implementation.
-- `src/stage/index.ts` is not Stage Core. It currently implements Session
-  Context and Material Gate behind the legacy `StageKernelPort`.
+- `src/stage/index.ts` is not Stage Core. It implements Session Context and
+  Material Gate through `SessionContextPort`, `MaterialGatePort`, and
+  `StageModulesPort`.
 - Host Adapters should call Stage Interface rather than Core Capability modules
   directly.
-- Future code work should either rename `StageKernelPort` or split it into
-  `SessionContextPort` and `MaterialGatePort` after Stage Interface owns the
-  external call flow.
+- Stage Interface owns the host-facing callable surface through
+  `MineMusicStageInterface`.
 - Future architecture reviews should not re-suggest making Stage Core a
   session/material gate module.

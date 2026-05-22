@@ -53,13 +53,12 @@ effect boundaries.
 
 Waves 1 through 8 have established the TypeScript contract, public-port
 harness, in-memory repository foundation, plugin registry foundation, core
-domain module skeletons, runtime composition, Session Context / Material Gate
-behavior under the legacy `StageKernelPort` name, instrument registry, Tool API
-facade, fixture end-to-end MVP slice, final review documentation, and a
-read-only NetEase source provider adapter with opt-in live smoke validation.
-Wave 8 adds a repo-local Codex MCP plugin surface that exposes MineMusic
-instruments with `minemusic.*` tool names and delegates to the existing Tool
-API.
+domain module skeletons, Stage Core runtime composition, Stage Modules for
+Session Context / Material Gate, Stage Interface facade, instrument registry,
+fixture end-to-end MVP slice, final review documentation, and a read-only
+NetEase source provider adapter with opt-in live smoke validation. Wave 8 adds
+a repo-local Codex MCP plugin surface that exposes MineMusic instruments with
+`minemusic.*` tool names and delegates to Stage Interface.
 
 The architecture vocabulary is now:
 
@@ -70,8 +69,7 @@ Host Adapters -> Stage Core -> Stage Interface / Stage Modules
 
 `Stage Core` means runtime composition and lifecycle. Current code maps that to
 `src/runtime/index.ts`. The current `src/stage/index.ts` module is not Stage
-Core; it contains Session Context and Material Gate behavior behind the legacy
-`StageKernelPort`.
+Core; it exports Stage Modules for Session Context and Material Gate.
 
 ```bash
 npm test
@@ -81,7 +79,7 @@ npm run smoke:netease
 
 The test command runs TypeScript contract/type checks, compiles tests into
 `.tmp-test/`, and executes storage, plugin registry, core domain, stage,
-instrument, provider, tool API, and integration runtime tests.
+instrument, provider, Stage Interface, and integration runtime tests.
 
 `npm run smoke:netease` skips by default. Set `MINEMUSIC_LIVE_NETEASE=1` to
 validate against a local NetEase Cloud Music API service. The default endpoint

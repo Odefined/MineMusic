@@ -24,11 +24,10 @@ Recommended layout:
 src/contracts/        shared data contracts
 src/ports/            public module interfaces
 src/runtime/          Stage Core runtime composition
-src/stage_interface/  future home for Stage Interface
-src/stage/            current Session Context and Material Gate implementation
+src/stage_interface/  Stage Interface facade and callable surface
+src/stage/            Session Context and Material Gate implementation
 src/instruments/      current Instrument Catalog and Tool Dispatch implementation
 src/handbook/         Handbook renderer and lookup helpers
-src/tool_api/         current host-facing Stage Interface facade
 src/canonical/        Canonical Store implementation
 src/source/           Source Resolution implementation
 src/knowledge/        Music Knowledge implementation
@@ -96,9 +95,9 @@ Purpose:
 Current implementation:
 
 - `src/runtime/index.ts`
-- `createMineMusicRuntime(input)`
-- `createMineMusicRuntimeWithSourceProvider(input)`
-- `MineMusicRuntime`
+- `createMineMusicStageCore(input)`
+- `createMineMusicStageCoreWithSourceProvider(input)`
+- `MineMusicStageCore`
 
 Stage Core is a composition module rather than a domain port. It may import
 module factories to construct the runtime graph. It must not move module-owned
@@ -118,11 +117,7 @@ Must not expose:
 - repository implementation internals beyond returned runtime handles.
 - final recommendation decision.
 
-## Session Context And Material Gate Port
-
-Current code name:
-
-- `StageKernelPort`
+## Session Context And Material Gate Ports
 
 Purpose:
 
@@ -135,7 +130,7 @@ Purpose:
 Public port:
 
 ```ts
-export interface StageKernelPort {
+export interface SessionContextPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;
 
   readContext(input: {
@@ -146,13 +141,17 @@ export interface StageKernelPort {
     sessionId: string;
     patch: Partial<StageSession>;
   }): Promise<Result<StageSession>>;
+}
 
+export interface MaterialGatePort {
   prepareMaterials(input: {
     sessionId: string;
     materials: MusicMaterial[];
     purpose: "recommendation" | "memory" | "effect" | "conversation";
   }): Promise<Result<MusicMaterial[]>>;
 }
+
+export type StageModulesPort = SessionContextPort & MaterialGatePort;
 ```
 
 Consumes:
@@ -172,12 +171,6 @@ Must not expose:
 - final recommendation decision.
 - `ToolDispatchPort`.
 
-Future interface direction:
-
-- Split this into `SessionContextPort` and `MaterialGatePort` once Stage
-  Interface owns external call flow and callers no longer depend directly on
-  the legacy `StageKernelPort` name.
-
 ## Stage Interface Ports
 
 Purpose:
@@ -190,14 +183,17 @@ Purpose:
 
 Current implementation:
 
+- `MineMusicStageInterface`
 - `InstrumentCatalogPort`
 - `ToolDispatchPort`
-- `MineMusicToolApi`
 
-Future interface direction:
+Public facade:
 
-- Move the Stage Interface implementation into `src/stage_interface/**` or make
-  `src/tool_api/**` the explicit facade while keeping compatibility exports.
+```ts
+export type MineMusicStageInterface = {
+  tools: Record<ToolName, (payload: unknown) => Promise<Result<unknown>>>;
+};
+```
 
 ## Instrument Catalog And Tool Dispatch Ports
 
@@ -243,7 +239,7 @@ export type ToolName =
 Consumes:
 
 - `InstrumentCatalogPort` consumes no Session Context implementation.
-- `ToolDispatchPort` consumes `StageKernelPort`, `SourceResolutionPort`,
+- `ToolDispatchPort` consumes `StageModulesPort`, `SourceResolutionPort`,
   `InstrumentCatalogPort`, `EventPort`, `MemoryPort`, and
   `EffectBoundaryPort` through dependency injection at the composition root.
 

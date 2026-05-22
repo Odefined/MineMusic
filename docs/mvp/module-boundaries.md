@@ -58,9 +58,9 @@ Current implementation:
 
 Public API:
 
-- `createMineMusicRuntime(input)`
-- `createMineMusicRuntimeWithSourceProvider(input)`
-- the returned `MineMusicRuntime`
+- `createMineMusicStageCore(input)`
+- `createMineMusicStageCoreWithSourceProvider(input)`
+- the returned `MineMusicStageCore`
 
 Must not own:
 
@@ -84,15 +84,15 @@ Own:
 
 Current implementation:
 
+- `src/stage_interface/index.ts`
 - `src/instruments/index.ts`
-- `src/tool_api/index.ts`
 - `src/handbook/index.ts`
 
 Public API:
 
+- `MineMusicStageInterface.tools`
 - `InstrumentCatalogPort.list(input)`
 - `ToolDispatchPort.call(input)`
-- `MineMusicToolApi.tools`
 
 Must not own:
 
@@ -115,13 +115,13 @@ Own:
 
 Current implementation:
 
-- part of `src/stage/index.ts` under the legacy `StageKernelPort` name.
+- `src/stage/index.ts`
 
 Public API:
 
-- currently `StageKernelPort.getSession(input)`
-- currently `StageKernelPort.readContext(input)`
-- currently `StageKernelPort.updateSession(input)`
+- `SessionContextPort.getSession(input)`
+- `SessionContextPort.readContext(input)`
+- `SessionContextPort.updateSession(input)`
 
 Must not own:
 
@@ -142,11 +142,11 @@ Own:
 
 Current implementation:
 
-- part of `src/stage/index.ts` under the legacy `StageKernelPort` name.
+- `src/stage/index.ts`
 
 Public API:
 
-- currently `StageKernelPort.prepareMaterials(input)`
+- `MaterialGatePort.prepareMaterials(input)`
 
 Must not own:
 

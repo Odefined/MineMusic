@@ -33,8 +33,8 @@ Important naming decision:
 - `Stage Interface` means the LLM-facing and host-facing callable interface.
 - `Stage Modules` are the smaller LLM-facing modules used by Stage Interface,
   such as Session Context and Material Gate.
-- `Stage Kernel` is a legacy implementation name for the current
-  `StageKernelPort` / `src/stage/index.ts` shape.
+- `Stage Kernel` is a historical Wave 4-8 implementation term and is not part
+  of the current architecture vocabulary.
 
 ## Layer Model
 
@@ -94,17 +94,17 @@ into Plugin Slots.
 | --- | --- |
 | Host Adapter | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
 | Stage Core | `src/runtime/index.ts` |
-| Stage Interface | `src/instruments/index.ts`, `src/tool_api/index.ts`, `src/handbook/index.ts` |
-| Session Context | part of `src/stage/index.ts` through `StageKernelPort.getSession`, `readContext`, and `updateSession` |
-| Material Gate | part of `src/stage/index.ts` through `StageKernelPort.prepareMaterials` |
+| Stage Interface | `src/stage_interface/index.ts`, `src/instruments/index.ts`, `src/handbook/index.ts` |
+| Session Context | `src/stage/index.ts` through `SessionContextPort` |
+| Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
 | Core Capabilities | `src/canonical`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
-`StageKernelPort` remains the current code contract for Session Context and
-Material Gate. Future implementation work should either rename it or split it
-into smaller Stage Module ports once callers are migrated through Stage
-Interface.
+`StageModulesPort` is the current combined implementation handle for Session
+Context and Material Gate. Its public shape is composed from
+`SessionContextPort` and `MaterialGatePort`; callers should depend on the
+smaller ports when they need only one responsibility.
 
 ## Ownership Rules
 
@@ -217,10 +217,11 @@ host-facing callable surface
 MineMusic-owned ordering for common flows
 ```
 
-The current implementation spreads this across `src/instruments`,
-`src/tool_api`, and `src/handbook`. Future work should make this a deeper
-module so tool names, tool metadata, host schemas, Handbook entries, and
-dispatch behavior change in one place.
+The current implementation centers the host-facing facade in
+`src/stage_interface/index.ts`, with instrument descriptors and dispatch in
+`src/instruments` and Handbook rendering in `src/handbook`. Future work can
+deepen this module further so host schemas, Handbook entries, and dispatch
+behavior change in one place.
 
 ## Material State Policy
 
