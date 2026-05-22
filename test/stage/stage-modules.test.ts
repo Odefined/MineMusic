@@ -10,7 +10,7 @@ import type {
   EventPort,
   MemoryPort,
 } from "../../src/ports/index.js";
-import { createStageModules } from "../../src/stage/index.js";
+import { createMaterialGate, createSessionContext } from "../../src/stage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -65,13 +65,25 @@ function createDependencies(eventsSeen: string[] = []) {
   return { memory, events };
 }
 
-async function readsContextWithoutHandbookMaterial(): Promise<void> {
-  const stageModules = createStageModules({
+function createTestStageModules(eventsSeen: string[] = []) {
+  const { memory, events } = createDependencies(eventsSeen);
+  const sessionContext = createSessionContext({
     sessions: [session],
-    ...createDependencies(),
+    memory,
+    events,
+  });
+  const materialGate = createMaterialGate({
+    sessionContext,
+    events,
   });
 
-  const context = await assertOk(stageModules.readContext({ sessionId: session.id }));
+  return { sessionContext, materialGate };
+}
+
+async function readsContextWithoutHandbookMaterial(): Promise<void> {
+  const { sessionContext } = createTestStageModules();
+
+  const context = await assertOk(sessionContext.readContext({ sessionId: session.id }));
 
   assert(context.session.id === session.id, "context should include the current session");
   assert(context.session.vibe?.text === session.vibe?.text, "context should preserve dynamic StageVibe");
@@ -82,13 +94,10 @@ async function readsContextWithoutHandbookMaterial(): Promise<void> {
 
 async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
   const eventsSeen: string[] = [];
-  const stageModules = createStageModules({
-    sessions: [session],
-    ...createDependencies(eventsSeen),
-  });
+  const { sessionContext } = createTestStageModules(eventsSeen);
 
   const updated = await assertOk(
-    stageModules.updateSession({
+    sessionContext.updateSession({
       sessionId: session.id,
       patch: {
         notes: "User wants less sleepy music.",
@@ -96,7 +105,7 @@ async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
       },
     }),
   );
-  const loaded = await assertOk(stageModules.getSession({ sessionId: session.id }));
+  const loaded = await assertOk(sessionContext.getSession({ sessionId: session.id }));
 
   assert(updated.notes === "User wants less sleepy music.", "updateSession should apply patch");
   assert(loaded.notes === updated.notes, "getSession should return updated session");
@@ -128,13 +137,10 @@ async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
       playableLinks: [{ url: "https://example.test/blocked", sourceRef }],
     },
   ];
-  const stageModules = createStageModules({
-    sessions: [session],
-    ...createDependencies(),
-  });
+  const { materialGate } = createTestStageModules();
 
   const prepared = await assertOk(
-    stageModules.prepareMaterials({
+    materialGate.prepareMaterials({
       sessionId: session.id,
       materials,
       purpose: "recommendation",
@@ -147,22 +153,17 @@ async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
 }
 
 async function reportsMissingSessionAsResultError(): Promise<void> {
-  const stageModules = createStageModules({
-    sessions: [session],
-    ...createDependencies(),
-  });
-  const result = await stageModules.getSession({ sessionId: "missing" });
+  const { sessionContext } = createTestStageModules();
+  const result = await sessionContext.getSession({ sessionId: "missing" });
 
   assert(!result.ok, "missing sessions should fail via Result");
   assert(result.error.code === "stage.session_not_found", "missing session should use stable stage error");
 }
 
 async function supportsDetachedPublicPortMethods(): Promise<void> {
-  const stageModules = createStageModules({
-    sessions: [session],
-    ...createDependencies(),
-  });
-  const { readContext, prepareMaterials } = stageModules;
+  const { sessionContext, materialGate } = createTestStageModules();
+  const { readContext } = sessionContext;
+  const { prepareMaterials } = materialGate;
   const context = await assertOk(readContext({ sessionId: session.id }));
   const prepared = await assertOk(
     prepareMaterials({

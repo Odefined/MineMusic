@@ -38,8 +38,6 @@ export interface MaterialGatePort {
   }): Promise<Result<MusicMaterial[]>>;
 }
 
-export type StageModulesPort = SessionContextPort & MaterialGatePort;
-
 export interface InstrumentCatalogPort {
   list(input: { session: StageSession }): Promise<Result<InstrumentDescriptor[]>>;
 }

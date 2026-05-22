@@ -44,13 +44,13 @@ host-facing and LLM-facing surface.
 - Stage Core means runtime composition and lifecycle. In current code this maps
   to `src/stage_core/index.ts`.
 - Stage Interface means the LLM-facing and host-facing callable surface. In
-  current code this is centered in `src/stage_interface/index.ts`, with
-  descriptors and dispatch in `src/instruments/index.ts` and Handbook rendering
+  current code this is centered in `src/stage_interface/**`, with
+  descriptors and dispatch in that module and Handbook rendering
   in `src/handbook/index.ts`.
 - `src/stage/index.ts` exports Stage Modules for Session Context and Material
   Gate; it is not the Stage Core.
 - ADR-0001 records this naming decision so future architecture reviews do not
-  reintroduce Stage Core / Stage Kernel ambiguity.
+  reintroduce the old naming ambiguity.
 - A subagent orchestration plan now exists for implementing the MVP with
   isolated write scopes and review gates.
 - Contract docs distinguish shared data contracts from public module ports.
@@ -82,9 +82,9 @@ host-facing and LLM-facing surface.
   playable-link refresh, canonical-ref attachment from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.
 - Session Context and Material Gate are exported from `src/stage/index.ts`
-  through `SessionContextPort`, `MaterialGatePort`, and `StageModulesPort`,
-  with session continuity, dynamic session context, `StageVibe` propagation
-  through session state, and material-state gating.
+  through `createSessionContext`, `createMaterialGate`, `SessionContextPort`,
+  and `MaterialGatePort`, with session continuity, dynamic session context,
+  `StageVibe` propagation through session state, and material-state gating.
 - `stage.context.read` returns dynamic session context only: session state and
   memory summaries. It does not embed or point at a Handbook.
 - The MineMusic Handbook is generated from current agent-visible
@@ -93,14 +93,12 @@ host-facing and LLM-facing surface.
 - The `minemusic.handbook` instrument exposes `handbook.overview.read`,
   `handbook.instrument.read`, and `handbook.tool.read` for on-demand Handbook
   lookup.
-- Instrument registry and tool dispatch are exported from
-  `src/instruments/index.ts` with stable LLM-visible tool names and dependency
-  injection through public ports.
-- Stage Interface facade is exported from `src/stage_interface/index.ts` and
-  exposes stable tool functions backed by `ToolDispatchPort`.
+- Stage Interface owns stable tool names, instrument catalog, input schemas,
+  tool dispatch, and the host-facing callable facade under
+  `src/stage_interface/**`.
 - Stage Core runtime composition is exported from `src/stage_core/index.ts` and
   wires in-memory storage, fixture providers, core ports, Session Context /
-  Material Gate, Instrument dispatch, and Stage Interface.
+  Material Gate, Stage Interface dispatch, and Stage Interface facade.
 - Stage Core also exports `createMineMusicStageCoreWithSourceProvider` for
   host surfaces that need to register a concrete source provider without
   fixture source materials.

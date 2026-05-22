@@ -94,8 +94,9 @@ This index points agents to the current MVP documentation pack.
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-26. `src/stage_interface/index.ts`
-    - Host-facing Stage Interface facade and stable tool callable surface.
+26. `src/stage_interface/**`
+    - Stage Interface instruments, stable tool metadata, host schemas,
+      dispatch, and callable facade.
 
 27. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,

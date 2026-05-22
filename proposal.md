@@ -877,7 +877,7 @@ Those can enter later through the same boundaries.
 ```text
 LLM-facing Handbook
 StageSession
-instrument registry
+Stage Interface instrument catalog
 music material grounding
 source-backed playable link display
 Canonical Store anchors

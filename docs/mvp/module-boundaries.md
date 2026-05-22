@@ -84,8 +84,7 @@ Own:
 
 Current implementation:
 
-- `src/stage_interface/index.ts`
-- `src/instruments/index.ts`
+- `src/stage_interface/**`
 - `src/handbook/index.ts`
 
 Public API:
@@ -166,7 +165,7 @@ Own:
 
 Current implementation:
 
-- part of `src/instruments/index.ts`.
+- `src/stage_interface/instruments.ts`
 
 Public API:
 
@@ -189,7 +188,7 @@ Own:
 
 Current implementation:
 
-- part of `src/instruments/index.ts`.
+- `src/stage_interface/dispatch.ts`
 
 Public API:
 

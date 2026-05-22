@@ -1,7 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { pathToFileURL } from "node:url";
-import { z } from "zod/v4";
 
 import type { Result, StageSession, ToolName } from "../../contracts/index.js";
 import { createNetEaseSourceProvider } from "../../providers/netease/index.js";
@@ -9,7 +8,12 @@ import {
   createMineMusicStageCoreWithSourceProvider,
   type MineMusicStageCore,
 } from "../../stage_core/index.js";
-import { agentToolDescriptors, stableToolNames } from "../../stage_interface/index.js";
+import {
+  agentToolDescriptors,
+  stableToolNames,
+  stageInterfaceToolInputSchemas,
+  type StageInterfaceToolInputSchema,
+} from "../../stage_interface/index.js";
 
 export type MineMusicMcpTextContent = {
   type: "text";
@@ -23,77 +27,11 @@ export type MineMusicMcpToolResult = {
 export type MineMusicMcpToolDefinition = {
   name: string;
   description: string;
-  inputSchema: z.ZodRawShape;
+  inputSchema: StageInterfaceToolInputSchema;
   handler: (payload: Record<string, unknown>) => Promise<MineMusicMcpToolResult>;
 };
 
 const mcpToolPrefix = "minemusic.";
-const refSchema = z.object({
-  namespace: z.string(),
-  kind: z.string(),
-  id: z.string(),
-  label: z.string().optional(),
-  url: z.string().optional(),
-});
-const musicMaterialSchema = z.object({
-  id: z.string(),
-  kind: z.string(),
-  label: z.string(),
-  state: z.string(),
-}).passthrough();
-const sourceQuerySchema = z.object({
-  text: z.string().optional(),
-  canonicalRef: refSchema.optional(),
-  sourceRef: refSchema.optional(),
-  limit: z.number().int().positive().optional(),
-});
-const musicCandidateSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  expectedKind: z.string().optional(),
-  query: sourceQuerySchema.optional(),
-  canonicalRef: refSchema.optional(),
-  sourceRef: refSchema.optional(),
-  reason: z.string().optional(),
-  context: z.string().optional(),
-});
-const inputSchemas = {
-  "stage.context.read": {},
-  "handbook.overview.read": {},
-  "handbook.instrument.read": {
-    instrumentId: z.string(),
-  },
-  "handbook.tool.read": {
-    toolName: z.string(),
-  },
-  "stage.materials.prepare": {
-    materials: z.array(musicMaterialSchema),
-    purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
-  },
-  "music.material.resolve": {
-    kind: z.enum(["single", "candidate_set"]),
-    candidate: musicCandidateSchema.optional(),
-    candidates: z.array(musicCandidateSchema).optional(),
-    sessionId: z.string().optional(),
-    limitPerCandidate: z.number().int().positive().optional(),
-  },
-  "music.links.refresh": {
-    material: musicMaterialSchema,
-  },
-  "events.record": {
-    event: z.object({}).passthrough(),
-  },
-  "memory.propose": {
-    proposal: z.object({}).passthrough(),
-  },
-  "effects.propose": {
-    proposal: z.object({}).passthrough(),
-  },
-  "session.update": {
-    patch: z.object({}).passthrough(),
-    sessionId: z.string().optional(),
-  },
-} satisfies Record<ToolName, z.ZodRawShape>;
 
 export function codexToolNameFor(toolName: ToolName): string {
   return `${mcpToolPrefix}${toolName}`;
@@ -114,16 +52,16 @@ export function internalToolNameFor(mcpToolName: string): ToolName | null {
 }
 
 export function createMineMusicMcpToolDefinitions(
-  runtime: MineMusicStageCore,
+  stageCore: MineMusicStageCore,
 ): MineMusicMcpToolDefinition[] {
   return agentToolDescriptors.map((descriptor) => ({
     name: codexToolNameFor(descriptor.name),
     description: descriptor.description,
-    inputSchema: inputSchemas[descriptor.name],
+    inputSchema: stageInterfaceToolInputSchemas[descriptor.name],
     handler: async (payload) => {
-      await runtime.ready;
+      await stageCore.ready;
 
-      const result = await runtime.stageInterface.tools[descriptor.name](payload);
+      const result = await stageCore.stageInterface.tools[descriptor.name](payload);
 
       return asTextResult(result);
     },
@@ -131,14 +69,14 @@ export function createMineMusicMcpToolDefinitions(
 }
 
 export function createMineMusicMcpServer(
-  runtime: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
+  stageCore: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
 ): McpServer {
   const server = new McpServer({
     name: "minemusic",
     version: "0.0.0",
   });
 
-  for (const definition of createMineMusicMcpToolDefinitions(runtime)) {
+  for (const definition of createMineMusicMcpToolDefinitions(stageCore)) {
     server.registerTool(
       definition.name,
       {
@@ -153,11 +91,11 @@ export function createMineMusicMcpServer(
 }
 
 export async function runMineMusicMcpServer(
-  runtime: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
+  stageCore: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
 ): Promise<void> {
-  await runtime.ready;
+  await stageCore.ready;
 
-  const server = createMineMusicMcpServer(runtime);
+  const server = createMineMusicMcpServer(stageCore);
   await server.connect(new StdioServerTransport());
 }
 

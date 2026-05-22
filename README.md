@@ -54,7 +54,7 @@ effect boundaries.
 Waves 1 through 8 have established the TypeScript contract, public-port
 harness, in-memory repository foundation, plugin registry foundation, core
 domain module skeletons, Stage Core runtime composition, Stage Modules for
-Session Context / Material Gate, Stage Interface facade, instrument registry,
+Session Context / Material Gate, Stage Interface catalog and dispatch,
 fixture end-to-end MVP slice, final review documentation, and a read-only
 NetEase source provider adapter with opt-in live smoke validation. Wave 8 adds
 a repo-local Codex MCP plugin surface that exposes MineMusic instruments with

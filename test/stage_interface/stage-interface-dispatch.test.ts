@@ -9,15 +9,16 @@ import type {
 import type {
   EffectBoundaryPort,
   EventPort,
+  MaterialGatePort,
   MemoryPort,
+  SessionContextPort,
   SourceResolutionPort,
-  StageModulesPort,
 } from "../../src/ports/index.js";
 import {
   createInstrumentCatalog,
   createToolDispatch,
   stableToolNames,
-} from "../../src/instruments/index.js";
+} from "../../src/stage_interface/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -69,13 +70,13 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   const calls: string[] = [];
   const catalog = createInstrumentCatalog();
-  const stageModules: StageModulesPort = {
+  const sessionContext: SessionContextPort = {
     getSession: async ({ sessionId }) => {
-      calls.push("stageModules.getSession");
+      calls.push("sessionContext.getSession");
       return { ok: true, value: { ...session, id: sessionId } };
     },
     readContext: async ({ sessionId }) => {
-      calls.push("stageModules.readContext");
+      calls.push("sessionContext.readContext");
       return {
         ok: true,
         value: {
@@ -85,11 +86,13 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       };
     },
     updateSession: async ({ patch }) => {
-      calls.push("stageModules.updateSession");
+      calls.push("sessionContext.updateSession");
       return { ok: true, value: { ...session, ...patch } };
     },
+  };
+  const materialGate: MaterialGatePort = {
     prepareMaterials: async ({ materials }) => {
-      calls.push("stageModules.prepareMaterials");
+      calls.push("materialGate.prepareMaterials");
       return { ok: true, value: materials };
     },
   };
@@ -138,7 +141,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     },
     decide: async () => ({ ok: true, value: undefined }),
   };
-  const dispatch = createToolDispatch({ stageModules, instruments: catalog, source, events, memory, effects });
+  const dispatch = createToolDispatch({ sessionContext, materialGate, instruments: catalog, source, events, memory, effects });
 
   await assertOk(dispatch.call({ sessionId: session.id, toolName: "stage.context.read", payload: {} }));
   const overview = await assertOk(dispatch.call({ sessionId: session.id, toolName: "handbook.overview.read", payload: {} }));
@@ -241,8 +244,8 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     }),
   );
 
-  assert(calls.includes("stageModules.getSession"), "tool availability should read Stage session");
-  assert(calls.includes("stageModules.readContext"), "stage.context.read should read Stage context");
+  assert(calls.includes("sessionContext.getSession"), "tool availability should read Stage session");
+  assert(calls.includes("sessionContext.readContext"), "stage.context.read should read Stage context");
   assert(
     typeof overview === "object" && overview !== null && "content" in overview,
     "handbook overview should return rendered readable content",
@@ -254,13 +257,13 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       (toolEntry as { tool?: { name?: unknown } }).tool?.name === "music.material.resolve",
     "handbook.tool.read should return the requested tool descriptor",
   );
-  assert(calls.includes("stageModules.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
+  assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
   assert(calls.includes("source.resolve"), "music.material.resolve should call SourceResolutionPort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceResolutionPort");
   assert(calls.includes("events.record"), "events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("effects.propose"), "effects.propose should call EffectBoundaryPort");
-  assert(calls.includes("stageModules.updateSession"), "session.update should call SessionContextPort");
+  assert(calls.includes("sessionContext.updateSession"), "session.update should call SessionContextPort");
 }
 
 async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promise<void> {
@@ -268,7 +271,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
     ...session,
     activeInstruments: ["other.instrument"],
   };
-  const stageModules: StageModulesPort = {
+  const sessionContext: SessionContextPort = {
     getSession: async () => ({ ok: true, value: restrictedSession }),
     readContext: async () => ({
       ok: true,
@@ -278,10 +281,13 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
       },
     }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...restrictedSession, ...patch } }),
+  };
+  const materialGate: MaterialGatePort = {
     prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
   };
   const dispatch = createToolDispatch({
-    stageModules,
+    sessionContext,
+    materialGate,
     instruments: createInstrumentCatalog(),
     source: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
@@ -333,12 +339,13 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
     payload: { kind: "single", candidate: { id: "quiet", label: "Quiet", query: { text: "quiet" } } },
   });
   assert(!result.ok, "instrument tools should fail when no active instrument exposes them");
-  assert(result.error.code === "instrument.tool_not_found", "instrument gating should use stable tool error");
+  assert(result.error.code === "stage_interface.tool_not_found", "instrument gating should use stable tool error");
 }
 
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   const dispatch = createToolDispatch({
-    stageModules: {} as StageModulesPort,
+    sessionContext: {} as SessionContextPort,
+    materialGate: {} as MaterialGatePort,
     instruments: createInstrumentCatalog(),
     source: {} as SourceResolutionPort,
     events: {} as EventPort,
@@ -352,7 +359,7 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   });
 
   assert(!result.ok, "unknown tools should fail via Result");
-  assert(result.error.code === "instrument.tool_not_found", "unknown tools should use stable error code");
+  assert(result.error.code === "stage_interface.tool_not_found", "unknown tools should use stable error code");
 }
 
 await listsStableLlmVisibleToolsWithoutProviderDetails();

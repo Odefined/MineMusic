@@ -16,14 +16,15 @@ import type {
   CanonicalStorePort,
   EffectBoundaryPort,
   EventPort,
+  MaterialGatePort,
   MemoryPort,
   PluginRegistryPort,
+  SessionContextPort,
   SourceResolutionPort,
-  StageModulesPort,
   ToolDispatchPort,
 } from "../ports/index.js";
 import { createSourceResolutionService } from "../source/index.js";
-import { createStageModules } from "../stage/index.js";
+import { createMaterialGate, createSessionContext } from "../stage/index.js";
 import {
   createInstrumentCatalog,
   createMineMusicStageInterface,
@@ -41,7 +42,8 @@ export type MineMusicStageCore = {
   ready: Promise<void>;
   stageInterface: MineMusicStageInterface;
   dispatch: ToolDispatchPort;
-  stageModules: StageModulesPort;
+  sessionContext: SessionContextPort;
+  materialGate: MaterialGatePort;
   canonical: CanonicalStorePort;
   source: SourceResolutionPort;
   events: EventPort;
@@ -103,13 +105,18 @@ export function createMineMusicStageCoreWithSourceProvider({
     events,
     effects,
   });
-  const stageModules = createStageModules({
+  const sessionContext = createSessionContext({
     sessions: [session],
     memory,
     events,
   });
+  const materialGate = createMaterialGate({
+    sessionContext,
+    events,
+  });
   const dispatch = createToolDispatch({
-    stageModules,
+    sessionContext,
+    materialGate,
     instruments,
     source,
     events,
@@ -134,7 +141,8 @@ export function createMineMusicStageCoreWithSourceProvider({
     ready,
     stageInterface,
     dispatch,
-    stageModules,
+    sessionContext,
+    materialGate,
     canonical,
     source,
     events,

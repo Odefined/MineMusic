@@ -14,7 +14,7 @@ All public module port methods use single-object arguments and return
 ```ts
 export type ModuleId =
   | "stage"
-  | "instruments"
+  | "stage_interface"
   | "canonical"
   | "source"
   | "knowledge"

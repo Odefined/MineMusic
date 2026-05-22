@@ -10,20 +10,24 @@ import type {
   MaterialGatePort,
   MemoryPort,
   SessionContextPort,
-  StageModulesPort,
 } from "../ports/index.js";
 
-type StageModulesOptions = {
+type SessionContextOptions = {
   sessions?: StageSession[];
   memory: MemoryPort;
   events: EventPort;
 };
 
-export function createStageModules({
+type MaterialGateOptions = {
+  sessionContext: SessionContextPort;
+  events: EventPort;
+};
+
+export function createSessionContext({
   sessions = [],
   memory,
   events,
-}: StageModulesOptions): StageModulesPort {
+}: SessionContextOptions): SessionContextPort {
   const sessionsById = new Map(sessions.map((session) => [session.id, cloneSession(session)]));
   const getSession: SessionContextPort["getSession"] = async ({ sessionId }) => {
     const session = sessionsById.get(sessionId);
@@ -86,8 +90,16 @@ export function createStageModules({
       return ok(cloneSession(updatedSession));
     },
 
+  };
+}
+
+export function createMaterialGate({
+  sessionContext,
+  events,
+}: MaterialGateOptions): MaterialGatePort {
+  return {
     async prepareMaterials({ sessionId, materials, purpose }) {
-      const sessionResult = await getSession({ sessionId });
+      const sessionResult = await sessionContext.getSession({ sessionId });
 
       if (!sessionResult.ok) {
         return sessionResult;

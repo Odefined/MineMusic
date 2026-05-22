@@ -2,7 +2,7 @@
 
 ## Terminology Note
 
-This historical Wave 8 design uses the legacy `Stage Kernel` term. Current
+This historical Wave 8 design uses the legacy `Stage Modules` term. Current
 architecture vocabulary maps that code to Session Context and Material Gate
 inside Stage Modules. Stage Core now means runtime composition and lifecycle in
 `src/stage_core/index.ts`.
@@ -16,7 +16,7 @@ server while preserving the MineMusic boundary:
 Codex plugin
 -> MineMusic instrument
 -> Tool Dispatch
--> Stage Kernel / Source / Events / Memory / Effects
+-> Session Context / Material Gate / Source / Events / Memory / Effects
 ```
 
 Codex must see MineMusic instruments, not a loose list of runtime internals.
@@ -25,14 +25,14 @@ policy, provider logic, playback, or durable storage.
 
 ## Current Repository Evidence
 
-- `src/instruments/index.ts` defines `minemusic.handbook`, `minemusic.mvp`,
+- `src/stage_interface/index.ts` defines `minemusic.handbook`, `minemusic.mvp`,
   and `ToolDescriptor` entries.
 - `src/handbook/index.ts` renders a generated Handbook from current
   agent-visible instrument descriptors.
-- `src/tool_api/index.ts` exposes `MineMusicToolApi` as a stable wrapper around
+- `src/stage_interface/index.ts` exposes `MineMusicStageInterface` as a stable wrapper around
   `ToolDispatchPort`.
-- `src/stage_core/index.ts` composes Stage Kernel, Instrument Catalog, Tool
-  Dispatch, Tool API, Source Resolution, repositories, and provider slots.
+- `src/stage_core/index.ts` composes Stage Modules, Instrument Catalog, Tool
+  Dispatch, Stage Interface, Source Resolution, repositories, and provider slots.
 - `src/app/index.ts` currently calls `runtime.stage.prepareMaterials(...)`
   directly after grounding, which means material preparation is not yet a
   Codex-visible instrument tool.
@@ -77,7 +77,7 @@ session.update
 `HANDBOOK.md` gives the overview, and `handbook.tool.read` /
 `handbook.instrument.read` read exact generated entries on demand.
 `stage.materials.prepare` must be tool-visible so Codex does not present raw
-source results without Stage Kernel gating.
+source results without Material Gate checks.
 
 ## Codex Plugin Shape
 
@@ -158,14 +158,14 @@ minemusic.session.update
 ```
 
 Internally, the wrapper strips the `minemusic.` prefix and calls the existing
-`ToolDispatchPort` through `MineMusicToolApi`.
+`ToolDispatchPort` through `MineMusicStageInterface`.
 
 ## Testing Strategy
 
 Wave 8 needs deterministic tests for:
 
 1. `stage.materials.prepare` is listed in `minemusic.mvp`.
-2. `stage.materials.prepare` can be called through Tool Dispatch and Tool API.
+2. `stage.materials.prepare` can be called through Tool Dispatch and Stage Interface.
 3. Tool Dispatch rejects non-discovery instrument tools when no current
    instrument exposes them.
 4. MCP tool descriptors are derived from the instrument descriptors and include
@@ -202,10 +202,10 @@ MCP tests should not require a live Codex app session.
   current agent-visible instrument descriptors.
 - `handbook.overview.read`, `handbook.instrument.read`, and
   `handbook.tool.read` return generated Handbook entries on demand.
-- `stage.materials.prepare` is Codex-visible and applies Stage Kernel gating.
+- `stage.materials.prepare` is Codex-visible and applies Material Gate checks.
 - Tool Dispatch enforces active instrument availability through
   `InstrumentCatalogPort` for normal tool calls.
-- MCP wrappers call Tool API / Tool Dispatch, not provider or runtime internals.
+- MCP wrappers call Stage Interface / Tool Dispatch, not provider or runtime internals.
 - Normal tests pass.
 - Default and explicit NetEase smoke results are documented.
 - State docs no longer claim Wave 7 is the current branch after merge.

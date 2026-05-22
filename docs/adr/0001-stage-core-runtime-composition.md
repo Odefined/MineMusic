@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The earlier documentation used `Stage Kernel` as the central stage concept. As
+The earlier documentation used `Stage Modules` as the central stage concept. As
 the implementation grew, that name started covering unrelated responsibilities:
 
 - runtime construction.
@@ -47,8 +47,8 @@ The current Stage Modules are exposed through explicit ports:
 
 - `src/stage_core/index.ts` is the current Stage Core implementation.
 - `src/stage/index.ts` is not Stage Core. It implements Session Context and
-  Material Gate through `SessionContextPort`, `MaterialGatePort`, and
-  `StageModulesPort`.
+  Material Gate through separate `SessionContextPort` and `MaterialGatePort`
+  factories.
 - Host Adapters should call Stage Interface rather than Core Capability modules
   directly.
 - Stage Interface owns the host-facing callable surface through

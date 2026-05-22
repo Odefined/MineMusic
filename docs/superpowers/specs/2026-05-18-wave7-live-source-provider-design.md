@@ -2,7 +2,7 @@
 
 ## Terminology Note
 
-This historical Wave 7 design uses the legacy `Stage Kernel` term. Current
+This historical Wave 7 design uses the legacy `Stage Modules` term. Current
 architecture vocabulary maps that code to Session Context and Material Gate
 inside Stage Modules. Stage Core now means runtime composition and lifecycle in
 `src/stage_core/index.ts`.
@@ -45,7 +45,7 @@ Trade-offs:
 
 ### Alternative: Host Surface First
 
-Expose the current Tool API through a Codex or OpenClaw surface before adding a
+Expose the current Stage Interface through a Codex or OpenClaw surface before adding a
 live provider.
 
 Trade-offs:
@@ -97,7 +97,7 @@ network service.
 ## Data Flow
 
 ```text
-Tool API or SourceResolutionPort
+Stage Interface or SourceResolutionPort
 -> Source Resolution
 -> Plugin Registry source slot
 -> live SourceProvider adapter
@@ -106,7 +106,7 @@ Tool API or SourceResolutionPort
 -> Stage material preparation
 ```
 
-The provider adapter does not bypass Source Resolution, Stage Kernel, Canonical
+The provider adapter does not bypass Source Resolution, Stage Modules, Canonical
 Store, Event Service, Memory Service, or Effect Boundary.
 
 ## Error Handling

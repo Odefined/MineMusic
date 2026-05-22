@@ -137,7 +137,7 @@ Deliverables:
 - StageSession service.
 - StageVibe carried as soft session guidance.
 - Material Gate behavior for presentation safety.
-- instrument registry.
+- Stage Interface instrument catalog.
 - LLM-facing tool surface for context read, Handbook lookup, candidate
   grounding, event record, memory proposal, effect proposal, and session
   update.

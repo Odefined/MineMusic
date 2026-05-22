@@ -23,10 +23,9 @@ Recommended layout:
 ```text
 src/contracts/        shared data contracts
 src/ports/            public module interfaces
-src/stage_core/          Stage Core runtime composition
-src/stage_interface/  Stage Interface facade and callable surface
+src/stage_core/       Stage Core runtime composition
+src/stage_interface/  Stage Interface instruments, tools, schemas, dispatch, facade
 src/stage/            Session Context and Material Gate implementation
-src/instruments/      current Instrument Catalog and Tool Dispatch implementation
 src/handbook/         Handbook renderer and lookup helpers
 src/canonical/        Canonical Store implementation
 src/source/           Source Resolution implementation
@@ -64,7 +63,7 @@ export type StageWarning = {
 
 export type ModuleId =
   | "stage"
-  | "instruments"
+  | "stage_interface"
   | "canonical"
   | "source"
   | "knowledge"
@@ -151,7 +150,6 @@ export interface MaterialGatePort {
   }): Promise<Result<MusicMaterial[]>>;
 }
 
-export type StageModulesPort = SessionContextPort & MaterialGatePort;
 ```
 
 Consumes:
@@ -239,8 +237,8 @@ export type ToolName =
 Consumes:
 
 - `InstrumentCatalogPort` consumes no Session Context implementation.
-- `ToolDispatchPort` consumes `StageModulesPort`, `SourceResolutionPort`,
-  `InstrumentCatalogPort`, `EventPort`, `MemoryPort`, and
+- `ToolDispatchPort` consumes `SessionContextPort`, `MaterialGatePort`,
+  `SourceResolutionPort`, `InstrumentCatalogPort`, `EventPort`, `MemoryPort`, and
   `EffectBoundaryPort` through dependency injection at the composition root.
 
 Publishes domain events:

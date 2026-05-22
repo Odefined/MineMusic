@@ -28,12 +28,12 @@ export type RecommendationTranscript = {
 };
 
 export async function runRecommendationTranscript(
-  runtime: MineMusicStageCore,
+  stageCore: MineMusicStageCore,
   input: RecommendationTranscriptInput,
 ): Promise<Result<RecommendationTranscript>> {
-  await runtime.ready;
+  await stageCore.ready;
 
-  const contextResult = await runtime.stageInterface.tools["stage.context.read"]({});
+  const contextResult = await stageCore.stageInterface.tools["stage.context.read"]({});
 
   if (!contextResult.ok) {
     return contextResult;
@@ -42,7 +42,7 @@ export async function runRecommendationTranscript(
   const context = contextResult.value as {
     session: StageSession;
   };
-  const resolvedResult = await runtime.stageInterface.tools["music.material.resolve"]({
+  const resolvedResult = await stageCore.stageInterface.tools["music.material.resolve"]({
     kind: "single",
     candidate: {
       id: "user-request",
@@ -60,7 +60,7 @@ export async function runRecommendationTranscript(
 
   const resolved = resolvedResult.value as MaterialResolveResult;
   const groundedMaterials = resolved.kind === "single" ? resolved.result.materials : [];
-  const preparedResult = await runtime.stageInterface.tools["stage.materials.prepare"]({
+  const preparedResult = await stageCore.stageInterface.tools["stage.materials.prepare"]({
     materials: groundedMaterials,
     purpose: "recommendation",
   });
@@ -71,7 +71,7 @@ export async function runRecommendationTranscript(
 
   const presentedMaterials = preparedResult.value as MusicMaterial[];
   const response = buildRecommendationResponse(presentedMaterials);
-  const eventResult = await runtime.stageInterface.tools["events.record"]({
+  const eventResult = await stageCore.stageInterface.tools["events.record"]({
     event: {
       sessionId: input.sessionId,
       actor: "llm",
@@ -92,7 +92,7 @@ export async function runRecommendationTranscript(
   }
 
   const recommendationEvent = eventResult.value as StageEvent;
-  const memoryProposalResult = await runtime.stageInterface.tools["memory.propose"]({
+  const memoryProposalResult = await stageCore.stageInterface.tools["memory.propose"]({
     proposal: {
       entry: {
         text: input.memoryText,
@@ -110,7 +110,7 @@ export async function runRecommendationTranscript(
     return memoryProposalResult;
   }
 
-  const effectProposalResult = await runtime.stageInterface.tools["effects.propose"]({
+  const effectProposalResult = await stageCore.stageInterface.tools["effects.propose"]({
     proposal: {
       kind: input.effectKind,
       target: presentedMaterials[0],
@@ -125,7 +125,7 @@ export async function runRecommendationTranscript(
     return effectProposalResult;
   }
 
-  const eventsResult = await runtime.events.listBySession({ sessionId: input.sessionId });
+  const eventsResult = await stageCore.events.listBySession({ sessionId: input.sessionId });
 
   if (!eventsResult.ok) {
     return eventsResult;

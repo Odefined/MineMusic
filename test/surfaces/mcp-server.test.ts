@@ -144,7 +144,7 @@ async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
 
   const result = JSON.parse(firstContent.text) as Result<MusicMaterial[]>;
   assert(result.ok, "MCP handler should return the Stage Interface result");
-  assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve runtime result payload");
+  assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve Stage Core result payload");
 }
 
 function hasSchemaKey(schema: unknown, key: string): boolean {

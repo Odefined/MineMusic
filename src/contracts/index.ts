@@ -1,6 +1,6 @@
 export type ModuleId =
   | "stage"
-  | "instruments"
+  | "stage_interface"
   | "canonical"
   | "source"
   | "knowledge"
@@ -13,7 +13,7 @@ export type ModuleId =
 export const stageErrorCodes = [
   "stage.session_not_found",
   "stage.material_state_invalid",
-  "instrument.tool_not_found",
+  "stage_interface.tool_not_found",
   "canonical.not_found",
   "canonical.external_ref_conflict",
   "source.no_provider",

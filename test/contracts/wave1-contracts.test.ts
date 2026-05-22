@@ -39,7 +39,6 @@ import type {
   SessionRepository,
   SessionContextPort,
   SourceResolutionPort,
-  StageModulesPort,
   ToolDispatchPort,
 } from "../../src/ports/index.js";
 
@@ -81,10 +80,6 @@ type _allStageModuleMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<SessionContextPort, "readContext"> &
     MethodAcceptsSingleObject<SessionContextPort, "updateSession"> &
     MethodAcceptsSingleObject<MaterialGatePort, "prepareMaterials">
->;
-
-type _stageModulesComposeSessionContextAndMaterialGate = Expect<
-  Equal<keyof StageModulesPort, keyof SessionContextPort | keyof MaterialGatePort>
 >;
 
 type _catalogAndDispatchStaySeparate = Expect<
@@ -154,7 +149,7 @@ const failure: Result<MusicMaterial> = {
 const requiredErrorCodes: StageErrorCode[] = [
   "stage.session_not_found",
   "stage.material_state_invalid",
-  "instrument.tool_not_found",
+  "stage_interface.tool_not_found",
   "canonical.not_found",
   "canonical.external_ref_conflict",
   "source.no_provider",
@@ -262,7 +257,7 @@ const sourceProvider: SourceProvider = {
   }),
 };
 
-const stageModules: StageModulesPort = {
+const sessionContext: SessionContextPort = {
   getSession: async ({ sessionId }) => ({
     ok: true,
     value: { ...session, id: sessionId },
@@ -278,6 +273,9 @@ const stageModules: StageModulesPort = {
     ok: true,
     value: { ...session, ...patch, id: sessionId },
   }),
+};
+
+const materialGate: MaterialGatePort = {
   prepareMaterials: async ({ materials }) => ({
     ok: true,
     value: materials,
@@ -451,7 +449,8 @@ void [
   effectDecision,
   handbook,
   sourceProvider,
-  stageModules,
+  sessionContext,
+  materialGate,
   instrumentCatalog,
   toolName,
   handbookToolEntry,

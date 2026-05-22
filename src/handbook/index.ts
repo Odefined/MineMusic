@@ -52,9 +52,9 @@ export function readHandbookInstrument(input: {
 
   if (instrument === undefined) {
     return fail({
-      code: "instrument.tool_not_found",
+      code: "stage_interface.tool_not_found",
       message: `Instrument '${input.instrumentId}' is not available.`,
-      module: "instruments",
+      module: "stage_interface",
       retryable: false,
     });
   }
@@ -85,9 +85,9 @@ export function readHandbookTool(input: {
   }
 
   return fail({
-    code: "instrument.tool_not_found",
+    code: "stage_interface.tool_not_found",
     message: `Tool '${String(input.toolName)}' is not available.`,
-    module: "instruments",
+    module: "stage_interface",
     retryable: false,
   });
 }

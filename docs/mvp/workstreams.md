@@ -84,8 +84,7 @@ Owns:
 Inputs:
 
 - contracts from Workstream A.
-- `SessionContextPort`, `MaterialGatePort`, and `StageModulesPort` from
-  `src/ports`.
+- `SessionContextPort` and `MaterialGatePort` from `src/ports`.
 - Memory and Event public APIs.
 
 Outputs:
@@ -96,8 +95,8 @@ Outputs:
 
 Rule:
 
-- Keep Session Context and Material Gate behavior separate even when the
-  current factory returns a combined `StageModulesPort`.
+- Keep Session Context and Material Gate behavior separate; do not reintroduce
+  a combined Stage Module port.
 
 ## Workstream D: Stage Interface
 
@@ -112,7 +111,6 @@ Purpose:
 Owns:
 
 - `src/stage_interface/**`
-- `src/instruments/**`
 - `src/handbook/**`
 
 Inputs:
@@ -124,7 +122,7 @@ Inputs:
 
 Outputs:
 
-- instrument registry.
+- Stage Interface instrument catalog.
 - tool descriptors.
 - tool dispatch tests.
 - host-facing callable surface.

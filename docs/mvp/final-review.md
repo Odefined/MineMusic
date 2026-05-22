@@ -18,8 +18,8 @@ The reviewed implementation includes:
 - shared contracts and public ports.
 - in-memory storage and plugin registry foundations.
 - core domain modules.
-- Stage Kernel.
-- instrument catalog, tool dispatch, and Tool API facade.
+- Stage Modules.
+- instrument catalog, tool dispatch, and Stage Interface facade.
 - fixture runtime composition and end-to-end transcript.
 
 ## Spec Review
@@ -37,8 +37,8 @@ Checked against:
 Confirmed:
 
 - Public ports use single-object inputs and `Promise<Result<T>>`.
-- Stage Kernel and Tool Dispatch remain separated.
-- Stage Kernel does not import Tool Dispatch or Tool API.
+- Stage Modules and Tool Dispatch remain separated.
+- Stage Modules does not import Tool Dispatch or Stage Interface.
 - Core modules are behind public ports.
 - The integration slice wires modules through composition instead of private
   cross-module calls.
@@ -51,7 +51,7 @@ Result: one issue found and fixed during Wave 6.
 
 Fixed issue:
 
-- Stage Kernel public methods previously depended on method receiver state
+- Stage Modules public methods previously depended on method receiver state
   through `this.getSession`. Detached public-port methods could fail. A
   regression test now covers detached public method calls, and
   `src/stage/index.ts` uses closure state instead.
@@ -60,8 +60,8 @@ Remaining accepted constraints:
 
 - `src/stage_core/index.ts` is a composition root and imports module factories by
   design.
-- `src/tool_api/index.ts` imports stable tool names from the instrument module
-  because both paths are Wave 4 tool-surface ownership.
+- Stage Interface now owns stable tool names, instrument catalog, schemas,
+  dispatch, and facade under `src/stage_interface/**`.
 - Source access is fixture-only.
 - Storage is in-memory.
 - The transcript runner is deterministic and does not claim LLM behavior.

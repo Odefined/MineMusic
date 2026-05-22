@@ -11,6 +11,6 @@ import "./plugins/plugin-packaging.test.js";
 import "./stage_core/stage-core-factory.test.js";
 import "./stage/stage-modules.test.js";
 import "./surfaces/mcp-server.test.js";
-import "./instruments/instrument-registry.test.js";
+import "./stage_interface/stage-interface-dispatch.test.js";
 import "./stage_interface/stage-interface.test.js";
 import "./integration/mvp-slice.test.js";

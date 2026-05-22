@@ -213,7 +213,7 @@ Owned write paths:
 Forbidden write paths:
 
 - `src/stage/**`
-- `src/instruments/**`
+- `src/stage_interface/**`
 - `src/canonical/**`
 - `src/source/**`
 - `src/knowledge/**`
@@ -461,7 +461,6 @@ Consumes:
 
 - `SessionContextPort`
 - `MaterialGatePort`
-- `StageModulesPort`
 - `MemoryPort`
 - `EventPort`
 
@@ -477,9 +476,8 @@ Subagent: Stage Interface Subagent.
 Owned write paths:
 
 - `src/stage_interface/**`
-- `src/instruments/**`
+- `src/stage_interface/**`
 - `src/handbook/**`
-- `test/instruments/**`
 - `test/stage_interface/**`
 
 Consumes:

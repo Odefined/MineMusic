@@ -7,7 +7,6 @@ import type {
   Result,
   StageError,
   StageEvent,
-  ToolDescriptor,
   ToolName,
 } from "../contracts/index.js";
 import {
@@ -23,26 +22,13 @@ import type {
   MemoryPort,
   SessionContextPort,
   SourceResolutionPort,
-  StageModulesPort,
   ToolDispatchPort,
 } from "../ports/index.js";
-
-export const stableToolNames = [
-  "stage.context.read",
-  "handbook.overview.read",
-  "handbook.instrument.read",
-  "handbook.tool.read",
-  "stage.materials.prepare",
-  "music.material.resolve",
-  "music.links.refresh",
-  "events.record",
-  "memory.propose",
-  "effects.propose",
-  "session.update",
-] as const satisfies readonly ToolName[];
+import { stableToolNames } from "./tools.js";
 
 type ToolDispatchOptions = {
-  stageModules: StageModulesPort;
+  sessionContext: SessionContextPort;
+  materialGate: MaterialGatePort;
   instruments: InstrumentCatalogPort;
   source: SourceResolutionPort;
   events: EventPort;
@@ -50,35 +36,9 @@ type ToolDispatchOptions = {
   effects: EffectBoundaryPort;
 };
 
-export function createInstrumentCatalog(): InstrumentCatalogPort {
-  return {
-    async list({ session }) {
-      const instruments = [
-        {
-          id: "minemusic.handbook",
-          label: "MineMusic Handbook",
-          tools: handbookToolDescriptors,
-        },
-      ];
-
-      if (
-        session.activeInstruments.length === 0 ||
-        session.activeInstruments.includes("minemusic.mvp")
-      ) {
-        instruments.push({
-          id: "minemusic.mvp",
-          label: "MineMusic MVP",
-          tools: mvpToolDescriptors,
-        });
-      }
-
-      return ok(instruments);
-    },
-  };
-}
-
 export function createToolDispatch({
-  stageModules,
+  sessionContext,
+  materialGate,
   instruments,
   source,
   events,
@@ -97,16 +57,16 @@ export function createToolDispatch({
     async call({ sessionId, toolName, payload }) {
       if (!isStableToolName(toolName)) {
         return fail({
-          code: "instrument.tool_not_found",
+          code: "stage_interface.tool_not_found",
           message: `Tool '${String(toolName)}' is not registered.`,
-          module: "instruments",
+          module: "stage_interface",
           retryable: false,
         });
       }
 
       if (!discoveryToolNames.has(toolName)) {
         const availability = await ensureToolAvailableForSession(
-          stageModules,
+          sessionContext,
           instruments,
           sessionId,
           toolName,
@@ -119,11 +79,11 @@ export function createToolDispatch({
 
       switch (toolName) {
         case "stage.context.read": {
-          return stageModules.readContext({ sessionId });
+          return sessionContext.readContext({ sessionId });
         }
 
         case "handbook.overview.read": {
-          const instrumentsResult = await listInstrumentsForSession(stageModules, instruments, sessionId);
+          const instrumentsResult = await listInstrumentsForSession(sessionContext, instruments, sessionId);
 
           if (!instrumentsResult.ok) {
             return instrumentsResult;
@@ -133,7 +93,7 @@ export function createToolDispatch({
         }
 
         case "handbook.instrument.read": {
-          const instrumentsResult = await listInstrumentsForSession(stageModules, instruments, sessionId);
+          const instrumentsResult = await listInstrumentsForSession(sessionContext, instruments, sessionId);
 
           if (!instrumentsResult.ok) {
             return instrumentsResult;
@@ -146,7 +106,7 @@ export function createToolDispatch({
         }
 
         case "handbook.tool.read": {
-          const instrumentsResult = await listInstrumentsForSession(stageModules, instruments, sessionId);
+          const instrumentsResult = await listInstrumentsForSession(sessionContext, instruments, sessionId);
 
           if (!instrumentsResult.ok) {
             return instrumentsResult;
@@ -159,7 +119,7 @@ export function createToolDispatch({
         }
 
         case "stage.materials.prepare":
-          return stageModules.prepareMaterials(
+          return materialGate.prepareMaterials(
             readPayload<{
               sessionId: string;
               materials: MusicMaterial[];
@@ -188,7 +148,7 @@ export function createToolDispatch({
           return effects.propose(readPayload<{ proposal: Omit<EffectProposal, "id"> }>(payload));
 
         case "session.update":
-          return stageModules.updateSession(
+          return sessionContext.updateSession(
             readPayload<{
               sessionId: string;
               patch: Parameters<SessionContextPort["updateSession"]>[0]["patch"];
@@ -197,93 +157,15 @@ export function createToolDispatch({
 
         default:
           return fail({
-            code: "instrument.tool_not_found",
+            code: "stage_interface.tool_not_found",
             message: `Tool '${String(toolName)}' is not registered.`,
-            module: "instruments",
+            module: "stage_interface",
             retryable: false,
           });
       }
     },
   };
 }
-
-export const handbookToolDescriptors: ToolDescriptor[] = [
-  {
-    name: "handbook.overview.read",
-    description: "Read the generated overview of current MineMusic instruments and tools.",
-    inputSchemaRef: "HandbookOverviewReadInput",
-    outputSchemaRef: "Handbook",
-  },
-  {
-    name: "handbook.instrument.read",
-    description: "Read the handbook entry for one available MineMusic instrument.",
-    inputSchemaRef: "HandbookInstrumentReadInput",
-    outputSchemaRef: "HandbookInstrumentEntry",
-  },
-  {
-    name: "handbook.tool.read",
-    description: "Read input, output, effect, and description metadata for one available MineMusic tool.",
-    inputSchemaRef: "HandbookToolReadInput",
-    outputSchemaRef: "HandbookToolEntry",
-  },
-];
-
-export const mvpToolDescriptors: ToolDescriptor[] = [
-  {
-    name: "stage.context.read",
-    description: "Read dynamic session context.",
-    inputSchemaRef: "StageContextReadInput",
-    outputSchemaRef: "StageContextReadOutput",
-  },
-  {
-    name: "stage.materials.prepare",
-    description: "Prepare grounded materials through the Material Gate before presentation.",
-    inputSchemaRef: "StageMaterialsPrepareInput",
-    outputSchemaRef: "MusicMaterial[]",
-  },
-  {
-    name: "music.material.resolve",
-    description: "Resolve music candidates through canonical-first source resolution.",
-    inputSchemaRef: "MaterialResolveRequest",
-    outputSchemaRef: "MaterialResolveResult",
-  },
-  {
-    name: "music.links.refresh",
-    description: "Refresh source-backed playable links for a material item.",
-    inputSchemaRef: "MusicMaterial",
-    outputSchemaRef: "MusicMaterial",
-  },
-  {
-    name: "events.record",
-    description: "Record a factual session event.",
-    inputSchemaRef: "StageEventDraft",
-    outputSchemaRef: "StageEvent",
-  },
-  {
-    name: "memory.propose",
-    description: "Create an evidence-backed memory proposal.",
-    inputSchemaRef: "MemoryProposalDraft",
-    outputSchemaRef: "MemoryProposal",
-  },
-  {
-    name: "effects.propose",
-    description: "Create a proposal for a durable write or external action.",
-    inputSchemaRef: "EffectProposalDraft",
-    outputSchemaRef: "EffectProposal",
-    effectKind: "proposal",
-  },
-  {
-    name: "session.update",
-    description: "Update soft session state through Session Context.",
-    inputSchemaRef: "StageSessionPatch",
-    outputSchemaRef: "StageSession",
-  },
-];
-
-export const agentToolDescriptors: ToolDescriptor[] = [
-  ...handbookToolDescriptors,
-  ...mvpToolDescriptors,
-];
 
 function readPayload<TPayload extends object>(
   payload: unknown,
@@ -320,9 +202,9 @@ async function ensureToolAvailableForSession(
 
   if (!isAvailable) {
     return fail({
-      code: "instrument.tool_not_found",
+      code: "stage_interface.tool_not_found",
       message: `Tool '${toolName}' is not available for session '${sessionId}'.`,
-      module: "instruments",
+      module: "stage_interface",
       retryable: false,
     });
   }

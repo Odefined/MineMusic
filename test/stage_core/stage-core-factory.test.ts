@@ -55,7 +55,7 @@ async function createsStageCoreWithInjectedSourceProvider(): Promise<void> {
     ],
   };
   const sourceProvider: SourceProvider = {
-    id: "runtime-test-provider",
+    id: "stage-core-test-provider",
 
     async search() {
       calls.push("provider.search");
@@ -102,7 +102,7 @@ async function writesInstrumentHandbookOnStageCoreReady(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-handbook-"));
   const handbookPath = join(directory, "HANDBOOK.md");
   const sourceProvider: SourceProvider = {
-    id: "runtime-test-provider",
+    id: "stage-core-test-provider",
     async search() {
       return { ok: true, value: [] };
     },
@@ -124,7 +124,7 @@ async function writesInstrumentHandbookOnStageCoreReady(): Promise<void> {
     assert(content.includes("# MineMusic Instrument Handbook"), "Stage Core should write the handbook overview file");
     assert(content.includes("`handbook.tool.read`"), "handbook should document precise handbook lookup");
     assert(content.includes("`music.material.resolve`"), "handbook should document music tools from the catalog");
-    assert(!content.includes("runtime-test-provider"), "handbook should not expose provider implementation names");
+    assert(!content.includes("stage-core-test-provider"), "handbook should not expose provider implementation names");
   } finally {
     await rm(directory, { force: true, recursive: true });
   }

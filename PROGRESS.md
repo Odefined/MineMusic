@@ -56,20 +56,20 @@
 - Added runtime tests for every Wave 3 module and consolidated runtime execution
   through `test/run-stage-core-tests.ts`.
 - Verified Wave 3 with `npm test`.
-- Entered Wave 4 for Stage Kernel and Instruments.
-- Added Stage Kernel in `src/stage/index.ts` with session get/update,
+- Entered Wave 4 for Stage Modules and Instruments.
+- Added Stage Modules in `src/stage/index.ts` with session get/update,
   `StageVibe` propagation, memory summaries, instrument coordination, and
   material-state gating for LLM-facing use.
-- Added instrument catalog and tool dispatch in `src/instruments/index.ts` with
+- Added instrument catalog and tool dispatch under `src/stage_interface/**` with
   stable public tool names and dispatch through injected public ports.
-- Added Tool API facade in `src/tool_api/index.ts` exposing stable tool
+- Added Stage Interface facade under `src/stage_interface/**` exposing stable tool
   functions backed by `ToolDispatchPort`.
-- Added runtime tests for Stage Kernel, Instrument Registry, and Tool API.
+- Added runtime tests for Stage Modules and Stage Interface dispatch.
 - Verified Wave 4 with `npm test`.
 - Entered Wave 5 for composition and the fixture end-to-end MVP slice.
 - Added runtime composition in `src/stage_core/index.ts`, wiring in-memory storage,
-  fixture source provider registration, core domain ports, Stage Kernel,
-  Instrument dispatch, and Tool API.
+  fixture source provider registration, core domain ports, Stage Modules,
+  Instrument dispatch, and Stage Interface.
 - Added fixture transcript runner in `src/app/index.ts`.
 - Added integration fixture data in `fixtures/integration/mvp-fixture.ts`.
 - Added end-to-end integration coverage in `test/integration/mvp-slice.test.ts`.
@@ -77,10 +77,10 @@
   stubs, commands, and remaining work.
 - Verified Wave 5 with `npm test`.
 - Entered Wave 6 final review and documentation sync.
-- Found and fixed a Stage Kernel public-port robustness issue: detached public
+- Found and fixed a Stage Modules public-port robustness issue: detached public
   method calls no longer depend on `this`.
-- Added regression coverage for detached Stage Kernel public methods in
-  `test/stage/stage-kernel.test.ts`.
+- Added regression coverage for detached Stage Modules public methods in
+  `test/stage/stage-modules.test.ts`.
 - Added `docs/mvp/final-review.md` with spec review, code-quality review,
   accepted constraints, verification commands, and residual risk.
 - Updated verification and state docs to distinguish the fixture MVP slice from
@@ -116,12 +116,12 @@
   `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`.
 - Added the Wave 8 implementation plan at
   `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
-- Added `stage.materials.prepare` as a stable instrument/tool API entry and
-  routed the fixture transcript through the tool-visible Stage Kernel gate.
+- Added `stage.materials.prepare` as a stable instrument/Stage Interface entry and
+  routed the fixture transcript through the tool-visible Stage Modules gate.
 - Added initial instrument enforcement in Tool Dispatch while keeping
   `stage.context.read` available for discovery and `session.update` available
   for recovery.
-- Added `createMineMusicRuntimeWithSourceProvider(...)` for host surfaces that
+- Added `createMineMusicStageCoreWithSourceProvider(...)` for host surfaces that
   need a concrete source provider runtime.
 - Added a Codex-facing MCP server in `src/surfaces/mcp/server.ts` with
   `minemusic.*` tool names derived from MineMusic instrument descriptors.
@@ -165,19 +165,21 @@
   Material Gate are Stage Modules.
 - Added `docs/adr/0001-stage-core-runtime-composition.md` to preserve the
   accepted naming decision and keep future architecture reviews from
-  reintroducing the old Stage Core / Stage Kernel ambiguity.
+  reintroducing the old naming ambiguity.
 - Updated `proposal.md`, `ARCHITECTURE.md`, `docs/mvp/module-interfaces.md`,
   `docs/mvp/module-boundaries.md`, `docs/mvp/communication-protocols.md`,
   `docs/mvp/workstreams.md`, `docs/mvp/agent-collaboration.md`, `README.md`,
-  `CURRENT_STATE.md`, and `INDEX.md` to stop treating Stage Kernel as the
-  architecture center.
+  `CURRENT_STATE.md`, and `INDEX.md` to stop treating the old stage naming as
+  the architecture center.
 - Refactored the code to match the vocabulary: `src/stage_core/index.ts` exports
-  `MineMusicStageCore`, `src/stage/index.ts` exports `createStageModules`,
-  public ports use `SessionContextPort` / `MaterialGatePort` /
-  `StageModulesPort`, and `src/stage_interface/index.ts` owns the host-facing
+  `MineMusicStageCore`, `src/stage/index.ts` exports `createSessionContext`
+  and `createMaterialGate`, public ports use separate `SessionContextPort` and
+  `MaterialGatePort`, and `src/stage_interface/**` owns instruments, tool
+  metadata, host schemas, dispatch, and the host-facing
   `MineMusicStageInterface` facade.
-- Removed the old Tool API facade and updated runtime, MCP, app, and tests to
-  call through Stage Interface directly.
+- Folded the old facade plus separate instrument dispatch module into
+  `src/stage_interface` and updated Stage Core, MCP, app, and tests to call
+  through Stage Interface directly.
 
 ## Next
 
