@@ -10,7 +10,7 @@ import {
 } from "../../fixtures/integration/mvp-fixture.js";
 import type { Result } from "../../src/contracts/index.js";
 import { runRecommendationTranscript } from "../../src/app/index.js";
-import { createMineMusicStageCore } from "../../src/runtime/index.js";
+import { createMineMusicStageCore } from "../../src/stage_core/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {

@@ -15,7 +15,7 @@
 - Create `src/providers/netease/index.ts` for the NetEase provider adapter.
 - Create `test/providers/netease-source-provider.test.ts` for deterministic adapter and Source Resolution integration tests.
 - Create `test/live/netease-source-smoke.ts` for opt-in live validation.
-- Modify `test/run-runtime-tests.ts` to include the provider test.
+- Modify `test/run-stage-core-tests.ts` to include the provider test.
 - Modify `package.json` to add the opt-in smoke command.
 - Modify `docs/mvp/verification-report.md`, `CURRENT_STATE.md`, `PROGRESS.md`, and `INDEX.md` after implementation.
 
@@ -24,7 +24,7 @@
 **Files:**
 - Create: `test/providers/netease-source-provider.test.ts`
 - Create: `src/providers/netease/index.ts`
-- Modify: `test/run-runtime-tests.ts`
+- Modify: `test/run-stage-core-tests.ts`
 
 - [ ] **Step 1: Write the failing provider mapping test**
 
@@ -172,7 +172,7 @@ Expected: deterministic tests and skipped smoke pass; `git diff --name-only` lis
 Commit the Wave 7 implementation after verification:
 
 ```bash
-git add package.json src/providers/netease/index.ts test/providers/netease-source-provider.test.ts test/live/netease-source-smoke.ts test/run-runtime-tests.ts docs/mvp/verification-report.md CURRENT_STATE.md PROGRESS.md INDEX.md
+git add package.json src/providers/netease/index.ts test/providers/netease-source-provider.test.ts test/live/netease-source-smoke.ts test/run-stage-core-tests.ts docs/mvp/verification-report.md CURRENT_STATE.md PROGRESS.md INDEX.md
 git commit -m "Add NetEase live source provider adapter"
 ```
 

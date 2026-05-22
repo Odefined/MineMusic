@@ -8,7 +8,7 @@ import { createNetEaseSourceProvider } from "../../providers/netease/index.js";
 import {
   createMineMusicStageCoreWithSourceProvider,
   type MineMusicStageCore,
-} from "../../runtime/index.js";
+} from "../../stage_core/index.js";
 import { agentToolDescriptors, stableToolNames } from "../../stage_interface/index.js";
 
 export type MineMusicMcpTextContent = {

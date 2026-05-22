@@ -7,7 +7,7 @@ import type {
   StageEvent,
   StageSession,
 } from "../contracts/index.js";
-import type { MineMusicStageCore } from "../runtime/index.js";
+import type { MineMusicStageCore } from "../stage_core/index.js";
 
 export type RecommendationTranscriptInput = {
   sessionId: string;

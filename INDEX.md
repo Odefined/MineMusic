@@ -86,28 +86,32 @@ This index points agents to the current MVP documentation pack.
     - Wave 8 implementation plan for Stage materials tooling, MCP registration,
       and plugin packaging.
 
-24. `src/surfaces/mcp/server.ts`
+24. `src/stage_core/index.ts`
+    - Stage Core composition root that assembles modules, registers providers,
+      initializes the Handbook, and exposes the runtime object.
+
+25. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-25. `src/stage_interface/index.ts`
+26. `src/stage_interface/index.ts`
     - Host-facing Stage Interface facade and stable tool callable surface.
 
-26. `src/handbook/index.ts`
+27. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-27. `plugins/minemusic/.codex-plugin/plugin.json`
+28. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-28. `plugins/minemusic/.mcp.json`
+29. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-29. `plugins/minemusic/skills/minemusic/SKILL.md`
+30. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-30. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+31. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 

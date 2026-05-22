@@ -1,5 +1,5 @@
 import type { MusicMaterial, Result, SourceProvider, StageSession } from "../../src/contracts/index.js";
-import { createMineMusicStageCoreWithSourceProvider } from "../../src/runtime/index.js";
+import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
 import { stableToolNames } from "../../src/stage_interface/index.js";
 import {
   codexToolNameFor,

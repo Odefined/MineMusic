@@ -68,7 +68,7 @@ Host Adapters -> Stage Core -> Stage Interface / Stage Modules
 ```
 
 `Stage Core` means runtime composition and lifecycle. Current code maps that to
-`src/runtime/index.ts`. The current `src/stage/index.ts` module is not Stage
+`src/stage_core/index.ts`. The current `src/stage/index.ts` module is not Stage
 Core; it exports Stage Modules for Session Context and Material Gate.
 
 ```bash

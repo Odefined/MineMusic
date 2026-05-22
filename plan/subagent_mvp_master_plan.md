@@ -433,8 +433,8 @@ Subagent: Stage Core Subagent.
 
 Owned write paths:
 
-- `src/runtime/**`
-- `test/runtime/**`
+- `src/stage_core/**`
+- `test/stage_core/**`
 
 Consumes:
 

@@ -54,7 +54,7 @@ Own:
 
 Current implementation:
 
-- `src/runtime/index.ts`
+- `src/stage_core/index.ts`
 
 Public API:
 

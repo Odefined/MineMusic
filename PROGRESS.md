@@ -54,7 +54,7 @@
   playable-link refresh, canonical-ref attachment, and `confirmed_playable`
   versus `source_only_playable` distinction.
 - Added runtime tests for every Wave 3 module and consolidated runtime execution
-  through `test/run-runtime-tests.ts`.
+  through `test/run-stage-core-tests.ts`.
 - Verified Wave 3 with `npm test`.
 - Entered Wave 4 for Stage Kernel and Instruments.
 - Added Stage Kernel in `src/stage/index.ts` with session get/update,
@@ -67,7 +67,7 @@
 - Added runtime tests for Stage Kernel, Instrument Registry, and Tool API.
 - Verified Wave 4 with `npm test`.
 - Entered Wave 5 for composition and the fixture end-to-end MVP slice.
-- Added runtime composition in `src/runtime/index.ts`, wiring in-memory storage,
+- Added runtime composition in `src/stage_core/index.ts`, wiring in-memory storage,
   fixture source provider registration, core domain ports, Stage Kernel,
   Instrument dispatch, and Tool API.
 - Added fixture transcript runner in `src/app/index.ts`.
@@ -171,7 +171,7 @@
   `docs/mvp/workstreams.md`, `docs/mvp/agent-collaboration.md`, `README.md`,
   `CURRENT_STATE.md`, and `INDEX.md` to stop treating Stage Kernel as the
   architecture center.
-- Refactored the code to match the vocabulary: `src/runtime/index.ts` exports
+- Refactored the code to match the vocabulary: `src/stage_core/index.ts` exports
   `MineMusicStageCore`, `src/stage/index.ts` exports `createStageModules`,
   public ports use `SessionContextPort` / `MaterialGatePort` /
   `StageModulesPort`, and `src/stage_interface/index.ts` owns the host-facing

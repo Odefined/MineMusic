@@ -23,7 +23,7 @@ Recommended layout:
 ```text
 src/contracts/        shared data contracts
 src/ports/            public module interfaces
-src/runtime/          Stage Core runtime composition
+src/stage_core/          Stage Core runtime composition
 src/stage_interface/  Stage Interface facade and callable surface
 src/stage/            Session Context and Material Gate implementation
 src/instruments/      current Instrument Catalog and Tool Dispatch implementation
@@ -94,7 +94,7 @@ Purpose:
 
 Current implementation:
 
-- `src/runtime/index.ts`
+- `src/stage_core/index.ts`
 - `createMineMusicStageCore(input)`
 - `createMineMusicStageCoreWithSourceProvider(input)`
 - `MineMusicStageCore`

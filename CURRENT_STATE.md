@@ -42,7 +42,7 @@ host-facing and LLM-facing surface.
 - Plugin packages extend capability slots. They do not define core business
   boundaries.
 - Stage Core means runtime composition and lifecycle. In current code this maps
-  to `src/runtime/index.ts`.
+  to `src/stage_core/index.ts`.
 - Stage Interface means the LLM-facing and host-facing callable surface. In
   current code this is centered in `src/stage_interface/index.ts`, with
   descriptors and dispatch in `src/instruments/index.ts` and Handbook rendering
@@ -98,7 +98,7 @@ host-facing and LLM-facing surface.
   injection through public ports.
 - Stage Interface facade is exported from `src/stage_interface/index.ts` and
   exposes stable tool functions backed by `ToolDispatchPort`.
-- Stage Core runtime composition is exported from `src/runtime/index.ts` and
+- Stage Core runtime composition is exported from `src/stage_core/index.ts` and
   wires in-memory storage, fixture providers, core ports, Session Context /
   Material Gate, Instrument dispatch, and Stage Interface.
 - Stage Core also exports `createMineMusicStageCoreWithSourceProvider` for

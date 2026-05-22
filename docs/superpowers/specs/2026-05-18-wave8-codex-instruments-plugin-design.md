@@ -5,7 +5,7 @@
 This historical Wave 8 design uses the legacy `Stage Kernel` term. Current
 architecture vocabulary maps that code to Session Context and Material Gate
 inside Stage Modules. Stage Core now means runtime composition and lifecycle in
-`src/runtime/index.ts`.
+`src/stage_core/index.ts`.
 
 ## Goal
 
@@ -31,7 +31,7 @@ policy, provider logic, playback, or durable storage.
   agent-visible instrument descriptors.
 - `src/tool_api/index.ts` exposes `MineMusicToolApi` as a stable wrapper around
   `ToolDispatchPort`.
-- `src/runtime/index.ts` composes Stage Kernel, Instrument Catalog, Tool
+- `src/stage_core/index.ts` composes Stage Kernel, Instrument Catalog, Tool
   Dispatch, Tool API, Source Resolution, repositories, and provider slots.
 - `src/app/index.ts` currently calls `runtime.stage.prepareMaterials(...)`
   directly after grounding, which means material preparation is not yet a

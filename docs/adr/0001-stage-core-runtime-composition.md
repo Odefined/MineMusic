@@ -45,7 +45,7 @@ The current Stage Modules are exposed through explicit ports:
 
 ## Consequences
 
-- `src/runtime/index.ts` is the current Stage Core implementation.
+- `src/stage_core/index.ts` is the current Stage Core implementation.
 - `src/stage/index.ts` is not Stage Core. It implements Session Context and
   Material Gate through `SessionContextPort`, `MaterialGatePort`, and
   `StageModulesPort`.

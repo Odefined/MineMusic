@@ -93,7 +93,7 @@ into Plugin Slots.
 | Architecture term | Current implementation |
 | --- | --- |
 | Host Adapter | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
-| Stage Core | `src/runtime/index.ts` |
+| Stage Core | `src/stage_core/index.ts` |
 | Stage Interface | `src/stage_interface/index.ts`, `src/instruments/index.ts`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |

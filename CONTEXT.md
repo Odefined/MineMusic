@@ -44,7 +44,7 @@ Stage Core does not mean "put every business implementation in one file." It
 assembles modules and owns lifecycle; domain behavior stays in the owning
 module.
 
-Current code mapping: `src/runtime/index.ts`.
+Current code mapping: `src/stage_core/index.ts`.
 
 ### Stage Interface
 
@@ -66,7 +66,7 @@ modules directly.
 
 Current code mapping: `src/stage_interface/index.ts`,
 `src/instruments/index.ts`, `src/handbook/index.ts`, and the dispatch-facing
-part of `src/runtime/index.ts`.
+part of `src/stage_core/index.ts`.
 
 ### Stage Modules
 

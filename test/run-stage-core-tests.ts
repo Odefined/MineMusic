@@ -8,7 +8,7 @@ import "./knowledge/music-knowledge.test.js";
 import "./source/source-resolution.test.js";
 import "./providers/netease-source-provider.test.js";
 import "./plugins/plugin-packaging.test.js";
-import "./runtime/runtime-factory.test.js";
+import "./stage_core/stage-core-factory.test.js";
 import "./stage/stage-modules.test.js";
 import "./surfaces/mcp-server.test.js";
 import "./instruments/instrument-registry.test.js";

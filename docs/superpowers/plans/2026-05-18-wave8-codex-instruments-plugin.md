@@ -7,7 +7,7 @@
 This historical Wave 8 plan uses the legacy `Stage Kernel` term. Current
 architecture vocabulary maps that code to Session Context and Material Gate
 inside Stage Modules. Stage Core now means runtime composition and lifecycle in
-`src/runtime/index.ts`.
+`src/stage_core/index.ts`.
 
 **Goal:** Expose MineMusic to Codex as a repo-local MCP plugin whose public surface is `minemusic.handbook`, `minemusic.mvp`, and their Stage-governed tools.
 
@@ -22,7 +22,7 @@ inside Stage Modules. Stage Core now means runtime composition and lifecycle in
 - Modify `src/contracts/index.ts` to add `stage.materials.prepare`.
 - Modify `src/instruments/index.ts` to list, dispatch, and enforce instrument tools.
 - Modify `src/app/index.ts` to use tool-visible `stage.materials.prepare`.
-- Modify `src/runtime/index.ts` to support an explicit source provider runtime for Codex.
+- Modify `src/stage_core/index.ts` to support an explicit source provider runtime for Codex.
 - Create `src/surfaces/mcp/server.ts` for the MCP server and tool registration helpers.
 - Create `test/instruments/instrument-registry.test.ts` additions for `stage.materials.prepare` and enforcement.
 - Create `test/surfaces/mcp-server.test.ts` for MCP tool descriptor and call behavior.
@@ -31,7 +31,7 @@ inside Stage Modules. Stage Core now means runtime composition and lifecycle in
 - Create `plugins/minemusic/.mcp.json`.
 - Create or update `.agents/plugins/marketplace.json`.
 - Modify `package.json` to add MCP dependencies and `mcp:minemusic`.
-- Modify `test/run-runtime-tests.ts` to include MCP surface tests.
+- Modify `test/run-stage-core-tests.ts` to include MCP surface tests.
 - Update `CURRENT_STATE.md`, `PROGRESS.md`, `INDEX.md`, `README.md`, and `docs/mvp/verification-report.md`.
 
 ## Task 1: Stage Materials Tool And Instrument Enforcement
@@ -79,7 +79,7 @@ Expected: all deterministic tests pass.
 ## Task 2: Runtime Factory For Codex MCP
 
 **Files:**
-- Modify: `src/runtime/index.ts`
+- Modify: `src/stage_core/index.ts`
 - Test: `test/surfaces/mcp-server.test.ts`
 
 - [x] **Step 1: Write failing runtime test**
@@ -116,7 +116,7 @@ Expected: all deterministic tests pass.
 - Create: `src/surfaces/mcp/server.ts`
 - Modify: `package.json`
 - Test: `test/surfaces/mcp-server.test.ts`
-- Modify: `test/run-runtime-tests.ts`
+- Modify: `test/run-stage-core-tests.ts`
 
 - [x] **Step 1: Add explicit dependencies**
 
@@ -257,7 +257,7 @@ Expected: deterministic checks pass, default smoke skips, live smoke passes if l
 Commit the implementation:
 
 ```bash
-git add package.json src/contracts/index.ts src/instruments/index.ts src/app/index.ts src/runtime/index.ts src/surfaces/mcp/server.ts test/instruments/instrument-registry.test.ts test/surfaces/mcp-server.test.ts test/run-runtime-tests.ts plugins/minemusic/.codex-plugin/plugin.json plugins/minemusic/.mcp.json .agents/plugins/marketplace.json CURRENT_STATE.md PROGRESS.md INDEX.md README.md docs/mvp/verification-report.md
+git add package.json src/contracts/index.ts src/instruments/index.ts src/app/index.ts src/stage_core/index.ts src/surfaces/mcp/server.ts test/instruments/instrument-registry.test.ts test/surfaces/mcp-server.test.ts test/run-stage-core-tests.ts plugins/minemusic/.codex-plugin/plugin.json plugins/minemusic/.mcp.json .agents/plugins/marketplace.json CURRENT_STATE.md PROGRESS.md INDEX.md README.md docs/mvp/verification-report.md
 git commit -m "Add Codex MCP instrument plugin"
 ```
 

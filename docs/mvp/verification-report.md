@@ -6,7 +6,7 @@ This report records historical Wave 5 through Wave 8 verification. Some
 phrasing reflects the vocabulary that existed during those waves. As of the
 2026-05-23 architecture refactor, current code uses Stage Modules for Session
 Context and Material Gate, Stage Interface for callable tools, and Stage Core
-for `src/runtime/index.ts` runtime composition and lifecycle.
+for `src/stage_core/index.ts` runtime composition and lifecycle.
 
 ## Scope
 
@@ -37,7 +37,7 @@ writes, or source writeback.
 
 ## Verification Object
 
-- `src/runtime/index.ts`
+- `src/stage_core/index.ts`
 - `src/app/index.ts`
 - `fixtures/integration/mvp-fixture.ts`
 - `test/integration/mvp-slice.test.ts`

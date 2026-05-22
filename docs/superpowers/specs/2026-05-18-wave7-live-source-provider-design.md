@@ -5,7 +5,7 @@
 This historical Wave 7 design uses the legacy `Stage Kernel` term. Current
 architecture vocabulary maps that code to Session Context and Material Gate
 inside Stage Modules. Stage Core now means runtime composition and lifecycle in
-`src/runtime/index.ts`.
+`src/stage_core/index.ts`.
 
 ## Goal
 
@@ -24,7 +24,7 @@ evidence through the current Source Resolution path.
 - `src/source/index.ts` already discovers source providers through
   `PluginRegistryPort`, calls provider search, refreshes playable links, and
   normalizes material into `confirmed_playable` or `source_only_playable`.
-- `src/runtime/index.ts` currently registers a fixture provider only.
+- `src/stage_core/index.ts` currently registers a fixture provider only.
 - `docs/mvp/verification-report.md` explicitly says live provider validation is
   not yet verified.
 

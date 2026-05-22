@@ -44,7 +44,7 @@ Purpose:
 
 Owns:
 
-- `src/runtime/**`
+- `src/stage_core/**`
 
 Inputs:
 

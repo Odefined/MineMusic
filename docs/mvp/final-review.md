@@ -6,7 +6,7 @@ This review records the Wave 1 through Wave 6 implementation using the
 terminology that existed at the time. As of the 2026-05-23 architecture
 refactor, current code uses Stage Modules for Session Context and Material
 Gate, Stage Interface for callable tools, and Stage Core for
-`src/runtime/index.ts` runtime composition and lifecycle.
+`src/stage_core/index.ts` runtime composition and lifecycle.
 
 ## Scope
 
@@ -58,7 +58,7 @@ Fixed issue:
 
 Remaining accepted constraints:
 
-- `src/runtime/index.ts` is a composition root and imports module factories by
+- `src/stage_core/index.ts` is a composition root and imports module factories by
   design.
 - `src/tool_api/index.ts` imports stable tool names from the instrument module
   because both paths are Wave 4 tool-surface ownership.

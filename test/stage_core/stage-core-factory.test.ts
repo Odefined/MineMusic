@@ -9,7 +9,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
-import { createMineMusicStageCoreWithSourceProvider } from "../../src/runtime/index.js";
+import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -24,7 +24,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 }
 
 const session: StageSession = {
-  id: "runtime-factory-session",
+  id: "stage-core-factory-session",
   posture: "recommendation",
   activeInstruments: ["minemusic.mvp"],
 };
