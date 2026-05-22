@@ -180,11 +180,23 @@
 - Folded the old facade plus separate instrument dispatch module into
   `src/stage_interface` and updated Stage Core, MCP, app, and tests to call
   through Stage Interface directly.
+- Verified current active Codex MCP tool usability with a real recommendation
+  scenario: `session.update`, `music.material.resolve`, `stage.materials.prepare`,
+  `events.record`, `memory.propose`, and `effects.propose` all returned
+  successful `Result<T>` payloads through the `minemusic.*` tools.
+- The live current-session flow grounded coding-music candidates through
+  NetEase and returned source-backed links such as
+  `https://music.163.com/#/song?id=22644323`, while preserving the boundary that
+  `open_link` remains an effect proposal rather than an executed action.
+- Updated `CURRENT_STATE.md` and `docs/mvp/verification-report.md` to distinguish
+  current-session Codex tool usability from unverified fresh-install or
+  new-session plugin discovery.
+- Recorded user confirmation that fresh Codex app plugin-session validation has
+  also been completed, while keeping the evidence boundary explicit: this
+  host-app check is not represented by a repository command transcript.
 
 ## Next
 
-- Verify the repo-local plugin in a fresh Codex plugin session before claiming
-  live Codex tool and skill visibility.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool
   descriptors change outside runtime startup.
 - Decide whether to merge `codex/wave8-codex-instruments-plugin` back to

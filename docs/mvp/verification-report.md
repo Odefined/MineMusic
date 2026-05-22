@@ -31,9 +31,10 @@ natural request
 
 This report claims successful live NetEase search-link smoke validation against
 the current local service. It also claims deterministic MCP/plugin packaging
-verification. It does not claim fresh Codex app plugin visibility, durable
-storage, autonomous DJ behavior, playback execution, queue mutation, playlist
-writes, or source writeback.
+verification, active-session Codex MCP tool usability, and user-confirmed
+fresh Codex app plugin visibility. It does not claim durable storage,
+autonomous DJ behavior, playback execution, queue mutation, playlist writes, or
+source writeback.
 
 ## Verification Object
 
@@ -137,14 +138,31 @@ Codex MCP plugin surface:
 - The workflow skill explicitly separates listening context from music
   candidates, so environment words such as writing code are not treated as
   literal song-title searches.
+- The active Codex session can discover and call the `minemusic.*` MCP tools.
+  A real recommendation scenario for quiet, not-sleepy coding music completed
+  through `session.update`, `music.material.resolve`, `stage.materials.prepare`,
+  `events.record`, `memory.propose`, and `effects.propose`.
+- The live active-session flow returned source-backed NetEase materials such as
+  `Aruarian Dance - Nujabes, Fat Jon`
+  (`https://music.163.com/#/song?id=22644323`), `Feather ... - Nujabes`
+  (`https://music.163.com/#/song?id=22821099`, marked `requiresAccount`), and
+  `Intro - The xx` (`https://music.163.com/#/song?id=26655232`).
+- The real recommendation materials were `source_only_playable`, so Material
+  Gate preserved their playable links for recommendation presentation, while
+  effect handling remained a proposal and did not open or play anything.
+- Fresh Codex app plugin-session validation is reported complete by the user.
+  The captured repository evidence remains deterministic packaging/runtime
+  tests and active-session MCP tool calls.
 
 ## Thin Stubs
 
 - Source access is a fixture provider.
 - NetEase live access is represented by an adapter and opt-in smoke command,
-  not by always-on runtime composition.
-- Codex plugin packaging is repo-local and deterministic. It has not yet been
-  verified in a fresh live Codex plugin session.
+  plus active-session MCP tool use. Shell live-smoke access can still be
+  environment-sensitive inside sandboxed command contexts.
+- Codex plugin packaging is repo-local and deterministic. Fresh host-app
+  visibility is user-confirmed rather than captured by a repository command
+  transcript.
 - Storage is in-memory.
 - The transcript runner is deterministic and does not claim to be an LLM.
 - Music Knowledge remains a thin service and is not on this critical path.
@@ -173,8 +191,24 @@ was also run in this workspace and passed against
 `http://127.0.0.1:3000`, returning at least one live material through the
 NetEase provider adapter.
 
+An active Codex MCP tool invocation also verified the plugin surface in the
+current session:
+
+```text
+session.update
+-> music.material.resolve
+-> stage.materials.prepare
+-> events.record
+-> memory.propose
+-> effects.propose
+```
+
+The flow returned real NetEase links and created inspectable event, memory, and
+effect proposal records. The user also confirmed fresh Codex app plugin-session
+validation in this thread; that host-app check is recorded as user-confirmed
+evidence rather than a repo-command test.
+
 ## Remaining Work
 
 - Durable repository implementations.
-- Fresh Codex app plugin-session validation.
 - Broader host-surface integration beyond the repo-local MCP plugin surface.

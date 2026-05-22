@@ -20,7 +20,11 @@ plugin now includes a MineMusic workflow skill, explicit MCP input schemas for
 argument-bearing tools, a generated skill-local `HANDBOOK.md`, and
 `minemusic.handbook.*` lookup tools. The 2026-05-23 architecture refactor
 renamed the current code to Stage Core / Stage Interface / Stage Modules.
-Fresh Codex app plugin visibility is not yet claimed.
+The active Codex session has verified live MineMusic MCP tool visibility and a
+real NetEase-backed recommendation flow. Fresh Codex app plugin installation
+and tool visibility in a new session have also been confirmed by the user in
+this thread; no separate repository command transcript captures that host-app
+confirmation.
 
 ## Source Basis
 
@@ -144,6 +148,15 @@ host-facing and LLM-facing surface.
   text. Environment terms such as writing code, study, walking, late night, or
   not too sleepy are musical context for the agent to interpret, not literal
   source-search strings.
+- The active Codex session can call the repo-local `minemusic.*` MCP tools for
+  a real user scenario: update session vibe, resolve music candidates through
+  NetEase, prepare `source_only_playable` materials for recommendation, record
+  a recommendation event, create an evidence-backed memory proposal, and create
+  an `open_link` effect proposal without executing the effect.
+- Fresh Codex app plugin-session validation is reported complete by the user,
+  so Wave 8 is no longer blocked on plugin visibility. The repository evidence
+  still consists of deterministic packaging tests plus active-session MCP tool
+  calls.
 
 ## Not Yet Implemented
 
@@ -154,8 +167,6 @@ host-facing and LLM-facing surface.
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
-- Fresh Codex app plugin installation and interactive tool visibility in a new
-  Codex session.
 
 ## Verification
 
@@ -165,6 +176,13 @@ host-facing and LLM-facing surface.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
 - `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
   `http://127.0.0.1:3000` in this session.
+- Active Codex MCP tool calls through `minemusic.music.material.resolve`,
+  `minemusic.stage.materials.prepare`, `minemusic.events.record`,
+  `minemusic.memory.propose`, and `minemusic.effects.propose` passed for a real
+  "quiet but not sleepy coding music" scenario, returning NetEase links such as
+  `https://music.163.com/#/song?id=22644323`.
+- Fresh Codex app plugin-session visibility is confirmed by the user in this
+  thread. Treat this as host-app validation evidence, not a repo-command test.
 - `git diff --check` passes as of Wave 8 deterministic MCP/plugin
   implementation.
 - Branch integration for Waves 1 through 7 is complete on `main`.

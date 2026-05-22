@@ -90,9 +90,8 @@ The repo-local Codex plugin manifest lives at
 `plugins/minemusic/.codex-plugin/plugin.json`, with MCP startup config in
 `plugins/minemusic/.mcp.json`, workflow skill instructions in
 `plugins/minemusic/skills/minemusic/SKILL.md`, and the local marketplace entry
-in `.agents/plugins/marketplace.json`. Fresh Codex app visibility still needs
-to be verified in a new plugin session before treating it as installed runtime
-state.
+in `.agents/plugins/marketplace.json`. Fresh Codex app visibility is
+user-confirmed host-app state rather than repository-command test output.
 
 ## Non-Goals
 
