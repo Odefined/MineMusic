@@ -279,6 +279,9 @@ Run in one transaction:
 5. Only after that, consider alias search, merge operations, and richer entity
    relationships.
 
+Track implementation progress for this migration in
+`docs/canonical-store/progress.md`.
+
 ## Open Questions
 
 - Whether `track` should ever become a MineMusic canonical kind, or remain only
@@ -287,4 +290,3 @@ Run in one transaction:
   separate status for callers to handle.
 - How much MusicBrainz-style entity relationship modeling MineMusic needs before
   the first durable memory implementation.
-

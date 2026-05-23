@@ -10,7 +10,8 @@ ports, in-memory repository infrastructure, plugin registry infrastructure, and
 core domain service skeletons, Stage Core runtime composition, Stage Modules
 for Session Context and Material Gate, Stage Interface facade, instrument
 registry, a fixture end-to-end MVP slice, a read-only NetEase provider adapter,
-and contract/runtime tests.
+contract/runtime tests, and a SQLite-backed Canonical Store repository for
+durable canonical identity tests.
 Wave 7 adds a read-only NetEase source provider adapter and opt-in live smoke
 command. The local NetEase service is currently verified through explicit live
 smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP plugin
@@ -67,17 +68,30 @@ host-facing and LLM-facing surface.
 - Public ports and repository interfaces are exported from `src/ports/index.ts`.
 - Contract/type coverage exists in `test/contracts/wave1-contracts.test.ts`.
 - Wave 2 runtime test harness compiles test files into `.tmp-test/`.
+- The runtime test runner imports compiled test modules sequentially so
+  file-writing startup tests do not race plugin packaging checks.
 - In-memory repositories are exported from `src/storage/index.ts` for sessions,
   canonical records, events, memory entries, and effect proposals.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
 - Canonical Store is exported from `src/canonical/index.ts` with get, external
-  ref resolution, provisional record creation, and external ref attachment.
+  ref resolution, provisional record creation, and external ref attachment. It
+  now reuses current canonical records by external evidence, normalized label,
+  or alias, filters ordinary lookup to active/provisional records, and keeps
+  same-record external-ref attachment idempotent.
 - Canonical Store durable storage design is documented in
   `docs/canonical-store/storage-model.md`. Responsibility and interface designs
   are documented in `docs/canonical-store/design.md` and
-  `docs/canonical-store/interfaces.md`. Implementation is still in-memory.
+  `docs/canonical-store/interfaces.md`. The durable implementation plan is
+  documented in `docs/canonical-store/implementation-plan.md`. Canonical
+  Store-specific progress is tracked in `docs/canonical-store/progress.md`.
+- SQLite-backed Canonical Store storage is implemented in
+  `src/storage/sqlite/index.ts` for direct repository injection. It persists
+  canonical entities, external refs, and aliases, and tests prove `get`,
+  `resolveExternalRef`, and external-ref conflicts across repository reopen.
+  Stage Core still defaults to in-memory canonical storage and does not yet
+  expose durable canonical storage injection in host runtimes.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and
@@ -162,7 +176,9 @@ host-facing and LLM-facing surface.
 
 - Stage Interface can still be deepened: host schemas, tool metadata, Handbook
   rendering, and dispatch are not yet fully owned by one implementation file.
-- Durable storage repositories beyond in-memory infrastructure.
+- Durable storage repositories beyond the direct SQLite-backed Canonical Store
+  repository adapter.
+- Stage Core wiring for optional durable Canonical Store storage.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -170,9 +186,10 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of Wave 8 deterministic MCP/plugin implementation.
+- `npm test` passes as of the Canonical Store SQLite repository and identity
+  hygiene TDD implementation.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
-  implementation.
+  implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
 - `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
   `http://127.0.0.1:3000` in this session.
@@ -183,9 +200,9 @@ host-facing and LLM-facing surface.
   `https://music.163.com/#/song?id=22644323`.
 - Fresh Codex app plugin-session visibility is confirmed by the user in this
   thread. Treat this as host-app validation evidence, not a repo-command test.
-- `git diff --check` passes as of Wave 8 deterministic MCP/plugin
-  implementation.
-- Branch integration for Waves 1 through 7 is complete on `main`.
+- `git diff --check` passes as of the Canonical Store SQLite repository and
+  identity hygiene TDD implementation.
+- Branch integration for Waves 1 through 8 is complete on `main`.
 
 ## Known Constraints
 

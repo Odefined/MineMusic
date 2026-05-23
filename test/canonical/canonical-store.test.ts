@@ -74,6 +74,144 @@ async function resolvesAndAttachesExternalRefsWithoutChangingAuthority(): Promis
   assert(resolved?.ref.id === canonicalRef.id, "external ref should resolve to canonical record");
 }
 
+async function createProvisionalReusesExistingEvidence(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "same-track",
+  };
+  const store = createCanonicalStore({
+    repository,
+    idFactory: (() => {
+      const ids = ["first-canonical", "duplicate-canonical"];
+
+      return () => ids.shift() ?? "unexpected-canonical";
+    })(),
+  });
+  const first = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "First Label",
+      evidence: [sourceRef],
+    }),
+  );
+  const second = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Different Label",
+      evidence: [sourceRef],
+    }),
+  );
+  const records = await assertOk(repository.list());
+
+  assert(second.ref.id === first.ref.id, "same external evidence should reuse canonical identity");
+  assert(records.length === 1, "reused evidence should not create duplicate provisional records");
+}
+
+async function createProvisionalReusesExistingNormalizedLabel(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: (() => {
+      const ids = ["first-label", "duplicate-label"];
+
+      return () => ids.shift() ?? "unexpected-label";
+    })(),
+  });
+  const first = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Quiet   Coding Track",
+    }),
+  );
+  const second = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: " quiet coding track ",
+    }),
+  );
+  const records = await assertOk(repository.list());
+
+  assert(second.ref.id === first.ref.id, "same normalized label should reuse canonical identity");
+  assert(records.length === 1, "reused label should not create duplicate provisional records");
+}
+
+async function createProvisionalReusesExistingAlias(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const canonical: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "alias-provisional-reuse" },
+    kind: "recording",
+    label: "Aruarian Dance",
+    status: "active",
+    aliases: ["Aruarian Dance - Nujabes"],
+  };
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "duplicate-alias",
+  });
+
+  await assertOk(repository.put(canonical));
+
+  const reused = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: " aruarian   dance - nujabes ",
+    }),
+  );
+  const records = await assertOk(repository.list());
+
+  assert(reused.ref.id === canonical.ref.id, "alias match should reuse canonical identity");
+  assert(records.length === 1, "reused alias should not create duplicate provisional records");
+}
+
+async function findsCurrentRecordsByAlias(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const canonical: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "alias-track" },
+    kind: "recording",
+    label: "Aruarian Dance",
+    status: "active",
+    aliases: ["Aruarian Dance - Nujabes"],
+  };
+  const store = createCanonicalStore({ repository });
+
+  await assertOk(repository.put(canonical));
+
+  const matches = await assertOk(
+    store.findByLabel({
+      label: " aruarian   dance - nujabes ",
+      kind: "recording",
+    }),
+  );
+
+  assert(matches.length === 1, "alias lookup should return current canonical records");
+  assert(matches[0]?.ref.id === canonical.ref.id, "alias lookup should return the aliased record");
+}
+
+async function resolveExternalRefIgnoresHistoricalRecords(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "historical-track",
+  };
+  const rejected: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "rejected-track" },
+    kind: "recording",
+    label: "Rejected Track",
+    status: "rejected",
+    externalKeys: [sourceRef],
+  };
+  const store = createCanonicalStore({ repository });
+
+  await assertOk(repository.put(rejected));
+
+  const resolved = await assertOk(store.resolveExternalRef({ ref: sourceRef }));
+
+  assert(resolved === null, "historical records should not resolve as current identity");
+}
+
 async function rejectsExternalRefConflicts(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const externalRef: Ref = {
@@ -107,6 +245,34 @@ async function rejectsExternalRefConflicts(): Promise<void> {
   assert(result.error.code === "canonical.external_ref_conflict", "conflict should use stable error code");
 }
 
+async function attachesSameExternalRefIdempotently(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const canonical: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "idempotent" },
+    kind: "recording",
+    label: "Idempotent Track",
+    status: "active",
+  };
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "idempotent-track",
+  };
+  const store = createCanonicalStore({ repository });
+
+  await assertOk(repository.put(canonical));
+  await assertOk(store.attachExternalRef({ canonicalRef: canonical.ref, externalRef: sourceRef }));
+  const updated = await assertOk(store.attachExternalRef({ canonicalRef: canonical.ref, externalRef: sourceRef }));
+
+  assert(updated.externalKeys?.length === 1, "same external ref should be attached once");
+}
+
 await createsAndGetsProvisionalRecords();
 await resolvesAndAttachesExternalRefsWithoutChangingAuthority();
+await createProvisionalReusesExistingEvidence();
+await createProvisionalReusesExistingNormalizedLabel();
+await createProvisionalReusesExistingAlias();
+await findsCurrentRecordsByAlias();
+await resolveExternalRefIgnoresHistoricalRecords();
 await rejectsExternalRefConflicts();
+await attachesSameExternalRefIdempotently();

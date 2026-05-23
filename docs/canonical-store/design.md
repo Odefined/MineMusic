@@ -2,9 +2,8 @@
 
 ## Status
 
-Design document. The current code contains a minimal in-memory implementation in
-`src/canonical/index.ts`. This document defines the intended Canonical Store
-shape before durable storage and richer identity operations are implemented.
+Design document. Canonical Store implementation progress is tracked separately
+in `docs/canonical-store/progress.md`.
 
 ## Purpose
 
@@ -278,6 +277,7 @@ Wire canonical domain events after the event/outbox boundary is chosen.
 | Source integration | `src/source/index.ts` | `createSourceResolutionService` |
 | Current tests | `test/canonical/canonical-store.test.ts` | canonical store runtime tests |
 | Storage design | `docs/canonical-store/storage-model.md` | table and transaction model |
+| Progress | `docs/canonical-store/progress.md` | implementation status and verification |
 
 ## Open Decisions
 
@@ -288,4 +288,3 @@ Wire canonical domain events after the event/outbox boundary is chosen.
   Stage Interface tool.
 - How domain events are persisted: direct Event Service record, domain event
   bus, or outbox table.
-

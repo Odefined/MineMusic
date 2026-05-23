@@ -203,10 +203,42 @@
   `docs/canonical-store/interfaces.md` to define Canonical Store responsibilities,
   module exposure, public/admin ports, repository boundaries, and first durable
   implementation expectations.
+- Added `docs/canonical-store/implementation-plan.md` with sequential tasks for
+  SQLite-backed durable storage, canonical identity hygiene, Stage Core
+  injection, persistence integration tests, and state documentation.
+
+## 2026-05-24
+
+- Started Canonical Store implementation with a TDD tracer bullet against the
+  documented SQLite storage model.
+- Added `src/storage/sqlite/index.ts`, a `node:sqlite`-backed
+  `CanonicalRecordRepository` that initializes canonical entity, external-ref,
+  and alias tables and rehydrates public `CanonicalRecord` values.
+- Added `test/storage/sqlite-canonical-store.test.ts` to prove canonical record
+  persistence, external-ref reverse lookup, and external-ref conflict behavior
+  across repository reopen.
+- Tightened `src/canonical/index.ts` identity policy so provisional creation
+  reuses existing current records by external evidence, normalized label, or
+  alias; ordinary label/external-ref lookup ignores historical records; and
+  repeated same-record external-ref attachment stays idempotent.
+- Added Canonical Store policy tests for evidence reuse, normalized-label reuse,
+  alias reuse and lookup, historical-status filtering, durable conflict
+  behavior, and idempotent external-ref attachment.
+- Changed the stage-core runtime test runner to import test modules
+  sequentially, removing a handbook file read/write race between plugin
+  packaging checks and Stage Core startup tests.
+- Added `docs/canonical-store/progress.md` as the dedicated Canonical Store
+  implementation progress file, and moved progress/status tracking out of the
+  design, storage-model, interface, and implementation-plan documents.
+- Stage Core still defaults to in-memory canonical storage. Optional durable
+  canonical storage injection and end-to-end runtime restart tests remain the
+  next implementation steps.
 
 ## Next
 
+- Add Stage Core wiring for optional SQLite-backed Canonical Store storage
+  while preserving the default in-memory runtime.
+- Add an end-to-end persistence integration test that recreates Stage Core with
+  the same canonical database path.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool
   descriptors change outside runtime startup.
-- Later implementation should target durable storage and richer host-surface
-  validation without moving recommendation logic into host adapters.

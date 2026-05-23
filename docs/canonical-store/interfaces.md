@@ -2,9 +2,8 @@
 
 ## Status
 
-Interface design document. Current code exposes the MVP `CanonicalStorePort` in
-`src/ports/index.ts`. This document defines the intended public, admin, and
-storage-facing interfaces before implementation.
+Interface design document. Current implementation progress is tracked
+separately in `docs/canonical-store/progress.md`.
 
 ## Interface Layers
 
@@ -374,16 +373,7 @@ The first durable implementation should prove:
 6. source refs never become MineMusic refs.
 7. provider adapters cannot import the repository.
 
-## Current Code Gap
+## Progress Tracking
 
-Current `src/canonical/index.ts` is a minimal in-memory service over an injected
-repository. It does not yet implement:
-
-- durable storage.
-- alias lookup.
-- duplicate provisional prevention.
-- active/provisional filtering.
-- admin operations.
-- domain-event publication.
-- merge/rejection behavior.
-
+Implementation status, verified behavior, and remaining gaps are tracked in
+`docs/canonical-store/progress.md`.
