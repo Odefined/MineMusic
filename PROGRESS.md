@@ -92,14 +92,14 @@
 ## 2026-05-18
 
 - Entered Wave 7 planning on branch `codex/wave7-live-source-provider`.
-- Added the Wave 7 live source-provider design spec at
-  `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
+- Added the Wave 7 live source-provider design spec, now preserved in
+  `docs/source-providers/netease.md`.
 - Updated current state and verification notes to remove the stale branch
   integration blocker.
 - Corrected the local NetEase Cloud Music API endpoint to default to
   `http://127.0.0.1:3000` after live endpoint confirmation.
-- Added Wave 7 implementation plan at
-  `docs/superpowers/plans/2026-05-18-wave7-live-source-provider.md`.
+- Added Wave 7 implementation planning notes, now preserved in
+  `docs/source-providers/netease.md`.
 - Added read-only NetEase source provider adapter in
   `src/providers/netease/index.ts`.
 - Added deterministic provider tests in
@@ -112,10 +112,8 @@
   search-link validation is claimed for the current local service.
 - Merged `codex/wave7-live-source-provider` locally back to `main`.
 - Entered Wave 8 on branch `codex/wave8-codex-instruments-plugin`.
-- Added the Wave 8 Codex instruments plugin design spec at
-  `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`.
-- Added the Wave 8 implementation plan at
-  `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
+- Added the Wave 8 Codex instruments plugin design spec and implementation
+  planning notes, now preserved in `docs/host-adapters/codex-mcp-plugin.md`.
 - Added `stage.materials.prepare` as a stable instrument/Stage Interface entry and
   routed the fixture transcript through the tool-visible Stage Modules gate.
 - Added initial instrument enforcement in Tool Dispatch while keeping
@@ -188,18 +186,27 @@
   NetEase and returned source-backed links such as
   `https://music.163.com/#/song?id=22644323`, while preserving the boundary that
   `open_link` remains an effect proposal rather than an executed action.
-- Updated `CURRENT_STATE.md` and `docs/mvp/verification-report.md` to distinguish
-  current-session Codex tool usability from unverified fresh-install or
-  new-session plugin discovery.
+- Updated `CURRENT_STATE.md` and `docs/mvp/verification-report.md` to record
+  current-session Codex tool usability and user-confirmed fresh-session plugin
+  validation with separate evidence boundaries.
 - Recorded user confirmation that fresh Codex app plugin-session validation has
   also been completed, while keeping the evidence boundary explicit: this
   host-app check is not represented by a repository command transcript.
+- Merged `codex/wave8-codex-instruments-plugin` locally into `main`.
+- Migrated the valuable Wave 7 and Wave 8 workflow-specific material into
+  stable topic documents under `docs/source-providers/` and
+  `docs/host-adapters/`, then removed the old workflow-specific files.
+- Added `docs/canonical-store/storage-model.md` to ground the next Canonical
+  Store storage implementation in project contracts and external music metadata
+  references.
+- Added `docs/canonical-store/design.md` and
+  `docs/canonical-store/interfaces.md` to define Canonical Store responsibilities,
+  module exposure, public/admin ports, repository boundaries, and first durable
+  implementation expectations.
 
 ## Next
 
 - Validate Handbook refresh behavior in more host surfaces when plugin tool
   descriptors change outside runtime startup.
-- Decide whether to merge `codex/wave8-codex-instruments-plugin` back to
-  `main`, push a PR, keep the branch, or discard the branch.
 - Later implementation should target durable storage and richer host-surface
   validation without moving recommendation logic into host adapters.

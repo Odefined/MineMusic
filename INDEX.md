@@ -67,52 +67,55 @@ This index points agents to the current MVP documentation pack.
 18. `PROGRESS.md`
     - Change log for the MVP documentation baseline.
 
-19. `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`
-    - Wave 7 design for validating one live read-only source provider through
-      the existing source provider slot.
+19. `docs/canonical-store/storage-model.md`
+    - Canonical Store durable storage model and open design questions.
 
-20. `docs/superpowers/plans/2026-05-18-wave7-live-source-provider.md`
-    - Wave 7 implementation plan for the NetEase provider adapter and opt-in
-      live smoke.
+20. `docs/canonical-store/design.md`
+    - Canonical Store responsibility, data flow, module boundaries, and
+      implementation phases.
 
-21. `src/providers/netease/index.ts`
+21. `docs/canonical-store/interfaces.md`
+    - Canonical Store public/admin/repository interface design and module access
+      matrix.
+
+22. `docs/source-providers/netease.md`
+    - NetEase source provider design, runtime behavior, boundaries, and
+      verification notes.
+
+23. `src/providers/netease/index.ts`
     - Read-only NetEase source provider adapter implementing `SourceProvider`.
 
-22. `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`
-    - Wave 8 design for exposing MineMusic instruments to Codex through a
-      repo-local MCP plugin.
+24. `docs/host-adapters/codex-mcp-plugin.md`
+    - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
+      verification notes.
 
-23. `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`
-    - Wave 8 implementation plan for Stage materials tooling, MCP registration,
-      and plugin packaging.
-
-24. `src/stage_core/index.ts`
+25. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, and exposes the runtime object.
 
-25. `src/surfaces/mcp/server.ts`
+26. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-26. `src/stage_interface/**`
+27. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade.
 
-27. `src/handbook/index.ts`
+28. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-28. `plugins/minemusic/.codex-plugin/plugin.json`
+29. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-29. `plugins/minemusic/.mcp.json`
+30. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-30. `plugins/minemusic/skills/minemusic/SKILL.md`
+31. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-31. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+32. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 

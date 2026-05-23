@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is at the Wave 8 Codex instruments plugin implementation stage on
-`codex/wave8-codex-instruments-plugin`.
+MineMusic is on `main` with the Wave 8 Codex instruments plugin implementation
+merged locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -74,6 +74,10 @@ host-facing and LLM-facing surface.
   behavior.
 - Canonical Store is exported from `src/canonical/index.ts` with get, external
   ref resolution, provisional record creation, and external ref attachment.
+- Canonical Store durable storage design is documented in
+  `docs/canonical-store/storage-model.md`. Responsibility and interface designs
+  are documented in `docs/canonical-store/design.md` and
+  `docs/canonical-store/interfaces.md`. Implementation is still in-memory.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and
@@ -113,20 +117,16 @@ host-facing and LLM-facing surface.
 - Wave 6 final review is documented in `docs/mvp/final-review.md`.
 - Stage Module public methods are covered for detached public-port usage.
 - The Wave 1-6 implementation branch was merged locally into `main`.
-- Wave 7 live source-provider validation design is documented in
-  `docs/superpowers/specs/2026-05-18-wave7-live-source-provider-design.md`.
-- Wave 7 implementation plan is documented in
-  `docs/superpowers/plans/2026-05-18-wave7-live-source-provider.md`.
+- NetEase source-provider design, boundaries, and verification notes are
+  documented in `docs/source-providers/netease.md`.
 - NetEase source provider adapter is exported from
   `src/providers/netease/index.ts`.
 - NetEase provider tests cover fixture payload mapping, blocked material,
   Source Resolution plugin-slot integration, and source-ref link refresh.
 - `npm run smoke:netease` provides opt-in live validation and skips unless
   `MINEMUSIC_LIVE_NETEASE=1`.
-- The Wave 8 Codex instruments plugin design is documented in
-  `docs/superpowers/specs/2026-05-18-wave8-codex-instruments-plugin-design.md`.
-- The Wave 8 implementation plan is documented in
-  `docs/superpowers/plans/2026-05-18-wave8-codex-instruments-plugin.md`.
+- The Codex MCP plugin surface design, packaging, and verification notes are
+  documented in `docs/host-adapters/codex-mcp-plugin.md`.
 - `stage.materials.prepare` is a stable Stage Interface / Instrument tool, so
   Material Gate behavior is Codex-visible.
 - Tool Dispatch enforces current instrument availability through
