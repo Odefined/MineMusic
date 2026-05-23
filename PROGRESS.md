@@ -253,11 +253,19 @@
   artists, playlists, and source-only fallback items. The document keeps
   Collection separate from Canonical Store, Memory Service, Event Service, and
   Effect Boundary.
+- Added `docs/library-import/design.md` to define a future Library Import
+  Service and Platform Library Provider slot for helping users switch from
+  external platforms by importing saved songs, albums, followed artists,
+  playlists, playlist items, and other platform-library facts into MineMusic
+  collection items, canonical external-ref bindings, and import event records.
 
 ## Next
 
 - Decide whether to implement Collection Service or first resolve its open
   design questions around `release`, playlist scope, and session/user scope.
+- Decide whether the next product slice should implement Collection Service
+  foundations first or the Library Import provider slot plus NetEase import
+  preview path.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

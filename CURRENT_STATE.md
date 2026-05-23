@@ -123,6 +123,12 @@ host-facing and LLM-facing surface.
   `docs/collection-service/design.md` as a future Core Capability for explicit
   saved/favorited music objects such as songs, albums, releases, artists, and
   playlists.
+- Library Import Service and Platform Library Provider are not implemented.
+  The design is documented in `docs/library-import/design.md` as a future path
+  for helping users switch from platforms such as NetEase by importing saved
+  songs, albums, followed artists, playlists, and other platform-library facts
+  into MineMusic-owned collection items, canonical external-ref bindings, and
+  import event records.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
 - Source Resolution is exported from `src/source/index.ts` with provider search,
@@ -204,6 +210,9 @@ host-facing and LLM-facing surface.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store
   repository adapter.
 - Stage Core wiring for optional durable Canonical Store storage.
+- Library Import Service, Platform Library Provider slot, import batch storage,
+  and Stage Interface import tools.
+- Collection Service implementation and collection storage.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
