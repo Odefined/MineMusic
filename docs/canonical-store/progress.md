@@ -47,12 +47,16 @@ Implemented:
   in-memory canonical storage as the default.
 - Stage Core factory tests prove Source Resolution uses the injected canonical
   repository through Stage Interface tools.
+- Stage Core persistence integration test recreates a runtime with the same
+  SQLite canonical database path and proves canonical-backed material remains
+  `confirmed_playable`.
+- The same persistence integration test proves unknown source-only playable
+  material remains `source_only_playable`.
 - Sequential runtime test loading in `test/run-stage-core-tests.ts` so
   handbook file writes do not race plugin packaging checks.
 
 Pending:
 
-- End-to-end Stage Core restart test using the same canonical database path.
 - Public `addAlias` method.
 - Admin port for activate/reject/merge/list.
 - Merge redirect behavior.
@@ -84,6 +88,10 @@ Pending:
   Core factories while preserving the default in-memory runtime. MCP keeps
   using the default Stage Core path and does not introduce a canonical database
   environment variable yet.
+- Completed Task 5 by adding
+  `test/integration/canonical-persistence.test.ts`, which recreates Stage Core
+  with the same SQLite canonical database path and verifies persisted canonical
+  identity through Stage Interface / Source Resolution.
 - Added reopen persistence and conflict tests.
 - Added canonical identity hygiene tests and implementation.
 - Documented that Stage Core still defaults to in-memory canonical storage.
@@ -109,7 +117,6 @@ Results:
 
 ## Next Slice
 
-1. Add an integration test that creates Stage Core with SQLite-backed
-   canonical storage, recreates it against the same database path, and proves
-   identity lookup survives restart.
-2. Keep the MCP default runtime in-memory until the restart path is verified.
+1. Document the completed Canonical Store implementation state.
+2. Decide whether to expose a governed runtime configuration path for durable
+   canonical storage in MCP or another host adapter.

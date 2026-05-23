@@ -103,6 +103,11 @@ host-facing and LLM-facing surface.
   factories now accept optional `canonicalRepository` injection for host
   surfaces or tests that need durable canonical storage. The Codex MCP default
   path has not added a canonical database environment variable.
+- Canonical Store persistence integration is covered by
+  `test/integration/canonical-persistence.test.ts`: it recreates Stage Core
+  with the same SQLite canonical database path, proves persisted canonical
+  identity still yields `confirmed_playable` material, and proves unknown
+  source-only playable material remains `source_only_playable`.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and

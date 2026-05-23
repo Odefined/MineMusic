@@ -15,6 +15,7 @@ const testModules = [
   "./surfaces/mcp-server.test.js",
   "./stage_interface/stage-interface-dispatch.test.js",
   "./stage_interface/stage-interface.test.js",
+  "./integration/canonical-persistence.test.js",
   "./integration/mvp-slice.test.js",
 ];
 

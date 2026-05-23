@@ -241,10 +241,13 @@
   `canonicalRepository` injection to Stage Core factories while preserving the
   default in-memory runtime. End-to-end runtime restart tests remain the next
   implementation step.
+- Completed Canonical Store plan Task 5 by adding
+  `test/integration/canonical-persistence.test.ts`, which recreates Stage Core
+  with the same SQLite canonical database path and verifies both persisted
+  canonical `confirmed_playable` behavior and unknown source-only
+  `source_only_playable` behavior.
 
 ## Next
 
-- Add an end-to-end persistence integration test that recreates Stage Core with
-  the same canonical database path.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool
   descriptors change outside runtime startup.

@@ -109,44 +109,48 @@ This index points agents to the current MVP documentation pack.
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository.
 
-31. `docs/source-providers/netease.md`
+31. `test/integration/canonical-persistence.test.ts`
+    - Stage Core restart-style persistence test for SQLite-backed canonical
+      storage.
+
+32. `docs/source-providers/netease.md`
     - NetEase source provider design, runtime behavior, boundaries, and
       verification notes.
 
-32. `src/providers/netease/index.ts`
+33. `src/providers/netease/index.ts`
     - Read-only NetEase source provider adapter implementing `SourceProvider`.
 
-33. `docs/host-adapters/codex-mcp-plugin.md`
+34. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
       verification notes.
 
-34. `src/stage_core/index.ts`
+35. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, and exposes the runtime object.
 
-35. `src/surfaces/mcp/server.ts`
+36. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-36. `src/stage_interface/**`
+37. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade.
 
-37. `src/handbook/index.ts`
+38. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-38. `plugins/minemusic/.codex-plugin/plugin.json`
+39. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-39. `plugins/minemusic/.mcp.json`
+40. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-40. `plugins/minemusic/skills/minemusic/SKILL.md`
+41. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-41. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+42. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 
