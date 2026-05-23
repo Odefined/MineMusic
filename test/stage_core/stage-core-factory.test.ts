@@ -3,13 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type {
+  CanonicalRecord,
   MaterialResolveResult,
   MusicMaterial,
+  Ref,
   Result,
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
 import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
+import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -130,5 +133,80 @@ async function writesInstrumentHandbookOnStageCoreReady(): Promise<void> {
   }
 }
 
+async function usesInjectedCanonicalRepositoryForSourceResolution(): Promise<void> {
+  const sourceRef: Ref = {
+    namespace: "source:provider",
+    kind: "track",
+    id: "known-track",
+  };
+  const canonicalRecord: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "known-canonical",
+      label: "Known Canonical Track",
+    },
+    kind: "recording",
+    label: "Known Canonical Track",
+    status: "active",
+    externalKeys: [sourceRef],
+  };
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const material: MusicMaterial = {
+    id: "provider:track:known-track",
+    kind: "recording",
+    label: "Known Canonical Track",
+    state: "grounded",
+    sourceRefs: [sourceRef],
+    playableLinks: [
+      {
+        url: "https://provider.example/play/known-track",
+        sourceRef,
+      },
+    ],
+  };
+  const sourceProvider: SourceProvider = {
+    id: "stage-core-test-provider",
+    async search() {
+      return { ok: true, value: [material] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: material.playableLinks ?? [] };
+    },
+  };
+
+  await assertOk(canonicalRepository.put(canonicalRecord));
+
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+    canonicalRepository,
+  });
+  await stageCore.ready;
+
+  const resolveResult = await assertOk(
+    stageCore.stageInterface.tools["music.material.resolve"]({
+      kind: "single",
+      candidate: {
+        id: "known",
+        label: "Known Canonical Track",
+        sourceRef,
+      },
+    }) as Promise<Result<MaterialResolveResult>>,
+  );
+  assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
+  const resolvedMaterial = resolveResult.result.materials[0];
+
+  assert(
+    resolvedMaterial?.canonicalRef?.id === canonicalRecord.ref.id,
+    "Stage Core should resolve through the injected canonical repository",
+  );
+  assert(
+    resolvedMaterial?.state === "confirmed_playable",
+    "Injected canonical storage should allow source-backed material to become confirmed playable",
+  );
+}
+
 await createsStageCoreWithInjectedSourceProvider();
 await writesInstrumentHandbookOnStageCoreReady();
+await usesInjectedCanonicalRepositoryForSourceResolution();

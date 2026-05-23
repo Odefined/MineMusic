@@ -43,12 +43,15 @@ Implemented:
   `src/canonical/normalization.ts`.
 - Canonical Store storage mechanics are isolated in `src/canonical/storage.ts`,
   so `src/canonical/index.ts` no longer scans `repository.list()` directly.
+- Stage Core accepts optional `canonicalRepository` injection while keeping
+  in-memory canonical storage as the default.
+- Stage Core factory tests prove Source Resolution uses the injected canonical
+  repository through Stage Interface tools.
 - Sequential runtime test loading in `test/run-stage-core-tests.ts` so
   handbook file writes do not race plugin packaging checks.
 
 Pending:
 
-- Stage Core option for injecting durable canonical storage.
 - End-to-end Stage Core restart test using the same canonical database path.
 - Public `addAlias` method.
 - Admin port for activate/reject/merge/list.
@@ -77,6 +80,10 @@ Pending:
   `src/canonical/normalization.ts`, moving label/external-ref/current-record
   lookup mechanics into `src/canonical/storage.ts`, and keeping
   `src/canonical/index.ts` focused on Canonical Store policy flow.
+- Completed Task 4 by adding optional `canonicalRepository` injection to Stage
+  Core factories while preserving the default in-memory runtime. MCP keeps
+  using the default Stage Core path and does not introduce a canonical database
+  environment variable yet.
 - Added reopen persistence and conflict tests.
 - Added canonical identity hygiene tests and implementation.
 - Documented that Stage Core still defaults to in-memory canonical storage.
@@ -102,9 +109,7 @@ Results:
 
 ## Next Slice
 
-1. Add Stage Core factory injection for a canonical repository or canonical
-   storage option.
-2. Keep default Stage Core behavior in-memory.
-3. Add an integration test that creates Stage Core with SQLite-backed
+1. Add an integration test that creates Stage Core with SQLite-backed
    canonical storage, recreates it against the same database path, and proves
    identity lookup survives restart.
+2. Keep the MCP default runtime in-memory until the restart path is verified.

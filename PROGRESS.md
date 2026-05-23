@@ -237,14 +237,13 @@
 - Completed Canonical Store plan Task 3 by splitting canonical normalization
   and repository-backed lookup/write mechanics out of `src/canonical/index.ts`
   into `src/canonical/normalization.ts` and `src/canonical/storage.ts`.
-- Stage Core still defaults to in-memory canonical storage. Optional durable
-  canonical storage injection and end-to-end runtime restart tests remain the
-  next implementation steps.
+- Completed Canonical Store plan Task 4 by adding optional
+  `canonicalRepository` injection to Stage Core factories while preserving the
+  default in-memory runtime. End-to-end runtime restart tests remain the next
+  implementation step.
 
 ## Next
 
-- Add Stage Core wiring for optional SQLite-backed Canonical Store storage
-  while preserving the default in-memory runtime.
 - Add an end-to-end persistence integration test that recreates Stage Core with
   the same canonical database path.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool

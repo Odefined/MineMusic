@@ -13,6 +13,7 @@ import { writeInstrumentHandbookFile } from "../handbook/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
 import type {
+  CanonicalRecordRepository,
   CanonicalStorePort,
   EffectBoundaryPort,
   EventPort,
@@ -56,6 +57,7 @@ export type MineMusicStageCoreOptions = {
   session: StageSession;
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
+  canonicalRepository?: CanonicalRecordRepository;
   handbookPath?: string;
 };
 
@@ -63,6 +65,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   session: StageSession;
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
+  canonicalRepository?: CanonicalRecordRepository;
   handbookPath?: string;
 };
 
@@ -70,12 +73,14 @@ export function createMineMusicStageCore({
   session,
   sourceMaterials,
   canonicalRecords = [],
+  canonicalRepository,
   handbookPath,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
   return createMineMusicStageCoreWithSourceProvider({
     session,
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
+    ...(canonicalRepository === undefined ? {} : { canonicalRepository }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
   });
 }
@@ -84,9 +89,10 @@ export function createMineMusicStageCoreWithSourceProvider({
   session,
   sourceProvider,
   canonicalRecords = [],
+  canonicalRepository: injectedCanonicalRepository,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
-  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const canonicalRepository = injectedCanonicalRepository ?? createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();
@@ -187,7 +193,7 @@ async function seedRuntime({
   sourceProvider,
 }: {
   canonicalRecords: CanonicalRecord[];
-  canonicalRepository: ReturnType<typeof createInMemoryCanonicalRecordRepository>;
+  canonicalRepository: CanonicalRecordRepository;
   handbookPath: string;
   instruments: ReturnType<typeof createInstrumentCatalog>;
   session: StageSession;

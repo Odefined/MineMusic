@@ -99,8 +99,10 @@ host-facing and LLM-facing surface.
   external refs, and aliases. Tests prove `get`, `resolveExternalRef`,
   external-ref conflicts across repository reopen, and SQLite uniqueness
   failures mapped to `canonical.external_ref_conflict` at the Canonical Store
-  boundary. Stage Core still defaults to in-memory canonical storage and does
-  not yet expose durable canonical storage injection in host runtimes.
+  boundary. Stage Core still defaults to in-memory canonical storage, and its
+  factories now accept optional `canonicalRepository` injection for host
+  surfaces or tests that need durable canonical storage. The Codex MCP default
+  path has not added a canonical database environment variable.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and
