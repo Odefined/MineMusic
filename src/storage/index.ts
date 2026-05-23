@@ -16,6 +16,12 @@ import type {
   SessionRepository,
 } from "../ports/index.js";
 
+export {
+  createSqliteCanonicalRecordRepository,
+  sqliteCanonicalExternalRefConflictConstraint,
+} from "./sqlite/index.js";
+export type { SqliteCanonicalRecordRepositoryOptions } from "./sqlite/index.js";
+
 type RepositoryOptions<TRecord, TKey> = {
   recordKey(record: TRecord): TKey;
   keyToStorageKey(key: TKey): string;

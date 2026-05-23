@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createCanonicalStore } from "../../src/canonical/index.js";
-import type { Ref, Result } from "../../src/contracts/index.js";
-import { createSqliteCanonicalRecordRepository } from "../../src/storage/sqlite/index.js";
+import type { CanonicalRecord, Ref, Result } from "../../src/contracts/index.js";
+import type { CanonicalRecordRepository } from "../../src/ports/index.js";
+import { createSqliteCanonicalRecordRepository } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -108,5 +109,71 @@ async function rejectsExternalRefConflictsAfterRepositoryReopen(): Promise<void>
   }
 }
 
+async function mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-race-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const sourceRef: Ref = {
+    namespace: "source:netease",
+    kind: "track",
+    id: "race-track",
+  };
+  const first: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "first-race" },
+    kind: "recording",
+    label: "First Race",
+    status: "active",
+    externalKeys: [sourceRef],
+  };
+  const second: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "second-race" },
+    kind: "recording",
+    label: "Second Race",
+    status: "active",
+  };
+
+  try {
+    const sqliteRepository = createSqliteCanonicalRecordRepository({ path: databasePath });
+
+    await assertOk(sqliteRepository.put(first));
+    await assertOk(sqliteRepository.put(second));
+
+    let hideExistingConflictOnce = true;
+    const staleConflictCheckRepository: CanonicalRecordRepository = {
+      get: (ref) => sqliteRepository.get(ref),
+      put: (record) => sqliteRepository.put(record),
+      async list(query) {
+        const records = await sqliteRepository.list(query);
+
+        if (!records.ok || !hideExistingConflictOnce) {
+          return records;
+        }
+
+        hideExistingConflictOnce = false;
+
+        return {
+          ok: true,
+          value: records.value.filter((record) => record.ref.id !== first.ref.id),
+        };
+      },
+    };
+    const store = createCanonicalStore({
+      repository: staleConflictCheckRepository,
+    });
+    const conflict = await store.attachExternalRef({
+      canonicalRef: second.ref,
+      externalRef: sourceRef,
+    });
+
+    assert(!conflict.ok, "SQLite unique external-ref failure should cross the canonical boundary");
+    assert(
+      conflict.error.code === "canonical.external_ref_conflict",
+      "SQLite unique external-ref failure should map to canonical conflict code",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 await persistsCanonicalRecordsAcrossRepositoryReopen();
 await rejectsExternalRefConflictsAfterRepositoryReopen();
+await mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary();

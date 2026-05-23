@@ -94,7 +94,7 @@ export function createCanonicalStore({
         externalKeys: evidence ?? [],
       };
 
-      return repository.put(record);
+      return mapRepositoryWriteResult(await repository.put(record), evidence?.[0]);
     },
 
     async attachExternalRef({ canonicalRef, externalRef }) {
@@ -124,10 +124,13 @@ export function createCanonicalStore({
         ? existingExternalKeys
         : [...existingExternalKeys, externalRef];
 
-      return repository.put({
-        ...canonicalRecord.value,
-        externalKeys,
-      });
+      return mapRepositoryWriteResult(
+        await repository.put({
+          ...canonicalRecord.value,
+          externalKeys,
+        }),
+        externalRef,
+      );
     },
   };
 }
@@ -212,6 +215,51 @@ async function findExternalRefConflict(
   }
 
   return ok(null);
+}
+
+function mapRepositoryWriteResult(
+  result: Result<CanonicalRecord>,
+  externalRef: Ref | undefined,
+): Result<CanonicalRecord> {
+  if (result.ok || !isExternalRefUniqueStorageError(result.error)) {
+    return result;
+  }
+
+  return fail({
+    code: "canonical.external_ref_conflict",
+    message:
+      externalRef === undefined
+        ? "An external ref is already attached to another canonical record."
+        : `External ref '${externalRef.namespace}:${externalRef.kind}:${externalRef.id}' is already attached to another canonical record.`,
+    module: "canonical",
+    retryable: false,
+  });
+}
+
+function isExternalRefUniqueStorageError(error: StageError): boolean {
+  return (
+    error.code === "storage.unavailable" &&
+    hasExternalRefUniqueConstraint(error.cause)
+  );
+}
+
+function hasExternalRefUniqueConstraint(cause: unknown): boolean {
+  if (typeof cause !== "object" || cause === null) {
+    return false;
+  }
+
+  if (
+    "constraint" in cause &&
+    cause.constraint === "canonical_external_refs_unique"
+  ) {
+    return true;
+  }
+
+  if ("cause" in cause) {
+    return hasExternalRefUniqueConstraint(cause.cause);
+  }
+
+  return false;
 }
 
 function sameRef(left: Ref, right: Ref): boolean {

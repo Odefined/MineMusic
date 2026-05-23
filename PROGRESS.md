@@ -230,6 +230,10 @@
 - Added `docs/canonical-store/progress.md` as the dedicated Canonical Store
   implementation progress file, and moved progress/status tracking out of the
   design, storage-model, interface, and implementation-plan documents.
+- Completed Canonical Store plan Task 2 by splitting SQLite schema and
+  repository code into dedicated files, exporting the SQLite repository factory
+  through `src/storage/index.ts`, and mapping SQLite external-ref uniqueness
+  failures to `canonical.external_ref_conflict` at the Canonical Store boundary.
 - Stage Core still defaults to in-memory canonical storage. Optional durable
   canonical storage injection and end-to-end runtime restart tests remain the
   next implementation steps.

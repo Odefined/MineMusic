@@ -71,7 +71,8 @@ host-facing and LLM-facing surface.
 - The runtime test runner imports compiled test modules sequentially so
   file-writing startup tests do not race plugin packaging checks.
 - In-memory repositories are exported from `src/storage/index.ts` for sessions,
-  canonical records, events, memory entries, and effect proposals.
+  canonical records, events, memory entries, and effect proposals. The same
+  module also exports the SQLite-backed Canonical Store repository factory.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
@@ -86,12 +87,16 @@ host-facing and LLM-facing surface.
   `docs/canonical-store/interfaces.md`. The durable implementation plan is
   documented in `docs/canonical-store/implementation-plan.md`. Canonical
   Store-specific progress is tracked in `docs/canonical-store/progress.md`.
-- SQLite-backed Canonical Store storage is implemented in
-  `src/storage/sqlite/index.ts` for direct repository injection. It persists
-  canonical entities, external refs, and aliases, and tests prove `get`,
-  `resolveExternalRef`, and external-ref conflicts across repository reopen.
-  Stage Core still defaults to in-memory canonical storage and does not yet
-  expose durable canonical storage injection in host runtimes.
+- SQLite-backed Canonical Store storage is implemented under
+  `src/storage/sqlite/**` for direct repository injection. Schema
+  initialization lives in `src/storage/sqlite/canonical-schema.ts`; repository
+  behavior lives in `src/storage/sqlite/canonical-repository.ts`; public exports
+  live in `src/storage/sqlite/index.ts`. It persists canonical entities,
+  external refs, and aliases. Tests prove `get`, `resolveExternalRef`,
+  external-ref conflicts across repository reopen, and SQLite uniqueness
+  failures mapped to `canonical.external_ref_conflict` at the Canonical Store
+  boundary. Stage Core still defaults to in-memory canonical storage and does
+  not yet expose durable canonical storage injection in host runtimes.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and

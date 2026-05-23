@@ -20,12 +20,20 @@ Date: 2026-05-24
 
 Implemented:
 
-- SQLite-backed canonical repository in `src/storage/sqlite/index.ts`.
-- SQLite schema initialization for `canonical_entities`,
-  `canonical_external_refs`, and `canonical_aliases`.
+- SQLite-backed canonical repository exported through `src/storage/index.ts`.
+- SQLite schema initialization split into
+  `src/storage/sqlite/canonical-schema.ts`.
+- SQLite repository implementation split into
+  `src/storage/sqlite/canonical-repository.ts`.
+- SQLite public exports kept in `src/storage/sqlite/index.ts`.
+- Schema covers `canonical_entities`, `canonical_external_refs`, and
+  `canonical_aliases`.
 - Rehydration of public `CanonicalRecord` values from SQLite rows.
 - Persistence/reopen tests in `test/storage/sqlite-canonical-store.test.ts`
   for `get`, `resolveExternalRef`, and external-ref conflicts.
+- SQLite `canonical_external_refs` uniqueness failures are tagged by storage
+  and mapped to `canonical.external_ref_conflict` at the Canonical Store
+  boundary.
 - Canonical Store policy now reuses existing records by external evidence.
 - Canonical Store policy now reuses existing records by normalized label.
 - Canonical Store policy now reuses existing records by alias.
@@ -40,8 +48,6 @@ Pending:
 - End-to-end Stage Core restart test using the same canonical database path.
 - Dedicated canonical-specific repository operations; current policy still uses
   the generic repository interface and scans `repository.list()`.
-- Race-level SQLite uniqueness error mapping to
-  `canonical.external_ref_conflict`.
 - Public `addAlias` method.
 - Admin port for activate/reject/merge/list.
 - Merge redirect behavior.
@@ -61,6 +67,10 @@ Pending:
 
 - Added a TDD tracer bullet for SQLite-backed Canonical Store persistence.
 - Added the first SQLite repository implementation.
+- Completed Task 2 by splitting schema/repository/public exports, exporting the
+  SQLite factory through `src/storage/index.ts`, and mapping SQLite external-ref
+  uniqueness failures to `canonical.external_ref_conflict` at the Canonical
+  Store boundary.
 - Added reopen persistence and conflict tests.
 - Added canonical identity hygiene tests and implementation.
 - Documented that Stage Core still defaults to in-memory canonical storage.

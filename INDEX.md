@@ -89,52 +89,57 @@ This index points agents to the current MVP documentation pack.
 24. `src/canonical/index.ts`
     - Canonical Store public-port implementation and current identity policy.
 
-25. `src/storage/sqlite/index.ts`
-    - SQLite-backed Canonical Store repository for durable canonical identity
-      tests.
+25. `src/storage/sqlite/canonical-schema.ts`
+    - SQLite schema initialization for Canonical Store durable storage.
 
-26. `test/storage/sqlite-canonical-store.test.ts`
+26. `src/storage/sqlite/canonical-repository.ts`
+    - SQLite-backed Canonical Store repository implementation.
+
+27. `src/storage/sqlite/index.ts`
+    - Public SQLite storage exports.
+
+28. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository.
 
-27. `docs/source-providers/netease.md`
+29. `docs/source-providers/netease.md`
     - NetEase source provider design, runtime behavior, boundaries, and
       verification notes.
 
-28. `src/providers/netease/index.ts`
+30. `src/providers/netease/index.ts`
     - Read-only NetEase source provider adapter implementing `SourceProvider`.
 
-29. `docs/host-adapters/codex-mcp-plugin.md`
+31. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
       verification notes.
 
-30. `src/stage_core/index.ts`
+32. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, and exposes the runtime object.
 
-31. `src/surfaces/mcp/server.ts`
+33. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-32. `src/stage_interface/**`
+34. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade.
 
-33. `src/handbook/index.ts`
+35. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-34. `plugins/minemusic/.codex-plugin/plugin.json`
+36. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-35. `plugins/minemusic/.mcp.json`
+37. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-36. `plugins/minemusic/skills/minemusic/SKILL.md`
+38. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-37. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+39. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 
