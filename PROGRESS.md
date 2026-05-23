@@ -248,9 +248,16 @@
 - Completed Canonical Store plan Task 6 by recording implemented scope,
   design-only interfaces, verification commands, and remaining future work in
   the Canonical Store docs and project state docs.
+- Added `docs/collection-service/design.md` to define a future Collection
+  Service for explicit user saves/favorites across songs, albums, releases,
+  artists, playlists, and source-only fallback items. The document keeps
+  Collection separate from Canonical Store, Memory Service, Event Service, and
+  Effect Boundary.
 
 ## Next
 
+- Decide whether to implement Collection Service or first resolve its open
+  design questions around `release`, playlist scope, and session/user scope.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

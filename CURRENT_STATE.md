@@ -119,6 +119,10 @@ host-facing and LLM-facing surface.
   decision handling.
 - Memory Service is exported from `src/memory/index.ts` with evidence-gated
   proposals, effect-boundary acceptance, and summaries.
+- Collection Service is not implemented. The design is documented in
+  `docs/collection-service/design.md` as a future Core Capability for explicit
+  saved/favorited music objects such as songs, albums, releases, artists, and
+  playlists.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
 - Source Resolution is exported from `src/source/index.ts` with provider search,
