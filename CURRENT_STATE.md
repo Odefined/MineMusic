@@ -108,6 +108,11 @@ host-facing and LLM-facing surface.
   with the same SQLite canonical database path, proves persisted canonical
   identity still yields `confirmed_playable` material, and proves unknown
   source-only playable material remains `source_only_playable`.
+- Canonical Store implementation state has been recorded in
+  `docs/canonical-store/progress.md`, `docs/canonical-store/storage-model.md`,
+  `docs/canonical-store/design.md`, and `docs/canonical-store/interfaces.md`.
+  Public `addAlias`, admin operations, merge redirects, canonical domain-event
+  publication, and host runtime DB-path configuration remain future work.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and

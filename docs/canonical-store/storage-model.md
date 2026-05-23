@@ -78,6 +78,27 @@ Reason:
 JSON files are acceptable for export/debug snapshots, but not for the primary
 canonical identity store.
 
+## Implemented Scope
+
+The current durable implementation uses this SQLite model for:
+
+- `canonical_entities`
+- `canonical_external_refs`
+- `canonical_aliases`
+
+`canonical_redirects` remains design-only until merge behavior exists.
+
+Implementation files:
+
+- `src/storage/sqlite/canonical-schema.ts`
+- `src/storage/sqlite/canonical-repository.ts`
+- `src/storage/sqlite/index.ts`
+
+Verification files:
+
+- `test/storage/sqlite-canonical-store.test.ts`
+- `test/integration/canonical-persistence.test.ts`
+
 ## Tables
 
 ### `canonical_entities`

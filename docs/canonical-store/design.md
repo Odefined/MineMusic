@@ -266,16 +266,42 @@ normal recommendation flow.
 
 Wire canonical domain events after the event/outbox boundary is chosen.
 
+## Current Implementation Boundary
+
+The completed MVP implementation covers Phase 1 and Phase 2 behavior for the
+existing `CanonicalStorePort` methods:
+
+- durable SQLite-backed canonical repository.
+- evidence, label, and alias reuse for provisional identity creation.
+- active/provisional filtering for ordinary lookup.
+- idempotent same-record external-ref attachment.
+- Stage Core repository injection with in-memory storage as the default.
+- restart-style persistence coverage through a temp SQLite database.
+
+Still outside the implementation:
+
+- public alias write method.
+- admin activate/reject/merge/list operations.
+- merge redirects.
+- canonical domain-event publication.
+- MCP or other host runtime configuration for a canonical database path.
+
 ## Code References
 
 | Concern | File | Key Symbols |
 | --- | --- | --- |
 | Current Canonical Store | `src/canonical/index.ts` | `createCanonicalStore` |
+| Canonical normalization | `src/canonical/normalization.ts` | `normalizeCanonicalLabel`, `sameRef` |
+| Canonical storage mechanics | `src/canonical/storage.ts` | `createCanonicalStorage` |
 | Public ports | `src/ports/index.ts` | `CanonicalStorePort` |
 | Shared contracts | `src/contracts/index.ts` | `CanonicalRecord`, `Ref`, `DomainEventType` |
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` |
+| SQLite schema | `src/storage/sqlite/canonical-schema.ts` | `initializeCanonicalSchema` |
+| SQLite repository | `src/storage/sqlite/canonical-repository.ts` | `createSqliteCanonicalRecordRepository` |
+| Stage Core injection | `src/stage_core/index.ts` | `canonicalRepository` factory option |
 | Source integration | `src/source/index.ts` | `createSourceResolutionService` |
 | Current tests | `test/canonical/canonical-store.test.ts` | canonical store runtime tests |
+| Persistence tests | `test/integration/canonical-persistence.test.ts` | Stage Core persistence test |
 | Storage design | `docs/canonical-store/storage-model.md` | table and transaction model |
 | Progress | `docs/canonical-store/progress.md` | implementation status and verification |
 

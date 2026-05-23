@@ -18,6 +18,15 @@ Task breakdown belongs in:
 
 Date: 2026-05-24
 
+Task status:
+
+- Task 1: completed.
+- Task 2: completed.
+- Task 3: completed.
+- Task 4: completed.
+- Task 5: completed.
+- Task 6: completed by this documentation pass.
+
 Implemented:
 
 - SQLite-backed canonical repository exported through `src/storage/index.ts`.
@@ -54,6 +63,22 @@ Implemented:
   material remains `source_only_playable`.
 - Sequential runtime test loading in `test/run-stage-core-tests.ts` so
   handbook file writes do not race plugin packaging checks.
+
+Implemented public methods:
+
+- `get`
+- `findByLabel`
+- `resolveExternalRef`
+- `createProvisional`
+- `attachExternalRef`
+
+Design-only public/admin methods:
+
+- `addAlias`
+- `CanonicalAdminPort.activate`
+- `CanonicalAdminPort.reject`
+- `CanonicalAdminPort.merge`
+- `CanonicalAdminPort.list`
 
 Pending:
 
@@ -92,9 +117,13 @@ Pending:
   `test/integration/canonical-persistence.test.ts`, which recreates Stage Core
   with the same SQLite canonical database path and verifies persisted canonical
   identity through Stage Interface / Source Resolution.
+- Completed Task 6 by recording the implemented Canonical Store scope,
+  design-only interfaces, verification boundary, and remaining future work
+  across the canonical docs and project state docs.
 - Added reopen persistence and conflict tests.
 - Added canonical identity hygiene tests and implementation.
-- Documented that Stage Core still defaults to in-memory canonical storage.
+- Documented that Stage Core still defaults to in-memory canonical storage
+  unless a caller explicitly injects a repository.
 
 ## Verification
 
@@ -115,8 +144,19 @@ Results:
 - `git diff --check` passes.
 - `git diff --name-only` was run for the state-sync gate.
 
+Evidence boundary:
+
+- Deterministic persistence coverage is from local temp SQLite files in
+  `test/storage/sqlite-canonical-store.test.ts` and
+  `test/integration/canonical-persistence.test.ts`.
+- Live NetEase validation is separate and remains opt-in through
+  `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease`.
+- The Codex MCP default runtime still uses the default Stage Core path and does
+  not configure a canonical database path.
+
 ## Next Slice
 
-1. Document the completed Canonical Store implementation state.
-2. Decide whether to expose a governed runtime configuration path for durable
+1. Decide whether to expose a governed runtime configuration path for durable
    canonical storage in MCP or another host adapter.
+2. Design the public `addAlias` method before implementing alias writes through
+   the public port.

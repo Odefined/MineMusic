@@ -68,7 +68,8 @@ This index points agents to the current MVP documentation pack.
     - Change log for the MVP documentation baseline.
 
 19. `docs/canonical-store/storage-model.md`
-    - Canonical Store durable storage model and open design questions.
+    - Canonical Store durable storage model, implemented SQLite scope, and
+      open design questions.
 
 20. `docs/canonical-store/design.md`
     - Canonical Store responsibility, data flow, module boundaries, and
@@ -76,15 +77,15 @@ This index points agents to the current MVP documentation pack.
 
 21. `docs/canonical-store/interfaces.md`
     - Canonical Store public/admin/repository interface design and module access
-      matrix.
+      matrix, including implemented methods and design-only methods.
 
 22. `docs/canonical-store/implementation-plan.md`
     - Task-by-task plan for implementing durable Canonical Store storage and
       identity hygiene.
 
 23. `docs/canonical-store/progress.md`
-    - Canonical Store implementation progress, verification status, remaining
-      gaps, and next slice.
+    - Canonical Store implementation progress, current implementation state,
+      verification status, remaining gaps, and next slice.
 
 24. `src/canonical/index.ts`
     - Canonical Store public-port implementation and current identity policy.

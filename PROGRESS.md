@@ -239,15 +239,21 @@
   into `src/canonical/normalization.ts` and `src/canonical/storage.ts`.
 - Completed Canonical Store plan Task 4 by adding optional
   `canonicalRepository` injection to Stage Core factories while preserving the
-  default in-memory runtime. End-to-end runtime restart tests remain the next
-  implementation step.
+  default in-memory runtime.
 - Completed Canonical Store plan Task 5 by adding
   `test/integration/canonical-persistence.test.ts`, which recreates Stage Core
   with the same SQLite canonical database path and verifies both persisted
   canonical `confirmed_playable` behavior and unknown source-only
   `source_only_playable` behavior.
+- Completed Canonical Store plan Task 6 by recording implemented scope,
+  design-only interfaces, verification commands, and remaining future work in
+  the Canonical Store docs and project state docs.
 
 ## Next
 
+- Decide whether to expose a governed runtime configuration path for durable
+  canonical storage in MCP or another host adapter.
+- Design the public `addAlias` method before implementing alias writes through
+  `CanonicalStorePort`.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool
   descriptors change outside runtime startup.

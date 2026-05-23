@@ -117,6 +117,40 @@ only when the storage behavior is ready.
 
 `addAlias` can be introduced after the alias table exists.
 
+### Current Implementation
+
+Implemented methods:
+
+- `get`
+- `findByLabel`
+- `resolveExternalRef`
+- `createProvisional`
+- `attachExternalRef`
+
+Implemented behavior:
+
+- label normalization trims, lowercases, and collapses internal whitespace.
+- `findByLabel` searches primary labels and aliases.
+- `findByLabel` and `resolveExternalRef` return only `active` and
+  `provisional` records.
+- `createProvisional` reuses existing current records by external evidence,
+  normalized label, or alias before creating a new provisional record.
+- `attachExternalRef` is idempotent for refs already attached to the same
+  canonical record.
+- SQLite external-ref uniqueness failures are mapped to
+  `canonical.external_ref_conflict` at the Canonical Store boundary.
+
+Design-only methods and fields:
+
+- `addAlias`
+- `includeHistorical`
+- `followRedirects`
+- `limit`
+- `aliases` input on `createProvisional`
+- `reason`
+- `evidenceEventId`
+- `confidence`
+
 ## Public Method Semantics
 
 ### `get`
