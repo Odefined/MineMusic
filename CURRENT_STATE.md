@@ -81,6 +81,10 @@ host-facing and LLM-facing surface.
   now reuses current canonical records by external evidence, normalized label,
   or alias, filters ordinary lookup to active/provisional records, and keeps
   same-record external-ref attachment idempotent.
+- Canonical Store identity policy is split from storage mechanics:
+  `src/canonical/index.ts` owns policy flow, `src/canonical/normalization.ts`
+  owns label/ref/current-record normalization, and `src/canonical/storage.ts`
+  owns repository-backed lookup and write-error mapping.
 - Canonical Store durable storage design is documented in
   `docs/canonical-store/storage-model.md`. Responsibility and interface designs
   are documented in `docs/canonical-store/design.md` and

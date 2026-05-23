@@ -39,6 +39,10 @@ Implemented:
 - Canonical Store policy now reuses existing records by alias.
 - Ordinary Canonical Store lookup filters to `active` and `provisional`.
 - Repeated same-record external-ref attachment is idempotent.
+- Canonical label/ref/current-record normalization is isolated in
+  `src/canonical/normalization.ts`.
+- Canonical Store storage mechanics are isolated in `src/canonical/storage.ts`,
+  so `src/canonical/index.ts` no longer scans `repository.list()` directly.
 - Sequential runtime test loading in `test/run-stage-core-tests.ts` so
   handbook file writes do not race plugin packaging checks.
 
@@ -46,8 +50,6 @@ Pending:
 
 - Stage Core option for injecting durable canonical storage.
 - End-to-end Stage Core restart test using the same canonical database path.
-- Dedicated canonical-specific repository operations; current policy still uses
-  the generic repository interface and scans `repository.list()`.
 - Public `addAlias` method.
 - Admin port for activate/reject/merge/list.
 - Merge redirect behavior.
@@ -71,6 +73,10 @@ Pending:
   SQLite factory through `src/storage/index.ts`, and mapping SQLite external-ref
   uniqueness failures to `canonical.external_ref_conflict` at the Canonical
   Store boundary.
+- Completed Task 3 by moving canonical normalization into
+  `src/canonical/normalization.ts`, moving label/external-ref/current-record
+  lookup mechanics into `src/canonical/storage.ts`, and keeping
+  `src/canonical/index.ts` focused on Canonical Store policy flow.
 - Added reopen persistence and conflict tests.
 - Added canonical identity hygiene tests and implementation.
 - Documented that Stage Core still defaults to in-memory canonical storage.

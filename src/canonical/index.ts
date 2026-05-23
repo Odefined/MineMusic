@@ -8,6 +8,8 @@ import type {
   CanonicalRecordRepository,
   CanonicalStorePort,
 } from "../ports/index.js";
+import { sameRef } from "./normalization.js";
+import { createCanonicalStorage } from "./storage.js";
 
 type CanonicalStoreOptions = {
   repository: CanonicalRecordRepository;
@@ -18,50 +20,26 @@ export function createCanonicalStore({
   repository,
   idFactory = createDefaultIdFactory("canonical"),
 }: CanonicalStoreOptions): CanonicalStorePort {
+  const storage = createCanonicalStorage({ repository });
+
   return {
     async get({ ref }) {
-      return repository.get(ref);
+      return storage.get(ref);
     },
 
     async findByLabel({ label, kind }) {
-      const records = await repository.list();
-
-      if (!records.ok) {
-        return records;
-      }
-
-      const normalizedLabel = normalizeLabel(label);
-
-      return ok(
-        records.value.filter(
-          (record) =>
-            isCurrentRecord(record) &&
-            matchesRecordLabel(record, normalizedLabel) &&
-            (kind === undefined || record.kind === kind || record.ref.kind === kind),
-        ),
-      );
+      return storage.findByLabel({
+        label,
+        ...(kind === undefined ? {} : { kind }),
+      });
     },
 
     async resolveExternalRef({ ref }) {
-      const records = await repository.list();
-
-      if (!records.ok) {
-        return records;
-      }
-
-      return ok(
-        records.value.find((record) =>
-          isCurrentRecord(record) &&
-          (record.externalKeys ?? []).some((externalRef) => sameRef(externalRef, ref)),
-        ) ?? null,
-      );
+      return storage.resolveExternalRef(ref);
     },
 
     async createProvisional({ kind, label, evidence }) {
-      const existingByEvidence = await findCurrentRecordByExternalEvidence(
-        repository,
-        evidence ?? [],
-      );
+      const existingByEvidence = await storage.findCurrentByExternalEvidence(evidence ?? []);
 
       if (!existingByEvidence.ok) {
         return existingByEvidence;
@@ -71,14 +49,14 @@ export function createCanonicalStore({
         return ok(existingByEvidence.value);
       }
 
-      const existingByLabel = await findCurrentRecordByLabel(repository, { kind, label });
+      const existingByLabel = await storage.findByLabel({ kind, label });
 
       if (!existingByLabel.ok) {
         return existingByLabel;
       }
 
-      if (existingByLabel.value !== null) {
-        return ok(existingByLabel.value);
+      if (existingByLabel.value[0] !== undefined) {
+        return ok(existingByLabel.value[0]);
       }
 
       const record: CanonicalRecord = {
@@ -94,11 +72,18 @@ export function createCanonicalStore({
         externalKeys: evidence ?? [],
       };
 
-      return mapRepositoryWriteResult(await repository.put(record), evidence?.[0]);
+      const evidenceRefForConflict = evidence?.[0];
+
+      return storage.put(
+        record,
+        evidenceRefForConflict === undefined
+          ? {}
+          : { externalRefForConflict: evidenceRefForConflict },
+      );
     },
 
     async attachExternalRef({ canonicalRef, externalRef }) {
-      const canonicalRecord = await repository.get(canonicalRef);
+      const canonicalRecord = await storage.get(canonicalRef);
 
       if (!canonicalRecord.ok) {
         return canonicalRecord;
@@ -113,10 +98,22 @@ export function createCanonicalStore({
         });
       }
 
-      const conflict = await findExternalRefConflict(repository, canonicalRef, externalRef);
+      const conflict = await storage.findExternalRefConflict({
+        canonicalRef,
+        externalRef,
+      });
 
       if (!conflict.ok) {
         return conflict;
+      }
+
+      if (conflict.value !== null) {
+        return fail({
+          code: "canonical.external_ref_conflict",
+          message: `External ref '${externalRef.namespace}:${externalRef.kind}:${externalRef.id}' is already attached to canonical record '${conflict.value.ref.id}'.`,
+          module: "canonical",
+          retryable: false,
+        });
       }
 
       const existingExternalKeys = canonicalRecord.value.externalKeys ?? [];
@@ -124,161 +121,15 @@ export function createCanonicalStore({
         ? existingExternalKeys
         : [...existingExternalKeys, externalRef];
 
-      return mapRepositoryWriteResult(
-        await repository.put({
+      return storage.put(
+        {
           ...canonicalRecord.value,
           externalKeys,
-        }),
-        externalRef,
+        },
+        { externalRefForConflict: externalRef },
       );
     },
   };
-}
-
-async function findCurrentRecordByExternalEvidence(
-  repository: CanonicalRecordRepository,
-  evidence: Ref[],
-): Promise<Result<CanonicalRecord | null>> {
-  if (evidence.length === 0) {
-    return ok(null);
-  }
-
-  const records = await repository.list();
-
-  if (!records.ok) {
-    return records;
-  }
-
-  return ok(
-    records.value.find(
-      (record) =>
-        isCurrentRecord(record) &&
-        evidence.some((evidenceRef) =>
-          (record.externalKeys ?? []).some((externalRef) => sameRef(externalRef, evidenceRef)),
-        ),
-    ) ?? null,
-  );
-}
-
-async function findCurrentRecordByLabel(
-  repository: CanonicalRecordRepository,
-  {
-    kind,
-    label,
-  }: {
-    kind: string;
-    label: string;
-  },
-): Promise<Result<CanonicalRecord | null>> {
-  const records = await repository.list();
-
-  if (!records.ok) {
-    return records;
-  }
-
-  const normalizedLabel = normalizeLabel(label);
-
-  return ok(
-    records.value.find(
-      (record) =>
-        isCurrentRecord(record) &&
-        (record.kind === kind || record.ref.kind === kind) &&
-        matchesRecordLabel(record, normalizedLabel),
-    ) ?? null,
-  );
-}
-
-async function findExternalRefConflict(
-  repository: CanonicalRecordRepository,
-  canonicalRef: Ref,
-  externalRef: Ref,
-): Promise<Result<null>> {
-  const records = await repository.list();
-
-  if (!records.ok) {
-    return records;
-  }
-
-  const conflictingRecord = records.value.find(
-    (record) =>
-      !sameRef(record.ref, canonicalRef) &&
-      (record.externalKeys ?? []).some((candidateRef) => sameRef(candidateRef, externalRef)),
-  );
-
-  if (conflictingRecord !== undefined) {
-    return fail({
-      code: "canonical.external_ref_conflict",
-      message: `External ref '${externalRef.namespace}:${externalRef.kind}:${externalRef.id}' is already attached to canonical record '${conflictingRecord.ref.id}'.`,
-      module: "canonical",
-      retryable: false,
-    });
-  }
-
-  return ok(null);
-}
-
-function mapRepositoryWriteResult(
-  result: Result<CanonicalRecord>,
-  externalRef: Ref | undefined,
-): Result<CanonicalRecord> {
-  if (result.ok || !isExternalRefUniqueStorageError(result.error)) {
-    return result;
-  }
-
-  return fail({
-    code: "canonical.external_ref_conflict",
-    message:
-      externalRef === undefined
-        ? "An external ref is already attached to another canonical record."
-        : `External ref '${externalRef.namespace}:${externalRef.kind}:${externalRef.id}' is already attached to another canonical record.`,
-    module: "canonical",
-    retryable: false,
-  });
-}
-
-function isExternalRefUniqueStorageError(error: StageError): boolean {
-  return (
-    error.code === "storage.unavailable" &&
-    hasExternalRefUniqueConstraint(error.cause)
-  );
-}
-
-function hasExternalRefUniqueConstraint(cause: unknown): boolean {
-  if (typeof cause !== "object" || cause === null) {
-    return false;
-  }
-
-  if (
-    "constraint" in cause &&
-    cause.constraint === "canonical_external_refs_unique"
-  ) {
-    return true;
-  }
-
-  if ("cause" in cause) {
-    return hasExternalRefUniqueConstraint(cause.cause);
-  }
-
-  return false;
-}
-
-function sameRef(left: Ref, right: Ref): boolean {
-  return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
-}
-
-function isCurrentRecord(record: CanonicalRecord): boolean {
-  return record.status === "active" || record.status === "provisional";
-}
-
-function matchesRecordLabel(record: CanonicalRecord, normalizedLabel: string): boolean {
-  return (
-    normalizeLabel(record.label) === normalizedLabel ||
-    (record.aliases ?? []).some((alias) => normalizeLabel(alias) === normalizedLabel)
-  );
-}
-
-function normalizeLabel(label: string): string {
-  return label.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function createDefaultIdFactory(prefix: string): () => string {

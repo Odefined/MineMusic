@@ -234,6 +234,9 @@
   repository code into dedicated files, exporting the SQLite repository factory
   through `src/storage/index.ts`, and mapping SQLite external-ref uniqueness
   failures to `canonical.external_ref_conflict` at the Canonical Store boundary.
+- Completed Canonical Store plan Task 3 by splitting canonical normalization
+  and repository-backed lookup/write mechanics out of `src/canonical/index.ts`
+  into `src/canonical/normalization.ts` and `src/canonical/storage.ts`.
 - Stage Core still defaults to in-memory canonical storage. Optional durable
   canonical storage injection and end-to-end runtime restart tests remain the
   next implementation steps.
