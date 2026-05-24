@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import type {
   CanonicalRecord,
+  Collection,
   MaterialResolveResult,
   MusicMaterial,
   Ref,
@@ -12,7 +13,10 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
-import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";
+import {
+  createInMemoryCanonicalRecordRepository,
+  createInMemoryCollectionRepository,
+} from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -207,6 +211,154 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
   );
 }
 
+async function exposesInitializedCollectionService(): Promise<void> {
+  const sourceProvider: SourceProvider = {
+    id: "stage-core-test-provider",
+    async search() {
+      return { ok: true, value: [] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: [] };
+    },
+  };
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+  });
+  await stageCore.ready;
+
+  const collections = await assertOk(
+    stageCore.collection.listCollections({ ownerScope: "local_profile:default" }),
+  );
+
+  assert(collections.length === 15, "Stage Core should initialize default owner system collections");
+  assert(
+    collections.some(
+      (collection) =>
+        collection.relationKind === "blocked" && collection.collectionKind === "recording",
+    ),
+    "Stage Core should initialize blocked recording system collection",
+  );
+}
+
+async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering(): Promise<void> {
+  const canonicalRecord: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "blocked-canonical",
+      label: "Blocked Canonical Track",
+    },
+    kind: "recording",
+    label: "Blocked Canonical Track",
+    status: "active",
+  };
+  const material: MusicMaterial = {
+    id: "provider:track:blocked",
+    kind: "recording",
+    label: "Blocked Canonical Track",
+    state: "grounded",
+    playableLinks: [
+      {
+        url: "https://provider.example/play/blocked",
+        sourceRef: {
+          namespace: "source:provider",
+          kind: "track",
+          id: "blocked",
+        },
+      },
+    ],
+  };
+  const sourceProvider: SourceProvider = {
+    id: "stage-core-test-provider",
+    async search() {
+      return { ok: true, value: [material] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: material.playableLinks ?? [] };
+    },
+  };
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+    canonicalRecords: [canonicalRecord],
+  });
+  await stageCore.ready;
+  await assertOk(
+    stageCore.collection.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "blocked",
+      canonicalRef: canonicalRecord.ref,
+      label: canonicalRecord.label,
+    }),
+  );
+
+  const resolveResult = await assertOk(
+    stageCore.stageInterface.tools["music.material.resolve"]({
+      kind: "single",
+      candidate: {
+        id: "blocked",
+        label: "Blocked Canonical Track",
+        expectedKind: "track",
+      },
+    }) as Promise<Result<MaterialResolveResult>>,
+  );
+
+  assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
+  assert(
+    resolveResult.result.status === "blocked",
+    "Stage Core Material Resolve should use Collection blocked membership",
+  );
+  assert(
+    resolveResult.result.materials[0]?.state === "blocked",
+    "Stage Core Material Resolve should return blocked material state",
+  );
+}
+
+async function usesInjectedCollectionRepository(): Promise<void> {
+  const collectionRepository = createInMemoryCollectionRepository();
+  const customCollection: Collection = {
+    id: "injected-custom-collection",
+    ownerScope: "local_profile:default",
+    collectionKind: "recording",
+    relationKind: "custom",
+    label: "Injected custom collection",
+    createdAt: "2026-05-24T00:00:00.000Z",
+  };
+  const sourceProvider: SourceProvider = {
+    id: "stage-core-test-provider",
+    async search() {
+      return { ok: true, value: [] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: [] };
+    },
+  };
+  await assertOk(collectionRepository.putCollection({ collection: customCollection }));
+
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+    collectionRepository,
+  });
+  await stageCore.ready;
+
+  const collections = await assertOk(
+    stageCore.collection.listCollections({
+      ownerScope: customCollection.ownerScope,
+      relationKind: "custom",
+    }),
+  );
+
+  assert(
+    collections.some((collection) => collection.id === customCollection.id),
+    "Stage Core should build Collection Service from the injected collection repository",
+  );
+}
+
 await createsStageCoreWithInjectedSourceProvider();
 await writesInstrumentHandbookOnStageCoreReady();
 await usesInjectedCanonicalRepositoryForMaterialResolve();
+await exposesInitializedCollectionService();
+await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
+await usesInjectedCollectionRepository();

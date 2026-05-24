@@ -104,6 +104,8 @@ Current implementation:
 Stage Core is a composition module rather than a domain port. It may import
 module factories to construct the runtime graph. It must not move module-owned
 business behavior into composition.
+The current runtime object exposes composed core capability ports, including
+`collection`, for host surfaces and integration tests.
 
 Consumes:
 

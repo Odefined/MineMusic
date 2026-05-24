@@ -15,6 +15,7 @@ import {
   readHandbookTool,
 } from "../handbook/index.js";
 import type {
+  CollectionPort,
   EffectBoundaryPort,
   EventPort,
   InstrumentCatalogPort,
@@ -36,6 +37,7 @@ type ToolDispatchOptions = {
   events: EventPort;
   memory: MemoryPort;
   effects: EffectBoundaryPort;
+  collection?: CollectionPort;
 };
 
 export function createToolDispatch({

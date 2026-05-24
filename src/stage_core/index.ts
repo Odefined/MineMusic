@@ -7,6 +7,7 @@ import type {
 } from "../contracts/index.js";
 import { join } from "node:path";
 import { createCanonicalStore } from "../canonical/index.js";
+import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { writeInstrumentHandbookFile } from "../handbook/index.js";
@@ -16,6 +17,8 @@ import { createPluginRegistry } from "../plugins/index.js";
 import type {
   CanonicalRecordRepository,
   CanonicalStorePort,
+  CollectionPort,
+  CollectionRepository,
   EffectBoundaryPort,
   EventPort,
   MaterialResolvePort,
@@ -36,6 +39,7 @@ import {
 } from "../stage_interface/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
+  createInMemoryCollectionRepository,
   createInMemoryEffectProposalRepository,
   createInMemoryEventRepository,
   createInMemoryMemoryRepository,
@@ -48,6 +52,7 @@ export type MineMusicStageCore = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
   canonical: CanonicalStorePort;
+  collection: CollectionPort;
   materialResolve: MaterialResolvePort;
   source: SourceGroundingPort;
   events: EventPort;
@@ -61,6 +66,7 @@ export type MineMusicStageCoreOptions = {
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  collectionRepository?: CollectionRepository;
   handbookPath?: string;
 };
 
@@ -69,6 +75,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  collectionRepository?: CollectionRepository;
   handbookPath?: string;
 };
 
@@ -77,6 +84,7 @@ export function createMineMusicStageCore({
   sourceMaterials,
   canonicalRecords = [],
   canonicalRepository,
+  collectionRepository,
   handbookPath,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
   return createMineMusicStageCoreWithSourceProvider({
@@ -84,6 +92,7 @@ export function createMineMusicStageCore({
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
     ...(canonicalRepository === undefined ? {} : { canonicalRepository }),
+    ...(collectionRepository === undefined ? {} : { collectionRepository }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
   });
 }
@@ -93,15 +102,22 @@ export function createMineMusicStageCoreWithSourceProvider({
   sourceProvider,
   canonicalRecords = [],
   canonicalRepository: injectedCanonicalRepository,
+  collectionRepository: injectedCollectionRepository,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
   const canonicalRepository = injectedCanonicalRepository ?? createInMemoryCanonicalRecordRepository();
+  const collectionRepository = injectedCollectionRepository ?? createInMemoryCollectionRepository();
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();
 
   const plugins = createPluginRegistry();
   const canonical = createCanonicalStore({ repository: canonicalRepository });
+  const events = createEventService({ repository: eventRepository });
+  const collection = createCollectionService({
+    repository: collectionRepository,
+    events,
+  });
   const source = createSourceGroundingService({
     canonicalStore: canonical,
     pluginRegistry: plugins,
@@ -109,8 +125,8 @@ export function createMineMusicStageCoreWithSourceProvider({
   const materialResolve = createMaterialResolveService({
     canonicalStore: canonical,
     sourceGrounding: source,
+    collection,
   });
-  const events = createEventService({ repository: eventRepository });
   const effects = createEffectBoundary({ repository: effectRepository });
   const instruments = createInstrumentCatalog();
   const memory = createMemoryService({
@@ -136,6 +152,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     events,
     memory,
     effects,
+    collection,
   });
   const stageInterface = createMineMusicStageInterface({
     sessionId: session.id,
@@ -149,6 +166,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     session,
     plugins,
     sourceProvider,
+    collection,
   });
 
   return {
@@ -158,6 +176,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     sessionContext,
     materialGate,
     canonical,
+    collection,
     materialResolve,
     source,
     events,
@@ -200,6 +219,7 @@ async function seedRuntime({
   session,
   plugins,
   sourceProvider,
+  collection,
 }: {
   canonicalRecords: CanonicalRecord[];
   canonicalRepository: CanonicalRecordRepository;
@@ -208,6 +228,7 @@ async function seedRuntime({
   session: StageSession;
   plugins: PluginRegistryPort;
   sourceProvider: SourceProvider;
+  collection: CollectionPort;
 }): Promise<void> {
   for (const record of canonicalRecords) {
     const putResult = await canonicalRepository.put(record);
@@ -220,6 +241,11 @@ async function seedRuntime({
     provider: sourceProvider,
   });
   throwIfFailed(registerResult);
+
+  const initializedCollections = await collection.initializeOwnerCollections({
+    ownerScope: "local_profile:default",
+  });
+  throwIfFailed(initializedCollections);
 
   const instrumentsResult = await instruments.list({ session });
   const handbookResult = await writeInstrumentHandbookFile({

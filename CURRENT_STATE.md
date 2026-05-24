@@ -153,7 +153,14 @@ host-facing and LLM-facing surface.
   idempotent item add/re-add, active item update/removal, system saved/favorite/
   blocked mutual exclusion, blocked ref filtering, owner-derived Collection
   event session ids, and factual Collection events through `EventPort`. Stage
-  Core wiring and Stage Interface collection tools remain future tasks.
+  Interface collection tools remain future tasks.
+- Collection Service implementation plan Task 6 is complete in Stage Core:
+  `src/stage_core/index.ts` creates an in-memory Collection repository by
+  default, accepts optional collection repository injection, composes
+  `createCollectionService`, initializes `local_profile:default` system
+  Collections during `ready`, exposes `collection` on `MineMusicStageCore`,
+  injects Collection into Material Resolve, and passes Collection into Stage
+  Interface dispatch for upcoming collection tools.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved
@@ -188,8 +195,9 @@ host-facing and LLM-facing surface.
   tool dispatch, and the host-facing callable facade under
   `src/stage_interface/**`.
 - Stage Core runtime composition is exported from `src/stage_core/index.ts` and
-  wires in-memory storage, fixture providers, core ports, Session Context /
-  Material Gate, Stage Interface dispatch, and Stage Interface facade.
+  wires in-memory storage, fixture providers, core ports including Collection
+  Service, Session Context / Material Gate, Stage Interface dispatch, and Stage
+  Interface facade.
 - Stage Core also exports `createMineMusicStageCoreWithSourceProvider` for
   host surfaces that need to register a concrete source provider without
   fixture source materials.

@@ -303,11 +303,16 @@
   blocked canonical materials/candidates as `blocked`, and resolves source
   material external refs through Canonical Store before applying blocked
   filtering.
+- Completed Collection Service implementation plan Task 6 with a TDD loop:
+  Stage Core now creates and exposes Collection Service, initializes
+  `local_profile:default` system Collections during runtime readiness, injects
+  Collection into Material Resolve and Stage Interface dispatch, and supports
+  optional collection repository injection.
 
 ## Next
 
-- Wire Collection Service into Stage Core before import work so imported
-  platform library assets have a user-owned Collection target.
+- Add Stage Interface collection tools before import work so users and future
+  import flows have a governed Collection surface.
 - After Collection foundations, implement the Library Import provider slot plus
   NetEase import preview path.
 - Decide whether to expose a governed runtime configuration path for durable
