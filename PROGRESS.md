@@ -258,11 +258,14 @@
   external platforms by importing saved songs, albums, followed artists,
   playlists, playlist items, and other platform-library facts into MineMusic
   collection items, canonical external-ref bindings, and import event records.
+- Corrected Collection Service and Library Import design language so collection
+  ownership uses long-lived `ownerScope`, with `local_profile:default` as the
+  MVP default option, rather than treating `sessionId` as collection ownership.
 
 ## Next
 
 - Decide whether to implement Collection Service or first resolve its open
-  design questions around `release`, playlist scope, and session/user scope.
+  design questions around `release`, playlist scope, and owner-profile scope.
 - Decide whether the next product slice should implement Collection Service
   foundations first or the Library Import provider slot plus NetEase import
   preview path.

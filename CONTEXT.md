@@ -90,6 +90,7 @@ MineMusic business capabilities that own domain behavior behind public ports.
 Core Capabilities:
 
 - Canonical Store.
+- Collection Service.
 - Source Resolution.
 - Music Knowledge.
 - Event Service.
@@ -98,6 +99,36 @@ Core Capabilities:
 
 Core Capabilities are not Host Adapters and are not plugin packages. They
 depend on public contracts, Plugin Slots, and Storage ports.
+
+### Collection Service
+
+The Core Capability for a user's explicit long-lived music assets, such as kept
+recordings, works, release groups, releases, and artists.
+
+Collection Service is distinct from Memory Service, Event Service, Canonical
+Store, Source Resolution, and Session Context. A Collection is an owner-scoped
+group of long-lived relationships to canonical music objects; a Collection Item
+is a member of that Collection and points to one canonical music object. Source
+refs are external evidence, not Collection identity.
+
+### Material Resolve
+
+The candidate-to-material resolution path that turns music candidates into
+resolved `MusicMaterial` results for recommendation or presentation.
+
+Material Resolve is where canonical identity, source evidence, playable material
+state, and user collection constraints such as `blocked` come together before
+materials are returned to Stage Interface.
+
+### Release Group
+
+The canonical identity for an album-like music object across editions,
+countries, formats, reissues, remasters, and other variations.
+
+### Release
+
+A concrete issued version of a release group, such as a specific edition,
+country, format, label issue, deluxe version, or remaster.
 
 ### Plugin Slots
 

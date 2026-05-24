@@ -401,13 +401,13 @@ Suggested dedupe keys:
 
 ```text
 import batch:
-  user scope + provider id + startedAt
+  ownerScope + provider id + startedAt
 
 collection item:
-  user scope + collection kind + source ref
+  ownerScope + collection kind + source ref
 
 playlist item:
-  user scope + playlist source ref + item source ref + provider position key
+  ownerScope + playlist source ref + item source ref + provider position key
 
 canonical external ref:
   source ref namespace + kind + id
@@ -524,8 +524,8 @@ privacy, and preference-policy decisions.
 ## Open Decisions
 
 - Exact capability slot name: `platform_library` or `library`.
-- User scope: whether imports are scoped by session, local profile, or a future
-  MineMusic user account.
+- Owner scope: whether MVP uses only `local_profile:default`, named local
+  profiles, or a future MineMusic user account.
 - NetEase auth shape for account library reads.
 - Whether to add `release` as a Canonical Store kind before edition-level album
   import.

@@ -6,12 +6,14 @@ Design document. Collection Service is not implemented yet.
 
 ## Purpose
 
-Collection Service owns the user's explicit saved music objects.
+Collection Service owns the user's explicit long-lived relationships to music
+objects.
 
 It answers:
 
 ```text
-What did the user intentionally save, favorite, or place in a collection?
+Which music objects belong to this user's saved, favorite, or blocked
+collections?
 ```
 
 It does not answer:
@@ -35,34 +37,41 @@ User-facing actions are ordinary music actions:
 
 - save this song.
 - favorite this artist.
+- block this song from future recommendations.
 - collect this album.
-- add this recording to a playlist.
 - remove this item from my collection.
 - show my saved albums.
 
-Internally, Collection Service preserves enough structure to make those actions
-listable, removable, sortable, and syncable later.
+Internally, Collection Service preserves explicit collections and their items so
+those actions are listable, removable, sortable, and syncable later.
 
-## Target Kinds
+Collection Service does not own the music object itself. Canonical Store owns
+the identity of the music object; Collection owns user-scoped collections and
+their members.
+
+## Collection Kinds
 
 Collection Service must support more than songs.
 
-Initial target kinds:
+Initial collection kinds:
 
-| User wording | Preferred target kind | Notes |
+| User wording | Collection kind | Notes |
 | --- | --- | --- |
 | song / track / this version | `recording` | Concrete listened item. |
 | composition / song as a work | `work` | More abstract than a recording. |
 | album | `release_group` | Best default for ordinary album collection. |
-| specific record / edition / release | `release` | Needed for deluxe/remaster/region/version-specific saves. |
+| specific edition / remaster / region / format | `release` | Concrete issued version. |
 | artist | `artist` | Saved performer, composer, or project. |
-| playlist | `playlist` | Collection may later become playlist-aware. |
-| unknown source object | `source_item` | Fallback when only a provider id is known. |
 
 Canonical Store currently documents `artist`, `work`, `recording`, and
-`release_group`. Collection design introduces the need to decide whether
-`release` should be added as a MineMusic canonical kind before concrete
-edition-level collection behavior ships.
+`release_group`; Collection Service needs `release` as well so users can save a
+specific edition, remaster, region, format, or deluxe version. Supporting
+`release` in Collection therefore requires adding `release` as a Canonical Store
+kind before implementation.
+
+`collectionKind` is the type of music object in the collection. It matches
+`canonicalRef.kind`; Collection Service does not maintain an independent object
+taxonomy.
 
 ## Layer Placement
 
@@ -85,14 +94,46 @@ It is separate from:
 - Event Service, which owns factual action records.
 - Effect Boundary, which owns approval for external side effects.
 
+## Ownership Scope
+
+Collections and collection items are long-lived user library assets. They should
+not be owned by `sessionId`.
+
+Collection Service should use an explicit `ownerScope` to answer:
+
+```text
+Whose music library does this collection belong to?
+```
+
+MVP can use a local default:
+
+```text
+ownerScope = local_profile:default
+```
+
+Collection Service ports require `ownerScope`. Stage Interface tools may default
+missing owner scope to `local_profile:default` for local MVP use.
+
+Later, `ownerScope` can point to a real MineMusic user account, local profile,
+or imported library namespace.
+
+Session id and import batch id are provenance for Event Service and Library
+Import Service. They do not belong to the Collection item identity.
+
+Collection ports do not require chat `sessionId`. The current Event Service
+contract requires `sessionId`, so Collection Service should record Collection
+events with an owner-derived system session id such as
+`collection:local_profile:default`. This preserves Event Service compatibility
+without making Collection ownership session-scoped.
+
 ## Ownership
 
 Collection Service owns:
 
-- saved/favorited collection items.
+- collections for long-lived owner-to-music-object relationships.
+- collection items as members of those collections.
 - list/remove semantics for collection items.
-- collection item target shape.
-- collection item lifecycle state.
+- collection and collection item lifecycle state.
 - local durable collection repository.
 
 Collection Service does not own:
@@ -102,81 +143,239 @@ Collection Service does not own:
 - playable link freshness.
 - user taste summaries.
 - external library sync execution.
+- sharing or visibility policy.
 - final recommendation choice.
 
 ## Core Data
+
+Collection:
+
+```text
+id
+ownerScope
+collectionKind: recording | work | release_group | release | artist
+relationKind: saved | favorite | blocked | custom
+label
+description?
+createdAt
+removedAt?
+```
 
 Collection item:
 
 ```text
 id
-sessionId or user scope
 collectionId
-collectionKind: favorite | saved | playlist_item | later | ...
-targetKind: recording | work | release | release_group | artist | playlist | source_item
+canonicalRef
 label
-canonicalRef?
-sourceRef?
-sourceRefs?
-materialSnapshot?
+description?
+position?
 createdAt
 removedAt?
-metadata?
 ```
 
 Rules:
 
-- Prefer `canonicalRef` when a stable MineMusic identity exists.
-- Keep `sourceRef` or `sourceRefs` as evidence and fallback lookup keys.
-- `materialSnapshot` is a display/debug snapshot, not identity authority.
-- `removedAt` marks removal without requiring immediate physical deletion.
+- Collection ids are Collection-owned, not provider ids.
+- `canonicalRef` is required. Collection does not store source-only items.
+- An item's `canonicalRef.kind` must match its Collection's `collectionKind`.
+- `relationKind` describes the user's long-lived relationship to the canonical
+  objects in a Collection.
+- System Collections use `saved`, `favorite`, or `blocked`.
+- User-created Collections use `custom`.
+- `blocked` is mutually exclusive with `saved` and `favorite` for the same owner
+  and canonical object in system Collections. This mutual exclusion does not
+  remove items from user-created custom Collections.
+- Blocked membership is actionable: Material Resolve must query Collection
+  Service and filter blocked canonical objects before returning resolved
+  material. Source Providers do not own blocked filtering.
+- `CollectionItem.label` is stored on the item for display or user adjustment.
+  It is not identity authority.
+- `CollectionItem.description` belongs to that item in that Collection. It is not
+  a shared canonical-object description.
+- Source refs belong to Canonical Store external refs and Library Import/Event
+  provenance, not Collection item identity.
+- `removedAt` marks removal without physical deletion.
 - Collection item ids are Collection-owned, not provider ids.
+- Item membership is idempotent by `collectionId + canonicalRef`. Re-adding the
+  same canonical object updates the existing item; if it was removed, re-adding
+  clears `removedAt`.
+- List operations hide removed items by default. `includeRemoved` returns them
+  for audit, sync, or recovery flows.
+- Active Collection items can update `label` and `description`. Updating removed
+  items is outside the first implementation.
+- `position` is optional. System Collections can default to `createdAt` order;
+  user-created custom Collections can use `position` for manual ordering. Complex
+  reorder operations are outside the first implementation.
+- `listItems` default ordering is `createdAt` descending for system Collections,
+  and `position` ascending then `createdAt` ascending for user-created custom
+  Collections.
+
+## Collections
+
+MVP includes system-created Collections and user-created Collections.
+
+For each owner scope, Collection Service initializes one system Collection for
+each pair:
+
+```text
+relationKind: saved | favorite | blocked
+collectionKind: recording | work | release_group | release | artist
+```
+
+This produces system collections such as:
+
+```text
+saved recordings
+favorite artists
+blocked releases
+```
+
+For the MVP kind set, this means exactly 15 system Collections per owner:
+
+```text
+3 relation kinds x 5 collection kinds = 15 Collections
+```
+
+System Collection labels are generated by MineMusic and are not user-editable in
+the first implementation. User-created Collection labels and descriptions are
+editable.
+
+Users may also create additional Collections. User-created Collections are
+explicit records with their own label and description; they are not generated as
+a side effect of `addItem`. User-created Collections use `relationKind =
+custom`. MVP user-created Collections are single-kind Collections; mixed-kind
+Collections can be added later with an explicit `mixed` collection kind if
+needed.
+
+The first implementation has no public/private/share visibility model.
+
+Collection labels must be unique by exact text within the same owner scope among
+active Collections, including both system and user-created Collections.
+Collection id remains the identity; label uniqueness is a user-facing guardrail.
+Labels that differ by case, whitespace, or punctuation are different labels.
+Removed Collections do not reserve labels; a new active Collection may reuse the
+same label. Reusing a removed Collection's label creates a new Collection rather
+than restoring the removed one. Explicit restore behavior is outside the first
+implementation.
+
+Item writes should use an existing Collection. Missing system Collections
+indicate initialization failure; missing user-created Collections should be
+reported as not found.
+
+System Collections cannot be removed. User-created Collections are removed by
+setting `Collection.removedAt`; their items do not need individual removal marks
+because collection visibility controls item visibility. Restoring the Collection
+can make its existing items visible again.
+
+System Collections cannot be updated. User-created Collections can update label
+and description. Label updates must still satisfy exact active-label uniqueness
+within the owner scope.
 
 ## Public Port Shape
 
 Proposed public port:
 
 ```text
-CollectionPort.save(input)
-CollectionPort.remove(input)
-CollectionPort.list(input)
-CollectionPort.get(input)
+CollectionPort.addItemToSystemCollection(input)
+CollectionPort.removeItemFromSystemCollection(input)
+CollectionPort.addItemToCollection(input)
+CollectionPort.removeItemFromCollection(input)
+CollectionPort.updateItem(input)
+CollectionPort.listItems(input)
+CollectionPort.listCollections(input)
+CollectionPort.createCollection(input)
+CollectionPort.updateCollection(input)
+CollectionPort.removeCollection(input)
 ```
 
-`save` input:
+`addItemToSystemCollection` input:
 
 ```text
-sessionId
-collectionKind
-target:
-  kind
-  label
-  canonicalRef?
-  sourceRef?
-  sourceRefs?
-  material?
-collectionId?
-reason?
+ownerScope
+relationKind: saved | favorite | blocked
+canonicalRef
+label
+description?
 ```
 
-`remove` input:
+`removeItemFromSystemCollection` input:
 
 ```text
-sessionId
-itemId
-reason?
+ownerScope
+relationKind: saved | favorite | blocked
+canonicalRef
 ```
 
-`list` input:
+`addItemToCollection` input:
 
 ```text
-sessionId
+collectionId
+canonicalRef
+label
+description?
+```
+
+`removeItemFromCollection` input:
+
+```text
+collectionId
+canonicalRef
+```
+
+`updateItem` input:
+
+```text
+collectionId
+canonicalRef
+label?
+description?
+position?
+```
+
+`listItems` input:
+
+```text
+ownerScope
 collectionId?
 collectionKind?
-targetKind?
+relationKind?
 includeRemoved?
 limit?
 cursor?
+```
+
+`listCollections` input:
+
+```text
+ownerScope
+collectionKind?
+relationKind?
+includeRemoved?
+```
+
+`createCollection` input:
+
+```text
+ownerScope
+collectionKind
+relationKind: custom
+label
+description?
+```
+
+`removeCollection` input:
+
+```text
+collectionId
+```
+
+`updateCollection` input:
+
+```text
+collectionId
+label?
+description?
 ```
 
 ## Stage Interface Tools
@@ -187,73 +386,92 @@ Expose user-semantic tools:
 
 ```text
 music.collection.save
-music.collection.remove
+music.collection.unsave
+music.collection.favorite
+music.collection.unfavorite
+music.collection.block
+music.collection.unblock
+music.collection.item.add
+music.collection.item.remove
+music.collection.delete
+music.collection.update
 music.collection.list
-music.feedback.like
-music.feedback.dislike
-music.version.confirm
-music.version.correct
+music.collection.create
 ```
 
 The first Collection Service implementation should start with:
 
 ```text
 music.collection.save
-music.collection.remove
+music.collection.unsave
+music.collection.favorite
+music.collection.unfavorite
+music.collection.block
+music.collection.unblock
+music.collection.item.add
+music.collection.item.remove
+music.collection.delete
+music.collection.update
 music.collection.list
+music.collection.create
 ```
 
-Feedback/version tools can come later, because they also touch Memory Service
-and Canonical Store policy.
+The first implementation includes custom Collection create/update/remove, not
+only system Collection item operations.
+
+Feedback/version tools can come later, because they touch Memory Service and
+Canonical Store policy rather than Collection item identity.
+
+The first Collection port is single-item only. Bulk work such as platform
+library import should orchestrate repeated item calls and own progress, partial
+failure handling, and import summaries. Dedicated bulk collection APIs can be
+added later if needed.
 
 ## Save Flow
 
-When a user says "save this" or "favorite this artist":
+When a user says "save this" or "keep this artist":
 
 ```text
 Stage Interface
--> Collection Service save
--> Canonical Store get/resolveExternalRef/findByLabel
--> Canonical Store createProvisional if user action is explicit and no
-   canonical identity exists
--> Collection Repository put
--> Event Service record collection.item.saved
--> optional Memory Service proposal for taste signal
+-> Collection Service addItem
+-> Collection Repository adds item to the initialized system Collection
+-> Collection Service records collection.item.added
 ```
 
 Important:
 
-- Source refs do not become canonical authority by themselves.
-- Explicit user save/favorite can justify creating a provisional canonical
-  identity.
-- Like/favorite may create a memory proposal, but the collection item remains in
-  Collection Service.
+- Collection Service receives a canonical ref. It does not create canonical
+  records from labels or source refs.
+- Library Import or another upstream flow must resolve or create the canonical
+  record before writing Collection.
+- Source refs do not become Collection identity.
 
 ## Remove Flow
 
-When a user removes or unfavorites an item:
+When a user removes an item:
 
 ```text
 Stage Interface
--> Collection Service remove
+-> Collection Service removeItem
 -> Collection Repository marks removedAt
--> Event Service record collection.item.removed
+-> Collection Service records collection.item.removed
 -> optional Memory Service proposal if removal clearly changes taste
 ```
 
 Removal should not delete canonical records. A canonical record may still be
 used by events, memory, source resolution, or other collection items.
 
-## Like vs Save vs Favorite
+## Collection vs Feedback
 
 These concepts should stay distinct:
 
 | User action | Primary owner | Meaning |
 | --- | --- | --- |
 | like | Memory/Event | Taste signal. May not be listable. |
-| save | Collection/Event | Explicitly kept item. Must be listable/removable. |
-| favorite | Collection/Event plus optional Memory | Strong saved item and taste signal. |
-| add to playlist | Collection or future Playlist Service | Ordered or grouped collection membership. |
+| save | Collection/Event | Long-lived `saved` system Collection membership. |
+| favorite | Collection/Event | Long-lived `favorite` system Collection membership. |
+| block | Collection/Event | Long-lived `blocked` system Collection membership. |
+| add to custom collection | Collection/Event | User-created Collection membership. |
 | confirm version | Canonical Store/Event | Identity feedback. |
 
 Collection actions may generate Memory proposals, but Memory is not the
@@ -264,23 +482,20 @@ collection database.
 Initial factual events:
 
 ```text
-collection.item.saved
+collection.created
+collection.updated
+collection.removed
+collection.item.added
 collection.item.removed
 collection.item.updated
 ```
 
-Potential later events:
+Collection Service records these events after successful Collection-owned state
+changes. Callers should not duplicate the same factual event.
 
-```text
-collection.playlist.created
-collection.playlist.renamed
-collection.playlist.item.added
-collection.playlist.item.moved
-```
-
-Event payloads should include collection item id, target kind, label, and
-available refs. They should not embed provider credentials or long-lived
-playable links.
+Event payloads should include collection id, collection item id, collection
+kind, relation kind, label, and canonical ref. They should not embed provider
+credentials or long-lived playable links.
 
 ## Effect Boundary
 
@@ -304,11 +519,15 @@ Collection Repository should sit behind Collection Service.
 
 Repository responsibilities:
 
-- get item by id.
-- save/update item.
-- list active items by session/user, collection id, kind, and target kind.
+- get Collection by id.
+- soft-remove user-created Collections.
+- list initialized Collections by owner scope, collection kind, and relation
+  kind.
+- add/update item in an initialized Collection.
+- list active items by Collection, owner scope, collection kind, and relation
+  kind.
 - preserve removed items when `includeRemoved` is requested.
-- enforce collection item id uniqueness.
+- enforce Collection id and Collection item id uniqueness.
 
 No other module should import Collection Repository directly.
 
@@ -316,25 +535,20 @@ No other module should import Collection Repository directly.
 
 Recommended sequence:
 
-1. Add shared `CollectionItem` contract and `CollectionPort`.
+1. Add shared `Collection`, `CollectionItem`, and `CollectionPort` contracts.
 2. Add in-memory `CollectionRepository`.
 3. Add `createCollectionService`.
 4. Add Stage Core wiring with default in-memory collection repository.
 5. Add Stage Interface tools for save/remove/list.
-6. Add deterministic tests for song, album, release, artist, and source-only
-   saves.
+6. Add deterministic tests for song, album, release, and artist saves.
 7. Add events for save/remove.
-8. Only after that, decide whether favorites produce Memory proposals by
-   default.
+8. Only after that, decide whether collection actions produce Memory proposals
+   by default.
 
 ## Open Decisions
 
-- Whether `release` becomes a Canonical Store kind now or remains
-  collection-only until release metadata is implemented.
-- Whether playlist behavior belongs in Collection Service or a later Playlist
-  Service.
-- Whether Collection scope is session-local for MVP or user-global.
-- Whether `favorite` and `saved` are separate collection kinds or separate
-  boolean facets on the same item.
-- Whether saving a source-only item always creates a provisional canonical
-  record or only does so for explicit "this is the one" user actions.
+- Whether playlist behavior belongs in a later Playlist Service or a
+  Collection submodel.
+- Whether the MVP keeps only `ownerScope = local_profile:default` or adds named
+  local profiles before real account support.
+- Whether additional relation kinds such as `later` or `owned` are needed.
