@@ -459,11 +459,16 @@
   provenance upserts, complete area snapshots, completed summaries, and warning
   status for skipped or partial reads; extended
   `test/library_import/library-import-service.test.ts`.
+- Completed Library Import Service implementation plan Task 7 with a TDD loop:
+  implemented library update preview/start in `src/library_import/index.ts`,
+  including latest complete baseline comparison, update estimates, absence
+  summaries, stored Platform Library Absence records,
+  `library_import.item.not_returned` events, and a partial-read absence guard;
+  extended `test/library_import/library-import-service.test.ts`.
 
 ## Next
 
-- Continue Library Import implementation with Task 7: library update preview and
-  start.
+- Continue Library Import implementation with Task 8: Stage Core wiring.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

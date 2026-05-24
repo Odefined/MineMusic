@@ -14,7 +14,10 @@ import type {
   LibraryImportItemReport,
   LibraryImportScope,
   LibraryImportStatus,
+  LibraryImportUpdateEstimateCounts,
   PlatformLibraryArea,
+  PlatformLibraryAbsence,
+  PlatformLibraryAbsenceSummary,
   PlatformLibraryItem,
   PlatformLibraryPreviewArea,
   PlatformLibraryProvider,
@@ -61,6 +64,7 @@ export function createLibraryImportService({
         pluginRegistry,
         canonicalStore,
         collection,
+        repository,
         input,
         includeUpdateEstimates: false,
       });
@@ -86,6 +90,7 @@ export function createLibraryImportService({
         pluginRegistry,
         canonicalStore,
         collection,
+        repository,
         input,
         includeUpdateEstimates: true,
       });
@@ -146,12 +151,14 @@ async function previewLibraryImport({
   pluginRegistry,
   canonicalStore,
   collection,
+  repository,
   input,
   includeUpdateEstimates,
 }: {
   pluginRegistry: PluginRegistryPort;
   canonicalStore: CanonicalStorePort;
   collection: CollectionPort;
+  repository: LibraryImportRepository;
   input: LibraryImportPreviewInput;
   includeUpdateEstimates: boolean;
 }): Promise<Result<LibraryImportPreview>> {
@@ -175,14 +182,17 @@ async function previewLibraryImport({
     return providerReadFailed(input.providerId, preview.error);
   }
 
+  const providerAccountId = preview.value.account?.providerAccountId ?? input.providerAccountId;
   const estimates = await estimateReadablePreviewAreas({
     provider: provider.value,
     canonicalStore,
     collection,
+    repository,
     ownerScope,
-    providerAccountId: input.providerAccountId,
+    providerAccountId,
     requestedAreas: areas,
     previewAreas: preview.value.areas,
+    includeUpdateEstimates,
   });
 
   if (!estimates.ok) {
@@ -216,24 +226,30 @@ async function previewLibraryImport({
 type PreviewAreaEstimates = {
   canonicalEstimates: LibraryImportCanonicalEstimateCounts;
   collectionEstimates: LibraryImportCollectionEstimateCounts;
+  updateEstimates?: LibraryImportUpdateEstimateCounts;
+  absences?: PlatformLibraryAbsenceSummary[];
 };
 
 async function estimateReadablePreviewAreas({
   provider,
   canonicalStore,
   collection,
+  repository,
   ownerScope,
   providerAccountId,
   requestedAreas,
   previewAreas,
+  includeUpdateEstimates,
 }: {
   provider: PlatformLibraryProvider;
   canonicalStore: CanonicalStorePort;
   collection: CollectionPort;
+  repository: LibraryImportRepository;
   ownerScope: string;
   providerAccountId: string | undefined;
   requestedAreas: PlatformLibraryArea[];
   previewAreas: PlatformLibraryPreviewArea[];
+  includeUpdateEstimates: boolean;
 }): Promise<Result<Map<PlatformLibraryArea, PreviewAreaEstimates>>> {
   const readableAreas = previewAreas
     .filter(
@@ -262,6 +278,7 @@ async function estimateReadablePreviewAreas({
 
   for (const area of read.value.areas) {
     const areaEstimates = emptyPreviewAreaEstimates();
+    const updateEstimates = includeUpdateEstimates ? emptyUpdateEstimates() : undefined;
 
     for (const item of area.items) {
       const itemEstimate = await estimatePreviewItem({
@@ -277,6 +294,33 @@ async function estimateReadablePreviewAreas({
       }
 
       incrementPreviewAreaEstimates(areaEstimates, itemEstimate.value);
+      if (updateEstimates !== undefined) {
+        incrementUpdateEstimates(updateEstimates, itemEstimate.value);
+      }
+    }
+
+    if (updateEstimates !== undefined && area.status === "complete") {
+      const absenceSummaries = await previewAbsencesForArea({
+        repository,
+        ownerScope,
+        providerId: provider.id,
+        providerAccountId,
+        scope: providerAreaToScope(area.area),
+        area: area.area,
+        currentItems: area.items,
+        currentBatchId: undefined,
+      });
+
+      if (!absenceSummaries.ok) {
+        return absenceSummaries;
+      }
+
+      updateEstimates.noLongerReturned += absenceSummaries.value.length;
+      areaEstimates.updateEstimates = updateEstimates;
+
+      if (absenceSummaries.value.length > 0) {
+        areaEstimates.absences = absenceSummaries.value;
+      }
     }
 
     estimates.set(area.area, areaEstimates);
@@ -393,6 +437,108 @@ function incrementPreviewAreaEstimates(
   }
 }
 
+function incrementUpdateEstimates(
+  estimates: LibraryImportUpdateEstimateCounts,
+  itemEstimate: PreviewItemEstimate,
+): void {
+  switch (itemEstimate) {
+    case "already_present":
+      estimates.alreadyPresent += 1;
+      return;
+    case "would_add":
+    case "would_add_after_provisional":
+      estimates.wouldAdd += 1;
+      return;
+    case "unresolved":
+      estimates.failedOrSkipped += 1;
+      return;
+  }
+}
+
+async function previewAbsencesForArea({
+  repository,
+  ownerScope,
+  providerId,
+  providerAccountId,
+  scope,
+  area,
+  currentItems,
+  currentBatchId,
+}: {
+  repository: LibraryImportRepository;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string | undefined;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  currentItems: PlatformLibraryItem[];
+  currentBatchId: string | undefined;
+}): Promise<Result<PlatformLibraryAbsenceSummary[]>> {
+  if (providerAccountId === undefined) {
+    return ok([]);
+  }
+
+  const baseline = await repository.getLatestCompleteAreaSnapshot({
+    ownerScope,
+    providerId,
+    providerAccountId,
+    scope,
+    area,
+  });
+
+  if (!baseline.ok) {
+    return baseline;
+  }
+
+  if (baseline.value === null) {
+    return ok([]);
+  }
+
+  const missingSourceRefs = baseline.value.sourceRefs.filter(
+    (sourceRef) => !currentItems.some((item) => sameRef(item.sourceRef, sourceRef)),
+  );
+  const absences: PlatformLibraryAbsenceSummary[] = [];
+
+  for (const sourceRef of missingSourceRefs) {
+    const provenance = await repository.getItemProvenance({
+      ownerScope,
+      providerId,
+      providerAccountId,
+      scope,
+      area,
+      sourceRef,
+    });
+
+    if (!provenance.ok) {
+      return provenance;
+    }
+
+    const absence: PlatformLibraryAbsenceSummary = {
+      providerId,
+      providerAccountId,
+      ownerScope,
+      scope,
+      area,
+      sourceRef,
+      label: provenance.value?.label ?? sourceRef.label ?? sourceRef.id,
+      baselineBatchId: baseline.value.batchId,
+      reason: "platform_not_returned",
+    };
+
+    if (provenance.value?.canonicalRef !== undefined) {
+      absence.canonicalRef = provenance.value.canonicalRef;
+    }
+
+    if (currentBatchId !== undefined) {
+      absence.currentBatchId = currentBatchId;
+    }
+
+    absences.push(absence);
+  }
+
+  return ok(absences);
+}
+
 function emptyPreviewAreaEstimates(): PreviewAreaEstimates {
   return {
     canonicalEstimates: emptyCanonicalEstimates(),
@@ -484,6 +630,7 @@ async function startLibraryImport({
   const counts = emptyCounts();
   const reportAreas = read.value.areas.map(providerReadAreaToReportArea);
   const itemReports: LibraryImportItemReport[] = [];
+  const absences: PlatformLibraryAbsenceSummary[] = [];
   let completedWithWarnings = readHasWarnings(read.value.areas, read.value.issues);
 
   const initializedCollections = await collection.initializeOwnerCollections({ ownerScope });
@@ -521,6 +668,44 @@ async function startLibraryImport({
 
       if (itemReport.value.status === "skipped" || itemReport.value.status === "failed") {
         completedWithWarnings = true;
+      }
+    }
+
+    if (batchKind === "library_update" && area.status === "complete") {
+      const areaAbsences = await previewAbsencesForArea({
+        repository,
+        ownerScope,
+        providerId: read.value.providerId,
+        providerAccountId,
+        scope,
+        area: area.area,
+        currentItems: area.items,
+        currentBatchId: batchId,
+      });
+
+      if (!areaAbsences.ok) {
+        return areaAbsences;
+      }
+
+      for (const absence of areaAbsences.value) {
+        const storedAbsence = await storePlatformLibraryAbsence({
+          repository,
+          events,
+          batchId,
+          batchKind,
+          ownerScope,
+          providerId: read.value.providerId,
+          providerAccountId,
+          absence,
+          recordedAt: completedAt,
+        });
+
+        if (!storedAbsence.ok) {
+          return storedAbsence;
+        }
+
+        absences.push(absence);
+        counts.absentItems += 1;
       }
     }
 
@@ -591,6 +776,10 @@ async function startLibraryImport({
   const report = batchToReport(stored.value);
   report.areas = reportAreas;
   report.items = itemReports;
+
+  if (absences.length > 0) {
+    report.absences = absences;
+  }
 
   if (read.value.account !== undefined) {
     report.account = read.value.account;
@@ -944,6 +1133,90 @@ function applyItemReportToCounts(
   }
 }
 
+async function storePlatformLibraryAbsence({
+  repository,
+  events,
+  batchId,
+  batchKind,
+  ownerScope,
+  providerId,
+  providerAccountId,
+  absence,
+  recordedAt,
+}: {
+  repository: LibraryImportRepository;
+  events: EventPort;
+  batchId: string;
+  batchKind: LibraryImportBatchKind;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  absence: PlatformLibraryAbsenceSummary;
+  recordedAt: string;
+}): Promise<Result<void>> {
+  if (absence.currentBatchId === undefined) {
+    return ok(undefined);
+  }
+
+  const record: PlatformLibraryAbsence = {
+    id: libraryImportAbsenceId(batchId, absence.sourceRef),
+    ownerScope,
+    providerId,
+    providerAccountId,
+    scope: absence.scope,
+    area: absence.area,
+    sourceRef: absence.sourceRef,
+    label: absence.label,
+    baselineBatchId: absence.baselineBatchId,
+    currentBatchId: absence.currentBatchId,
+    reason: absence.reason,
+    recordedAt,
+  };
+
+  if (absence.canonicalRef !== undefined) {
+    record.canonicalRef = absence.canonicalRef;
+  }
+
+  const stored = await repository.putAbsence({ absence: record });
+
+  if (!stored.ok) {
+    return stored;
+  }
+
+  const event = await recordLibraryImportEvent(events, {
+    batch: {
+      id: batchId,
+      batchKind,
+      status: "running",
+      providerId,
+      providerAccountId,
+      ownerScope,
+      scopes: [absence.scope],
+      startedAt: record.recordedAt,
+      counts: emptyCounts(),
+    },
+    type: "library_import.item.not_returned",
+    payload: {
+      importScope: absence.scope,
+      libraryArea: absence.area,
+      sourceRef: absence.sourceRef,
+      canonicalRef: absence.canonicalRef,
+      baselineBatchId: absence.baselineBatchId,
+      absenceReason: absence.reason,
+    },
+  });
+
+  if (!event.ok) {
+    return event;
+  }
+
+  return ok(undefined);
+}
+
+function libraryImportAbsenceId(batchId: string, sourceRef: Ref): string {
+  return `${batchId}:${sourceRef.namespace}:${sourceRef.kind}:${sourceRef.id}`;
+}
+
 async function recordLibraryImportEvent(
   events: EventPort,
   input: {
@@ -1005,12 +1278,11 @@ function providerPreviewAreaToLibraryImportArea(
   }
 
   if (includeUpdateEstimates) {
-    previewArea.updateEstimates = {
-      wouldAdd: 0,
-      alreadyPresent: 0,
-      noLongerReturned: 0,
-      failedOrSkipped: 0,
-    };
+    previewArea.updateEstimates = estimates?.updateEstimates ?? emptyUpdateEstimates();
+  }
+
+  if (estimates?.absences !== undefined) {
+    previewArea.absences = estimates.absences;
   }
 
   return previewArea;
@@ -1217,6 +1489,15 @@ function emptyCollectionEstimates(): LibraryImportCollectionEstimateCounts {
     wouldAdd: 0,
     wouldAddAfterProvisional: 0,
     skipped: 0,
+  };
+}
+
+function emptyUpdateEstimates(): LibraryImportUpdateEstimateCounts {
+  return {
+    wouldAdd: 0,
+    alreadyPresent: 0,
+    noLongerReturned: 0,
+    failedOrSkipped: 0,
   };
 }
 

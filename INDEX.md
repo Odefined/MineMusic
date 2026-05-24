@@ -101,7 +101,7 @@ This index points agents to the current MVP documentation pack.
       verification status, remaining gaps, and next slice.
 
 27. `docs/library-import/design.md`
-    - Future Library Import design for import orchestration, library updates,
+    - Library Import design for import orchestration, library updates,
       Collection Service writes, Canonical Store external-ref bindings, and
       import/update event records.
 
@@ -111,8 +111,8 @@ This index points agents to the current MVP documentation pack.
       tools, integration coverage, and state sync.
 
 29. `docs/library-import/progress.md`
-    - Library Import implementation progress, current implementation state,
-      remaining gaps, and next slice.
+    - Library Import implementation progress, including current import/update
+      service state, remaining gaps, and next slice.
 
 30. `docs/platform-library-provider/design.md`
     - `platform_library` capability slot design for account-scoped platform

@@ -587,6 +587,275 @@ async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void
   assert(snapshots.length === 0, "partial reads should not be stored as complete baselines");
 }
 
+async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(): Promise<void> {
+  const registry = createPluginRegistry();
+  let providerItems = [
+    providerItem("kept-track", "Kept Track"),
+    providerItem("missing-track", "Missing Track"),
+  ];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview(input) {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: input.providerAccountId ?? "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              availability: "readable",
+              count: { certainty: "exact", value: providerItems.length },
+            },
+          ],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: providerItems,
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  providerItems = [
+    providerItem("kept-track", "Kept Track"),
+    providerItem("new-track", "New Track"),
+  ];
+  const batchesBeforePreview = await assertOk(environment.libraryImportRepository.listBatches({}));
+  const savedItemsBeforePreview = await assertOk(
+    environment.collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+
+  const preview = await assertOk(
+    environment.libraryImport.previewUpdate({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  const batchesAfterPreview = await assertOk(environment.libraryImportRepository.listBatches({}));
+  const absencesAfterPreview = await assertOk(
+    environment.libraryImportRepository.listAbsences({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      scope: "saved_recordings",
+      area: "saved_recordings",
+    }),
+  );
+  const savedItemsAfterPreview = await assertOk(
+    environment.collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+
+  assert(preview.areas[0]?.updateEstimates?.alreadyPresent === 1, "update preview should count still-present assets");
+  assert(preview.areas[0]?.updateEstimates?.wouldAdd === 1, "update preview should count newly observed assets");
+  assert(
+    preview.areas[0]?.updateEstimates?.noLongerReturned === 1,
+    "update preview should count baseline assets no longer returned",
+  );
+  assert(preview.areas[0]?.updateEstimates?.failedOrSkipped === 0, "update preview should count failed/skipped items");
+  assert(preview.areas[0]?.absences?.[0]?.sourceRef.id === "missing-track", "update preview should describe absences");
+  assert(batchesAfterPreview.length === batchesBeforePreview.length, "update preview should not create batches");
+  assert(absencesAfterPreview.length === 0, "update preview should not store absence records");
+  assert(savedItemsAfterPreview.length === savedItemsBeforePreview.length, "update preview should not write collections");
+}
+
+async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections(): Promise<void> {
+  const registry = createPluginRegistry();
+  let providerItems = [
+    providerItem("kept-track", "Kept Track"),
+    providerItem("missing-track", "Missing Track"),
+  ];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: providerItems,
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  providerItems = [
+    providerItem("kept-track", "Kept Track"),
+    providerItem("new-track", "New Track"),
+  ];
+
+  const update = await assertOk(
+    environment.libraryImport.startUpdate({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  const savedItems = await assertOk(
+    environment.collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+  const absences = await assertOk(
+    environment.libraryImportRepository.listAbsences({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      currentBatchId: update.batchId,
+    }),
+  );
+  const updateEvents = await assertOk(
+    environment.events.listBySession({ sessionId: `library_import:${update.batchId}` }),
+  );
+
+  assert(update.batchKind === "library_update", "startUpdate should create a library update batch");
+  assert(update.counts.alreadyPresentItems === 1, "update should count still-present saved items");
+  assert(update.counts.importedItems === 1, "update should import newly observed items");
+  assert(update.counts.absentItems === 1, "update should count platform absences");
+  assert(update.absences?.[0]?.sourceRef.id === "missing-track", "update report should include absence summaries");
+  assert(savedItems.length === 3, "update should not remove saved Collection items when the platform omits them");
+  assert(absences.length === 1, "update should store absence records");
+  assert(absences[0]?.sourceRef.id === "missing-track", "stored absence should identify the missing source ref");
+  assert(
+    updateEvents.some((event) => event.type === "library_import.item.not_returned"),
+    "update should record not-returned item facts",
+  );
+}
+
+async function doesNotPreviewUpdateAbsencesForPartialCurrentReads(): Promise<void> {
+  const registry = createPluginRegistry();
+  let providerItems = [
+    providerItem("kept-track", "Kept Track"),
+    providerItem("missing-track", "Missing Track"),
+  ];
+  let readStatus: "complete" | "partial" = "complete";
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview(input) {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: input.providerAccountId ?? "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              availability: "readable",
+            },
+          ],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: readStatus,
+              items: providerItems,
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  providerItems = [providerItem("kept-track", "Kept Track")];
+  readStatus = "partial";
+
+  const preview = await assertOk(
+    environment.libraryImport.previewUpdate({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+
+  assert(
+    preview.areas[0]?.updateEstimates?.noLongerReturned === 0,
+    "partial update preview should not derive absences",
+  );
+  assert(preview.areas[0]?.absences === undefined, "partial update preview should not include absence summaries");
+}
+
 function createTestLibraryImportService(registry: ReturnType<typeof createPluginRegistry>) {
   return createTestLibraryImportEnvironment(registry).libraryImport;
 }
@@ -660,3 +929,6 @@ await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
+await previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting();
+await startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections();
+await doesNotPreviewUpdateAbsencesForPartialCurrentReads();
