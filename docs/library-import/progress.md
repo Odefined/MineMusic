@@ -50,9 +50,10 @@ This file tracks Library Import implementation progress.
   exposes explicit MCP input schemas and generated Handbook entries. The default
   Codex MCP runtime now registers NetEase through both `source` and
   `platform_library` slots and reuses `MINEMUSIC_NETEASE_BASE_URL` for both
-  provider factories and accepts `MINEMUSIC_COLLECTION_DB_PATH` and
-  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` for durable Collection writes and durable
-  Library Import storage without adding credential storage. Deterministic
+  provider factories and accepts `MINEMUSIC_CANONICAL_DB_PATH`,
+  `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` for
+  durable canonical bindings, durable Collection writes, and durable Library
+  Import storage without adding credential storage. Deterministic
   integration coverage now exercises discovery preview, explicit preview
   estimates, initial import side effects, started-batch failure status, summary
   recovery after service recreation, Stage Core recreation against the same
@@ -70,9 +71,10 @@ This file tracks Library Import implementation progress.
   lookup aligned with the in-memory repository. Stage Core and host surfaces
   still default to in-memory Library Import storage unless
   `libraryImportDatabasePath` or `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` is provided;
-  combine that with `collectionDatabasePath` or
-  `MINEMUSIC_COLLECTION_DB_PATH` when import-generated Collection writes must
-  persist across runtime recreation.
+  combine that with `canonicalDatabasePath` / `MINEMUSIC_CANONICAL_DB_PATH` and
+  `collectionDatabasePath` / `MINEMUSIC_COLLECTION_DB_PATH` when import-created
+  canonical bindings and Collection writes must persist across runtime
+  recreation.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports

@@ -164,7 +164,7 @@ This index points agents to the current MVP documentation pack.
 
 43. `test/integration/canonical-persistence.test.ts`
     - Stage Core restart-style persistence test for SQLite-backed canonical
-      storage.
+      storage through `canonicalDatabasePath`.
 
 44. `test/integration/collection-runtime.test.ts`
     - Composed Stage Core integration coverage for Collection through Stage
@@ -188,21 +188,23 @@ This index points agents to the current MVP documentation pack.
 
 49. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
-      verification notes, including the optional `MINEMUSIC_COLLECTION_DB_PATH`
-      and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` durable storage settings.
+      verification notes, including the optional `MINEMUSIC_CANONICAL_DB_PATH`,
+      `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`
+      durable storage settings.
 
 50. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, exposes the runtime object, composes Collection
       and Library Import with optional repository/provider injection, and
-      supports optional SQLite database path configuration.
+      supports optional SQLite database path configuration for Canonical Store,
+      Collection, and Library Import.
 
 51. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; the default runtime registers NetEase for both
-      `source` and `platform_library` slots and can use durable Collection and
-      Library Import storage via environment variables.
+      `source` and `platform_library` slots and can use durable Canonical Store,
+      Collection, and Library Import storage via environment variables.
 
 52. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,

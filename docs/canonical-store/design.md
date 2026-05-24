@@ -294,7 +294,6 @@ Still outside the implementation:
 - admin activate/reject/merge/list operations.
 - merge redirects.
 - canonical domain-event publication.
-- MCP or other host runtime configuration for a canonical database path.
 
 ## Code References
 
@@ -308,7 +307,7 @@ Still outside the implementation:
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` |
 | SQLite schema | `src/storage/sqlite/canonical-schema.ts` | `initializeCanonicalSchema` |
 | SQLite repository | `src/storage/sqlite/canonical-repository.ts` | `createSqliteCanonicalRecordRepository` |
-| Stage Core injection | `src/stage_core/index.ts` | `canonicalRepository` factory option |
+| Stage Core wiring | `src/stage_core/index.ts` | `canonicalRepository`, `canonicalDatabasePath` factory options |
 | Material Resolve integration | `src/material_resolve/index.ts` | `createMaterialResolveService` |
 | Source Grounding integration | `src/source/index.ts` | `createSourceGroundingService` |
 | Current tests | `test/canonical/canonical-store.test.ts` | canonical store runtime tests |

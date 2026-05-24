@@ -12,7 +12,6 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
-import { createSqliteCanonicalRecordRepository } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -92,7 +91,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     const firstStageCore = createMineMusicStageCoreWithSourceProvider({
       session,
       sourceProvider,
-      canonicalRepository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+      canonicalDatabasePath: databasePath,
       canonicalRecords: [canonicalRecord],
       handbookPath: join(directory, "first-HANDBOOK.md"),
     });
@@ -111,7 +110,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     const recreatedStageCore = createMineMusicStageCoreWithSourceProvider({
       session,
       sourceProvider,
-      canonicalRepository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+      canonicalDatabasePath: databasePath,
       handbookPath: join(directory, "second-HANDBOOK.md"),
     });
     await recreatedStageCore.ready;

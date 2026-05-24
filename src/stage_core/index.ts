@@ -48,6 +48,7 @@ import {
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
   createInMemoryMemoryRepository,
+  createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
 } from "../storage/index.js";
@@ -74,6 +75,7 @@ export type MineMusicStageCoreOptions = {
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  canonicalDatabasePath?: string;
   collectionRepository?: CollectionRepository;
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
@@ -87,6 +89,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  canonicalDatabasePath?: string;
   collectionRepository?: CollectionRepository;
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
@@ -100,6 +103,7 @@ export function createMineMusicStageCore({
   sourceMaterials,
   canonicalRecords = [],
   canonicalRepository,
+  canonicalDatabasePath,
   collectionRepository,
   collectionDatabasePath,
   libraryImportRepository,
@@ -112,6 +116,7 @@ export function createMineMusicStageCore({
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
     ...(canonicalRepository === undefined ? {} : { canonicalRepository }),
+    ...(canonicalDatabasePath === undefined ? {} : { canonicalDatabasePath }),
     ...(collectionRepository === undefined ? {} : { collectionRepository }),
     ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
     ...(libraryImportRepository === undefined ? {} : { libraryImportRepository }),
@@ -126,6 +131,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   sourceProvider,
   canonicalRecords = [],
   canonicalRepository: injectedCanonicalRepository,
+  canonicalDatabasePath,
   collectionRepository: injectedCollectionRepository,
   collectionDatabasePath,
   libraryImportRepository: injectedLibraryImportRepository,
@@ -133,7 +139,11 @@ export function createMineMusicStageCoreWithSourceProvider({
   platformLibraryProvider,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
-  const canonicalRepository = injectedCanonicalRepository ?? createInMemoryCanonicalRecordRepository();
+  const canonicalRepository =
+    injectedCanonicalRepository ??
+    (canonicalDatabasePath === undefined
+      ? createInMemoryCanonicalRecordRepository()
+      : createSqliteCanonicalRecordRepository({ path: canonicalDatabasePath }));
   const collectionRepository =
     injectedCollectionRepository ??
     (collectionDatabasePath === undefined

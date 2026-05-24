@@ -534,14 +534,18 @@
   is injected; `MINEMUSIC_COLLECTION_DB_PATH` configures the default MCP
   runtime. Added storage, Stage Core recreation, and MCP database initialization
   coverage.
+- Wired durable Canonical Store storage into Stage Core and the Codex MCP
+  runtime: `canonicalDatabasePath` now builds a SQLite-backed canonical
+  repository unless an explicit `canonicalRepository` is injected, and
+  `MINEMUSIC_CANONICAL_DB_PATH` configures the default MCP runtime. Updated
+  runtime coverage for Stage Core recreation against the same canonical
+  database path and MCP database initialization.
 
 ## Next
 
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.
-- Decide whether to expose a governed runtime configuration path for durable
-  canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through
   `CanonicalStorePort`.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool

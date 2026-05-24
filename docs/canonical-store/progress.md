@@ -16,7 +16,7 @@ Task breakdown belongs in:
 
 ## Current Snapshot
 
-Date: 2026-05-24
+Date: 2026-05-25
 
 Task status:
 
@@ -52,13 +52,16 @@ Implemented:
   `src/canonical/normalization.ts`.
 - Canonical Store storage mechanics are isolated in `src/canonical/storage.ts`,
   so `src/canonical/index.ts` no longer scans `repository.list()` directly.
-- Stage Core accepts optional `canonicalRepository` injection while keeping
-  in-memory canonical storage as the default.
+- Stage Core accepts optional `canonicalRepository` injection and
+  `canonicalDatabasePath` SQLite configuration while keeping in-memory
+  canonical storage as the default.
+- Codex MCP runtime configuration accepts `MINEMUSIC_CANONICAL_DB_PATH` for
+  durable Canonical Store storage.
 - Stage Core factory tests prove Material Resolve uses the injected canonical
   repository through Stage Interface tools.
 - Stage Core persistence integration test recreates a runtime with the same
-  SQLite canonical database path and proves canonical-backed material remains
-  `confirmed_playable`.
+  configured SQLite canonical database path and proves canonical-backed
+  material remains `confirmed_playable`.
 - The same persistence integration test proves unknown source-only playable
   material remains `source_only_playable`.
 - Sequential runtime test loading in `test/run-stage-core-tests.ts` so
@@ -110,9 +113,7 @@ Pending:
   lookup mechanics into `src/canonical/storage.ts`, and keeping
   `src/canonical/index.ts` focused on Canonical Store policy flow.
 - Completed Task 4 by adding optional `canonicalRepository` injection to Stage
-  Core factories while preserving the default in-memory runtime. MCP keeps
-  using the default Stage Core path and does not introduce a canonical database
-  environment variable yet.
+  Core factories while preserving the default in-memory runtime.
 - Completed Task 5 by adding
   `test/integration/canonical-persistence.test.ts`, which recreates Stage Core
   with the same SQLite canonical database path and verifies persisted canonical
@@ -123,7 +124,17 @@ Pending:
 - Added reopen persistence and conflict tests.
 - Added canonical identity hygiene tests and implementation.
 - Documented that Stage Core still defaults to in-memory canonical storage
-  unless a caller explicitly injects a repository.
+  unless a caller explicitly injects a repository or provides a database path.
+
+### 2026-05-25
+
+- Added `canonicalDatabasePath` to Stage Core factories. Explicit
+  `canonicalRepository` injection still wins; otherwise the database path builds
+  a SQLite-backed canonical repository.
+- Wired `MINEMUSIC_CANONICAL_DB_PATH` into the default Codex MCP runtime.
+- Updated the canonical persistence integration test to exercise
+  `canonicalDatabasePath` directly, and added MCP database initialization
+  coverage.
 
 ## Verification
 
@@ -151,12 +162,10 @@ Evidence boundary:
   `test/integration/canonical-persistence.test.ts`.
 - Live NetEase validation is separate and remains opt-in through
   `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease`.
-- The Codex MCP default runtime still uses the default Stage Core path and does
-  not configure a canonical database path.
+- The Codex MCP default runtime accepts `MINEMUSIC_CANONICAL_DB_PATH` when the
+  host wants durable Canonical Store state.
 
 ## Next Slice
 
-1. Decide whether to expose a governed runtime configuration path for durable
-   canonical storage in MCP or another host adapter.
-2. Design the public `addAlias` method before implementing alias writes through
+1. Design the public `addAlias` method before implementing alias writes through
    the public port.

@@ -10,8 +10,9 @@ ports, in-memory repository infrastructure, plugin registry infrastructure, and
 core domain service skeletons, Stage Core runtime composition, Stage Modules
 for Session Context and Material Gate, Stage Interface facade, instrument
 registry, a fixture end-to-end MVP slice, a read-only NetEase provider adapter,
-contract/runtime tests, and a SQLite-backed Canonical Store repository for
-durable canonical identity tests.
+contract/runtime tests, and SQLite-backed repository adapters plus opt-in
+runtime database-path wiring for Canonical Store, Collection, and Library
+Import state.
 Wave 7 adds a read-only NetEase source provider adapter and opt-in live smoke
 command. The local NetEase service is currently verified through explicit live
 smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP plugin
@@ -104,9 +105,10 @@ host-facing and LLM-facing surface.
   external-ref conflicts across repository reopen, and SQLite uniqueness
   failures mapped to `canonical.external_ref_conflict` at the Canonical Store
   boundary. Stage Core still defaults to in-memory canonical storage, and its
-  factories now accept optional `canonicalRepository` injection for host
-  surfaces or tests that need durable canonical storage. The Codex MCP default
-  path has not added a canonical database environment variable.
+  factories now accept optional `canonicalRepository` injection or
+  `canonicalDatabasePath` configuration for host surfaces or tests that need
+  durable canonical storage. The Codex MCP default runtime accepts
+  `MINEMUSIC_CANONICAL_DB_PATH` to initialize that durable Canonical Store.
 - Canonical Store persistence integration is covered by
   `test/integration/canonical-persistence.test.ts`: it recreates Stage Core
   with the same SQLite canonical database path, proves persisted canonical
@@ -115,8 +117,8 @@ host-facing and LLM-facing surface.
 - Canonical Store implementation state has been recorded in
   `docs/canonical-store/progress.md`, `docs/canonical-store/storage-model.md`,
   `docs/canonical-store/design.md`, and `docs/canonical-store/interfaces.md`.
-  Public `addAlias`, admin operations, merge redirects, canonical domain-event
-  publication, and host runtime DB-path configuration remain future work.
+  Public `addAlias`, admin operations, merge redirects, and canonical
+  domain-event publication remain future work.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and
@@ -327,8 +329,8 @@ host-facing and LLM-facing surface.
 - Stage Interface can still be deepened: host schemas, tool metadata, Handbook
   rendering, and dispatch are not yet fully owned by one implementation file.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store,
-  Collection, and Library Import repository adapters.
-- Stage Core wiring for optional durable Canonical Store storage.
+  Collection, and Library Import repository adapters and their opt-in Stage Core
+  / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -336,8 +338,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the SQLite-backed Collection storage and Stage Core /
-  MCP Collection database-path wiring on 2026-05-25.
+- `npm test` passes as of the Stage Core / MCP Canonical Store database-path
+  wiring on 2026-05-25.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

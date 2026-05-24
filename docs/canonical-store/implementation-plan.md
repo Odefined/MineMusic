@@ -209,9 +209,8 @@ runtime behavior deterministic.
 - Add a helper for SQLite-backed canonical storage only if the call site needs
   it.
 - Do not make `npm test` depend on a fixed local database path.
-- For MCP, consider a later environment variable such as
-  `MINEMUSIC_CANONICAL_DB_PATH`; do not add it until Stage Core accepts injected
-  durable storage cleanly.
+- For MCP, use `MINEMUSIC_CANONICAL_DB_PATH` only after Stage Core accepts
+  injected durable storage cleanly.
 
 **Dependencies**
 
