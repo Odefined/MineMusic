@@ -131,6 +131,15 @@ countries, formats, reissues, remasters, and other variations.
 A concrete issued version of a release group, such as a specific edition,
 country, format, label issue, deluxe version, or remaster.
 
+### Provisional Canonical Record
+
+A Canonical Store record that MineMusic can use as an internal identity anchor
+before the identity has been fully corrected, merged, or rejected.
+
+Provisional Canonical Records are appropriate during library import when a
+platform gives enough metadata to create a usable MineMusic-owned anchor for a
+saved or followed asset.
+
 ### Plugin Slots
 
 Stable seams for replaceable external capabilities.
