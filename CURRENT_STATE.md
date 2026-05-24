@@ -120,14 +120,15 @@ host-facing and LLM-facing surface.
   decision handling.
 - Memory Service is exported from `src/memory/index.ts` with evidence-gated
   proposals, effect-boundary acceptance, and summaries.
-- Collection Service foundation is partially implemented. The design is
+- Collection Service foundation is implemented through shared contracts, public
+  ports, in-memory storage, service behavior, Stage Core composition, Material
+  Resolve blocked filtering, and Stage Interface collection tools. The design is
   documented in `docs/collection-service/design.md` as a Core Capability for
   owner-scoped system and custom Collections. Collection Items are canonical-only
   members of a Collection, system Collections cover saved/favorite/blocked
-  relationships across recording/work/release_group/release/artist kinds, custom
-  Collections are user-created single-kind Collections, and blocked membership
-  is expected to filter through Material Resolve. The implementation plan is in
-  `docs/collection-service/implementation-plan.md`.
+  relationships across recording/work/release_group/release/artist kinds, and
+  custom Collections are user-created single-kind Collections. The implementation
+  plan is in `docs/collection-service/implementation-plan.md`.
 - Collection Service implementation plan Task 1 is complete at the shared
   contract layer: `src/contracts/index.ts` now includes the `collection`
   module id, collection error codes, `CollectionKind`, `CollectionRelationKind`,
@@ -152,8 +153,12 @@ host-facing and LLM-facing surface.
   enforces system Collection immutability and canonical kind matching, implements
   idempotent item add/re-add, active item update/removal, system saved/favorite/
   blocked mutual exclusion, blocked ref filtering, owner-derived Collection
-  event session ids, and factual Collection events through `EventPort`. Stage
-  Interface collection tools remain future tasks.
+  event session ids, and factual Collection events through `EventPort`.
+- Collection Service implementation plan Task 5 is complete in Material Resolve:
+  `src/material_resolve/index.ts` accepts an optional `CollectionPort`, defaults
+  missing blocked-filter owner scope to `local_profile:default`, marks blocked
+  canonical materials as `blocked`, and can recover canonical identity from
+  source material external-ref bindings before blocked checks.
 - Collection Service implementation plan Task 6 is complete in Stage Core:
   `src/stage_core/index.ts` creates an in-memory Collection repository by
   default, accepts optional collection repository injection, composes
@@ -161,6 +166,19 @@ host-facing and LLM-facing surface.
   Collections during `ready`, exposes `collection` on `MineMusicStageCore`,
   injects Collection into Material Resolve, and passes Collection into Stage
   Interface dispatch for upcoming collection tools.
+- Collection Service implementation plan Task 7 is complete in Stage Interface:
+  `src/stage_interface/tools.ts`, `src/stage_interface/schemas.ts`, and
+  `src/stage_interface/dispatch.ts` expose and dispatch
+  `music.collection.save`, `music.collection.unsave`,
+  `music.collection.favorite`, `music.collection.unfavorite`,
+  `music.collection.block`, `music.collection.unblock`,
+  `music.collection.item.add`, `music.collection.item.remove`,
+  `music.collection.create`, `music.collection.update`,
+  `music.collection.delete`, and `music.collection.list`. Missing `ownerScope`
+  defaults to `local_profile:default`; custom Collection creation uses
+  `relationKind: "custom"`; Collection deletion delegates to the service's
+  soft-remove path. MCP schema coverage exists for argument-bearing collection
+  tools, and the generated MineMusic Handbook includes the collection entries.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved
@@ -258,7 +276,8 @@ host-facing and LLM-facing surface.
 - Stage Core wiring for optional durable Canonical Store storage.
 - Library Import Service, Platform Library Provider slot, import batch storage,
   and Stage Interface import tools.
-- Collection Service implementation and collection storage.
+- Composed-runtime Stage Interface collection integration coverage before import
+  work.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -266,8 +285,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the Canonical Store SQLite repository and identity
-  hygiene TDD implementation.
+- `npm test` passes as of the Collection Service Stage Interface collection
+  tools TDD implementation.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

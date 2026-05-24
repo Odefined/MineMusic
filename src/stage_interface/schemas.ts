@@ -30,6 +30,8 @@ const musicCandidateSchema = z.object({
   reason: z.string().optional(),
   context: z.string().optional(),
 });
+const collectionKindSchema = z.enum(["recording", "work", "release_group", "release", "artist"]);
+const collectionRelationKindSchema = z.enum(["saved", "favorite", "blocked", "custom"]);
 
 export type StageInterfaceToolInputSchema = z.ZodRawShape;
 
@@ -51,10 +53,74 @@ export const stageInterfaceToolInputSchemas = {
     candidate: musicCandidateSchema.optional(),
     candidates: z.array(musicCandidateSchema).optional(),
     sessionId: z.string().optional(),
+    ownerScope: z.string().optional(),
     limitPerCandidate: z.number().int().positive().optional(),
   },
   "music.links.refresh": {
     material: musicMaterialSchema,
+  },
+  "music.collection.save": {
+    ownerScope: z.string().optional(),
+    canonicalRef: refSchema,
+    label: z.string(),
+    description: z.string().optional(),
+  },
+  "music.collection.unsave": {
+    ownerScope: z.string().optional(),
+    canonicalRef: refSchema,
+  },
+  "music.collection.favorite": {
+    ownerScope: z.string().optional(),
+    canonicalRef: refSchema,
+    label: z.string(),
+    description: z.string().optional(),
+  },
+  "music.collection.unfavorite": {
+    ownerScope: z.string().optional(),
+    canonicalRef: refSchema,
+  },
+  "music.collection.block": {
+    ownerScope: z.string().optional(),
+    canonicalRef: refSchema,
+    label: z.string(),
+    description: z.string().optional(),
+  },
+  "music.collection.unblock": {
+    ownerScope: z.string().optional(),
+    canonicalRef: refSchema,
+  },
+  "music.collection.item.add": {
+    collectionId: z.string(),
+    canonicalRef: refSchema,
+    label: z.string(),
+    description: z.string().optional(),
+  },
+  "music.collection.item.remove": {
+    collectionId: z.string(),
+    canonicalRef: refSchema,
+  },
+  "music.collection.create": {
+    ownerScope: z.string().optional(),
+    collectionKind: collectionKindSchema,
+    label: z.string(),
+    description: z.string().optional(),
+  },
+  "music.collection.update": {
+    collectionId: z.string(),
+    label: z.string().optional(),
+    description: z.string().optional(),
+  },
+  "music.collection.delete": {
+    collectionId: z.string(),
+  },
+  "music.collection.list": {
+    ownerScope: z.string().optional(),
+    collectionId: z.string().optional(),
+    collectionKind: collectionKindSchema.optional(),
+    relationKind: collectionRelationKindSchema.optional(),
+    includeRemoved: z.boolean().optional(),
+    limit: z.number().int().positive().optional(),
+    cursor: z.string().optional(),
   },
   "events.record": {
     event: z.object({}).passthrough(),

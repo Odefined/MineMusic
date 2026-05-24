@@ -261,8 +261,8 @@ Consumes:
 - `InstrumentCatalogPort` consumes no Session Context implementation.
 - `ToolDispatchPort` consumes `SessionContextPort`, `MaterialGatePort`,
   `MaterialResolvePort`, `SourceGroundingPort`, `InstrumentCatalogPort`,
-  `EventPort`, `MemoryPort`, and `EffectBoundaryPort` through dependency
-  injection at the composition root.
+  `CollectionPort`, `EventPort`, `MemoryPort`, and `EffectBoundaryPort` through
+  dependency injection at the composition root.
 
 Publishes domain events:
 

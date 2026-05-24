@@ -308,11 +308,17 @@
   `local_profile:default` system Collections during runtime readiness, injects
   Collection into Material Resolve and Stage Interface dispatch, and supports
   optional collection repository injection.
+- Completed Collection Service implementation plan Task 7 with a TDD loop:
+  Stage Interface now exposes stable collection tool descriptors, explicit MCP
+  input schemas, generated Handbook entries, and dispatch for system
+  save/favorite/block tools, custom Collection create/update/delete/list tools,
+  and item add/remove tools through `CollectionPort`, with missing `ownerScope`
+  defaulting to `local_profile:default`.
 
 ## Next
 
-- Add Stage Interface collection tools before import work so users and future
-  import flows have a governed Collection surface.
+- Add composed-runtime Stage Interface collection integration coverage before
+  import work so users and future import flows have verified Collection flows.
 - After Collection foundations, implement the Library Import provider slot plus
   NetEase import preview path.
 - Decide whether to expose a governed runtime configuration path for durable

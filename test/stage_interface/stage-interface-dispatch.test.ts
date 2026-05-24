@@ -1,12 +1,16 @@
 import type {
+  Collection,
+  CollectionItem,
   EffectProposal,
   MemoryProposal,
   MusicMaterial,
+  Ref,
   Result,
   StageSession,
   ToolName,
 } from "../../src/contracts/index.js";
 import type {
+  CollectionPort,
   EffectBoundaryPort,
   EventPort,
   MaterialResolvePort,
@@ -38,6 +42,27 @@ const session: StageSession = {
   posture: "recommendation",
   activeInstruments: ["minemusic.mvp"],
 };
+const collectionRef: Ref = {
+  namespace: "minemusic",
+  kind: "recording",
+  id: "quiet-track",
+  label: "Quiet Track",
+};
+const collectionItem: CollectionItem = {
+  id: "collection-item-1",
+  collectionId: "collection-saved-recordings",
+  canonicalRef: collectionRef,
+  label: "Quiet Track",
+  createdAt: "2026-05-24T00:00:00.000Z",
+};
+const collectionRecord: Collection = {
+  id: "collection-saved-recordings",
+  ownerScope: "local_profile:default",
+  collectionKind: "recording",
+  relationKind: "saved",
+  label: "Saved recordings",
+  createdAt: "2026-05-24T00:00:00.000Z",
+};
 
 async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void> {
   const catalog = createInstrumentCatalog();
@@ -66,6 +91,9 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     toolNames.includes("handbook.tool.read"),
     "catalog should expose precise handbook tool lookup",
   );
+  assert(toolNames.includes("music.collection.save"), "catalog should expose collection save tool");
+  assert(toolNames.includes("music.collection.create"), "catalog should expose custom collection create tool");
+  assert(toolNames.includes("music.collection.list"), "catalog should expose collection list tool");
 }
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
@@ -356,6 +384,303 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
   assert(result.error.code === "stage_interface.tool_not_found", "instrument gating should use stable tool error");
 }
 
+async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<void> {
+  const calls: string[] = [];
+  const collection: CollectionPort = {
+    initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
+    addItemToSystemCollection: async ({ ownerScope, relationKind, canonicalRef }) => {
+      calls.push(`add:${ownerScope}:${relationKind}:${canonicalRef.id}`);
+      return { ok: true, value: collectionItem };
+    },
+    removeItemFromSystemCollection: async ({ ownerScope, relationKind, canonicalRef }) => {
+      calls.push(`remove:${ownerScope}:${relationKind}:${canonicalRef.id}`);
+      return { ok: true, value: collectionItem };
+    },
+    addItemToCollection: async () => ({ ok: true, value: collectionItem }),
+    removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
+    updateItem: async () => ({ ok: true, value: collectionItem }),
+    listItems: async () => ({ ok: true, value: [] }),
+    listCollections: async () => ({ ok: true, value: [] }),
+    createCollection: async () => ({ ok: true, value: collectionRecord }),
+    updateCollection: async () => ({ ok: true, value: collectionRecord }),
+    removeCollection: async () => ({ ok: true, value: collectionRecord }),
+    filterBlocked: async () => ({ ok: true, value: [] }),
+  };
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "now" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+    collection,
+  });
+
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.save",
+      payload: { canonicalRef: collectionRef, label: "Quiet Track" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.unsave",
+      payload: { canonicalRef: collectionRef },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.favorite",
+      payload: { canonicalRef: collectionRef, label: "Quiet Track", ownerScope: "local_profile:guest" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.unfavorite",
+      payload: { canonicalRef: collectionRef, ownerScope: "local_profile:guest" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.block",
+      payload: { canonicalRef: collectionRef, label: "Quiet Track" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.unblock",
+      payload: { canonicalRef: collectionRef },
+    }),
+  );
+
+  assert(
+    calls.includes("add:local_profile:default:saved:quiet-track"),
+    "collection save should default missing owner scope",
+  );
+  assert(
+    calls.includes("remove:local_profile:default:saved:quiet-track"),
+    "collection unsave should default missing owner scope",
+  );
+  assert(
+    calls.includes("add:local_profile:guest:favorite:quiet-track"),
+    "collection favorite should preserve explicit owner scope",
+  );
+  assert(
+    calls.includes("remove:local_profile:guest:favorite:quiet-track"),
+    "collection unfavorite should preserve explicit owner scope",
+  );
+  assert(
+    calls.includes("add:local_profile:default:blocked:quiet-track"),
+    "collection block should call blocked system collection",
+  );
+  assert(
+    calls.includes("remove:local_profile:default:blocked:quiet-track"),
+    "collection unblock should call blocked system collection removal",
+  );
+}
+
+async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Promise<void> {
+  const calls: string[] = [];
+  const customCollection: Collection = {
+    ...collectionRecord,
+    id: "collection-night-coding",
+    relationKind: "custom",
+    label: "Night coding",
+  };
+  const customItem: CollectionItem = {
+    ...collectionItem,
+    collectionId: customCollection.id,
+  };
+  const collection: CollectionPort = {
+    initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
+    addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
+    removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
+    addItemToCollection: async ({ collectionId, canonicalRef, label }) => {
+      calls.push(`item.add:${collectionId}:${canonicalRef.id}:${label}`);
+      return { ok: true, value: customItem };
+    },
+    removeItemFromCollection: async ({ collectionId, canonicalRef }) => {
+      calls.push(`item.remove:${collectionId}:${canonicalRef.id}`);
+      return { ok: true, value: customItem };
+    },
+    updateItem: async () => ({ ok: true, value: customItem }),
+    listItems: async ({ ownerScope, collectionKind, relationKind, includeRemoved, limit, cursor }) => {
+      calls.push(
+        `list.items:${ownerScope}:${collectionKind ?? "any"}:${relationKind ?? "any"}:${String(includeRemoved)}:${limit ?? "none"}:${cursor ?? "none"}`,
+      );
+      return { ok: true, value: [customItem] };
+    },
+    listCollections: async ({ ownerScope, collectionKind, relationKind, includeRemoved }) => {
+      calls.push(
+        `list.collections:${ownerScope}:${collectionKind ?? "any"}:${relationKind ?? "any"}:${String(includeRemoved)}`,
+      );
+      return { ok: true, value: [customCollection] };
+    },
+    createCollection: async ({ ownerScope, collectionKind, relationKind, label }) => {
+      calls.push(`create:${ownerScope}:${collectionKind}:${relationKind}:${label}`);
+      return { ok: true, value: customCollection };
+    },
+    updateCollection: async ({ collectionId, label }) => {
+      calls.push(`update:${collectionId}:${label ?? "none"}`);
+      return { ok: true, value: customCollection };
+    },
+    removeCollection: async ({ collectionId }) => {
+      calls.push(`delete:${collectionId}`);
+      return { ok: true, value: customCollection };
+    },
+    filterBlocked: async () => ({ ok: true, value: [] }),
+  };
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "now" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+    collection,
+  });
+
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.create",
+      payload: { collectionKind: "recording", label: "Night coding" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.update",
+      payload: { collectionId: customCollection.id, label: "Late night coding" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.item.add",
+      payload: { collectionId: customCollection.id, canonicalRef: collectionRef, label: "Quiet Track" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.item.remove",
+      payload: { collectionId: customCollection.id, canonicalRef: collectionRef },
+    }),
+  );
+  const listed = await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.list",
+      payload: {
+        collectionKind: "recording",
+        relationKind: "custom",
+        includeRemoved: true,
+        limit: 20,
+        cursor: "cursor-1",
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.delete",
+      payload: { collectionId: customCollection.id },
+    }),
+  );
+
+  assert(
+    calls.includes("create:local_profile:default:recording:custom:Night coding"),
+    "custom collection create should default owner scope and relation kind",
+  );
+  assert(
+    calls.includes("update:collection-night-coding:Late night coding"),
+    "custom collection update should call CollectionPort",
+  );
+  assert(
+    calls.includes("item.add:collection-night-coding:quiet-track:Quiet Track"),
+    "collection item add should use collectionId",
+  );
+  assert(
+    calls.includes("item.remove:collection-night-coding:quiet-track"),
+    "collection item remove should use collectionId",
+  );
+  assert(
+    calls.includes("list.collections:local_profile:default:recording:custom:true"),
+    "collection list should query collections with default owner scope",
+  );
+  assert(
+    calls.includes("list.items:local_profile:default:recording:custom:true:20:cursor-1"),
+    "collection list should query items with cursor options",
+  );
+  assert(calls.includes("delete:collection-night-coding"), "collection delete should soft-remove custom collection");
+  assert(
+    typeof listed === "object" &&
+      listed !== null &&
+      Array.isArray((listed as { collections?: unknown }).collections) &&
+      Array.isArray((listed as { items?: unknown }).items),
+    "collection list should return collections and items",
+  );
+}
+
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   const dispatch = createToolDispatch({
     sessionContext: {} as SessionContextPort,
@@ -380,4 +705,6 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
 await listsStableLlmVisibleToolsWithoutProviderDetails();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
+await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
+await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
 await reportsUnknownToolsAsResultErrors();

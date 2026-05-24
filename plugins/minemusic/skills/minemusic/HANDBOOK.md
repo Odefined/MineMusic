@@ -43,6 +43,66 @@ Output: `MaterialResolveResult`
 Description: Refresh source-backed playable links for a material item.
 Input: `MusicMaterial`
 Output: `MusicMaterial`
+#### `music.collection.save`
+
+Description: Save a canonical music object to the owner's saved system collection.
+Input: `CollectionSystemItemInput`
+Output: `CollectionItem`
+#### `music.collection.unsave`
+
+Description: Remove a canonical music object from the owner's saved system collection.
+Input: `CollectionSystemRemoveInput`
+Output: `CollectionItem`
+#### `music.collection.favorite`
+
+Description: Favorite a canonical music object in the owner's favorite system collection.
+Input: `CollectionSystemItemInput`
+Output: `CollectionItem`
+#### `music.collection.unfavorite`
+
+Description: Remove a canonical music object from the owner's favorite system collection.
+Input: `CollectionSystemRemoveInput`
+Output: `CollectionItem`
+#### `music.collection.block`
+
+Description: Block a canonical music object from future recommendations for the owner.
+Input: `CollectionSystemItemInput`
+Output: `CollectionItem`
+#### `music.collection.unblock`
+
+Description: Remove a canonical music object from the owner's blocked system collection.
+Input: `CollectionSystemRemoveInput`
+Output: `CollectionItem`
+#### `music.collection.item.add`
+
+Description: Add a canonical music object to a custom collection by collection id.
+Input: `CollectionItemAddInput`
+Output: `CollectionItem`
+#### `music.collection.item.remove`
+
+Description: Remove a canonical music object from a custom collection by collection id.
+Input: `CollectionItemRemoveInput`
+Output: `CollectionItem`
+#### `music.collection.create`
+
+Description: Create a user-owned custom collection for one collection kind.
+Input: `CollectionCreateInput`
+Output: `Collection`
+#### `music.collection.update`
+
+Description: Update a user-created custom collection label or description.
+Input: `CollectionUpdateInput`
+Output: `Collection`
+#### `music.collection.delete`
+
+Description: Soft-remove a user-created custom collection.
+Input: `CollectionDeleteInput`
+Output: `Collection`
+#### `music.collection.list`
+
+Description: List owner collections and matching collection items.
+Input: `CollectionListInput`
+Output: `CollectionListOutput`
 #### `events.record`
 
 Description: Record a factual session event.

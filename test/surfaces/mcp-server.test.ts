@@ -46,6 +46,10 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     codexToolNameFor("music.material.resolve") === "minemusic.music.material.resolve",
     "MCP should expose canonical-first material resolve with the MineMusic prefix",
   );
+  assert(
+    codexToolNameFor("music.collection.save") === "minemusic.music.collection.save",
+    "MCP should expose collection tools with the MineMusic prefix",
+  );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
 }
 
@@ -104,6 +108,18 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.events.record"), "event"),
     "event tool schema should declare event input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "canonicalRef"),
+    "collection save schema should declare canonicalRef input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.collection.create"), "collectionKind"),
+    "collection create schema should declare collectionKind input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.collection.list"), "ownerScope"),
+    "collection list schema should declare ownerScope input",
   );
   assert(
     schemaIsEmpty(schemasByName.get("minemusic.handbook.overview.read")),

@@ -1,9 +1,12 @@
 import type {
+  CollectionKind,
+  CollectionRelationKind,
   EffectProposal,
   InstrumentDescriptor,
   MaterialResolveRequest,
   MemoryProposal,
   MusicMaterial,
+  Ref,
   Result,
   StageError,
   StageEvent,
@@ -24,9 +27,59 @@ import type {
   MemoryPort,
   SessionContextPort,
   SourceGroundingPort,
+  SystemCollectionRelationKind,
   ToolDispatchPort,
 } from "../ports/index.js";
 import { stableToolNames } from "./tools.js";
+
+const defaultOwnerScope = "local_profile:default";
+
+type CollectionSystemAddPayload = {
+  ownerScope: string;
+  canonicalRef: Ref;
+  label: string;
+  description?: string;
+};
+
+type CollectionSystemRemovePayload = {
+  ownerScope: string;
+  canonicalRef: Ref;
+};
+
+type CollectionItemAddPayload = {
+  collectionId: string;
+  canonicalRef: Ref;
+  label: string;
+  description?: string;
+};
+
+type CollectionItemRemovePayload = {
+  collectionId: string;
+  canonicalRef: Ref;
+};
+
+type CollectionCreatePayload = {
+  ownerScope: string;
+  collectionKind: CollectionKind;
+  label: string;
+  description?: string;
+};
+
+type CollectionUpdatePayload = {
+  collectionId: string;
+  label?: string;
+  description?: string;
+};
+
+type CollectionListPayload = {
+  ownerScope: string;
+  collectionId?: string;
+  collectionKind?: CollectionKind;
+  relationKind?: CollectionRelationKind;
+  includeRemoved?: boolean;
+  limit?: number;
+  cursor?: string;
+};
 
 type ToolDispatchOptions = {
   sessionContext: SessionContextPort;
@@ -49,6 +102,7 @@ export function createToolDispatch({
   events,
   memory,
   effects,
+  collection,
 }: ToolDispatchOptions): ToolDispatchPort {
   const discoveryToolNames = new Set<ToolName>([
     "stage.context.read",
@@ -143,6 +197,111 @@ export function createToolDispatch({
             }>(payload, { sessionId }),
           );
 
+        case "music.collection.save":
+          return dispatchSystemCollectionAdd(collection, payload, "saved");
+
+        case "music.collection.unsave":
+          return dispatchSystemCollectionRemove(collection, payload, "saved");
+
+        case "music.collection.favorite":
+          return dispatchSystemCollectionAdd(collection, payload, "favorite");
+
+        case "music.collection.unfavorite":
+          return dispatchSystemCollectionRemove(collection, payload, "favorite");
+
+        case "music.collection.block":
+          return dispatchSystemCollectionAdd(collection, payload, "blocked");
+
+        case "music.collection.unblock":
+          return dispatchSystemCollectionRemove(collection, payload, "blocked");
+
+        case "music.collection.item.add": {
+          const availableCollection = readCollection(collection);
+
+          if (!availableCollection.ok) {
+            return availableCollection;
+          }
+
+          return availableCollection.value.addItemToCollection(
+            readPayload<CollectionItemAddPayload>(payload),
+          );
+        }
+
+        case "music.collection.item.remove": {
+          const availableCollection = readCollection(collection);
+
+          if (!availableCollection.ok) {
+            return availableCollection;
+          }
+
+          return availableCollection.value.removeItemFromCollection(
+            readPayload<CollectionItemRemovePayload>(payload),
+          );
+        }
+
+        case "music.collection.create": {
+          const availableCollection = readCollection(collection);
+
+          if (!availableCollection.ok) {
+            return availableCollection;
+          }
+
+          return availableCollection.value.createCollection({
+            ...readPayload<CollectionCreatePayload>(payload, { ownerScope: defaultOwnerScope }),
+            relationKind: "custom",
+          });
+        }
+
+        case "music.collection.update": {
+          const availableCollection = readCollection(collection);
+
+          if (!availableCollection.ok) {
+            return availableCollection;
+          }
+
+          return availableCollection.value.updateCollection(
+            readPayload<CollectionUpdatePayload>(payload),
+          );
+        }
+
+        case "music.collection.delete": {
+          const availableCollection = readCollection(collection);
+
+          if (!availableCollection.ok) {
+            return availableCollection;
+          }
+
+          return availableCollection.value.removeCollection(
+            readPayload<{ collectionId: string }>(payload),
+          );
+        }
+
+        case "music.collection.list": {
+          const availableCollection = readCollection(collection);
+
+          if (!availableCollection.ok) {
+            return availableCollection;
+          }
+
+          const input = readPayload<CollectionListPayload>(payload, { ownerScope: defaultOwnerScope });
+          const collections = await availableCollection.value.listCollections(input);
+
+          if (!collections.ok) {
+            return collections;
+          }
+
+          const items = await availableCollection.value.listItems(input);
+
+          if (!items.ok) {
+            return items;
+          }
+
+          return ok({
+            collections: collections.value,
+            items: items.value,
+          });
+        }
+
         case "events.record":
           return events.record(readPayload<{ event: Omit<StageEvent, "id" | "time"> }>(payload));
 
@@ -170,6 +329,57 @@ export function createToolDispatch({
       }
     },
   };
+}
+
+function dispatchSystemCollectionAdd(
+  collection: CollectionPort | undefined,
+  payload: unknown,
+  relationKind: SystemCollectionRelationKind,
+): ReturnType<CollectionPort["addItemToSystemCollection"]> | Result<never> {
+  const availableCollection = readCollection(collection);
+
+  if (!availableCollection.ok) {
+    return availableCollection;
+  }
+
+  return availableCollection.value.addItemToSystemCollection({
+    ...readPayload<CollectionSystemAddPayload>(payload, { ownerScope: defaultOwnerScope }),
+    relationKind,
+  });
+}
+
+function dispatchSystemCollectionRemove(
+  collection: CollectionPort | undefined,
+  payload: unknown,
+  relationKind: SystemCollectionRelationKind,
+): ReturnType<CollectionPort["removeItemFromSystemCollection"]> | Result<never> {
+  const availableCollection = readCollection(collection);
+
+  if (!availableCollection.ok) {
+    return availableCollection;
+  }
+
+  return availableCollection.value.removeItemFromSystemCollection({
+    ...readPayload<CollectionSystemRemovePayload>(payload, { ownerScope: defaultOwnerScope }),
+    relationKind,
+  });
+}
+
+function readCollection(collection: CollectionPort | undefined): Result<CollectionPort> {
+  if (collection === undefined) {
+    return collectionUnavailable();
+  }
+
+  return ok(collection);
+}
+
+function collectionUnavailable(): Result<never> {
+  return fail({
+    code: "stage_interface.tool_not_found",
+    message: "Collection tools are not available.",
+    module: "stage_interface",
+    retryable: false,
+  });
 }
 
 function readPayload<TPayload extends object>(
