@@ -432,11 +432,17 @@
   import batch storage, complete area snapshots, item provenance, absence records,
   and latest complete baseline lookup; extended contract coverage in
   `test/contracts/wave1-contracts.test.ts`.
+- Completed Library Import Service implementation plan Task 3 with a TDD loop:
+  added `createInMemoryLibraryImportRepository()` in `src/storage/index.ts`,
+  covering clone-return batch, area snapshot, item provenance, absence record,
+  and latest complete baseline storage behavior; added focused coverage in
+  `test/storage/in-memory-library-import-repository.test.ts` and wired it into
+  `test/run-stage-core-tests.ts`.
 
 ## Next
 
-- Continue Library Import implementation with Task 3: in-memory Library Import
-  storage.
+- Continue Library Import implementation with Task 4: Library Import Service
+  skeleton.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

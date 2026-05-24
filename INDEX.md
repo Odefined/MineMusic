@@ -217,6 +217,11 @@ This index points agents to the current MVP documentation pack.
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
+57. `test/storage/in-memory-library-import-repository.test.ts`
+    - In-memory Library Import repository behavior tests for clone-return batch,
+      area snapshot, item provenance, absence, and latest complete baseline
+      storage.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

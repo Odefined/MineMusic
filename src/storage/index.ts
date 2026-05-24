@@ -3,7 +3,11 @@ import type {
   Collection,
   CollectionItem,
   EffectProposal,
+  LibraryImportAreaSnapshot,
+  LibraryImportBatch,
+  LibraryImportItemProvenance,
   MemoryEntry,
+  PlatformLibraryAbsence,
   Ref,
   Result,
   StageError,
@@ -15,6 +19,7 @@ import type {
   CollectionRepository,
   EffectProposalRepository,
   EventRepository,
+  LibraryImportRepository,
   MemoryRepository,
   Repository,
   SessionRepository,
@@ -149,6 +154,99 @@ export function createInMemoryCollectionRepository(): CollectionRepository {
   };
 }
 
+export function createInMemoryLibraryImportRepository(): LibraryImportRepository {
+  const batches = new Map<string, LibraryImportBatch>();
+  const areaSnapshots = new Map<string, LibraryImportAreaSnapshot>();
+  const itemProvenance = new Map<string, LibraryImportItemProvenance>();
+  const absences = new Map<string, PlatformLibraryAbsence>();
+
+  return {
+    async getBatch({ batchId }) {
+      const batch = batches.get(batchId);
+
+      return ok(batch === undefined ? null : cloneRecord(batch));
+    },
+
+    async putBatch({ batch }) {
+      batches.set(batch.id, cloneRecord(batch));
+
+      return ok(cloneRecord(batch));
+    },
+
+    async listBatches(query) {
+      return ok(
+        [...batches.values()]
+          .filter((batch) => matchesLibraryImportBatchQuery(batch, query))
+          .map((batch) => cloneRecord(batch)),
+      );
+    },
+
+    async putAreaSnapshot({ snapshot }) {
+      areaSnapshots.set(libraryImportAreaSnapshotKey(snapshot), cloneRecord(snapshot));
+
+      return ok(cloneRecord(snapshot));
+    },
+
+    async listAreaSnapshots(query) {
+      return ok(
+        [...areaSnapshots.values()]
+          .filter((snapshot) => matchesLibraryImportAreaSnapshotQuery(snapshot, query))
+          .map((snapshot) => cloneRecord(snapshot)),
+      );
+    },
+
+    async getLatestCompleteAreaSnapshot(input) {
+      const snapshots = [...areaSnapshots.values()]
+        .filter(
+          (snapshot) =>
+            snapshot.complete &&
+            snapshot.ownerScope === input.ownerScope &&
+            snapshot.providerId === input.providerId &&
+            snapshot.providerAccountId === input.providerAccountId &&
+            snapshot.scope === input.scope &&
+            snapshot.area === input.area,
+        )
+        .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
+
+      return ok(snapshots[0] === undefined ? null : cloneRecord(snapshots[0]));
+    },
+
+    async upsertItemProvenance({ provenance }) {
+      itemProvenance.set(libraryImportItemProvenanceKey(provenance), cloneRecord(provenance));
+
+      return ok(cloneRecord(provenance));
+    },
+
+    async getItemProvenance(input) {
+      const provenance = itemProvenance.get(libraryImportItemProvenanceKey(input));
+
+      return ok(provenance === undefined ? null : cloneRecord(provenance));
+    },
+
+    async listItemProvenance(query) {
+      return ok(
+        [...itemProvenance.values()]
+          .filter((provenance) => matchesLibraryImportItemProvenanceQuery(provenance, query))
+          .map((provenance) => cloneRecord(provenance)),
+      );
+    },
+
+    async putAbsence({ absence }) {
+      absences.set(absence.id, cloneRecord(absence));
+
+      return ok(cloneRecord(absence));
+    },
+
+    async listAbsences(query) {
+      return ok(
+        [...absences.values()]
+          .filter((absence) => matchesPlatformLibraryAbsenceQuery(absence, query))
+          .map((absence) => cloneRecord(absence)),
+      );
+    },
+  };
+}
+
 export function createInMemoryEventRepository(): EventRepository {
   return createInMemoryRepository<StageEvent, string>({
     recordKey: (record) => record.id,
@@ -179,6 +277,92 @@ export function createInMemoryEffectProposalRepository(): EffectProposalReposito
 
 function stringStorageKey(key: string): string {
   return key;
+}
+
+function matchesLibraryImportBatchQuery(
+  batch: LibraryImportBatch,
+  query: Parameters<LibraryImportRepository["listBatches"]>[0],
+): boolean {
+  return (
+    (query.ownerScope === undefined || batch.ownerScope === query.ownerScope) &&
+    (query.providerId === undefined || batch.providerId === query.providerId) &&
+    (query.providerAccountId === undefined || batch.providerAccountId === query.providerAccountId) &&
+    (query.batchKind === undefined || batch.batchKind === query.batchKind) &&
+    (query.status === undefined || batch.status === query.status)
+  );
+}
+
+function libraryImportAreaSnapshotKey(snapshot: LibraryImportAreaSnapshot): string {
+  return [
+    snapshot.batchId,
+    snapshot.ownerScope,
+    snapshot.providerId,
+    snapshot.providerAccountId,
+    snapshot.scope,
+    snapshot.area,
+  ].join(":");
+}
+
+function matchesLibraryImportAreaSnapshotQuery(
+  snapshot: LibraryImportAreaSnapshot,
+  query: Parameters<LibraryImportRepository["listAreaSnapshots"]>[0],
+): boolean {
+  return (
+    (query.batchId === undefined || snapshot.batchId === query.batchId) &&
+    (query.ownerScope === undefined || snapshot.ownerScope === query.ownerScope) &&
+    (query.providerId === undefined || snapshot.providerId === query.providerId) &&
+    (query.providerAccountId === undefined || snapshot.providerAccountId === query.providerAccountId) &&
+    (query.scope === undefined || snapshot.scope === query.scope) &&
+    (query.area === undefined || snapshot.area === query.area) &&
+    (query.complete === undefined || snapshot.complete === query.complete)
+  );
+}
+
+function libraryImportItemProvenanceKey(
+  provenance: Pick<
+    LibraryImportItemProvenance,
+    "ownerScope" | "providerId" | "providerAccountId" | "scope" | "area" | "sourceRef"
+  >,
+): string {
+  return [
+    provenance.ownerScope,
+    provenance.providerId,
+    provenance.providerAccountId,
+    provenance.scope,
+    provenance.area,
+    refToStorageKey(provenance.sourceRef),
+  ].join(":");
+}
+
+function matchesLibraryImportItemProvenanceQuery(
+  provenance: LibraryImportItemProvenance,
+  query: Parameters<LibraryImportRepository["listItemProvenance"]>[0],
+): boolean {
+  return (
+    (query.ownerScope === undefined || provenance.ownerScope === query.ownerScope) &&
+    (query.providerId === undefined || provenance.providerId === query.providerId) &&
+    (query.providerAccountId === undefined || provenance.providerAccountId === query.providerAccountId) &&
+    (query.scope === undefined || provenance.scope === query.scope) &&
+    (query.area === undefined || provenance.area === query.area) &&
+    (query.sourceRef === undefined ||
+      refToStorageKey(provenance.sourceRef) === refToStorageKey(query.sourceRef)) &&
+    (query.status === undefined || provenance.status === query.status)
+  );
+}
+
+function matchesPlatformLibraryAbsenceQuery(
+  absence: PlatformLibraryAbsence,
+  query: Parameters<LibraryImportRepository["listAbsences"]>[0],
+): boolean {
+  return (
+    (query.ownerScope === undefined || absence.ownerScope === query.ownerScope) &&
+    (query.providerId === undefined || absence.providerId === query.providerId) &&
+    (query.providerAccountId === undefined || absence.providerAccountId === query.providerAccountId) &&
+    (query.scope === undefined || absence.scope === query.scope) &&
+    (query.area === undefined || absence.area === query.area) &&
+    (query.baselineBatchId === undefined || absence.baselineBatchId === query.baselineBatchId) &&
+    (query.currentBatchId === undefined || absence.currentBatchId === query.currentBatchId)
+  );
 }
 
 function matchesCollectionQuery(
