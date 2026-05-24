@@ -153,8 +153,7 @@ host-facing and LLM-facing surface.
   idempotent item add/re-add, active item update/removal, system saved/favorite/
   blocked mutual exclusion, blocked ref filtering, owner-derived Collection
   event session ids, and factual Collection events through `EventPort`. Stage
-  Core wiring, Stage Interface collection tools, and Material Resolve blocked
-  integration remain future tasks.
+  Core wiring and Stage Interface collection tools remain future tasks.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved
@@ -166,7 +165,10 @@ host-facing and LLM-facing surface.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution,
   `MaterialResolveResult` status, and source evidence attachment to known
-  canonical records.
+  canonical records. It can accept `CollectionPort` for owner-scoped blocked
+  filtering, defaults missing `ownerScope` to `local_profile:default`, marks
+  blocked canonical materials as `blocked`, and can recover canonical identity
+  from source material external-ref bindings before blocked checks.
 - Source Grounding is exported from `src/source/index.ts` with provider search,
   playable-link refresh, canonical-ref lookup from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.

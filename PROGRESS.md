@@ -297,11 +297,16 @@
   lifecycle, item kind checks, idempotent membership writes, active item
   update/removal, saved/favorite/blocked mutual exclusion, blocked filtering,
   and factual Collection events.
+- Completed Collection Service implementation plan Task 5 with a TDD loop:
+  Material Resolve now accepts an optional `CollectionPort`, defaults blocked
+  filtering to `local_profile:default` when `ownerScope` is missing, marks
+  blocked canonical materials/candidates as `blocked`, and resolves source
+  material external refs through Canonical Store before applying blocked
+  filtering.
 
 ## Next
 
-- Wire Collection Service into Stage Core and Material Resolve before import
-  work so imported
+- Wire Collection Service into Stage Core before import work so imported
   platform library assets have a user-owned Collection target.
 - After Collection foundations, implement the Library Import provider slot plus
   NetEase import preview path.

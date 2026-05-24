@@ -12,6 +12,7 @@ import type {
 } from "../contracts/index.js";
 import type {
   CanonicalStorePort,
+  CollectionPort,
   MaterialResolvePort,
   SourceGroundingPort,
 } from "../ports/index.js";
@@ -19,21 +20,27 @@ import type {
 type MaterialResolveServiceOptions = {
   canonicalStore: CanonicalStorePort;
   sourceGrounding: SourceGroundingPort;
+  collection?: CollectionPort;
 };
 
 export function createMaterialResolveService({
   canonicalStore,
   sourceGrounding,
+  collection,
 }: MaterialResolveServiceOptions): MaterialResolvePort {
   return {
     async resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>> {
+      const ownerScope = input.ownerScope ?? "local_profile:default";
+
       if (input.kind === "single") {
         const result = await resolveCandidate({
           candidate: input.candidate,
           ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
           ...(input.limitPerCandidate === undefined ? {} : { limitPerCandidate: input.limitPerCandidate }),
+          ownerScope,
           canonicalStore,
           sourceGrounding,
+          ...(collection === undefined ? {} : { collection }),
         });
 
         if (!result.ok) {
@@ -53,8 +60,10 @@ export function createMaterialResolveService({
           candidate,
           ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
           ...(input.limitPerCandidate === undefined ? {} : { limitPerCandidate: input.limitPerCandidate }),
+          ownerScope,
           canonicalStore,
           sourceGrounding,
+          ...(collection === undefined ? {} : { collection }),
         });
 
         if (!result.ok) {
@@ -76,14 +85,18 @@ async function resolveCandidate({
   candidate,
   sessionId,
   limitPerCandidate,
+  ownerScope,
   canonicalStore,
   sourceGrounding,
+  collection,
 }: {
   candidate: MusicCandidate;
   sessionId?: string;
   limitPerCandidate?: number;
+  ownerScope: string;
   canonicalStore: CanonicalStorePort;
   sourceGrounding: SourceGroundingPort;
+  collection?: CollectionPort;
 }): Promise<Result<ResolvedCandidate>> {
   const canonicalResult = await findCanonicalForCandidate(canonicalStore, candidate);
 
@@ -103,14 +116,24 @@ async function resolveCandidate({
 
   const materialsResult =
     canonical === null
-      ? ok(groundResult.value)
+      ? await attachKnownCanonicalRefsToMaterials(canonicalStore, groundResult.value)
       : await attachCanonicalToMaterials(canonicalStore, canonical, groundResult.value);
 
   if (!materialsResult.ok) {
     return materialsResult;
   }
 
-  const materials = materialsResult.value;
+  const blockedFilterResult = await applyBlockedFiltering({
+    materials: materialsResult.value,
+    ownerScope,
+    ...(collection === undefined ? {} : { collection }),
+  });
+
+  if (!blockedFilterResult.ok) {
+    return blockedFilterResult;
+  }
+
+  const materials = blockedFilterResult.value;
 
   return ok({
     candidate: structuredClone(candidate),
@@ -119,6 +142,50 @@ async function resolveCandidate({
     ...(canonical === null ? {} : { canonicalRef: canonical.ref }),
     ...(materials.length === 0 ? { reason: "No source-backed material matched this candidate." } : {}),
   });
+}
+
+async function applyBlockedFiltering({
+  materials,
+  ownerScope,
+  collection,
+}: {
+  materials: MusicMaterial[];
+  ownerScope: string;
+  collection?: CollectionPort;
+}): Promise<Result<MusicMaterial[]>> {
+  if (collection === undefined) {
+    return ok(materials);
+  }
+
+  const canonicalRefs = mergeRefs(
+    [],
+    materials
+      .map((material) => material.canonicalRef)
+      .filter((ref): ref is Ref => ref !== undefined),
+  );
+
+  if (canonicalRefs.length === 0) {
+    return ok(materials);
+  }
+
+  const blocked = await collection.filterBlocked({
+    ownerScope,
+    canonicalRefs,
+  });
+
+  if (!blocked.ok) {
+    return blocked;
+  }
+
+  const blockedRefKeys = new Set(blocked.value.map(refKey));
+
+  return ok(
+    materials.map((material) =>
+      material.canonicalRef !== undefined && blockedRefKeys.has(refKey(material.canonicalRef))
+        ? { ...material, state: "blocked" }
+        : material,
+    ),
+  );
 }
 
 async function findCanonicalForCandidate(
@@ -222,6 +289,54 @@ async function attachCanonicalToMaterials(
   }
 
   return ok(attachedMaterials);
+}
+
+async function attachKnownCanonicalRefsToMaterials(
+  canonicalStore: CanonicalStorePort,
+  materials: MusicMaterial[],
+): Promise<Result<MusicMaterial[]>> {
+  const attachedMaterials: MusicMaterial[] = [];
+
+  for (const material of materials) {
+    const sourceRefs = mergeRefs(
+      material.sourceRefs ?? [],
+      (material.playableLinks ?? []).map((link) => link.sourceRef),
+    );
+    const canonical = await findCanonicalForSourceRefs(canonicalStore, sourceRefs);
+
+    if (!canonical.ok) {
+      return canonical;
+    }
+
+    if (canonical.value === null) {
+      attachedMaterials.push(material);
+      continue;
+    }
+
+    attachedMaterials.push({
+      ...material,
+      canonicalRef: canonical.value.ref,
+      ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
+      state: stateWithCanonical(material),
+    });
+  }
+
+  return ok(attachedMaterials);
+}
+
+async function findCanonicalForSourceRefs(
+  canonicalStore: CanonicalStorePort,
+  sourceRefs: Ref[],
+): Promise<Result<CanonicalRecord | null>> {
+  for (const sourceRef of sourceRefs) {
+    const canonical = await canonicalStore.resolveExternalRef({ ref: sourceRef });
+
+    if (!canonical.ok || canonical.value !== null) {
+      return canonical;
+    }
+  }
+
+  return ok(null);
 }
 
 function stateWithCanonical(material: MusicMaterial): MusicMaterial["state"] {

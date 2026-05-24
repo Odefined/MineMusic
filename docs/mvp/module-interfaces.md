@@ -433,6 +433,7 @@ Purpose:
 - Return `MaterialResolveResult` with candidate-level status.
 - Attach discovered source evidence to known canonical records when a candidate
   resolves through a canonical target.
+- Use Collection Service blocked membership when a canonical ref is available.
 
 Public port:
 
@@ -446,6 +447,7 @@ Consumes:
 
 - `CanonicalStorePort`
 - `SourceGroundingPort`
+- optional `CollectionPort`
 
 Publishes domain events:
 
