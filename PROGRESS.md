@@ -438,11 +438,17 @@
   and latest complete baseline storage behavior; added focused coverage in
   `test/storage/in-memory-library-import-repository.test.ts` and wired it into
   `test/run-stage-core-tests.ts`.
+- Completed Library Import Service implementation plan Task 4 with a TDD loop:
+  added the service skeleton in `src/library_import/index.ts`, covering
+  `platform_library` provider lookup and shape validation, first-slice
+  scope-to-area mapping, discovery start rejection, skeleton import/update batch
+  creation, and batch status/summary helpers; added coverage in
+  `test/library_import/library-import-service.test.ts` and wired it into
+  `test/run-stage-core-tests.ts`.
 
 ## Next
 
-- Continue Library Import implementation with Task 4: Library Import Service
-  skeleton.
+- Continue Library Import implementation with Task 5: import preview.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

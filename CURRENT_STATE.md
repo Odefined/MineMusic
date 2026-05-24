@@ -130,16 +130,16 @@ host-facing and LLM-facing surface.
   `docs/collection-service/design.md`, task breakdown is
   `docs/collection-service/implementation-plan.md`, and detailed implementation
   status is tracked in `docs/collection-service/progress.md`.
-- Library Import orchestration service is not implemented yet. The design is
-  documented in `docs/library-import/design.md` as a future path for helping
-  users switch from platforms such as NetEase by importing saved songs, albums,
+- Library Import orchestration service skeleton is implemented. The design is
+  documented in `docs/library-import/design.md` as the path for helping users
+  switch from platforms such as NetEase by importing saved songs, albums,
   followed artists, and other first-slice platform-library facts into
   MineMusic-owned Collection items, canonical external-ref bindings, and
   import/update event records.
   Playlist import is documented as a later feature. The implementation task
   breakdown is documented in `docs/library-import/implementation-plan.md`, and
   detailed implementation status is tracked in `docs/library-import/progress.md`.
-- Library Import implementation Tasks 1-3 are complete: shared TypeScript contracts
+- Library Import implementation Tasks 1-4 are complete: shared TypeScript contracts
   now define first-slice import scopes, batch kinds/statuses, preview/start/status
   inputs, preview/report outputs, item outcomes, import counts, batch records,
   area snapshots, item provenance, Platform Library Absence records, and stable
@@ -148,9 +148,14 @@ host-facing and LLM-facing surface.
   batch storage, area snapshots, item provenance, absence records, and latest
   complete baseline lookup. In-memory storage now exports
   `createInMemoryLibraryImportRepository()` for clone-return batch, snapshot,
-  provenance, absence, and latest complete baseline operations. Service
-  orchestration, Stage Core wiring, durable Library Import storage, and Stage
-  Interface import/update tools remain future tasks.
+  provenance, absence, and latest complete baseline operations. The service
+  skeleton in `src/library_import/index.ts` now resolves and validates
+  `platform_library` providers, maps first-slice scopes to provider areas,
+  rejects `discovery` start calls, creates skeleton import/update batches for
+  readable starts, and exposes batch status/summary helpers. Full preview
+  estimates, item-level canonical/Collection orchestration, Stage Core wiring,
+  durable Library Import storage, and Stage Interface import/update tools remain
+  future tasks.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared

@@ -222,6 +222,16 @@ This index points agents to the current MVP documentation pack.
       area snapshot, item provenance, absence, and latest complete baseline
       storage.
 
+58. `src/library_import/index.ts`
+    - Library Import Service skeleton for platform-library provider lookup,
+      scope-to-area mapping, discovery start rejection, skeleton batch creation,
+      and batch status/summary helpers.
+
+59. `test/library_import/library-import-service.test.ts`
+    - Library Import Service skeleton tests for provider preview delegation,
+      missing provider errors, discovery start rejection, readable batch start,
+      and status readback.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module
