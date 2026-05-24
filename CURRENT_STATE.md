@@ -120,8 +120,8 @@ host-facing and LLM-facing surface.
   decision handling.
 - Memory Service is exported from `src/memory/index.ts` with evidence-gated
   proposals, effect-boundary acceptance, and summaries.
-- Collection Service is not implemented. The design is documented in
-  `docs/collection-service/design.md` as a future Core Capability for
+- Collection Service foundation is partially implemented. The design is
+  documented in `docs/collection-service/design.md` as a Core Capability for
   owner-scoped system and custom Collections. Collection Items are canonical-only
   members of a Collection, system Collections cover saved/favorite/blocked
   relationships across recording/work/release_group/release/artist kinds, custom
@@ -146,6 +146,15 @@ host-facing and LLM-facing surface.
   removed status, enforces exact active label uniqueness within an owner scope,
   finds items by `collectionId + canonicalRef`, and returns clones. Collection
   Service behavior and Stage Core wiring remain future tasks.
+- Collection Service implementation plan Task 4 is complete behind
+  `CollectionPort` in `src/collection/index.ts`. The service initializes 15
+  system Collections per owner, supports custom Collection create/update/remove,
+  enforces system Collection immutability and canonical kind matching, implements
+  idempotent item add/re-add, active item update/removal, system saved/favorite/
+  blocked mutual exclusion, blocked ref filtering, owner-derived Collection
+  event session ids, and factual Collection events through `EventPort`. Stage
+  Core wiring, Stage Interface collection tools, and Material Resolve blocked
+  integration remain future tasks.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved

@@ -3,6 +3,7 @@ const testModules = [
   "./storage/sqlite-canonical-store.test.js",
   "./plugins/plugin-registry.test.js",
   "./canonical/canonical-store.test.js",
+  "./collection/collection-service.test.js",
   "./events/event-service.test.js",
   "./effects/effect-boundary.test.js",
   "./memory/memory-service.test.js",

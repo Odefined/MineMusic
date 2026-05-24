@@ -1,0 +1,425 @@
+import { createCollectionService } from "../../src/collection/index.js";
+import { createEventService } from "../../src/events/index.js";
+import {
+  createInMemoryCollectionRepository,
+  createInMemoryEventRepository,
+} from "../../src/storage/index.js";
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+async function assertOk<T>(result: Promise<{ ok: true; value: T } | { ok: false }>): Promise<T> {
+  const awaited = await result;
+  assert(awaited.ok, "expected Result.ok");
+  return awaited.value;
+}
+
+function createTestCollectionService() {
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+  const collections = createCollectionService({
+    repository: createInMemoryCollectionRepository(),
+    events,
+    idFactory: createSequence("collection"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+
+  return { collections, events };
+}
+
+function createSequence(prefix: string): () => string {
+  let nextId = 1;
+
+  return () => `${prefix}-${nextId++}`;
+}
+
+async function initializesSystemCollectionsForOwner(): Promise<void> {
+  const { collections, events } = createTestCollectionService();
+  const initialized = await assertOk(
+    collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }),
+  );
+  const recordedEvents = await assertOk(
+    events.listBySession({ sessionId: "collection:local_profile:default" }),
+  );
+
+  assert(initialized.length === 15, "owner initialization should create 15 system collections");
+  assert(
+    initialized.every((collection) => collection.ownerScope === "local_profile:default"),
+    "system collections should belong to the requested owner",
+  );
+  assert(
+    initialized.every((collection) => collection.relationKind !== "custom"),
+    "owner initialization should create only system collections",
+  );
+  assert(
+    initialized.every((collection) => collection.createdAt === "2026-05-24T00:00:00.000Z"),
+    "system collections should use the service clock",
+  );
+
+  const labels = initialized.map((collection) => collection.label);
+  assert(labels.includes("saved recordings"), "system labels should include saved recordings");
+  assert(labels.includes("favorite artists"), "system labels should include favorite artists");
+  assert(labels.includes("blocked releases"), "system labels should include blocked releases");
+
+  const pairs = new Set(
+    initialized.map((collection) => `${collection.relationKind}:${collection.collectionKind}`),
+  );
+  assert(pairs.size === 15, "owner initialization should create every system relation/kind pair once");
+  assert(recordedEvents.length === 15, "system collection initialization should record collection.created events");
+  assert(
+    recordedEvents.every((event) => event.type === "collection.created"),
+    "system collection initialization should record only collection.created events",
+  );
+}
+
+async function createsCustomCollectionsAndRecordsEvents(): Promise<void> {
+  const { collections, events } = createTestCollectionService();
+  const created = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Night coding",
+      description: "Tracks for late focus.",
+    }),
+  );
+  const recordedEvents = await assertOk(
+    events.listBySession({ sessionId: "collection:local_profile:default" }),
+  );
+
+  assert(created.id === "collection-1", "custom collection creation should assign an id");
+  assert(created.relationKind === "custom", "custom collection creation should keep relationKind custom");
+  assert(created.createdAt === "2026-05-24T00:00:00.000Z", "custom collection creation should use the service clock");
+  assert(recordedEvents.length === 1, "custom collection creation should record one collection event");
+  assert(recordedEvents[0]?.type === "collection.created", "custom collection creation should record collection.created");
+  assert(
+    (recordedEvents[0]?.payload as { collectionId?: string }).collectionId === created.id,
+    "collection.created payload should include the collection id",
+  );
+}
+
+async function updatesAndRemovesCustomCollectionsButKeepsSystemCollectionsImmutable(): Promise<void> {
+  const { collections, events } = createTestCollectionService();
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Night coding",
+    }),
+  );
+  const updated = await assertOk(
+    collections.updateCollection({
+      collectionId: custom.id,
+      label: "Deep night coding",
+      description: "Darker focus tracks.",
+    }),
+  );
+  const removed = await assertOk(collections.removeCollection({ collectionId: custom.id }));
+  const systemCollections = await assertOk(
+    collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }),
+  );
+  const immutableUpdate = await collections.updateCollection({
+    collectionId: systemCollections[0]?.id ?? "",
+    label: "Renamed system collection",
+  });
+  const immutableRemove = await collections.removeCollection({
+    collectionId: systemCollections[0]?.id ?? "",
+  });
+  const recordedEvents = await assertOk(
+    events.listBySession({ sessionId: "collection:local_profile:default" }),
+  );
+
+  assert(updated.label === "Deep night coding", "custom collection update should change labels");
+  assert(updated.description === "Darker focus tracks.", "custom collection update should change descriptions");
+  assert(removed.removedAt === "2026-05-24T00:00:00.000Z", "custom collection removal should set removedAt");
+  assert(!immutableUpdate.ok, "system collections should not be updateable");
+  assert(
+    immutableUpdate.ok === false && immutableUpdate.error.code === "collection.system_collection_immutable",
+    "system collection update should use the immutable-system error",
+  );
+  assert(!immutableRemove.ok, "system collections should not be removable");
+  assert(
+    immutableRemove.ok === false && immutableRemove.error.code === "collection.system_collection_immutable",
+    "system collection removal should use the immutable-system error",
+  );
+  assert(
+    recordedEvents.some((event) => event.type === "collection.updated"),
+    "custom collection update should record collection.updated",
+  );
+  assert(
+    recordedEvents.some((event) => event.type === "collection.removed"),
+    "custom collection removal should record collection.removed",
+  );
+}
+
+async function addsCustomCollectionItemsWithKindChecksAndIdempotency(): Promise<void> {
+  const { collections, events } = createTestCollectionService();
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Night coding",
+    }),
+  );
+  const added = await assertOk(
+    collections.addItemToCollection({
+      collectionId: custom.id,
+      canonicalRef: {
+        namespace: "minemusic",
+        kind: "recording",
+        id: "quiet-track",
+      },
+      label: "Quiet Track",
+      description: "Original note.",
+    }),
+  );
+  const readded = await assertOk(
+    collections.addItemToCollection({
+      collectionId: custom.id,
+      canonicalRef: added.canonicalRef,
+      label: "Quiet Track Updated",
+      description: "Updated note.",
+    }),
+  );
+  const mismatch = await collections.addItemToCollection({
+    collectionId: custom.id,
+    canonicalRef: {
+      namespace: "minemusic",
+      kind: "artist",
+      id: "quiet-artist",
+    },
+    label: "Quiet Artist",
+  });
+  const listed = await assertOk(collections.listItems({ ownerScope: "local_profile:default" }));
+  const recordedEvents = await assertOk(
+    events.listBySession({ sessionId: "collection:local_profile:default" }),
+  );
+
+  assert(added.id === "collection-2", "new collection items should receive service ids");
+  assert(readded.id === added.id, "re-adding the same canonical ref should update the existing item");
+  assert(readded.label === "Quiet Track Updated", "re-add should update item label");
+  assert(readded.description === "Updated note.", "re-add should update item description");
+  assert(listed.length === 1, "idempotent re-add should not create duplicate active items");
+  assert(!mismatch.ok, "collection item canonical kind must match the collection kind");
+  assert(
+    mismatch.ok === false && mismatch.error.code === "collection.kind_mismatch",
+    "kind mismatch should use the collection kind-mismatch error",
+  );
+  assert(
+    recordedEvents.some((event) => event.type === "collection.item.added"),
+    "new collection item writes should record collection.item.added",
+  );
+  assert(
+    recordedEvents.some((event) => event.type === "collection.item.updated"),
+    "idempotent collection item re-add should record collection.item.updated",
+  );
+}
+
+async function updatesAndRemovesActiveCollectionItems(): Promise<void> {
+  const { collections, events } = createTestCollectionService();
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Night coding",
+    }),
+  );
+  const added = await assertOk(
+    collections.addItemToCollection({
+      collectionId: custom.id,
+      canonicalRef: {
+        namespace: "minemusic",
+        kind: "recording",
+        id: "quiet-track",
+      },
+      label: "Quiet Track",
+    }),
+  );
+  const updated = await assertOk(
+    collections.updateItem({
+      collectionId: custom.id,
+      canonicalRef: added.canonicalRef,
+      label: "Quiet Track Updated",
+      description: "A better note.",
+      position: 7,
+    }),
+  );
+  const removed = await assertOk(
+    collections.removeItemFromCollection({
+      collectionId: custom.id,
+      canonicalRef: added.canonicalRef,
+    }),
+  );
+  const removedUpdate = await collections.updateItem({
+    collectionId: custom.id,
+    canonicalRef: added.canonicalRef,
+    label: "Should not update",
+  });
+  const activeItems = await assertOk(collections.listItems({ ownerScope: "local_profile:default" }));
+  const allItems = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionId: custom.id,
+      includeRemoved: true,
+    }),
+  );
+  const recordedEvents = await assertOk(
+    events.listBySession({ sessionId: "collection:local_profile:default" }),
+  );
+
+  assert(updated.label === "Quiet Track Updated", "active item update should change label");
+  assert(updated.description === "A better note.", "active item update should change description");
+  assert(updated.position === 7, "active item update should change position");
+  assert(removed.removedAt === "2026-05-24T00:00:00.000Z", "item removal should set removedAt");
+  assert(!removedUpdate.ok, "removed item updates are outside the first implementation");
+  assert(
+    removedUpdate.ok === false && removedUpdate.error.code === "collection.not_found",
+    "removed item updates should report not found",
+  );
+  assert(activeItems.length === 0, "listItems should hide removed items by default");
+  assert(allItems.length === 1 && allItems[0]?.id === added.id, "listItems should include removed items when requested");
+  assert(
+    recordedEvents.some((event) => event.type === "collection.item.updated"),
+    "active item update should record collection.item.updated",
+  );
+  assert(
+    recordedEvents.some((event) => event.type === "collection.item.removed"),
+    "item removal should record collection.item.removed",
+  );
+}
+
+async function systemCollectionsApplyMutualExclusionAndBlockedFiltering(): Promise<void> {
+  const { collections } = createTestCollectionService();
+  const canonicalRef = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "quiet-track",
+  };
+  await assertOk(collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Manual quiet tracks",
+    }),
+  );
+  await assertOk(
+    collections.addItemToCollection({
+      collectionId: custom.id,
+      canonicalRef,
+      label: "Quiet Track",
+    }),
+  );
+
+  await assertOk(
+    collections.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      canonicalRef,
+      label: "Quiet Track",
+    }),
+  );
+  await assertOk(
+    collections.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "favorite",
+      canonicalRef,
+      label: "Quiet Track",
+    }),
+  );
+  await assertOk(
+    collections.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "blocked",
+      canonicalRef,
+      label: "Quiet Track",
+    }),
+  );
+  const blockedRefs = await assertOk(
+    collections.filterBlocked({
+      ownerScope: "local_profile:default",
+      canonicalRefs: [canonicalRef],
+    }),
+  );
+  const savedAfterBlock = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+  const favoriteAfterBlock = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "favorite",
+    }),
+  );
+
+  await assertOk(
+    collections.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      canonicalRef,
+      label: "Quiet Track",
+    }),
+  );
+  const blockedAfterSave = await assertOk(
+    collections.filterBlocked({
+      ownerScope: "local_profile:default",
+      canonicalRefs: [canonicalRef],
+    }),
+  );
+  const savedAfterSave = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+  await assertOk(
+    collections.removeItemFromSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      canonicalRef,
+    }),
+  );
+  const savedAfterRemove = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+  const customItems = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionId: custom.id,
+    }),
+  );
+
+  assert(blockedRefs.length === 1 && blockedRefs[0]?.id === canonicalRef.id, "blocked system membership should filter blocked refs");
+  assert(savedAfterBlock.length === 0, "blocking should remove saved system membership");
+  assert(favoriteAfterBlock.length === 0, "blocking should remove favorite system membership");
+  assert(blockedAfterSave.length === 0, "saving should remove blocked system membership");
+  assert(savedAfterSave.length === 1, "saving after block should create active saved membership");
+  assert(savedAfterRemove.length === 0, "system item removal should hide the saved membership");
+  assert(customItems.length === 1, "system mutual exclusion should not remove custom collection membership");
+}
+
+await initializesSystemCollectionsForOwner();
+await createsCustomCollectionsAndRecordsEvents();
+await updatesAndRemovesCustomCollectionsButKeepsSystemCollectionsImmutable();
+await addsCustomCollectionItemsWithKindChecksAndIdempotency();
+await updatesAndRemovesActiveCollectionItems();
+await systemCollectionsApplyMutualExclusionAndBlockedFiltering();

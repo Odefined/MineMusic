@@ -101,60 +101,69 @@ This index points agents to the current MVP documentation pack.
       orchestration, Collection Service writes, Canonical Store external-ref
       bindings, and import event records.
 
-27. `src/canonical/index.ts`
+27. `src/collection/index.ts`
+    - Collection Service public-port implementation for owner-scoped system and
+      custom Collections, canonical-only CollectionItems, mutual exclusion, and
+      Collection events.
+
+28. `test/collection/collection-service.test.ts`
+    - Collection Service behavior tests for system initialization, custom
+      collection lifecycle, item membership, blocked filtering, and events.
+
+29. `src/canonical/index.ts`
     - Canonical Store public-port implementation and current identity policy.
 
-28. `src/canonical/normalization.ts`
+30. `src/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-29. `src/canonical/storage.ts`
+31. `src/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics.
 
-30. `src/storage/sqlite/canonical-schema.ts`
+32. `src/storage/sqlite/canonical-schema.ts`
     - SQLite schema initialization for Canonical Store durable storage.
 
-31. `src/storage/sqlite/canonical-repository.ts`
+33. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation.
 
-32. `src/storage/sqlite/index.ts`
+34. `src/storage/sqlite/index.ts`
     - Public SQLite storage exports.
 
-33. `test/storage/sqlite-canonical-store.test.ts`
+35. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository.
 
-34. `test/integration/canonical-persistence.test.ts`
+36. `test/integration/canonical-persistence.test.ts`
     - Stage Core restart-style persistence test for SQLite-backed canonical
       storage.
 
-35. `src/material_resolve/index.ts`
+37. `src/material_resolve/index.ts`
     - Material Resolve service for canonical-first `MusicCandidate` to
       `MusicMaterial` resolution.
 
-36. `src/source/index.ts`
+38. `src/source/index.ts`
     - Source Grounding service for provider search and playable-link refresh.
 
-37. `docs/source-providers/netease.md`
+39. `docs/source-providers/netease.md`
     - NetEase source provider design, runtime behavior, boundaries, and
       verification notes.
 
-38. `src/providers/netease/index.ts`
+40. `src/providers/netease/index.ts`
     - Read-only NetEase source provider adapter implementing `SourceProvider`.
 
-39. `docs/host-adapters/codex-mcp-plugin.md`
+41. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
       verification notes.
 
-40. `src/stage_core/index.ts`
+42. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, and exposes the runtime object.
 
-41. `src/surfaces/mcp/server.ts`
+43. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-42. `src/stage_interface/**`
+44. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade.
 

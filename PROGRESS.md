@@ -291,10 +291,17 @@
   owner/kind/relation/removed-status queries, active owner-scope label
   uniqueness, `collectionId + canonicalRef` membership lookup, clone-return
   semantics, and storage tests.
+- Completed Collection Service implementation plan Task 4 with a TDD loop:
+  added `createCollectionService`, `test/collection/collection-service.test.ts`,
+  and runner coverage for 15 system Collections per owner, custom Collection
+  lifecycle, item kind checks, idempotent membership writes, active item
+  update/removal, saved/favorite/blocked mutual exclusion, blocked filtering,
+  and factual Collection events.
 
 ## Next
 
-- Implement Collection Service behavior before Stage Core wiring so imported
+- Wire Collection Service into Stage Core and Material Resolve before import
+  work so imported
   platform library assets have a user-owned Collection target.
 - After Collection foundations, implement the Library Import provider slot plus
   NetEase import preview path.
