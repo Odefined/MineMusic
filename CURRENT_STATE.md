@@ -120,14 +120,18 @@ host-facing and LLM-facing surface.
 - Memory Service is exported from `src/memory/index.ts` with evidence-gated
   proposals, effect-boundary acceptance, and summaries.
 - Collection Service is not implemented. The design is documented in
-  `docs/collection-service/design.md` as a future Core Capability for explicit
-  saved/favorited music objects such as songs, albums, releases, artists, and
-  playlists.
+  `docs/collection-service/design.md` as a future Core Capability for
+  owner-scoped system and custom Collections. Collection Items are canonical-only
+  members of a Collection, system Collections cover saved/favorite/blocked
+  relationships across recording/work/release_group/release/artist kinds, custom
+  Collections are user-created single-kind Collections, and blocked membership
+  is expected to filter through Material Resolve. The implementation plan is in
+  `docs/collection-service/implementation-plan.md`.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved
   songs, albums, followed artists, playlists, and other platform-library facts
-  into MineMusic-owned collection items, canonical external-ref bindings, and
+  into MineMusic-owned Collection items, canonical external-ref bindings, and
   import event records.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.

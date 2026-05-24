@@ -267,14 +267,23 @@
   `SourceGroundingPort` / `createSourceGroundingService`, and routed
   `music.material.resolve` through Material Resolve while keeping
   `music.links.refresh` on Source Grounding.
+- Refined Collection Service design around explicit `Collection` and
+  `CollectionItem` concepts: system Collections are preinitialized per owner for
+  saved/favorite/blocked relationships across recording/work/release_group/
+  release/artist kinds, custom Collections are user-created single-kind
+  Collections, CollectionItems are canonical-only, and blocked membership filters
+  through Material Resolve.
+- Added `docs/collection-service/implementation-plan.md` with sequential tasks
+  for Collection contracts, ports, in-memory storage, service rules, Stage Core
+  wiring, Stage Interface tools, Material Resolve blocked filtering, tests, and
+  state sync.
 
 ## Next
 
-- Decide whether to implement Collection Service or first resolve its open
-  design questions around `release`, playlist scope, and owner-profile scope.
-- Decide whether the next product slice should implement Collection Service
-  foundations first or the Library Import provider slot plus NetEase import
-  preview path.
+- Implement Collection Service foundations before Library Import so imported
+  platform library assets have a user-owned Collection target.
+- After Collection foundations, implement the Library Import provider slot plus
+  NetEase import preview path.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

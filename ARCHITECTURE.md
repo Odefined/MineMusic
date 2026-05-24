@@ -63,6 +63,7 @@ LLM Agent Runtime
      -> Handbook renderer
   -> Core Capability Layer
      -> Canonical Store
+     -> Collection Service
      -> Material Resolve
      -> Source Grounding
      -> Music Knowledge
@@ -116,6 +117,7 @@ needs.
 | Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
 | Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
+| Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
 | Material Resolve | canonical-first candidate-to-material resolution, `MaterialResolveResult` status, canonical evidence attachment | provider internals, playable-link refresh, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |

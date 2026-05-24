@@ -114,6 +114,10 @@ ownerScope = local_profile:default
 Collection Service ports require `ownerScope`. Stage Interface tools may default
 missing owner scope to `local_profile:default` for local MVP use.
 
+Material Resolve requests should carry `ownerScope` so blocked filtering can use
+the correct owner's Collection data. Stage Interface may default missing owner
+scope to `local_profile:default`.
+
 Later, `ownerScope` can point to a real MineMusic user account, local profile,
 or imported library namespace.
 
@@ -186,9 +190,19 @@ Rules:
 - `blocked` is mutually exclusive with `saved` and `favorite` for the same owner
   and canonical object in system Collections. This mutual exclusion does not
   remove items from user-created custom Collections.
+- Adding `saved` or `favorite` removes the same canonical object from the
+  owner's system `blocked` Collection. Adding `blocked` removes it from the
+  owner's system `saved` and `favorite` Collections.
 - Blocked membership is actionable: Material Resolve must query Collection
   Service and filter blocked canonical objects before returning resolved
   material. Source Providers do not own blocked filtering.
+- Blocked candidates should not disappear silently. Material Resolve should
+  return a blocked status/material state so the caller can explain why the
+  candidate was not recommended.
+- Blocked checks use canonical refs only. If material only has source refs,
+  Material Resolve should first use Canonical Store external-ref binding to find
+  a canonical ref. Without a canonical ref, Collection-level blocked filtering
+  cannot apply.
 - `CollectionItem.label` is stored on the item for display or user adjustment.
   It is not identity authority.
 - `CollectionItem.description` belongs to that item in that Collection. It is not
@@ -287,6 +301,7 @@ CollectionPort.listCollections(input)
 CollectionPort.createCollection(input)
 CollectionPort.updateCollection(input)
 CollectionPort.removeCollection(input)
+CollectionPort.filterBlocked(input)
 ```
 
 `addItemToSystemCollection` input:
@@ -377,6 +392,15 @@ collectionId
 label?
 description?
 ```
+
+`filterBlocked` input:
+
+```text
+ownerScope
+canonicalRefs
+```
+
+Returns the canonical refs that are blocked for that owner.
 
 ## Stage Interface Tools
 

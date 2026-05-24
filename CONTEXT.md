@@ -91,7 +91,8 @@ Core Capabilities:
 
 - Canonical Store.
 - Collection Service.
-- Source Resolution.
+- Material Resolve.
+- Source Grounding.
 - Music Knowledge.
 - Event Service.
 - Memory Service.
@@ -106,10 +107,10 @@ The Core Capability for a user's explicit long-lived music assets, such as kept
 recordings, works, release groups, releases, and artists.
 
 Collection Service is distinct from Memory Service, Event Service, Canonical
-Store, Source Resolution, and Session Context. A Collection is an owner-scoped
-group of long-lived relationships to canonical music objects; a Collection Item
-is a member of that Collection and points to one canonical music object. Source
-refs are external evidence, not Collection identity.
+Store, Material Resolve, Source Grounding, and Session Context. A Collection is
+an owner-scoped group of long-lived relationships to canonical music objects; a
+Collection Item is a member of that Collection and points to one canonical music
+object. Source refs are external evidence, not Collection identity.
 
 ### Material Resolve
 
