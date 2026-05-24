@@ -8,7 +8,8 @@ changing the product boundary:
 
 ```text
 Stage Interface
--> Source Resolution
+-> Material Resolve
+-> Source Grounding
 -> Plugin Registry source slot
 -> NetEase SourceProvider
 -> MusicMaterial[] with source refs, playable links, and evidence
@@ -26,7 +27,7 @@ back to NetEase, or create canonical identity directly.
 | Provider tests | `test/providers/netease-source-provider.test.ts` |
 | Live smoke script | `test/live/netease-source-smoke.ts` |
 | Stage Core provider registration path | `src/stage_core/index.ts` |
-| Source Resolution integration | `src/source/index.ts` |
+| Source Grounding integration | `src/source/index.ts` |
 
 The provider implements the shared `SourceProvider` contract from
 `src/contracts/index.ts`.
@@ -87,7 +88,7 @@ playable links.
 
 - NetEase track ids are source refs, not MineMusic canonical refs.
 - The provider never writes canonical records directly.
-- Source Resolution owns state normalization into `confirmed_playable` or
+- Source Grounding owns state normalization into `confirmed_playable` or
   `source_only_playable`.
 - Material Gate owns final presentation safety before the LLM or user sees
   playable links.
@@ -102,7 +103,7 @@ Deterministic tests cover:
 - account-required link metadata.
 - blocked material handling.
 - provider registration through `PluginRegistryPort`.
-- Source Resolution consumption through the source slot.
+- Source Grounding consumption through the source slot.
 - link refresh from a NetEase source ref.
 
 Project-native commands:
@@ -133,4 +134,3 @@ when sandboxing or proxy configuration changes loopback behavior.
 - autonomous DJ behavior.
 - durable storage replacement.
 - host-specific policy.
-

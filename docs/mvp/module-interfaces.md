@@ -28,7 +28,8 @@ src/stage_interface/  Stage Interface instruments, tools, schemas, dispatch, fac
 src/stage/            Session Context and Material Gate implementation
 src/handbook/         Handbook renderer and lookup helpers
 src/canonical/        Canonical Store implementation
-src/source/           Source Resolution implementation
+src/material_resolve/ Material Resolve implementation
+src/source/           Source Grounding implementation
 src/knowledge/        Music Knowledge implementation
 src/events/           Event Service implementation
 src/memory/           Memory Service implementation
@@ -65,6 +66,7 @@ export type ModuleId =
   | "stage"
   | "stage_interface"
   | "canonical"
+  | "material_resolve"
   | "source"
   | "knowledge"
   | "events"
@@ -238,8 +240,9 @@ Consumes:
 
 - `InstrumentCatalogPort` consumes no Session Context implementation.
 - `ToolDispatchPort` consumes `SessionContextPort`, `MaterialGatePort`,
-  `SourceResolutionPort`, `InstrumentCatalogPort`, `EventPort`, `MemoryPort`, and
-  `EffectBoundaryPort` through dependency injection at the composition root.
+  `MaterialResolvePort`, `SourceGroundingPort`, `InstrumentCatalogPort`,
+  `EventPort`, `MemoryPort`, and `EffectBoundaryPort` through dependency
+  injection at the composition root.
 
 Publishes domain events:
 
@@ -303,22 +306,55 @@ Must not expose:
 - source account state.
 - preference or memory decisions.
 
-## Source Resolution Port
+## Material Resolve Port
 
 Purpose:
 
-- Resolve agent-supplied music candidates through canonical-first source
-  resolution.
-- Search source providers.
-- Return source-backed playable links.
-- Mark material state honestly.
+- Resolve agent-supplied music candidates into `MusicMaterial` through
+  canonical-first material resolution.
+- Return `MaterialResolveResult` with candidate-level status.
+- Attach discovered source evidence to known canonical records when a candidate
+  resolves through a canonical target.
 
 Public port:
 
 ```ts
-export interface SourceResolutionPort {
+export interface MaterialResolvePort {
   resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>>;
+}
+```
 
+Consumes:
+
+- `CanonicalStorePort`
+- `SourceGroundingPort`
+
+Publishes domain events:
+
+- `material_resolve.candidate.resolved`
+- `material_resolve.candidate.unresolved`
+- `material_resolve.candidate.blocked`
+
+Must not expose:
+
+- source provider internals.
+- durable memory writes.
+- final recommendation ranking.
+- source refs as canonical authority.
+
+## Source Grounding Port
+
+Purpose:
+
+- Search source providers.
+- Return source-backed playable links.
+- Normalize source-backed material state such as `confirmed_playable` and
+  `source_only_playable`.
+
+Public port:
+
+```ts
+export interface SourceGroundingPort {
   ground(input: {
     query: SourceQuery;
     sessionId?: string;
@@ -340,13 +376,13 @@ Publishes domain events:
 
 - `source.material.grounded`
 - `source.links.refreshed`
-- `source.material.unresolved`
 - `source.material.blocked`
 
 Must not expose:
 
 - durable memory writes.
 - final recommendation ranking.
+- candidate-level material resolution.
 - source refs as canonical authority.
 
 ## Music Knowledge Port

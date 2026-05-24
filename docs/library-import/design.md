@@ -30,8 +30,8 @@ Should this be recommended next?
 Should MineMusic write back to the external platform?
 ```
 
-Those questions belong to Memory Service, Canonical Store, Source Resolution,
-the LLM, and Effect Boundary.
+Those questions belong to Memory Service, Canonical Store, Material Resolve,
+Source Grounding, the LLM, and Effect Boundary.
 
 ## Product Motivation
 
@@ -82,7 +82,8 @@ flowchart TD
     CanonicalStore["Canonical Store"]
     CollectionService["Collection Service"]
     EventService["Event Service"]
-    SourceResolution["Source Resolution"]
+    MaterialResolve["Material Resolve"]
+    SourceGrounding["Source Grounding"]
     MemoryService["Memory Service later"]
 
     User --> StageInterface
@@ -94,8 +95,9 @@ flowchart TD
     ImportService --> CanonicalStore
     ImportService --> CollectionService
     ImportService --> EventService
-    SourceResolution --> SourceProvider
-    SourceResolution --> CanonicalStore
+    MaterialResolve --> SourceGrounding
+    MaterialResolve --> CanonicalStore
+    SourceGrounding --> SourceProvider
     CollectionService -. "future taste proposals" .-> MemoryService
     EventService -. "future summarized signals" .-> MemoryService
 ```

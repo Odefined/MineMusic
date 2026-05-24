@@ -74,9 +74,11 @@ export interface CanonicalStorePort {
   }): Promise<Result<CanonicalRecord>>;
 }
 
-export interface SourceResolutionPort {
+export interface MaterialResolvePort {
   resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>>;
+}
 
+export interface SourceGroundingPort {
   ground(input: {
     query: SourceQuery;
     sessionId?: string;

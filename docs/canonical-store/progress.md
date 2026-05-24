@@ -54,7 +54,7 @@ Implemented:
   so `src/canonical/index.ts` no longer scans `repository.list()` directly.
 - Stage Core accepts optional `canonicalRepository` injection while keeping
   in-memory canonical storage as the default.
-- Stage Core factory tests prove Source Resolution uses the injected canonical
+- Stage Core factory tests prove Material Resolve uses the injected canonical
   repository through Stage Interface tools.
 - Stage Core persistence integration test recreates a runtime with the same
   SQLite canonical database path and proves canonical-backed material remains
@@ -116,7 +116,7 @@ Pending:
 - Completed Task 5 by adding
   `test/integration/canonical-persistence.test.ts`, which recreates Stage Core
   with the same SQLite canonical database path and verifies persisted canonical
-  identity through Stage Interface / Source Resolution.
+  identity through Stage Interface / Material Resolve.
 - Completed Task 6 by recording the implemented Canonical Store scope,
   design-only interfaces, verification boundary, and remaining future work
   across the canonical docs and project state docs.

@@ -9,10 +9,11 @@ import type {
 import type {
   EffectBoundaryPort,
   EventPort,
+  MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
   SessionContextPort,
-  SourceResolutionPort,
+  SourceGroundingPort,
 } from "../../src/ports/index.js";
 import {
   createInstrumentCatalog,
@@ -96,9 +97,9 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       return { ok: true, value: materials };
     },
   };
-  const source: SourceResolutionPort = {
+  const materialResolve: MaterialResolvePort = {
     resolve: async () => {
-      calls.push("source.resolve");
+      calls.push("materialResolve.resolve");
       return {
         ok: true,
         value: {
@@ -107,6 +108,8 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
         },
       };
     },
+  };
+  const source: SourceGroundingPort = {
     ground: async () => {
       calls.push("source.ground");
       return { ok: true, value: [] };
@@ -141,7 +144,16 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     },
     decide: async () => ({ ok: true, value: undefined }),
   };
-  const dispatch = createToolDispatch({ sessionContext, materialGate, instruments: catalog, source, events, memory, effects });
+  const dispatch = createToolDispatch({
+    sessionContext,
+    materialGate,
+    instruments: catalog,
+    materialResolve,
+    source,
+    events,
+    memory,
+    effects,
+  });
 
   await assertOk(dispatch.call({ sessionId: session.id, toolName: "stage.context.read", payload: {} }));
   const overview = await assertOk(dispatch.call({ sessionId: session.id, toolName: "handbook.overview.read", payload: {} }));
@@ -258,8 +270,8 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     "handbook.tool.read should return the requested tool descriptor",
   );
   assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
-  assert(calls.includes("source.resolve"), "music.material.resolve should call SourceResolutionPort");
-  assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceResolutionPort");
+  assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
+  assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
   assert(calls.includes("events.record"), "events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("effects.propose"), "effects.propose should call EffectBoundaryPort");
@@ -289,8 +301,10 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
     sessionContext,
     materialGate,
     instruments: createInstrumentCatalog(),
-    source: {
+    materialResolve: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
       ground: async () => ({ ok: true, value: [] }),
       refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
     },
@@ -347,7 +361,8 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
     sessionContext: {} as SessionContextPort,
     materialGate: {} as MaterialGatePort,
     instruments: createInstrumentCatalog(),
-    source: {} as SourceResolutionPort,
+    materialResolve: {} as MaterialResolvePort,
+    source: {} as SourceGroundingPort,
     events: {} as EventPort,
     memory: {} as MemoryPort,
     effects: {} as EffectBoundaryPort,

@@ -133,7 +133,7 @@ async function writesInstrumentHandbookOnStageCoreReady(): Promise<void> {
   }
 }
 
-async function usesInjectedCanonicalRepositoryForSourceResolution(): Promise<void> {
+async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void> {
   const sourceRef: Ref = {
     namespace: "source:provider",
     kind: "track",
@@ -209,4 +209,4 @@ async function usesInjectedCanonicalRepositoryForSourceResolution(): Promise<voi
 
 await createsStageCoreWithInjectedSourceProvider();
 await writesInstrumentHandbookOnStageCoreReady();
-await usesInjectedCanonicalRepositoryForSourceResolution();
+await usesInjectedCanonicalRepositoryForMaterialResolve();

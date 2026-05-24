@@ -199,7 +199,7 @@ Rules:
 Example:
 
 ```text
-Source Resolution -> Source Slot provider -> source refs and playable links
+Material Resolve -> Source Grounding -> Source Slot provider -> source refs and playable links
 Canonical Store <- source refs as evidence through public canonical port
 Memory Service <- stable target and event evidence through public ports
 ```
@@ -219,9 +219,9 @@ use a material item.
 | `blocked` | rule, permission, or source condition blocks use | do not recommend as playable |
 | `verbal_only` | conversation-only idea | no action or durable target |
 
-Only Source Resolution and Material Gate may upgrade or downgrade material state
-for LLM-facing use. Other modules may add evidence, but they do not silently
-make material playable.
+Only Material Resolve, Source Grounding, and Material Gate may upgrade or
+downgrade material state for LLM-facing use. Other modules may add evidence, but
+they do not silently make material playable.
 
 ## Event Target Protocol
 

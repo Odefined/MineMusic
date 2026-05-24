@@ -20,7 +20,8 @@ The verified path is:
 natural request
 -> Stage Interface
 -> Stage context read
--> Source Resolution fixture provider
+-> Material Resolve
+-> Source Grounding fixture provider
 -> Canonical Store identity attachment
 -> Stage material preparation through tool-visible `stage.materials.prepare`
 -> recommendation response with source-backed link
@@ -113,9 +114,9 @@ NetEase provider adapter:
 - `noCopyrightRcmd` fixture material becomes `blocked` and does not expose
   playable links.
 - The provider can be registered through `PluginRegistryPort` and consumed by
-  `SourceResolutionPort`.
-- Source Resolution can attach a matching canonical record and normalize the
-  material to `confirmed_playable`.
+  `SourceGroundingPort`.
+- Material Resolve can attach a matching canonical record and Source Grounding
+  can normalize the material to `confirmed_playable`.
 - Link refresh can reconstruct a NetEase web song URL from a NetEase source
   ref.
 

@@ -131,8 +131,12 @@ host-facing and LLM-facing surface.
   import event records.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
-- Source Resolution is exported from `src/source/index.ts` with provider search,
-  playable-link refresh, canonical-ref attachment from source refs, and honest
+- Material Resolve is exported from `src/material_resolve/index.ts` with
+  canonical-first `MusicCandidate` to `MusicMaterial` resolution,
+  `MaterialResolveResult` status, and source evidence attachment to known
+  canonical records.
+- Source Grounding is exported from `src/source/index.ts` with provider search,
+  playable-link refresh, canonical-ref lookup from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.
 - Session Context and Material Gate are exported from `src/stage/index.ts`
   through `createSessionContext`, `createMaterialGate`, `SessionContextPort`,
@@ -167,7 +171,7 @@ host-facing and LLM-facing surface.
 - NetEase source provider adapter is exported from
   `src/providers/netease/index.ts`.
 - NetEase provider tests cover fixture payload mapping, blocked material,
-  Source Resolution plugin-slot integration, and source-ref link refresh.
+  Source Grounding plugin-slot integration, and source-ref link refresh.
 - `npm run smoke:netease` provides opt-in live validation and skips unless
   `MINEMUSIC_LIVE_NETEASE=1`.
 - The Codex MCP plugin surface design, packaging, and verification notes are
@@ -241,7 +245,7 @@ host-facing and LLM-facing surface.
 ## Known Constraints
 
 - Do not collapse source identity into canonical identity.
-- Do not treat knowledge material as playable until source resolution confirms
+- Do not treat knowledge material as playable until Source Grounding confirms
   a usable playable link.
 - Do not turn weak LLM guesses into durable memory.
 - Do not treat normal link display as playback.

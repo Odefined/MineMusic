@@ -10,6 +10,7 @@ import { createCanonicalStore } from "../canonical/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { writeInstrumentHandbookFile } from "../handbook/index.js";
+import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
 import type {
@@ -17,14 +18,15 @@ import type {
   CanonicalStorePort,
   EffectBoundaryPort,
   EventPort,
+  MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
   PluginRegistryPort,
   SessionContextPort,
-  SourceResolutionPort,
+  SourceGroundingPort,
   ToolDispatchPort,
 } from "../ports/index.js";
-import { createSourceResolutionService } from "../source/index.js";
+import { createSourceGroundingService } from "../source/index.js";
 import { createMaterialGate, createSessionContext } from "../stage/index.js";
 import {
   createInstrumentCatalog,
@@ -46,7 +48,8 @@ export type MineMusicStageCore = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
   canonical: CanonicalStorePort;
-  source: SourceResolutionPort;
+  materialResolve: MaterialResolvePort;
+  source: SourceGroundingPort;
   events: EventPort;
   memory: MemoryPort;
   effects: EffectBoundaryPort;
@@ -99,9 +102,13 @@ export function createMineMusicStageCoreWithSourceProvider({
 
   const plugins = createPluginRegistry();
   const canonical = createCanonicalStore({ repository: canonicalRepository });
-  const source = createSourceResolutionService({
+  const source = createSourceGroundingService({
     canonicalStore: canonical,
     pluginRegistry: plugins,
+  });
+  const materialResolve = createMaterialResolveService({
+    canonicalStore: canonical,
+    sourceGrounding: source,
   });
   const events = createEventService({ repository: eventRepository });
   const effects = createEffectBoundary({ repository: effectRepository });
@@ -124,6 +131,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     sessionContext,
     materialGate,
     instruments,
+    materialResolve,
     source,
     events,
     memory,
@@ -150,6 +158,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     sessionContext,
     materialGate,
     canonical,
+    materialResolve,
     source,
     events,
     memory,

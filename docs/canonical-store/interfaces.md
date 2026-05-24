@@ -29,7 +29,8 @@ attachment.
 
 Consumers:
 
-- Source Resolution.
+- Material Resolve.
+- Source Grounding.
 - Memory Service.
 - Music Knowledge.
 - future governed Stage Interface identity tools.
@@ -169,7 +170,7 @@ Behavior:
 Consumers:
 
 - Memory Service for stable targets.
-- Source Resolution when a candidate already carries a canonical ref.
+- Material Resolve when a candidate already carries a canonical ref.
 - future Stage Interface identity tools.
 
 ### `findByLabel`
@@ -189,7 +190,7 @@ Behavior:
 
 Consumers:
 
-- Source Resolution candidate preparation.
+- Material Resolve candidate preparation.
 - Memory Service when explicit user feedback has only text.
 - future Knowledge Service identity hints.
 
@@ -208,7 +209,8 @@ Behavior:
 
 Consumers:
 
-- Source Resolution before source-only fallback.
+- Material Resolve before source-only fallback.
+- Source Grounding when normalizing source refs returned by providers.
 - Memory Service when feedback targets a source ref.
 - Knowledge Service when external facts include stable refs.
 
@@ -233,7 +235,7 @@ Behavior:
 
 Consumers:
 
-- Source Resolution only after a governed confirmation path.
+- Material Resolve only after a governed confirmation path.
 - Memory Service for explicit wrong-version or identity feedback.
 - future Stage Interface identity confirmation tools.
 
@@ -254,7 +256,7 @@ Behavior:
 
 Consumers:
 
-- Source Resolution after a known canonical match.
+- Material Resolve after a known canonical match.
 - Knowledge Service when adding external identity evidence.
 - admin tools.
 
@@ -282,7 +284,8 @@ Consumers:
 ## Admin Port
 
 `CanonicalAdminPort` is for operations that change identity authority. It should
-not be reachable from ordinary Source Resolution or provider adapters.
+not be reachable from ordinary Material Resolve, Source Grounding, or provider
+adapters.
 
 Consumers:
 
@@ -335,7 +338,8 @@ Allowed consumers:
 
 Forbidden consumers:
 
-- Source Resolution.
+- Material Resolve.
+- Source Grounding.
 - Memory Service.
 - Event Service.
 - Stage Interface.
@@ -366,7 +370,8 @@ It should enforce:
 
 | Module | Allowed Interface | Allowed Methods | Forbidden |
 | --- | --- | --- | --- |
-| Source Resolution | `CanonicalStorePort` | `get`, `findByLabel`, `resolveExternalRef`, `attachExternalRef`; `createProvisional` only after explicit confirmation path | repository, admin merge/reject |
+| Material Resolve | `CanonicalStorePort` | `get`, `findByLabel`, `resolveExternalRef`, `attachExternalRef`; `createProvisional` only after explicit confirmation path | repository, admin merge/reject |
+| Source Grounding | `CanonicalStorePort` | `resolveExternalRef` for provider-returned source refs | repository, admin merge/reject, canonical creation |
 | Memory Service | `CanonicalStorePort` | `get`, `resolveExternalRef`, `createProvisional` for explicit feedback | repository, provider refs as canonical authority |
 | Event Service | usually none; optional `CanonicalStorePort` validation | `get` only when validating caller-provided target | creating identity while recording events |
 | Music Knowledge | `CanonicalStorePort` | `resolveExternalRef`, `attachExternalRef`, `addAlias` | playability decisions, canonical merge authority |

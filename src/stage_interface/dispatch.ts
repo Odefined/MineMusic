@@ -18,10 +18,11 @@ import type {
   EffectBoundaryPort,
   EventPort,
   InstrumentCatalogPort,
+  MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
   SessionContextPort,
-  SourceResolutionPort,
+  SourceGroundingPort,
   ToolDispatchPort,
 } from "../ports/index.js";
 import { stableToolNames } from "./tools.js";
@@ -30,7 +31,8 @@ type ToolDispatchOptions = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
   instruments: InstrumentCatalogPort;
-  source: SourceResolutionPort;
+  materialResolve: MaterialResolvePort;
+  source: SourceGroundingPort;
   events: EventPort;
   memory: MemoryPort;
   effects: EffectBoundaryPort;
@@ -40,6 +42,7 @@ export function createToolDispatch({
   sessionContext,
   materialGate,
   instruments,
+  materialResolve,
   source,
   events,
   memory,
@@ -128,7 +131,7 @@ export function createToolDispatch({
           );
 
         case "music.material.resolve":
-          return source.resolve(readPayload<MaterialResolveRequest>(payload, { sessionId }));
+          return materialResolve.resolve(readPayload<MaterialResolveRequest>(payload, { sessionId }));
 
         case "music.links.refresh":
           return source.refreshPlayableLinks(

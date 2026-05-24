@@ -131,9 +131,10 @@ Canonical Store:
 
 - external ref attachment and provisional identity tests.
 
-Source Resolution:
+Material Resolve and Source Grounding:
 
-- playable, source-only, exploration, unresolved, and blocked state tests.
+- candidate resolve, playable, source-only, exploration, unresolved, and blocked
+  state tests.
 
 Events, Memory, Effects:
 

@@ -24,8 +24,8 @@ Does the user like this?
 Can a provider account access this?
 ```
 
-Those questions belong to Source Resolution, Material Gate, Memory Service,
-Effect Boundary, or the LLM.
+Those questions belong to Material Resolve, Source Grounding, Material Gate,
+Memory Service, Effect Boundary, or the LLM.
 
 ## Core Responsibilities
 
@@ -99,7 +99,8 @@ explicitly asks for historical state.
 
 ```mermaid
 flowchart TD
-    SourceResolution["Source Resolution"]
+    MaterialResolve["Material Resolve"]
+    SourceGrounding["Source Grounding"]
     Memory["Memory Service"]
     Events["Event Service"]
     Knowledge["Music Knowledge"]
@@ -112,8 +113,10 @@ flowchart TD
     Provider["Source Provider"]
     MaterialGate["Material Gate"]
 
-    Provider --> SourceResolution
-    SourceResolution --> CanonicalPort
+    Provider --> SourceGrounding
+    SourceGrounding --> CanonicalPort
+    MaterialResolve --> SourceGrounding
+    MaterialResolve --> CanonicalPort
     Memory --> CanonicalPort
     Knowledge --> CanonicalPort
     StageInterface -. future tools .-> CanonicalPort
@@ -123,7 +126,7 @@ flowchart TD
     AdminPort --> CanonicalStore
     CanonicalStore --> Repository
     Repository --> Storage
-    SourceResolution --> MaterialGate
+    MaterialResolve --> MaterialGate
 ```
 
 Rules:
@@ -140,25 +143,30 @@ Rules:
 ```mermaid
 sequenceDiagram
     participant LLM as LLM / Stage Interface
-    participant Source as Source Resolution
+    participant Resolve as Material Resolve
+    participant Grounding as Source Grounding
     participant Canonical as Canonical Store
     participant Provider as Source Provider
     participant Gate as Material Gate
 
-    LLM->>Source: resolve(candidate)
-    Source->>Canonical: get / findByLabel / resolveExternalRef
-    Canonical-->>Source: canonical record or null
-    Source->>Provider: search(query with canonical/source hints)
-    Provider-->>Source: MusicMaterial with source refs/evidence
-    Source->>Canonical: attachExternalRef when canonical target is known
-    Source-->>LLM: resolved material state
+    LLM->>Resolve: resolve(candidate)
+    Resolve->>Canonical: get / findByLabel / resolveExternalRef
+    Canonical-->>Resolve: canonical record or null
+    Resolve->>Grounding: ground(query with canonical/source hints)
+    Grounding->>Provider: search(query)
+    Provider-->>Grounding: MusicMaterial with source refs/evidence
+    Grounding->>Canonical: resolveExternalRef for source refs
+    Grounding-->>Resolve: source-grounded material
+    Resolve->>Canonical: attachExternalRef when canonical target is known
+    Resolve-->>LLM: resolved material state
     LLM->>Gate: prepareMaterials(...)
     Gate-->>LLM: presentation-safe material
 ```
 
-Source Resolution may use Canonical Store to check known identities and attach
-evidence. It still owns material state upgrades such as `confirmed_playable` and
-`source_only_playable`.
+Material Resolve may use Canonical Store to check known identities and attach
+source evidence. Source Grounding may use Canonical Store to recognize known
+source refs and normalize source-backed material state such as
+`confirmed_playable` and `source_only_playable`.
 
 ## Provisional Creation Flow
 
@@ -299,7 +307,8 @@ Still outside the implementation:
 | SQLite schema | `src/storage/sqlite/canonical-schema.ts` | `initializeCanonicalSchema` |
 | SQLite repository | `src/storage/sqlite/canonical-repository.ts` | `createSqliteCanonicalRecordRepository` |
 | Stage Core injection | `src/stage_core/index.ts` | `canonicalRepository` factory option |
-| Source integration | `src/source/index.ts` | `createSourceResolutionService` |
+| Material Resolve integration | `src/material_resolve/index.ts` | `createMaterialResolveService` |
+| Source Grounding integration | `src/source/index.ts` | `createSourceGroundingService` |
 | Current tests | `test/canonical/canonical-store.test.ts` | canonical store runtime tests |
 | Persistence tests | `test/integration/canonical-persistence.test.ts` | Stage Core persistence test |
 | Storage design | `docs/canonical-store/storage-model.md` | table and transaction model |

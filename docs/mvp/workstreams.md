@@ -158,7 +158,7 @@ Outputs:
 - provisional canonical creation.
 - tests for source ref attachment and provisional targets.
 
-## Workstream F: Source Resolution And Provider Slot
+## Workstream F: Material Resolve, Source Grounding, And Provider Slot
 
 Owner role: Source Agent.
 
@@ -168,14 +168,15 @@ Purpose:
 
 Owns:
 
+- `src/material_resolve/**`
 - `src/source/**`
 - Source Slot provider interface.
 - fixture or minimal source provider.
 
 Inputs:
 
-- `SourceQuery`, `MusicMaterial`, `PlayableLink`.
-- `SourceResolutionPort` from `src/ports`.
+- `MaterialResolveRequest`, `SourceQuery`, `MusicMaterial`, `PlayableLink`.
+- `MaterialResolvePort` and `SourceGroundingPort` from `src/ports`.
 - Canonical Store public API for identity attachment.
 
 Outputs:

@@ -225,11 +225,29 @@ Must not own:
 - user preference.
 - recommendation scoring.
 
-## Source Resolution
+## Material Resolve
 
 Own:
 
-- canonical-first source resolution.
+- canonical-first candidate-to-material resolution.
+- `MaterialResolveResult` status.
+- source evidence attachment to known canonical records.
+
+Public API:
+
+- `MaterialResolvePort.resolve(input)`
+
+Must not own:
+
+- source provider internals.
+- playable link refresh.
+- durable memory.
+- final recommendation selection.
+
+## Source Grounding
+
+Own:
+
 - source search.
 - source refs.
 - playable link retrieval.
@@ -237,13 +255,13 @@ Own:
 
 Public API:
 
-- `SourceResolutionPort.resolve(input)`
-- `SourceResolutionPort.ground(input)`
-- `SourceResolutionPort.refreshPlayableLinks(input)`
+- `SourceGroundingPort.ground(input)`
+- `SourceGroundingPort.refreshPlayableLinks(input)`
 
 Must not own:
 
 - canonical authority.
+- candidate-level material resolution.
 - durable memory.
 - final recommendation selection.
 

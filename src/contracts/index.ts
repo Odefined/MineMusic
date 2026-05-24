@@ -2,6 +2,7 @@ export type ModuleId =
   | "stage"
   | "stage_interface"
   | "canonical"
+  | "material_resolve"
   | "source"
   | "knowledge"
   | "events"

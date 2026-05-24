@@ -124,44 +124,51 @@ This index points agents to the current MVP documentation pack.
     - Stage Core restart-style persistence test for SQLite-backed canonical
       storage.
 
-34. `docs/source-providers/netease.md`
+34. `src/material_resolve/index.ts`
+    - Material Resolve service for canonical-first `MusicCandidate` to
+      `MusicMaterial` resolution.
+
+35. `src/source/index.ts`
+    - Source Grounding service for provider search and playable-link refresh.
+
+36. `docs/source-providers/netease.md`
     - NetEase source provider design, runtime behavior, boundaries, and
       verification notes.
 
-35. `src/providers/netease/index.ts`
+37. `src/providers/netease/index.ts`
     - Read-only NetEase source provider adapter implementing `SourceProvider`.
 
-36. `docs/host-adapters/codex-mcp-plugin.md`
+38. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
       verification notes.
 
-37. `src/stage_core/index.ts`
+39. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, and exposes the runtime object.
 
-38. `src/surfaces/mcp/server.ts`
+40. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-39. `src/stage_interface/**`
+41. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade.
 
-40. `src/handbook/index.ts`
+42. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-41. `plugins/minemusic/.codex-plugin/plugin.json`
+43. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-42. `plugins/minemusic/.mcp.json`
+44. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-43. `plugins/minemusic/skills/minemusic/SKILL.md`
+45. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-44. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+46. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 

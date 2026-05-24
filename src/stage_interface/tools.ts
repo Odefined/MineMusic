@@ -50,7 +50,7 @@ export const mvpToolDescriptors: ToolDescriptor[] = [
   },
   {
     name: "music.material.resolve",
-    description: "Resolve music candidates through canonical-first source resolution.",
+    description: "Resolve music candidates into material through canonical-first material resolution.",
     inputSchemaRef: "MaterialResolveRequest",
     outputSchemaRef: "MaterialResolveResult",
   },

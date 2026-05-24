@@ -63,7 +63,8 @@ LLM Agent Runtime
      -> Handbook renderer
   -> Core Capability Layer
      -> Canonical Store
-     -> Source Resolution
+     -> Material Resolve
+     -> Source Grounding
      -> Music Knowledge
      -> Event Service
      -> Memory Service
@@ -97,7 +98,7 @@ into Plugin Slots.
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
-| Core Capabilities | `src/canonical`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
+| Core Capabilities | `src/canonical`, `src/material_resolve`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
@@ -115,7 +116,8 @@ needs.
 | Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
 | Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
-| Source Resolution | canonical-first material resolution, source refs, availability, playable links, provider evidence | canonical authority, memory decisions |
+| Material Resolve | canonical-first candidate-to-material resolution, `MaterialResolveResult` status, canonical evidence attachment | provider internals, playable-link refresh, final recommendation selection |
+| Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |
 | Event Service | factual event history | derived preference claims |
 | Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals | raw event logging, external side effects |
@@ -135,15 +137,18 @@ needs.
 5. LLM interprets the musical situation.
 6. LLM or Host Adapter uses Stage Interface tools.
 7. Stage Interface reads Session Context and Handbook entries when needed.
-8. Stage Interface sends music candidates to Source Resolution.
-9. Source Resolution checks Canonical Store first, then uses Source Slot
-   adapters as evidence when needed.
-10. Source Resolution returns `MusicMaterial` with honest material state.
-11. Stage Interface sends material through Material Gate before presentation.
-12. LLM selects and explains recommendations.
-13. Stage Interface or the LLM records factual events and proposes memory or
+8. Stage Interface sends music candidates to Material Resolve.
+9. Material Resolve checks Canonical Store first, then uses Source Grounding as
+   source evidence when needed.
+10. Source Grounding uses Source Slot adapters for source refs and playable
+   links.
+11. Material Resolve returns `MusicMaterial` with honest material state and
+   candidate-level resolve status.
+12. Stage Interface sends material through Material Gate before presentation.
+13. LLM selects and explains recommendations.
+14. Stage Interface or the LLM records factual events and proposes memory or
    effects when appropriate.
-14. Event Service, Memory Service, and Effect Boundary keep consequences
+15. Event Service, Memory Service, and Effect Boundary keep consequences
    governed through their own ports.
 ```
 
@@ -197,8 +202,8 @@ return a runtime object
 ```
 
 Stage Core may know module factories because its job is composition. It should
-not absorb the internal implementation of Source Resolution, Memory Service,
-Effect Boundary, or other Core Capabilities.
+not absorb the internal implementation of Material Resolve, Source Grounding,
+Memory Service, Effect Boundary, or other Core Capabilities.
 
 ## Stage Interface Policy
 
@@ -238,8 +243,9 @@ Only `confirmed_playable` and `source_only_playable` may be presented as
 playable links. Durable memory should prefer a canonical ref or provisional
 canonical ref before falling back to source refs or plain text.
 
-Source Resolution owns source-backed state upgrades. Material Gate owns
-presentation safety before material reaches the LLM or user.
+Material Resolve owns candidate-level material state/status assembly. Source
+Grounding owns source-backed playable-link state normalization. Material Gate
+owns presentation safety before material reaches the LLM or user.
 
 ## Effect Policy
 

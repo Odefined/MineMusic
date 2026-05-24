@@ -35,7 +35,7 @@ Input: `StageMaterialsPrepareInput`
 Output: `MusicMaterial[]`
 #### `music.material.resolve`
 
-Description: Resolve music candidates through canonical-first source resolution.
+Description: Resolve music candidates into material through canonical-first material resolution.
 Input: `MaterialResolveRequest`
 Output: `MaterialResolveResult`
 #### `music.links.refresh`

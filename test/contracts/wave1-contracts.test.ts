@@ -30,6 +30,7 @@ import type {
   EventPort,
   EventRepository,
   InstrumentCatalogPort,
+  MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
   MemoryRepository,
@@ -38,7 +39,7 @@ import type {
   Repository,
   SessionRepository,
   SessionContextPort,
-  SourceResolutionPort,
+  SourceGroundingPort,
   ToolDispatchPort,
 } from "../../src/ports/index.js";
 
@@ -292,7 +293,7 @@ const instrumentCatalog: InstrumentCatalogPort = {
         tools: [
           {
             name: "music.material.resolve",
-            description: "Resolve music candidates through canonical-first source resolution.",
+            description: "Resolve music candidates through canonical-first material resolution.",
             inputSchemaRef: "MaterialResolveRequest",
             outputSchemaRef: "MaterialResolveResult",
           },
@@ -310,7 +311,7 @@ const handbookToolEntry: HandbookToolEntry = {
   },
   tool: {
     name: toolName,
-    description: "Resolve music candidates through canonical-first source resolution.",
+    description: "Resolve music candidates through canonical-first material resolution.",
     inputSchemaRef: "MaterialResolveRequest",
     outputSchemaRef: "MaterialResolveResult",
   },
@@ -350,7 +351,7 @@ const canonicalStore: CanonicalStorePort = {
   }),
 };
 
-const sourceResolution: SourceResolutionPort = {
+const materialResolve: MaterialResolvePort = {
   resolve: async () => ({
     ok: true,
     value: {
@@ -362,6 +363,9 @@ const sourceResolution: SourceResolutionPort = {
       },
     } satisfies MaterialResolveResult,
   }),
+};
+
+const sourceGrounding: SourceGroundingPort = {
   ground: async ({ query }) => sourceProvider.search({ query }),
   refreshPlayableLinks: async ({ material }) => ({
     ok: true,
@@ -456,7 +460,8 @@ void [
   handbookToolEntry,
   toolDispatch,
   canonicalStore,
-  sourceResolution,
+  materialResolve,
+  sourceGrounding,
   musicKnowledge,
   events,
   memory,

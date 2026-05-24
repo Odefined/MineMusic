@@ -2,7 +2,7 @@ import type { CanonicalRecord, MusicMaterial } from "../../src/contracts/index.j
 import { createCanonicalStore } from "../../src/canonical/index.js";
 import { createNetEaseSourceProvider } from "../../src/providers/netease/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
-import { createSourceResolutionService } from "../../src/source/index.js";
+import { createSourceGroundingService } from "../../src/source/index.js";
 import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -50,7 +50,7 @@ async function mapsSearchResultsToSourceBackedMaterials(): Promise<void> {
   assert(material !== undefined, "search should return one material");
   assert(material.id === "netease:track:123", "material id should include provider track id");
   assert(material.label === "Coding Track - Quiet Artist", "material label should include artist");
-  assert(material.state === "grounded", "provider should leave playability normalization to Source Resolution");
+  assert(material.state === "grounded", "provider should leave playability normalization to Source Grounding");
   assert(material.sourceRefs?.[0]?.namespace === "source:netease", "should keep provider source ref");
   assert(material.sourceRefs?.[0]?.kind === "track", "source ref should identify provider track");
   assert(material.sourceRefs?.[0]?.id === "123", "source ref should use NetEase song id");
@@ -95,7 +95,7 @@ async function supportsModernNeteaseSongShapeAndBlockedState(): Promise<void> {
   assert((material.playableLinks ?? []).length === 0, "blocked material should not expose playable links");
 }
 
-async function integratesWithSourceResolutionThroughPluginSlot(): Promise<void> {
+async function integratesWithSourceGroundingThroughPluginSlot(): Promise<void> {
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const canonical: CanonicalRecord = {
     ref: { namespace: "minemusic", kind: "recording", id: "canonical-netease-123" },
@@ -120,7 +120,7 @@ async function integratesWithSourceResolutionThroughPluginSlot(): Promise<void> 
   });
   await assertOk(registry.registerProvider({ slot: "source", providerId: provider.id, provider }));
 
-  const source = createSourceResolutionService({
+  const source = createSourceGroundingService({
     canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
     pluginRegistry: registry,
   });
@@ -131,7 +131,7 @@ async function integratesWithSourceResolutionThroughPluginSlot(): Promise<void> 
   assert(material?.state === "confirmed_playable", "canonical NetEase source ref should confirm playability");
   assert(
     material.canonicalRef?.id === canonical.ref.id,
-    "Source Resolution should attach matching canonical ref",
+    "Source Grounding should attach matching canonical ref",
   );
 }
 
@@ -155,5 +155,5 @@ async function refreshesLinksFromNeteaseSourceRefs(): Promise<void> {
 
 await mapsSearchResultsToSourceBackedMaterials();
 await supportsModernNeteaseSongShapeAndBlockedState();
-await integratesWithSourceResolutionThroughPluginSlot();
+await integratesWithSourceGroundingThroughPluginSlot();
 await refreshesLinksFromNeteaseSourceRefs();

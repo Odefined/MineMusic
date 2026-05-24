@@ -16,6 +16,7 @@ export type ModuleId =
   | "stage"
   | "stage_interface"
   | "canonical"
+  | "material_resolve"
   | "source"
   | "knowledge"
   | "events"
@@ -151,7 +152,7 @@ Rules:
 - Canonical Store does not decide playability.
 - Public methods for canonical behavior live in `CanonicalStorePort`.
 
-## Source Resolution Types
+## Material Resolve And Source Grounding Types
 
 ```ts
 export type SourceQuery = {
@@ -227,10 +228,13 @@ Rules:
 
 - Source providers own availability and source-backed playable links.
 - A provider may return source-only material.
-- `MaterialResolveRequest` is the agent-facing source-resolution input.
-- `SourceQuery` is the lower-level provider-search input used during resolve.
+- `MaterialResolveRequest` is the agent-facing material-resolution input.
+- `SourceQuery` is the lower-level provider-search input used by Source
+  Grounding.
 - The service must mark unresolved and exploration states honestly.
-- Public methods for source behavior live in `SourceResolutionPort`.
+- Public methods for candidate-level material resolution live in
+  `MaterialResolvePort`.
+- Public methods for source/provider grounding live in `SourceGroundingPort`.
 
 ## Knowledge Types
 
@@ -254,7 +258,7 @@ Rules:
 
 - Knowledge providers return facts, relationships, metadata, or related
   material.
-- Knowledge output is not playable until source resolution confirms a link.
+- Knowledge output is not playable until Source Grounding confirms a link.
 - Music Knowledge is a thin MVP stub unless a later phase explicitly promotes it
   into the critical path.
 

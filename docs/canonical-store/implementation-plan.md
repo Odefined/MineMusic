@@ -18,7 +18,7 @@ MineMusic canonical identity
 -> persisted across runtime restart
 -> external refs remain unique
 -> source refs remain evidence, not canonical authority
--> Source Resolution can keep using the existing public port
+-> Material Resolve and Source Grounding can keep using public ports
 ```
 
 ## Current Evidence
@@ -29,7 +29,8 @@ MineMusic canonical identity
 | Public port | `src/ports/index.ts` | `CanonicalStorePort` currently exposes `get`, `findByLabel`, `resolveExternalRef`, `createProvisional`, and `attachExternalRef`. |
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` stores records in a process-local `Map`. |
 | Current tests | `test/canonical/canonical-store.test.ts` | Covers provisional create/get, external-ref attach/resolve, and conflict rejection. |
-| Source integration | `src/source/index.ts` | Source Resolution calls `get`, `resolveExternalRef`, `findByLabel`, and `attachExternalRef`. |
+| Material Resolve integration | `src/material_resolve/index.ts` | Material Resolve calls `get`, `resolveExternalRef`, `findByLabel`, and `attachExternalRef`. |
+| Source Grounding integration | `src/source/index.ts` | Source Grounding calls `resolveExternalRef` when normalizing provider-returned source refs. |
 | Design docs | `docs/canonical-store/*.md` | Storage model, module responsibilities, and interface boundaries are documented. |
 | SQLite storage | `src/storage/sqlite/index.ts` | Persists canonical entities, external refs, and aliases through `node:sqlite`. |
 | Durable tests | `test/storage/sqlite-canonical-store.test.ts` | Proves reopen persistence, external-ref reverse lookup, and conflict behavior. |
@@ -47,9 +48,9 @@ and remaining gaps are tracked in `docs/canonical-store/progress.md`.
   so a future driver change does not affect Canonical Store policy code.
 
 - Keep `CanonicalStorePort` as the business boundary.
-  Source Resolution, Memory Service, and future Knowledge integrations should
-  keep depending on the public port, not on database tables or repository
-  internals.
+  Material Resolve, Source Grounding, Memory Service, and future Knowledge
+  integrations should keep depending on public ports, not on database tables or
+  repository internals.
 
 - Introduce a canonical-specific storage boundary behind the service.
   The current generic `Repository<CanonicalRecord, Ref>` is enough for in-memory
@@ -237,7 +238,7 @@ Prove the end-to-end canonical identity behavior survives a runtime restart.
 
 - Create a Stage Core runtime with SQLite-backed canonical storage.
 - Seed or create a canonical record with a source ref.
-- Resolve a candidate through Source Resolution.
+- Resolve a candidate through Material Resolve.
 - Close/recreate the runtime with the same database path.
 - Resolve the same source ref again.
 - Assert the material becomes `confirmed_playable` when canonical identity and
@@ -315,7 +316,7 @@ git diff --name-only
 ### Integration Tests
 
 - Stage Core can use injected durable canonical storage.
-- Source Resolution can attach source evidence to a persisted canonical record.
+- Material Resolve can attach source evidence to a persisted canonical record.
 - Recreated runtime can resolve the same external ref.
 - Material state remains honest:
   - canonical plus playable link -> `confirmed_playable`.
@@ -331,7 +332,8 @@ git diff --name-only
 
 | Module | Integration |
 | --- | --- |
-| Source Resolution | Continue using `CanonicalStorePort`; may benefit from durable `resolveExternalRef` and `attachExternalRef`. |
+| Material Resolve | Continue using `CanonicalStorePort`; may benefit from durable `resolveExternalRef` and `attachExternalRef`. |
+| Source Grounding | Continue using `CanonicalStorePort.resolveExternalRef` for source-ref normalization. |
 | Memory Service | Can later use canonical refs as durable memory targets; no direct storage access. |
 | Event Service | Records target refs supplied by callers; should not create identity. |
 | Stage Core | Owns runtime wiring and injection of canonical storage implementation. |
@@ -364,7 +366,7 @@ git diff --name-only
   recreation.
 - `resolveExternalRef` works after reopening storage.
 - duplicate external refs cannot attach to two canonical records.
-- Source Resolution still calls only `CanonicalStorePort`.
+- Material Resolve and Source Grounding still call only public ports.
 - default Stage Core remains deterministic and in-memory.
 - all existing tests pass.
 - docs state exactly which Canonical Store capabilities are implemented.

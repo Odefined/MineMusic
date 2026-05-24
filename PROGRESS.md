@@ -261,6 +261,12 @@
 - Corrected Collection Service and Library Import design language so collection
   ownership uses long-lived `ownerScope`, with `local_profile:default` as the
   MVP default option, rather than treating `sessionId` as collection ownership.
+- Split Material Resolve from Source Resolution naming: added
+  `MaterialResolvePort` / `createMaterialResolveService` under
+  `src/material_resolve/index.ts`, narrowed `src/source/index.ts` to
+  `SourceGroundingPort` / `createSourceGroundingService`, and routed
+  `music.material.resolve` through Material Resolve while keeping
+  `music.links.refresh` on Source Grounding.
 
 ## Next
 

@@ -26,8 +26,8 @@ Should this be recommended?
 Was an external app write approved?
 ```
 
-Those questions belong to Memory Service, Canonical Store, Source Resolution,
-the LLM, and Effect Boundary.
+Those questions belong to Memory Service, Canonical Store, Material Resolve,
+Source Grounding, the LLM, and Effect Boundary.
 
 ## User Model
 
@@ -459,7 +459,8 @@ Stage Interface
 ```
 
 Removal should not delete canonical records. A canonical record may still be
-used by events, memory, source resolution, or other collection items.
+used by events, memory, Material Resolve, Source Grounding, or other collection
+items.
 
 ## Collection vs Feedback
 
