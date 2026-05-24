@@ -271,6 +271,8 @@
 - Documented `platform_library` provider registration through the shared Plugin
   Registry and added registry test coverage for slot-scoped platform-library
   provider registration and lookup.
+- Added `docs/platform-library-provider/netease-implementation-plan.md` as the
+  task-by-task plan for the first concrete NetEase `platform_library` provider.
 - Corrected Collection Service and Library Import design language so collection
   ownership uses long-lived `ownerScope`, with `local_profile:default` as the
   MVP default option, rather than treating `sessionId` as collection ownership.

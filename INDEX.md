@@ -202,6 +202,11 @@ This index points agents to the current MVP documentation pack.
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 
+54. `docs/platform-library-provider/netease-implementation-plan.md`
+    - Task-by-task implementation plan for the NetEase `platform_library`
+      provider, including supported areas, adapter boundaries, issue mapping,
+      fixture tests, and verification.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module
