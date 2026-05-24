@@ -314,11 +314,17 @@
   save/favorite/block tools, custom Collection create/update/delete/list tools,
   and item add/remove tools through `CollectionPort`, with missing `ownerScope`
   defaulting to `local_profile:default`.
+- Completed Collection Service implementation plan Task 8 with a TDD loop:
+  added `test/integration/collection-runtime.test.ts` and wired it into the
+  stage-core test runner to prove composed Stage Core can use Collection through
+  Stage Interface tools and Material Resolve, covering default system
+  Collections, saved/favorite/blocked membership behavior, custom Collection
+  lifecycle, and blocked canonical resolve status.
 
 ## Next
 
-- Add composed-runtime Stage Interface collection integration coverage before
-  import work so users and future import flows have verified Collection flows.
+- Run Collection Service implementation plan Task 9 documentation/state sync
+  before import work.
 - After Collection foundations, implement the Library Import provider slot plus
   NetEase import preview path.
 - Decide whether to expose a governed runtime configuration path for durable

@@ -18,6 +18,7 @@ const testModules = [
   "./stage_interface/stage-interface-dispatch.test.js",
   "./stage_interface/stage-interface.test.js",
   "./integration/canonical-persistence.test.js",
+  "./integration/collection-runtime.test.js",
   "./integration/mvp-slice.test.js",
 ];
 

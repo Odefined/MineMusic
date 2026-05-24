@@ -133,20 +133,17 @@ host-facing and LLM-facing surface.
   contract layer: `src/contracts/index.ts` now includes the `collection`
   module id, collection error codes, `CollectionKind`, `CollectionRelationKind`,
   `Collection`, `CollectionItem`, `MaterialResolveRequest.ownerScope`, and
-  reserved collection tool names. Collection ports, storage, service behavior,
-  Stage Core wiring, and Stage Interface dispatch remain future tasks.
+  reserved collection tool names.
 - Collection Service implementation plan Task 2 is complete at the public port
   layer: `src/ports/index.ts` now exports `CollectionPort` and a
   collection-specific `CollectionRepository` boundary for owner/kind/relation
-  queries, active label lookup, and idempotent membership lookup. In-memory
-  collection storage and Collection Service behavior remain future tasks.
+  queries, active label lookup, and idempotent membership lookup.
 - Collection Service implementation plan Task 3 is complete at the storage
   layer: `src/storage/index.ts` now exports
   `createInMemoryCollectionRepository`, which stores Collections and
   CollectionItems by id, filters Collections/items by owner/kind/relation and
   removed status, enforces exact active label uniqueness within an owner scope,
-  finds items by `collectionId + canonicalRef`, and returns clones. Collection
-  Service behavior and Stage Core wiring remain future tasks.
+  finds items by `collectionId + canonicalRef`, and returns clones.
 - Collection Service implementation plan Task 4 is complete behind
   `CollectionPort` in `src/collection/index.ts`. The service initializes 15
   system Collections per owner, supports custom Collection create/update/remove,
@@ -179,6 +176,12 @@ host-facing and LLM-facing surface.
   `relationKind: "custom"`; Collection deletion delegates to the service's
   soft-remove path. MCP schema coverage exists for argument-bearing collection
   tools, and the generated MineMusic Handbook includes the collection entries.
+- Collection Service implementation plan Task 8 is complete at the integration
+  layer: `test/integration/collection-runtime.test.ts` starts composed Stage
+  Core and verifies collection behavior through Stage Interface tools, including
+  default owner system Collection initialization, saved/favorite/blocked system
+  membership behavior, custom Collection lifecycle, and Material Resolve blocked
+  status for a blocked canonical recording.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved
@@ -276,8 +279,6 @@ host-facing and LLM-facing surface.
 - Stage Core wiring for optional durable Canonical Store storage.
 - Library Import Service, Platform Library Provider slot, import batch storage,
   and Stage Interface import tools.
-- Composed-runtime Stage Interface collection integration coverage before import
-  work.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -285,8 +286,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the Collection Service Stage Interface collection
-  tools TDD implementation.
+- `npm test` passes as of the Collection Service composed-runtime Stage
+  Interface integration coverage.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
