@@ -1,5 +1,5 @@
-import type { ToolName } from "../contracts/index.js";
 import { z } from "zod/v4";
+import type { StableToolName } from "./tools.js";
 
 const refSchema = z.object({
   namespace: z.string(),
@@ -69,4 +69,4 @@ export const stageInterfaceToolInputSchemas = {
     patch: z.object({}).passthrough(),
     sessionId: z.string().optional(),
   },
-} satisfies Record<ToolName, StageInterfaceToolInputSchema>;
+} satisfies Record<StableToolName, StageInterfaceToolInputSchema>;

@@ -1,6 +1,10 @@
 import type {
   CanonicalRecord,
   CapabilitySlot,
+  Collection,
+  CollectionItem,
+  CollectionKind,
+  CollectionRelationKind,
   EffectDecision,
   EffectProposal,
   InstrumentDescriptor,
@@ -18,6 +22,42 @@ import type {
   StageSession,
   ToolName,
 } from "../contracts/index.js";
+
+export type SystemCollectionRelationKind = Exclude<CollectionRelationKind, "custom">;
+
+export type CollectionListItemsInput = {
+  ownerScope: string;
+  collectionId?: string;
+  collectionKind?: CollectionKind;
+  relationKind?: CollectionRelationKind;
+  includeRemoved?: boolean;
+  limit?: number;
+  cursor?: string;
+};
+
+export type CollectionListCollectionsInput = {
+  ownerScope: string;
+  collectionKind?: CollectionKind;
+  relationKind?: CollectionRelationKind;
+  includeRemoved?: boolean;
+};
+
+export type CollectionRepositoryListCollectionsInput = {
+  ownerScope?: string;
+  collectionKind?: CollectionKind;
+  relationKind?: CollectionRelationKind;
+  includeRemoved?: boolean;
+};
+
+export type CollectionRepositoryListItemsInput = {
+  ownerScope?: string;
+  collectionId?: string;
+  collectionKind?: CollectionKind;
+  relationKind?: CollectionRelationKind;
+  includeRemoved?: boolean;
+  limit?: number;
+  cursor?: string;
+};
 
 export interface SessionContextPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;
@@ -72,6 +112,71 @@ export interface CanonicalStorePort {
     canonicalRef: Ref;
     externalRef: Ref;
   }): Promise<Result<CanonicalRecord>>;
+}
+
+export interface CollectionPort {
+  initializeOwnerCollections(input: {
+    ownerScope: string;
+  }): Promise<Result<Collection[]>>;
+
+  addItemToSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    canonicalRef: Ref;
+    label: string;
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
+  removeItemFromSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  addItemToCollection(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+    label: string;
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
+  removeItemFromCollection(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  updateItem(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+    label?: string;
+    description?: string;
+    position?: number;
+  }): Promise<Result<CollectionItem>>;
+
+  listItems(input: CollectionListItemsInput): Promise<Result<CollectionItem[]>>;
+
+  listCollections(input: CollectionListCollectionsInput): Promise<Result<Collection[]>>;
+
+  createCollection(input: {
+    ownerScope: string;
+    collectionKind: CollectionKind;
+    relationKind: "custom";
+    label: string;
+    description?: string;
+  }): Promise<Result<Collection>>;
+
+  updateCollection(input: {
+    collectionId: string;
+    label?: string;
+    description?: string;
+  }): Promise<Result<Collection>>;
+
+  removeCollection(input: { collectionId: string }): Promise<Result<Collection>>;
+
+  filterBlocked(input: {
+    ownerScope: string;
+    canonicalRefs: Ref[];
+  }): Promise<Result<Ref[]>>;
 }
 
 export interface MaterialResolvePort {
@@ -142,6 +247,33 @@ export interface Repository<TRecord, TKey> {
   get(key: TKey): Promise<Result<TRecord | null>>;
   put(record: TRecord): Promise<Result<TRecord>>;
   list(query?: unknown): Promise<Result<TRecord[]>>;
+}
+
+export interface CollectionRepository {
+  getCollection(input: { collectionId: string }): Promise<Result<Collection | null>>;
+
+  putCollection(input: { collection: Collection }): Promise<Result<Collection>>;
+
+  listCollections(
+    input: CollectionRepositoryListCollectionsInput,
+  ): Promise<Result<Collection[]>>;
+
+  findActiveCollectionByLabel(input: {
+    ownerScope: string;
+    label: string;
+  }): Promise<Result<Collection | null>>;
+
+  getItem(input: { itemId: string }): Promise<Result<CollectionItem | null>>;
+
+  putItem(input: { item: CollectionItem }): Promise<Result<CollectionItem>>;
+
+  findItemByMembership(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+    includeRemoved?: boolean;
+  }): Promise<Result<CollectionItem | null>>;
+
+  listItems(input: CollectionRepositoryListItemsInput): Promise<Result<CollectionItem[]>>;
 }
 
 export type CanonicalRecordRepository = Repository<CanonicalRecord, Ref>;

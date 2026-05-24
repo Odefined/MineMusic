@@ -66,6 +66,7 @@ export type ModuleId =
   | "stage"
   | "stage_interface"
   | "canonical"
+  | "collection"
   | "material_resolve"
   | "source"
   | "knowledge"
@@ -191,9 +192,14 @@ Public facade:
 
 ```ts
 export type MineMusicStageInterface = {
-  tools: Record<ToolName, (payload: unknown) => Promise<Result<unknown>>>;
+  tools: Record<StableToolName, (payload: unknown) => Promise<Result<unknown>>>;
 };
 ```
+
+`ToolName` is the shared public tool-name contract. `StableToolName` is the
+currently registered Stage Interface subset exposed by instrument descriptors.
+Future tool names may exist in `ToolName` before their dispatch implementation
+is registered.
 
 ## Instrument Catalog And Tool Dispatch Ports
 
@@ -230,6 +236,18 @@ export type ToolName =
   | "stage.materials.prepare"
   | "music.material.resolve"
   | "music.links.refresh"
+  | "music.collection.save"
+  | "music.collection.unsave"
+  | "music.collection.favorite"
+  | "music.collection.unfavorite"
+  | "music.collection.block"
+  | "music.collection.unblock"
+  | "music.collection.item.add"
+  | "music.collection.item.remove"
+  | "music.collection.create"
+  | "music.collection.update"
+  | "music.collection.delete"
+  | "music.collection.list"
   | "events.record"
   | "memory.propose"
   | "effects.propose"
@@ -305,6 +323,106 @@ Must not expose:
 - playability.
 - source account state.
 - preference or memory decisions.
+
+## Collection Service Port
+
+Purpose:
+
+- Own owner-scoped `Collection` and `CollectionItem` membership.
+- Keep system collection item operations separate from arbitrary custom
+  collection item operations.
+- Provide blocked canonical-ref lookup for Material Resolve.
+
+Public port:
+
+```ts
+export type SystemCollectionRelationKind = Exclude<CollectionRelationKind, "custom">;
+
+export interface CollectionPort {
+  initializeOwnerCollections(input: {
+    ownerScope: string;
+  }): Promise<Result<Collection[]>>;
+
+  addItemToSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    canonicalRef: Ref;
+    label: string;
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
+  removeItemFromSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  addItemToCollection(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+    label: string;
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
+  removeItemFromCollection(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  updateItem(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+    label?: string;
+    description?: string;
+    position?: number;
+  }): Promise<Result<CollectionItem>>;
+
+  listItems(input: CollectionListItemsInput): Promise<Result<CollectionItem[]>>;
+  listCollections(input: CollectionListCollectionsInput): Promise<Result<Collection[]>>;
+
+  createCollection(input: {
+    ownerScope: string;
+    collectionKind: CollectionKind;
+    relationKind: "custom";
+    label: string;
+    description?: string;
+  }): Promise<Result<Collection>>;
+
+  updateCollection(input: {
+    collectionId: string;
+    label?: string;
+    description?: string;
+  }): Promise<Result<Collection>>;
+
+  removeCollection(input: { collectionId: string }): Promise<Result<Collection>>;
+
+  filterBlocked(input: {
+    ownerScope: string;
+    canonicalRefs: Ref[];
+  }): Promise<Result<Ref[]>>;
+}
+```
+
+Consumes:
+
+- collection repository from Storage.
+- `EventPort` after service implementation records factual collection events.
+
+Publishes domain events:
+
+- `collection.created`
+- `collection.updated`
+- `collection.removed`
+- `collection.item.added`
+- `collection.item.updated`
+- `collection.item.removed`
+
+Must not expose:
+
+- canonical identity creation.
+- source refs as collection item identity.
+- provider search or playable-link behavior.
+- memory preference decisions.
 
 ## Material Resolve Port
 
@@ -610,6 +728,25 @@ export type EventRepository = Repository<StageEvent, string>;
 export type MemoryRepository = Repository<MemoryEntry, string>;
 export type SessionRepository = Repository<StageSession, string>;
 export type EffectProposalRepository = Repository<EffectProposal, string>;
+
+export interface CollectionRepository {
+  getCollection(input: { collectionId: string }): Promise<Result<Collection | null>>;
+  putCollection(input: { collection: Collection }): Promise<Result<Collection>>;
+  listCollections(input: CollectionRepositoryListCollectionsInput): Promise<Result<Collection[]>>;
+  findActiveCollectionByLabel(input: {
+    ownerScope: string;
+    label: string;
+  }): Promise<Result<Collection | null>>;
+
+  getItem(input: { itemId: string }): Promise<Result<CollectionItem | null>>;
+  putItem(input: { item: CollectionItem }): Promise<Result<CollectionItem>>;
+  findItemByMembership(input: {
+    collectionId: string;
+    canonicalRef: Ref;
+    includeRemoved?: boolean;
+  }): Promise<Result<CollectionItem | null>>;
+  listItems(input: CollectionRepositoryListItemsInput): Promise<Result<CollectionItem[]>>;
+}
 ```
 
 Consumes:

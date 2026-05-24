@@ -4,6 +4,10 @@ export {
   mvpToolDescriptors,
   stableToolNames,
 } from "./tools.js";
+export type {
+  StableToolDescriptor,
+  StableToolName,
+} from "./tools.js";
 export {
   stageInterfaceToolInputSchemas,
 } from "./schemas.js";

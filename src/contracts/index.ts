@@ -2,6 +2,7 @@ export type ModuleId =
   | "stage"
   | "stage_interface"
   | "canonical"
+  | "collection"
   | "material_resolve"
   | "source"
   | "knowledge"
@@ -17,6 +18,10 @@ export const stageErrorCodes = [
   "stage_interface.tool_not_found",
   "canonical.not_found",
   "canonical.external_ref_conflict",
+  "collection.not_found",
+  "collection.duplicate_label",
+  "collection.system_collection_immutable",
+  "collection.kind_mismatch",
   "source.no_provider",
   "source.no_playable_link",
   "source.unresolved_match",
@@ -144,6 +149,41 @@ export type CanonicalRecord = {
   aliases?: string[];
 };
 
+export type CollectionKind =
+  | "recording"
+  | "work"
+  | "release_group"
+  | "release"
+  | "artist";
+
+export type CollectionRelationKind =
+  | "saved"
+  | "favorite"
+  | "blocked"
+  | "custom";
+
+export type Collection = {
+  id: string;
+  ownerScope: string;
+  collectionKind: CollectionKind;
+  relationKind: CollectionRelationKind;
+  label: string;
+  description?: string;
+  createdAt: string;
+  removedAt?: string;
+};
+
+export type CollectionItem = {
+  id: string;
+  collectionId: string;
+  canonicalRef: Ref;
+  label: string;
+  description?: string;
+  position?: number;
+  createdAt: string;
+  removedAt?: string;
+};
+
 export type SourceQuery = {
   text?: string;
   canonicalRef?: Ref;
@@ -164,6 +204,7 @@ export type MusicCandidate = {
 
 export type MaterialResolveRequest = {
   sessionId?: string;
+  ownerScope?: string;
   limitPerCandidate?: number;
 } & (
   | {
@@ -276,6 +317,18 @@ export type ToolName =
   | "stage.materials.prepare"
   | "music.material.resolve"
   | "music.links.refresh"
+  | "music.collection.save"
+  | "music.collection.unsave"
+  | "music.collection.favorite"
+  | "music.collection.unfavorite"
+  | "music.collection.block"
+  | "music.collection.unblock"
+  | "music.collection.item.add"
+  | "music.collection.item.remove"
+  | "music.collection.create"
+  | "music.collection.update"
+  | "music.collection.delete"
+  | "music.collection.list"
   | "events.record"
   | "memory.propose"
   | "effects.propose"

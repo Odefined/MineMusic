@@ -14,7 +14,13 @@ export const stableToolNames = [
   "session.update",
 ] as const satisfies readonly ToolName[];
 
-export const handbookToolDescriptors: ToolDescriptor[] = [
+export type StableToolName = (typeof stableToolNames)[number];
+
+export type StableToolDescriptor = Omit<ToolDescriptor, "name"> & {
+  name: StableToolName;
+};
+
+export const handbookToolDescriptors: StableToolDescriptor[] = [
   {
     name: "handbook.overview.read",
     description: "Read the generated overview of current MineMusic instruments and tools.",
@@ -35,7 +41,7 @@ export const handbookToolDescriptors: ToolDescriptor[] = [
   },
 ];
 
-export const mvpToolDescriptors: ToolDescriptor[] = [
+export const mvpToolDescriptors: StableToolDescriptor[] = [
   {
     name: "stage.context.read",
     description: "Read dynamic session context.",
@@ -87,7 +93,7 @@ export const mvpToolDescriptors: ToolDescriptor[] = [
   },
 ];
 
-export const agentToolDescriptors: ToolDescriptor[] = [
+export const agentToolDescriptors: StableToolDescriptor[] = [
   ...handbookToolDescriptors,
   ...mvpToolDescriptors,
 ];

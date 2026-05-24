@@ -277,10 +277,24 @@
   for Collection contracts, ports, in-memory storage, service rules, Stage Core
   wiring, Stage Interface tools, Material Resolve blocked filtering, tests, and
   state sync.
+- Completed Collection Service implementation plan Task 1 by adding shared
+  Collection contract types, collection error codes, `collection` module id,
+  `MaterialResolveRequest.ownerScope`, reserved collection tool names, contract
+  test coverage, and the minimal Stage Interface type split between all
+  `ToolName` values and currently registered stable tools.
+- Completed Collection Service implementation plan Task 2 with a TDD loop:
+  added `CollectionPort`, `SystemCollectionRelationKind`, list input contract
+  types, and a collection-specific `CollectionRepository` boundary with contract
+  test coverage for method names and single-object inputs.
+- Completed Collection Service implementation plan Task 3 with a TDD loop:
+  added `createInMemoryCollectionRepository`, collection/item storage by id,
+  owner/kind/relation/removed-status queries, active owner-scope label
+  uniqueness, `collectionId + canonicalRef` membership lookup, clone-return
+  semantics, and storage tests.
 
 ## Next
 
-- Implement Collection Service foundations before Library Import so imported
+- Implement Collection Service behavior before Stage Core wiring so imported
   platform library assets have a user-owned Collection target.
 - After Collection foundations, implement the Library Import provider slot plus
   NetEase import preview path.

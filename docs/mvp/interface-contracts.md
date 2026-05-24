@@ -16,6 +16,7 @@ export type ModuleId =
   | "stage"
   | "stage_interface"
   | "canonical"
+  | "collection"
   | "material_resolve"
   | "source"
   | "knowledge"
@@ -145,7 +146,54 @@ export type CanonicalRecord = {
 };
 ```
 
+## Collection Types
+
+```ts
+export type CollectionKind =
+  | "recording"
+  | "work"
+  | "release_group"
+  | "release"
+  | "artist";
+
+export type CollectionRelationKind =
+  | "saved"
+  | "favorite"
+  | "blocked"
+  | "custom";
+
+export type Collection = {
+  id: string;
+  ownerScope: string;
+  collectionKind: CollectionKind;
+  relationKind: CollectionRelationKind;
+  label: string;
+  description?: string;
+  createdAt: string;
+  removedAt?: string;
+};
+
+export type CollectionItem = {
+  id: string;
+  collectionId: string;
+  canonicalRef: Ref;
+  label: string;
+  description?: string;
+  position?: number;
+  createdAt: string;
+  removedAt?: string;
+};
+```
+
 Rules:
+
+- Collection items store canonical refs only.
+- Collection Service owns collection and collection item lifecycle state.
+- Collection Service public ports are documented in the Collection Service
+  implementation plan until those ports are added to the MVP module interface
+  document.
+
+## Canonical Store Rules
 
 - Canonical Store may accept evidence from source and knowledge providers.
 - Source refs do not become canonical authority by default.
@@ -175,6 +223,7 @@ export type MusicCandidate = {
 
 export type MaterialResolveRequest = {
   sessionId?: string;
+  ownerScope?: string;
   limitPerCandidate?: number;
 } & (
   | {
@@ -347,6 +396,18 @@ export type ToolName =
   | "stage.materials.prepare"
   | "music.material.resolve"
   | "music.links.refresh"
+  | "music.collection.save"
+  | "music.collection.unsave"
+  | "music.collection.favorite"
+  | "music.collection.unfavorite"
+  | "music.collection.block"
+  | "music.collection.unblock"
+  | "music.collection.item.add"
+  | "music.collection.item.remove"
+  | "music.collection.create"
+  | "music.collection.update"
+  | "music.collection.delete"
+  | "music.collection.list"
   | "events.record"
   | "memory.propose"
   | "effects.propose"

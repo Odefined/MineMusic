@@ -71,8 +71,9 @@ host-facing and LLM-facing surface.
 - The runtime test runner imports compiled test modules sequentially so
   file-writing startup tests do not race plugin packaging checks.
 - In-memory repositories are exported from `src/storage/index.ts` for sessions,
-  canonical records, events, memory entries, and effect proposals. The same
-  module also exports the SQLite-backed Canonical Store repository factory.
+  canonical records, collection records/items, events, memory entries, and
+  effect proposals. The same module also exports the SQLite-backed Canonical
+  Store repository factory.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
@@ -127,6 +128,24 @@ host-facing and LLM-facing surface.
   Collections are user-created single-kind Collections, and blocked membership
   is expected to filter through Material Resolve. The implementation plan is in
   `docs/collection-service/implementation-plan.md`.
+- Collection Service implementation plan Task 1 is complete at the shared
+  contract layer: `src/contracts/index.ts` now includes the `collection`
+  module id, collection error codes, `CollectionKind`, `CollectionRelationKind`,
+  `Collection`, `CollectionItem`, `MaterialResolveRequest.ownerScope`, and
+  reserved collection tool names. Collection ports, storage, service behavior,
+  Stage Core wiring, and Stage Interface dispatch remain future tasks.
+- Collection Service implementation plan Task 2 is complete at the public port
+  layer: `src/ports/index.ts` now exports `CollectionPort` and a
+  collection-specific `CollectionRepository` boundary for owner/kind/relation
+  queries, active label lookup, and idempotent membership lookup. In-memory
+  collection storage and Collection Service behavior remain future tasks.
+- Collection Service implementation plan Task 3 is complete at the storage
+  layer: `src/storage/index.ts` now exports
+  `createInMemoryCollectionRepository`, which stores Collections and
+  CollectionItems by id, filters Collections/items by owner/kind/relation and
+  removed status, enforces exact active label uniqueness within an owner scope,
+  finds items by `collectionId + canonicalRef`, and returns clones. Collection
+  Service behavior and Stage Core wiring remain future tasks.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved

@@ -1,10 +1,15 @@
 import type {
   CapabilitySlot,
+  Collection,
+  CollectionItem,
+  CollectionKind,
+  CollectionRelationKind,
   DomainEvent,
   EffectDecision,
   EffectProposal,
   Handbook,
   HandbookToolEntry,
+  MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
   MemoryProposal,
@@ -25,6 +30,8 @@ import { stageErrorCodes } from "../../src/contracts/index.js";
 import type {
   CanonicalRecordRepository,
   CanonicalStorePort,
+  CollectionPort,
+  CollectionRepository,
   EffectBoundaryPort,
   EffectProposalRepository,
   EventPort,
@@ -40,6 +47,7 @@ import type {
   SessionRepository,
   SessionContextPort,
   SourceGroundingPort,
+  SystemCollectionRelationKind,
   ToolDispatchPort,
 } from "../../src/ports/index.js";
 
@@ -88,7 +96,84 @@ type _catalogAndDispatchStaySeparate = Expect<
     Equal<keyof ToolDispatchPort, "call">
 >;
 
+type _collectionKindsMatchDesignedCanonicalKinds = Expect<
+  Equal<CollectionKind, "recording" | "work" | "release_group" | "release" | "artist">
+>;
+
+type _collectionRelationKindsMatchDesignedRelations = Expect<
+  Equal<CollectionRelationKind, "saved" | "favorite" | "blocked" | "custom">
+>;
+
+type _collectionItemStoresCanonicalRef = Expect<Equal<CollectionItem["canonicalRef"], Ref>>;
+
+type _materialResolveRequestCarriesOwnerScope = Expect<
+  Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string>
+>;
+
+type _systemCollectionRelationsExcludeCustom = Expect<
+  Equal<SystemCollectionRelationKind, "saved" | "favorite" | "blocked">
+>;
+
+type _collectionPortMethods = Expect<
+  Equal<
+    keyof CollectionPort,
+    | "initializeOwnerCollections"
+    | "addItemToSystemCollection"
+    | "removeItemFromSystemCollection"
+    | "addItemToCollection"
+    | "removeItemFromCollection"
+    | "updateItem"
+    | "listItems"
+    | "listCollections"
+    | "createCollection"
+    | "updateCollection"
+    | "removeCollection"
+    | "filterBlocked"
+  >
+>;
+
+type _collectionPortMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<CollectionPort, "initializeOwnerCollections"> &
+    MethodAcceptsSingleObject<CollectionPort, "addItemToSystemCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "removeItemFromSystemCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "addItemToCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "removeItemFromCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "updateItem"> &
+    MethodAcceptsSingleObject<CollectionPort, "listItems"> &
+    MethodAcceptsSingleObject<CollectionPort, "listCollections"> &
+    MethodAcceptsSingleObject<CollectionPort, "createCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "updateCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "removeCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "filterBlocked">
+>;
+
+type _collectionRepositoryMethods = Expect<
+  Equal<
+    keyof CollectionRepository,
+    | "getCollection"
+    | "putCollection"
+    | "listCollections"
+    | "findActiveCollectionByLabel"
+    | "getItem"
+    | "putItem"
+    | "findItemByMembership"
+    | "listItems"
+  >
+>;
+
+type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<CollectionRepository, "getCollection"> &
+    MethodAcceptsSingleObject<CollectionRepository, "putCollection"> &
+    MethodAcceptsSingleObject<CollectionRepository, "listCollections"> &
+    MethodAcceptsSingleObject<CollectionRepository, "findActiveCollectionByLabel"> &
+    MethodAcceptsSingleObject<CollectionRepository, "getItem"> &
+    MethodAcceptsSingleObject<CollectionRepository, "putItem"> &
+    MethodAcceptsSingleObject<CollectionRepository, "findItemByMembership"> &
+    MethodAcceptsSingleObject<CollectionRepository, "listItems">
+>;
+
 const moduleId: ModuleId = "stage";
+const collectionModuleId: ModuleId = "collection";
 const ref: Ref = {
   namespace: "minemusic",
   kind: "recording",
@@ -153,6 +238,10 @@ const requiredErrorCodes: StageErrorCode[] = [
   "stage_interface.tool_not_found",
   "canonical.not_found",
   "canonical.external_ref_conflict",
+  "collection.not_found",
+  "collection.duplicate_label",
+  "collection.system_collection_immutable",
+  "collection.kind_mismatch",
   "source.no_provider",
   "source.no_playable_link",
   "source.unresolved_match",
@@ -224,6 +313,29 @@ const effectProposal: EffectProposal = {
 const effectDecision: EffectDecision = {
   status: "approved",
   proposalId: effectProposal.id,
+};
+
+const collection: Collection = {
+  id: "collection-1",
+  ownerScope: "local_profile:default",
+  collectionKind: "recording",
+  relationKind: "saved",
+  label: "Saved recordings",
+  createdAt: "2026-05-17T00:00:00.000Z",
+};
+
+const collectionItem: CollectionItem = {
+  id: "collection-item-1",
+  collectionId: collection.id,
+  canonicalRef: ref,
+  label: ref.label ?? ref.id,
+  createdAt: "2026-05-17T00:00:00.000Z",
+};
+
+const materialResolveRequest: MaterialResolveRequest = {
+  kind: "single",
+  candidate: { id: "candidate-1", label: "Quiet Track", canonicalRef: ref },
+  ownerScope: collection.ownerScope,
 };
 
 const stageVibe: NonNullable<StageSession["vibe"]> = {
@@ -304,6 +416,7 @@ const instrumentCatalog: InstrumentCatalogPort = {
 };
 
 const toolName: ToolName = "music.material.resolve";
+const collectionToolName: ToolName = "music.collection.save";
 const handbookToolEntry: HandbookToolEntry = {
   instrument: {
     id: "mvp",
@@ -349,6 +462,21 @@ const canonicalStore: CanonicalStorePort = {
       externalKeys: [externalRef],
     },
   }),
+};
+
+const collectionPort: CollectionPort = {
+  initializeOwnerCollections: async () => ({ ok: true, value: [collection] }),
+  addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
+  removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
+  addItemToCollection: async () => ({ ok: true, value: collectionItem }),
+  removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
+  updateItem: async () => ({ ok: true, value: collectionItem }),
+  listItems: async () => ({ ok: true, value: [collectionItem] }),
+  listCollections: async () => ({ ok: true, value: [collection] }),
+  createCollection: async () => ({ ok: true, value: collection }),
+  updateCollection: async () => ({ ok: true, value: collection }),
+  removeCollection: async () => ({ ok: true, value: collection }),
+  filterBlocked: async ({ canonicalRefs }) => ({ ok: true, value: canonicalRefs }),
 };
 
 const materialResolve: MaterialResolvePort = {
@@ -420,6 +548,17 @@ const canonicalRecords: CanonicalRecordRepository = {
   list: async () => ({ ok: true, value: [] }),
 };
 
+const collectionRepository: CollectionRepository = {
+  getCollection: async () => ({ ok: true, value: collection }),
+  putCollection: async ({ collection: record }) => ({ ok: true, value: record }),
+  listCollections: async () => ({ ok: true, value: [collection] }),
+  findActiveCollectionByLabel: async () => ({ ok: true, value: collection }),
+  getItem: async () => ({ ok: true, value: collectionItem }),
+  putItem: async ({ item }) => ({ ok: true, value: item }),
+  findItemByMembership: async () => ({ ok: true, value: collectionItem }),
+  listItems: async () => ({ ok: true, value: [collectionItem] }),
+};
+
 const eventRepository: EventRepository = {
   get: async () => ({ ok: true, value: stageEvent }),
   put: async (record) => ({ ok: true, value: record }),
@@ -443,12 +582,16 @@ const effectProposalRepository: EffectProposalRepository = {
 const capabilitySlot: CapabilitySlot = "source";
 
 void [
+  collectionModuleId,
   result,
   failure,
   requiredErrorCodes,
   stageErrorCodes,
   event,
   stageEvent,
+  collection,
+  collectionItem,
+  materialResolveRequest,
   memoryProposal,
   effectDecision,
   handbook,
@@ -457,9 +600,11 @@ void [
   materialGate,
   instrumentCatalog,
   toolName,
+  collectionToolName,
   handbookToolEntry,
   toolDispatch,
   canonicalStore,
+  collectionPort,
   materialResolve,
   sourceGrounding,
   musicKnowledge,
@@ -469,6 +614,7 @@ void [
   plugins,
   repository,
   canonicalRecords,
+  collectionRepository,
   eventRepository,
   memoryRepository,
   sessionRepository,
