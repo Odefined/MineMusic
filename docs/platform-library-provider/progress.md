@@ -17,17 +17,25 @@ slot and concrete platform-library providers.
   exports `createNetEasePlatformLibraryProvider(...)`, returning a
   `PlatformLibraryProvider` with `id: "netease"` and callable `preview` /
   `readItems` methods.
-- The Task 2 `preview` and `readItems` methods intentionally return empty area
-  lists. Account identity, readable-area mapping, preview/read semantics, and
-  provider issue mapping remain future tasks.
+- NetEase provider Task 3 is complete: `preview` and `readItems` resolve the
+  current local NetEase API session through `/login/status`, return stable
+  account identity when a user id can be proven, and return structured
+  `login_required` issues when no usable account or requested account match can
+  be proven.
+- The provider currently uses the local API's default session account. Explicit
+  reads for multiple simultaneously available NetEase accounts are not exposed
+  by the current adapter; account-selection behavior remains a future concern if
+  the runtime later supports multiple configured sessions.
+- The Task 2/3 `preview` and `readItems` methods intentionally return empty
+  area lists. Readable-area mapping, preview/read semantics, and provider issue
+  mapping remain future tasks.
 
 ## Next Slice
 
-1. Implement Task 3 from the NetEase plan: resolve provider account identity
-   when the local NetEase API can expose it.
-2. Continue with readable-area mapping, preview/read behavior,
-   issue mapping, deterministic tests, and docs/runner wiring in the documented
-   task order.
+1. Implement Task 4 from the NetEase plan: map readable NetEase account-library
+   responses into generic `PlatformLibraryItem` records.
+2. Continue with preview/read behavior, issue mapping, deterministic tests, and
+   docs/runner wiring in the documented task order.
 
 ## Verification
 

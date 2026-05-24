@@ -2,6 +2,8 @@ import type {
   MaterialEvidence,
   MusicMaterial,
   PlayableLink,
+  PlatformLibraryAccountIdentity,
+  PlatformLibraryIssue,
   PlatformLibraryProvider,
   Ref,
   Result,
@@ -45,6 +47,15 @@ type NetEaseAlbum = {
 type NetEaseArtist = {
   name?: unknown;
 };
+
+type NetEaseAccountResolution =
+  | {
+      kind: "resolved";
+      account: PlatformLibraryAccountIdentity;
+    }
+  | {
+      kind: "login_required";
+    };
 
 export function createNetEaseSourceProvider({
   baseUrl = defaultNetEaseBaseUrl,
@@ -107,24 +118,95 @@ export function createNetEasePlatformLibraryProvider({
   baseUrl = defaultNetEaseBaseUrl,
   requestJson = createDefaultRequester(baseUrl),
 }: NetEasePlatformLibraryProviderOptions = {}): PlatformLibraryProvider {
-  void requestJson;
-
   return {
     id: "netease",
 
-    async preview() {
+    async preview(input) {
+      const account = await resolveNetEaseAccount(requestJson, input.providerAccountId);
+      const issues = account.kind === "login_required" ? [loginRequiredIssue()] : [];
+
       return ok({
         providerId: "netease",
+        ...(account.kind === "resolved" ? { account: account.account } : {}),
         areas: [],
+        ...(issues.length === 0 ? {} : { issues }),
       });
     },
 
-    async readItems() {
+    async readItems(input) {
+      const account = await resolveNetEaseAccount(requestJson, input.providerAccountId);
+      const issues = account.kind === "login_required" ? [loginRequiredIssue()] : [];
+
       return ok({
         providerId: "netease",
+        ...(account.kind === "resolved" ? { account: account.account } : {}),
         areas: [],
+        ...(issues.length === 0 ? {} : { issues }),
       });
     },
+  };
+}
+
+function loginRequiredIssue(): PlatformLibraryIssue {
+  return {
+    code: "login_required",
+    message: "NetEase account identity could not be proven by the local API session.",
+    retryable: true,
+  };
+}
+
+async function resolveNetEaseAccount(
+  requestJson: NetEaseRequester,
+  requestedProviderAccountId?: string,
+): Promise<NetEaseAccountResolution> {
+  const response = await requestJson({
+    path: "/login/status",
+    query: {},
+  });
+
+  if (!response.ok) {
+    return { kind: "login_required" };
+  }
+
+  const account = extractAccountIdentity(response.value);
+
+  if (account === undefined) {
+    return { kind: "login_required" };
+  }
+
+  if (
+    requestedProviderAccountId !== undefined &&
+    account.providerAccountId !== requestedProviderAccountId
+  ) {
+    return { kind: "login_required" };
+  }
+
+  return {
+    kind: "resolved",
+    account,
+  };
+}
+
+function extractAccountIdentity(payload: unknown): PlatformLibraryAccountIdentity | undefined {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+
+  const data = isRecord(payload.data) ? payload.data : payload;
+  const profile = isRecord(data.profile) ? data.profile : undefined;
+  const account = isRecord(data.account) ? data.account : undefined;
+  const providerAccountId = toStringId(profile?.userId ?? account?.id);
+
+  if (providerAccountId === undefined) {
+    return undefined;
+  }
+
+  const label = toNonEmptyString(profile?.nickname ?? account?.userName);
+
+  return {
+    providerAccountId,
+    stable: true,
+    ...(label === undefined ? {} : { label }),
   };
 }
 
@@ -288,6 +370,10 @@ function toStringId(id: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function toNonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function findNetEaseTrackRef(refs: Ref[]): Ref | undefined {

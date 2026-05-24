@@ -363,6 +363,12 @@
   `PlatformLibraryProvider` with `id: "netease"` and callable `preview` /
   `readItems` methods, and wired the new provider test into the stage-core test
   runner.
+- Completed NetEase platform-library provider plan Task 3 with a TDD loop:
+  `preview` and `readItems` now resolve the current local NetEase API session
+  account through `/login/status`, return stable provider account identity when
+  a user id can be proven, respect supplied `providerAccountId` by rejecting a
+  non-matching current session, and emit structured `login_required` issues
+  when account identity cannot be proven.
 - Added `docs/platform-library-provider/progress.md` as the module-local
   implementation progress document for the Platform Library Provider slot.
 
