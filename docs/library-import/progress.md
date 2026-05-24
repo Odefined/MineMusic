@@ -23,6 +23,8 @@ This file tracks Library Import implementation progress.
 - Import batch storage is not implemented.
 - Stage Interface import/update tools are not implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.
+- Implementation task breakdown lives in
+  `docs/library-import/implementation-plan.md`.
 - NetEase platform-library provider implementation plan lives in
   `docs/platform-library-provider/netease-implementation-plan.md`.
 - Platform Library Provider implementation progress is tracked in
@@ -30,13 +32,18 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Add Library Import batch storage for import/update baselines, item
+1. Start Library Import Service implementation from
+   `docs/library-import/implementation-plan.md`, beginning with shared contracts
+   and ports.
+2. Add Library Import batch storage for import/update baselines, item
    provenance, provider account identity, warnings, failures, and absence
    records.
-2. Expose Stage Interface import/update preview/start tools and shared
+3. Expose Stage Interface import/update preview/start tools and shared
    batch status/summary tools.
 
 ## Verification
 
 - Updated during NetEase Platform Library Provider Task 1 state sync to point
   at `docs/platform-library-provider/progress.md`.
+- Added `docs/library-import/implementation-plan.md` as the task-by-task plan
+  for the first Library Import Service implementation slice.

@@ -413,6 +413,10 @@
   exposes both `source` and `platform_library` slot providers.
 - Added `docs/platform-library-provider/progress.md` as the module-local
   implementation progress document for the Platform Library Provider slot.
+- Added `docs/library-import/implementation-plan.md` as the task-by-task
+  implementation plan for the first Library Import Service slice, including
+  contracts, ports, in-memory import storage, orchestration, Stage Core wiring,
+  Stage Interface import/update tools, integration coverage, and state sync.
 
 ## Next
 

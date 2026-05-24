@@ -130,14 +130,14 @@ host-facing and LLM-facing surface.
   `docs/collection-service/design.md`, task breakdown is
   `docs/collection-service/implementation-plan.md`, and detailed implementation
   status is tracked in `docs/collection-service/progress.md`.
-- Library Import Service and Platform Library Provider are not implemented.
-  The design is documented in `docs/library-import/design.md` as a future path
-  for helping users switch from platforms such as NetEase by importing saved
-  songs, albums, followed artists, and other first-slice platform-library facts
-  into MineMusic-owned Collection items, canonical external-ref bindings, and
-  import/update event records. Playlist import is documented as a later feature.
-  Detailed implementation status is tracked in
-  `docs/library-import/progress.md`.
+- Library Import Service is not implemented. The design is documented in
+  `docs/library-import/design.md` as a future path for helping users switch from
+  platforms such as NetEase by importing saved songs, albums, followed artists,
+  and other first-slice platform-library facts into MineMusic-owned Collection
+  items, canonical external-ref bindings, and import/update event records.
+  Playlist import is documented as a later feature. The implementation task
+  breakdown is documented in `docs/library-import/implementation-plan.md`, and
+  detailed implementation status is tracked in `docs/library-import/progress.md`.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared
@@ -263,8 +263,8 @@ host-facing and LLM-facing surface.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store
   repository adapter.
 - Stage Core wiring for optional durable Canonical Store storage.
-- Library Import Service, Platform Library Provider slot, import batch storage,
-  and Stage Interface import/update tools.
+- Library Import Service, import batch storage, and Stage Interface
+  import/update tools.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
