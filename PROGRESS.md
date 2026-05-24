@@ -483,11 +483,17 @@
   platform-library providers from the same `MINEMUSIC_NETEASE_BASE_URL`
   configuration, pass both providers into Stage Core, keep provider slots
   separate, and document that no MineMusic credential storage was added.
+- Completed Library Import Service implementation plan Task 11 with a TDD loop:
+  expanded `test/integration/library-import-runtime.test.ts` to cover the full
+  deterministic first-slice flow through composed Stage Core and Stage
+  Interface, including discovery preview, explicit preview estimates, initial
+  import side effects, repeated import idempotency, update diffing, partial-read
+  absence guards, and MCP tool exposure.
 
 ## Next
 
-- Continue Library Import implementation with Task 11: deterministic
-  integration coverage for the full first-slice behavior.
+- Continue Library Import implementation with Task 12: documentation and state
+  sync.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

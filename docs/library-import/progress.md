@@ -6,7 +6,7 @@ This file tracks Library Import implementation progress.
 
 - Library Import initial import and update orchestration are implemented for the
   first synchronous slice.
-- Tasks 1-10 from `docs/library-import/implementation-plan.md` are complete:
+- Tasks 1-11 from `docs/library-import/implementation-plan.md` are complete:
   `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
   batch statuses, preview/start/status/summary input shapes, preview/report
   output shapes, item outcome summaries, import counts, import batch records,
@@ -43,7 +43,11 @@ This file tracks Library Import implementation progress.
   exposes explicit MCP input schemas and generated Handbook entries. The default
   Codex MCP runtime now registers NetEase through both `source` and
   `platform_library` slots and reuses `MINEMUSIC_NETEASE_BASE_URL` for both
-  provider factories without adding credential storage.
+  provider factories without adding credential storage. Deterministic integration
+  coverage now exercises discovery preview, explicit preview estimates, initial
+  import side effects, repeated import idempotency, update diffing, partial-read
+  absence guards, and Stage Interface / MCP tool exposure through the composed
+  runtime.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
@@ -75,13 +79,11 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Continue Library Import Service implementation with Task 11 from
-   `docs/library-import/implementation-plan.md`: add deterministic integration
-   coverage for the full first-slice behavior.
-2. Cover discovery preview, import preview/start, repeated import idempotency,
-   update diffing, partial-read absence guards, and Stage Interface/MCP tool
-   exposure as one coherent matrix.
-3. Keep the checks deterministic and avoid live NetEase dependency.
+1. Continue Library Import Service implementation with Task 12 from
+   `docs/library-import/implementation-plan.md`: documentation and state sync.
+2. Confirm module/global progress docs accurately describe the completed
+   first-slice Library Import scope.
+3. Keep mutable implementation status out of the design document.
 
 ## Verification
 
@@ -122,3 +124,5 @@ This file tracks Library Import implementation progress.
 - `npm run build:test && node .tmp-test/test/surfaces/mcp-server.test.js`
   passes after adding Task 10 default NetEase source/platform-library MCP
   registration coverage.
+- `npm run build:test && node .tmp-test/test/integration/library-import-runtime.test.js`
+  passes after adding Task 11 first-slice runtime coverage.

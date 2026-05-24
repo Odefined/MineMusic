@@ -139,7 +139,7 @@ host-facing and LLM-facing surface.
   Playlist import is documented as a later feature. The implementation task
   breakdown is documented in `docs/library-import/implementation-plan.md`, and
   detailed implementation status is tracked in `docs/library-import/progress.md`.
-- Library Import implementation Tasks 1-10 are complete: shared TypeScript contracts
+- Library Import implementation Tasks 1-11 are complete: shared TypeScript contracts
   now define first-slice import scopes, batch kinds/statuses, preview/start/status
   inputs, preview/report outputs, item outcomes, import counts, batch records,
   area snapshots, item provenance, Platform Library Absence records, and stable
@@ -175,7 +175,10 @@ host-facing and LLM-facing surface.
   Handbook entries. The default Codex MCP runtime now registers NetEase through
   both `source` and `platform_library` slots and reuses
   `MINEMUSIC_NETEASE_BASE_URL` for both provider factories. Durable Library
-  Import storage remains future work.
+  Import storage remains future work. Deterministic integration coverage now
+  exercises discovery preview, explicit preview estimates, initial import side
+  effects, repeated import idempotency, update diffing, partial-read absence
+  guards, and Stage Interface / MCP tool exposure through the composed runtime.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared
@@ -301,8 +304,7 @@ host-facing and LLM-facing surface.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store
   repository adapter.
 - Stage Core wiring for optional durable Canonical Store storage.
-- Durable Library Import storage and broader deterministic first-slice
-  integration coverage.
+- Durable Library Import storage.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -310,8 +312,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of Library Import Task 10 default NetEase
-  platform-library provider wiring.
+- `npm test` passes as of Library Import Task 11 deterministic integration
+  coverage.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

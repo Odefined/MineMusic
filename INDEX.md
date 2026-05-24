@@ -241,9 +241,9 @@ This index points agents to the current MVP documentation pack.
       guards, update diffing, and absence recording.
 
 60. `test/integration/library-import-runtime.test.ts`
-    - Composed Stage Core integration coverage for Library Import repository
-      injection, platform-library provider registration, import writes,
-      canonical binding, Collection writes, and factual events.
+    - Composed Stage Core integration coverage for first-slice Library Import:
+      discovery preview, preview estimates, import writes, idempotency, update
+      diffing, partial-read absence guards, and Stage Interface / MCP exposure.
 
 ## Agent Rule
 
