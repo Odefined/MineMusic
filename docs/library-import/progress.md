@@ -7,8 +7,16 @@ This file tracks Library Import implementation progress.
 - Library Import Service is not implemented.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
-  and saved artists into generic provider items. Import orchestration and real
-  preview semantics are not implemented yet.
+  and saved artists into generic provider items. Provider preview now reports
+  readable availability, counts, bounded lightweight samples, and unsupported
+  discovery areas. Provider item reads now return complete, failed, partial,
+  and unavailable per-area statuses without turning a single area failure into
+  a global read failure. Provider failures now map into standard
+  platform-library issue codes, including provider unavailable, timeout, rate
+  limiting, malformed response, unsupported scope, partial read, and login
+  required cases. Real validation against the local Docker API currently proves
+  the configured account and reads 1372 saved recordings, 466 saved releases,
+  and 179 saved artists. Import orchestration is not implemented yet.
 - Import batch storage is not implemented.
 - Stage Interface import/update tools are not implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.

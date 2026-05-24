@@ -373,9 +373,37 @@
   `readItems` now maps `saved_recordings`, `saved_releases`, and
   `saved_artists` responses into generic `PlatformLibraryItem` records with
   stable NetEase source refs, item/target kinds, labels, and canonical hints.
-- Ran live read validation against `http://127.0.0.1:3000`; the active local
-  NetEase session was proven and all three readable areas returned complete
-  empty results for the current account.
+- Completed NetEase platform-library provider plan Task 5 with a TDD loop:
+  `preview` now defaults to first-slice readable areas, reports readable
+  availability and honest counts, returns bounded lightweight samples, and
+  reports `playlists` / `listening_history` as unsupported during discovery.
+- Corrected live account validation after finding that the local
+  `http://127.0.0.1:3000` session exposes an anonymous account object without a
+  usable `profile.userId`. Added regression coverage so anonymous account ids
+  no longer prove provider account identity; live `preview` and `readItems` now
+  return top-level `login_required` for the current local session.
+- Updated the local Docker NetEase API service to the current `latest` image,
+  which runs `@neteasecloudmusicapienhanced/api@4.33.0`, stored the QR-login
+  `MUSIC_U` value in
+  `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env` as
+  `NETEASE_COOKIE`, and added a Docker startup patch so the API service uses
+  that setting as the default request cookie.
+- Real NetEase platform-library validation now proves the current account
+  through the default local API session. It found and fixed provider read
+  completeness gaps by batching `song/detail` requests and paginating saved
+  album / followed artist reads; live `preview` and `readItems` both return
+  matching counts of 1372 saved recordings, 466 saved releases, and 179 saved
+  artists.
+- Completed NetEase platform-library provider plan Task 6 with a TDD loop:
+  `readItems` now returns requested unsupported areas as unavailable, keeps
+  successful area data when another area fails, reports first-request area
+  failures as `failed`, and reports later batch/page failures as `partial` with
+  `partial_read`.
+- Completed NetEase platform-library provider plan Task 7 with a TDD loop:
+  account, preview, and item-read failures now map requester errors and local
+  API payloads into standard issue codes including `provider_unavailable`,
+  `timeout`, `rate_limited`, `malformed_response`, `partial_read`,
+  `scope_unsupported`, and `login_required`.
 - Added `docs/platform-library-provider/progress.md` as the module-local
   implementation progress document for the Platform Library Provider slot.
 

@@ -30,19 +30,35 @@ slot and concrete platform-library providers.
   `saved_releases`, and `saved_artists` responses into generic
   `PlatformLibraryItem` records with stable NetEase `sourceRef` values,
   generic item/target kinds, labels, and canonical hints.
-- `preview` still intentionally returns empty area lists. Preview counts/samples,
-  unsupported-area behavior, partial/failed area handling, and provider issue
-  mapping remain future tasks.
-- Live read validation against `http://127.0.0.1:3000` currently proves account
-  identity and returns complete empty results for all three readable areas on
-  the active local NetEase session.
+- NetEase provider Task 5 is complete: `preview` defaults to the first-slice
+  readable areas, reports readable availability and honest counts, supports
+  bounded lightweight samples, and reports `playlists` / `listening_history` as
+  unsupported during discovery.
+- NetEase provider Task 6 is complete: `readItems` returns requested readable
+  area results with `complete`, `failed`, and `partial` per-area statuses;
+  unsupported read areas return `unavailable` with `scope_unsupported`, and one
+  area failure no longer prevents other requested areas from returning data.
+- NetEase provider Task 7 is complete: account, preview, and item-read failures
+  from requester errors and local API payloads now map into standard
+  `PlatformLibraryIssueCode` values including `provider_unavailable`,
+  `timeout`, `login_required`, `scope_unsupported`, `rate_limited`,
+  `partial_read`, and `malformed_response`.
+- Real validation against the updated local Docker API found and fixed two read
+  completeness gaps: `song/detail` requests are now batched below the API's
+  1000-song limit, and saved album / followed artist reads now paginate
+  `album/sublist` and `artist/sublist` with stable `limit` / `offset` requests.
+- Live validation against `http://127.0.0.1:3000` now uses the Docker-side
+  NetEase API setting in `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env`.
+  The local API proves the current account identity and returns exact preview
+  counts of 1372 saved recordings, 466 saved releases, and 179 saved artists;
+  `readItems` returns matching item counts for all three readable areas.
 
 ## Next Slice
 
-1. Implement Task 5 from the NetEase plan: return preview availability, counts,
-   and lightweight samples for requested areas.
-2. Continue with read result edge behavior, issue mapping, deterministic tests,
-   and docs/runner wiring in the documented task order.
+1. Implement Task 8 from the NetEase plan: finish deterministic coverage for
+   standard issue paths and provider registration through the
+   `platform_library` slot.
+2. Continue with docs/runner wiring in the documented task order.
 
 ## Verification
 
@@ -50,9 +66,11 @@ slot and concrete platform-library providers.
 - `node .tmp-test/test/providers/netease-source-provider.test.js`
 - `node .tmp-test/test/providers/netease-platform-library-provider.test.js`
 - `npm test`
-- Live `readItems({ areas: ["saved_recordings", "saved_releases", "saved_artists"] })`
-  against `http://127.0.0.1:3000`; active account was proven and all three
-  areas returned `status: "complete"` with zero items.
+- Live `preview({ discovery: true, sampleLimitPerArea: 3 })` and
+  `readItems({ areas: ["saved_recordings", "saved_releases", "saved_artists", "playlists"] })`
+  against `http://127.0.0.1:3000`; both prove the current account, return
+  matching readable-area counts of 1372 saved recordings, 466 saved releases,
+  and 179 saved artists, and report `playlists` as unsupported for item reads.
 - `git diff --check`
 - `rg -n "CanonicalStore|Collection|LibraryImport" src/providers/netease`
 - `rg -n "raw|sampleItems" src test docs/platform-library-provider docs/library-import`

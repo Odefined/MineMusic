@@ -146,7 +146,7 @@ host-facing and LLM-facing surface.
   certainty, and standard provider issue codes. Platform Library Providers are
   registered through the shared Plugin Registry under the `platform_library`
   slot; registry tests cover slot-scoped registration and lookup for that slot.
-- NetEase platform-library provider implementation has started. Tasks 1-4
+- NetEase platform-library provider implementation has started. Tasks 1-7
   are complete: the existing NetEase adapter now exports a shared
   requester/options shape for source and platform-library provider factories,
   and `createNetEasePlatformLibraryProvider(...)` returns a
@@ -156,8 +156,21 @@ host-facing and LLM-facing surface.
   structured `login_required` issues when no usable account or requested
   account match can be proven. `readItems` maps `saved_recordings`,
   `saved_releases`, and `saved_artists` into generic provider item facts with
-  stable NetEase source refs and canonical hints. Real preview behavior,
-  read-edge behavior, and platform-library issue mapping remain future work.
+  stable NetEase source refs and canonical hints, including batched
+  `song/detail` reads and paginated saved album / followed artist reads.
+  `preview` reports readable availability, counts, bounded lightweight samples,
+  and unsupported discovery areas. `readItems` now reports complete, failed,
+  partial, and unavailable per-area statuses so one area failure does not erase
+  successful reads from other requested areas. Account, preview, and item-read
+  failures now map requester errors and local API payloads into standard
+  platform-library issue codes such as `provider_unavailable`, `timeout`,
+  `rate_limited`, `malformed_response`, `partial_read`, and `login_required`.
+  The current local live
+  NetEase API service at `http://127.0.0.1:3000` now reads the Docker-side
+  account setting from `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env`;
+  live platform-library `preview` and `readItems` prove the account and return
+  matching counts of 1372 saved recordings, 466 saved releases, and 179 saved
+  artists.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
