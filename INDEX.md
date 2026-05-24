@@ -225,14 +225,15 @@ This index points agents to the current MVP documentation pack.
 58. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
-      preview estimates, skeleton batch creation, and batch status/summary
-      helpers.
+      preview estimates, initial import start, import events, provenance,
+      complete snapshots, and batch status/summary helpers.
 
 59. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
-      behavior.
+      behavior, plus initial import start writes and partial-read snapshot
+      guards.
 
 ## Agent Rule
 

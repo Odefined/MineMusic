@@ -1,4 +1,5 @@
 import type {
+  CanonicalRecord,
   CollectionItem,
   LibraryImportBatch,
   LibraryImportBatchKind,
@@ -10,6 +11,7 @@ import type {
   LibraryImportPreviewInput,
   LibraryImportReport,
   LibraryImportReportArea,
+  LibraryImportItemReport,
   LibraryImportScope,
   LibraryImportStatus,
   PlatformLibraryArea,
@@ -17,6 +19,7 @@ import type {
   PlatformLibraryPreviewArea,
   PlatformLibraryProvider,
   PlatformLibraryReadAreaResult,
+  Ref,
   Result,
   StageError,
 } from "../contracts/index.js";
@@ -45,11 +48,13 @@ export function createLibraryImportService({
   pluginRegistry,
   canonicalStore,
   collection,
-  events: _events,
+  events,
   repository,
   idFactory = createDefaultIdFactory("library-import-batch"),
   clock = () => new Date().toISOString(),
 }: LibraryImportServiceOptions): LibraryImportPort {
+  const completedReports = new Map<string, LibraryImportReport>();
+
   return {
     previewImport(input) {
       return previewLibraryImport({
@@ -64,7 +69,11 @@ export function createLibraryImportService({
     startImport(input) {
       return startLibraryImport({
         pluginRegistry,
+        canonicalStore,
+        collection,
+        events,
         repository,
+        completedReports,
         input,
         batchKind: "initial_import",
         idFactory,
@@ -85,7 +94,11 @@ export function createLibraryImportService({
     startUpdate(input) {
       return startLibraryImport({
         pluginRegistry,
+        canonicalStore,
+        collection,
+        events,
         repository,
+        completedReports,
         input,
         batchKind: "library_update",
         idFactory,
@@ -108,6 +121,12 @@ export function createLibraryImportService({
     },
 
     async getSummary({ batchId }) {
+      const completedReport = completedReports.get(batchId);
+
+      if (completedReport !== undefined) {
+        return ok(structuredClone(completedReport));
+      }
+
       const batch = await repository.getBatch({ batchId });
 
       if (!batch.ok) {
@@ -383,14 +402,22 @@ function emptyPreviewAreaEstimates(): PreviewAreaEstimates {
 
 async function startLibraryImport({
   pluginRegistry,
+  canonicalStore,
+  collection,
+  events,
   repository,
+  completedReports,
   input,
   batchKind,
   idFactory,
   clock,
 }: {
   pluginRegistry: PluginRegistryPort;
+  canonicalStore: CanonicalStorePort;
+  collection: CollectionPort;
+  events: EventPort;
   repository: LibraryImportRepository;
+  completedReports: Map<string, LibraryImportReport>;
   input: LibraryImportPreviewInput;
   batchKind: LibraryImportBatchKind;
   idFactory: () => string;
@@ -408,6 +435,40 @@ async function startLibraryImport({
     return provider;
   }
 
+  const batchId = idFactory();
+  const startedAt = clock();
+  const ownerScope = input.ownerScope ?? defaultOwnerScope;
+  const runningBatch: LibraryImportBatch = {
+    id: batchId,
+    batchKind,
+    status: "running",
+    providerId: input.providerId,
+    ownerScope,
+    scopes,
+    startedAt,
+    counts: emptyCounts(),
+  };
+
+  if (input.providerAccountId !== undefined) {
+    runningBatch.providerAccountId = input.providerAccountId;
+  }
+
+  const storedRunningBatch = await repository.putBatch({ batch: runningBatch });
+
+  if (!storedRunningBatch.ok) {
+    return storedRunningBatch;
+  }
+
+  const startedEvent = await recordLibraryImportEvent(events, {
+    batch: storedRunningBatch.value,
+    type: "library_import.batch.started",
+    payload: {},
+  });
+
+  if (!startedEvent.ok) {
+    return startedEvent;
+  }
+
   const read = await provider.value.readItems({
     ...(input.providerAccountId === undefined ? {} : { providerAccountId: input.providerAccountId }),
     areas: scopesToProviderAreas(scopes),
@@ -417,25 +478,91 @@ async function startLibraryImport({
     return providerReadFailed(input.providerId, read.error);
   }
 
-  const now = clock();
+  const completedAt = clock();
+  const providerAccountId =
+    read.value.account?.providerAccountId ?? input.providerAccountId ?? "unknown";
   const counts = emptyCounts();
+  const reportAreas = read.value.areas.map(providerReadAreaToReportArea);
+  const itemReports: LibraryImportItemReport[] = [];
+  let completedWithWarnings = readHasWarnings(read.value.areas, read.value.issues);
+
+  const initializedCollections = await collection.initializeOwnerCollections({ ownerScope });
+
+  if (!initializedCollections.ok) {
+    return initializedCollections;
+  }
+
+  for (const area of read.value.areas) {
+    const scope = providerAreaToScope(area.area);
+
+    for (const item of area.items) {
+      const itemReport = await importProviderItem({
+        canonicalStore,
+        collection,
+        events,
+        repository,
+        batchId,
+        batchKind,
+        ownerScope,
+        providerId: read.value.providerId,
+        providerAccountId,
+        scope,
+        area: area.area,
+        item,
+        seenAt: completedAt,
+      });
+
+      if (!itemReport.ok) {
+        return itemReport;
+      }
+
+      itemReports.push(itemReport.value);
+      applyItemReportToCounts(counts, itemReport.value);
+
+      if (itemReport.value.status === "skipped" || itemReport.value.status === "failed") {
+        completedWithWarnings = true;
+      }
+    }
+
+    if (area.status === "complete") {
+      const storedSnapshot = await repository.putAreaSnapshot({
+        snapshot: {
+          batchId,
+          ownerScope,
+          providerId: read.value.providerId,
+          providerAccountId,
+          scope,
+          area: area.area,
+          status: area.status,
+          complete: true,
+          sourceRefs: area.items.map((item) => item.sourceRef),
+          itemCount: area.items.length,
+          recordedAt: completedAt,
+        },
+      });
+
+      if (!storedSnapshot.ok) {
+        return storedSnapshot;
+      }
+    }
+  }
+
   const batch: LibraryImportBatch = {
-    id: idFactory(),
+    id: batchId,
     batchKind,
-    status: readHasWarnings(read.value.areas, read.value.issues) ? "completed_with_warnings" : "completed",
+    status: completedWithWarnings ? "completed_with_warnings" : "completed",
     providerId: read.value.providerId,
-    ownerScope: input.ownerScope ?? defaultOwnerScope,
+    ownerScope,
     scopes,
-    startedAt: now,
-    completedAt: now,
+    startedAt,
+    completedAt,
     counts,
   };
 
-  if (read.value.account?.providerAccountId !== undefined) {
-    batch.providerAccountId = read.value.account.providerAccountId;
+  batch.providerAccountId = providerAccountId;
+
+  if (read.value.account?.stable !== undefined) {
     batch.providerAccountStable = read.value.account.stable;
-  } else if (input.providerAccountId !== undefined) {
-    batch.providerAccountId = input.providerAccountId;
   }
 
   if (read.value.issues !== undefined) {
@@ -448,14 +575,408 @@ async function startLibraryImport({
     return stored;
   }
 
+  const completedEvent = await recordLibraryImportEvent(events, {
+    batch: stored.value,
+    type: "library_import.batch.completed",
+    payload: {
+      status: stored.value.status,
+      counts: stored.value.counts,
+    },
+  });
+
+  if (!completedEvent.ok) {
+    return completedEvent;
+  }
+
   const report = batchToReport(stored.value);
-  report.areas = read.value.areas.map(providerReadAreaToReportArea);
+  report.areas = reportAreas;
+  report.items = itemReports;
 
   if (read.value.account !== undefined) {
     report.account = read.value.account;
   }
 
+  completedReports.set(report.batchId, structuredClone(report));
+
   return ok(report);
+}
+
+async function importProviderItem({
+  canonicalStore,
+  collection,
+  events,
+  repository,
+  batchId,
+  batchKind,
+  ownerScope,
+  providerId,
+  providerAccountId,
+  scope,
+  area,
+  item,
+  seenAt,
+}: {
+  canonicalStore: CanonicalStorePort;
+  collection: CollectionPort;
+  events: EventPort;
+  repository: LibraryImportRepository;
+  batchId: string;
+  batchKind: LibraryImportBatchKind;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  item: PlatformLibraryItem;
+  seenAt: string;
+}): Promise<Result<LibraryImportItemReport>> {
+  const baseReport = itemReportBase({ scope, area, item });
+
+  if (!canUseProviderItemForCanonicalBinding(item)) {
+    const skipped: LibraryImportItemReport = {
+      ...baseReport,
+      status: "skipped",
+      canonicalOutcome: "unresolved",
+      collectionOutcome: "skipped",
+      skipReason: "insufficient_metadata",
+    };
+    const recorded = await recordItemResult({
+      events,
+      repository,
+      batchId,
+      batchKind,
+      ownerScope,
+      providerId,
+      providerAccountId,
+      report: skipped,
+      item,
+      seenAt,
+    });
+
+    if (!recorded.ok) {
+      return recorded;
+    }
+
+    return ok(skipped);
+  }
+
+  const resolved = await canonicalStore.resolveExternalRef({ ref: item.sourceRef });
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const canonicalResult =
+    resolved.value === null
+      ? await createAndBindCanonicalRecord(canonicalStore, item)
+      : ok({
+          record: resolved.value,
+          outcome: "reused" as const,
+        });
+
+  if (!canonicalResult.ok) {
+    return canonicalResult;
+  }
+
+  const alreadyPresent = await isSavedCollectionItemPresent({
+    collection,
+    ownerScope,
+    targetKind: item.targetKind,
+    canonicalRef: canonicalResult.value.record.ref,
+  });
+
+  if (!alreadyPresent.ok) {
+    return alreadyPresent;
+  }
+
+  const collectionItem = await collection.addItemToSystemCollection({
+    ownerScope,
+    relationKind: "saved",
+    canonicalRef: canonicalResult.value.record.ref,
+    label: item.label,
+  });
+
+  if (!collectionItem.ok) {
+    return collectionItem;
+  }
+
+  const imported: LibraryImportItemReport = {
+    ...baseReport,
+    status: alreadyPresent.value ? "already_present" : "imported",
+    canonicalRef: canonicalResult.value.record.ref,
+    canonicalOutcome: canonicalResult.value.outcome,
+    collectionItemId: collectionItem.value.id,
+    collectionOutcome: alreadyPresent.value ? "already_present" : "added",
+  };
+  const recorded = await recordItemResult({
+    events,
+    repository,
+    batchId,
+    batchKind,
+    ownerScope,
+    providerId,
+    providerAccountId,
+    report: imported,
+    item,
+    seenAt,
+  });
+
+  if (!recorded.ok) {
+    return recorded;
+  }
+
+  return ok(imported);
+}
+
+function itemReportBase({
+  scope,
+  area,
+  item,
+}: {
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  item: PlatformLibraryItem;
+}): Omit<LibraryImportItemReport, "status"> {
+  return {
+    scope,
+    area,
+    sourceRef: item.sourceRef,
+    itemKind: item.itemKind,
+    targetKind: item.targetKind,
+    label: item.label,
+  };
+}
+
+async function createAndBindCanonicalRecord(
+  canonicalStore: CanonicalStorePort,
+  item: PlatformLibraryItem,
+): Promise<Result<{ record: CanonicalRecord; outcome: "created_provisional" }>> {
+  const created = await canonicalStore.createProvisional({
+    kind: item.targetKind,
+    label: item.label,
+    evidence: [item.sourceRef],
+  });
+
+  if (!created.ok) {
+    return created;
+  }
+
+  const attached = await canonicalStore.attachExternalRef({
+    canonicalRef: created.value.ref,
+    externalRef: item.sourceRef,
+  });
+
+  if (!attached.ok) {
+    return attached;
+  }
+
+  return ok({
+    record: attached.value,
+    outcome: "created_provisional",
+  });
+}
+
+async function isSavedCollectionItemPresent({
+  collection,
+  ownerScope,
+  targetKind,
+  canonicalRef,
+}: {
+  collection: CollectionPort;
+  ownerScope: string;
+  targetKind: PlatformLibraryItem["targetKind"];
+  canonicalRef: Ref;
+}): Promise<Result<boolean>> {
+  const savedItems = await collection.listItems({
+    ownerScope,
+    collectionKind: targetKind,
+    relationKind: "saved",
+  });
+
+  if (!savedItems.ok) {
+    return savedItems;
+  }
+
+  return ok(savedItems.value.some((item) => sameRef(item.canonicalRef, canonicalRef)));
+}
+
+async function recordItemResult({
+  events,
+  repository,
+  batchId,
+  batchKind,
+  ownerScope,
+  providerId,
+  providerAccountId,
+  report,
+  item,
+  seenAt,
+}: {
+  events: EventPort;
+  repository: LibraryImportRepository;
+  batchId: string;
+  batchKind: LibraryImportBatchKind;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  report: LibraryImportItemReport;
+  item: PlatformLibraryItem;
+  seenAt: string;
+}): Promise<Result<void>> {
+  const existingProvenance = await repository.getItemProvenance({
+    ownerScope,
+    providerId,
+    providerAccountId,
+    scope: report.scope,
+    area: report.area,
+    sourceRef: report.sourceRef,
+  });
+
+  if (!existingProvenance.ok) {
+    return existingProvenance;
+  }
+
+  const storedProvenance = await repository.upsertItemProvenance({
+    provenance: {
+      ownerScope,
+      providerId,
+      providerAccountId,
+      scope: report.scope,
+      area: report.area,
+      sourceRef: report.sourceRef,
+      itemKind: report.itemKind,
+      targetKind: report.targetKind,
+      label: report.label,
+      ...(item.addedAt === undefined ? {} : { addedAt: item.addedAt }),
+      ...(item.canonicalHints === undefined ? {} : { canonicalHints: item.canonicalHints }),
+      ...(report.canonicalRef === undefined ? {} : { canonicalRef: report.canonicalRef }),
+      firstImportedBatchId: existingProvenance.value?.firstImportedBatchId ?? batchId,
+      lastSeenBatchId: batchId,
+      lastSeenAt: seenAt,
+      status: report.status,
+      ...(report.skipReason === undefined ? {} : { skipReason: report.skipReason }),
+      ...(report.failureCode === undefined ? {} : { failureCode: report.failureCode }),
+      ...(report.retryable === undefined ? {} : { retryable: report.retryable }),
+    },
+  });
+
+  if (!storedProvenance.ok) {
+    return storedProvenance;
+  }
+
+  const eventType =
+    report.status === "skipped"
+      ? "library_import.item.skipped"
+      : report.status === "failed"
+        ? "library_import.item.failed"
+        : "library_import.item.imported";
+  const recordedEvent = await recordLibraryImportEvent(events, {
+    batch: {
+      id: batchId,
+      batchKind,
+      status: "running",
+      providerId,
+      providerAccountId,
+      ownerScope,
+      scopes: [report.scope],
+      startedAt: seenAt,
+      counts: emptyCounts(),
+    },
+    type: eventType,
+    payload: {
+      importScope: report.scope,
+      libraryArea: report.area,
+      sourceRef: report.sourceRef,
+      itemKind: report.itemKind,
+      targetKind: report.targetKind,
+      status: report.status,
+      canonicalRef: report.canonicalRef,
+      collectionItemId: report.collectionItemId,
+      canonicalOutcome: report.canonicalOutcome,
+      collectionOutcome: report.collectionOutcome,
+      skipReason: report.skipReason,
+      failureCode: report.failureCode,
+      retryable: report.retryable,
+    },
+  });
+
+  if (!recordedEvent.ok) {
+    return recordedEvent;
+  }
+
+  return ok(undefined);
+}
+
+function applyItemReportToCounts(
+  counts: LibraryImportCounts,
+  report: LibraryImportItemReport,
+): void {
+  switch (report.status) {
+    case "imported":
+      counts.importedItems += 1;
+      break;
+    case "already_present":
+      counts.alreadyPresentItems += 1;
+      break;
+    case "skipped":
+      counts.skippedItems += 1;
+      break;
+    case "failed":
+      counts.failedItems += 1;
+      break;
+    case "absent":
+      counts.absentItems += 1;
+      break;
+  }
+
+  if (report.canonicalOutcome === "reused") {
+    counts.canonicalRecordsReused += 1;
+  } else if (report.canonicalOutcome === "created_provisional") {
+    counts.canonicalRecordsCreated += 1;
+  } else if (report.canonicalOutcome === "unresolved") {
+    counts.canonicalRecordsUnresolved += 1;
+  }
+
+  if (report.collectionOutcome === "added") {
+    counts.collectionItemsAdded += 1;
+  } else if (report.collectionOutcome === "already_present") {
+    counts.collectionItemsAlreadyPresent += 1;
+  }
+}
+
+async function recordLibraryImportEvent(
+  events: EventPort,
+  input: {
+    batch: LibraryImportBatch;
+    type: string;
+    payload: Record<string, unknown>;
+  },
+): Promise<Result<void>> {
+  const recorded = await events.record({
+    event: {
+      sessionId: libraryImportSessionId(input.batch.id),
+      actor: "stage",
+      type: input.type,
+      payload: {
+        batchId: input.batch.id,
+        batchKind: input.batch.batchKind,
+        ownerScope: input.batch.ownerScope,
+        providerId: input.batch.providerId,
+        providerAccountId: input.batch.providerAccountId,
+        ...input.payload,
+      },
+    },
+  });
+
+  if (!recorded.ok) {
+    return recorded;
+  }
+
+  return ok(undefined);
+}
+
+function libraryImportSessionId(batchId: string): string {
+  return `library_import:${batchId}`;
 }
 
 function providerPreviewAreaToLibraryImportArea(

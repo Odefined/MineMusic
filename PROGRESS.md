@@ -452,10 +452,18 @@
   importable unbound items, unresolved weak-metadata estimates, saved Collection
   outcome estimates, and discovery preview without item reads; extended
   `test/library_import/library-import-service.test.ts`.
+- Completed Library Import Service implementation plan Task 6 with a TDD loop:
+  implemented initial import start in `src/library_import/index.ts`, including
+  running/completed batch writes, import events, exact canonical binding reuse,
+  provisional canonical create-and-bind, saved Collection writes, item
+  provenance upserts, complete area snapshots, completed summaries, and warning
+  status for skipped or partial reads; extended
+  `test/library_import/library-import-service.test.ts`.
 
 ## Next
 
-- Continue Library Import implementation with Task 6: initial import start.
+- Continue Library Import implementation with Task 7: library update preview and
+  start.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

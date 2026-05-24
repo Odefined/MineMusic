@@ -4,9 +4,9 @@ This file tracks Library Import implementation progress.
 
 ## Current State
 
-- Library Import orchestration service skeleton is implemented; full item-level
-  import orchestration is not implemented yet.
-- Tasks 1-5 from `docs/library-import/implementation-plan.md` are complete:
+- Library Import initial import orchestration is implemented for the first
+  synchronous slice. Library update diffing is not implemented yet.
+- Tasks 1-6 from `docs/library-import/implementation-plan.md` are complete:
   `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
   batch statuses, preview/start/status/summary input shapes, preview/report
   output shapes, item outcome summaries, import counts, import batch records,
@@ -24,7 +24,11 @@ This file tracks Library Import implementation progress.
   skeleton import/update batch creation, batch status/summary helpers, and
   side-effect-free import preview estimates for exact source-ref canonical
   bindings, provisional canonical creates, unresolved items, and saved
-  Collection outcomes.
+  Collection outcomes. Initial import start now creates running/completed
+  batches, records import events, reuses exact canonical bindings, creates and
+  binds provisional canonical records for strong provider facts, writes saved
+  Collection items, stores item provenance, stores complete area snapshots only
+  for complete provider reads, and returns completed summary reports.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
@@ -40,7 +44,7 @@ This file tracks Library Import implementation progress.
   now record that the adapter exposes both `source` and `platform_library` slot
   providers. Real validation against the local Docker API currently proves the
   configured account and reads 1372 saved recordings, 466 saved releases, and
-  179 saved artists. Full item-level import orchestration is not implemented yet.
+  179 saved artists. Library update diffing is not implemented yet.
 - In-memory Library Import storage is implemented for import/update batch
   records, per-area snapshots, item provenance, Platform Library Absence records,
   returned-copy behavior, and latest complete baseline lookup. Durable Library
@@ -56,10 +60,11 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Continue Library Import Service implementation with Task 6 from
-   `docs/library-import/implementation-plan.md`: implement initial import start.
-2. Add item-level canonical binding/provisional creation, saved Collection
-   writes, import provenance, area snapshots, and import events.
+1. Continue Library Import Service implementation with Task 7 from
+   `docs/library-import/implementation-plan.md`: implement library update
+   preview and start.
+2. Add latest complete baseline comparison, newly observed item handling,
+   no-longer-returned absence derivation, and update reports.
 3. Expose Stage Interface import/update preview/start tools and shared
    batch status/summary tools.
 
@@ -84,3 +89,6 @@ This file tracks Library Import implementation progress.
 - `npm run build:test && node .tmp-test/test/library_import/library-import-service.test.js`
   passes after adding Task 5 side-effect-free import preview estimate coverage.
 - `npm run test:stage-core` passes after the Task 5 preview estimate changes.
+- `npm run build:test && node .tmp-test/test/library_import/library-import-service.test.js`
+  passes after adding Task 6 initial import start coverage.
+- `npm run test:stage-core` passes after the Task 6 initial import changes.

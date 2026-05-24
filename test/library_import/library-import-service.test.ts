@@ -394,6 +394,199 @@ async function previewsDiscoveryWithoutReadingProviderItems(): Promise<void> {
   assert(preview.areas[0]?.issues?.[0]?.code === "scope_unsupported", "discovery preview should keep provider issues");
 }
 
+async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: [
+                providerItem("bound-track", "Bound Track"),
+                providerItem("new-track", "New Track"),
+                providerItem("unresolved-track", ""),
+              ],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const boundCanonical: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "bound-recording",
+    },
+    kind: "recording",
+    label: "Bound Track",
+    status: "active",
+    externalKeys: [sourceRef("bound-track")],
+  };
+  await assertOk(environment.canonicalRepository.put(boundCanonical));
+  await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+  await assertOk(
+    environment.collections.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      canonicalRef: boundCanonical.ref,
+      label: boundCanonical.label,
+    }),
+  );
+
+  const report = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  const status = await assertOk(environment.libraryImport.getStatus({ batchId: report.batchId }));
+  const summary = await assertOk(environment.libraryImport.getSummary({ batchId: report.batchId }));
+  const canonicalRecords = await assertOk(environment.canonicalRepository.list());
+  const savedItems = await assertOk(
+    environment.collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+  const provenance = await assertOk(
+    environment.libraryImportRepository.listItemProvenance({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      scope: "saved_recordings",
+      area: "saved_recordings",
+    }),
+  );
+  const snapshots = await assertOk(
+    environment.libraryImportRepository.listAreaSnapshots({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      scope: "saved_recordings",
+      area: "saved_recordings",
+      complete: true,
+    }),
+  );
+  const importEvents = await assertOk(
+    environment.events.listBySession({ sessionId: `library_import:${report.batchId}` }),
+  );
+
+  assert(report.status === "completed_with_warnings", "skipped items should complete the batch with warnings");
+  assert(status.status === report.status, "status should expose the completed batch state");
+  assert(report.counts.alreadyPresentItems === 1, "import should count already-present Collection items");
+  assert(report.counts.importedItems === 1, "import should count newly imported Collection items");
+  assert(report.counts.skippedItems === 1, "import should count skipped weak-metadata items");
+  assert(report.counts.canonicalRecordsReused === 1, "import should count reused canonical bindings");
+  assert(report.counts.canonicalRecordsCreated === 1, "import should count provisional canonical creates");
+  assert(report.counts.canonicalRecordsUnresolved === 1, "import should count unresolved canonical items");
+  assert(report.counts.collectionItemsAdded === 1, "import should count saved Collection additions");
+  assert(report.counts.collectionItemsAlreadyPresent === 1, "import should count existing saved Collection items");
+  assert(report.items.length === 3, "import report should include every provider item result");
+  assert(summary.items.length === report.items.length, "summary should return the completed item report");
+  assert(summary.counts.importedItems === report.counts.importedItems, "summary should preserve completed counts");
+  assert(
+    report.items.some((item) => item.sourceRef.id === "new-track" && item.status === "imported"),
+    "import report should include imported item results",
+  );
+  assert(
+    report.items.some((item) => item.sourceRef.id === "unresolved-track" && item.status === "skipped"),
+    "import report should include skipped item results",
+  );
+  assert(
+    canonicalRecords.some((record) => record.externalKeys?.some((ref) => ref.id === "new-track")),
+    "import should create a provisional canonical record with the source ref",
+  );
+  assert(savedItems.length === 2, "import should add only resolvable items to saved Collection");
+  assert(provenance.length === 3, "import should store item provenance for every observed provider item");
+  assert(snapshots.length === 1, "import should store a complete area snapshot");
+  assert(snapshots[0]?.sourceRefs.length === 3, "complete snapshots should keep the full observed source-ref set");
+  assert(
+    importEvents.map((event) => event.type).join(",") ===
+      "library_import.batch.started,library_import.item.imported,library_import.item.imported,library_import.item.skipped,library_import.batch.completed",
+    "import should record batch and item facts",
+  );
+}
+
+async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "partial",
+              items: [providerItem("partial-track", "Partial Track")],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const report = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  const snapshots = await assertOk(
+    environment.libraryImportRepository.listAreaSnapshots({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      scope: "saved_recordings",
+      area: "saved_recordings",
+    }),
+  );
+
+  assert(report.status === "completed_with_warnings", "partial reads should complete with warnings");
+  assert(snapshots.length === 0, "partial reads should not be stored as complete baselines");
+}
+
 function createTestLibraryImportService(registry: ReturnType<typeof createPluginRegistry>) {
   return createTestLibraryImportEnvironment(registry).libraryImport;
 }
@@ -465,3 +658,5 @@ await rejectsDiscoveryScopesForStartCalls();
 await startsReadableImportBatchAndExposesStatus();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
+await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
+await doesNotStoreCompleteSnapshotForPartialImportReads();
