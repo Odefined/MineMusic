@@ -369,6 +369,13 @@
   a user id can be proven, respect supplied `providerAccountId` by rejecting a
   non-matching current session, and emit structured `login_required` issues
   when account identity cannot be proven.
+- Completed NetEase platform-library provider plan Task 4 with a TDD loop:
+  `readItems` now maps `saved_recordings`, `saved_releases`, and
+  `saved_artists` responses into generic `PlatformLibraryItem` records with
+  stable NetEase source refs, item/target kinds, labels, and canonical hints.
+- Ran live read validation against `http://127.0.0.1:3000`; the active local
+  NetEase session was proven and all three readable areas returned complete
+  empty results for the current account.
 - Added `docs/platform-library-provider/progress.md` as the module-local
   implementation progress document for the Platform Library Provider slot.
 

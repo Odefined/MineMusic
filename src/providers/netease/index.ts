@@ -3,7 +3,10 @@ import type {
   MusicMaterial,
   PlayableLink,
   PlatformLibraryAccountIdentity,
+  PlatformLibraryArea,
   PlatformLibraryIssue,
+  PlatformLibraryItem,
+  PlatformLibraryReadAreaResult,
   PlatformLibraryProvider,
   Ref,
   Result,
@@ -38,13 +41,18 @@ type NetEaseSong = {
   al?: unknown;
   fee?: unknown;
   noCopyrightRcmd?: unknown;
+  dt?: unknown;
 };
 
 type NetEaseAlbum = {
+  id?: unknown;
   name?: unknown;
+  artists?: unknown;
+  artist?: unknown;
 };
 
 type NetEaseArtist = {
+  id?: unknown;
   name?: unknown;
 };
 
@@ -136,15 +144,118 @@ export function createNetEasePlatformLibraryProvider({
     async readItems(input) {
       const account = await resolveNetEaseAccount(requestJson, input.providerAccountId);
       const issues = account.kind === "login_required" ? [loginRequiredIssue()] : [];
+      const areas =
+        account.kind === "resolved"
+          ? await readPlatformLibraryAreas(requestJson, account.account.providerAccountId, input.areas)
+          : [];
 
       return ok({
         providerId: "netease",
         ...(account.kind === "resolved" ? { account: account.account } : {}),
-        areas: [],
+        areas,
         ...(issues.length === 0 ? {} : { issues }),
       });
     },
   };
+}
+
+async function readPlatformLibraryAreas(
+  requestJson: NetEaseRequester,
+  providerAccountId: string,
+  areas: PlatformLibraryArea[],
+): Promise<PlatformLibraryReadAreaResult[]> {
+  const results: PlatformLibraryReadAreaResult[] = [];
+
+  for (const area of areas) {
+    if (area === "saved_recordings") {
+      results.push({
+        area,
+        status: "complete",
+        items: await readSavedRecordings(requestJson, providerAccountId),
+      });
+    }
+
+    if (area === "saved_releases") {
+      results.push({
+        area,
+        status: "complete",
+        items: await readSavedReleases(requestJson),
+      });
+    }
+
+    if (area === "saved_artists") {
+      results.push({
+        area,
+        status: "complete",
+        items: await readSavedArtists(requestJson),
+      });
+    }
+  }
+
+  return results;
+}
+
+async function readSavedRecordings(
+  requestJson: NetEaseRequester,
+  providerAccountId: string,
+): Promise<PlatformLibraryItem[]> {
+  const liked = await requestJson({
+    path: "/likelist",
+    query: { uid: providerAccountId },
+  });
+
+  if (!liked.ok) {
+    return [];
+  }
+
+  const ids = extractIdList(liked.value);
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const details = await requestJson({
+    path: "/song/detail",
+    query: { ids: ids.join(",") },
+  });
+
+  if (!details.ok) {
+    return [];
+  }
+
+  return extractSongsFromDetail(details.value)
+    .map(toSavedRecordingItem)
+    .filter(isDefined);
+}
+
+async function readSavedReleases(requestJson: NetEaseRequester): Promise<PlatformLibraryItem[]> {
+  const albums = await requestJson({
+    path: "/album/sublist",
+    query: {},
+  });
+
+  if (!albums.ok) {
+    return [];
+  }
+
+  return extractArrayPayload(albums.value, ["data", "albums"])
+    .map(toSavedReleaseItem)
+    .filter(isDefined);
+}
+
+async function readSavedArtists(requestJson: NetEaseRequester): Promise<PlatformLibraryItem[]> {
+  const artists = await requestJson({
+    path: "/artist/sublist",
+    query: {},
+  });
+
+  if (!artists.ok) {
+    return [];
+  }
+
+  return extractArrayPayload(artists.value, ["data", "artists"])
+    .map(toFollowedArtistItem)
+    .filter(isDefined);
 }
 
 function loginRequiredIssue(): PlatformLibraryIssue {
@@ -261,6 +372,128 @@ function extractSongs(payload: unknown): Result<NetEaseSong[]> {
   return ok(result.songs.filter(isRecord));
 }
 
+function extractSongsFromDetail(payload: unknown): NetEaseSong[] {
+  if (!isRecord(payload) || !Array.isArray(payload.songs)) {
+    return [];
+  }
+
+  return payload.songs.filter(isRecord);
+}
+
+function extractIdList(payload: unknown): string[] {
+  if (!isRecord(payload) || !Array.isArray(payload.ids)) {
+    return [];
+  }
+
+  return payload.ids.map(toStringId).filter((id): id is string => id !== undefined);
+}
+
+function extractArrayPayload(payload: unknown, keys: string[]): Record<string, unknown>[] {
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  for (const key of keys) {
+    const value = payload[key];
+
+    if (Array.isArray(value)) {
+      return value.filter(isRecord);
+    }
+  }
+
+  return [];
+}
+
+function toSavedRecordingItem(song: NetEaseSong): PlatformLibraryItem | undefined {
+  const songId = toStringId(song.id);
+
+  if (songId === undefined) {
+    return undefined;
+  }
+
+  const label = toSongLabel(song);
+  const artistLabels = toArtistNames(song);
+  const releaseLabel = firstAlbumName(song);
+  const durationMs = typeof song.dt === "number" && Number.isFinite(song.dt) ? song.dt : undefined;
+
+  return {
+    providerId: "netease",
+    sourceRef: {
+      namespace: "source:netease",
+      kind: "track",
+      id: songId,
+      label,
+      url: toSongUrl(songId),
+    },
+    itemKind: "saved_recording",
+    targetKind: "recording",
+    label,
+    canonicalHints: {
+      label: toNonEmptyString(song.name) ?? label,
+      ...(artistLabels.length === 0 ? {} : { artistLabels }),
+      ...(releaseLabel === undefined ? {} : { releaseLabel }),
+      ...(durationMs === undefined ? {} : { durationMs }),
+    },
+  };
+}
+
+function toSavedReleaseItem(album: Record<string, unknown>): PlatformLibraryItem | undefined {
+  const albumId = toStringId(album.id);
+
+  if (albumId === undefined) {
+    return undefined;
+  }
+
+  const title = toNonEmptyString(album.name) ?? "Unresolved NetEase Album";
+  const artistLabels = toAlbumArtistNames(album as NetEaseAlbum);
+  const label = artistLabels.length === 0 ? title : `${title} - ${artistLabels.join(", ")}`;
+
+  return {
+    providerId: "netease",
+    sourceRef: {
+      namespace: "source:netease",
+      kind: "album",
+      id: albumId,
+      label,
+      url: toAlbumUrl(albumId),
+    },
+    itemKind: "saved_release",
+    targetKind: "release",
+    label,
+    canonicalHints: {
+      label: title,
+      ...(artistLabels.length === 0 ? {} : { artistLabels }),
+    },
+  };
+}
+
+function toFollowedArtistItem(artist: Record<string, unknown>): PlatformLibraryItem | undefined {
+  const artistId = toStringId(artist.id);
+
+  if (artistId === undefined) {
+    return undefined;
+  }
+
+  const label = toNonEmptyString(artist.name) ?? "Unresolved NetEase Artist";
+
+  return {
+    providerId: "netease",
+    sourceRef: {
+      namespace: "source:netease",
+      kind: "artist",
+      id: artistId,
+      label,
+      url: toArtistUrl(artistId),
+    },
+    itemKind: "followed_artist",
+    targetKind: "artist",
+    label,
+    canonicalHints: {
+      label,
+    },
+  };
+}
+
 function toMaterial(song: NetEaseSong): MusicMaterial {
   const sourceRef = toSourceRef(song);
 
@@ -344,6 +577,19 @@ function toArtistNames(song: NetEaseSong): string[] {
     .filter((name): name is string => typeof name === "string" && name.length > 0);
 }
 
+function toAlbumArtistNames(album: NetEaseAlbum): string[] {
+  const artists = Array.isArray(album.artists)
+    ? album.artists
+    : isRecord(album.artist)
+      ? [album.artist]
+      : [];
+
+  return artists
+    .filter(isRecord)
+    .map((artist: NetEaseArtist) => artist.name)
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+}
+
 function firstAlbumName(song: NetEaseSong): string | undefined {
   const album = isRecord(song.album) ? song.album : isRecord(song.al) ? song.al : undefined;
 
@@ -388,8 +634,20 @@ function toSongUrl(songId: string): string {
   return `https://music.163.com/#/song?id=${encodeURIComponent(songId)}`;
 }
 
+function toAlbumUrl(albumId: string): string {
+  return `https://music.163.com/#/album?id=${encodeURIComponent(albumId)}`;
+}
+
+function toArtistUrl(artistId: string): string {
+  return `https://music.163.com/#/artist?id=${encodeURIComponent(artistId)}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
 }
 
 function ok<T>(value: T): Result<T> {

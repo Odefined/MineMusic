@@ -5,9 +5,10 @@ This file tracks Library Import implementation progress.
 ## Current State
 
 - Library Import Service is not implemented.
-- The NetEase Platform Library Provider factory exists and resolves the current
-  local API session account identity, but readable-area mapping and real
-  preview/read semantics are not implemented yet.
+- The NetEase Platform Library Provider factory exists, resolves the current
+  local API session account identity, and maps saved recordings, saved releases,
+  and saved artists into generic provider items. Import orchestration and real
+  preview semantics are not implemented yet.
 - Import batch storage is not implemented.
 - Stage Interface import/update tools are not implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.

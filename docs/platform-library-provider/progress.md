@@ -26,16 +26,23 @@ slot and concrete platform-library providers.
   reads for multiple simultaneously available NetEase accounts are not exposed
   by the current adapter; account-selection behavior remains a future concern if
   the runtime later supports multiple configured sessions.
-- The Task 2/3 `preview` and `readItems` methods intentionally return empty
-  area lists. Readable-area mapping, preview/read semantics, and provider issue
+- NetEase provider Task 4 is complete: `readItems` maps `saved_recordings`,
+  `saved_releases`, and `saved_artists` responses into generic
+  `PlatformLibraryItem` records with stable NetEase `sourceRef` values,
+  generic item/target kinds, labels, and canonical hints.
+- `preview` still intentionally returns empty area lists. Preview counts/samples,
+  unsupported-area behavior, partial/failed area handling, and provider issue
   mapping remain future tasks.
+- Live read validation against `http://127.0.0.1:3000` currently proves account
+  identity and returns complete empty results for all three readable areas on
+  the active local NetEase session.
 
 ## Next Slice
 
-1. Implement Task 4 from the NetEase plan: map readable NetEase account-library
-   responses into generic `PlatformLibraryItem` records.
-2. Continue with preview/read behavior, issue mapping, deterministic tests, and
-   docs/runner wiring in the documented task order.
+1. Implement Task 5 from the NetEase plan: return preview availability, counts,
+   and lightweight samples for requested areas.
+2. Continue with read result edge behavior, issue mapping, deterministic tests,
+   and docs/runner wiring in the documented task order.
 
 ## Verification
 
@@ -43,6 +50,9 @@ slot and concrete platform-library providers.
 - `node .tmp-test/test/providers/netease-source-provider.test.js`
 - `node .tmp-test/test/providers/netease-platform-library-provider.test.js`
 - `npm test`
+- Live `readItems({ areas: ["saved_recordings", "saved_releases", "saved_artists"] })`
+  against `http://127.0.0.1:3000`; active account was proven and all three
+  areas returned `status: "complete"` with zero items.
 - `git diff --check`
 - `rg -n "CanonicalStore|Collection|LibraryImport" src/providers/netease`
 - `rg -n "raw|sampleItems" src test docs/platform-library-provider docs/library-import`
