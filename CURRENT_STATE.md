@@ -143,7 +143,9 @@ host-facing and LLM-facing surface.
   rather than defining provider behavior inside the import design. Shared
   TypeScript contracts now define `PlatformLibraryProvider`, preview/read input
   and output shapes, item kinds, availability, per-area read status, count
-  certainty, and standard provider issue codes.
+  certainty, and standard provider issue codes. Platform Library Providers are
+  registered through the shared Plugin Registry under the `platform_library`
+  slot; registry tests cover slot-scoped registration and lookup for that slot.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
 - Material Resolve is exported from `src/material_resolve/index.ts` with

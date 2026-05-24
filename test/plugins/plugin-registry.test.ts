@@ -1,3 +1,4 @@
+import type { PlatformLibraryProvider } from "../../src/contracts/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -16,6 +17,23 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
   const registry = createPluginRegistry();
   const sourceProvider = { id: "fixture-source" };
   const knowledgeProvider = { id: "fixture-source" };
+  const platformLibraryProvider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    preview: async () => ({
+      ok: true,
+      value: {
+        providerId: "fixture-library",
+        areas: [],
+      },
+    }),
+    readItems: async () => ({
+      ok: true,
+      value: {
+        providerId: "fixture-library",
+        areas: [],
+      },
+    }),
+  };
 
   await assertOk(
     registry.registerProvider({
@@ -31,14 +49,30 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
       provider: knowledgeProvider,
     }),
   );
+  await assertOk(
+    registry.registerProvider({
+      slot: "platform_library",
+      providerId: platformLibraryProvider.id,
+      provider: platformLibraryProvider,
+    }),
+  );
 
   const sourceProviders = await assertOk(registry.listProviders({ slot: "source" }));
   const knowledgeProviders = await assertOk(registry.listProviders({ slot: "knowledge" }));
+  const platformLibraryProviders = await assertOk(
+    registry.listProviders({ slot: "platform_library" }),
+  );
   const storedSourceProvider = await assertOk(
     registry.getProvider({ slot: "source", providerId: "fixture" }),
   );
   const storedKnowledgeProvider = await assertOk(
     registry.getProvider({ slot: "knowledge", providerId: "fixture" }),
+  );
+  const storedPlatformLibraryProvider = await assertOk(
+    registry.getProvider({
+      slot: "platform_library",
+      providerId: platformLibraryProvider.id,
+    }),
   );
 
   assert(sourceProviders.length === 1 && sourceProviders[0] === "fixture", "source slot should list provider");
@@ -50,6 +84,15 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
   assert(
     storedKnowledgeProvider === knowledgeProvider,
     "provider ids should be scoped by capability slot",
+  );
+  assert(
+    platformLibraryProviders.length === 1 &&
+      platformLibraryProviders[0] === platformLibraryProvider.id,
+    "platform library slot should list provider",
+  );
+  assert(
+    storedPlatformLibraryProvider === platformLibraryProvider,
+    "platform library provider lookup should return registered object",
   );
 }
 

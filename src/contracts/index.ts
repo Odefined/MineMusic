@@ -348,11 +348,18 @@ export type PlatformLibraryItem = {
   canonicalHints?: PlatformLibraryCanonicalHints;
 };
 
+export type PlatformLibrarySample = {
+  label: string;
+  itemKind?: PlatformLibraryItemKind;
+  targetKind?: PlatformLibraryTargetKind;
+  artistLabels?: string[];
+};
+
 export type PlatformLibraryPreviewArea = {
   area: PlatformLibraryArea;
   availability: PlatformLibraryAvailability;
   count?: PlatformLibraryCount;
-  sampleItems?: PlatformLibraryItem[];
+  samples?: PlatformLibrarySample[];
   issues?: PlatformLibraryIssue[];
 };
 

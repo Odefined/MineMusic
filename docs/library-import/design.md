@@ -605,13 +605,13 @@ Expected behavior:
   library area fails but others succeed. Only global failures, such as provider
   unavailable, login required for all requested account reads, or a completely
   unreadable requested scope, should fail the whole preview call.
-- Both preview tools may return bounded structured sample items, such as 3-5
-  provider item facts per requested library area, so the LLM can reason about
+- Both preview tools may return bounded lightweight samples, such as 3-5 facts
+  per requested library area, so the LLM can reason about
   whether the account and scope look right.
-- Preview sample items come from the Platform Library Provider slot and remain
-  preview-only provider facts. Per-sample canonical or Collection status is not
-  needed in the first preview contract; binding and Collection estimates are
-  aggregate counts.
+- Preview samples come from the Platform Library Provider slot and remain
+  preview-only provider facts. They must not carry source refs, canonical
+  hints, provider metadata, or per-sample canonical or Collection status;
+  binding and Collection estimates are aggregate counts.
 - Both preview tools should estimate canonical binding outcomes without writing:
   already bound to an existing canonical record, would create a provisional
   canonical record on start, or unresolved/skipped because metadata is too weak.
@@ -645,7 +645,7 @@ The LLM should not call Canonical Store, storage repositories, or provider APIs
 directly for this flow.
 The LLM owns interpretation, judgment, user-facing wording, and any follow-up
 questions. MineMusic returns structured facts and state only.
-Preview samples are structured provider facts, not MineMusic commentary.
+Preview samples are lightweight provider facts, not MineMusic commentary.
 
 MineMusic does not choose a default import scope when the user says something
 ambiguous like "import my NetEase library." The LLM should clarify the user's
@@ -748,7 +748,7 @@ The preview result should include:
 - unsupported provider-visible library areas when discovery was requested.
 - item counts by provider item kind when available, with count certainty such
   as exact, at least, or unknown.
-- bounded sample provider facts.
+- bounded lightweight provider samples.
 - estimated canonical binding counts: already bound, would create provisional,
   unresolved, or skipped.
 - estimated Collection counts: already present, would add, would add after

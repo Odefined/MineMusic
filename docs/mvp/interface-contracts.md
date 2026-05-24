@@ -294,152 +294,19 @@ Rules:
   `MaterialResolvePort`.
 - Public methods for source/provider grounding live in `SourceGroundingPort`.
 
-## Platform Library Provider Types
+## Platform Library Provider Slot
 
-```ts
-export type PlatformLibraryArea =
-  | "saved_recordings"
-  | "saved_releases"
-  | "saved_artists"
-  | "playlists"
-  | "listening_history";
+The `platform_library` capability slot is not defined in this MVP interface
+rollup. Keep its field-level contract in one place:
 
-export type PlatformLibraryAvailability =
-  | "previewable"
-  | "readable"
-  | "unsupported"
-  | "unavailable";
+- [`src/contracts/index.ts`](../../src/contracts/index.ts) exports the shared
+  `PlatformLibraryProvider` TypeScript contract and related preview/read types.
+- [`docs/platform-library-provider/design.md`](../platform-library-provider/design.md)
+  explains provider responsibilities, counts, partial reads, issues, samples,
+  and `sourceRef` rules.
 
-export type PlatformLibraryReadStatus =
-  | "complete"
-  | "partial"
-  | "failed"
-  | "unavailable";
-
-export type PlatformLibraryCountCertainty =
-  | "exact"
-  | "at_least"
-  | "unknown";
-
-export type PlatformLibraryCount =
-  | {
-      certainty: "exact" | "at_least";
-      value: number;
-    }
-  | {
-      certainty: "unknown";
-    };
-
-export type PlatformLibraryItemKind =
-  | "saved_recording"
-  | "saved_release"
-  | "followed_artist";
-
-export type PlatformLibraryTargetKind =
-  | "recording"
-  | "release"
-  | "artist";
-
-export type PlatformLibraryIssueCode =
-  | "login_required"
-  | "account_selection_required"
-  | "account_unstable"
-  | "scope_unsupported"
-  | "area_unavailable"
-  | "rate_limited"
-  | "timeout"
-  | "provider_unavailable"
-  | "partial_read"
-  | "malformed_response";
-
-export type PlatformLibraryIssue = {
-  code: PlatformLibraryIssueCode;
-  message: string;
-  retryable: boolean;
-  area?: PlatformLibraryArea;
-  details?: Record<string, unknown>;
-};
-
-export type PlatformLibraryAccountIdentity = {
-  providerAccountId: string;
-  stable: boolean;
-  label?: string;
-};
-
-export type PlatformLibraryCanonicalHints = {
-  label?: string;
-  artistLabels?: string[];
-  releaseLabel?: string;
-  durationMs?: number;
-};
-
-export type PlatformLibraryItem = {
-  providerId: string;
-  sourceRef: Ref;
-  itemKind: PlatformLibraryItemKind;
-  targetKind: PlatformLibraryTargetKind;
-  label: string;
-  addedAt?: string;
-  canonicalHints?: PlatformLibraryCanonicalHints;
-};
-
-export type PlatformLibraryPreviewArea = {
-  area: PlatformLibraryArea;
-  availability: PlatformLibraryAvailability;
-  count?: PlatformLibraryCount;
-  sampleItems?: PlatformLibraryItem[];
-  issues?: PlatformLibraryIssue[];
-};
-
-export type PlatformLibraryPreviewInput = {
-  providerAccountId?: string;
-  areas?: PlatformLibraryArea[];
-  discovery?: boolean;
-  sampleLimitPerArea?: number;
-};
-
-export type PlatformLibraryPreview = {
-  providerId: string;
-  account?: PlatformLibraryAccountIdentity;
-  areas: PlatformLibraryPreviewArea[];
-  issues?: PlatformLibraryIssue[];
-};
-
-export type PlatformLibraryReadAreaResult = {
-  area: PlatformLibraryArea;
-  status: PlatformLibraryReadStatus;
-  items: PlatformLibraryItem[];
-  issues?: PlatformLibraryIssue[];
-};
-
-export type PlatformLibraryReadInput = {
-  providerAccountId?: string;
-  areas: PlatformLibraryArea[];
-};
-
-export type PlatformLibraryReadResult = {
-  providerId: string;
-  account?: PlatformLibraryAccountIdentity;
-  areas: PlatformLibraryReadAreaResult[];
-  issues?: PlatformLibraryIssue[];
-};
-
-export interface PlatformLibraryProvider {
-  id: string;
-  preview(input: PlatformLibraryPreviewInput): Promise<Result<PlatformLibraryPreview>>;
-  readItems(input: PlatformLibraryReadInput): Promise<Result<PlatformLibraryReadResult>>;
-}
-```
-
-Rules:
-
-- Platform Library Providers read account-scoped platform library facts.
-- Provider `sourceRef` values are opaque stable external refs to MineMusic Core.
-- Readable items use first-version item kinds:
-  `saved_recording`, `saved_release`, and `followed_artist`.
-- Platform album saves are expressed as `saved_release` targeting `release`.
-- Provider contracts must not include raw platform responses.
-- Preview samples are preview-only and must not become import/update baselines.
+MVP interface docs may name `platform_library` as a dependency, but must not
+duplicate its field-level contract here.
 
 ## Knowledge Types
 

@@ -268,6 +268,9 @@
 - Added first-version `platform_library` shared TypeScript contracts for
   provider preview/read methods, account identity, area availability, per-area
   read status, count certainty, provider items, and standard issue codes.
+- Documented `platform_library` provider registration through the shared Plugin
+  Registry and added registry test coverage for slot-scoped platform-library
+  provider registration and lookup.
 - Corrected Collection Service and Library Import design language so collection
   ownership uses long-lived `ownerScope`, with `local_profile:default` as the
   MVP default option, rather than treating `sessionId` as collection ownership.

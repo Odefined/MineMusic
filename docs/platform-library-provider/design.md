@@ -81,6 +81,32 @@ account session. If account-library reads fail because that service is not
 logged in, the provider returns a structured login-required result rather than
 asking MineMusic to manage provider credentials.
 
+## Registration
+
+Plugins register Platform Library Providers through the shared Plugin Registry:
+
+```ts
+await pluginRegistry.registerProvider({
+  slot: "platform_library",
+  providerId: provider.id,
+  provider,
+});
+```
+
+Registration rules:
+
+- `provider` must implement `PlatformLibraryProvider`.
+- `providerId` should be stable and should match `provider.id`.
+- Provider ids are scoped by slot. The same plugin package may register a
+  `source` provider and a `platform_library` provider without coupling the two
+  contracts.
+- The registry stores providers by slot. It must not branch on platform names,
+  provider-specific source-ref kinds, import scope, or account details.
+- Library Import discovers providers by the `platform_library` slot, then calls
+  `preview` or `readItems` on the selected provider.
+- Registration does not choose what to import. The LLM/user-facing layer
+  chooses scope before calling Library Import tools.
+
 ## Contract Shape
 
 Provider contract:
@@ -172,11 +198,18 @@ export type PlatformLibraryItem = {
   };
 };
 
+export type PlatformLibrarySample = {
+  label: string;
+  itemKind?: PlatformLibraryItemKind;
+  targetKind?: PlatformLibraryTargetKind;
+  artistLabels?: string[];
+};
+
 export type PlatformLibraryPreviewArea = {
   area: PlatformLibraryArea;
   availability: PlatformLibraryAvailability;
   count?: PlatformLibraryCount;
-  sampleItems?: PlatformLibraryItem[];
+  samples?: PlatformLibrarySample[];
   issues?: PlatformLibraryIssue[];
 };
 
@@ -345,17 +378,18 @@ must not replace the standard top-level code.
 
 ## Preview Samples
 
-Provider preview may return bounded sample items for a library area.
+Provider preview may return bounded samples for a library area.
 
 Sample rules:
 
-- Samples are provider facts for preview only.
-- Samples should use the same explicit field vocabulary as
-  `PlatformLibraryItem`.
+- Samples are lightweight provider facts for preview only.
+- Samples may carry only `label`, optional `itemKind`, optional `targetKind`,
+  and optional `artistLabels`.
 - Samples help the LLM judge whether the account and area look right.
+- Samples must not carry `sourceRef`, `addedAt`, `canonicalHints`, raw provider
+  metadata, Canonical Store status, or Collection status.
 - Samples must not be used for import/update writes.
 - Samples must not create update baselines.
-- Samples must not carry Canonical Store or Collection status.
 - Samples must not be counted as part of a complete readable result.
 
 The first provider preview should keep samples small, such as 3-5 items per

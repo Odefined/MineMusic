@@ -24,6 +24,7 @@ import type {
   PlatformLibraryProvider,
   PlatformLibraryReadResult,
   PlatformLibraryReadStatus,
+  PlatformLibrarySample,
   PlatformLibraryTargetKind,
   PlatformLibraryPreview,
   PlayableLink,
@@ -162,6 +163,10 @@ type _platformLibraryItemHasNoRawEscapeHatch = Expect<
     keyof PlatformLibraryItem,
     "providerId" | "sourceRef" | "itemKind" | "targetKind" | "label" | "addedAt" | "canonicalHints"
   >
+>;
+
+type _platformLibrarySampleIsLightweight = Expect<
+  Equal<keyof PlatformLibrarySample, "label" | "itemKind" | "targetKind" | "artistLabels">
 >;
 
 type _platformLibraryUnknownCountHasNoValue = Expect<
@@ -453,6 +458,13 @@ const platformLibraryItem: PlatformLibraryItem = {
   },
 };
 
+const platformLibrarySample: PlatformLibrarySample = {
+  label: "Fixture Release",
+  itemKind: "saved_release",
+  targetKind: "release",
+  artistLabels: ["Fixture Artist"],
+};
+
 const platformLibraryPreview: PlatformLibraryPreview = {
   providerId: "fixture-library",
   account: {
@@ -464,7 +476,7 @@ const platformLibraryPreview: PlatformLibraryPreview = {
       area: "saved_releases",
       availability: "readable",
       count: { certainty: "exact", value: 1 },
-      sampleItems: [platformLibraryItem],
+      samples: [platformLibrarySample],
     },
     {
       area: "playlists",
@@ -732,6 +744,7 @@ void [
   handbook,
   sourceProvider,
   platformLibraryItem,
+  platformLibrarySample,
   platformLibraryPreview,
   platformLibraryReadResult,
   platformLibraryProvider,

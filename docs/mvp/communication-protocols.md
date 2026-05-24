@@ -181,6 +181,7 @@ Use provider slots for external or replaceable capability.
 ```ts
 export type CapabilitySlot =
   | "source"
+  | "platform_library"
   | "knowledge"
   | "identity_signal"
   | "context"
