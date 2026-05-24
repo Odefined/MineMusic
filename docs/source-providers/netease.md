@@ -63,6 +63,11 @@ The endpoint can be changed with:
 MINEMUSIC_NETEASE_BASE_URL
 ```
 
+The default Codex MCP runtime uses this same setting for both
+`createNetEaseSourceProvider(...)` and
+`createNetEasePlatformLibraryProvider(...)`; MineMusic does not add credential
+storage around either provider.
+
 Live smoke validation is opt-in:
 
 ```bash

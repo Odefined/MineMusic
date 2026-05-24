@@ -10,6 +10,7 @@ import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core
 import { stableToolNames } from "../../src/stage_interface/index.js";
 import {
   codexToolNameFor,
+  createDefaultMineMusicMcpStageCore,
   createMineMusicMcpToolDefinitions,
   internalToolNameFor,
 } from "../../src/surfaces/mcp/server.js";
@@ -251,6 +252,32 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
   );
 }
 
+async function defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary(): Promise<void> {
+  const stageCore = createDefaultMineMusicMcpStageCore({
+    MINEMUSIC_SESSION_ID: "mcp-default-netease-session",
+    MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+  });
+  await stageCore.ready;
+
+  const sourceProviderResult = await stageCore.plugins.getProvider({
+    slot: "source",
+    providerId: "netease",
+  });
+  const platformLibraryProviderResult = await stageCore.plugins.getProvider({
+    slot: "platform_library",
+    providerId: "netease",
+  });
+
+  assert(sourceProviderResult.ok, "default MCP runtime should register the NetEase source provider");
+  assert(sourceProviderResult.value !== null, "default MCP runtime should expose source:netease");
+  assert(platformLibraryProviderResult.ok, "default MCP runtime should register the NetEase platform-library provider");
+  assert(platformLibraryProviderResult.value !== null, "default MCP runtime should expose platform_library:netease");
+  assert(
+    sourceProviderResult.value !== platformLibraryProviderResult.value,
+    "default MCP runtime should keep source and platform-library provider objects separate",
+  );
+}
+
 function hasSchemaKey(schema: unknown, key: string): boolean {
   return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
 }
@@ -264,3 +291,4 @@ await exposesStableToolsThroughMcpDefinitions();
 await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToStageInterface();
 await dispatchesLibraryImportMcpPayloadsToStageInterface();
+await defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary();

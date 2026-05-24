@@ -3,7 +3,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { pathToFileURL } from "node:url";
 
 import type { Result, StageSession, ToolName } from "../../contracts/index.js";
-import { createNetEaseSourceProvider } from "../../providers/netease/index.js";
+import {
+  createNetEasePlatformLibraryProvider,
+  createNetEaseSourceProvider,
+  type NetEaseProviderOptions,
+} from "../../providers/netease/index.js";
 import {
   createMineMusicStageCoreWithSourceProvider,
   type MineMusicStageCore,
@@ -102,16 +106,21 @@ export async function runMineMusicMcpServer(
 export function createDefaultMineMusicMcpStageCore(
   env: Record<string, string | undefined> = process.env,
 ): MineMusicStageCore {
+  const netEaseOptions = createNetEaseProviderOptions(env);
+
   return createMineMusicStageCoreWithSourceProvider({
     session: createDefaultCodexSession(env),
-    sourceProvider: createNetEaseSourceProvider(
-      env.MINEMUSIC_NETEASE_BASE_URL === undefined
-        ? {}
-        : {
-            baseUrl: env.MINEMUSIC_NETEASE_BASE_URL,
-          },
-    ),
+    sourceProvider: createNetEaseSourceProvider(netEaseOptions),
+    platformLibraryProvider: createNetEasePlatformLibraryProvider(netEaseOptions),
   });
+}
+
+function createNetEaseProviderOptions(env: Record<string, string | undefined>): NetEaseProviderOptions {
+  return env.MINEMUSIC_NETEASE_BASE_URL === undefined
+    ? {}
+    : {
+        baseUrl: env.MINEMUSIC_NETEASE_BASE_URL,
+      };
 }
 
 function createDefaultCodexSession(env: Record<string, string | undefined>): StageSession {

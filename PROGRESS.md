@@ -478,11 +478,16 @@
   status/summary through `LibraryImportPort`, added explicit MCP input schemas,
   refreshed the generated MineMusic Handbook, and added dispatch plus MCP
   handler coverage.
+- Completed Library Import Service implementation plan Task 10 with a TDD loop:
+  wired the default Codex MCP runtime to create both NetEase source and
+  platform-library providers from the same `MINEMUSIC_NETEASE_BASE_URL`
+  configuration, pass both providers into Stage Core, keep provider slots
+  separate, and document that no MineMusic credential storage was added.
 
 ## Next
 
-- Continue Library Import implementation with Task 10: default NetEase
-  platform-library provider wiring for the Codex MCP runtime.
+- Continue Library Import implementation with Task 11: deterministic
+  integration coverage for the full first-slice behavior.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

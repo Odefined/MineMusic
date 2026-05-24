@@ -167,8 +167,8 @@ This index points agents to the current MVP documentation pack.
     - Source Grounding service for provider search and playable-link refresh.
 
 44. `docs/source-providers/netease.md`
-    - NetEase source provider design, runtime behavior, boundaries, and
-      verification notes.
+    - NetEase source and platform-library provider design, runtime behavior,
+      boundaries, and verification notes.
 
 45. `src/providers/netease/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
@@ -186,7 +186,8 @@ This index points agents to the current MVP documentation pack.
 48. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
-      `MineMusicStageInterface`.
+      `MineMusicStageInterface`; the default runtime registers NetEase for both
+      `source` and `platform_library` slots.
 
 49. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,

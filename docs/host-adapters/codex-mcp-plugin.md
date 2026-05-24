@@ -59,6 +59,24 @@ stage.context.read
 stage.materials.prepare
 music.material.resolve
 music.links.refresh
+music.collection.save
+music.collection.unsave
+music.collection.favorite
+music.collection.unfavorite
+music.collection.block
+music.collection.unblock
+music.collection.item.add
+music.collection.item.remove
+music.collection.create
+music.collection.update
+music.collection.delete
+music.collection.list
+music.library.import.preview
+music.library.import.start
+music.library.update.preview
+music.library.update.start
+music.library.import.status
+music.library.import.summary
 events.record
 memory.propose
 effects.propose
@@ -73,6 +91,12 @@ minemusic.handbook.tool.read
 minemusic.stage.materials.prepare
 minemusic.music.material.resolve
 minemusic.music.links.refresh
+minemusic.music.collection.save
+minemusic.music.collection.list
+minemusic.music.library.import.preview
+minemusic.music.library.update.start
+minemusic.music.library.import.status
+minemusic.music.library.import.summary
 minemusic.events.record
 minemusic.memory.propose
 minemusic.effects.propose
@@ -84,8 +108,9 @@ minemusic.session.update
 The Codex MCP runtime:
 
 - seeds a Stage session with `activeInstruments: ["minemusic.mvp"]`.
-- registers the NetEase source provider by default.
-- uses `MINEMUSIC_NETEASE_BASE_URL` when provided.
+- registers NetEase `source` and `platform_library` providers by default.
+- uses `MINEMUSIC_NETEASE_BASE_URL` for both NetEase provider factories when
+  provided.
 - delegates tool calls through `MineMusicStageInterface`.
 - returns MineMusic `Result<T>` payloads as MCP text JSON.
 
@@ -136,6 +161,8 @@ Deterministic tests cover:
   `minemusic.`.
 - MCP handlers delegate through `MineMusicStageInterface`.
 - argument-bearing tools expose explicit input schemas.
+- the default MCP runtime registers NetEase through separate `source` and
+  `platform_library` slots.
 - repo-local plugin packaging points at `npm --prefix ... run mcp:minemusic`.
 
 Project-native commands:
@@ -160,4 +187,3 @@ active-session MCP tool calls.
 - durable storage.
 - autonomous DJ mode.
 - moving recommendation policy into the Codex plugin.
-
