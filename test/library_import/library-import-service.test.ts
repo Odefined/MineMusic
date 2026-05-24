@@ -1,6 +1,8 @@
 import type {
+  CanonicalRecord,
   PlatformLibraryPreviewInput,
   PlatformLibraryProvider,
+  Ref,
 } from "../../src/contracts/index.js";
 import { createCanonicalStore } from "../../src/canonical/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
@@ -206,33 +208,260 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
   assert(status.status === "completed", "status should expose stored batch status");
 }
 
+async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Promise<void> {
+  const registry = createPluginRegistry();
+  const readInputs: Parameters<PlatformLibraryProvider["readItems"]>[0][] = [];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview(input) {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: input.providerAccountId ?? "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              availability: "readable",
+              count: { certainty: "exact", value: 4 },
+            },
+          ],
+        },
+      };
+    },
+    async readItems(input) {
+      readInputs.push(input);
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: [
+                providerItem("bound-track", "Bound Track"),
+                providerItem("bound-unsaved-track", "Unsaved Bound Track"),
+                providerItem("new-track", "New Track"),
+                providerItem("unresolved-track", ""),
+              ],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const boundCanonical: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "bound-recording",
+    },
+    kind: "recording",
+    label: "Bound Track",
+    status: "active",
+    externalKeys: [sourceRef("bound-track")],
+  };
+  const unsavedCanonical: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "unsaved-recording",
+    },
+    kind: "recording",
+    label: "Unsaved Bound Track",
+    status: "active",
+    externalKeys: [sourceRef("bound-unsaved-track")],
+  };
+  await assertOk(environment.canonicalRepository.put(boundCanonical));
+  await assertOk(environment.canonicalRepository.put(unsavedCanonical));
+  await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+  await assertOk(
+    environment.collections.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      canonicalRef: boundCanonical.ref,
+      label: boundCanonical.label,
+    }),
+  );
+  const eventsBeforePreview = await assertOk(
+    environment.events.listBySession({ sessionId: "collection:local_profile:default" }),
+  );
+
+  const preview = await assertOk(
+    environment.libraryImport.previewImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  const batchesAfterPreview = await assertOk(environment.libraryImportRepository.listBatches({}));
+  const canonicalRecordsAfterPreview = await assertOk(environment.canonicalRepository.list());
+  const savedItemsAfterPreview = await assertOk(
+    environment.collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+  const eventsAfterPreview = await assertOk(
+    environment.events.listBySession({ sessionId: "collection:local_profile:default" }),
+  );
+
+  assert(readInputs.length === 1, "readable preview should read provider items for estimates");
+  assert(readInputs[0]?.areas.join(",") === "saved_recordings", "preview read should use requested readable areas");
+  assert(preview.areas[0]?.canonicalEstimates.alreadyBound === 2, "preview should count exact source-ref bindings");
+  assert(
+    preview.areas[0]?.canonicalEstimates.wouldCreateProvisional === 1,
+    "preview should count importable unbound items as provisional creates",
+  );
+  assert(preview.areas[0]?.canonicalEstimates.unresolved === 1, "preview should count weak metadata as unresolved");
+  assert(preview.areas[0]?.collectionEstimates.alreadyPresent === 1, "preview should count existing saved items");
+  assert(preview.areas[0]?.collectionEstimates.wouldAdd === 1, "preview should count bound items missing from saved Collection");
+  assert(
+    preview.areas[0]?.collectionEstimates.wouldAddAfterProvisional === 1,
+    "preview should count provisional collection additions separately",
+  );
+  assert(preview.areas[0]?.collectionEstimates.skipped === 1, "preview should count unresolved collection skips");
+  assert(batchesAfterPreview.length === 0, "preview should not create import batches");
+  assert(canonicalRecordsAfterPreview.length === 2, "preview should not create canonical records");
+  assert(savedItemsAfterPreview.length === 1, "preview should not add collection items");
+  assert(eventsAfterPreview.length === eventsBeforePreview.length, "preview should not record events");
+}
+
+async function previewsDiscoveryWithoutReadingProviderItems(): Promise<void> {
+  const registry = createPluginRegistry();
+  const previewInputs: PlatformLibraryPreviewInput[] = [];
+  let readCount = 0;
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview(input) {
+      previewInputs.push(input);
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [
+            {
+              area: "playlists",
+              availability: "unsupported",
+              issues: [
+                {
+                  code: "scope_unsupported",
+                  message: "Playlists are not importable in the first slice.",
+                  retryable: false,
+                  area: "playlists",
+                },
+              ],
+            },
+          ],
+        },
+      };
+    },
+    async readItems() {
+      readCount += 1;
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const libraryImport = createTestLibraryImportService(registry);
+  const preview = await assertOk(
+    libraryImport.previewImport({
+      providerId: provider.id,
+      scopes: ["discovery"],
+    }),
+  );
+
+  assert(previewInputs[0]?.discovery === true, "discovery preview should call provider preview with discovery mode");
+  assert(previewInputs[0]?.areas === undefined, "discovery preview should not request first-slice areas");
+  assert(readCount === 0, "discovery preview should not read provider items");
+  assert(preview.areas[0]?.scope === "discovery", "discovery preview should preserve unsupported provider areas");
+  assert(preview.areas[0]?.issues?.[0]?.code === "scope_unsupported", "discovery preview should keep provider issues");
+}
+
 function createTestLibraryImportService(registry: ReturnType<typeof createPluginRegistry>) {
+  return createTestLibraryImportEnvironment(registry).libraryImport;
+}
+
+function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPluginRegistry>) {
   const events = createEventService({
     repository: createInMemoryEventRepository(),
-    idFactory: () => "event-1",
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-25T00:00:00.000Z",
+  });
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const canonicalStore = createCanonicalStore({
+    repository: canonicalRepository,
+    idFactory: createSequence("canonical"),
+  });
+  const collections = createCollectionService({
+    repository: createInMemoryCollectionRepository(),
+    events,
+    idFactory: createSequence("collection"),
+    clock: () => "2026-05-25T00:00:00.000Z",
+  });
+  const libraryImportRepository = createInMemoryLibraryImportRepository();
+  const libraryImport = createLibraryImportService({
+    pluginRegistry: registry,
+    canonicalStore,
+    collection: collections,
+    events,
+    repository: libraryImportRepository,
+    idFactory: createSequence("library-import-batch"),
     clock: () => "2026-05-25T00:00:00.000Z",
   });
 
-  return createLibraryImportService({
-    pluginRegistry: registry,
-    canonicalStore: createCanonicalStore({
-      repository: createInMemoryCanonicalRecordRepository(),
-      idFactory: () => "canonical-1",
-    }),
-    collection: createCollectionService({
-      repository: createInMemoryCollectionRepository(),
-      events,
-      idFactory: () => "collection-1",
-      clock: () => "2026-05-25T00:00:00.000Z",
-    }),
+  return {
+    libraryImport,
+    canonicalRepository,
+    collections,
     events,
-    repository: createInMemoryLibraryImportRepository(),
-    idFactory: () => "library-import-batch-1",
-    clock: () => "2026-05-25T00:00:00.000Z",
-  });
+    libraryImportRepository,
+  };
+}
+
+function createSequence(prefix: string): () => string {
+  let nextId = 1;
+
+  return () => `${prefix}-${nextId++}`;
+}
+
+function providerItem(id: string, label: string) {
+  return {
+    providerId: "fixture-library",
+    sourceRef: sourceRef(id),
+    itemKind: "saved_recording",
+    targetKind: "recording",
+    label,
+  } as const;
+}
+
+function sourceRef(id: string): Ref {
+  return {
+    namespace: "source:fixture-library",
+    kind: "track",
+    id,
+  };
 }
 
 await previewsImportThroughRegisteredPlatformLibraryProvider();
 await mapsMissingPlatformLibraryProviderToLibraryImportError();
 await rejectsDiscoveryScopesForStartCalls();
 await startsReadableImportBatchAndExposesStatus();
+await estimatesReadableImportPreviewWithoutWritingMineMusicState();
+await previewsDiscoveryWithoutReadingProviderItems();

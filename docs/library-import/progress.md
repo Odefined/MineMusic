@@ -6,7 +6,7 @@ This file tracks Library Import implementation progress.
 
 - Library Import orchestration service skeleton is implemented; full item-level
   import orchestration is not implemented yet.
-- Tasks 1-4 from `docs/library-import/implementation-plan.md` are complete:
+- Tasks 1-5 from `docs/library-import/implementation-plan.md` are complete:
   `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
   batch statuses, preview/start/status/summary input shapes, preview/report
   output shapes, item outcome summaries, import counts, import batch records,
@@ -21,7 +21,10 @@ This file tracks Library Import implementation progress.
   `test/storage/in-memory-library-import-repository.test.ts`. The service
   skeleton in `src/library_import/index.ts` now provides provider lookup and
   validation, first-slice scope-to-area mapping, discovery start rejection,
-  skeleton import/update batch creation, and batch status/summary helpers.
+  skeleton import/update batch creation, batch status/summary helpers, and
+  side-effect-free import preview estimates for exact source-ref canonical
+  bindings, provisional canonical creates, unresolved items, and saved
+  Collection outcomes.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
@@ -53,10 +56,10 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Continue Library Import Service implementation with Task 5 from
-   `docs/library-import/implementation-plan.md`: implement import preview.
-2. Add side-effect-free canonical binding and Collection outcome estimates for
-   first-slice import previews.
+1. Continue Library Import Service implementation with Task 6 from
+   `docs/library-import/implementation-plan.md`: implement initial import start.
+2. Add item-level canonical binding/provisional creation, saved Collection
+   writes, import provenance, area snapshots, and import events.
 3. Expose Stage Interface import/update preview/start tools and shared
    batch status/summary tools.
 
@@ -78,3 +81,6 @@ This file tracks Library Import implementation progress.
   passes after adding Task 4 Library Import service skeleton coverage.
 - `npm run test:stage-core` passes with the Task 4 service test wired into the
   stage-core test runner.
+- `npm run build:test && node .tmp-test/test/library_import/library-import-service.test.js`
+  passes after adding Task 5 side-effect-free import preview estimate coverage.
+- `npm run test:stage-core` passes after the Task 5 preview estimate changes.

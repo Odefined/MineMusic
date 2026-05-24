@@ -1,4 +1,5 @@
 import type {
+  CollectionItem,
   LibraryImportBatch,
   LibraryImportBatchKind,
   LibraryImportCollectionEstimateCounts,
@@ -12,6 +13,7 @@ import type {
   LibraryImportScope,
   LibraryImportStatus,
   PlatformLibraryArea,
+  PlatformLibraryItem,
   PlatformLibraryPreviewArea,
   PlatformLibraryProvider,
   PlatformLibraryReadAreaResult,
@@ -41,8 +43,8 @@ const defaultOwnerScope = "local_profile:default";
 
 export function createLibraryImportService({
   pluginRegistry,
-  canonicalStore: _canonicalStore,
-  collection: _collection,
+  canonicalStore,
+  collection,
   events: _events,
   repository,
   idFactory = createDefaultIdFactory("library-import-batch"),
@@ -52,6 +54,8 @@ export function createLibraryImportService({
     previewImport(input) {
       return previewLibraryImport({
         pluginRegistry,
+        canonicalStore,
+        collection,
         input,
         includeUpdateEstimates: false,
       });
@@ -71,6 +75,8 @@ export function createLibraryImportService({
     previewUpdate(input) {
       return previewLibraryImport({
         pluginRegistry,
+        canonicalStore,
+        collection,
         input,
         includeUpdateEstimates: true,
       });
@@ -119,10 +125,14 @@ export function createLibraryImportService({
 
 async function previewLibraryImport({
   pluginRegistry,
+  canonicalStore,
+  collection,
   input,
   includeUpdateEstimates,
 }: {
   pluginRegistry: PluginRegistryPort;
+  canonicalStore: CanonicalStorePort;
+  collection: CollectionPort;
   input: LibraryImportPreviewInput;
   includeUpdateEstimates: boolean;
 }): Promise<Result<LibraryImportPreview>> {
@@ -134,6 +144,7 @@ async function previewLibraryImport({
 
   const scopes = normalizeScopes(input.scopes);
   const areas = scopesToProviderAreas(scopes);
+  const ownerScope = input.ownerScope ?? defaultOwnerScope;
   const preview = await provider.value.preview({
     ...(input.providerAccountId === undefined ? {} : { providerAccountId: input.providerAccountId }),
     ...(areas.length === 0 ? {} : { areas }),
@@ -145,12 +156,30 @@ async function previewLibraryImport({
     return providerReadFailed(input.providerId, preview.error);
   }
 
+  const estimates = await estimateReadablePreviewAreas({
+    provider: provider.value,
+    canonicalStore,
+    collection,
+    ownerScope,
+    providerAccountId: input.providerAccountId,
+    requestedAreas: areas,
+    previewAreas: preview.value.areas,
+  });
+
+  if (!estimates.ok) {
+    return estimates;
+  }
+
   const result: LibraryImportPreview = {
     providerId: preview.value.providerId,
-    ownerScope: input.ownerScope ?? defaultOwnerScope,
+    ownerScope,
     scopes,
     areas: preview.value.areas.map((area) =>
-      providerPreviewAreaToLibraryImportArea(area, includeUpdateEstimates),
+      providerPreviewAreaToLibraryImportArea(
+        area,
+        includeUpdateEstimates,
+        estimates.value.get(area.area),
+      ),
     ),
   };
 
@@ -163,6 +192,193 @@ async function previewLibraryImport({
   }
 
   return ok(result);
+}
+
+type PreviewAreaEstimates = {
+  canonicalEstimates: LibraryImportCanonicalEstimateCounts;
+  collectionEstimates: LibraryImportCollectionEstimateCounts;
+};
+
+async function estimateReadablePreviewAreas({
+  provider,
+  canonicalStore,
+  collection,
+  ownerScope,
+  providerAccountId,
+  requestedAreas,
+  previewAreas,
+}: {
+  provider: PlatformLibraryProvider;
+  canonicalStore: CanonicalStorePort;
+  collection: CollectionPort;
+  ownerScope: string;
+  providerAccountId: string | undefined;
+  requestedAreas: PlatformLibraryArea[];
+  previewAreas: PlatformLibraryPreviewArea[];
+}): Promise<Result<Map<PlatformLibraryArea, PreviewAreaEstimates>>> {
+  const readableAreas = previewAreas
+    .filter(
+      (area) =>
+        area.availability === "readable" &&
+        requestedAreas.includes(area.area) &&
+        isFirstSliceArea(area.area),
+    )
+    .map((area) => area.area);
+
+  if (readableAreas.length === 0) {
+    return ok(new Map());
+  }
+
+  const read = await provider.readItems({
+    ...(providerAccountId === undefined ? {} : { providerAccountId }),
+    areas: readableAreas,
+  });
+
+  if (!read.ok) {
+    return providerReadFailed(provider.id, read.error);
+  }
+
+  const estimates = new Map<PlatformLibraryArea, PreviewAreaEstimates>();
+  const savedItemsByKind = new Map<PlatformLibraryItem["targetKind"], CollectionItem[]>();
+
+  for (const area of read.value.areas) {
+    const areaEstimates = emptyPreviewAreaEstimates();
+
+    for (const item of area.items) {
+      const itemEstimate = await estimatePreviewItem({
+        canonicalStore,
+        collection,
+        ownerScope,
+        savedItemsByKind,
+        item,
+      });
+
+      if (!itemEstimate.ok) {
+        return itemEstimate;
+      }
+
+      incrementPreviewAreaEstimates(areaEstimates, itemEstimate.value);
+    }
+
+    estimates.set(area.area, areaEstimates);
+  }
+
+  return ok(estimates);
+}
+
+type PreviewItemEstimate =
+  | "already_present"
+  | "would_add"
+  | "would_add_after_provisional"
+  | "unresolved";
+
+async function estimatePreviewItem({
+  canonicalStore,
+  collection,
+  ownerScope,
+  savedItemsByKind,
+  item,
+}: {
+  canonicalStore: CanonicalStorePort;
+  collection: CollectionPort;
+  ownerScope: string;
+  savedItemsByKind: Map<PlatformLibraryItem["targetKind"], CollectionItem[]>;
+  item: PlatformLibraryItem;
+}): Promise<Result<PreviewItemEstimate>> {
+  if (!canUseProviderItemForCanonicalBinding(item)) {
+    return ok("unresolved");
+  }
+
+  const canonical = await canonicalStore.resolveExternalRef({ ref: item.sourceRef });
+
+  if (!canonical.ok) {
+    return canonical;
+  }
+
+  if (canonical.value === null) {
+    return ok("would_add_after_provisional");
+  }
+
+  const canonicalRecord = canonical.value;
+  const savedItems = await getSavedItemsForTargetKind({
+    collection,
+    ownerScope,
+    savedItemsByKind,
+    targetKind: item.targetKind,
+  });
+
+  if (!savedItems.ok) {
+    return savedItems;
+  }
+
+  return ok(
+    savedItems.value.some((savedItem) => sameRef(savedItem.canonicalRef, canonicalRecord.ref))
+      ? "already_present"
+      : "would_add",
+  );
+}
+
+async function getSavedItemsForTargetKind({
+  collection,
+  ownerScope,
+  savedItemsByKind,
+  targetKind,
+}: {
+  collection: CollectionPort;
+  ownerScope: string;
+  savedItemsByKind: Map<PlatformLibraryItem["targetKind"], CollectionItem[]>;
+  targetKind: PlatformLibraryItem["targetKind"];
+}): Promise<Result<CollectionItem[]>> {
+  const cached = savedItemsByKind.get(targetKind);
+
+  if (cached !== undefined) {
+    return ok(cached);
+  }
+
+  const items = await collection.listItems({
+    ownerScope,
+    collectionKind: targetKind,
+    relationKind: "saved",
+  });
+
+  if (!items.ok) {
+    return items;
+  }
+
+  savedItemsByKind.set(targetKind, items.value);
+
+  return ok(items.value);
+}
+
+function incrementPreviewAreaEstimates(
+  estimates: PreviewAreaEstimates,
+  itemEstimate: PreviewItemEstimate,
+): void {
+  switch (itemEstimate) {
+    case "already_present":
+      estimates.canonicalEstimates.alreadyBound += 1;
+      estimates.collectionEstimates.alreadyPresent += 1;
+      return;
+    case "would_add":
+      estimates.canonicalEstimates.alreadyBound += 1;
+      estimates.collectionEstimates.wouldAdd += 1;
+      return;
+    case "would_add_after_provisional":
+      estimates.canonicalEstimates.wouldCreateProvisional += 1;
+      estimates.collectionEstimates.wouldAddAfterProvisional += 1;
+      return;
+    case "unresolved":
+      estimates.canonicalEstimates.unresolved += 1;
+      estimates.collectionEstimates.skipped += 1;
+      return;
+  }
+}
+
+function emptyPreviewAreaEstimates(): PreviewAreaEstimates {
+  return {
+    canonicalEstimates: emptyCanonicalEstimates(),
+    collectionEstimates: emptyCollectionEstimates(),
+  };
 }
 
 async function startLibraryImport({
@@ -245,13 +461,14 @@ async function startLibraryImport({
 function providerPreviewAreaToLibraryImportArea(
   area: PlatformLibraryPreviewArea,
   includeUpdateEstimates: boolean,
+  estimates: PreviewAreaEstimates | undefined,
 ): LibraryImportPreviewArea {
   const previewArea: LibraryImportPreviewArea = {
     scope: providerAreaToScope(area.area),
     area: area.area,
     availability: area.availability,
-    canonicalEstimates: emptyCanonicalEstimates(),
-    collectionEstimates: emptyCollectionEstimates(),
+    canonicalEstimates: estimates?.canonicalEstimates ?? emptyCanonicalEstimates(),
+    collectionEstimates: estimates?.collectionEstimates ?? emptyCollectionEstimates(),
   };
 
   if (area.count !== undefined) {
@@ -366,6 +583,44 @@ function providerAreaToScope(area: PlatformLibraryArea): LibraryImportScope {
     case "listening_history":
       return "discovery";
   }
+}
+
+function isFirstSliceArea(area: PlatformLibraryArea): boolean {
+  switch (area) {
+    case "saved_recordings":
+    case "saved_releases":
+    case "saved_artists":
+      return true;
+    case "playlists":
+    case "listening_history":
+      return false;
+  }
+}
+
+function canUseProviderItemForCanonicalBinding(item: PlatformLibraryItem): boolean {
+  return (
+    item.sourceRef.namespace.trim().length > 0 &&
+    item.sourceRef.kind.trim().length > 0 &&
+    item.sourceRef.id.trim().length > 0 &&
+    item.label.trim().length > 0 &&
+    isFirstSliceTargetKind(item.targetKind)
+  );
+}
+
+function isFirstSliceTargetKind(targetKind: PlatformLibraryItem["targetKind"]): boolean {
+  switch (targetKind) {
+    case "recording":
+    case "release":
+    case "artist":
+      return true;
+  }
+}
+
+function sameRef(
+  left: { namespace: string; kind: string; id: string },
+  right: { namespace: string; kind: string; id: string },
+): boolean {
+  return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
 }
 
 function readHasWarnings(
