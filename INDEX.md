@@ -111,8 +111,9 @@ This index points agents to the current MVP documentation pack.
       tools, integration coverage, and state sync.
 
 29. `docs/library-import/progress.md`
-    - Library Import implementation progress, including current import/update
-      service state, remaining gaps, and next slice.
+    - Library Import implementation progress, including completed first-slice
+      import/update service state, verification, remaining gaps, and future
+      slices.
 
 30. `docs/platform-library-provider/design.md`
     - `platform_library` capability slot design for account-scoped platform

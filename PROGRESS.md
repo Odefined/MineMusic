@@ -489,11 +489,16 @@
   Interface, including discovery preview, explicit preview estimates, initial
   import side effects, repeated import idempotency, update diffing, partial-read
   absence guards, and MCP tool exposure.
+- Completed Library Import Service implementation plan Task 12 by syncing
+  `INDEX.md`, `CURRENT_STATE.md`, `PROGRESS.md`, and
+  `docs/library-import/progress.md` to record the completed first-slice scope
+  while keeping mutable implementation status out of
+  `docs/library-import/design.md`.
 
 ## Next
 
-- Continue Library Import implementation with Task 12: documentation and state
-  sync.
+- Pick the next Library Import slice: durable Library Import storage, playlist
+  import, listening-history import, background jobs, or cleanup guidance.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

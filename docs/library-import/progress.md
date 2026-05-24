@@ -6,7 +6,7 @@ This file tracks Library Import implementation progress.
 
 - Library Import initial import and update orchestration are implemented for the
   first synchronous slice.
-- Tasks 1-11 from `docs/library-import/implementation-plan.md` are complete:
+- Tasks 1-12 from `docs/library-import/implementation-plan.md` are complete:
   `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
   batch statuses, preview/start/status/summary input shapes, preview/report
   output shapes, item outcome summaries, import counts, import batch records,
@@ -47,7 +47,8 @@ This file tracks Library Import implementation progress.
   coverage now exercises discovery preview, explicit preview estimates, initial
   import side effects, repeated import idempotency, update diffing, partial-read
   absence guards, and Stage Interface / MCP tool exposure through the composed
-  runtime.
+  runtime. Documentation and project state now record the completed first-slice
+  scope without putting mutable implementation status in the design document.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
@@ -79,11 +80,11 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Continue Library Import Service implementation with Task 12 from
-   `docs/library-import/implementation-plan.md`: documentation and state sync.
-2. Confirm module/global progress docs accurately describe the completed
-   first-slice Library Import scope.
-3. Keep mutable implementation status out of the design document.
+1. The first Library Import Service implementation plan is complete.
+2. Future slices can choose durable Library Import storage, playlist import,
+   listening-history import, background job execution, or cleanup guidance.
+3. Keep future mutable implementation status in this progress document rather
+   than `docs/library-import/design.md`.
 
 ## Verification
 
@@ -126,3 +127,4 @@ This file tracks Library Import implementation progress.
   registration coverage.
 - `npm run build:test && node .tmp-test/test/integration/library-import-runtime.test.js`
   passes after adding Task 11 first-slice runtime coverage.
+- `npm test` passes after Task 12 documentation and state sync.
