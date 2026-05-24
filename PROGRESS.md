@@ -426,11 +426,17 @@
   area snapshots, item provenance records, Platform Library Absence records, and
   stable Library Import error codes; added contract coverage in
   `test/contracts/wave1-contracts.test.ts`.
+- Completed Library Import Service implementation plan Task 2 with a TDD loop:
+  added `LibraryImportPort` and `LibraryImportRepository` public boundaries in
+  `src/ports/index.ts`, covering preview/start/status/summary service calls,
+  import batch storage, complete area snapshots, item provenance, absence records,
+  and latest complete baseline lookup; extended contract coverage in
+  `test/contracts/wave1-contracts.test.ts`.
 
 ## Next
 
-- Continue Library Import implementation with Task 2:
-  `LibraryImportPort` and `LibraryImportRepository` public boundaries.
+- Continue Library Import implementation with Task 3: in-memory Library Import
+  storage.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

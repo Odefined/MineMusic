@@ -5,12 +5,15 @@ This file tracks Library Import implementation progress.
 ## Current State
 
 - Library Import Service is not implemented.
-- Task 1 from `docs/library-import/implementation-plan.md` is complete:
+- Tasks 1-2 from `docs/library-import/implementation-plan.md` are complete:
   `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
   batch statuses, preview/start/status/summary input shapes, preview/report
   output shapes, item outcome summaries, import counts, import batch records,
   area snapshots, item provenance records, Platform Library Absence records, and
-  stable first-slice Library Import error codes. Contract coverage lives in
+  stable first-slice Library Import error codes. `src/ports/index.ts` now defines
+  `LibraryImportPort` and `LibraryImportRepository` public boundaries for preview,
+  start, status, summary, batch storage, area snapshots, item provenance, absence
+  records, and latest complete baseline lookup. Contract coverage lives in
   `test/contracts/wave1-contracts.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
@@ -39,9 +42,9 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Continue Library Import Service implementation with Task 2 from
-   `docs/library-import/implementation-plan.md`: add `LibraryImportPort` and
-   `LibraryImportRepository` public boundaries.
+1. Continue Library Import Service implementation with Task 3 from
+   `docs/library-import/implementation-plan.md`: add in-memory Library Import
+   storage.
 2. Add Library Import batch storage for import/update baselines, item
    provenance, provider account identity, warnings, failures, and absence
    records.
@@ -56,3 +59,5 @@ This file tracks Library Import implementation progress.
   for the first Library Import Service implementation slice.
 - `npm run build:test` passes after adding Task 1 Library Import contracts and
   contract coverage.
+- `npm run build:test` passes after adding Task 2 Library Import public ports and
+  repository boundary coverage.

@@ -10,11 +10,27 @@ import type {
   EffectProposal,
   InstrumentDescriptor,
   KnowledgeQuery,
+  LibraryImportAreaSnapshot,
+  LibraryImportBatch,
+  LibraryImportBatchKind,
+  LibraryImportBatchStatus,
+  LibraryImportItemProvenance,
+  LibraryImportPreview,
+  LibraryImportPreviewInput,
+  LibraryImportReport,
+  LibraryImportScope,
+  LibraryImportStartInput,
+  LibraryImportStatus,
+  LibraryImportStatusInput,
+  LibraryImportSummary,
+  LibraryImportSummaryInput,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
   MemoryProposal,
   MusicMaterial,
+  PlatformLibraryAbsence,
+  PlatformLibraryArea,
   Ref,
   Result,
   StageContext,
@@ -58,6 +74,53 @@ export type CollectionRepositoryListItemsInput = {
   includeRemoved?: boolean;
   limit?: number;
   cursor?: string;
+};
+
+export type LibraryImportRepositoryListBatchesInput = {
+  ownerScope?: string;
+  providerId?: string;
+  providerAccountId?: string;
+  batchKind?: LibraryImportBatchKind;
+  status?: LibraryImportBatchStatus;
+};
+
+export type LibraryImportRepositoryListAreaSnapshotsInput = {
+  batchId?: string;
+  ownerScope?: string;
+  providerId?: string;
+  providerAccountId?: string;
+  scope?: LibraryImportScope;
+  area?: PlatformLibraryArea;
+  complete?: boolean;
+};
+
+export type LibraryImportRepositoryBaselineInput = {
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+};
+
+export type LibraryImportRepositoryItemProvenanceInput =
+  LibraryImportRepositoryBaselineInput & {
+    sourceRef: Ref;
+  };
+
+export type LibraryImportRepositoryListItemProvenanceInput = Partial<
+  LibraryImportRepositoryItemProvenanceInput
+> & {
+  status?: LibraryImportItemProvenance["status"];
+};
+
+export type LibraryImportRepositoryListAbsencesInput = {
+  ownerScope?: string;
+  providerId?: string;
+  providerAccountId?: string;
+  scope?: LibraryImportScope;
+  area?: PlatformLibraryArea;
+  baselineBatchId?: string;
+  currentBatchId?: string;
 };
 
 export interface SessionContextPort {
@@ -180,6 +243,20 @@ export interface CollectionPort {
   }): Promise<Result<Ref[]>>;
 }
 
+export interface LibraryImportPort {
+  previewImport(input: LibraryImportPreviewInput): Promise<Result<LibraryImportPreview>>;
+
+  startImport(input: LibraryImportStartInput): Promise<Result<LibraryImportReport>>;
+
+  previewUpdate(input: LibraryImportPreviewInput): Promise<Result<LibraryImportPreview>>;
+
+  startUpdate(input: LibraryImportStartInput): Promise<Result<LibraryImportReport>>;
+
+  getStatus(input: LibraryImportStatusInput): Promise<Result<LibraryImportStatus>>;
+
+  getSummary(input: LibraryImportSummaryInput): Promise<Result<LibraryImportSummary>>;
+}
+
 export interface MaterialResolvePort {
   resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>>;
 }
@@ -275,6 +352,46 @@ export interface CollectionRepository {
   }): Promise<Result<CollectionItem | null>>;
 
   listItems(input: CollectionRepositoryListItemsInput): Promise<Result<CollectionItem[]>>;
+}
+
+export interface LibraryImportRepository {
+  getBatch(input: { batchId: string }): Promise<Result<LibraryImportBatch | null>>;
+
+  putBatch(input: { batch: LibraryImportBatch }): Promise<Result<LibraryImportBatch>>;
+
+  listBatches(
+    input: LibraryImportRepositoryListBatchesInput,
+  ): Promise<Result<LibraryImportBatch[]>>;
+
+  putAreaSnapshot(input: {
+    snapshot: LibraryImportAreaSnapshot;
+  }): Promise<Result<LibraryImportAreaSnapshot>>;
+
+  listAreaSnapshots(
+    input: LibraryImportRepositoryListAreaSnapshotsInput,
+  ): Promise<Result<LibraryImportAreaSnapshot[]>>;
+
+  getLatestCompleteAreaSnapshot(
+    input: LibraryImportRepositoryBaselineInput,
+  ): Promise<Result<LibraryImportAreaSnapshot | null>>;
+
+  upsertItemProvenance(input: {
+    provenance: LibraryImportItemProvenance;
+  }): Promise<Result<LibraryImportItemProvenance>>;
+
+  getItemProvenance(
+    input: LibraryImportRepositoryItemProvenanceInput,
+  ): Promise<Result<LibraryImportItemProvenance | null>>;
+
+  listItemProvenance(
+    input: LibraryImportRepositoryListItemProvenanceInput,
+  ): Promise<Result<LibraryImportItemProvenance[]>>;
+
+  putAbsence(input: { absence: PlatformLibraryAbsence }): Promise<Result<PlatformLibraryAbsence>>;
+
+  listAbsences(
+    input: LibraryImportRepositoryListAbsencesInput,
+  ): Promise<Result<PlatformLibraryAbsence[]>>;
 }
 
 export type CanonicalRecordRepository = Repository<CanonicalRecord, Ref>;

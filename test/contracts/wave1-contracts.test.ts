@@ -65,6 +65,8 @@ import type {
   EventPort,
   EventRepository,
   InstrumentCatalogPort,
+  LibraryImportPort,
+  LibraryImportRepository,
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
@@ -397,6 +399,58 @@ type _collectionPortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CollectionPort, "updateCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "removeCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "filterBlocked">
+>;
+
+type _libraryImportPortMethods = Expect<
+  Equal<
+    keyof LibraryImportPort,
+    | "previewImport"
+    | "startImport"
+    | "previewUpdate"
+    | "startUpdate"
+    | "getStatus"
+    | "getSummary"
+  >
+>;
+
+type _libraryImportPortMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<LibraryImportPort, "previewImport"> &
+    MethodAcceptsSingleObject<LibraryImportPort, "startImport"> &
+    MethodAcceptsSingleObject<LibraryImportPort, "previewUpdate"> &
+    MethodAcceptsSingleObject<LibraryImportPort, "startUpdate"> &
+    MethodAcceptsSingleObject<LibraryImportPort, "getStatus"> &
+    MethodAcceptsSingleObject<LibraryImportPort, "getSummary">
+>;
+
+type _libraryImportRepositoryMethods = Expect<
+  Equal<
+    keyof LibraryImportRepository,
+    | "getBatch"
+    | "putBatch"
+    | "listBatches"
+    | "putAreaSnapshot"
+    | "listAreaSnapshots"
+    | "getLatestCompleteAreaSnapshot"
+    | "upsertItemProvenance"
+    | "getItemProvenance"
+    | "listItemProvenance"
+    | "putAbsence"
+    | "listAbsences"
+  >
+>;
+
+type _libraryImportRepositoryMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<LibraryImportRepository, "getBatch"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "putBatch"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "listBatches"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "putAreaSnapshot"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "listAreaSnapshots"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "getLatestCompleteAreaSnapshot"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "upsertItemProvenance"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "getItemProvenance"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "listItemProvenance"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "putAbsence"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "listAbsences">
 >;
 
 type _collectionRepositoryMethods = Expect<
