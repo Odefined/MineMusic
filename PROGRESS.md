@@ -521,12 +521,18 @@
   `docs/library-import/progress.md` to record that the durable repository
   adapter exists while Stage Core and host surfaces still default to in-memory
   Library Import storage.
+- Wired durable Library Import storage into Stage Core and the Codex MCP
+  runtime: `libraryImportDatabasePath` now builds a SQLite-backed repository
+  unless an explicit `libraryImportRepository` is injected, and
+  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` configures the default MCP runtime. Added
+  runtime coverage for Stage Core recreation against the same Library Import
+  database path and MCP database initialization.
 
 ## Next
 
-- Pick the next Library Import slice: Stage Core/host wiring for durable Library
-  Import storage, playlist import, listening-history import, background jobs, or
-  cleanup guidance.
+- Pick the next Library Import slice: playlist import, listening-history import,
+  background jobs, cleanup guidance, or deeper durable storage wiring for other
+  modules.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

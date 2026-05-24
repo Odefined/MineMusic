@@ -40,9 +40,9 @@ This file tracks Library Import implementation progress.
   no-longer-returned categories from baseline source refs, writes new Collection
   items, stores Platform Library Absence records, records
   `library_import.item.not_returned` events, and intentionally derives no
-  absences from partial current reads. Stage Core
-  now creates and exposes `libraryImport`, defaults to an in-memory Library
-  Import repository, supports optional `libraryImportRepository` and
+  absences from partial current reads. Stage Core now creates and exposes
+  `libraryImport`, defaults to an in-memory Library Import repository, supports
+  optional `libraryImportRepository`, `libraryImportDatabasePath`, and
   `platformLibraryProvider` injection, and registers platform-library providers
   separately from source providers during runtime readiness. Stage Interface now
   exposes import/update preview/start tools plus batch status/summary tools,
@@ -50,14 +50,16 @@ This file tracks Library Import implementation progress.
   exposes explicit MCP input schemas and generated Handbook entries. The default
   Codex MCP runtime now registers NetEase through both `source` and
   `platform_library` slots and reuses `MINEMUSIC_NETEASE_BASE_URL` for both
-  provider factories without adding credential storage. Deterministic integration
-  coverage now exercises discovery preview, explicit preview estimates, initial
-  import side effects, started-batch failure status, summary recovery after
-  service recreation, repeated import idempotency, update diffing, stable-account
-  baseline separation, partial-read absence guards, and Stage Interface / MCP
-  tool exposure through the composed runtime. Documentation and project state
-  now record the completed first-slice scope without putting mutable
-  implementation status in the design document.
+  provider factories and accepts `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` for durable
+  Library Import storage without adding credential storage. Deterministic
+  integration coverage now exercises discovery preview, explicit preview
+  estimates, initial import side effects, started-batch failure status, summary
+  recovery after service recreation, Stage Core recreation against the same
+  Library Import SQLite database path, repeated import idempotency, update
+  diffing, stable-account baseline separation, partial-read absence guards, and
+  Stage Interface / MCP tool exposure through the composed runtime.
+  Documentation and project state now record the completed first-slice scope
+  without putting mutable implementation status in the design document.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
 - SQLite-backed Library Import storage is implemented for direct repository
   injection through `createSqliteLibraryImportRepository(...)`. The adapter
@@ -65,7 +67,8 @@ This file tracks Library Import implementation progress.
   provenance, and Platform Library Absence records across repository reopen. It
   keeps returned-copy behavior and provider-account-stable latest baseline
   lookup aligned with the in-memory repository. Stage Core and host surfaces
-  still default to in-memory Library Import storage.
+  still default to in-memory Library Import storage unless
+  `libraryImportDatabasePath` or `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` is provided.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports
@@ -97,9 +100,9 @@ This file tracks Library Import implementation progress.
 ## Next Slice
 
 1. The first Library Import Service implementation plan is complete.
-2. Future slices can choose Stage Core/host wiring for durable Library Import
-   storage, playlist import, listening-history import, background job execution,
-   or cleanup guidance.
+2. Future slices can choose playlist import, listening-history import,
+   background job execution, cleanup guidance, or deeper durable storage wiring
+   for other modules.
 3. Keep future mutable implementation status in this progress document rather
    than `docs/library-import/design.md`.
 
@@ -150,3 +153,5 @@ This file tracks Library Import implementation progress.
   provider-account-stable baselines, and update preview baseline classification.
 - `npm test` passes after adding the first SQLite-backed Library Import
   repository slice.
+- `npm test` passes after wiring the Library Import SQLite database path into
+  Stage Core and the default MCP runtime.

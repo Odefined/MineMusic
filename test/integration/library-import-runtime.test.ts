@@ -164,6 +164,78 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
   }
 }
 
+async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-library-import-stage-core-sqlite-"));
+  const databasePath = join(directory, "library-import.sqlite");
+  const importedSourceRef = sourceRef("persisted-runtime-track");
+  const platformLibraryProvider: PlatformLibraryProvider = {
+    id: "runtime-platform-library-provider",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "runtime-platform-library-provider",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "runtime-platform-library-provider",
+          account: {
+            providerAccountId: "runtime-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: [providerItem(importedSourceRef, "Persisted Runtime Track")],
+            },
+          ],
+        },
+      };
+    },
+  };
+
+  try {
+    const firstStageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider: createEmptySourceProvider("sqlite-library-import-source-provider"),
+      platformLibraryProvider,
+      libraryImportDatabasePath: databasePath,
+      handbookPath: join(directory, "first-HANDBOOK.md"),
+    });
+    await firstStageCore.ready;
+
+    const report = await assertOk(
+      firstStageCore.libraryImport.startImport({
+        providerId: platformLibraryProvider.id,
+        scopes: ["saved_recordings"],
+      }),
+    );
+
+    const recreatedStageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider: createEmptySourceProvider("sqlite-library-import-source-provider"),
+      libraryImportDatabasePath: databasePath,
+      handbookPath: join(directory, "second-HANDBOOK.md"),
+    });
+    await recreatedStageCore.ready;
+
+    const status = await assertOk(recreatedStageCore.libraryImport.getStatus({ batchId: report.batchId }));
+    const summary = await assertOk(recreatedStageCore.libraryImport.getSummary({ batchId: report.batchId }));
+
+    assert(status.status === "completed", "recreated Stage Core should read persisted Library Import status");
+    assert(summary.items[0]?.sourceRef.id === importedSourceRef.id, "persisted summary should keep item reports");
+    assert(summary.areas[0]?.area === "saved_recordings", "persisted summary should keep area reports");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-library-import-first-slice-"));
   const libraryImportRepository = createInMemoryLibraryImportRepository();
@@ -609,5 +681,6 @@ function sourceRef(id: string): Ref {
 }
 
 await importsPlatformLibraryThroughComposedStageCore();
+await persistsLibraryImportStateThroughStageCoreDatabasePath();
 await coversFirstSliceImportAndUpdateThroughStageInterface();
 await doesNotCreateAbsencesForPartialRuntimeUpdates();

@@ -177,18 +177,21 @@ This index points agents to the current MVP documentation pack.
 
 46. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
-      verification notes.
+      verification notes, including the optional
+      `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` durable Library Import storage setting.
 
 47. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, exposes the runtime object, and composes
-      Library Import with optional repository/provider injection.
+      Library Import with optional repository/provider injection and optional
+      SQLite database path configuration.
 
 48. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; the default runtime registers NetEase for both
-      `source` and `platform_library` slots.
+      `source` and `platform_library` slots and can use durable Library Import
+      storage via `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`.
 
 49. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
@@ -258,7 +261,8 @@ This index points agents to the current MVP documentation pack.
 63. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
-      diffing, partial-read absence guards, and Stage Interface / MCP exposure.
+      diffing, partial-read absence guards, durable Library Import database path
+      reuse, and Stage Interface / MCP exposure.
 
 ## Agent Rule
 

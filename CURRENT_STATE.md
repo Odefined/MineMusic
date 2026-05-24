@@ -181,15 +181,18 @@ host-facing and LLM-facing surface.
   both `source` and `platform_library` slots and reuses
   `MINEMUSIC_NETEASE_BASE_URL` for both provider factories. SQLite-backed
   Library Import storage is now implemented under `src/storage/sqlite/**` for
-  direct repository injection: it persists import/update batches, completed
-  reports, area snapshots, item provenance, and Platform Library Absence records
-  across repository reopen while preserving returned-copy behavior and
-  provider-account-stable baseline lookup. Stage Core still defaults to
-  in-memory Library Import storage, and host/runtime configuration for durable
-  Library Import storage remains future work. Deterministic integration coverage now
-  exercises discovery preview, explicit preview estimates, initial import side
-  effects, repeated import idempotency, update diffing, partial-read absence
-  guards, and Stage Interface / MCP tool exposure through the composed runtime.
+  direct repository injection and Stage Core `libraryImportDatabasePath`
+  configuration: it persists import/update batches, completed reports, area
+  snapshots, item provenance, and Platform Library Absence records across
+  repository reopen while preserving returned-copy behavior and
+  provider-account-stable baseline lookup. The default Codex MCP runtime accepts
+  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to initialize that durable Library Import
+  store; without it, Stage Core still defaults to in-memory Library Import
+  storage. Deterministic integration coverage now exercises discovery preview,
+  explicit preview estimates, initial import side effects, Stage Core recreation
+  against the same Library Import SQLite database path, repeated import
+  idempotency, update diffing, partial-read absence guards, and Stage Interface /
+  MCP tool exposure through the composed runtime.
   Documentation and project state now record the completed first-slice scope
   without moving mutable status into the design document.
 - The `platform_library` capability slot contract is documented separately in
@@ -317,7 +320,6 @@ host-facing and LLM-facing surface.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store
   and Library Import repository adapters.
 - Stage Core wiring for optional durable Canonical Store storage.
-- Stage Core and host wiring for optional durable Library Import storage.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -325,8 +327,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the first SQLite-backed Library Import repository
-  slice on 2026-05-25.
+- `npm test` passes as of the Stage Core / MCP durable Library Import storage
+  wiring on 2026-05-25.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

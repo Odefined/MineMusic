@@ -48,6 +48,7 @@ import {
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
   createInMemoryMemoryRepository,
+  createSqliteLibraryImportRepository,
 } from "../storage/index.js";
 
 export type MineMusicStageCore = {
@@ -74,6 +75,7 @@ export type MineMusicStageCoreOptions = {
   canonicalRepository?: CanonicalRecordRepository;
   collectionRepository?: CollectionRepository;
   libraryImportRepository?: LibraryImportRepository;
+  libraryImportDatabasePath?: string;
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -85,6 +87,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   canonicalRepository?: CanonicalRecordRepository;
   collectionRepository?: CollectionRepository;
   libraryImportRepository?: LibraryImportRepository;
+  libraryImportDatabasePath?: string;
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -96,6 +99,7 @@ export function createMineMusicStageCore({
   canonicalRepository,
   collectionRepository,
   libraryImportRepository,
+  libraryImportDatabasePath,
   platformLibraryProvider,
   handbookPath,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
@@ -106,6 +110,7 @@ export function createMineMusicStageCore({
     ...(canonicalRepository === undefined ? {} : { canonicalRepository }),
     ...(collectionRepository === undefined ? {} : { collectionRepository }),
     ...(libraryImportRepository === undefined ? {} : { libraryImportRepository }),
+    ...(libraryImportDatabasePath === undefined ? {} : { libraryImportDatabasePath }),
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
   });
@@ -118,13 +123,17 @@ export function createMineMusicStageCoreWithSourceProvider({
   canonicalRepository: injectedCanonicalRepository,
   collectionRepository: injectedCollectionRepository,
   libraryImportRepository: injectedLibraryImportRepository,
+  libraryImportDatabasePath,
   platformLibraryProvider,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
   const canonicalRepository = injectedCanonicalRepository ?? createInMemoryCanonicalRecordRepository();
   const collectionRepository = injectedCollectionRepository ?? createInMemoryCollectionRepository();
   const libraryImportRepository =
-    injectedLibraryImportRepository ?? createInMemoryLibraryImportRepository();
+    injectedLibraryImportRepository ??
+    (libraryImportDatabasePath === undefined
+      ? createInMemoryLibraryImportRepository()
+      : createSqliteLibraryImportRepository({ path: libraryImportDatabasePath }));
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();

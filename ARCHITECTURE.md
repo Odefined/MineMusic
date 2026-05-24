@@ -23,9 +23,10 @@ The original MVP proves a grounded recommendation flow with playable links when
 available. The current architecture also includes Collection Service
 foundations and first-slice Library Import service/runtime/tool composition. It
 also includes direct SQLite repository adapters for Canonical Store and Library
-Import persistence. It does not prove playback control, autonomous DJ behavior,
-playlist editing, host runtime wiring for durable Library Import storage, music
-intelligence, or notifications.
+Import persistence, plus Codex MCP runtime configuration for durable Library
+Import storage. It does not prove playback control, autonomous DJ behavior,
+playlist editing, host runtime wiring for durable Canonical Store storage,
+music intelligence, or notifications.
 
 ## Vocabulary Source
 

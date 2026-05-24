@@ -86,6 +86,11 @@ validate against a local NetEase Cloud Music API service. The default endpoint
 is `http://127.0.0.1:3000`, and it can be changed with
 `MINEMUSIC_NETEASE_BASE_URL`.
 
+The default Codex MCP runtime keeps Library Import state in memory unless
+`MINEMUSIC_LIBRARY_IMPORT_DB_PATH` points to a SQLite database file. When set,
+Library Import batches, reports, snapshots, provenance, and absence records use
+that durable store.
+
 The repo-local Codex plugin manifest lives at
 `plugins/minemusic/.codex-plugin/plugin.json`, with MCP startup config in
 `plugins/minemusic/.mcp.json`, workflow skill instructions in
