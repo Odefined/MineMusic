@@ -15,10 +15,14 @@ export type NetEaseRequestInput = {
   query: Record<string, string>;
 };
 
-export type NetEaseSourceProviderOptions = {
+export type NetEaseRequester = (input: NetEaseRequestInput) => Promise<Result<unknown>>;
+
+export type NetEaseProviderOptions = {
   baseUrl?: string;
-  requestJson?: (input: NetEaseRequestInput) => Promise<Result<unknown>>;
+  requestJson?: NetEaseRequester;
 };
+
+export type NetEaseSourceProviderOptions = NetEaseProviderOptions;
 
 type NetEaseSong = {
   id?: unknown;
@@ -96,7 +100,7 @@ export function createNetEaseSourceProvider({
   };
 }
 
-function createDefaultRequester(baseUrl: string): (input: NetEaseRequestInput) => Promise<Result<unknown>> {
+function createDefaultRequester(baseUrl: string): NetEaseRequester {
   return async ({ path, query }) => {
     const url = new URL(path, normalizedBaseUrl(baseUrl));
 

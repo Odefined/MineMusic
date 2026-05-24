@@ -348,6 +348,18 @@
   implementation state and module implementation progress belongs in
   module-local progress/status documents.
 
+## 2026-05-25
+
+- Started the NetEase Platform Library Provider implementation on branch
+  `codex/netease-library-provider-task1`.
+- Completed NetEase platform-library provider plan Task 1 with a TDD loop:
+  added a provider test for shared NetEase requester/options injection,
+  introduced `NetEaseRequester` and `NetEaseProviderOptions` in
+  `src/providers/netease/index.ts`, and kept `NetEaseSourceProviderOptions`
+  as the source-provider alias.
+- Added `docs/platform-library-provider/progress.md` as the module-local
+  implementation progress document for the Platform Library Provider slot.
+
 ## Next
 
 - After Collection foundations, implement the Library Import provider slot plus

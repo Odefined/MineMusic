@@ -1,6 +1,6 @@
 import type { CanonicalRecord, MusicMaterial } from "../../src/contracts/index.js";
 import { createCanonicalStore } from "../../src/canonical/index.js";
-import { createNetEaseSourceProvider } from "../../src/providers/netease/index.js";
+import { createNetEaseSourceProvider, type NetEaseProviderOptions } from "../../src/providers/netease/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import { createSourceGroundingService } from "../../src/source/index.js";
 import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";
@@ -63,6 +63,30 @@ async function mapsSearchResultsToSourceBackedMaterials(): Promise<void> {
     "paid/VIP material should mark account requirement",
   );
   assert(material.evidence?.[0]?.kind === "provider.search_result", "should retain source evidence");
+}
+
+async function acceptsSharedNetEaseRequesterOptions(): Promise<void> {
+  const options: NetEaseProviderOptions = {
+    requestJson: async ({ path, query }) => {
+      assert(path === "/search", "shared requester options should preserve endpoint path");
+      assert(query.keywords === "shared options", "shared requester options should preserve query parameters");
+
+      return {
+        ok: true,
+        value: {
+          code: 200,
+          result: {
+            songs: [{ id: 321, name: "Shared Options Track", artists: [{ name: "Adapter Artist" }] }],
+          },
+        },
+      };
+    },
+  };
+  const provider = createNetEaseSourceProvider(options);
+
+  const materials = await assertOk(provider.search({ query: { text: "shared options", limit: 1 } }));
+
+  assert(materials[0]?.id === "netease:track:321", "source provider should accept shared requester options");
 }
 
 async function supportsModernNeteaseSongShapeAndBlockedState(): Promise<void> {
@@ -154,6 +178,7 @@ async function refreshesLinksFromNeteaseSourceRefs(): Promise<void> {
 }
 
 await mapsSearchResultsToSourceBackedMaterials();
+await acceptsSharedNetEaseRequesterOptions();
 await supportsModernNeteaseSongShapeAndBlockedState();
 await integratesWithSourceGroundingThroughPluginSlot();
 await refreshesLinksFromNeteaseSourceRefs();

@@ -207,6 +207,10 @@ This index points agents to the current MVP documentation pack.
       provider, including supported areas, adapter boundaries, issue mapping,
       fixture tests, and verification.
 
+55. `docs/platform-library-provider/progress.md`
+    - Platform Library Provider implementation progress, including current
+      NetEase provider task status and next slice.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

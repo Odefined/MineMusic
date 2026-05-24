@@ -5,12 +5,15 @@ This file tracks Library Import implementation progress.
 ## Current State
 
 - Library Import Service is not implemented.
-- Platform Library Provider slot is not implemented.
+- Concrete Platform Library Provider runtime/factory implementations are not
+  implemented yet.
 - Import batch storage is not implemented.
 - Stage Interface import/update tools are not implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.
 - NetEase platform-library provider implementation plan lives in
   `docs/platform-library-provider/netease-implementation-plan.md`.
+- Platform Library Provider implementation progress is tracked in
+  `docs/platform-library-provider/progress.md`.
 
 ## Next Slice
 
@@ -24,4 +27,5 @@ This file tracks Library Import implementation progress.
 
 ## Verification
 
-- This progress document was added during a documentation consistency pass.
+- Updated during NetEase Platform Library Provider Task 1 state sync to point
+  at `docs/platform-library-provider/progress.md`.
