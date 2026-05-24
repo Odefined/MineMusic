@@ -16,6 +16,16 @@ import type {
   MemoryProposal,
   ModuleId,
   MusicMaterial,
+  PlatformLibraryAvailability,
+  PlatformLibraryCount,
+  PlatformLibraryIssueCode,
+  PlatformLibraryItem,
+  PlatformLibraryItemKind,
+  PlatformLibraryProvider,
+  PlatformLibraryReadResult,
+  PlatformLibraryReadStatus,
+  PlatformLibraryTargetKind,
+  PlatformLibraryPreview,
   PlayableLink,
   Ref,
   Result,
@@ -115,6 +125,54 @@ type _materialResolveRequestCarriesOwnerScope = Expect<
   Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string>
 >;
 
+type _platformLibraryItemKindsMatchFirstContract = Expect<
+  Equal<PlatformLibraryItemKind, "saved_recording" | "saved_release" | "followed_artist">
+>;
+
+type _platformLibraryTargetKindsMatchFirstContract = Expect<
+  Equal<PlatformLibraryTargetKind, "recording" | "release" | "artist">
+>;
+
+type _platformLibraryAvailabilityKinds = Expect<
+  Equal<PlatformLibraryAvailability, "previewable" | "readable" | "unsupported" | "unavailable">
+>;
+
+type _platformLibraryReadStatuses = Expect<
+  Equal<PlatformLibraryReadStatus, "complete" | "partial" | "failed" | "unavailable">
+>;
+
+type _platformLibraryIssueCodes = Expect<
+  Equal<
+    PlatformLibraryIssueCode,
+    | "login_required"
+    | "account_selection_required"
+    | "account_unstable"
+    | "scope_unsupported"
+    | "area_unavailable"
+    | "rate_limited"
+    | "timeout"
+    | "provider_unavailable"
+    | "partial_read"
+    | "malformed_response"
+  >
+>;
+
+type _platformLibraryItemHasNoRawEscapeHatch = Expect<
+  Equal<
+    keyof PlatformLibraryItem,
+    "providerId" | "sourceRef" | "itemKind" | "targetKind" | "label" | "addedAt" | "canonicalHints"
+  >
+>;
+
+type _platformLibraryUnknownCountHasNoValue = Expect<
+  Equal<Extract<PlatformLibraryCount, { certainty: "unknown" }>, { certainty: "unknown" }>
+>;
+
+type _platformLibraryProviderMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<PlatformLibraryProvider, "preview"> &
+    MethodAcceptsSingleObject<PlatformLibraryProvider, "readItems">
+>;
+
 type _systemCollectionRelationsExcludeCustom = Expect<
   Equal<SystemCollectionRelationKind, "saved" | "favorite" | "blocked">
 >;
@@ -179,6 +237,7 @@ type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
 
 const moduleId: ModuleId = "stage";
 const collectionModuleId: ModuleId = "collection";
+const libraryImportModuleId: ModuleId = "library_import";
 const ref: Ref = {
   namespace: "minemusic",
   kind: "recording",
@@ -375,6 +434,73 @@ const sourceProvider: SourceProvider = {
   }),
 };
 
+const platformLibraryItem: PlatformLibraryItem = {
+  providerId: "fixture-library",
+  sourceRef: {
+    namespace: "source:fixture-library",
+    kind: "release-object",
+    id: "release-1",
+    label: "Fixture Release",
+  },
+  itemKind: "saved_release",
+  targetKind: "release",
+  label: "Fixture Release",
+  addedAt: "2026-05-17T00:00:00.000Z",
+  canonicalHints: {
+    label: "Fixture Release",
+    artistLabels: ["Fixture Artist"],
+    releaseLabel: "Fixture Release",
+  },
+};
+
+const platformLibraryPreview: PlatformLibraryPreview = {
+  providerId: "fixture-library",
+  account: {
+    providerAccountId: "fixture-account",
+    stable: true,
+  },
+  areas: [
+    {
+      area: "saved_releases",
+      availability: "readable",
+      count: { certainty: "exact", value: 1 },
+      sampleItems: [platformLibraryItem],
+    },
+    {
+      area: "playlists",
+      availability: "unsupported",
+      count: { certainty: "unknown" },
+    },
+  ],
+};
+
+const platformLibraryReadResult: PlatformLibraryReadResult = {
+  providerId: "fixture-library",
+  account: {
+    providerAccountId: "fixture-account",
+    stable: true,
+  },
+  areas: [
+    {
+      area: "saved_releases",
+      status: "complete",
+      items: [platformLibraryItem],
+    },
+  ],
+};
+
+const platformLibraryProvider: PlatformLibraryProvider = {
+  id: "fixture-library",
+  preview: async () => ({
+    ok: true,
+    value: platformLibraryPreview,
+  }),
+  readItems: async () => ({
+    ok: true,
+    value: platformLibraryReadResult,
+  }),
+};
+
 const sessionContext: SessionContextPort = {
   getSession: async ({ sessionId }) => ({
     ok: true,
@@ -422,6 +548,8 @@ const instrumentCatalog: InstrumentCatalogPort = {
 
 const toolName: ToolName = "music.material.resolve";
 const collectionToolName: ToolName = "music.collection.save";
+const libraryImportToolName: ToolName = "music.library.import.preview";
+const libraryUpdateToolName: ToolName = "music.library.update.start";
 const handbookToolEntry: HandbookToolEntry = {
   instrument: {
     id: "mvp",
@@ -585,9 +713,11 @@ const effectProposalRepository: EffectProposalRepository = {
 };
 
 const capabilitySlot: CapabilitySlot = "source";
+const platformLibraryCapabilitySlot: CapabilitySlot = "platform_library";
 
 void [
   collectionModuleId,
+  libraryImportModuleId,
   result,
   failure,
   requiredErrorCodes,
@@ -601,11 +731,17 @@ void [
   effectDecision,
   handbook,
   sourceProvider,
+  platformLibraryItem,
+  platformLibraryPreview,
+  platformLibraryReadResult,
+  platformLibraryProvider,
   sessionContext,
   materialGate,
   instrumentCatalog,
   toolName,
   collectionToolName,
+  libraryImportToolName,
+  libraryUpdateToolName,
   handbookToolEntry,
   toolDispatch,
   canonicalStore,
@@ -625,4 +761,5 @@ void [
   sessionRepository,
   effectProposalRepository,
   capabilitySlot,
+  platformLibraryCapabilitySlot,
 ];

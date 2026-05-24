@@ -259,6 +259,15 @@
   and other first-slice platform-library facts into MineMusic Collection items,
   canonical external-ref bindings, and import/update event records. Playlist
   import is documented as a later feature.
+- Added `docs/library-import/progress.md` as the module-local implementation
+  status document for Library Import, keeping mutable implementation state out
+  of the design document.
+- Added `docs/platform-library-provider/design.md` to separate the
+  `platform_library` capability slot contract from Library Import
+  orchestration.
+- Added first-version `platform_library` shared TypeScript contracts for
+  provider preview/read methods, account identity, area availability, per-area
+  read status, count certainty, provider items, and standard issue codes.
 - Corrected Collection Service and Library Import design language so collection
   ownership uses long-lived `ownerScope`, with `local_profile:default` as the
   MVP default option, rather than treating `sessionId` as collection ownership.

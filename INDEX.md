@@ -101,95 +101,104 @@ This index points agents to the current MVP documentation pack.
       verification status, remaining gaps, and next slice.
 
 27. `docs/library-import/design.md`
-    - Future Library Import design for Platform Library Providers, import
-      orchestration, Collection Service writes, Canonical Store external-ref
-      bindings, and import event records.
+    - Future Library Import design for import orchestration, library updates,
+      Collection Service writes, Canonical Store external-ref bindings, and
+      import/update event records.
 
-28. `src/collection/index.ts`
+28. `docs/library-import/progress.md`
+    - Library Import implementation progress, current implementation state,
+      remaining gaps, and next slice.
+
+29. `docs/platform-library-provider/design.md`
+    - `platform_library` capability slot design for account-scoped platform
+      library reads, provider account selection, availability, and provider item
+      facts.
+
+30. `src/collection/index.ts`
     - Collection Service public-port implementation for owner-scoped system and
       custom Collections, canonical-only CollectionItems, mutual exclusion, and
       Collection events.
 
-29. `test/collection/collection-service.test.ts`
+31. `test/collection/collection-service.test.ts`
     - Collection Service behavior tests for system initialization, custom
       collection lifecycle, item membership, blocked filtering, and events.
 
-30. `src/canonical/index.ts`
+32. `src/canonical/index.ts`
     - Canonical Store public-port implementation and current identity policy.
 
-31. `src/canonical/normalization.ts`
+33. `src/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-32. `src/canonical/storage.ts`
+34. `src/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics.
 
-33. `src/storage/sqlite/canonical-schema.ts`
+35. `src/storage/sqlite/canonical-schema.ts`
     - SQLite schema initialization for Canonical Store durable storage.
 
-34. `src/storage/sqlite/canonical-repository.ts`
+36. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation.
 
-35. `src/storage/sqlite/index.ts`
+37. `src/storage/sqlite/index.ts`
     - Public SQLite storage exports.
 
-36. `test/storage/sqlite-canonical-store.test.ts`
+38. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository.
 
-37. `test/integration/canonical-persistence.test.ts`
+39. `test/integration/canonical-persistence.test.ts`
     - Stage Core restart-style persistence test for SQLite-backed canonical
       storage.
 
-38. `test/integration/collection-runtime.test.ts`
+40. `test/integration/collection-runtime.test.ts`
     - Composed Stage Core integration coverage for Collection through Stage
       Interface tools and Material Resolve blocked filtering.
 
-39. `src/material_resolve/index.ts`
+41. `src/material_resolve/index.ts`
     - Material Resolve service for canonical-first `MusicCandidate` to
       `MusicMaterial` resolution.
 
-40. `src/source/index.ts`
+42. `src/source/index.ts`
     - Source Grounding service for provider search and playable-link refresh.
 
-41. `docs/source-providers/netease.md`
+43. `docs/source-providers/netease.md`
     - NetEase source provider design, runtime behavior, boundaries, and
       verification notes.
 
-42. `src/providers/netease/index.ts`
+44. `src/providers/netease/index.ts`
     - Read-only NetEase source provider adapter implementing `SourceProvider`.
 
-43. `docs/host-adapters/codex-mcp-plugin.md`
+45. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
       verification notes.
 
-44. `src/stage_core/index.ts`
+46. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, and exposes the runtime object.
 
-45. `src/surfaces/mcp/server.ts`
+47. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors and delegates to `MineMusicStageInterface`.
 
-46. `src/stage_interface/**`
+48. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade.
 
-47. `src/handbook/index.ts`
+49. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-48. `plugins/minemusic/.codex-plugin/plugin.json`
+50. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-49. `plugins/minemusic/.mcp.json`
+51. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-50. `plugins/minemusic/skills/minemusic/SKILL.md`
+52. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-51. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+53. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools.
 

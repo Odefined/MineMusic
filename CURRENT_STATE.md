@@ -136,6 +136,14 @@ host-facing and LLM-facing surface.
   songs, albums, followed artists, and other first-slice platform-library facts
   into MineMusic-owned Collection items, canonical external-ref bindings, and
   import/update event records. Playlist import is documented as a later feature.
+  Detailed implementation status is tracked in
+  `docs/library-import/progress.md`.
+- The `platform_library` capability slot contract is documented separately in
+  `docs/platform-library-provider/design.md`; Library Import consumes that slot
+  rather than defining provider behavior inside the import design. Shared
+  TypeScript contracts now define `PlatformLibraryProvider`, preview/read input
+  and output shapes, item kinds, availability, per-area read status, count
+  certainty, and standard provider issue codes.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
 - Material Resolve is exported from `src/material_resolve/index.ts` with

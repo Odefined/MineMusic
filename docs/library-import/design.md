@@ -1,10 +1,5 @@
 # Library Import Design
 
-## Status
-
-Design document. Library Import Service and Platform Library Provider are not
-implemented yet.
-
 This document describes the product path for importing and updating a user's
 external platform library in MineMusic.
 
@@ -162,7 +157,8 @@ The binding can be:
 
 - already active, if Canonical Store already knows the source ref.
 - provisional, if import creates a MineMusic record from platform metadata.
-- absent, if MineMusic keeps the asset as source-only until it can resolve it.
+- absent, if MineMusic keeps the platform fact as import provenance without
+  writing a Collection item until it can bind a canonical record.
 - rejected or corrected later, if the source ref was bound to the wrong
   canonical object.
 
@@ -173,44 +169,12 @@ binding is wrong, the user's imported asset must not disappear.
 
 ### Platform Library Provider
 
-Owns platform-specific account-library reads.
+Platform Library Provider is the `platform_library` capability slot, specified
+in `docs/platform-library-provider/design.md`.
 
-It owns:
-
-- platform API calls.
-- platform auth or account session details.
-- provider pagination.
-- provider rate-limit handling.
-- platform ids and raw metadata.
-- mapping platform account-library responses into MineMusic import items.
-- reporting whether each requested library area was read completely or only
-  partially.
-
-It does not own:
-
-- MineMusic canonical identity decisions.
-- Collection Service writes.
-- Event Service writes.
-- Memory creation.
-- final recommendation policy.
-
-For the first NetEase implementation, MineMusic does not store NetEase
-credentials, passwords, or cookies. The NetEase Platform Library Provider should
-assume the configured local NetEase API service already has any required
-account session. If account-library reads fail because that service is not
-logged in, import preview should return a structured login-required result
-rather than asking MineMusic to manage provider credentials.
-
-The provider should expose a stable provider account identity when account
-library reads are account-scoped. Library Import may store this identity, such
-as a NetEase user id or configured local account id, but not provider
-credentials.
-
-If a provider cannot expose a stable account id, Library Import may still run
-with an explicit fallback account id such as a local configuration id. The batch
-and report should mark that provider account identity as unstable. Stable and
-unstable provider account identities must not be mixed as the same update
-baseline.
+Library Import consumes this slot; it does not define the slot contract. It may
+store the provider account identity and stability flag returned by the slot for
+batch provenance and update baselines, but not provider credentials.
 
 ### Library Import Service
 
@@ -298,9 +262,10 @@ baseline batch id, current update batch id, and a reason such as
 
 Library Import must not create Platform Library Absence records for a scope or
 area when the current update read is partial, failed, canceled before
-completion, or otherwise not marked complete by the provider. In that case the
-batch should report a warning or partial result, because missing items may be a
-read failure rather than a real platform-library absence.
+completion, unavailable, or otherwise not marked `complete` by the provider's
+per-area read status. In that case the batch should report a warning or partial
+result, because missing items may be a read failure rather than a real
+platform-library absence.
 
 Library updates may add newly observed platform saved, liked, collected, or
 followed assets to the matching MineMusic saved Collection after canonical
@@ -343,17 +308,18 @@ canceled
 `completed_with_warnings` means the batch produced usable results but at least
 one requested scope or area had a warning, partial result, or recoverable
 failure. Update baseline eligibility still depends on each scope or area's
-complete snapshot state, not only on the top-level batch status.
+provider read status and complete snapshot state, not only on the top-level
+batch status.
 
 A `canceled` batch may still provide update baselines for scopes or areas that
 completed and stored complete snapshots before cancellation. Incomplete scopes
 or areas from a canceled batch must not be used as baselines.
 
-Library Update should compare against the latest complete successful snapshot
-for the same `ownerScope`, provider id, provider account id, and import scope
-or library area. A partially failed Import Batch can still provide a baseline
-for the scopes or areas that completed successfully. Failed or incomplete
-scopes and areas must not be used as baselines. If no successful baseline exists
+Library Update should compare against the latest eligible complete snapshot for
+the same `ownerScope`, provider id, provider account id, and import scope or
+library area. A partially failed Import Batch can still provide a baseline for
+the scopes or areas that completed successfully. Failed or incomplete scopes and
+areas must not be used as baselines. If no eligible complete baseline exists
 for a scope, a `library_update` should behave like an initial import for that
 scope.
 
@@ -368,8 +334,9 @@ because later updates need to detect platform assets that disappeared from the
 current response.
 
 Pagination mechanics belong to the Platform Library Provider. Library Import
-should not manage provider pages directly; it should trust the provider's
-structured complete or partial result for each requested area.
+should not manage pagination cursors or provider batching directly; it should
+trust the provider's structured complete or partial result for each requested
+area.
 
 Newly observed platform assets during Library Update use the same canonical
 binding flow as initial import: exact source-ref lookup first, provisional
@@ -409,6 +376,7 @@ It records what happened:
 
 - import batch started.
 - provider item imported.
+- previously imported provider item not returned by the current complete read.
 - provider item skipped.
 - provider item failed.
 - import batch completed.
@@ -427,60 +395,6 @@ summarize away the user's library before preserving it.
 Platform listening history is closer to context and memory than to Collection.
 It should remain raw listening-history evidence until MineMusic has enough
 evidence and user permission to propose a durable memory.
-
-## Provider Item Shape
-
-Design-only provider contract:
-
-```ts
-export interface PlatformLibraryProvider {
-  id: string;
-
-  preview(input: PlatformLibraryPreviewInput): Promise<Result<PlatformLibraryPreview>>;
-
-  listItems(input: PlatformLibraryListInput): Promise<Result<PlatformLibraryPage>>;
-}
-```
-
-Provider item:
-
-```ts
-export type PlatformLibraryItem = {
-  providerId: string;
-  sourceRef: Ref;
-  itemKind:
-    | "saved_recording"
-    | "saved_album"
-    | "saved_release"
-    | "followed_artist"
-    | "playlist"
-    | "playlist_item"
-    | "liked_item"
-    | "recent_play";
-  label: string;
-  targetKind:
-    | "recording"
-    | "release_group"
-    | "release"
-    | "artist"
-    | "playlist"
-    | "source_item";
-  addedAt?: string;
-  occurredAt?: string;
-  playlistSourceRef?: Ref;
-  position?: number;
-  canonicalHints?: {
-    label?: string;
-    artistLabels?: string[];
-    albumLabel?: string;
-    durationMs?: number;
-  };
-  raw?: unknown;
-};
-```
-
-The provider item is a platform-library fact. It is not a Collection item and
-not a Canonical record.
 
 ## Import Flow
 
@@ -507,8 +421,8 @@ sequenceDiagram
     LLM->>Stage: start import
     Stage->>Import: start import scope
     Import->>Import: create import batch
-    Import->>Provider: list platform library items
-    Provider-->>Import: platform library page
+    Import->>Provider: read platform library items for scope
+    Provider-->>Import: complete or partial item result
     Import->>Events: record batch/item facts
     Import->>Canonical: resolve external ref
     alt known binding
@@ -581,13 +495,10 @@ Suggested dedupe keys:
 
 ```text
 import batch:
-  ownerScope + provider id + startedAt
+  ownerScope + provider id + provider account id + batch kind + import scope/library area + startedAt
 
 collection item:
   collection id + canonical ref
-
-playlist item:
-  ownerScope + playlist source ref + item source ref + provider position key
 
 canonical external ref:
   source ref namespace + kind + id
@@ -598,6 +509,14 @@ recognize the same external asset and ask Canonical Store for the existing
 canonical record. Collection Service then keeps the Collection item idempotent
 by `collectionId + canonicalRef`. Re-importing the same platform asset should
 not create a second provisional canonical record or a second Collection item.
+
+Readable provider items without stable `sourceRef` are not importable. Library
+Import should skip them or report provider warnings rather than writing
+Collection items or update baselines.
+
+Library Import must treat provider `sourceRef` values as opaque stable external
+keys. It must not branch on provider-specific `sourceRef.kind` values. Import
+behavior should use the provider-slot `itemKind` and `targetKind` fields.
 
 If an imported asset already exists, import may update retained provider
 snapshots and use a better canonical binding when one is available.
@@ -658,6 +577,10 @@ terms. Platform-specific item kinds may remain in provider item facts, but
 Stage Interface import scopes should not use provider-specific names such as
 NetEase liked songs or collected albums.
 
+Library Import may show preview facts for provider areas marked `previewable`,
+`unsupported`, or `unavailable`, but it may only run import/update for areas the
+Platform Library Provider marks `readable`.
+
 Expected behavior:
 
 - `music.library.import.preview` checks the requested initial import scope and
@@ -675,7 +598,8 @@ Expected behavior:
   does not yet support importing, such as playlists, as structured
   `unsupported` availability facts.
 - Preview counts should be explicit about certainty: exact count, at-least
-  count from a partial page, or unknown count. Unknown count must not be
+  count from a partial provider read, or unknown count. Count certainty is
+  defined by the Platform Library Provider slot. Unknown count must not be
   represented as zero.
 - Preview may return partial results with structured warnings when one requested
   library area fails but others succeed. Only global failures, such as provider
@@ -684,9 +608,10 @@ Expected behavior:
 - Both preview tools may return bounded structured sample items, such as 3-5
   provider item facts per requested library area, so the LLM can reason about
   whether the account and scope look right.
-- Preview sample items should remain provider facts. Per-sample canonical or
-  Collection status is not needed in the first preview contract; binding and
-  Collection estimates are aggregate counts.
+- Preview sample items come from the Platform Library Provider slot and remain
+  preview-only provider facts. Per-sample canonical or Collection status is not
+  needed in the first preview contract; binding and Collection estimates are
+  aggregate counts.
 - Both preview tools should estimate canonical binding outcomes without writing:
   already bound to an existing canonical record, would create a provisional
   canonical record on start, or unresolved/skipped because metadata is too weak.
@@ -740,7 +665,7 @@ Design-only additions:
 | Concern | Proposed location | Notes |
 | --- | --- | --- |
 | Provider contract types | `src/contracts/index.ts` | Add `PlatformLibraryProvider` and import item types when implementing. |
-| Capability slot | `src/contracts/index.ts`, `src/plugins/index.ts` | Add `platform_library` only when implementation starts. |
+| Capability slot | `src/contracts/index.ts`, `src/plugins/index.ts` | Use the reserved `platform_library` slot. |
 | Library import service | `src/library_import/index.ts` | New Core Capability. |
 | Library import repository | `src/storage/**` | Stores import batches, area snapshots, item provenance, provider account identity, baseline state, warnings, and failures. |
 | Collection service | `src/collection/index.ts` | Owns saved/favorite/list/remove semantics. |
@@ -769,8 +694,12 @@ Useful event payload fields:
 
 ```text
 batchId
+batchKind
+ownerScope
 providerId
 providerAccountId
+importScope
+libraryArea?
 sourceRef
 itemKind
 collectionItemId?
@@ -830,14 +759,19 @@ The preview result should include:
 - for update preview absence estimates, enough baseline-derived item facts to
   let the LLM explain what would be marked absent.
 - structured provider/account errors such as login required.
+- structured account-selection errors such as `account_selection_required`.
 - structured warnings for partial provider or scope failures.
+
+Provider error and warning codes are defined by the Platform Library Provider
+slot. Library Import should consume the standard codes rather than matching
+provider-specific strings.
 
 ## MVP Scope
 
 First useful slice:
 
-1. Implement a NetEase Platform Library Provider behind a new
-   `platform_library` slot.
+1. Implement a NetEase Platform Library Provider behind the `platform_library`
+   slot.
 2. Import saved songs, saved albums, and followed artists when the local NetEase
    service exposes them.
 3. Create or reuse provisional canonical records for imported saved/followed
@@ -861,4 +795,4 @@ should not be collapsed into `release_group` during import.
 
 ## Open Decisions
 
-No open decisions remain for the first NetEase import preview line.
+No open design decisions remain for the first NetEase import/update slice.

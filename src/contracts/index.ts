@@ -3,6 +3,7 @@ export type ModuleId =
   | "stage_interface"
   | "canonical"
   | "collection"
+  | "library_import"
   | "material_resolve"
   | "source"
   | "knowledge"
@@ -261,6 +262,139 @@ export interface SourceProvider {
   }): Promise<Result<PlayableLink[]>>;
 }
 
+export type PlatformLibraryArea =
+  | "saved_recordings"
+  | "saved_releases"
+  | "saved_artists"
+  | "playlists"
+  | "listening_history";
+
+export type PlatformLibraryAvailability =
+  | "previewable"
+  | "readable"
+  | "unsupported"
+  | "unavailable";
+
+export type PlatformLibraryReadStatus =
+  | "complete"
+  | "partial"
+  | "failed"
+  | "unavailable";
+
+export type PlatformLibraryCountCertainty =
+  | "exact"
+  | "at_least"
+  | "unknown";
+
+export type PlatformLibraryCount =
+  | {
+      certainty: "exact" | "at_least";
+      value: number;
+    }
+  | {
+      certainty: "unknown";
+    };
+
+export type PlatformLibraryItemKind =
+  | "saved_recording"
+  | "saved_release"
+  | "followed_artist";
+
+export type PlatformLibraryTargetKind =
+  | "recording"
+  | "release"
+  | "artist";
+
+export type PlatformLibraryIssueCode =
+  | "login_required"
+  | "account_selection_required"
+  | "account_unstable"
+  | "scope_unsupported"
+  | "area_unavailable"
+  | "rate_limited"
+  | "timeout"
+  | "provider_unavailable"
+  | "partial_read"
+  | "malformed_response";
+
+export type PlatformLibraryIssue = {
+  code: PlatformLibraryIssueCode;
+  message: string;
+  retryable: boolean;
+  area?: PlatformLibraryArea;
+  details?: Record<string, unknown>;
+};
+
+export type PlatformLibraryAccountIdentity = {
+  providerAccountId: string;
+  stable: boolean;
+  label?: string;
+};
+
+export type PlatformLibraryCanonicalHints = {
+  label?: string;
+  artistLabels?: string[];
+  releaseLabel?: string;
+  durationMs?: number;
+};
+
+export type PlatformLibraryItem = {
+  providerId: string;
+  sourceRef: Ref;
+  itemKind: PlatformLibraryItemKind;
+  targetKind: PlatformLibraryTargetKind;
+  label: string;
+  addedAt?: string;
+  canonicalHints?: PlatformLibraryCanonicalHints;
+};
+
+export type PlatformLibraryPreviewArea = {
+  area: PlatformLibraryArea;
+  availability: PlatformLibraryAvailability;
+  count?: PlatformLibraryCount;
+  sampleItems?: PlatformLibraryItem[];
+  issues?: PlatformLibraryIssue[];
+};
+
+export type PlatformLibraryPreviewInput = {
+  providerAccountId?: string;
+  areas?: PlatformLibraryArea[];
+  discovery?: boolean;
+  sampleLimitPerArea?: number;
+};
+
+export type PlatformLibraryPreview = {
+  providerId: string;
+  account?: PlatformLibraryAccountIdentity;
+  areas: PlatformLibraryPreviewArea[];
+  issues?: PlatformLibraryIssue[];
+};
+
+export type PlatformLibraryReadAreaResult = {
+  area: PlatformLibraryArea;
+  status: PlatformLibraryReadStatus;
+  items: PlatformLibraryItem[];
+  issues?: PlatformLibraryIssue[];
+};
+
+export type PlatformLibraryReadInput = {
+  providerAccountId?: string;
+  areas: PlatformLibraryArea[];
+};
+
+export type PlatformLibraryReadResult = {
+  providerId: string;
+  account?: PlatformLibraryAccountIdentity;
+  areas: PlatformLibraryReadAreaResult[];
+  issues?: PlatformLibraryIssue[];
+};
+
+export interface PlatformLibraryProvider {
+  id: string;
+  preview(input: PlatformLibraryPreviewInput): Promise<Result<PlatformLibraryPreview>>;
+  readItems(input: PlatformLibraryReadInput): Promise<Result<PlatformLibraryReadResult>>;
+}
+
 export type KnowledgeQuery = {
   text?: string;
   ref?: Ref;
@@ -337,6 +471,12 @@ export type ToolName =
   | "music.collection.update"
   | "music.collection.delete"
   | "music.collection.list"
+  | "music.library.import.preview"
+  | "music.library.import.start"
+  | "music.library.update.preview"
+  | "music.library.update.start"
+  | "music.library.import.status"
+  | "music.library.import.summary"
   | "events.record"
   | "memory.propose"
   | "effects.propose"
@@ -358,6 +498,7 @@ export type ToolDescriptor = {
 
 export type CapabilitySlot =
   | "source"
+  | "platform_library"
   | "knowledge"
   | "identity_signal"
   | "context"

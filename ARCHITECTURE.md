@@ -19,9 +19,11 @@ capability slots
 runtime lifecycle
 ```
 
-The MVP proves a grounded recommendation flow with playable links when
-available. It does not prove playback control, autonomous DJ behavior, playlist
-editing, collection management, music intelligence, or notifications.
+The original MVP proves a grounded recommendation flow with playable links when
+available. The current architecture also includes Collection Service
+foundations. It does not prove playback control, autonomous DJ behavior,
+playlist editing, Library Import implementation, music intelligence, or
+notifications.
 
 ## Vocabulary Source
 
@@ -64,6 +66,7 @@ LLM Agent Runtime
   -> Core Capability Layer
      -> Canonical Store
      -> Collection Service
+     -> Library Import Service
      -> Material Resolve
      -> Source Grounding
      -> Music Knowledge
@@ -72,6 +75,7 @@ LLM Agent Runtime
      -> Effect Boundary
   -> Plugin Slot Layer
      -> Source Slot adapters
+     -> Platform Library Slot adapters
      -> Knowledge Slot adapters
      -> Identity Signal Slot adapters
      -> Context Slot adapters
@@ -99,7 +103,7 @@ into Plugin Slots.
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
-| Core Capabilities | `src/canonical`, `src/material_resolve`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
+| Core Capabilities | `src/canonical`, `src/collection`, `src/material_resolve`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
@@ -118,6 +122,7 @@ needs.
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
 | Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
+| Library Import Service | external platform library import/update orchestration, import batches, item provenance, update baselines | provider API details, Collection storage schema, canonical admin policy, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution, `MaterialResolveResult` status, canonical evidence attachment | provider internals, playable-link refresh, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |
@@ -274,6 +279,7 @@ New capabilities attach to Plugin Slots:
 
 ```text
 new source access -> Source Slot adapter
+new platform library reads -> Platform Library Slot adapter
 new music facts -> Knowledge Slot adapter
 new identity evidence -> Identity Signal Slot adapter
 new context slice -> Context Slot adapter

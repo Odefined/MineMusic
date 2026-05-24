@@ -67,6 +67,7 @@ export type ModuleId =
   | "stage_interface"
   | "canonical"
   | "collection"
+  | "library_import"
   | "material_resolve"
   | "source"
   | "knowledge"
@@ -250,6 +251,12 @@ export type ToolName =
   | "music.collection.update"
   | "music.collection.delete"
   | "music.collection.list"
+  | "music.library.import.preview"
+  | "music.library.import.start"
+  | "music.library.update.preview"
+  | "music.library.update.start"
+  | "music.library.import.status"
+  | "music.library.import.summary"
   | "events.record"
   | "memory.propose"
   | "effects.propose"
@@ -673,6 +680,7 @@ Public port:
 ```ts
 export type CapabilitySlot =
   | "source"
+  | "platform_library"
   | "knowledge"
   | "identity_signal"
   | "context"
@@ -711,6 +719,11 @@ Must not expose:
 - business policy.
 - canonical decisions.
 - recommendation judgment.
+
+Slot-specific provider shapes live in shared contracts. For example,
+`platform_library` providers must implement `PlatformLibraryProvider`, while the
+registry itself stores providers as `unknown` and does not enforce business
+semantics.
 
 ## Storage Ports
 
