@@ -136,9 +136,17 @@ export type StageContext = {
 ## Canonical Store Types
 
 ```ts
+export type CanonicalKind =
+  | "artist"
+  | "work"
+  | "recording"
+  | "release_group"
+  | "release"
+  | (string & {});
+
 export type CanonicalRecord = {
   ref: Ref;
-  kind: "artist" | "work" | "recording" | "release_group" | string;
+  kind: CanonicalKind;
   label: string;
   status: "active" | "provisional" | "merged" | "rejected";
   externalKeys?: Ref[];

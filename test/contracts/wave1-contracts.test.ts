@@ -1,5 +1,6 @@
 import type {
   CapabilitySlot,
+  CanonicalRecord,
   Collection,
   CollectionItem,
   CollectionKind,
@@ -98,6 +99,10 @@ type _catalogAndDispatchStaySeparate = Expect<
 
 type _collectionKindsMatchDesignedCanonicalKinds = Expect<
   Equal<CollectionKind, "recording" | "work" | "release_group" | "release" | "artist">
+>;
+
+type _canonicalRecordKindIncludesRelease = Expect<
+  Equal<Extract<CanonicalRecord["kind"], "release">, "release">
 >;
 
 type _collectionRelationKindsMatchDesignedRelations = Expect<

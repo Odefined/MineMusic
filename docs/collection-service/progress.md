@@ -75,7 +75,7 @@ Pending:
 - Mixed-kind custom Collections.
 - Playlist-specific semantics.
 - Bulk Collection APIs.
-- Import preview/start/status/summary.
+- Library Import import/update tools and batch reporting.
 - Source-provider library reads.
 - External app writeback.
 - Collection sharing or visibility policy.
@@ -118,6 +118,6 @@ Results:
 
 ## Next Slice
 
-1. Implement the Library Import provider slot plus NetEase import preview path.
+1. Implement the Library Import provider slot plus NetEase import/update path.
 2. Decide whether Collection Service needs durable storage configuration before
    import writes become user-facing.

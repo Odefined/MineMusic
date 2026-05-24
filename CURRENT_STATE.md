@@ -82,6 +82,9 @@ host-facing and LLM-facing surface.
   now reuses current canonical records by external evidence, normalized label,
   or alias, filters ordinary lookup to active/provisional records, and keeps
   same-record external-ref attachment idempotent.
+- The shared Canonical Store contract exports `CanonicalKind`, including
+  `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
+  canonical records and Canonical Store kind inputs.
 - Canonical Store identity policy is split from storage mechanics:
   `src/canonical/index.ts` owns policy flow, `src/canonical/normalization.ts`
   owns label/ref/current-record normalization, and `src/canonical/storage.ts`
@@ -130,9 +133,9 @@ host-facing and LLM-facing surface.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved
-  songs, albums, followed artists, playlists, and other platform-library facts
+  songs, albums, followed artists, and other first-slice platform-library facts
   into MineMusic-owned Collection items, canonical external-ref bindings, and
-  import event records.
+  import/update event records. Playlist import is documented as a later feature.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
@@ -223,7 +226,7 @@ host-facing and LLM-facing surface.
   repository adapter.
 - Stage Core wiring for optional durable Canonical Store storage.
 - Library Import Service, Platform Library Provider slot, import batch storage,
-  and Stage Interface import tools.
+  and Stage Interface import/update tools.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool

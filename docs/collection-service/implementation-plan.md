@@ -452,7 +452,7 @@ Stop when:
 - Mixed-kind custom Collections.
 - Playlist-specific semantics.
 - Bulk Collection APIs.
-- Import preview/start/status/summary.
+- Library Import import/update tools and batch reporting.
 - Source-provider library reads.
 - External app writeback.
 - Collection sharing or visibility policy.

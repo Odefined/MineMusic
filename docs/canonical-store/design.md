@@ -62,11 +62,13 @@ artist
 work
 recording
 release_group
+release
 ```
 
 MVP behavior should prioritize `recording`, because most source-backed playable
-materials map to concrete recordings. `work`, `artist`, and `release_group`
-remain available for future memory and knowledge use.
+materials map to concrete recordings. `release` is needed when platform account
+libraries expose concrete album saves. `work`, `artist`, and `release_group`
+remain available for future memory, knowledge, and edition-grouping use.
 
 Source-context `track` ids should normally remain external refs rather than
 MineMusic canonical kinds.

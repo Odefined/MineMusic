@@ -59,11 +59,13 @@ Initial collection kinds:
 | specific edition / remaster / region / format | `release` | Concrete issued version. |
 | artist | `artist` | Saved performer, composer, or project. |
 
-Canonical Store currently documents `artist`, `work`, `recording`, and
-`release_group`; Collection Service needs `release` as well so users can save a
-specific edition, remaster, region, format, or deluxe version. Supporting
-`release` in Collection therefore requires adding `release` as a Canonical Store
-kind before implementation.
+Platform library import can target `release` for saved albums when the platform
+returns a concrete album id. The `release_group` default applies to ordinary
+user-facing album collection when no concrete edition is known.
+
+Canonical Store supports `artist`, `work`, `recording`, `release_group`, and
+`release` so users can save both album-level groupings and concrete editions,
+remasters, regions, formats, or deluxe versions.
 
 `collectionKind` is the type of music object in the collection. It matches
 `canonicalRef.kind`; Collection Service does not maintain an independent object

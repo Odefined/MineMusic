@@ -56,7 +56,8 @@ Reference links:
 1. MineMusic canonical refs are MineMusic-owned.
 2. Source refs never become canonical authority by accident.
 3. External refs are evidence and lookup keys.
-4. `recording`, `work`, `artist`, and `release_group` should stay distinct.
+4. `recording`, `work`, `artist`, `release_group`, and `release` should stay
+   distinct.
 5. A source `track` is usually source-context evidence, not a MineMusic core
    entity kind.
 6. Provisional identities are allowed, but they must be visibly provisional.

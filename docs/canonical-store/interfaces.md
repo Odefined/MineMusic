@@ -50,6 +50,7 @@ export type CanonicalKind =
   | "work"
   | "recording"
   | "release_group"
+  | "release"
   | (string & {});
 
 export type CanonicalStatus =

@@ -91,6 +91,7 @@ Core Capabilities:
 
 - Canonical Store.
 - Collection Service.
+- Library Import Service.
 - Material Resolve.
 - Source Grounding.
 - Music Knowledge.
@@ -111,6 +112,47 @@ Store, Material Resolve, Source Grounding, and Session Context. A Collection is
 an owner-scoped group of long-lived relationships to canonical music objects; a
 Collection Item is a member of that Collection and points to one canonical music
 object. Source refs are external evidence, not Collection identity.
+
+### Library Import Service
+
+The Core Capability that brings a user's external platform library into
+MineMusic-owned identity anchors, Collections, and import records.
+
+### Library Update
+
+A later Library Import run that refreshes MineMusic-owned library state from
+current platform library facts after an earlier import.
+
+### Platform Library Absence
+
+A fact that a platform library asset observed in an earlier complete snapshot
+was not returned by a later Library Update read. It is not a MineMusic
+Collection removal.
+
+### Platform Library Provider
+
+A provider adapter that reads a user's saved, followed, collected, or organized
+music facts from an external music platform.
+
+### Import Preview
+
+A side-effect-free Library Import readout that supports import or update
+decisions without being the primary Library Import function.
+
+### Import Batch
+
+A Library Import run, either initial import or later update, that can be checked
+for progress and summarized after completion.
+
+### Import Scope
+
+The user-intended subset of a platform library that a Library Import preview or
+batch should cover.
+
+### Platform Listening History
+
+Provider-reported recent plays or listening activity that can inform context and
+memory evidence without becoming a Collection item.
 
 ### Material Resolve
 
@@ -147,6 +189,7 @@ Stable seams for replaceable external capabilities.
 Plugin Slots:
 
 - Source Slot.
+- Platform Library Slot.
 - Knowledge Slot.
 - Identity Signal Slot.
 - Context Slot.

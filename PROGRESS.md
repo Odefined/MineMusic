@@ -249,15 +249,16 @@
   design-only interfaces, verification commands, and remaining future work in
   the Canonical Store docs and project state docs.
 - Added `docs/collection-service/design.md` to define a future Collection
-  Service for explicit user saves/favorites across songs, albums, releases,
-  artists, playlists, and source-only fallback items. The document keeps
+  Service for explicit user saves/favorites across recordings, works, release
+  groups, concrete releases, and artists. The document keeps
   Collection separate from Canonical Store, Memory Service, Event Service, and
   Effect Boundary.
 - Added `docs/library-import/design.md` to define a future Library Import
   Service and Platform Library Provider slot for helping users switch from
   external platforms by importing saved songs, albums, followed artists,
-  playlists, playlist items, and other platform-library facts into MineMusic
-  collection items, canonical external-ref bindings, and import event records.
+  and other first-slice platform-library facts into MineMusic Collection items,
+  canonical external-ref bindings, and import/update event records. Playlist
+  import is documented as a later feature.
 - Corrected Collection Service and Library Import design language so collection
   ownership uses long-lived `ownerScope`, with `local_profile:default` as the
   MVP default option, rather than treating `sessionId` as collection ownership.
@@ -273,6 +274,9 @@
   release/artist kinds, custom Collections are user-created single-kind
   Collections, CollectionItems are canonical-only, and blocked membership filters
   through Material Resolve.
+- Added `release` to the shared Canonical Store `CanonicalKind` contract and
+  Canonical Store kind inputs, aligning implementation contracts with
+  concrete-release collection and library-import design.
 - Added `docs/collection-service/implementation-plan.md` with sequential tasks
   for Collection contracts, ports, in-memory storage, service rules, Stage Core
   wiring, Stage Interface tools, Material Resolve blocked filtering, tests, and
@@ -333,7 +337,7 @@
 ## Next
 
 - After Collection foundations, implement the Library Import provider slot plus
-  NetEase import preview path.
+  NetEase import/update path.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

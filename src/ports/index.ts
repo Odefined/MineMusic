@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  CanonicalKind,
   CapabilitySlot,
   Collection,
   CollectionItem,
@@ -95,7 +96,7 @@ export interface CanonicalStorePort {
 
   findByLabel(input: {
     label: string;
-    kind?: string;
+    kind?: CanonicalKind;
   }): Promise<Result<CanonicalRecord[]>>;
 
   resolveExternalRef(input: {
@@ -103,7 +104,7 @@ export interface CanonicalStorePort {
   }): Promise<Result<CanonicalRecord | null>>;
 
   createProvisional(input: {
-    kind: string;
+    kind: CanonicalKind;
     label: string;
     evidence?: Ref[];
   }): Promise<Result<CanonicalRecord>>;
