@@ -103,6 +103,36 @@ Output: `Collection`
 Description: List owner collections and matching collection items.
 Input: `CollectionListInput`
 Output: `CollectionListOutput`
+#### `music.library.import.preview`
+
+Description: Preview importing saved platform library facts into MineMusic state.
+Input: `LibraryImportPreviewInput`
+Output: `LibraryImportPreview`
+#### `music.library.import.start`
+
+Description: Start importing saved platform library facts into MineMusic state.
+Input: `LibraryImportStartInput`
+Output: `LibraryImportReport`
+#### `music.library.update.preview`
+
+Description: Preview a platform library update against MineMusic's latest complete baseline.
+Input: `LibraryImportPreviewInput`
+Output: `LibraryImportPreview`
+#### `music.library.update.start`
+
+Description: Start a platform library update against MineMusic's latest complete baseline.
+Input: `LibraryImportStartInput`
+Output: `LibraryImportReport`
+#### `music.library.import.status`
+
+Description: Read current status for a Library Import batch.
+Input: `LibraryImportStatusInput`
+Output: `LibraryImportStatus`
+#### `music.library.import.summary`
+
+Description: Read the completed report for a Library Import batch.
+Input: `LibraryImportSummaryInput`
+Output: `LibraryImportSummary`
 #### `events.record`
 
 Description: Record a factual session event.

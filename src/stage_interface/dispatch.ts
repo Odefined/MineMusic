@@ -3,6 +3,10 @@ import type {
   CollectionRelationKind,
   EffectProposal,
   InstrumentDescriptor,
+  LibraryImportPreviewInput,
+  LibraryImportStartInput,
+  LibraryImportStatusInput,
+  LibraryImportSummaryInput,
   MaterialResolveRequest,
   MemoryProposal,
   MusicMaterial,
@@ -22,6 +26,7 @@ import type {
   EffectBoundaryPort,
   EventPort,
   InstrumentCatalogPort,
+  LibraryImportPort,
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
@@ -91,6 +96,7 @@ type ToolDispatchOptions = {
   memory: MemoryPort;
   effects: EffectBoundaryPort;
   collection?: CollectionPort;
+  libraryImport?: LibraryImportPort;
 };
 
 export function createToolDispatch({
@@ -103,6 +109,7 @@ export function createToolDispatch({
   memory,
   effects,
   collection,
+  libraryImport,
 }: ToolDispatchOptions): ToolDispatchPort {
   const discoveryToolNames = new Set<ToolName>([
     "stage.context.read",
@@ -302,6 +309,78 @@ export function createToolDispatch({
           });
         }
 
+        case "music.library.import.preview": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.previewImport(
+            readPayload<LibraryImportPreviewInput>(payload, { ownerScope: defaultOwnerScope }),
+          );
+        }
+
+        case "music.library.import.start": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.startImport(
+            readPayload<LibraryImportStartInput>(payload, { ownerScope: defaultOwnerScope }),
+          );
+        }
+
+        case "music.library.update.preview": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.previewUpdate(
+            readPayload<LibraryImportPreviewInput>(payload, { ownerScope: defaultOwnerScope }),
+          );
+        }
+
+        case "music.library.update.start": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.startUpdate(
+            readPayload<LibraryImportStartInput>(payload, { ownerScope: defaultOwnerScope }),
+          );
+        }
+
+        case "music.library.import.status": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.getStatus(
+            readPayload<LibraryImportStatusInput>(payload),
+          );
+        }
+
+        case "music.library.import.summary": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.getSummary(
+            readPayload<LibraryImportSummaryInput>(payload),
+          );
+        }
+
         case "events.record":
           return events.record(readPayload<{ event: Omit<StageEvent, "id" | "time"> }>(payload));
 
@@ -373,10 +452,27 @@ function readCollection(collection: CollectionPort | undefined): Result<Collecti
   return ok(collection);
 }
 
+function readLibraryImport(libraryImport: LibraryImportPort | undefined): Result<LibraryImportPort> {
+  if (libraryImport === undefined) {
+    return libraryImportUnavailable();
+  }
+
+  return ok(libraryImport);
+}
+
 function collectionUnavailable(): Result<never> {
   return fail({
     code: "stage_interface.tool_not_found",
     message: "Collection tools are not available.",
+    module: "stage_interface",
+    retryable: false,
+  });
+}
+
+function libraryImportUnavailable(): Result<never> {
+  return fail({
+    code: "stage_interface.tool_not_found",
+    message: "Library Import tools are not available.",
     module: "stage_interface",
     retryable: false,
   });

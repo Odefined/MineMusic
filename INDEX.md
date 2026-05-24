@@ -185,11 +185,13 @@ This index points agents to the current MVP documentation pack.
 
 48. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
-      instrument descriptors and delegates to `MineMusicStageInterface`.
+      instrument descriptors, including Library Import tools, and delegates to
+      `MineMusicStageInterface`.
 
 49. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
-      dispatch, and callable facade.
+      dispatch, and callable facade, including Collection and Library Import
+      tools.
 
 50. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
@@ -207,7 +209,7 @@ This index points agents to the current MVP documentation pack.
 
 54. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
-      tools.
+      tools, including Library Import tool entries.
 
 55. `docs/platform-library-provider/netease-implementation-plan.md`
     - Task-by-task implementation plan for the NetEase `platform_library`

@@ -178,6 +178,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     memory,
     effects,
     collection,
+    libraryImport,
   });
   const stageInterface = createMineMusicStageInterface({
     sessionId: session.id,

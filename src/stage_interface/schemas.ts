@@ -32,6 +32,12 @@ const musicCandidateSchema = z.object({
 });
 const collectionKindSchema = z.enum(["recording", "work", "release_group", "release", "artist"]);
 const collectionRelationKindSchema = z.enum(["saved", "favorite", "blocked", "custom"]);
+const libraryImportScopeSchema = z.enum([
+  "discovery",
+  "saved_recordings",
+  "saved_releases",
+  "saved_artists",
+]);
 
 export type StageInterfaceToolInputSchema = z.ZodRawShape;
 
@@ -121,6 +127,40 @@ export const stageInterfaceToolInputSchemas = {
     includeRemoved: z.boolean().optional(),
     limit: z.number().int().positive().optional(),
     cursor: z.string().optional(),
+  },
+  "music.library.import.preview": {
+    providerId: z.string(),
+    providerAccountId: z.string().optional(),
+    ownerScope: z.string().optional(),
+    scopes: z.array(libraryImportScopeSchema).min(1),
+    sampleLimitPerArea: z.number().int().positive().optional(),
+  },
+  "music.library.import.start": {
+    providerId: z.string(),
+    providerAccountId: z.string().optional(),
+    ownerScope: z.string().optional(),
+    scopes: z.array(libraryImportScopeSchema).min(1),
+    sampleLimitPerArea: z.number().int().positive().optional(),
+  },
+  "music.library.update.preview": {
+    providerId: z.string(),
+    providerAccountId: z.string().optional(),
+    ownerScope: z.string().optional(),
+    scopes: z.array(libraryImportScopeSchema).min(1),
+    sampleLimitPerArea: z.number().int().positive().optional(),
+  },
+  "music.library.update.start": {
+    providerId: z.string(),
+    providerAccountId: z.string().optional(),
+    ownerScope: z.string().optional(),
+    scopes: z.array(libraryImportScopeSchema).min(1),
+    sampleLimitPerArea: z.number().int().positive().optional(),
+  },
+  "music.library.import.status": {
+    batchId: z.string(),
+  },
+  "music.library.import.summary": {
+    batchId: z.string(),
   },
   "events.record": {
     event: z.object({}).passthrough(),

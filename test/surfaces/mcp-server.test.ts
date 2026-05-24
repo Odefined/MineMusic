@@ -1,4 +1,11 @@
-import type { MusicMaterial, Result, SourceProvider, StageSession } from "../../src/contracts/index.js";
+import type {
+  LibraryImportPreview,
+  MusicMaterial,
+  PlatformLibraryProvider,
+  Result,
+  SourceProvider,
+  StageSession,
+} from "../../src/contracts/index.js";
 import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
 import { stableToolNames } from "../../src/stage_interface/index.js";
 import {
@@ -49,6 +56,10 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
   assert(
     codexToolNameFor("music.collection.save") === "minemusic.music.collection.save",
     "MCP should expose collection tools with the MineMusic prefix",
+  );
+  assert(
+    codexToolNameFor("music.library.import.preview") === "minemusic.music.library.import.preview",
+    "MCP should expose library import tools with the MineMusic prefix",
   );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
 }
@@ -122,6 +133,18 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "collection list schema should declare ownerScope input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.library.import.preview"), "providerId"),
+    "library import preview schema should declare provider id input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.library.import.preview"), "scopes"),
+    "library import preview schema should declare scopes input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.library.import.status"), "batchId"),
+    "library import status schema should declare batch id input",
+  );
+  assert(
     schemaIsEmpty(schemasByName.get("minemusic.handbook.overview.read")),
     "handbook overview tool schema should not require arguments",
   );
@@ -163,6 +186,71 @@ async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
   assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve Stage Core result payload");
 }
 
+async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<void> {
+  const previewCalls: Parameters<PlatformLibraryProvider["preview"]>[0][] = [];
+  const platformLibraryProvider: PlatformLibraryProvider = {
+    id: "mcp-platform-library-provider",
+    async preview(input) {
+      previewCalls.push(input);
+      return {
+        ok: true,
+        value: {
+          providerId: "mcp-platform-library-provider",
+          account: {
+            providerAccountId: "mcp-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              availability: "readable",
+            },
+          ],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "mcp-platform-library-provider",
+          areas: [],
+        },
+      };
+    },
+  };
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+    platformLibraryProvider,
+  });
+  await stageCore.ready;
+
+  const definitions = createMineMusicMcpToolDefinitions(stageCore);
+  const importPreviewTool = definitions.find(
+    (definition) => definition.name === "minemusic.music.library.import.preview",
+  );
+  assert(importPreviewTool !== undefined, "library import preview tool should be exposed through MCP");
+
+  const response = await importPreviewTool.handler({
+    providerId: platformLibraryProvider.id,
+    scopes: ["saved_recordings"],
+  });
+  const firstContent = response.content[0];
+  assert(firstContent?.type === "text", "MCP handler should return text content");
+
+  const result = JSON.parse(firstContent.text) as Result<LibraryImportPreview>;
+  assert(result.ok, "MCP handler should return the Library Import preview result");
+  assert(
+    result.value.ownerScope === "local_profile:default",
+    "MCP Library Import tool should preserve Stage Interface owner-scope default",
+  );
+  assert(
+    previewCalls[0]?.areas?.includes("saved_recordings"),
+    "MCP Library Import tool should route requested scopes through Stage Interface dispatch",
+  );
+}
+
 function hasSchemaKey(schema: unknown, key: string): boolean {
   return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
 }
@@ -175,3 +263,4 @@ await mapsInternalToolsToCodexPrefixedMcpTools();
 await exposesStableToolsThroughMcpDefinitions();
 await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToStageInterface();
+await dispatchesLibraryImportMcpPayloadsToStageInterface();

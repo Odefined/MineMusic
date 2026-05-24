@@ -21,10 +21,9 @@ runtime lifecycle
 
 The original MVP proves a grounded recommendation flow with playable links when
 available. The current architecture also includes Collection Service
-foundations and first-slice Library Import service/runtime composition. It does
-not prove playback control, autonomous DJ behavior, playlist editing, durable
-Library Import storage, Stage Interface import/update tools, music intelligence,
-or notifications.
+foundations and first-slice Library Import service/runtime/tool composition. It
+does not prove playback control, autonomous DJ behavior, playlist editing,
+durable Library Import storage, music intelligence, or notifications.
 
 ## Vocabulary Source
 

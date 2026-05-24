@@ -472,10 +472,17 @@
   `libraryImport` runtime exposure, separate platform-library provider
   registration, factory coverage, and composed runtime import coverage in
   `test/integration/library-import-runtime.test.ts`.
+- Completed Library Import Service implementation plan Task 9 with a TDD loop:
+  exposed the six Stage Interface Library Import tools in
+  `src/stage_interface/**`, routed import/update preview/start and batch
+  status/summary through `LibraryImportPort`, added explicit MCP input schemas,
+  refreshed the generated MineMusic Handbook, and added dispatch plus MCP
+  handler coverage.
 
 ## Next
 
-- Continue Library Import implementation with Task 9: Stage Interface tools.
+- Continue Library Import implementation with Task 10: default NetEase
+  platform-library provider wiring for the Codex MCP runtime.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

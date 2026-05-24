@@ -139,7 +139,7 @@ host-facing and LLM-facing surface.
   Playlist import is documented as a later feature. The implementation task
   breakdown is documented in `docs/library-import/implementation-plan.md`, and
   detailed implementation status is tracked in `docs/library-import/progress.md`.
-- Library Import implementation Tasks 1-8 are complete: shared TypeScript contracts
+- Library Import implementation Tasks 1-9 are complete: shared TypeScript contracts
   now define first-slice import scopes, batch kinds/statuses, preview/start/status
   inputs, preview/report outputs, item outcomes, import counts, batch records,
   area snapshots, item provenance, Platform Library Absence records, and stable
@@ -168,8 +168,12 @@ host-facing and LLM-facing surface.
   in-memory Library Import repository by default, accepts optional
   `libraryImportRepository` and `platformLibraryProvider` injections, and
   registers source and platform-library providers separately during runtime
-  readiness. Durable Library Import storage and Stage Interface import/update
-  tools remain future tasks.
+  readiness. Stage Interface now exposes `music.library.import.preview`,
+  `music.library.import.start`, `music.library.update.preview`,
+  `music.library.update.start`, `music.library.import.status`, and
+  `music.library.import.summary` with explicit MCP schemas and generated
+  Handbook entries. Durable Library Import storage and default Codex MCP NetEase
+  platform-library provider wiring remain future tasks.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared
@@ -295,7 +299,8 @@ host-facing and LLM-facing surface.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store
   repository adapter.
 - Stage Core wiring for optional durable Canonical Store storage.
-- Durable Library Import storage and Stage Interface import/update tools.
+- Durable Library Import storage and default Codex MCP runtime wiring for the
+  NetEase platform-library provider.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -303,7 +308,7 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of Library Import Task 8 Stage Core wiring.
+- `npm test` passes as of Library Import Task 9 Stage Interface tool exposure.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
