@@ -1,9 +1,5 @@
 # Collection Service Design
 
-## Status
-
-Design document. Collection Service is not implemented yet.
-
 ## Purpose
 
 Collection Service owns the user's explicit long-lived relationships to music

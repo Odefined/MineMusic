@@ -117,6 +117,19 @@ Update documentation when code changes affect:
 
 Prefer updating existing docs over creating new top-level docs unless a new document is clearly warranted.
 
+Design documents are sources of truth for intended behavior and constraints.
+They must not carry mutable implementation status such as "not implemented",
+"partially implemented", or task completion state.
+
+Implementation plans describe task breakdown and sequencing. They should not be
+used as the live implementation-status ledger.
+
+Each module with implementation progress must keep its current implementation
+state in a module-local progress/status document, such as
+`docs/<module>/progress.md`. Global files such as `CURRENT_STATE.md` and
+`PROGRESS.md` may summarize and link to module progress, but must not duplicate
+fine-grained module task status.
+
 ## State Sync Gate
 
 For non-trivial changes, run:

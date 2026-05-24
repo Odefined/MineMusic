@@ -34,6 +34,7 @@ owner-scoped Collections
 | Source Grounding | `src/source/index.ts` | Owns provider search and playable-link refresh; it must not own Collection blocked policy. |
 | Stage Core | `src/stage_core/index.ts` | Composition root for repositories, Core Capabilities, Stage Modules, and Stage Interface dispatch. |
 | Stage Interface | `src/stage_interface/**` | Owns stable tool names, tool descriptors, schemas, and dispatch. |
+| Collection progress | `docs/collection-service/progress.md` | Tracks implementation status, verification, remaining gaps, and next slice. |
 
 ## Architecture Decisions
 
@@ -418,6 +419,9 @@ Keep project state aligned with the implemented behavior.
 - Update current state with implemented Collection scope and remaining gaps.
 - Update progress with verification commands.
 - Update index with new files and important source/test entrypoints.
+- Treat `docs/collection-service/design.md` as the source of truth during this
+  check. Do not rewrite design behavior to match implementation after the fact;
+  only update it when a real naming or behavior correction has been accepted.
 
 **Dependencies**
 

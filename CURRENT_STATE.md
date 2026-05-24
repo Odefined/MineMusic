@@ -122,66 +122,11 @@ host-facing and LLM-facing surface.
   proposals, effect-boundary acceptance, and summaries.
 - Collection Service foundation is implemented through shared contracts, public
   ports, in-memory storage, service behavior, Stage Core composition, Material
-  Resolve blocked filtering, and Stage Interface collection tools. The design is
-  documented in `docs/collection-service/design.md` as a Core Capability for
-  owner-scoped system and custom Collections. Collection Items are canonical-only
-  members of a Collection, system Collections cover saved/favorite/blocked
-  relationships across recording/work/release_group/release/artist kinds, and
-  custom Collections are user-created single-kind Collections. The implementation
-  plan is in `docs/collection-service/implementation-plan.md`.
-- Collection Service implementation plan Task 1 is complete at the shared
-  contract layer: `src/contracts/index.ts` now includes the `collection`
-  module id, collection error codes, `CollectionKind`, `CollectionRelationKind`,
-  `Collection`, `CollectionItem`, `MaterialResolveRequest.ownerScope`, and
-  reserved collection tool names.
-- Collection Service implementation plan Task 2 is complete at the public port
-  layer: `src/ports/index.ts` now exports `CollectionPort` and a
-  collection-specific `CollectionRepository` boundary for owner/kind/relation
-  queries, active label lookup, and idempotent membership lookup.
-- Collection Service implementation plan Task 3 is complete at the storage
-  layer: `src/storage/index.ts` now exports
-  `createInMemoryCollectionRepository`, which stores Collections and
-  CollectionItems by id, filters Collections/items by owner/kind/relation and
-  removed status, enforces exact active label uniqueness within an owner scope,
-  finds items by `collectionId + canonicalRef`, and returns clones.
-- Collection Service implementation plan Task 4 is complete behind
-  `CollectionPort` in `src/collection/index.ts`. The service initializes 15
-  system Collections per owner, supports custom Collection create/update/remove,
-  enforces system Collection immutability and canonical kind matching, implements
-  idempotent item add/re-add, active item update/removal, system saved/favorite/
-  blocked mutual exclusion, blocked ref filtering, owner-derived Collection
-  event session ids, and factual Collection events through `EventPort`.
-- Collection Service implementation plan Task 5 is complete in Material Resolve:
-  `src/material_resolve/index.ts` accepts an optional `CollectionPort`, defaults
-  missing blocked-filter owner scope to `local_profile:default`, marks blocked
-  canonical materials as `blocked`, and can recover canonical identity from
-  source material external-ref bindings before blocked checks.
-- Collection Service implementation plan Task 6 is complete in Stage Core:
-  `src/stage_core/index.ts` creates an in-memory Collection repository by
-  default, accepts optional collection repository injection, composes
-  `createCollectionService`, initializes `local_profile:default` system
-  Collections during `ready`, exposes `collection` on `MineMusicStageCore`,
-  injects Collection into Material Resolve, and passes Collection into Stage
-  Interface dispatch for upcoming collection tools.
-- Collection Service implementation plan Task 7 is complete in Stage Interface:
-  `src/stage_interface/tools.ts`, `src/stage_interface/schemas.ts`, and
-  `src/stage_interface/dispatch.ts` expose and dispatch
-  `music.collection.save`, `music.collection.unsave`,
-  `music.collection.favorite`, `music.collection.unfavorite`,
-  `music.collection.block`, `music.collection.unblock`,
-  `music.collection.item.add`, `music.collection.item.remove`,
-  `music.collection.create`, `music.collection.update`,
-  `music.collection.delete`, and `music.collection.list`. Missing `ownerScope`
-  defaults to `local_profile:default`; custom Collection creation uses
-  `relationKind: "custom"`; Collection deletion delegates to the service's
-  soft-remove path. MCP schema coverage exists for argument-bearing collection
-  tools, and the generated MineMusic Handbook includes the collection entries.
-- Collection Service implementation plan Task 8 is complete at the integration
-  layer: `test/integration/collection-runtime.test.ts` starts composed Stage
-  Core and verifies collection behavior through Stage Interface tools, including
-  default owner system Collection initialization, saved/favorite/blocked system
-  membership behavior, custom Collection lifecycle, and Material Resolve blocked
-  status for a blocked canonical recording.
+  Resolve blocked filtering, Stage Interface collection tools, and composed
+  runtime integration coverage. The source-of-truth design is
+  `docs/collection-service/design.md`, task breakdown is
+  `docs/collection-service/implementation-plan.md`, and detailed implementation
+  status is tracked in `docs/collection-service/progress.md`.
 - Library Import Service and Platform Library Provider are not implemented.
   The design is documented in `docs/library-import/design.md` as a future path
   for helping users switch from platforms such as NetEase by importing saved
@@ -286,8 +231,7 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the Collection Service composed-runtime Stage
-  Interface integration coverage.
+- `npm test` passes as of the Collection Service documentation/state sync.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
@@ -300,8 +244,8 @@ host-facing and LLM-facing surface.
   `https://music.163.com/#/song?id=22644323`.
 - Fresh Codex app plugin-session visibility is confirmed by the user in this
   thread. Treat this as host-app validation evidence, not a repo-command test.
-- `git diff --check` passes as of the Canonical Store SQLite repository and
-  identity hygiene TDD implementation.
+- `git diff --check` passes as of the Collection Service documentation/state
+  sync.
 - Branch integration for Waves 1 through 8 is complete on `main`.
 
 ## Known Constraints

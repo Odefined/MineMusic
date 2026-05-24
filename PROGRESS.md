@@ -320,11 +320,18 @@
   Stage Interface tools and Material Resolve, covering default system
   Collections, saved/favorite/blocked membership behavior, custom Collection
   lifecycle, and blocked canonical resolve status.
+- Completed Collection Service implementation plan Task 9 by adding
+  `docs/collection-service/progress.md` as the module-local implementation
+  status document, updating `INDEX.md`, `CURRENT_STATE.md`, and `PROGRESS.md`
+  to point at it, and removing mutable implementation status from
+  `docs/collection-service/design.md` and
+  `docs/collection-service/implementation-plan.md`.
+- Added the repository rule that design documents must not carry mutable
+  implementation state and module implementation progress belongs in
+  module-local progress/status documents.
 
 ## Next
 
-- Run Collection Service implementation plan Task 9 documentation/state sync
-  before import work.
 - After Collection foundations, implement the Library Import provider slot plus
   NetEase import preview path.
 - Decide whether to expose a governed runtime configuration path for durable

@@ -1,0 +1,123 @@
+# Collection Service Progress
+
+## Purpose
+
+This file tracks Collection Service implementation progress.
+
+Design intent belongs in:
+
+- `docs/collection-service/design.md`
+
+Task breakdown belongs in:
+
+- `docs/collection-service/implementation-plan.md`
+
+Global state files may summarize this document, but should not duplicate the
+fine-grained Collection Service task ledger.
+
+## Current Snapshot
+
+Date: 2026-05-24
+
+Task status:
+
+- Task 1: completed.
+- Task 2: completed.
+- Task 3: completed.
+- Task 4: completed.
+- Task 5: completed.
+- Task 6: completed.
+- Task 7: completed.
+- Task 8: completed.
+- Task 9: completed by this documentation pass.
+
+Implemented:
+
+- Shared Collection contracts, collection error codes, `collection` module id,
+  `CollectionKind`, `CollectionRelationKind`, `Collection`, `CollectionItem`,
+  `MaterialResolveRequest.ownerScope`, and collection tool names.
+- `CollectionPort`, `SystemCollectionRelationKind`, list input contracts, and
+  a collection-specific `CollectionRepository` boundary.
+- In-memory Collection repository with owner/kind/relation/removed-status
+  queries, active owner-scope label uniqueness, `collectionId + canonicalRef`
+  membership lookup, and clone-return semantics.
+- `createCollectionService` behind `CollectionPort`.
+- Default owner system Collection initialization for 15
+  relation-kind/collection-kind combinations.
+- Custom Collection create/update/soft-remove.
+- Canonical-only CollectionItems with kind matching.
+- Idempotent membership writes and removed-item re-add.
+- Active item update/removal.
+- Saved/favorite/blocked mutual exclusion for system Collections.
+- Blocked canonical ref filtering.
+- Owner-derived Collection event session ids and factual Collection events.
+- Material Resolve blocked filtering through optional `CollectionPort`, with
+  missing `ownerScope` defaulting to `local_profile:default`.
+- Stage Core composition of Collection Service with default in-memory
+  repository, optional repository injection, default owner initialization during
+  runtime readiness, and runtime exposure through `MineMusicStageCore`.
+- Stage Interface collection tools, descriptors, schemas, dispatch, MCP schema
+  coverage, and generated Handbook entries.
+- Composed runtime integration coverage in
+  `test/integration/collection-runtime.test.ts`.
+
+Design sync:
+
+- `docs/collection-service/design.md` was checked as the behavior source of
+  truth during Task 9.
+- No accepted naming or behavior correction was found.
+- A stale implementation-status note was removed from the design document
+  because design documents should not carry mutable implementation state.
+
+Pending:
+
+- Durable Collection storage.
+- Mixed-kind custom Collections.
+- Playlist-specific semantics.
+- Bulk Collection APIs.
+- Import preview/start/status/summary.
+- Source-provider library reads.
+- External app writeback.
+- Collection sharing or visibility policy.
+- Explicit restore APIs.
+
+## Timeline
+
+### 2026-05-24
+
+- Added Collection Service design and Library Import design.
+- Corrected ownership language around `ownerScope` and
+  `local_profile:default`.
+- Added the Collection Service implementation plan.
+- Completed Task 1 by adding shared contracts and collection tool names.
+- Completed Task 2 by adding public Collection ports and repository boundary.
+- Completed Task 3 by adding the in-memory Collection repository.
+- Completed Task 4 by implementing Collection Service behavior and tests.
+- Completed Task 5 by wiring blocked filtering into Material Resolve.
+- Completed Task 6 by composing Collection Service in Stage Core.
+- Completed Task 7 by exposing Stage Interface collection tools and MCP schemas.
+- Completed Task 8 by adding composed runtime integration coverage.
+- Completed Task 9 by moving module implementation status into this progress
+  document and keeping design behavior separate from implementation status.
+
+## Verification
+
+Latest checks for the current implementation slice:
+
+```bash
+npm test
+git diff --check
+git diff --name-only
+```
+
+Results:
+
+- `npm test` passes.
+- `git diff --check` passes.
+- `git diff --name-only` was run for the state-sync gate.
+
+## Next Slice
+
+1. Implement the Library Import provider slot plus NetEase import preview path.
+2. Decide whether Collection Service needs durable storage configuration before
+   import writes become user-facing.
