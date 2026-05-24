@@ -417,11 +417,20 @@
   implementation plan for the first Library Import Service slice, including
   contracts, ports, in-memory import storage, orchestration, Stage Core wiring,
   Stage Interface import/update tools, integration coverage, and state sync.
+- Started Library Import Service implementation on branch
+  `codex/library-import-task1`.
+- Completed Library Import Service implementation plan Task 1 with a TDD loop:
+  added first-slice Library Import shared contracts in `src/contracts/index.ts`
+  for scopes, batch kinds/statuses, preview/start/status/summary input shapes,
+  preview/report output shapes, item outcomes, import counts, batch records,
+  area snapshots, item provenance records, Platform Library Absence records, and
+  stable Library Import error codes; added contract coverage in
+  `test/contracts/wave1-contracts.test.ts`.
 
 ## Next
 
-- Start Library Import orchestration work that consumes the completed NetEase
-  `platform_library` provider slice.
+- Continue Library Import implementation with Task 2:
+  `LibraryImportPort` and `LibraryImportRepository` public boundaries.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

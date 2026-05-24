@@ -5,6 +5,13 @@ This file tracks Library Import implementation progress.
 ## Current State
 
 - Library Import Service is not implemented.
+- Task 1 from `docs/library-import/implementation-plan.md` is complete:
+  `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
+  batch statuses, preview/start/status/summary input shapes, preview/report
+  output shapes, item outcome summaries, import counts, import batch records,
+  area snapshots, item provenance records, Platform Library Absence records, and
+  stable first-slice Library Import error codes. Contract coverage lives in
+  `test/contracts/wave1-contracts.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports
@@ -32,9 +39,9 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Start Library Import Service implementation from
-   `docs/library-import/implementation-plan.md`, beginning with shared contracts
-   and ports.
+1. Continue Library Import Service implementation with Task 2 from
+   `docs/library-import/implementation-plan.md`: add `LibraryImportPort` and
+   `LibraryImportRepository` public boundaries.
 2. Add Library Import batch storage for import/update baselines, item
    provenance, provider account identity, warnings, failures, and absence
    records.
@@ -47,3 +54,5 @@ This file tracks Library Import implementation progress.
   at `docs/platform-library-provider/progress.md`.
 - Added `docs/library-import/implementation-plan.md` as the task-by-task plan
   for the first Library Import Service implementation slice.
+- `npm run build:test` passes after adding Task 1 Library Import contracts and
+  contract coverage.

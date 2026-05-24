@@ -10,6 +10,21 @@ import type {
   EffectProposal,
   Handbook,
   HandbookToolEntry,
+  LibraryImportBatchKind,
+  LibraryImportBatchStatus,
+  LibraryImportAreaSnapshot,
+  LibraryImportBatch,
+  LibraryImportItemProvenance,
+  LibraryImportPreview,
+  LibraryImportPreviewArea,
+  LibraryImportPreviewInput,
+  LibraryImportReport,
+  LibraryImportStartInput,
+  LibraryImportStatus,
+  LibraryImportStatusInput,
+  LibraryImportSummary,
+  LibraryImportSummaryInput,
+  LibraryImportScope,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -17,6 +32,7 @@ import type {
   ModuleId,
   MusicMaterial,
   PlatformLibraryAvailability,
+  PlatformLibraryAbsence,
   PlatformLibraryCount,
   PlatformLibraryIssueCode,
   PlatformLibraryItem,
@@ -178,6 +194,174 @@ type _platformLibraryProviderMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<PlatformLibraryProvider, "readItems">
 >;
 
+type _libraryImportScopesMatchFirstSlice = Expect<
+  Equal<LibraryImportScope, "discovery" | "saved_recordings" | "saved_releases" | "saved_artists">
+>;
+
+type _libraryImportBatchKinds = Expect<
+  Equal<LibraryImportBatchKind, "initial_import" | "library_update">
+>;
+
+type _libraryImportBatchStatuses = Expect<
+  Equal<
+    LibraryImportBatchStatus,
+    "pending" | "running" | "completed" | "completed_with_warnings" | "failed" | "canceled"
+  >
+>;
+
+type _libraryImportPreviewInputKeys = Expect<
+  Equal<
+    keyof LibraryImportPreviewInput,
+    "providerId" | "providerAccountId" | "ownerScope" | "scopes" | "sampleLimitPerArea"
+  >
+>;
+
+type _libraryImportStartInputKeys = Expect<
+  Equal<keyof LibraryImportStartInput, keyof LibraryImportPreviewInput>
+>;
+
+type _libraryImportBatchLookupInputsUseBatchId = Expect<
+  Equal<keyof LibraryImportStatusInput, "batchId"> &
+    Equal<keyof LibraryImportSummaryInput, "batchId">
+>;
+
+type _libraryImportPreviewAreaKeys = Expect<
+  Equal<
+    keyof LibraryImportPreviewArea,
+    | "scope"
+    | "area"
+    | "availability"
+    | "count"
+    | "samples"
+    | "issues"
+    | "canonicalEstimates"
+    | "collectionEstimates"
+    | "updateEstimates"
+    | "absences"
+  >
+>;
+
+type _libraryImportPreviewKeys = Expect<
+  Equal<keyof LibraryImportPreview, "providerId" | "ownerScope" | "scopes" | "account" | "areas" | "issues">
+>;
+
+type _libraryImportReportKeys = Expect<
+  Equal<
+    keyof LibraryImportReport,
+    | "batchId"
+    | "batchKind"
+    | "status"
+    | "providerId"
+    | "ownerScope"
+    | "scopes"
+    | "account"
+    | "startedAt"
+    | "completedAt"
+    | "counts"
+    | "areas"
+    | "items"
+    | "absences"
+    | "issues"
+  >
+>;
+
+type _libraryImportStatusIsBatchSummary = Expect<
+  Equal<
+    keyof LibraryImportStatus,
+    | "batchId"
+    | "batchKind"
+    | "status"
+    | "providerId"
+    | "ownerScope"
+    | "scopes"
+    | "startedAt"
+    | "completedAt"
+    | "counts"
+    | "issues"
+  >
+>;
+
+type _libraryImportSummaryUsesReportShape = Expect<Equal<LibraryImportSummary, LibraryImportReport>>;
+
+type _libraryImportBatchRecordKeys = Expect<
+  Equal<
+    keyof LibraryImportBatch,
+    | "id"
+    | "batchKind"
+    | "status"
+    | "providerId"
+    | "providerAccountId"
+    | "providerAccountStable"
+    | "ownerScope"
+    | "scopes"
+    | "startedAt"
+    | "completedAt"
+    | "counts"
+    | "issues"
+  >
+>;
+
+type _libraryImportAreaSnapshotKeys = Expect<
+  Equal<
+    keyof LibraryImportAreaSnapshot,
+    | "batchId"
+    | "ownerScope"
+    | "providerId"
+    | "providerAccountId"
+    | "scope"
+    | "area"
+    | "status"
+    | "complete"
+    | "sourceRefs"
+    | "itemCount"
+    | "recordedAt"
+  >
+>;
+
+type _libraryImportItemProvenanceKeys = Expect<
+  Equal<
+    keyof LibraryImportItemProvenance,
+    | "ownerScope"
+    | "providerId"
+    | "providerAccountId"
+    | "scope"
+    | "area"
+    | "sourceRef"
+    | "itemKind"
+    | "targetKind"
+    | "label"
+    | "addedAt"
+    | "canonicalHints"
+    | "canonicalRef"
+    | "firstImportedBatchId"
+    | "lastSeenBatchId"
+    | "lastSeenAt"
+    | "status"
+    | "skipReason"
+    | "failureCode"
+    | "retryable"
+  >
+>;
+
+type _platformLibraryAbsenceRecordKeys = Expect<
+  Equal<
+    keyof PlatformLibraryAbsence,
+    | "id"
+    | "ownerScope"
+    | "providerId"
+    | "providerAccountId"
+    | "scope"
+    | "area"
+    | "sourceRef"
+    | "canonicalRef"
+    | "label"
+    | "baselineBatchId"
+    | "currentBatchId"
+    | "reason"
+    | "recordedAt"
+  >
+>;
+
 type _systemCollectionRelationsExcludeCustom = Expect<
   Equal<SystemCollectionRelationKind, "saved" | "favorite" | "blocked">
 >;
@@ -321,6 +505,11 @@ const requiredErrorCodes: StageErrorCode[] = [
   "memory.proposal_not_found",
   "effect.confirmation_required",
   "effect.rejected",
+  "library_import.provider_not_found",
+  "library_import.scope_unsupported",
+  "library_import.batch_not_found",
+  "library_import.provider_read_failed",
+  "library_import.canonical_binding_failed",
   "plugin.provider_not_found",
   "storage.unavailable",
 ];

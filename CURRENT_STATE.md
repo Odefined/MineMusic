@@ -138,6 +138,12 @@ host-facing and LLM-facing surface.
   Playlist import is documented as a later feature. The implementation task
   breakdown is documented in `docs/library-import/implementation-plan.md`, and
   detailed implementation status is tracked in `docs/library-import/progress.md`.
+- Library Import implementation Task 1 is complete: shared TypeScript contracts
+  now define first-slice import scopes, batch kinds/statuses, preview/start/status
+  inputs, preview/report outputs, item outcomes, import counts, batch records,
+  area snapshots, item provenance, Platform Library Absence records, and stable
+  Library Import error codes. Service ports, import storage, orchestration, Stage
+  Core wiring, and Stage Interface import/update tools remain future tasks.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared

@@ -33,6 +33,11 @@ export const stageErrorCodes = [
   "memory.proposal_not_found",
   "effect.confirmation_required",
   "effect.rejected",
+  "library_import.provider_not_found",
+  "library_import.scope_unsupported",
+  "library_import.batch_not_found",
+  "library_import.provider_read_failed",
+  "library_import.canonical_binding_failed",
   "plugin.provider_not_found",
   "storage.unavailable",
 ] as const;
@@ -401,6 +406,256 @@ export interface PlatformLibraryProvider {
   preview(input: PlatformLibraryPreviewInput): Promise<Result<PlatformLibraryPreview>>;
   readItems(input: PlatformLibraryReadInput): Promise<Result<PlatformLibraryReadResult>>;
 }
+
+export type LibraryImportScope =
+  | "discovery"
+  | "saved_recordings"
+  | "saved_releases"
+  | "saved_artists";
+
+export type LibraryImportBatchKind =
+  | "initial_import"
+  | "library_update";
+
+export type LibraryImportBatchStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "completed_with_warnings"
+  | "failed"
+  | "canceled";
+
+export type LibraryImportPreviewInput = {
+  providerId: string;
+  providerAccountId?: string;
+  ownerScope?: string;
+  scopes: LibraryImportScope[];
+  sampleLimitPerArea?: number;
+};
+
+export type LibraryImportStartInput = LibraryImportPreviewInput;
+
+export type LibraryImportStatusInput = {
+  batchId: string;
+};
+
+export type LibraryImportSummaryInput = {
+  batchId: string;
+};
+
+export type LibraryImportCanonicalEstimateCounts = {
+  alreadyBound: number;
+  wouldCreateProvisional: number;
+  unresolved: number;
+  skipped: number;
+};
+
+export type LibraryImportCollectionEstimateCounts = {
+  alreadyPresent: number;
+  wouldAdd: number;
+  wouldAddAfterProvisional: number;
+  skipped: number;
+};
+
+export type LibraryImportUpdateEstimateCounts = {
+  wouldAdd: number;
+  alreadyPresent: number;
+  noLongerReturned: number;
+  failedOrSkipped: number;
+};
+
+export type PlatformLibraryAbsenceSummary = {
+  providerId: string;
+  providerAccountId: string;
+  ownerScope: string;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  sourceRef: Ref;
+  canonicalRef?: Ref;
+  label: string;
+  baselineBatchId: string;
+  currentBatchId?: string;
+  reason: "platform_not_returned" | (string & {});
+};
+
+export type LibraryImportPreviewArea = {
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  availability: PlatformLibraryAvailability;
+  count?: PlatformLibraryCount;
+  samples?: PlatformLibrarySample[];
+  issues?: PlatformLibraryIssue[];
+  canonicalEstimates: LibraryImportCanonicalEstimateCounts;
+  collectionEstimates: LibraryImportCollectionEstimateCounts;
+  updateEstimates?: LibraryImportUpdateEstimateCounts;
+  absences?: PlatformLibraryAbsenceSummary[];
+};
+
+export type LibraryImportPreview = {
+  providerId: string;
+  ownerScope: string;
+  scopes: LibraryImportScope[];
+  account?: PlatformLibraryAccountIdentity;
+  areas: LibraryImportPreviewArea[];
+  issues?: PlatformLibraryIssue[];
+};
+
+export type LibraryImportCanonicalOutcome =
+  | "reused"
+  | "created_provisional"
+  | "unresolved"
+  | "failed";
+
+export type LibraryImportCollectionOutcome =
+  | "added"
+  | "already_present"
+  | "skipped"
+  | "failed"
+  | "unchanged";
+
+export type LibraryImportItemStatus =
+  | "imported"
+  | "already_present"
+  | "skipped"
+  | "failed"
+  | "absent";
+
+export type LibraryImportItemReport = {
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  sourceRef: Ref;
+  itemKind: PlatformLibraryItemKind;
+  targetKind: PlatformLibraryTargetKind;
+  label: string;
+  status: LibraryImportItemStatus;
+  canonicalRef?: Ref;
+  canonicalOutcome?: LibraryImportCanonicalOutcome;
+  collectionItemId?: string;
+  collectionOutcome?: LibraryImportCollectionOutcome;
+  skipReason?: string;
+  failureCode?: string;
+  retryable?: boolean;
+};
+
+export type LibraryImportCounts = {
+  importedItems: number;
+  alreadyPresentItems: number;
+  skippedItems: number;
+  failedItems: number;
+  absentItems: number;
+  canonicalRecordsReused: number;
+  canonicalRecordsCreated: number;
+  canonicalRecordsUnresolved: number;
+  collectionItemsAdded: number;
+  collectionItemsAlreadyPresent: number;
+};
+
+export type LibraryImportReportArea = {
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  readStatus?: PlatformLibraryReadStatus;
+  count?: PlatformLibraryCount;
+  issues?: PlatformLibraryIssue[];
+};
+
+export type LibraryImportReport = {
+  batchId: string;
+  batchKind: LibraryImportBatchKind;
+  status: LibraryImportBatchStatus;
+  providerId: string;
+  ownerScope: string;
+  scopes: LibraryImportScope[];
+  account?: PlatformLibraryAccountIdentity;
+  startedAt: string;
+  completedAt?: string;
+  counts: LibraryImportCounts;
+  areas: LibraryImportReportArea[];
+  items: LibraryImportItemReport[];
+  absences?: PlatformLibraryAbsenceSummary[];
+  issues?: PlatformLibraryIssue[];
+};
+
+export type LibraryImportStatus = {
+  batchId: string;
+  batchKind: LibraryImportBatchKind;
+  status: LibraryImportBatchStatus;
+  providerId: string;
+  ownerScope: string;
+  scopes: LibraryImportScope[];
+  startedAt: string;
+  completedAt?: string;
+  counts: LibraryImportCounts;
+  issues?: PlatformLibraryIssue[];
+};
+
+export type LibraryImportSummary = LibraryImportReport;
+
+export type LibraryImportBatch = {
+  id: string;
+  batchKind: LibraryImportBatchKind;
+  status: LibraryImportBatchStatus;
+  providerId: string;
+  providerAccountId?: string;
+  providerAccountStable?: boolean;
+  ownerScope: string;
+  scopes: LibraryImportScope[];
+  startedAt: string;
+  completedAt?: string;
+  counts: LibraryImportCounts;
+  issues?: PlatformLibraryIssue[];
+};
+
+export type LibraryImportAreaSnapshot = {
+  batchId: string;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  status: PlatformLibraryReadStatus;
+  complete: boolean;
+  sourceRefs: Ref[];
+  itemCount: number;
+  recordedAt: string;
+};
+
+export type LibraryImportItemProvenance = {
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  sourceRef: Ref;
+  itemKind: PlatformLibraryItemKind;
+  targetKind: PlatformLibraryTargetKind;
+  label: string;
+  addedAt?: string;
+  canonicalHints?: PlatformLibraryCanonicalHints;
+  canonicalRef?: Ref;
+  firstImportedBatchId: string;
+  lastSeenBatchId: string;
+  lastSeenAt: string;
+  status: LibraryImportItemStatus;
+  skipReason?: string;
+  failureCode?: string;
+  retryable?: boolean;
+};
+
+export type PlatformLibraryAbsence = {
+  id: string;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  sourceRef: Ref;
+  canonicalRef?: Ref;
+  label: string;
+  baselineBatchId: string;
+  currentBatchId: string;
+  reason: "platform_not_returned" | (string & {});
+  recordedAt: string;
+};
 
 export type KnowledgeQuery = {
   text?: string;
