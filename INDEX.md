@@ -224,22 +224,24 @@ This index points agents to the current MVP documentation pack.
 
 57. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
-      area snapshot, item provenance, absence, and latest complete baseline
-      storage.
+      report, area snapshot, item provenance, absence, and provider-account-stable
+      latest complete baseline storage.
 
 58. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
-      complete snapshots, update diffing, Platform Library Absence records, and
-      batch status/summary helpers.
+      complete snapshots, update diffing, Platform Library Absence records,
+      started-batch failure handling, and repository-backed batch status/summary
+      helpers.
 
 59. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
       behavior, plus initial import start writes and partial-read snapshot
-      guards, update diffing, and absence recording.
+      guards, summary recovery, update diffing, provider-account-stable baseline
+      separation, and absence recording.
 
 60. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:

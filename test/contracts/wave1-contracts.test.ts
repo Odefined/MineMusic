@@ -310,6 +310,7 @@ type _libraryImportAreaSnapshotKeys = Expect<
     | "ownerScope"
     | "providerId"
     | "providerAccountId"
+    | "providerAccountStable"
     | "scope"
     | "area"
     | "status"
@@ -428,6 +429,8 @@ type _libraryImportRepositoryMethods = Expect<
     | "getBatch"
     | "putBatch"
     | "listBatches"
+    | "getReport"
+    | "putReport"
     | "putAreaSnapshot"
     | "listAreaSnapshots"
     | "getLatestCompleteAreaSnapshot"
@@ -443,6 +446,8 @@ type _libraryImportRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<LibraryImportRepository, "getBatch"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "putBatch"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "listBatches"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "getReport"> &
+    MethodAcceptsSingleObject<LibraryImportRepository, "putReport"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "putAreaSnapshot"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "listAreaSnapshots"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "getLatestCompleteAreaSnapshot"> &

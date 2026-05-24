@@ -495,6 +495,24 @@
   while keeping mutable implementation status out of
   `docs/library-import/design.md`.
 
+## 2026-05-25
+
+- Corrected Library Import implementation/design drift found in review:
+  started import/update batches now transition to `failed` when provider reads
+  or downstream import steps fail; completed reports are stored through
+  `LibraryImportRepository` so summary reads survive service recreation; area
+  snapshots and latest-complete baseline lookup now separate stable and unstable
+  provider account identities; update preview positive estimates now classify
+  returned source refs against the latest eligible baseline before falling back
+  to Collection-based estimates.
+- Extended contract, in-memory storage, and Library Import service coverage for
+  report storage, provider-account-stable baseline lookup, provider-read failure
+  status, summary recovery, stable/unstable baseline separation, and newly
+  observed update items that are already present in Collection.
+- Synced `INDEX.md`, `CURRENT_STATE.md`, and
+  `docs/library-import/progress.md` for the corrected Library Import public
+  repository boundary and runtime behavior.
+
 ## Next
 
 - Pick the next Library Import slice: durable Library Import storage, playlist

@@ -13,27 +13,32 @@ This file tracks Library Import implementation progress.
   area snapshots, item provenance records, Platform Library Absence records, and
   stable first-slice Library Import error codes. `src/ports/index.ts` now defines
   `LibraryImportPort` and `LibraryImportRepository` public boundaries for preview,
-  start, status, summary, batch storage, area snapshots, item provenance, absence
-  records, and latest complete baseline lookup. `src/storage/index.ts` now exports
+  start, status, summary, batch storage, completed report storage, area snapshots,
+  item provenance, absence records, and provider-account-stable latest complete
+  baseline lookup. `src/storage/index.ts` now exports
   `createInMemoryLibraryImportRepository()` for clone-return in-memory batch,
-  snapshot, provenance, and absence storage. Contract coverage lives in
+  report, snapshot, provenance, and absence storage. Contract coverage lives in
   `test/contracts/wave1-contracts.test.ts`; storage coverage lives in
   `test/storage/in-memory-library-import-repository.test.ts`. The service
   skeleton in `src/library_import/index.ts` now provides provider lookup and
   validation, first-slice scope-to-area mapping, discovery start rejection,
-  skeleton import/update batch creation, batch status/summary helpers, and
+  skeleton import/update batch creation, batch status/summary helpers,
+  repository-backed completed summary reads, and
   side-effect-free import preview estimates for exact source-ref canonical
   bindings, provisional canonical creates, unresolved items, and saved
   Collection outcomes. Initial import start now creates running/completed
   batches, records import events, reuses exact canonical bindings, creates and
   binds provisional canonical records for strong provider facts, writes saved
   Collection items, stores item provenance, stores complete area snapshots only
-  for complete provider reads, and returns completed summary reports. Library
-  update preview/start now compares complete current provider reads against the
-  latest eligible complete baseline, reports already-present, would-add, and
-  no-longer-returned categories, writes new Collection items, stores Platform
-  Library Absence records, records `library_import.item.not_returned` events,
-  and intentionally derives no absences from partial current reads. Stage Core
+  for complete provider reads, persists completed summary reports, marks started
+  batches failed when provider reads or downstream import steps fail, and returns
+  completed summary reports. Library update preview/start now compares current
+  provider reads against the latest eligible complete baseline for the same
+  provider account stability, reports already-present, would-add, and
+  no-longer-returned categories from baseline source refs, writes new Collection
+  items, stores Platform Library Absence records, records
+  `library_import.item.not_returned` events, and intentionally derives no
+  absences from partial current reads. Stage Core
   now creates and exposes `libraryImport`, defaults to an in-memory Library
   Import repository, supports optional `libraryImportRepository` and
   `platformLibraryProvider` injection, and registers platform-library providers
@@ -45,10 +50,12 @@ This file tracks Library Import implementation progress.
   `platform_library` slots and reuses `MINEMUSIC_NETEASE_BASE_URL` for both
   provider factories without adding credential storage. Deterministic integration
   coverage now exercises discovery preview, explicit preview estimates, initial
-  import side effects, repeated import idempotency, update diffing, partial-read
-  absence guards, and Stage Interface / MCP tool exposure through the composed
-  runtime. Documentation and project state now record the completed first-slice
-  scope without putting mutable implementation status in the design document.
+  import side effects, started-batch failure status, summary recovery after
+  service recreation, repeated import idempotency, update diffing, stable-account
+  baseline separation, partial-read absence guards, and Stage Interface / MCP
+  tool exposure through the composed runtime. Documentation and project state
+  now record the completed first-slice scope without putting mutable
+  implementation status in the design document.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
@@ -66,9 +73,10 @@ This file tracks Library Import implementation progress.
   configured account and reads 1372 saved recordings, 466 saved releases, and
   179 saved artists.
 - In-memory Library Import storage is implemented for import/update batch
-  records, per-area snapshots, item provenance, Platform Library Absence records,
-  returned-copy behavior, and latest complete baseline lookup. Durable Library
-  Import storage remains a future task.
+  records, completed reports, per-area snapshots, item provenance, Platform
+  Library Absence records, returned-copy behavior, and provider-account-stable
+  latest complete baseline lookup. Durable Library Import storage remains a
+  future task.
 - The six Stage Interface Library Import tools are implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.
 - Implementation task breakdown lives in
@@ -128,3 +136,6 @@ This file tracks Library Import implementation progress.
 - `npm run build:test && node .tmp-test/test/integration/library-import-runtime.test.js`
   passes after adding Task 11 first-slice runtime coverage.
 - `npm test` passes after Task 12 documentation and state sync.
+- `npm test` passes after the 2026-05-25 implementation/design drift
+  corrections for failed started batches, repository-backed summaries,
+  provider-account-stable baselines, and update preview baseline classification.

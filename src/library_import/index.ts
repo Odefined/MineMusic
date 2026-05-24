@@ -1,6 +1,7 @@
 import type {
   CanonicalRecord,
   CollectionItem,
+  LibraryImportAreaSnapshot,
   LibraryImportBatch,
   LibraryImportBatchKind,
   LibraryImportCollectionEstimateCounts,
@@ -126,6 +127,16 @@ export function createLibraryImportService({
     },
 
     async getSummary({ batchId }) {
+      const storedReport = await repository.getReport({ batchId });
+
+      if (!storedReport.ok) {
+        return storedReport;
+      }
+
+      if (storedReport.value !== null) {
+        return ok(storedReport.value);
+      }
+
       const completedReport = completedReports.get(batchId);
 
       if (completedReport !== undefined) {
@@ -183,6 +194,7 @@ async function previewLibraryImport({
   }
 
   const providerAccountId = preview.value.account?.providerAccountId ?? input.providerAccountId;
+  const providerAccountStable = preview.value.account?.stable;
   const estimates = await estimateReadablePreviewAreas({
     provider: provider.value,
     canonicalStore,
@@ -190,6 +202,7 @@ async function previewLibraryImport({
     repository,
     ownerScope,
     providerAccountId,
+    providerAccountStable,
     requestedAreas: areas,
     previewAreas: preview.value.areas,
     includeUpdateEstimates,
@@ -237,6 +250,7 @@ async function estimateReadablePreviewAreas({
   repository,
   ownerScope,
   providerAccountId,
+  providerAccountStable,
   requestedAreas,
   previewAreas,
   includeUpdateEstimates,
@@ -247,6 +261,7 @@ async function estimateReadablePreviewAreas({
   repository: LibraryImportRepository;
   ownerScope: string;
   providerAccountId: string | undefined;
+  providerAccountStable: boolean | undefined;
   requestedAreas: PlatformLibraryArea[];
   previewAreas: PlatformLibraryPreviewArea[];
   includeUpdateEstimates: boolean;
@@ -275,10 +290,35 @@ async function estimateReadablePreviewAreas({
 
   const estimates = new Map<PlatformLibraryArea, PreviewAreaEstimates>();
   const savedItemsByKind = new Map<PlatformLibraryItem["targetKind"], CollectionItem[]>();
+  const readProviderAccountId = read.value.account?.providerAccountId ?? providerAccountId;
+  const readProviderAccountStable = read.value.account?.stable ?? providerAccountStable;
 
   for (const area of read.value.areas) {
     const areaEstimates = emptyPreviewAreaEstimates();
     const updateEstimates = includeUpdateEstimates ? emptyUpdateEstimates() : undefined;
+    let baselineSnapshot: LibraryImportAreaSnapshot | null = null;
+
+    if (updateEstimates !== undefined) {
+      const baseline = await getLatestCompleteAreaSnapshotForRead({
+        repository,
+        ownerScope,
+        providerId: provider.id,
+        providerAccountId: readProviderAccountId,
+        providerAccountStable: readProviderAccountStable,
+        scope: providerAreaToScope(area.area),
+        area: area.area,
+      });
+
+      if (!baseline.ok) {
+        return baseline;
+      }
+
+      baselineSnapshot = baseline.value;
+    }
+    const baselineSourceRefKeys =
+      baselineSnapshot === null
+        ? null
+        : new Set(baselineSnapshot.sourceRefs.map((sourceRef) => refKey(sourceRef)));
 
     for (const item of area.items) {
       const itemEstimate = await estimatePreviewItem({
@@ -295,7 +335,11 @@ async function estimateReadablePreviewAreas({
 
       incrementPreviewAreaEstimates(areaEstimates, itemEstimate.value);
       if (updateEstimates !== undefined) {
-        incrementUpdateEstimates(updateEstimates, itemEstimate.value);
+        incrementUpdateEstimates(updateEstimates, {
+          itemEstimate: itemEstimate.value,
+          sourceRef: item.sourceRef,
+          baselineSourceRefKeys,
+        });
       }
     }
 
@@ -304,11 +348,13 @@ async function estimateReadablePreviewAreas({
         repository,
         ownerScope,
         providerId: provider.id,
-        providerAccountId,
+        providerAccountId: readProviderAccountId,
+        providerAccountStable: readProviderAccountStable,
         scope: providerAreaToScope(area.area),
         area: area.area,
         currentItems: area.items,
         currentBatchId: undefined,
+        baseline: baselineSnapshot,
       });
 
       if (!absenceSummaries.ok) {
@@ -439,8 +485,32 @@ function incrementPreviewAreaEstimates(
 
 function incrementUpdateEstimates(
   estimates: LibraryImportUpdateEstimateCounts,
-  itemEstimate: PreviewItemEstimate,
+  {
+    itemEstimate,
+    sourceRef,
+    baselineSourceRefKeys,
+  }: {
+    itemEstimate: PreviewItemEstimate;
+    sourceRef: Ref;
+    baselineSourceRefKeys: Set<string> | null;
+  },
 ): void {
+  if (itemEstimate === "unresolved") {
+    estimates.failedOrSkipped += 1;
+
+    return;
+  }
+
+  if (baselineSourceRefKeys !== null) {
+    if (baselineSourceRefKeys.has(refKey(sourceRef))) {
+      estimates.alreadyPresent += 1;
+    } else {
+      estimates.wouldAdd += 1;
+    }
+
+    return;
+  }
+
   switch (itemEstimate) {
     case "already_present":
       estimates.alreadyPresent += 1;
@@ -449,10 +519,38 @@ function incrementUpdateEstimates(
     case "would_add_after_provisional":
       estimates.wouldAdd += 1;
       return;
-    case "unresolved":
-      estimates.failedOrSkipped += 1;
-      return;
   }
+}
+
+async function getLatestCompleteAreaSnapshotForRead({
+  repository,
+  ownerScope,
+  providerId,
+  providerAccountId,
+  providerAccountStable,
+  scope,
+  area,
+}: {
+  repository: LibraryImportRepository;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string | undefined;
+  providerAccountStable: boolean | undefined;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+}): Promise<Result<LibraryImportAreaSnapshot | null>> {
+  if (providerAccountId === undefined) {
+    return ok(null);
+  }
+
+  return repository.getLatestCompleteAreaSnapshot({
+    ownerScope,
+    providerId,
+    providerAccountId,
+    ...(providerAccountStable === undefined ? {} : { providerAccountStable }),
+    scope,
+    area,
+  });
 }
 
 async function previewAbsencesForArea({
@@ -460,41 +558,51 @@ async function previewAbsencesForArea({
   ownerScope,
   providerId,
   providerAccountId,
+  providerAccountStable,
   scope,
   area,
   currentItems,
   currentBatchId,
+  baseline,
 }: {
   repository: LibraryImportRepository;
   ownerScope: string;
   providerId: string;
   providerAccountId: string | undefined;
+  providerAccountStable: boolean | undefined;
   scope: LibraryImportScope;
   area: PlatformLibraryArea;
   currentItems: PlatformLibraryItem[];
   currentBatchId: string | undefined;
+  baseline?: LibraryImportAreaSnapshot | null;
 }): Promise<Result<PlatformLibraryAbsenceSummary[]>> {
+  const latestBaseline =
+    baseline === undefined
+      ? await getLatestCompleteAreaSnapshotForRead({
+          repository,
+          ownerScope,
+          providerId,
+          providerAccountId,
+          providerAccountStable,
+          scope,
+          area,
+        })
+      : ok(baseline);
+
+  if (!latestBaseline.ok) {
+    return latestBaseline;
+  }
+
+  if (latestBaseline.value === null) {
+    return ok([]);
+  }
+
   if (providerAccountId === undefined) {
     return ok([]);
   }
 
-  const baseline = await repository.getLatestCompleteAreaSnapshot({
-    ownerScope,
-    providerId,
-    providerAccountId,
-    scope,
-    area,
-  });
-
-  if (!baseline.ok) {
-    return baseline;
-  }
-
-  if (baseline.value === null) {
-    return ok([]);
-  }
-
-  const missingSourceRefs = baseline.value.sourceRefs.filter(
+  const baselineSnapshot = latestBaseline.value;
+  const missingSourceRefs = baselineSnapshot.sourceRefs.filter(
     (sourceRef) => !currentItems.some((item) => sameRef(item.sourceRef, sourceRef)),
   );
   const absences: PlatformLibraryAbsenceSummary[] = [];
@@ -521,7 +629,7 @@ async function previewAbsencesForArea({
       area,
       sourceRef,
       label: provenance.value?.label ?? sourceRef.label ?? sourceRef.id,
-      baselineBatchId: baseline.value.batchId,
+      baselineBatchId: baselineSnapshot.batchId,
       reason: "platform_not_returned",
     };
 
@@ -584,6 +692,7 @@ async function startLibraryImport({
   const batchId = idFactory();
   const startedAt = clock();
   const ownerScope = input.ownerScope ?? defaultOwnerScope;
+  const counts = emptyCounts();
   const runningBatch: LibraryImportBatch = {
     id: batchId,
     batchKind,
@@ -592,7 +701,7 @@ async function startLibraryImport({
     ownerScope,
     scopes,
     startedAt,
-    counts: emptyCounts(),
+    counts,
   };
 
   if (input.providerAccountId !== undefined) {
@@ -605,14 +714,21 @@ async function startLibraryImport({
     return storedRunningBatch;
   }
 
+  let currentBatch = storedRunningBatch.value;
+
   const startedEvent = await recordLibraryImportEvent(events, {
-    batch: storedRunningBatch.value,
+    batch: currentBatch,
     type: "library_import.batch.started",
     payload: {},
   });
 
   if (!startedEvent.ok) {
-    return startedEvent;
+    return markStartedBatchFailed({
+      repository,
+      batch: currentBatch,
+      completedAt: clock(),
+      result: startedEvent,
+    });
   }
 
   const read = await provider.value.readItems({
@@ -621,13 +737,36 @@ async function startLibraryImport({
   });
 
   if (!read.ok) {
-    return providerReadFailed(input.providerId, read.error);
+    return markStartedBatchFailed({
+      repository,
+      batch: currentBatch,
+      completedAt: clock(),
+      result: {
+        ok: false,
+        error: providerReadFailedError(input.providerId, read.error),
+      },
+    });
   }
 
   const completedAt = clock();
   const providerAccountId =
     read.value.account?.providerAccountId ?? input.providerAccountId ?? "unknown";
-  const counts = emptyCounts();
+  const providerAccountStable = read.value.account?.stable;
+  currentBatch = {
+    ...currentBatch,
+    providerId: read.value.providerId,
+    providerAccountId,
+    counts,
+  };
+
+  if (providerAccountStable !== undefined) {
+    currentBatch.providerAccountStable = providerAccountStable;
+  }
+
+  if (read.value.issues !== undefined) {
+    currentBatch.issues = read.value.issues;
+  }
+
   const reportAreas = read.value.areas.map(providerReadAreaToReportArea);
   const itemReports: LibraryImportItemReport[] = [];
   const absences: PlatformLibraryAbsenceSummary[] = [];
@@ -636,7 +775,12 @@ async function startLibraryImport({
   const initializedCollections = await collection.initializeOwnerCollections({ ownerScope });
 
   if (!initializedCollections.ok) {
-    return initializedCollections;
+    return markStartedBatchFailed({
+      repository,
+      batch: currentBatch,
+      completedAt: clock(),
+      result: initializedCollections,
+    });
   }
 
   for (const area of read.value.areas) {
@@ -660,7 +804,12 @@ async function startLibraryImport({
       });
 
       if (!itemReport.ok) {
-        return itemReport;
+        return markStartedBatchFailed({
+          repository,
+          batch: currentBatch,
+          completedAt: clock(),
+          result: itemReport,
+        });
       }
 
       itemReports.push(itemReport.value);
@@ -677,6 +826,7 @@ async function startLibraryImport({
         ownerScope,
         providerId: read.value.providerId,
         providerAccountId,
+        providerAccountStable,
         scope,
         area: area.area,
         currentItems: area.items,
@@ -684,7 +834,12 @@ async function startLibraryImport({
       });
 
       if (!areaAbsences.ok) {
-        return areaAbsences;
+        return markStartedBatchFailed({
+          repository,
+          batch: currentBatch,
+          completedAt: clock(),
+          result: areaAbsences,
+        });
       }
 
       for (const absence of areaAbsences.value) {
@@ -701,7 +856,12 @@ async function startLibraryImport({
         });
 
         if (!storedAbsence.ok) {
-          return storedAbsence;
+          return markStartedBatchFailed({
+            repository,
+            batch: currentBatch,
+            completedAt: clock(),
+            result: storedAbsence,
+          });
         }
 
         absences.push(absence);
@@ -716,6 +876,7 @@ async function startLibraryImport({
           ownerScope,
           providerId: read.value.providerId,
           providerAccountId,
+          ...(providerAccountStable === undefined ? {} : { providerAccountStable }),
           scope,
           area: area.area,
           status: area.status,
@@ -727,7 +888,12 @@ async function startLibraryImport({
       });
 
       if (!storedSnapshot.ok) {
-        return storedSnapshot;
+        return markStartedBatchFailed({
+          repository,
+          batch: currentBatch,
+          completedAt: clock(),
+          result: storedSnapshot,
+        });
       }
     }
   }
@@ -746,8 +912,8 @@ async function startLibraryImport({
 
   batch.providerAccountId = providerAccountId;
 
-  if (read.value.account?.stable !== undefined) {
-    batch.providerAccountStable = read.value.account.stable;
+  if (providerAccountStable !== undefined) {
+    batch.providerAccountStable = providerAccountStable;
   }
 
   if (read.value.issues !== undefined) {
@@ -757,7 +923,35 @@ async function startLibraryImport({
   const stored = await repository.putBatch({ batch });
 
   if (!stored.ok) {
-    return stored;
+    return markStartedBatchFailed({
+      repository,
+      batch: currentBatch,
+      completedAt: clock(),
+      result: stored,
+    });
+  }
+
+  const report = batchToReport(stored.value);
+  report.areas = reportAreas;
+  report.items = itemReports;
+
+  if (absences.length > 0) {
+    report.absences = absences;
+  }
+
+  if (read.value.account !== undefined) {
+    report.account = read.value.account;
+  }
+
+  const storedReport = await repository.putReport({ report });
+
+  if (!storedReport.ok) {
+    return markStartedBatchFailed({
+      repository,
+      batch: currentBatch,
+      completedAt: clock(),
+      result: storedReport,
+    });
   }
 
   const completedEvent = await recordLibraryImportEvent(events, {
@@ -773,21 +967,35 @@ async function startLibraryImport({
     return completedEvent;
   }
 
-  const report = batchToReport(stored.value);
-  report.areas = reportAreas;
-  report.items = itemReports;
+  completedReports.set(storedReport.value.batchId, structuredClone(storedReport.value));
 
-  if (absences.length > 0) {
-    report.absences = absences;
+  return ok(storedReport.value);
+}
+
+async function markStartedBatchFailed<T>({
+  repository,
+  batch,
+  completedAt,
+  result,
+}: {
+  repository: LibraryImportRepository;
+  batch: LibraryImportBatch;
+  completedAt: string;
+  result: { ok: false; error: StageError };
+}): Promise<Result<T>> {
+  const failedBatch: LibraryImportBatch = {
+    ...batch,
+    status: "failed",
+    completedAt,
+    counts: structuredClone(batch.counts),
+  };
+  const stored = await repository.putBatch({ batch: failedBatch });
+
+  if (!stored.ok) {
+    return stored;
   }
 
-  if (read.value.account !== undefined) {
-    report.account = read.value.account;
-  }
-
-  completedReports.set(report.batchId, structuredClone(report));
-
-  return ok(report);
+  return result;
 }
 
 async function importProviderItem({
@@ -1416,6 +1624,10 @@ function sameRef(
   return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
 }
 
+function refKey(ref: Pick<Ref, "namespace" | "kind" | "id">): string {
+  return `${ref.namespace}:${ref.kind}:${ref.id}`;
+}
+
 function readHasWarnings(
   areas: PlatformLibraryReadAreaResult[],
   issues: PlatformLibraryReadAreaResult["issues"],
@@ -1539,13 +1751,17 @@ function providerNotFound(providerId: string, cause?: unknown): Result<never> {
 }
 
 function providerReadFailed(providerId: string, cause: unknown): Result<never> {
-  return fail({
+  return fail(providerReadFailedError(providerId, cause));
+}
+
+function providerReadFailedError(providerId: string, cause: unknown): StageError {
+  return {
     code: "library_import.provider_read_failed",
     message: `Platform library provider '${providerId}' failed to read library facts.`,
     module: "library_import",
     retryable: true,
     cause,
-  });
+  };
 }
 
 function batchNotFound(batchId: string): Result<never> {

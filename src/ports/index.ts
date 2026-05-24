@@ -89,6 +89,7 @@ export type LibraryImportRepositoryListAreaSnapshotsInput = {
   ownerScope?: string;
   providerId?: string;
   providerAccountId?: string;
+  providerAccountStable?: boolean;
   scope?: LibraryImportScope;
   area?: PlatformLibraryArea;
   complete?: boolean;
@@ -98,6 +99,7 @@ export type LibraryImportRepositoryBaselineInput = {
   ownerScope: string;
   providerId: string;
   providerAccountId: string;
+  providerAccountStable?: boolean;
   scope: LibraryImportScope;
   area: PlatformLibraryArea;
 };
@@ -362,6 +364,10 @@ export interface LibraryImportRepository {
   listBatches(
     input: LibraryImportRepositoryListBatchesInput,
   ): Promise<Result<LibraryImportBatch[]>>;
+
+  getReport(input: { batchId: string }): Promise<Result<LibraryImportReport | null>>;
+
+  putReport(input: { report: LibraryImportReport }): Promise<Result<LibraryImportReport>>;
 
   putAreaSnapshot(input: {
     snapshot: LibraryImportAreaSnapshot;

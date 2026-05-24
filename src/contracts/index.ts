@@ -610,6 +610,7 @@ export type LibraryImportAreaSnapshot = {
   ownerScope: string;
   providerId: string;
   providerAccountId: string;
+  providerAccountStable?: boolean;
   scope: LibraryImportScope;
   area: PlatformLibraryArea;
   status: PlatformLibraryReadStatus;

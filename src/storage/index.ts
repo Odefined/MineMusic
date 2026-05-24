@@ -6,6 +6,7 @@ import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
   LibraryImportItemProvenance,
+  LibraryImportReport,
   MemoryEntry,
   PlatformLibraryAbsence,
   Ref,
@@ -156,6 +157,7 @@ export function createInMemoryCollectionRepository(): CollectionRepository {
 
 export function createInMemoryLibraryImportRepository(): LibraryImportRepository {
   const batches = new Map<string, LibraryImportBatch>();
+  const reports = new Map<string, LibraryImportReport>();
   const areaSnapshots = new Map<string, LibraryImportAreaSnapshot>();
   const itemProvenance = new Map<string, LibraryImportItemProvenance>();
   const absences = new Map<string, PlatformLibraryAbsence>();
@@ -181,6 +183,18 @@ export function createInMemoryLibraryImportRepository(): LibraryImportRepository
       );
     },
 
+    async getReport({ batchId }) {
+      const report = reports.get(batchId);
+
+      return ok(report === undefined ? null : cloneRecord(report));
+    },
+
+    async putReport({ report }) {
+      reports.set(report.batchId, cloneRecord(report));
+
+      return ok(cloneRecord(report));
+    },
+
     async putAreaSnapshot({ snapshot }) {
       areaSnapshots.set(libraryImportAreaSnapshotKey(snapshot), cloneRecord(snapshot));
 
@@ -203,6 +217,7 @@ export function createInMemoryLibraryImportRepository(): LibraryImportRepository
             snapshot.ownerScope === input.ownerScope &&
             snapshot.providerId === input.providerId &&
             snapshot.providerAccountId === input.providerAccountId &&
+            snapshot.providerAccountStable === input.providerAccountStable &&
             snapshot.scope === input.scope &&
             snapshot.area === input.area,
         )
@@ -312,6 +327,8 @@ function matchesLibraryImportAreaSnapshotQuery(
     (query.ownerScope === undefined || snapshot.ownerScope === query.ownerScope) &&
     (query.providerId === undefined || snapshot.providerId === query.providerId) &&
     (query.providerAccountId === undefined || snapshot.providerAccountId === query.providerAccountId) &&
+    (query.providerAccountStable === undefined ||
+      snapshot.providerAccountStable === query.providerAccountStable) &&
     (query.scope === undefined || snapshot.scope === query.scope) &&
     (query.area === undefined || snapshot.area === query.area) &&
     (query.complete === undefined || snapshot.complete === query.complete)

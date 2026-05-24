@@ -145,26 +145,31 @@ host-facing and LLM-facing surface.
   area snapshots, item provenance, Platform Library Absence records, and stable
   Library Import error codes. Public ports now define `LibraryImportPort` and
   `LibraryImportRepository` boundaries for preview/start/status/summary,
-  batch storage, area snapshots, item provenance, absence records, and latest
-  complete baseline lookup. In-memory storage now exports
-  `createInMemoryLibraryImportRepository()` for clone-return batch, snapshot,
-  provenance, absence, and latest complete baseline operations. The service
+  batch storage, completed report storage, area snapshots, item provenance,
+  absence records, and provider-account-stable latest complete baseline lookup.
+  In-memory storage now exports `createInMemoryLibraryImportRepository()` for
+  clone-return batch, report, snapshot, provenance, absence, and latest complete
+  baseline operations. The service
   skeleton in `src/library_import/index.ts` now resolves and validates
   `platform_library` providers, maps first-slice scopes to provider areas,
   rejects `discovery` start calls, creates skeleton import/update batches for
-  readable starts, exposes batch status/summary helpers, and implements
-  side-effect-free import preview estimates for exact source-ref canonical
+  readable starts, exposes batch status/summary helpers backed by completed
+  report storage, and implements side-effect-free import preview estimates for
+  exact source-ref canonical
   bindings, provisional canonical creates, unresolved items, and saved
   Collection outcomes. Initial import start now creates running/completed
   batches, records import events, reuses exact canonical bindings, creates and
   binds provisional canonical records for strong provider facts, writes saved
   Collection items, stores item provenance, and stores complete area snapshots
-  only for complete provider reads. Library update preview/start now compares
-  complete current provider reads with the latest eligible complete baseline,
-  reports newly observed, already-present, and no-longer-returned categories,
-  stores Platform Library Absence records with `library_import.item.not_returned`
-  events for complete update reads, and avoids deriving absences from partial
-  reads. Stage Core now creates and exposes `libraryImport`, creates an
+  only for complete provider reads, persists completed summary reports, and
+  marks started batches failed when provider reads or downstream import steps
+  fail. Library update preview/start now compares current provider reads with
+  the latest eligible complete baseline for the same provider account stability,
+  reports newly observed, already-present, and no-longer-returned categories
+  from baseline source refs, stores Platform Library Absence records with
+  `library_import.item.not_returned` events for complete update reads, and
+  avoids deriving absences from partial reads. Stage Core now creates and
+  exposes `libraryImport`, creates an
   in-memory Library Import repository by default, accepts optional
   `libraryImportRepository` and `platformLibraryProvider` injections, and
   registers source and platform-library providers separately during runtime
@@ -314,7 +319,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of Library Import Task 12 documentation/state sync.
+- `npm test` passes as of the Library Import implementation/design drift
+  corrections on 2026-05-25.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

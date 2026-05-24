@@ -208,6 +208,50 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
   assert(status.status === "completed", "status should expose stored batch status");
 }
 
+async function marksStartedBatchFailedWhenProviderReadFails(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: false,
+        error: {
+          code: "fixture.read_failed",
+          message: "fixture read failed",
+          module: "library_import",
+          retryable: true,
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+
+  await assertErrorCode(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+    "library_import.provider_read_failed",
+  );
+  const status = await assertOk(
+    environment.libraryImport.getStatus({ batchId: "library-import-batch-1" }),
+  );
+
+  assert(status.status === "failed", "failed provider reads should not leave the batch running");
+  assert(status.completedAt === "2026-05-25T00:00:00.000Z", "failed batches should record completion time");
+}
+
 async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Promise<void> {
   const registry = createPluginRegistry();
   const readInputs: Parameters<PlatformLibraryProvider["readItems"]>[0][] = [];
@@ -531,6 +575,68 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   );
 }
 
+async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: [providerItem("persisted-track", "Persisted Track")],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const report = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  const recreatedLibraryImport = createLibraryImportService({
+    pluginRegistry: registry,
+    canonicalStore: createCanonicalStore({
+      repository: environment.canonicalRepository,
+      idFactory: createSequence("recreated-canonical"),
+    }),
+    collection: environment.collections,
+    events: environment.events,
+    repository: environment.libraryImportRepository,
+    idFactory: createSequence("recreated-library-import-batch"),
+    clock: () => "2026-05-25T00:00:00.000Z",
+  });
+
+  const summary = await assertOk(recreatedLibraryImport.getSummary({ batchId: report.batchId }));
+
+  assert(summary.items.length === 1, "summary should survive service-local report cache loss");
+  assert(summary.items[0]?.sourceRef.id === "persisted-track", "stored summary should include item reports");
+  assert(summary.areas[0]?.area === "saved_recordings", "stored summary should include read areas");
+}
+
 async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
@@ -643,9 +749,29 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
       scopes: ["saved_recordings"],
     }),
   );
+  const preExistingCanonical: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "pre-existing-recording",
+    },
+    kind: "recording",
+    label: "Saved New Track",
+    status: "active",
+    externalKeys: [sourceRef("saved-new-track")],
+  };
+  await assertOk(environment.canonicalRepository.put(preExistingCanonical));
+  await assertOk(
+    environment.collections.addItemToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      canonicalRef: preExistingCanonical.ref,
+      label: preExistingCanonical.label,
+    }),
+  );
   providerItems = [
     providerItem("kept-track", "Kept Track"),
-    providerItem("new-track", "New Track"),
+    providerItem("saved-new-track", "Saved New Track"),
   ];
   const batchesBeforePreview = await assertOk(environment.libraryImportRepository.listBatches({}));
   const savedItemsBeforePreview = await assertOk(
@@ -691,6 +817,79 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
   assert(batchesAfterPreview.length === batchesBeforePreview.length, "update preview should not create batches");
   assert(absencesAfterPreview.length === 0, "update preview should not store absence records");
   assert(savedItemsAfterPreview.length === savedItemsBeforePreview.length, "update preview should not write collections");
+}
+
+async function doesNotUseStableAccountBaselinesForUnstableUpdateReads(): Promise<void> {
+  const registry = createPluginRegistry();
+  let providerItems = [
+    providerItem("kept-track", "Kept Track"),
+    providerItem("missing-track", "Missing Track"),
+  ];
+  let accountStable = true;
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview(input) {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: input.providerAccountId ?? "fixture-account",
+            stable: accountStable,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              availability: "readable",
+            },
+          ],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: accountStable,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: providerItems,
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  accountStable = false;
+  providerItems = [providerItem("kept-track", "Kept Track")];
+
+  const preview = await assertOk(
+    environment.libraryImport.previewUpdate({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+
+  assert(
+    preview.areas[0]?.updateEstimates?.noLongerReturned === 0,
+    "unstable update reads should not derive absences from stable account baselines",
+  );
+  assert(preview.areas[0]?.absences === undefined, "stable-account absences should not leak into unstable previews");
 }
 
 async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections(): Promise<void> {
@@ -925,10 +1124,13 @@ await previewsImportThroughRegisteredPlatformLibraryProvider();
 await mapsMissingPlatformLibraryProviderToLibraryImportError();
 await rejectsDiscoveryScopesForStartCalls();
 await startsReadableImportBatchAndExposesStatus();
+await marksStartedBatchFailedWhenProviderReadFails();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
+await returnsStoredSummaryAfterServiceRecreation();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
 await previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting();
+await doesNotUseStableAccountBaselinesForUnstableUpdateReads();
 await startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections();
 await doesNotPreviewUpdateAbsencesForPartialCurrentReads();

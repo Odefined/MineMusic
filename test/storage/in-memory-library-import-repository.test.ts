@@ -2,6 +2,7 @@ import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
   LibraryImportItemProvenance,
+  LibraryImportReport,
   PlatformLibraryAbsence,
   Ref,
 } from "../../src/contracts/index.js";
@@ -72,6 +73,64 @@ async function storesBatchesByIdAndReturnsCopies(): Promise<void> {
   assert(listed.length === 1 && listed[0]?.id === batch.id, "repository should filter batches by query");
 }
 
+async function storesReportsByBatchIdAndReturnsCopies(): Promise<void> {
+  const repository = createInMemoryLibraryImportRepository();
+  const report: LibraryImportReport = {
+    batchId: "library-import-batch-1",
+    batchKind: "initial_import",
+    status: "completed",
+    providerId: "fixture-library",
+    ownerScope: "local_profile:default",
+    scopes: ["saved_recordings"],
+    startedAt: "2026-05-25T00:00:00.000Z",
+    completedAt: "2026-05-25T00:01:00.000Z",
+    counts: emptyCounts,
+    areas: [
+      {
+        scope: "saved_recordings",
+        area: "saved_recordings",
+        readStatus: "complete",
+      },
+    ],
+    items: [
+      {
+        scope: "saved_recordings",
+        area: "saved_recordings",
+        sourceRef: sourceRef("track-1"),
+        itemKind: "saved_recording",
+        targetKind: "recording",
+        label: "Track 1",
+        status: "imported",
+        canonicalRef: {
+          namespace: "minemusic",
+          kind: "recording",
+          id: "canonical-track-1",
+        },
+        canonicalOutcome: "created_provisional",
+        collectionItemId: "collection-item-1",
+        collectionOutcome: "added",
+      },
+    ],
+  };
+
+  await assertOk(repository.putReport({ report }));
+  report.items.push({
+    ...report.items[0]!,
+    sourceRef: sourceRef("mutated-after-put"),
+  });
+
+  const firstRead = await assertOk(repository.getReport({ batchId: report.batchId }));
+  assert(firstRead !== null, "library import repository should get a report by batch id");
+  assert(firstRead.items.length === 1, "repository should not retain report caller mutations");
+
+  firstRead.items.push({
+    ...firstRead.items[0]!,
+    sourceRef: sourceRef("mutated-after-get"),
+  });
+  const secondRead = await assertOk(repository.getReport({ batchId: report.batchId }));
+  assert(secondRead?.items.length === 1, "repository should return report copies");
+}
+
 async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void> {
   const repository = createInMemoryLibraryImportRepository();
   const oldComplete: LibraryImportAreaSnapshot = {
@@ -79,6 +138,7 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
     ownerScope: "local_profile:default",
     providerId: "fixture-library",
     providerAccountId: "fixture-account",
+    providerAccountStable: true,
     scope: "saved_recordings",
     area: "saved_recordings",
     status: "complete",
@@ -101,10 +161,18 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
     sourceRefs: [sourceRef("partial")],
     recordedAt: "2026-05-25T03:00:00.000Z",
   };
+  const newerUnstableComplete: LibraryImportAreaSnapshot = {
+    ...oldComplete,
+    batchId: "batch-newer-unstable-complete",
+    providerAccountStable: false,
+    sourceRefs: [sourceRef("unstable")],
+    recordedAt: "2026-05-25T04:00:00.000Z",
+  };
 
   await assertOk(repository.putAreaSnapshot({ snapshot: oldComplete }));
   await assertOk(repository.putAreaSnapshot({ snapshot: latestComplete }));
   await assertOk(repository.putAreaSnapshot({ snapshot: newerPartial }));
+  await assertOk(repository.putAreaSnapshot({ snapshot: newerUnstableComplete }));
   latestComplete.sourceRefs.push(sourceRef("mutated-after-put"));
 
   const completeSnapshots = await assertOk(
@@ -112,6 +180,7 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
       ownerScope: "local_profile:default",
       providerId: "fixture-library",
       providerAccountId: "fixture-account",
+      providerAccountStable: true,
       scope: "saved_recordings",
       area: "saved_recordings",
       complete: true,
@@ -129,12 +198,28 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
       ownerScope: "local_profile:default",
       providerId: "fixture-library",
       providerAccountId: "fixture-account",
+      providerAccountStable: true,
       scope: "saved_recordings",
       area: "saved_recordings",
     }),
   );
   assert(latestBaseline?.batchId === "batch-latest-complete", "baseline lookup should return latest complete snapshot");
   assert(latestBaseline.sourceRefs.length === 1, "area snapshot reads should return copies");
+
+  const unstableBaseline = await assertOk(
+    repository.getLatestCompleteAreaSnapshot({
+      ownerScope: "local_profile:default",
+      providerId: "fixture-library",
+      providerAccountId: "fixture-account",
+      providerAccountStable: false,
+      scope: "saved_recordings",
+      area: "saved_recordings",
+    }),
+  );
+  assert(
+    unstableBaseline?.batchId === "batch-newer-unstable-complete",
+    "baseline lookup should keep stable and unstable account identities separate",
+  );
 }
 
 async function upsertsAndQueriesItemProvenanceByStableSourceRef(): Promise<void> {
@@ -250,6 +335,7 @@ function sourceRef(id: string): Ref {
 }
 
 await storesBatchesByIdAndReturnsCopies();
+await storesReportsByBatchIdAndReturnsCopies();
 await storesAreaSnapshotsAndFindsLatestCompleteBaseline();
 await upsertsAndQueriesItemProvenanceByStableSourceRef();
 await storesAndQueriesPlatformLibraryAbsences();
