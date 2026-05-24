@@ -1,4 +1,5 @@
 import type { PlatformLibraryProvider } from "../../src/contracts/index.js";
+import { createPluginRegistry } from "../../src/plugins/index.js";
 import {
   createNetEasePlatformLibraryProvider,
   type NetEaseProviderOptions,
@@ -46,6 +47,49 @@ async function createsPlatformLibraryProviderWithSharedRequesterOptions(): Promi
   const read = await assertOk(provider.readItems({ areas: [] }));
   assert(read.providerId === "netease", "readItems should identify the provider");
   assert(read.areas.length === 0, "Task 2 readItems should not invent readable items");
+}
+
+async function registersNetEaseProviderThroughPlatformLibrarySlot(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path }) => {
+      assert(path === "/login/status", "registered provider should keep callable NetEase behavior");
+
+      return {
+        ok: true,
+        value: {
+          data: {
+            profile: {
+              userId: 24680,
+              nickname: "Registered Listener",
+            },
+          },
+        },
+      };
+    },
+  });
+
+  await assertOk(
+    registry.registerProvider({
+      slot: "platform_library",
+      providerId: provider.id,
+      provider,
+    }),
+  );
+
+  const listed = await assertOk(registry.listProviders({ slot: "platform_library" }));
+  const stored = await assertOk(
+    registry.getProvider({
+      slot: "platform_library",
+      providerId: "netease",
+    }),
+  );
+  const registeredProvider = stored as PlatformLibraryProvider;
+  const preview = await assertOk(registeredProvider.preview({ areas: [] }));
+
+  assert(listed.length === 1 && listed[0] === "netease", "NetEase provider should list under platform_library");
+  assert(stored === provider, "NetEase platform library lookup should return the registered provider");
+  assert(preview.account?.providerAccountId === "24680", "registered provider should remain callable");
 }
 
 async function previewReturnsCurrentAccountIdentityWhenLoginStatusExposesIt(): Promise<void> {
@@ -1119,6 +1163,7 @@ async function readItemsReportsPartialWhenPaginationFailsAfterItems(): Promise<v
 }
 
 await createsPlatformLibraryProviderWithSharedRequesterOptions();
+await registersNetEaseProviderThroughPlatformLibrarySlot();
 await previewReturnsCurrentAccountIdentityWhenLoginStatusExposesIt();
 await previewReportsLoginRequiredWhenAccountCannotBeProven();
 await previewReportsLoginRequiredForAnonymousAccountWithoutProfile();

@@ -404,13 +404,20 @@
   API payloads into standard issue codes including `provider_unavailable`,
   `timeout`, `rate_limited`, `malformed_response`, `partial_read`,
   `scope_unsupported`, and `login_required`.
+- Completed NetEase platform-library provider plan Task 8 by closing the
+  deterministic provider test matrix, including NetEase provider registration
+  through the shared `platform_library` plugin slot.
+- Completed NetEase platform-library provider plan Task 9 by confirming the
+  provider test module is wired into the stage-core test runner and updating
+  `docs/source-providers/netease.md` to document that the NetEase adapter
+  exposes both `source` and `platform_library` slot providers.
 - Added `docs/platform-library-provider/progress.md` as the module-local
   implementation progress document for the Platform Library Provider slot.
 
 ## Next
 
-- After Collection foundations, implement the Library Import provider slot plus
-  NetEase import/update path.
+- Start Library Import orchestration work that consumes the completed NetEase
+  `platform_library` provider slice.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

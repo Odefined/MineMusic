@@ -146,8 +146,8 @@ host-facing and LLM-facing surface.
   certainty, and standard provider issue codes. Platform Library Providers are
   registered through the shared Plugin Registry under the `platform_library`
   slot; registry tests cover slot-scoped registration and lookup for that slot.
-- NetEase platform-library provider implementation has started. Tasks 1-7
-  are complete: the existing NetEase adapter now exports a shared
+- NetEase platform-library provider implementation plan Tasks 1-9 are complete:
+  the existing NetEase adapter now exports a shared
   requester/options shape for source and platform-library provider factories,
   and `createNetEasePlatformLibraryProvider(...)` returns a
   `PlatformLibraryProvider` with stable `id: "netease"` plus callable
@@ -165,6 +165,9 @@ host-facing and LLM-facing surface.
   failures now map requester errors and local API payloads into standard
   platform-library issue codes such as `provider_unavailable`, `timeout`,
   `rate_limited`, `malformed_response`, `partial_read`, and `login_required`.
+  Deterministic tests also verify NetEase registration through the
+  `platform_library` plugin slot, and `docs/source-providers/netease.md` records
+  that the adapter exposes both `source` and `platform_library` slot providers.
   The current local live
   NetEase API service at `http://127.0.0.1:3000` now reads the Docker-side
   account setting from `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env`;

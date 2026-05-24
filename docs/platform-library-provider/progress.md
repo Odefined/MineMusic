@@ -43,6 +43,14 @@ slot and concrete platform-library providers.
   `PlatformLibraryIssueCode` values including `provider_unavailable`,
   `timeout`, `login_required`, `scope_unsupported`, `rate_limited`,
   `partial_read`, and `malformed_response`.
+- NetEase provider Task 8 is complete: deterministic provider coverage now
+  includes readable previews, generic item reads, stable source refs, sample
+  shape constraints, unsupported areas, login/provider/malformed/partial issue
+  paths, and NetEase provider registration through the `platform_library` slot.
+- NetEase provider Task 9 is complete: the platform-library provider test
+  module is wired into `test/run-stage-core-tests.ts`, and
+  `docs/source-providers/netease.md` now documents that the NetEase adapter
+  exposes both `source` and `platform_library` slot providers.
 - Real validation against the updated local Docker API found and fixed two read
   completeness gaps: `song/detail` requests are now batched below the API's
   1000-song limit, and saved album / followed artist reads now paginate
@@ -55,10 +63,10 @@ slot and concrete platform-library providers.
 
 ## Next Slice
 
-1. Implement Task 8 from the NetEase plan: finish deterministic coverage for
-   standard issue paths and provider registration through the
-   `platform_library` slot.
-2. Continue with docs/runner wiring in the documented task order.
+1. Start Library Import orchestration work that consumes
+   `PlatformLibraryProvider` preview/read results.
+2. Keep playlist and listening-history support out of scope until a later
+   provider slice defines their data model and user-facing import behavior.
 
 ## Verification
 

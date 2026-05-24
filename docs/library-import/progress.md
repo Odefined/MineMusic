@@ -14,9 +14,12 @@ This file tracks Library Import implementation progress.
   a global read failure. Provider failures now map into standard
   platform-library issue codes, including provider unavailable, timeout, rate
   limiting, malformed response, unsupported scope, partial read, and login
-  required cases. Real validation against the local Docker API currently proves
-  the configured account and reads 1372 saved recordings, 466 saved releases,
-  and 179 saved artists. Import orchestration is not implemented yet.
+  required cases. Deterministic coverage also verifies NetEase provider
+  registration through the `platform_library` slot, and the NetEase source docs
+  now record that the adapter exposes both `source` and `platform_library` slot
+  providers. Real validation against the local Docker API currently proves the
+  configured account and reads 1372 saved recordings, 466 saved releases, and
+  179 saved artists. Import orchestration is not implemented yet.
 - Import batch storage is not implemented.
 - Stage Interface import/update tools are not implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.
@@ -27,12 +30,10 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Implement the NetEase `platform_library` provider for saved recordings,
-   saved releases, and saved artists.
-2. Add Library Import batch storage for import/update baselines, item
+1. Add Library Import batch storage for import/update baselines, item
    provenance, provider account identity, warnings, failures, and absence
    records.
-3. Expose Stage Interface import/update preview/start tools and shared
+2. Expose Stage Interface import/update preview/start tools and shared
    batch status/summary tools.
 
 ## Verification

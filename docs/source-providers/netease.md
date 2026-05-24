@@ -1,9 +1,10 @@
-# NetEase Source Provider
+# NetEase Providers
 
 ## Purpose
 
-The NetEase source provider is MineMusic's first read-only live source adapter.
-It proves that the MVP can ground music material through a real source without
+The NetEase adapter is MineMusic's first read-only live source adapter and first
+platform-library provider adapter. It proves that the MVP can ground music
+material through a real source and expose account-scoped library facts without
 changing the product boundary:
 
 ```text
@@ -16,7 +17,18 @@ Stage Interface
 -> Material Gate before presentation
 ```
 
-The provider does not execute playback, mutate queues, import playlists, write
+The same adapter module also exposes a `PlatformLibraryProvider` for
+account-scoped saved recordings, saved releases, and followed artists:
+
+```text
+Library Import boundary
+-> Plugin Registry platform_library slot
+-> NetEase PlatformLibraryProvider
+-> preview/readItems generic provider facts
+-> later Library Import orchestration
+```
+
+The providers do not execute playback, mutate queues, import playlists, write
 back to NetEase, or create canonical identity directly.
 
 ## Current Implementation
@@ -24,13 +36,18 @@ back to NetEase, or create canonical identity directly.
 | Concern | Location |
 | --- | --- |
 | Provider adapter | `src/providers/netease/index.ts` |
-| Provider tests | `test/providers/netease-source-provider.test.ts` |
-| Live smoke script | `test/live/netease-source-smoke.ts` |
+| Source provider tests | `test/providers/netease-source-provider.test.ts` |
+| Platform-library provider tests | `test/providers/netease-platform-library-provider.test.ts` |
+| Source live smoke script | `test/live/netease-source-smoke.ts` |
 | Stage Core provider registration path | `src/stage_core/index.ts` |
 | Source Grounding integration | `src/source/index.ts` |
+| Platform-library progress | `docs/platform-library-provider/progress.md` |
 
-The provider implements the shared `SourceProvider` contract from
-`src/contracts/index.ts`.
+The adapter exports both `createNetEaseSourceProvider(...)` and
+`createNetEasePlatformLibraryProvider(...)`. They implement the shared
+`SourceProvider` and `PlatformLibraryProvider` contracts from
+`src/contracts/index.ts`, and are registered through separate Plugin Registry
+slots: `source` and `platform_library`.
 
 ## Runtime Configuration
 
@@ -55,7 +72,11 @@ MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease
 Without `MINEMUSIC_LIVE_NETEASE=1`, `npm run smoke:netease` exits successfully
 through a skip path.
 
-## Data Mapping
+There is currently no separate platform-library live smoke script. Platform
+library behavior is covered by deterministic tests and may be manually checked
+against the configured local NetEase API service when needed.
+
+## Source Data Mapping
 
 The adapter calls NetEase Cloud Music API-compatible `/search` with:
 
@@ -87,9 +108,11 @@ playable links.
 ## Boundary Rules
 
 - NetEase track ids are source refs, not MineMusic canonical refs.
-- The provider never writes canonical records directly.
+- The providers never write canonical records directly.
 - Source Grounding owns state normalization into `confirmed_playable` or
   `source_only_playable`.
+- Future Library Import orchestration owns any canonical or collection writes
+  derived from platform-library facts.
 - Material Gate owns final presentation safety before the LLM or user sees
   playable links.
 - Normal link display is not playback.
@@ -105,6 +128,11 @@ Deterministic tests cover:
 - provider registration through `PluginRegistryPort`.
 - Source Grounding consumption through the source slot.
 - link refresh from a NetEase source ref.
+- platform-library preview/read behavior for saved recordings, saved releases,
+  and followed artists.
+- platform-library unsupported areas, standard issue paths, pagination,
+  batching, sample-shape constraints, and registration through the
+  `platform_library` slot.
 
 Project-native commands:
 
