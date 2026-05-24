@@ -357,6 +357,12 @@
   introduced `NetEaseRequester` and `NetEaseProviderOptions` in
   `src/providers/netease/index.ts`, and kept `NetEaseSourceProviderOptions`
   as the source-provider alias.
+- Completed NetEase platform-library provider plan Task 2 with a TDD loop:
+  added the minimal platform-library provider factory test, exported
+  `createNetEasePlatformLibraryProvider(...)`, returned
+  `PlatformLibraryProvider` with `id: "netease"` and callable `preview` /
+  `readItems` methods, and wired the new provider test into the stage-core test
+  runner.
 - Added `docs/platform-library-provider/progress.md` as the module-local
   implementation progress document for the Platform Library Provider slot.
 

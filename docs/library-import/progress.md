@@ -5,8 +5,9 @@ This file tracks Library Import implementation progress.
 ## Current State
 
 - Library Import Service is not implemented.
-- Concrete Platform Library Provider runtime/factory implementations are not
-  implemented yet.
+- The NetEase Platform Library Provider factory exists, but account identity,
+  readable-area mapping, and real preview/read semantics are not implemented
+  yet.
 - Import batch storage is not implemented.
 - Stage Interface import/update tools are not implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.

@@ -2,6 +2,7 @@ import type {
   MaterialEvidence,
   MusicMaterial,
   PlayableLink,
+  PlatformLibraryProvider,
   Ref,
   Result,
   SourceProvider,
@@ -23,6 +24,8 @@ export type NetEaseProviderOptions = {
 };
 
 export type NetEaseSourceProviderOptions = NetEaseProviderOptions;
+
+export type NetEasePlatformLibraryProviderOptions = NetEaseProviderOptions;
 
 type NetEaseSong = {
   id?: unknown;
@@ -96,6 +99,31 @@ export function createNetEaseSourceProvider({
       }
 
       return ok([toPlayableLink(sourceRef, false)]);
+    },
+  };
+}
+
+export function createNetEasePlatformLibraryProvider({
+  baseUrl = defaultNetEaseBaseUrl,
+  requestJson = createDefaultRequester(baseUrl),
+}: NetEasePlatformLibraryProviderOptions = {}): PlatformLibraryProvider {
+  void requestJson;
+
+  return {
+    id: "netease",
+
+    async preview() {
+      return ok({
+        providerId: "netease",
+        areas: [],
+      });
+    },
+
+    async readItems() {
+      return ok({
+        providerId: "netease",
+        areas: [],
+      });
     },
   };
 }

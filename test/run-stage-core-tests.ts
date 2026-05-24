@@ -11,6 +11,7 @@ const testModules = [
   "./source/source-grounding.test.js",
   "./material_resolve/material-resolve.test.js",
   "./providers/netease-source-provider.test.js",
+  "./providers/netease-platform-library-provider.test.js",
   "./plugins/plugin-packaging.test.js",
   "./stage_core/stage-core-factory.test.js",
   "./stage/stage-modules.test.js",

@@ -146,12 +146,14 @@ host-facing and LLM-facing surface.
   certainty, and standard provider issue codes. Platform Library Providers are
   registered through the shared Plugin Registry under the `platform_library`
   slot; registry tests cover slot-scoped registration and lookup for that slot.
-- NetEase platform-library provider implementation has started. Task 1 is
-  complete: the existing NetEase adapter now exports a shared requester/options
-  shape for future source and platform-library provider factories while keeping
-  NetEase payload parsing adapter-internal. The concrete
-  `createNetEasePlatformLibraryProvider(...)` factory, account identity reads,
-  preview/read behavior, and platform-library issue mapping remain future work.
+- NetEase platform-library provider implementation has started. Tasks 1 and 2
+  are complete: the existing NetEase adapter now exports a shared
+  requester/options shape for source and platform-library provider factories,
+  and `createNetEasePlatformLibraryProvider(...)` returns a
+  `PlatformLibraryProvider` with stable `id: "netease"` plus callable
+  `preview` and `readItems` methods. Account identity reads, readable-area
+  mapping, real preview/read behavior, and platform-library issue mapping
+  remain future work.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
   query service that strips playability claims.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
