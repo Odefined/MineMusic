@@ -28,11 +28,13 @@ import type {
 
 export {
   createSqliteCanonicalRecordRepository,
+  createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
   sqliteCanonicalExternalRefConflictConstraint,
 } from "./sqlite/index.js";
 export type {
   SqliteCanonicalRecordRepositoryOptions,
+  SqliteCollectionRepositoryOptions,
   SqliteLibraryImportRepositoryOptions,
 } from "./sqlite/index.js";
 

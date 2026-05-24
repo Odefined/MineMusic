@@ -2,6 +2,7 @@ const testModules = [
   "./storage/in-memory-repositories.test.js",
   "./storage/in-memory-library-import-repository.test.js",
   "./storage/sqlite-canonical-store.test.js",
+  "./storage/sqlite-collection-repository.test.js",
   "./storage/sqlite-library-import-repository.test.js",
   "./plugins/plugin-registry.test.js",
   "./canonical/canonical-store.test.js",

@@ -17,7 +17,7 @@ fine-grained Collection Service task ledger.
 
 ## Current Snapshot
 
-Date: 2026-05-24
+Date: 2026-05-25
 
 Task status:
 
@@ -41,6 +41,9 @@ Implemented:
 - In-memory Collection repository with owner/kind/relation/removed-status
   queries, active owner-scope label uniqueness, `collectionId + canonicalRef`
   membership lookup, and clone-return semantics.
+- SQLite-backed Collection repository with reopen persistence for Collections
+  and CollectionItems, active owner-scope label uniqueness, membership lookup,
+  removed-record filtering, and returned-copy semantics.
 - `createCollectionService` behind `CollectionPort`.
 - Default owner system Collection initialization for 15
   relation-kind/collection-kind combinations.
@@ -54,12 +57,16 @@ Implemented:
 - Material Resolve blocked filtering through optional `CollectionPort`, with
   missing `ownerScope` defaulting to `local_profile:default`.
 - Stage Core composition of Collection Service with default in-memory
-  repository, optional repository injection, default owner initialization during
-  runtime readiness, and runtime exposure through `MineMusicStageCore`.
+  repository, optional repository injection, optional `collectionDatabasePath`
+  SQLite configuration, default owner initialization during runtime readiness,
+  and runtime exposure through `MineMusicStageCore`.
+- Codex MCP runtime configuration through `MINEMUSIC_COLLECTION_DB_PATH` for
+  durable Collection storage.
 - Stage Interface collection tools, descriptors, schemas, dispatch, MCP schema
   coverage, and generated Handbook entries.
 - Composed runtime integration coverage in
-  `test/integration/collection-runtime.test.ts`.
+  `test/integration/collection-runtime.test.ts`, including Stage Core
+  recreation against the same Collection SQLite database path.
 
 Design sync:
 
@@ -70,8 +77,6 @@ Design sync:
   because design documents should not carry mutable implementation state.
 
 Pending:
-
-- Durable Collection storage.
 - Mixed-kind custom Collections.
 - Playlist-specific semantics.
 - Bulk Collection APIs.
@@ -82,6 +87,19 @@ Pending:
 - Explicit restore APIs.
 
 ## Timeline
+
+### 2026-05-25
+
+- Added `createSqliteCollectionRepository(...)` and SQLite schema
+  initialization for durable Collection storage.
+- Added reopen persistence coverage in
+  `test/storage/sqlite-collection-repository.test.ts`.
+- Wired `collectionDatabasePath` into Stage Core and
+  `MINEMUSIC_COLLECTION_DB_PATH` into the default Codex MCP runtime.
+- Added runtime coverage for Stage Core recreation against the same Collection
+  SQLite database path and MCP database initialization.
+- Completed the first durable Collection storage slice by adding the SQLite
+  repository adapter and runtime database-path wiring.
 
 ### 2026-05-24
 

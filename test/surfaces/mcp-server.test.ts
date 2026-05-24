@@ -302,6 +302,26 @@ async function defaultMcpStageCoreUsesLibraryImportDatabasePathEnv(): Promise<vo
   }
 }
 
+async function defaultMcpStageCoreUsesCollectionDatabasePathEnv(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-collection-db-"));
+  const databasePath = join(directory, "collection.sqlite");
+
+  try {
+    const stageCore = createDefaultMineMusicMcpStageCore({
+      MINEMUSIC_SESSION_ID: "mcp-default-collection-db-session",
+      MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+      MINEMUSIC_COLLECTION_DB_PATH: databasePath,
+    });
+    await stageCore.ready;
+
+    const databaseFile = await stat(databasePath);
+
+    assert(databaseFile.isFile(), "default MCP runtime should initialize the configured Collection database");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function hasSchemaKey(schema: unknown, key: string): boolean {
   return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
 }
@@ -317,3 +337,4 @@ await dispatchesMcpPayloadsToStageInterface();
 await dispatchesLibraryImportMcpPayloadsToStageInterface();
 await defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary();
 await defaultMcpStageCoreUsesLibraryImportDatabasePathEnv();
+await defaultMcpStageCoreUsesCollectionDatabasePathEnv();

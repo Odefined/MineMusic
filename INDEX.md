@@ -145,104 +145,115 @@ This index points agents to the current MVP documentation pack.
 37. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation.
 
-38. `src/storage/sqlite/index.ts`
+38. `src/storage/sqlite/collection-schema.ts`
+    - SQLite schema initialization for durable Collection storage.
+
+39. `src/storage/sqlite/collection-repository.ts`
+    - SQLite-backed `CollectionRepository` implementation for direct durable
+      repository injection.
+
+40. `src/storage/sqlite/index.ts`
     - Public SQLite storage exports.
 
-39. `test/storage/sqlite-canonical-store.test.ts`
+41. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository.
 
-40. `test/integration/canonical-persistence.test.ts`
+42. `test/storage/sqlite-collection-repository.test.ts`
+    - Persistence/reopen tests for the SQLite-backed Collection repository.
+
+43. `test/integration/canonical-persistence.test.ts`
     - Stage Core restart-style persistence test for SQLite-backed canonical
       storage.
 
-41. `test/integration/collection-runtime.test.ts`
+44. `test/integration/collection-runtime.test.ts`
     - Composed Stage Core integration coverage for Collection through Stage
-      Interface tools and Material Resolve blocked filtering.
+      Interface tools, Material Resolve blocked filtering, and durable
+      Collection database path reuse.
 
-42. `src/material_resolve/index.ts`
+45. `src/material_resolve/index.ts`
     - Material Resolve service for canonical-first `MusicCandidate` to
       `MusicMaterial` resolution.
 
-43. `src/source/index.ts`
+46. `src/source/index.ts`
     - Source Grounding service for provider search and playable-link refresh.
 
-44. `docs/source-providers/netease.md`
+47. `docs/source-providers/netease.md`
     - NetEase source and platform-library provider design, runtime behavior,
       boundaries, and verification notes.
 
-45. `src/providers/netease/index.ts`
+48. `src/providers/netease/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
       `PlatformLibraryProvider` factories.
 
-46. `docs/host-adapters/codex-mcp-plugin.md`
+49. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
-      verification notes, including the optional
-      `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` durable Library Import storage setting.
+      verification notes, including the optional `MINEMUSIC_COLLECTION_DB_PATH`
+      and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` durable storage settings.
 
-47. `src/stage_core/index.ts`
+50. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
-      initializes the Handbook, exposes the runtime object, and composes
-      Library Import with optional repository/provider injection and optional
-      SQLite database path configuration.
+      initializes the Handbook, exposes the runtime object, composes Collection
+      and Library Import with optional repository/provider injection, and
+      supports optional SQLite database path configuration.
 
-48. `src/surfaces/mcp/server.ts`
+51. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; the default runtime registers NetEase for both
-      `source` and `platform_library` slots and can use durable Library Import
-      storage via `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`.
+      `source` and `platform_library` slots and can use durable Collection and
+      Library Import storage via environment variables.
 
-49. `src/stage_interface/**`
+52. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade, including Collection and Library Import
       tools.
 
-50. `src/handbook/index.ts`
+53. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-51. `plugins/minemusic/.codex-plugin/plugin.json`
+54. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-52. `plugins/minemusic/.mcp.json`
+55. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-53. `plugins/minemusic/skills/minemusic/SKILL.md`
+56. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-54. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+57. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools, including Library Import tool entries.
 
-55. `docs/platform-library-provider/netease-implementation-plan.md`
+58. `docs/platform-library-provider/netease-implementation-plan.md`
     - Task-by-task implementation plan for the NetEase `platform_library`
       provider, including supported areas, adapter boundaries, issue mapping,
       fixture tests, and verification.
 
-56. `docs/platform-library-provider/progress.md`
+59. `docs/platform-library-provider/progress.md`
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
-57. `src/storage/sqlite/library-import-schema.ts`
+60. `src/storage/sqlite/library-import-schema.ts`
     - SQLite schema initialization for durable Library Import batches, reports,
       area snapshots, item provenance, and absence records.
 
-58. `src/storage/sqlite/library-import-repository.ts`
+61. `src/storage/sqlite/library-import-repository.ts`
     - SQLite-backed `LibraryImportRepository` implementation for direct durable
       repository injection.
 
-59. `test/storage/in-memory-library-import-repository.test.ts`
+62. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
       report, area snapshot, item provenance, absence, and provider-account-stable
       latest complete baseline storage.
 
-60. `test/storage/sqlite-library-import-repository.test.ts`
+63. `test/storage/sqlite-library-import-repository.test.ts`
     - SQLite Library Import repository persistence tests for batch/report,
       snapshot baseline, item provenance, and absence records across reopen.
 
-61. `src/library_import/index.ts`
+64. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
@@ -250,7 +261,7 @@ This index points agents to the current MVP documentation pack.
       started-batch failure handling, and repository-backed batch status/summary
       helpers.
 
-62. `test/library_import/library-import-service.test.ts`
+65. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -258,7 +269,7 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-63. `test/integration/library-import-runtime.test.ts`
+66. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, durable Library Import database path

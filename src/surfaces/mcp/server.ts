@@ -112,6 +112,9 @@ export function createDefaultMineMusicMcpStageCore(
     session: createDefaultCodexSession(env),
     sourceProvider: createNetEaseSourceProvider(netEaseOptions),
     platformLibraryProvider: createNetEasePlatformLibraryProvider(netEaseOptions),
+    ...(env.MINEMUSIC_COLLECTION_DB_PATH === undefined
+      ? {}
+      : { collectionDatabasePath: env.MINEMUSIC_COLLECTION_DB_PATH }),
     ...(env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH === undefined
       ? {}
       : { libraryImportDatabasePath: env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH }),

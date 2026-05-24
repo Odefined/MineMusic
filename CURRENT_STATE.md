@@ -124,9 +124,17 @@ host-facing and LLM-facing surface.
 - Memory Service is exported from `src/memory/index.ts` with evidence-gated
   proposals, effect-boundary acceptance, and summaries.
 - Collection Service foundation is implemented through shared contracts, public
-  ports, in-memory storage, service behavior, Stage Core composition, Material
-  Resolve blocked filtering, Stage Interface collection tools, and composed
-  runtime integration coverage. The source-of-truth design is
+  ports, in-memory storage, SQLite-backed durable storage, service behavior,
+  Stage Core composition, Material Resolve blocked filtering, Stage Interface
+  collection tools, and composed runtime integration coverage. SQLite-backed
+  Collection storage is implemented under `src/storage/sqlite/**` for direct
+  repository injection and Stage Core `collectionDatabasePath` configuration:
+  it persists Collections and CollectionItems across repository reopen while
+  preserving active owner-scope label uniqueness, membership lookup,
+  removed-record filtering, and returned-copy behavior. The default Codex MCP
+  runtime accepts `MINEMUSIC_COLLECTION_DB_PATH` to initialize that durable
+  Collection store; without it, Stage Core still defaults to in-memory
+  Collection storage. The source-of-truth design is
   `docs/collection-service/design.md`, task breakdown is
   `docs/collection-service/implementation-plan.md`, and detailed implementation
   status is tracked in `docs/collection-service/progress.md`.
@@ -186,9 +194,10 @@ host-facing and LLM-facing surface.
   snapshots, item provenance, and Platform Library Absence records across
   repository reopen while preserving returned-copy behavior and
   provider-account-stable baseline lookup. The default Codex MCP runtime accepts
-  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to initialize that durable Library Import
-  store; without it, Stage Core still defaults to in-memory Library Import
-  storage. Deterministic integration coverage now exercises discovery preview,
+  `MINEMUSIC_COLLECTION_DB_PATH` and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to
+  initialize durable Collection and Library Import stores; without them, Stage
+  Core still defaults to in-memory Collection and Library Import storage.
+  Deterministic integration coverage now exercises discovery preview,
   explicit preview estimates, initial import side effects, Stage Core recreation
   against the same Library Import SQLite database path, repeated import
   idempotency, update diffing, partial-read absence guards, and Stage Interface /
@@ -317,8 +326,8 @@ host-facing and LLM-facing surface.
 
 - Stage Interface can still be deepened: host schemas, tool metadata, Handbook
   rendering, and dispatch are not yet fully owned by one implementation file.
-- Durable storage repositories beyond the direct SQLite-backed Canonical Store
-  and Library Import repository adapters.
+- Durable storage repositories beyond the direct SQLite-backed Canonical Store,
+  Collection, and Library Import repository adapters.
 - Stage Core wiring for optional durable Canonical Store storage.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
@@ -327,8 +336,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the Stage Core / MCP durable Library Import storage
-  wiring on 2026-05-25.
+- `npm test` passes as of the SQLite-backed Collection storage and Stage Core /
+  MCP Collection database-path wiring on 2026-05-25.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

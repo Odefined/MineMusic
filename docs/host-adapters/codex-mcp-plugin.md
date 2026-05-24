@@ -111,6 +111,8 @@ The Codex MCP runtime:
 - registers NetEase `source` and `platform_library` providers by default.
 - uses `MINEMUSIC_NETEASE_BASE_URL` for both NetEase provider factories when
   provided.
+- uses `MINEMUSIC_COLLECTION_DB_PATH` as an optional SQLite database path for
+  durable Collection storage when provided.
 - uses `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` as an optional SQLite database path
   for durable Library Import storage when provided.
 - delegates tool calls through `MineMusicStageInterface`.

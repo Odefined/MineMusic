@@ -527,6 +527,13 @@
   `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` configures the default MCP runtime. Added
   runtime coverage for Stage Core recreation against the same Library Import
   database path and MCP database initialization.
+- Added SQLite-backed Collection storage and runtime wiring:
+  `createSqliteCollectionRepository(...)` now persists Collections and
+  CollectionItems across repository reopen; `collectionDatabasePath` builds a
+  SQLite-backed Collection repository unless an explicit `collectionRepository`
+  is injected; `MINEMUSIC_COLLECTION_DB_PATH` configures the default MCP
+  runtime. Added storage, Stage Core recreation, and MCP database initialization
+  coverage.
 
 ## Next
 
