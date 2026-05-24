@@ -180,7 +180,8 @@ This index points agents to the current MVP documentation pack.
 
 47. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
-      initializes the Handbook, and exposes the runtime object.
+      initializes the Handbook, exposes the runtime object, and composes
+      Library Import with optional repository/provider injection.
 
 48. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
@@ -226,14 +227,20 @@ This index points agents to the current MVP documentation pack.
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
-      complete snapshots, and batch status/summary helpers.
+      complete snapshots, update diffing, Platform Library Absence records, and
+      batch status/summary helpers.
 
 59. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
       behavior, plus initial import start writes and partial-read snapshot
-      guards.
+      guards, update diffing, and absence recording.
+
+60. `test/integration/library-import-runtime.test.ts`
+    - Composed Stage Core integration coverage for Library Import repository
+      injection, platform-library provider registration, import writes,
+      canonical binding, Collection writes, and factual events.
 
 ## Agent Rule
 

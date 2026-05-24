@@ -21,9 +21,10 @@ runtime lifecycle
 
 The original MVP proves a grounded recommendation flow with playable links when
 available. The current architecture also includes Collection Service
-foundations. It does not prove playback control, autonomous DJ behavior,
-playlist editing, Library Import implementation, music intelligence, or
-notifications.
+foundations and first-slice Library Import service/runtime composition. It does
+not prove playback control, autonomous DJ behavior, playlist editing, durable
+Library Import storage, Stage Interface import/update tools, music intelligence,
+or notifications.
 
 ## Vocabulary Source
 
@@ -138,8 +139,8 @@ needs.
 1. Host Adapter starts or receives a MineMusic runtime.
 2. Stage Core assembles repositories, Plugin Slots, Core Capabilities, Stage
    Modules, and Stage Interface.
-3. Stage Core registers source or other providers and initializes runtime
-   artifacts such as the generated Handbook.
+3. Stage Core registers source, platform-library, or other providers and
+   initializes runtime artifacts such as the generated Handbook.
 4. User asks for music naturally.
 5. LLM interprets the musical situation.
 6. LLM or Host Adapter uses Stage Interface tools.

@@ -6,7 +6,7 @@ This file tracks Library Import implementation progress.
 
 - Library Import initial import and update orchestration are implemented for the
   first synchronous slice.
-- Tasks 1-7 from `docs/library-import/implementation-plan.md` are complete:
+- Tasks 1-8 from `docs/library-import/implementation-plan.md` are complete:
   `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
   batch statuses, preview/start/status/summary input shapes, preview/report
   output shapes, item outcome summaries, import counts, import batch records,
@@ -33,7 +33,11 @@ This file tracks Library Import implementation progress.
   latest eligible complete baseline, reports already-present, would-add, and
   no-longer-returned categories, writes new Collection items, stores Platform
   Library Absence records, records `library_import.item.not_returned` events,
-  and intentionally derives no absences from partial current reads.
+  and intentionally derives no absences from partial current reads. Stage Core
+  now creates and exposes `libraryImport`, defaults to an in-memory Library
+  Import repository, supports optional `libraryImportRepository` and
+  `platformLibraryProvider` injection, and registers platform-library providers
+  separately from source providers during runtime readiness.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
@@ -65,13 +69,13 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Continue Library Import Service implementation with Task 8 from
-   `docs/library-import/implementation-plan.md`: wire Library Import into
-   Stage Core composition.
-2. Expose Library Import through the composed runtime while preserving optional
-   repository injection for tests and future durable storage.
-3. Continue afterward with Stage Interface import/update preview/start tools
-   and shared batch status/summary tools.
+1. Continue Library Import Service implementation with Task 9 from
+   `docs/library-import/implementation-plan.md`: expose Stage Interface
+   import/update tools.
+2. Add descriptors, schemas, dispatch, and facade routing for import/update
+   preview/start plus batch status/summary.
+3. Continue afterward with default NetEase platform-library provider wiring for
+   the Codex MCP runtime.
 
 ## Verification
 
@@ -100,3 +104,8 @@ This file tracks Library Import implementation progress.
 - `npm run build:test && node .tmp-test/test/library_import/library-import-service.test.js`
   passes after adding Task 7 update preview/start baseline diff coverage.
 - `npm run test:stage-core` passes after the Task 7 update diffing changes.
+- `npm run build:test && node .tmp-test/test/stage_core/stage-core-factory.test.js`
+  passes after adding Task 8 Stage Core Library Import composition coverage.
+- `npm run build:test && node .tmp-test/test/integration/library-import-runtime.test.js`
+  passes after adding Task 8 composed runtime import coverage.
+- `npm run test:stage-core` passes after the Task 8 Stage Core wiring changes.

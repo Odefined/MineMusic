@@ -465,10 +465,17 @@
   summaries, stored Platform Library Absence records,
   `library_import.item.not_returned` events, and a partial-read absence guard;
   extended `test/library_import/library-import-service.test.ts`.
+- Completed Library Import Service implementation plan Task 8 with a TDD loop:
+  wired Library Import into Stage Core in `src/stage_core/index.ts`, including
+  default in-memory Library Import repository creation, optional
+  `libraryImportRepository` and `platformLibraryProvider` injection,
+  `libraryImport` runtime exposure, separate platform-library provider
+  registration, factory coverage, and composed runtime import coverage in
+  `test/integration/library-import-runtime.test.ts`.
 
 ## Next
 
-- Continue Library Import implementation with Task 8: Stage Core wiring.
+- Continue Library Import implementation with Task 9: Stage Interface tools.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

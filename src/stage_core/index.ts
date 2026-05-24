@@ -1,6 +1,7 @@
 import type {
   CanonicalRecord,
   MusicMaterial,
+  PlatformLibraryProvider,
   Result,
   SourceProvider,
   StageSession,
@@ -11,6 +12,7 @@ import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { writeInstrumentHandbookFile } from "../handbook/index.js";
+import { createLibraryImportService } from "../library_import/index.js";
 import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
@@ -21,6 +23,8 @@ import type {
   CollectionRepository,
   EffectBoundaryPort,
   EventPort,
+  LibraryImportPort,
+  LibraryImportRepository,
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
@@ -42,6 +46,7 @@ import {
   createInMemoryCollectionRepository,
   createInMemoryEffectProposalRepository,
   createInMemoryEventRepository,
+  createInMemoryLibraryImportRepository,
   createInMemoryMemoryRepository,
 } from "../storage/index.js";
 
@@ -55,6 +60,7 @@ export type MineMusicStageCore = {
   collection: CollectionPort;
   materialResolve: MaterialResolvePort;
   source: SourceGroundingPort;
+  libraryImport: LibraryImportPort;
   events: EventPort;
   memory: MemoryPort;
   effects: EffectBoundaryPort;
@@ -67,6 +73,8 @@ export type MineMusicStageCoreOptions = {
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
   collectionRepository?: CollectionRepository;
+  libraryImportRepository?: LibraryImportRepository;
+  platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
 
@@ -76,6 +84,8 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
   collectionRepository?: CollectionRepository;
+  libraryImportRepository?: LibraryImportRepository;
+  platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
 
@@ -85,6 +95,8 @@ export function createMineMusicStageCore({
   canonicalRecords = [],
   canonicalRepository,
   collectionRepository,
+  libraryImportRepository,
+  platformLibraryProvider,
   handbookPath,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
   return createMineMusicStageCoreWithSourceProvider({
@@ -93,6 +105,8 @@ export function createMineMusicStageCore({
     canonicalRecords,
     ...(canonicalRepository === undefined ? {} : { canonicalRepository }),
     ...(collectionRepository === undefined ? {} : { collectionRepository }),
+    ...(libraryImportRepository === undefined ? {} : { libraryImportRepository }),
+    ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
   });
 }
@@ -103,10 +117,14 @@ export function createMineMusicStageCoreWithSourceProvider({
   canonicalRecords = [],
   canonicalRepository: injectedCanonicalRepository,
   collectionRepository: injectedCollectionRepository,
+  libraryImportRepository: injectedLibraryImportRepository,
+  platformLibraryProvider,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
   const canonicalRepository = injectedCanonicalRepository ?? createInMemoryCanonicalRecordRepository();
   const collectionRepository = injectedCollectionRepository ?? createInMemoryCollectionRepository();
+  const libraryImportRepository =
+    injectedLibraryImportRepository ?? createInMemoryLibraryImportRepository();
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();
@@ -126,6 +144,13 @@ export function createMineMusicStageCoreWithSourceProvider({
     canonicalStore: canonical,
     sourceGrounding: source,
     collection,
+  });
+  const libraryImport = createLibraryImportService({
+    pluginRegistry: plugins,
+    canonicalStore: canonical,
+    collection,
+    events,
+    repository: libraryImportRepository,
   });
   const effects = createEffectBoundary({ repository: effectRepository });
   const instruments = createInstrumentCatalog();
@@ -166,6 +191,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     session,
     plugins,
     sourceProvider,
+    ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     collection,
   });
 
@@ -179,6 +205,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     collection,
     materialResolve,
     source,
+    libraryImport,
     events,
     memory,
     effects,
@@ -219,6 +246,7 @@ async function seedRuntime({
   session,
   plugins,
   sourceProvider,
+  platformLibraryProvider,
   collection,
 }: {
   canonicalRecords: CanonicalRecord[];
@@ -228,6 +256,7 @@ async function seedRuntime({
   session: StageSession;
   plugins: PluginRegistryPort;
   sourceProvider: SourceProvider;
+  platformLibraryProvider?: PlatformLibraryProvider;
   collection: CollectionPort;
 }): Promise<void> {
   for (const record of canonicalRecords) {
@@ -241,6 +270,15 @@ async function seedRuntime({
     provider: sourceProvider,
   });
   throwIfFailed(registerResult);
+
+  if (platformLibraryProvider !== undefined) {
+    const registerPlatformLibraryResult = await plugins.registerProvider({
+      slot: "platform_library",
+      providerId: platformLibraryProvider.id,
+      provider: platformLibraryProvider,
+    });
+    throwIfFailed(registerPlatformLibraryResult);
+  }
 
   const initializedCollections = await collection.initializeOwnerCollections({
     ownerScope: "local_profile:default",

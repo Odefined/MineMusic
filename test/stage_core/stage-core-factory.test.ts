@@ -7,6 +7,7 @@ import type {
   Collection,
   MaterialResolveResult,
   MusicMaterial,
+  PlatformLibraryProvider,
   Ref,
   Result,
   SourceProvider,
@@ -356,9 +357,90 @@ async function usesInjectedCollectionRepository(): Promise<void> {
   );
 }
 
+async function exposesLibraryImportWithInjectedPlatformLibraryProvider(): Promise<void> {
+  const previewCalls: Parameters<PlatformLibraryProvider["preview"]>[0][] = [];
+  const platformLibraryProvider: PlatformLibraryProvider = {
+    id: "stage-core-platform-library-provider",
+
+    async preview(input) {
+      previewCalls.push(input);
+      return {
+        ok: true,
+        value: {
+          providerId: "stage-core-platform-library-provider",
+          account: {
+            providerAccountId: "provider-account-1",
+            stable: true,
+            label: "Provider Account",
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              availability: "readable",
+              count: {
+                certainty: "exact",
+                value: 1,
+              },
+            },
+          ],
+        },
+      };
+    },
+
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "stage-core-platform-library-provider",
+          areas: [],
+        },
+      };
+    },
+  };
+  const sourceProvider: SourceProvider = {
+    id: "stage-core-test-provider",
+    async search() {
+      return { ok: true, value: [] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: [] };
+    },
+  };
+
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+    platformLibraryProvider,
+  });
+  await stageCore.ready;
+
+  const registeredProvider = await assertOk(
+    stageCore.plugins.getProvider({
+      slot: "platform_library",
+      providerId: platformLibraryProvider.id,
+    }),
+  );
+  const preview = await assertOk(
+    stageCore.libraryImport.previewImport({
+      providerId: platformLibraryProvider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+
+  assert(registeredProvider === platformLibraryProvider, "Stage Core should register the platform-library provider");
+  assert(preview.providerId === platformLibraryProvider.id, "Stage Core should expose Library Import");
+  assert(preview.account?.providerAccountId === "provider-account-1", "Library Import should return provider account");
+  assert(preview.areas[0]?.area === "saved_recordings", "Library Import should preview requested areas");
+  assert(
+    previewCalls[0]?.areas?.includes("saved_recordings"),
+    "Library Import should call the injected platform-library provider",
+  );
+}
+
 await createsStageCoreWithInjectedSourceProvider();
 await writesInstrumentHandbookOnStageCoreReady();
 await usesInjectedCanonicalRepositoryForMaterialResolve();
 await exposesInitializedCollectionService();
 await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
 await usesInjectedCollectionRepository();
+await exposesLibraryImportWithInjectedPlatformLibraryProvider();
