@@ -222,12 +222,24 @@ This index points agents to the current MVP documentation pack.
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
-57. `test/storage/in-memory-library-import-repository.test.ts`
+57. `src/storage/sqlite/library-import-schema.ts`
+    - SQLite schema initialization for durable Library Import batches, reports,
+      area snapshots, item provenance, and absence records.
+
+58. `src/storage/sqlite/library-import-repository.ts`
+    - SQLite-backed `LibraryImportRepository` implementation for direct durable
+      repository injection.
+
+59. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
       report, area snapshot, item provenance, absence, and provider-account-stable
       latest complete baseline storage.
 
-58. `src/library_import/index.ts`
+60. `test/storage/sqlite-library-import-repository.test.ts`
+    - SQLite Library Import repository persistence tests for batch/report,
+      snapshot baseline, item provenance, and absence records across reopen.
+
+61. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
@@ -235,7 +247,7 @@ This index points agents to the current MVP documentation pack.
       started-batch failure handling, and repository-backed batch status/summary
       helpers.
 
-59. `test/library_import/library-import-service.test.ts`
+62. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -243,7 +255,7 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-60. `test/integration/library-import-runtime.test.ts`
+63. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, and Stage Interface / MCP exposure.

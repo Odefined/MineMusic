@@ -512,11 +512,21 @@
 - Synced `INDEX.md`, `CURRENT_STATE.md`, and
   `docs/library-import/progress.md` for the corrected Library Import public
   repository boundary and runtime behavior.
+- Started the durable Library Import storage slice with a TDD loop: added
+  `createSqliteLibraryImportRepository(...)`, SQLite schema initialization for
+  batches, completed reports, area snapshots, item provenance, and Platform
+  Library Absence records, plus reopen persistence coverage in
+  `test/storage/sqlite-library-import-repository.test.ts`.
+- Synced `ARCHITECTURE.md`, `INDEX.md`, `CURRENT_STATE.md`, and
+  `docs/library-import/progress.md` to record that the durable repository
+  adapter exists while Stage Core and host surfaces still default to in-memory
+  Library Import storage.
 
 ## Next
 
-- Pick the next Library Import slice: durable Library Import storage, playlist
-  import, listening-history import, background jobs, or cleanup guidance.
+- Pick the next Library Import slice: Stage Core/host wiring for durable Library
+  Import storage, playlist import, listening-history import, background jobs, or
+  cleanup guidance.
 - Decide whether to expose a governed runtime configuration path for durable
   canonical storage in MCP or another host adapter.
 - Design the public `addAlias` method before implementing alias writes through

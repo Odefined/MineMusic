@@ -17,7 +17,9 @@ This file tracks Library Import implementation progress.
   item provenance, absence records, and provider-account-stable latest complete
   baseline lookup. `src/storage/index.ts` now exports
   `createInMemoryLibraryImportRepository()` for clone-return in-memory batch,
-  report, snapshot, provenance, and absence storage. Contract coverage lives in
+  report, snapshot, provenance, and absence storage, and
+  `createSqliteLibraryImportRepository()` for direct SQLite-backed durable
+  repository injection. Contract coverage lives in
   `test/contracts/wave1-contracts.test.ts`; storage coverage lives in
   `test/storage/in-memory-library-import-repository.test.ts`. The service
   skeleton in `src/library_import/index.ts` now provides provider lookup and
@@ -57,6 +59,13 @@ This file tracks Library Import implementation progress.
   now record the completed first-slice scope without putting mutable
   implementation status in the design document.
   Service coverage lives in `test/library_import/library-import-service.test.ts`.
+- SQLite-backed Library Import storage is implemented for direct repository
+  injection through `createSqliteLibraryImportRepository(...)`. The adapter
+  persists import/update batches, completed reports, per-area snapshots, item
+  provenance, and Platform Library Absence records across repository reopen. It
+  keeps returned-copy behavior and provider-account-stable latest baseline
+  lookup aligned with the in-memory repository. Stage Core and host surfaces
+  still default to in-memory Library Import storage.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports
@@ -75,8 +84,7 @@ This file tracks Library Import implementation progress.
 - In-memory Library Import storage is implemented for import/update batch
   records, completed reports, per-area snapshots, item provenance, Platform
   Library Absence records, returned-copy behavior, and provider-account-stable
-  latest complete baseline lookup. Durable Library Import storage remains a
-  future task.
+  latest complete baseline lookup.
 - The six Stage Interface Library Import tools are implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.
 - Implementation task breakdown lives in
@@ -89,8 +97,9 @@ This file tracks Library Import implementation progress.
 ## Next Slice
 
 1. The first Library Import Service implementation plan is complete.
-2. Future slices can choose durable Library Import storage, playlist import,
-   listening-history import, background job execution, or cleanup guidance.
+2. Future slices can choose Stage Core/host wiring for durable Library Import
+   storage, playlist import, listening-history import, background job execution,
+   or cleanup guidance.
 3. Keep future mutable implementation status in this progress document rather
    than `docs/library-import/design.md`.
 
@@ -139,3 +148,5 @@ This file tracks Library Import implementation progress.
 - `npm test` passes after the 2026-05-25 implementation/design drift
   corrections for failed started batches, repository-backed summaries,
   provider-account-stable baselines, and update preview baseline classification.
+- `npm test` passes after adding the first SQLite-backed Library Import
+  repository slice.
