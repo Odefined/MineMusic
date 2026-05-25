@@ -296,17 +296,32 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     query: async ({ query }) => {
       calls.push("musicKnowledge.query");
       return {
-        ok: true,
-        value: {
-          items: [
-            {
-              kind: "text",
-              providerId: "fixture-knowledge",
-              source: { label: "Fixture knowledge" },
-              content: `Knowledge for ${"text" in query ? query.text : query.canonicalRef.id}`,
-            },
-          ],
-        },
+      ok: true,
+      value: {
+        items: [
+          {
+            kind: "structured",
+            providerId: "fixture-knowledge",
+            source: { label: "Fixture knowledge" },
+            rootNodeId: "artist:fixture",
+            nodes: [
+              { id: "artist:fixture", type: "artist", label: "Fixture Artist" },
+              { id: "artist:member", type: "artist", label: "Fixture Member" },
+            ],
+            relations: [
+              {
+                type: "member of band",
+                endpoints: [
+                  { nodeId: "artist:fixture", role: "group" },
+                  { nodeId: "artist:member", role: "member" },
+                ],
+                direction: "backward",
+              },
+            ],
+            metadata: { queryText: "text" in query ? query.text : query.canonicalRef.id },
+          },
+        ],
+      },
       };
     },
   };
@@ -380,7 +395,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       },
     }),
   );
-  await assertOk(
+  const knowledgeResult = await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "knowledge.query",
@@ -476,6 +491,11 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
   assert(calls.includes("musicKnowledge.query"), "knowledge.query should call MusicKnowledgePort");
+  assert(
+    Array.isArray((knowledgeResult as { items?: unknown[] }).items)
+    && ((knowledgeResult as { items: Array<{ relations?: Array<{ type?: string }> }> }).items[0]?.relations?.[0]?.type === "member of band"),
+    "knowledge.query should return provider relation objects unchanged",
+  );
   assert(calls.includes("stage.events.record"), "stage.events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");

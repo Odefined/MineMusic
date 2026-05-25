@@ -324,7 +324,11 @@ host-facing and LLM-facing surface.
   artist queries now keep only backward MusicBrainz `member of band`
   relationships and preserve MusicBrainz relation type, direction, endpoint
   roles, dates, and attributes. Broad MusicBrainz relationship output uses root
-  and target node kinds as endpoint roles by default.
+  and target node kinds as endpoint roles by default. A fresh streamable HTTP
+  MCP smoke against the restarted MineMusic server confirmed BCNR focused member
+  queries return `relations` without `edges` and exclude the forward
+  `black midi, New Road` relation from focused members, while broad relation
+  queries still return broad relations.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity

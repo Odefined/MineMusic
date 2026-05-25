@@ -728,6 +728,13 @@
   Provider-derived relations such as artist credits, release groups, labels, and
   tracklists now use endpoint roles, and broad MusicBrainz relationship output
   uses root and target node kinds as endpoint roles by default.
+- Implemented Knowledge Slot Task 14 service and MCP smoke coverage. The
+  Stage Interface dispatch test now verifies `knowledge.query` returns provider
+  relation objects unchanged. A fresh streamable HTTP MCP client against the
+  restarted MineMusic server confirmed focused BCNR member queries return
+  `relations` without `edges` and no longer include the forward
+  `black midi, New Road` relation as a band member; a broad relation query still
+  returns broad MusicBrainz relations.
 
 ## Next
 

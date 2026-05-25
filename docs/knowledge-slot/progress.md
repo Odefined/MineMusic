@@ -52,6 +52,10 @@
   provider when no explicit Knowledge providers or factories are supplied. This
   makes the installed `minemusic.knowledge.query` path usable for MusicBrainz
   facts without exposing a MusicBrainz-specific agent tool.
+- Streamable HTTP MCP smoke against the restarted local MineMusic server now
+  confirms focused MusicBrainz member queries return endpoint-based
+  `relations`, do not return legacy `edges`, and do not include forward
+  `member of band` relations as root group members.
 
 ## Remaining Work
 
