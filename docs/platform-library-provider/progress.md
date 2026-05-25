@@ -46,7 +46,8 @@ slot and concrete platform-library providers.
 - NetEase provider Task 8 is complete: deterministic provider coverage now
   includes readable previews, generic item reads, stable source refs, sample
   shape constraints, unsupported areas, login/provider/malformed/partial issue
-  paths, and NetEase provider registration through the `platform_library` slot.
+  paths, artist/release source-ref canonical hints for saved recordings, and
+  NetEase provider registration through the `platform_library` slot.
 - NetEase provider Task 9 is complete: the platform-library provider test
   module is wired into `test/run-stage-core-tests.ts`, and
   `docs/source-providers/netease.md` now documents that the NetEase adapter

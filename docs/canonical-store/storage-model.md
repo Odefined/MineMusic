@@ -204,7 +204,11 @@ CREATE INDEX canonical_aliases_lookup_idx
 
 Stores provisional relation context attached to a canonical subject. Imported
 recording hints use this table for relations such as `performed_by`,
-`appears_on_release`, and `has_duration_ms`.
+`appears_on_release`, and `has_duration_ms`. When provider hints include
+stable source refs for artists or releases, `object_ref_json` points at the
+resolved canonical artist/release record; Library Import creates a provisional
+target only when no source-ref binding exists. Label-only hints can still be
+retained in `object_label`.
 
 ```sql
 CREATE TABLE canonical_relations (

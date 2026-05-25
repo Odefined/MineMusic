@@ -1,4 +1,5 @@
 import type {
+  CanonicalKind,
   CanonicalRecord,
   CanonicalRelationDraft,
   CollectionItem,
@@ -1076,15 +1077,22 @@ async function importProviderItem({
     return canonicalResult;
   }
 
-  const relationDrafts = provisionalRelationDraftsForItem(item);
+  const relationDrafts = await provisionalRelationDraftsForItem({
+    canonicalStore,
+    item,
+  });
 
-  if (relationDrafts.length > 0) {
+  if (!relationDrafts.ok) {
+    return fail(relationDrafts.error);
+  }
+
+  if (relationDrafts.value.length > 0) {
     const relationResult = await canonicalStore.recordProvisionalRelations({
       subjectRef: canonicalResult.value.record.ref,
       sourceRef: item.sourceRef,
       providerId,
       batchId,
-      relations: relationDrafts,
+      relations: relationDrafts.value,
     });
 
     if (!relationResult.ok) {
@@ -1190,30 +1198,66 @@ async function createAndBindCanonicalRecord(
   });
 }
 
-function provisionalRelationDraftsForItem(item: PlatformLibraryItem): CanonicalRelationDraft[] {
+async function provisionalRelationDraftsForItem({
+  canonicalStore,
+  item,
+}: {
+  canonicalStore: CanonicalStorePort;
+  item: PlatformLibraryItem;
+}): Promise<Result<CanonicalRelationDraft[]>> {
   const hints = item.canonicalHints;
 
   if (hints === undefined) {
-    return [];
+    return ok([]);
   }
 
   const relations: CanonicalRelationDraft[] = [];
 
-  for (const artistLabel of uniqueNonEmptyValues(hints.artistLabels ?? [])) {
+  for (const artist of artistHintsForItem(item)) {
+    const linkedArtist =
+      artist.sourceRef === undefined
+        ? ok(null)
+        : await resolveOrCreateLinkedCanonicalRecord({
+            canonicalStore,
+            kind: "artist",
+            label: artist.label,
+            sourceRef: artist.sourceRef,
+    });
+
+    if (!linkedArtist.ok) {
+      return fail(linkedArtist.error);
+    }
+
     relations.push({
       predicate: "performed_by",
       objectKind: "artist",
-      objectLabel: artistLabel,
+      ...(linkedArtist.value === null ? {} : { objectRef: linkedArtist.value.ref }),
+      objectLabel: artist.label,
     });
   }
 
-  const releaseLabel = nonEmptyValue(hints.releaseLabel);
+  const release = releaseHintForItem(item);
 
-  if (releaseLabel !== undefined) {
+  if (release !== undefined) {
+    const linkedRelease =
+      release.sourceRef === undefined
+        ? ok(null)
+        : await resolveOrCreateLinkedCanonicalRecord({
+            canonicalStore,
+            kind: "release",
+            label: release.label,
+            sourceRef: release.sourceRef,
+          });
+
+    if (!linkedRelease.ok) {
+      return fail(linkedRelease.error);
+    }
+
     relations.push({
       predicate: "appears_on_release",
       objectKind: "release",
-      objectLabel: releaseLabel,
+      ...(linkedRelease.value === null ? {} : { objectRef: linkedRelease.value.ref }),
+      objectLabel: release.label,
     });
   }
 
@@ -1225,11 +1269,103 @@ function provisionalRelationDraftsForItem(item: PlatformLibraryItem): CanonicalR
     });
   }
 
-  return relations;
+  return ok(relations);
 }
 
-function uniqueNonEmptyValues(values: string[]): string[] {
-  return [...new Set(values.map(nonEmptyValue).filter((value): value is string => value !== undefined))];
+type LinkedCanonicalHint = {
+  label: string;
+  sourceRef?: Ref;
+};
+
+function artistHintsForItem(item: PlatformLibraryItem): LinkedCanonicalHint[] {
+  const hints = item.canonicalHints;
+
+  if (hints === undefined) {
+    return [];
+  }
+
+  const labels = hints.artistLabels ?? [];
+  const sourceRefs = hints.artistSourceRefs ?? [];
+  const artists: LinkedCanonicalHint[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < Math.max(labels.length, sourceRefs.length); index += 1) {
+    const sourceRef = sourceRefs[index];
+    const label = linkedHintLabel(labels[index], sourceRef);
+
+    if (label === undefined) {
+      continue;
+    }
+
+    const key = sourceRef === undefined ? `label:${label}` : `ref:${sourceRef.namespace}:${sourceRef.kind}:${sourceRef.id}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    artists.push({
+      label,
+      ...(sourceRef === undefined ? {} : { sourceRef }),
+    });
+  }
+
+  return artists;
+}
+
+function releaseHintForItem(item: PlatformLibraryItem): LinkedCanonicalHint | undefined {
+  const hints = item.canonicalHints;
+
+  if (hints === undefined) {
+    return undefined;
+  }
+
+  const label = linkedHintLabel(hints.releaseLabel, hints.releaseSourceRef);
+
+  return label === undefined
+    ? undefined
+    : {
+        label,
+        ...(hints.releaseSourceRef === undefined ? {} : { sourceRef: hints.releaseSourceRef }),
+      };
+}
+
+async function resolveOrCreateLinkedCanonicalRecord({
+  canonicalStore,
+  kind,
+  label,
+  sourceRef,
+}: {
+  canonicalStore: CanonicalStorePort;
+  kind: CanonicalKind;
+  label: string;
+  sourceRef: Ref;
+}): Promise<Result<CanonicalRecord>> {
+  const resolved = await canonicalStore.resolveExternalRef({ ref: sourceRef });
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  if (resolved.value !== null) {
+    return ok(resolved.value);
+  }
+
+  const created = await canonicalStore.createProvisional({
+    kind,
+    label,
+    evidence: [sourceRef],
+  });
+
+  if (!created.ok) {
+    return created;
+  }
+
+  return created;
+}
+
+function linkedHintLabel(label: string | undefined, sourceRef: Ref | undefined): string | undefined {
+  return nonEmptyValue(label) ?? nonEmptyValue(sourceRef?.label) ?? nonEmptyValue(sourceRef?.id);
 }
 
 function nonEmptyValue(value: string | undefined): string | undefined {

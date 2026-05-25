@@ -141,7 +141,8 @@ Implemented behavior:
 - different source refs do not prove different real-world recordings; separate
   provisional records are source-bound candidates until review/admin merge.
 - `recordProvisionalRelations` records source-bound relation context without
-  confirming identity.
+  confirming identity; relations may include `objectRef` links to provisional
+  artist or release records created from provider hint source refs.
 - `listRelations` returns stored relations filtered by subject, source,
   predicate, or status.
 - `attachExternalRef` is idempotent for refs already attached to the same

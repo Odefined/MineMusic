@@ -364,6 +364,9 @@ During import, Canonical Store is used to:
 - reuse existing records when an external ref is already bound.
 - create provisional records for explicit imported user assets when provider
   metadata is strong enough.
+- resolve provider hint source refs for artist and release records before
+  writing recording relations, creating provisional artist/release records only
+  when no existing canonical binding is found.
 - attach external refs to canonical records through the public canonical port.
 
 Canonical Store should not treat a platform id as a canonical id.
@@ -536,10 +539,12 @@ Collection items. "Eagerly bind" means:
 2. reuse an existing canonical record when found.
 3. create a provisional canonical record only when no binding exists and
    provider metadata is strong enough.
-4. record provisional canonical relations from provider hints, such as artist,
+4. resolve linked artist/release records when provider hints include stable
+   source refs, creating provisional records only when no binding exists.
+5. record provisional canonical relations from provider hints, such as artist,
    release, and duration context, without using those hints as automatic
    identity merge proof.
-5. mark the item unresolved or skipped when neither reuse nor provisional
+6. mark the item unresolved or skipped when neither reuse nor provisional
    creation is possible.
 
 The first implementation should not defer canonical binding until a later
@@ -777,8 +782,9 @@ First useful slice:
    slot.
 2. Import saved songs, saved albums, and followed artists when the local NetEase
    service exposes them.
-3. Create or reuse provisional canonical records for imported saved/followed
-   assets when metadata is strong enough.
+3. Resolve existing canonical records by source ref, creating provisional
+   canonical records for imported saved/followed assets only when no binding
+   exists and metadata is strong enough.
 4. Report unresolved or skipped items without creating source-only Collection
    items when metadata is too weak for a provisional canonical record.
 5. Write explicit collection items through Collection Service.

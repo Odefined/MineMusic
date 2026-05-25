@@ -553,6 +553,15 @@
   persist them, and Library Import writes provider hint relations for imported
   recordings (`performed_by`, `appears_on_release`, `has_duration_ms`) without
   using those hints as automatic identity merge proof.
+- Extended recording import hints to carry artist/release source refs. Library
+  Import now resolves linked artist/release canonical records from those refs,
+  creates provisional records only when no existing binding is found, and
+  `performed_by` / `appears_on_release` relations store `objectRef`s to make
+  the provisional graph navigable.
+- Targeted tests and `npm test` pass for the linked provisional graph. A live
+  MCP import into temp SQLite verified real `objectRef` relation rows but did
+  not finish within a 300 second client timeout, leaving durable full-library
+  import batching/transaction performance as the next infrastructure gap.
 
 ## Next
 

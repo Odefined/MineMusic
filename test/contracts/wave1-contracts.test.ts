@@ -702,7 +702,9 @@ const platformLibraryItem: PlatformLibraryItem = {
   canonicalHints: {
     label: "Fixture Release",
     artistLabels: ["Fixture Artist"],
+    artistSourceRefs: [{ namespace: "source:fixture-library", kind: "artist", id: "artist-1" }],
     releaseLabel: "Fixture Release",
+    releaseSourceRef: { namespace: "source:fixture-library", kind: "album", id: "release-1" },
   },
 };
 

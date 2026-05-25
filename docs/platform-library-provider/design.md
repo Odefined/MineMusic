@@ -193,7 +193,9 @@ export type PlatformLibraryItem = {
   canonicalHints?: {
     label?: string;
     artistLabels?: string[];
+    artistSourceRefs?: Ref[];
     releaseLabel?: string;
+    releaseSourceRef?: Ref;
     durationMs?: number;
   };
 };

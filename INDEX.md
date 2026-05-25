@@ -69,7 +69,8 @@ This index points agents to the current MVP documentation pack.
 
 19. `docs/canonical-store/storage-model.md`
     - Canonical Store durable storage model, implemented SQLite scope including
-      provisional relations, and open design questions.
+      provisional relations with optional linked object refs, and open design
+      questions.
 
 20. `docs/canonical-store/design.md`
     - Canonical Store responsibility, data flow, module boundaries, and
@@ -104,7 +105,8 @@ This index points agents to the current MVP documentation pack.
 27. `docs/library-import/design.md`
     - Library Import design for import orchestration, library updates,
       Collection Service writes, Canonical Store external-ref bindings,
-      provisional relation writes, and import/update event records.
+      linked artist/release graph writes through canonical source-ref
+      resolution, and import/update event records.
 
 28. `docs/library-import/implementation-plan.md`
     - Task-by-task Library Import Service implementation plan for contracts,
@@ -132,7 +134,7 @@ This index points agents to the current MVP documentation pack.
 
 33. `src/canonical/index.ts`
     - Canonical Store public-port implementation, provisional relation
-      recording/listing, and current identity policy.
+      recording/listing with optional object refs, and current identity policy.
 
 34. `src/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
@@ -188,7 +190,8 @@ This index points agents to the current MVP documentation pack.
 
 48. `src/providers/netease/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
-      `PlatformLibraryProvider` factories.
+      `PlatformLibraryProvider` factories, including recording hints with
+      artist/release source refs when available.
 
 49. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and

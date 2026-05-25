@@ -541,8 +541,8 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
               {
                 id: 98765,
                 name: "Kept Track",
-                ar: [{ name: "Kept Artist" }],
-                al: { name: "Kept Release" },
+                ar: [{ id: 4242, name: "Kept Artist" }],
+                al: { id: 2424, name: "Kept Release" },
                 dt: 246000,
               },
             ],
@@ -570,7 +570,11 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
   assert(item.sourceRef.id === "98765", "source ref should use stable NetEase track id");
   assert(item.canonicalHints?.label === "Kept Track", "canonical hints should include generic recording label");
   assert(item.canonicalHints?.artistLabels?.[0] === "Kept Artist", "canonical hints should include artist labels");
+  assert(item.canonicalHints?.artistSourceRefs?.[0]?.kind === "artist", "canonical hints should include artist source refs");
+  assert(item.canonicalHints?.artistSourceRefs?.[0]?.id === "4242", "artist source refs should use NetEase artist ids");
   assert(item.canonicalHints.releaseLabel === "Kept Release", "canonical hints should include release label");
+  assert(item.canonicalHints.releaseSourceRef?.kind === "album", "canonical hints should include release source refs");
+  assert(item.canonicalHints.releaseSourceRef?.id === "2424", "release source refs should use NetEase album ids");
   assert(item.canonicalHints.durationMs === 246000, "canonical hints should include duration when available");
   assert(!("raw" in item), "provider item should not expose raw provider payload");
 }

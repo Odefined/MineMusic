@@ -50,7 +50,10 @@ Implemented:
 - Ordinary Canonical Store lookup filters to `active` and `provisional`.
 - Repeated same-record external-ref attachment is idempotent.
 - Provisional relation recording/listing is implemented for source-bound
-  context such as performer, release, and duration hints.
+  context such as performer, release, and duration hints. Recording imports can
+  now link `performed_by` and `appears_on_release` relations to canonical
+  artist/release records resolved from stable provider hint source refs,
+  creating provisional targets only when no binding exists.
 - Canonical label/ref/current-record normalization is isolated in
   `src/canonical/normalization.ts`.
 - Canonical Store storage mechanics are isolated in `src/canonical/storage.ts`,

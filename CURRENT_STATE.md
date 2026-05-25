@@ -87,8 +87,11 @@ host-facing and LLM-facing surface.
   source-bound provisional identities, but that is not proof that the real-world
   recordings are distinct. Canonical Store also records provisional relations
   such as `performed_by`, `appears_on_release`, and `has_duration_ms` from
-  provider hints; these relations are context for review and later merge, not
-  automatic identity proof.
+  provider hints. When imported recording hints include stable artist/release
+  source refs, Library Import resolves linked artist/release records, creates
+  provisional records only when no existing canonical binding is found, and
+  stores relation `objectRef`s. These relations are context for catalog
+  navigation, review, and later merge, not automatic identity proof.
 - The shared Canonical Store contract exports `CanonicalKind`, including
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
@@ -231,8 +234,9 @@ host-facing and LLM-facing surface.
   structured `login_required` issues when no usable account or requested
   account match can be proven. `readItems` maps `saved_recordings`,
   `saved_releases`, and `saved_artists` into generic provider item facts with
-  stable NetEase source refs and canonical hints, including batched
-  `song/detail` reads and paginated saved album / followed artist reads.
+  stable NetEase source refs and canonical hints, including artist/release
+  source refs for saved recordings, batched `song/detail` reads, and paginated
+  saved album / followed artist reads.
   `preview` reports readable availability, counts, bounded lightweight samples,
   and unsupported discovery areas. `readItems` now reports complete, failed,
   partial, and unavailable per-area statuses so one area failure does not erase
@@ -373,3 +377,8 @@ host-facing and LLM-facing surface.
 - Do not build heavy recommender scoring into the MVP path.
 - Do not treat a `source_only_playable` event target as durable canonical
   identity.
+- Full live Library Import through MCP with durable SQLite paths is currently
+  too slow for a 300 second client timeout after linked artist/release graph
+  writes; targeted tests pass, and partial live durable verification confirms
+  real relation `objectRef` rows, but full durable import needs batching or
+  transaction performance work.

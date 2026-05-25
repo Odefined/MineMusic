@@ -80,7 +80,9 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
               items: [
                 providerItem(importedSourceRef, "Runtime Imported Track", {
                   artistLabels: ["Runtime Artist"],
+                  artistSourceRefs: [runtimeArtistSourceRef("runtime-artist", "Runtime Artist")],
                   releaseLabel: "Runtime Release",
+                  releaseSourceRef: runtimeReleaseSourceRef("runtime-release", "Runtime Release"),
                   durationMs: 180000,
                 }),
               ],
@@ -139,6 +141,16 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
         subjectRef: canonicalRecord.ref,
       }),
     );
+    const runtimeArtist = await assertOk(
+      stageCore.canonical.resolveExternalRef({
+        ref: runtimeArtistSourceRef("runtime-artist", "Runtime Artist"),
+      }),
+    );
+    const runtimeRelease = await assertOk(
+      stageCore.canonical.resolveExternalRef({
+        ref: runtimeReleaseSourceRef("runtime-release", "Runtime Release"),
+      }),
+    );
     const importEvents = await assertOk(
       stageCore.events.listBySession({
         sessionId: `library_import:${report.batchId}`,
@@ -167,18 +179,24 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
       canonicalRecord?.externalKeys?.some((ref) => ref.id === importedSourceRef.id),
       "Runtime Library Import should bind the imported source ref through Canonical Store",
     );
+    assert(runtimeArtist?.kind === "artist", "Runtime Library Import should create linked artist canonical records");
+    assert(runtimeRelease?.kind === "release", "Runtime Library Import should create linked release canonical records");
     assert(
       relations.some(
         (relation) =>
           relation.status === "provisional" &&
           relation.predicate === "performed_by" &&
-          relation.objectLabel === "Runtime Artist",
+          relation.objectLabel === "Runtime Artist" &&
+          relation.objectRef?.id === runtimeArtist?.ref.id,
       ),
       "Runtime Library Import should record provisional artist relations through Canonical Store",
     );
     assert(
       relations.some(
-        (relation) => relation.predicate === "appears_on_release" && relation.objectLabel === "Runtime Release",
+        (relation) =>
+          relation.predicate === "appears_on_release" &&
+          relation.objectLabel === "Runtime Release" &&
+          relation.objectRef?.id === runtimeRelease?.ref.id,
       ),
       "Runtime Library Import should record provisional release relations through Canonical Store",
     );
@@ -714,6 +732,24 @@ function sourceRef(id: string): Ref {
     namespace: "source:runtime-platform-library",
     kind: "track",
     id,
+  };
+}
+
+function runtimeArtistSourceRef(id: string, label: string): Ref {
+  return {
+    namespace: "source:runtime-platform-library",
+    kind: "artist",
+    id,
+    label,
+  };
+}
+
+function runtimeReleaseSourceRef(id: string, label: string): Ref {
+  return {
+    namespace: "source:runtime-platform-library",
+    kind: "album",
+    id,
+    label,
   };
 }
 

@@ -1014,7 +1014,9 @@ function toSavedRecordingItem(song: NetEaseSong): PlatformLibraryItem | undefine
 
   const label = toSongLabel(song);
   const artistLabels = toArtistNames(song);
+  const artistSourceRefs = toArtistSourceRefs(song);
   const releaseLabel = firstAlbumName(song);
+  const releaseSourceRef = firstAlbumSourceRef(song);
   const durationMs = typeof song.dt === "number" && Number.isFinite(song.dt) ? song.dt : undefined;
 
   return {
@@ -1032,7 +1034,9 @@ function toSavedRecordingItem(song: NetEaseSong): PlatformLibraryItem | undefine
     canonicalHints: {
       label: toNonEmptyString(song.name) ?? label,
       ...(artistLabels.length === 0 ? {} : { artistLabels }),
+      ...(artistSourceRefs.length === 0 ? {} : { artistSourceRefs }),
       ...(releaseLabel === undefined ? {} : { releaseLabel }),
+      ...(releaseSourceRef === undefined ? {} : { releaseSourceRef }),
       ...(durationMs === undefined ? {} : { durationMs }),
     },
   };
@@ -1187,6 +1191,28 @@ function toArtistNames(song: NetEaseSong): string[] {
     .filter((name): name is string => typeof name === "string" && name.length > 0);
 }
 
+function toArtistSourceRefs(song: NetEaseSong): Ref[] {
+  const artists = Array.isArray(song.artists) ? song.artists : Array.isArray(song.ar) ? song.ar : [];
+
+  return artists
+    .filter(isRecord)
+    .map((artist: NetEaseArtist): Ref | undefined => {
+      const id = toStringId(artist.id);
+      const label = toNonEmptyString(artist.name);
+
+      return id === undefined
+        ? undefined
+        : {
+            namespace: "source:netease",
+            kind: "artist",
+            id,
+            ...(label === undefined ? {} : { label }),
+            url: toArtistUrl(id),
+          };
+    })
+    .filter((ref): ref is Ref => ref !== undefined);
+}
+
 function toAlbumArtistNames(album: NetEaseAlbum): string[] {
   const artists = Array.isArray(album.artists)
     ? album.artists
@@ -1210,6 +1236,30 @@ function firstAlbumName(song: NetEaseSong): string | undefined {
   const { name } = album as NetEaseAlbum;
 
   return typeof name === "string" && name.length > 0 ? name : undefined;
+}
+
+function firstAlbumSourceRef(song: NetEaseSong): Ref | undefined {
+  const album = isRecord(song.album) ? song.album : isRecord(song.al) ? song.al : undefined;
+
+  if (album === undefined) {
+    return undefined;
+  }
+
+  const id = toStringId((album as NetEaseAlbum).id);
+
+  if (id === undefined) {
+    return undefined;
+  }
+
+  const label = toNonEmptyString((album as NetEaseAlbum).name);
+
+  return {
+    namespace: "source:netease",
+    kind: "album",
+    id,
+    ...(label === undefined ? {} : { label }),
+    url: toAlbumUrl(id),
+  };
 }
 
 function requiresAccount(song: NetEaseSong): boolean {

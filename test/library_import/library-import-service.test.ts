@@ -470,7 +470,9 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
                 providerItem("new-track", "New Track", {
                   label: "New Track",
                   artistLabels: ["Fixture Artist"],
+                  artistSourceRefs: [artistSourceRef("fixture-artist", "Fixture Artist")],
                   releaseLabel: "Fixture Release",
+                  releaseSourceRef: releaseSourceRef("fixture-release", "Fixture Release"),
                   durationMs: 123456,
                 }),
                 providerItem("unresolved-track", ""),
@@ -550,6 +552,16 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
       },
     }),
   );
+  const fixtureArtist = await assertOk(
+    environment.canonicalStore.resolveExternalRef({
+      ref: artistSourceRef("fixture-artist", "Fixture Artist"),
+    }),
+  );
+  const fixtureRelease = await assertOk(
+    environment.canonicalStore.resolveExternalRef({
+      ref: releaseSourceRef("fixture-release", "Fixture Release"),
+    }),
+  );
   const importEvents = await assertOk(
     environment.events.listBySession({ sessionId: `library_import:${report.batchId}` }),
   );
@@ -581,11 +593,29 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   );
   assert(savedItems.length === 2, "import should add only resolvable items to saved Collection");
   assert(
-    newTrackRelations.some((relation) => relation.predicate === "performed_by" && relation.objectLabel === "Fixture Artist"),
+    fixtureArtist?.kind === "artist",
+    "import should create provisional artist canonical records from source-ref hints",
+  );
+  assert(
+    fixtureRelease?.kind === "release",
+    "import should create provisional release canonical records from source-ref hints",
+  );
+  assert(
+    newTrackRelations.some(
+      (relation) =>
+        relation.predicate === "performed_by" &&
+        relation.objectLabel === "Fixture Artist" &&
+        relation.objectRef?.id === fixtureArtist?.ref.id,
+    ),
     "import should record provisional artist relations from provider hints",
   );
   assert(
-    newTrackRelations.some((relation) => relation.predicate === "appears_on_release" && relation.objectLabel === "Fixture Release"),
+    newTrackRelations.some(
+      (relation) =>
+        relation.predicate === "appears_on_release" &&
+        relation.objectLabel === "Fixture Release" &&
+        relation.objectRef?.id === fixtureRelease?.ref.id,
+    ),
     "import should record provisional release relations from provider hints",
   );
   assert(
@@ -1211,6 +1241,24 @@ function sourceRef(id: string): Ref {
     namespace: "source:fixture-library",
     kind: "track",
     id,
+  };
+}
+
+function artistSourceRef(id: string, label: string): Ref {
+  return {
+    namespace: "source:fixture-library",
+    kind: "artist",
+    id,
+    label,
+  };
+}
+
+function releaseSourceRef(id: string, label: string): Ref {
+  return {
+    namespace: "source:fixture-library",
+    kind: "album",
+    id,
+    label,
   };
 }
 

@@ -105,8 +105,9 @@ Collection status.
   - `saved_artists` items use stable NetEase artist refs as external
     `sourceRef` values.
   - `label` and `canonicalHints` use generic names only.
-  - `canonicalHints` may include `label`, `artistLabels`, `releaseLabel`, and
-    `durationMs` when the adapter can derive them.
+  - `canonicalHints` may include `label`, `artistLabels`,
+    `artistSourceRefs`, `releaseLabel`, `releaseSourceRef`, and `durationMs`
+    when the adapter can derive them.
   - Do not include raw provider payloads or provider-specific metadata.
 - **Dependencies**: Task 3.
 

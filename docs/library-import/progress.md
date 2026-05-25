@@ -76,7 +76,9 @@ This file tracks Library Import implementation progress.
   canonical bindings, provisional relation context, and Collection writes must
   persist across runtime recreation. Library Import now records provisional
   canonical relations from provider hints for imported recordings, including
-  performer, release, and duration context.
+  performer, release, and duration context; artist/release source-ref hints
+  resolve linked canonical records, create provisional records only when no
+  existing binding is found, and become relation `objectRef`s.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports
@@ -165,3 +167,12 @@ This file tracks Library Import implementation progress.
   Stage Core and the default MCP runtime.
 - `npm test` passes after adding SQLite-backed Collection storage and wiring
   Collection database paths into Stage Core and the default MCP runtime.
+- `npm run build:test && node .tmp-test/test/providers/netease-platform-library-provider.test.js && node .tmp-test/test/library_import/library-import-service.test.js && node .tmp-test/test/integration/library-import-runtime.test.js && node .tmp-test/test/contracts/wave1-contracts.test.js`
+  passes after adding artist/release source-ref hints, linked provisional
+  artist/release canonical creation, and relation `objectRef` coverage.
+- `npm test` passes after the linked provisional graph changes.
+- A live MCP import against a temp SQLite runtime verified real NetEase
+  `objectRef` relation rows, including `canonical-1` links for `performed_by`
+  and `appears_on_release`, but the full durable import exceeded a 300 second
+  MCP client timeout and ended as a failed batch after 1311 imported items.
+  Durable full-library import performance remains a follow-up gap.

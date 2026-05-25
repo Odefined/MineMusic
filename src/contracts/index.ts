@@ -381,7 +381,9 @@ export type PlatformLibraryAccountIdentity = {
 export type PlatformLibraryCanonicalHints = {
   label?: string;
   artistLabels?: string[];
+  artistSourceRefs?: Ref[];
   releaseLabel?: string;
+  releaseSourceRef?: Ref;
   durationMs?: number;
 };
 
