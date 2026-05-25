@@ -138,6 +138,8 @@ Implemented behavior:
 - `createProvisional` reuses existing current records by external evidence
   before creating a new provisional record; label and alias matches remain
   lookup-only candidate discovery.
+- different source refs do not prove different real-world recordings; separate
+  provisional records are source-bound candidates until review/admin merge.
 - `attachExternalRef` is idempotent for refs already attached to the same
   canonical record.
 - SQLite external-ref uniqueness failures are mapped to

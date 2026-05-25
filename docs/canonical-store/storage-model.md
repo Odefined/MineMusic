@@ -274,6 +274,10 @@ Run in one transaction:
 6. Insert evidence refs into `canonical_external_refs`.
 7. Emit or record `canonical.provisional.created` when domain events are wired.
 
+Separate source refs may still refer to the same real-world recording. The
+resulting provisional rows are source-bound identity candidates until a later
+review or stronger matching process merges them.
+
 ### `attachExternalRef({ canonicalRef, externalRef })`
 
 Run in one transaction:

@@ -194,6 +194,11 @@ Before creating a provisional record, Canonical Store should:
 This prevents duplicate provisional records for already-bound evidence without
 falsely merging same-title recordings.
 
+Different source refs also do not prove different recordings. Separate
+provisional records created from separate source refs are source-bound
+placeholders, not a final assertion that the recordings are distinct. Later
+review/admin merge can collapse them when stronger identity evidence exists.
+
 ## External Evidence
 
 External refs are evidence rows, not canonical authority.

@@ -545,7 +545,9 @@
   only reuses by exact external evidence, not by normalized label or alias
   alone. Added regression coverage for same-label/different-source imports and
   verified live NetEase saved-recording import now produces 1372 item reports,
-  1372 canonical external refs, and 1372 active Collection items.
+  1372 canonical external refs, and 1372 active Collection items. These are
+  source-bound provisional identities, not proof that every source ref is a
+  distinct real-world recording.
 
 ## Next
 

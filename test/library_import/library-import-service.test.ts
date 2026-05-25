@@ -575,7 +575,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   );
 }
 
-async function importsSameLabelDifferentSourceRefsAsSeparateCanonicalRecordings(): Promise<void> {
+async function importsSameLabelDifferentSourceRefsAsSeparateProvisionalIdentities(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
     id: "fixture-library",
@@ -633,8 +633,11 @@ async function importsSameLabelDifferentSourceRefsAsSeparateCanonicalRecordings(
 
   assert(report.counts.canonicalRecordsCreated === 2, "same labels should not collapse canonical creates");
   assert(report.counts.collectionItemsAdded === 2, "same labels with different source refs should both save");
-  assert(canonicalRecords.length === 2, "same-label imported recordings should remain separate provisional records");
-  assert(savedItems.length === 2, "Collection should contain both imported same-label recordings");
+  assert(
+    canonicalRecords.length === 2,
+    "same-label imports should remain separate source-bound provisional identities",
+  );
+  assert(savedItems.length === 2, "Collection should contain both provisional source-bound imports");
 }
 
 async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
@@ -1190,7 +1193,7 @@ await marksStartedBatchFailedWhenProviderReadFails();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
-await importsSameLabelDifferentSourceRefsAsSeparateCanonicalRecordings();
+await importsSameLabelDifferentSourceRefsAsSeparateProvisionalIdentities();
 await returnsStoredSummaryAfterServiceRecreation();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
 await previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting();

@@ -83,7 +83,9 @@ host-facing and LLM-facing surface.
   reuses current canonical records by external evidence during provisional
   creation, keeps label/alias matching as lookup-only candidate discovery,
   filters ordinary lookup to active/provisional records, and keeps same-record
-  external-ref attachment idempotent.
+  external-ref attachment idempotent. Separate source refs may create separate
+  source-bound provisional identities, but that is not proof that the real-world
+  recordings are distinct.
 - The shared Canonical Store contract exports `CanonicalKind`, including
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
