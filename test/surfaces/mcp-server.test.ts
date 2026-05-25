@@ -18,6 +18,7 @@ import {
   createDefaultMineMusicMcpStageCore,
   createMineMusicMcpToolDefinitions,
   internalToolNameFor,
+  type MineMusicMcpRuntime,
 } from "../../src/surfaces/mcp/server.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -206,6 +207,51 @@ async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
   const result = JSON.parse(firstContent.text) as Result<MusicMaterial[]>;
   assert(result.ok, "MCP handler should return the Stage Interface result");
   assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve Stage Core result payload");
+}
+
+async function dispatchesMcpPayloadsThroughInjectedRuntime(): Promise<void> {
+  const runtime = {
+    ready: Promise.resolve(),
+    stageInterface: {
+      tools: {
+        "stage.materials.prepare": async (payload: unknown) => {
+          const materialPayload = payload as { materials: MusicMaterial[] };
+
+          return {
+            ok: true,
+            value: materialPayload.materials,
+          };
+        },
+      },
+    },
+  } satisfies MineMusicMcpRuntime;
+
+  const definitions = createMineMusicMcpToolDefinitions(runtime);
+  const prepareTool = definitions.find(
+    (definition) => definition.name === "minemusic.stage.materials.prepare",
+  );
+  assert(prepareTool !== undefined, "stage materials tool should be exposed through MCP");
+
+  const response = await prepareTool.handler({
+    materials: [
+      {
+        id: "injected-runtime-material",
+        kind: "recording",
+        label: "Injected Runtime Material",
+        state: "grounded",
+      } satisfies MusicMaterial,
+    ],
+    purpose: "recommendation",
+  });
+  const firstContent = response.content[0];
+  assert(firstContent?.type === "text", "MCP handler should return text content");
+
+  const result = JSON.parse(firstContent.text) as Result<MusicMaterial[]>;
+  assert(result.ok, "MCP handler should return the injected runtime result");
+  assert(
+    result.value[0]?.id === "injected-runtime-material",
+    "MCP handler should not require a full Stage Core object",
+  );
 }
 
 async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<void> {
@@ -474,6 +520,7 @@ await mapsInternalToolsToCodexPrefixedMcpTools();
 await exposesStableToolsThroughMcpDefinitions();
 await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToStageInterface();
+await dispatchesMcpPayloadsThroughInjectedRuntime();
 await dispatchesLibraryImportMcpPayloadsToStageInterface();
 await defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary();
 await defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider();

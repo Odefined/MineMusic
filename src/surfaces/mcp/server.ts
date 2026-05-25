@@ -12,8 +12,16 @@ import {
   agentToolDescriptors,
   stableToolNames,
   stageInterfaceToolInputSchemas,
+  type MineMusicStageInterface,
   type StageInterfaceToolInputSchema,
 } from "../../stage_interface/index.js";
+
+export type MineMusicMcpRuntime = {
+  ready: Promise<void>;
+  stageInterface: {
+    tools: Partial<MineMusicStageInterface["tools"]>;
+  };
+};
 
 export type MineMusicMcpTextContent = {
   type: "text";
@@ -52,16 +60,17 @@ export function internalToolNameFor(mcpToolName: string): ToolName | null {
 }
 
 export function createMineMusicMcpToolDefinitions(
-  stageCore: MineMusicStageCore,
+  runtime: MineMusicMcpRuntime,
 ): MineMusicMcpToolDefinition[] {
   return agentToolDescriptors.map((descriptor) => ({
     name: codexToolNameFor(descriptor.name),
     description: descriptor.description,
     inputSchema: stageInterfaceToolInputSchemas[descriptor.name],
     handler: async (payload) => {
-      await stageCore.ready;
+      await runtime.ready;
 
-      const result = await stageCore.stageInterface.tools[descriptor.name](payload);
+      const tool = runtime.stageInterface.tools[descriptor.name];
+      const result = tool === undefined ? missingToolResult(descriptor.name) : await tool(payload);
 
       return asTextResult(result);
     },
@@ -69,14 +78,14 @@ export function createMineMusicMcpToolDefinitions(
 }
 
 export function createMineMusicMcpServer(
-  stageCore: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
+  runtime: MineMusicMcpRuntime = createDefaultMineMusicMcpRuntime(),
 ): McpServer {
   const server = new McpServer({
     name: "minemusic",
     version: "0.0.0",
   });
 
-  for (const definition of createMineMusicMcpToolDefinitions(stageCore)) {
+  for (const definition of createMineMusicMcpToolDefinitions(runtime)) {
     server.registerTool(
       definition.name,
       {
@@ -91,12 +100,19 @@ export function createMineMusicMcpServer(
 }
 
 export async function runMineMusicMcpServer(
-  stageCore: MineMusicStageCore = createDefaultMineMusicMcpStageCore(),
+  runtime: MineMusicMcpRuntime = createDefaultMineMusicMcpRuntime(),
 ): Promise<void> {
-  await stageCore.ready;
+  await runtime.ready;
 
-  const server = createMineMusicMcpServer(stageCore);
+  const server = createMineMusicMcpServer(runtime);
   await server.connect(new StdioServerTransport());
+}
+
+export function createDefaultMineMusicMcpRuntime(
+  env: Record<string, string | undefined> = process.env,
+  options: MineMusicServiceRuntimeOptions = {},
+): MineMusicMcpRuntime {
+  return createDefaultMineMusicServiceRuntime(env, options);
 }
 
 export function createDefaultMineMusicMcpStageCore(
@@ -104,6 +120,18 @@ export function createDefaultMineMusicMcpStageCore(
   options: MineMusicServiceRuntimeOptions = {},
 ): MineMusicStageCore {
   return createDefaultMineMusicServiceRuntime(env, options).stageCore;
+}
+
+function missingToolResult(toolName: ToolName): Result<never> {
+  return {
+    ok: false,
+    error: {
+      code: "stage_interface.tool_not_found",
+      message: `Tool '${toolName}' is not available on the injected MineMusic MCP runtime.`,
+      module: "stage_interface",
+      retryable: false,
+    },
+  };
 }
 
 function asTextResult<T>(result: Result<T>): MineMusicMcpToolResult {
