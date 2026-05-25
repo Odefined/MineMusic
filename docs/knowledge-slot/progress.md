@@ -55,8 +55,8 @@
 
 ## Remaining Work
 
-- MusicBrainz relationship mapping still needs to stop flattening provider
-  relationship types into generic directional names such as `has_member` when
-  MusicBrainz direction says the root is not the group being described.
+- Non-membership MusicBrainz structured facts still need a final pass to make
+  relation endpoint roles consistent across artist credits, release groups,
+  labels, tracklists, works, URLs, and broad MusicBrainz relationship results.
 - Common plugin configuration still needs to become the durable activation path
   for bundled and third-party Knowledge providers.

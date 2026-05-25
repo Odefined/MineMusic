@@ -575,8 +575,8 @@ async function mapsMusicBrainzRelations(): Promise<void> {
 
   assert(item?.kind === "structured", "relation lookup should be structured");
   assert(item.nodes.some((node) => node.type === "work" && node.ref?.id === "work-mbid-1"), "work relation target should be a node");
-  assert(item.relations.some((relation) => relation.type === "recording_of_work"), "recording-of-work should map to a common relation type");
-  assert(item.relations.some((relation) => relation.type === "performed_by" && relation.properties?.role === "performance"), "performance should map to performed_by");
+  assert(item.relations.some((relation) => relation.type === "recording of" && relation.direction === "forward"), "recording-of-work should preserve MusicBrainz relation type and direction");
+  assert(item.relations.some((relation) => relation.type === "performance"), "performance should preserve MusicBrainz relation type");
   assert(
     item.relations.some((relation) => (relation.properties?.attributes as string[] | undefined)?.[0] === "vocal"),
     "relation attributes should be preserved",
@@ -656,6 +656,16 @@ async function expandsTextArtistSearchToFocusedMemberRelations(): Promise<void> 
                 },
               },
               {
+                type: "member of band",
+                "target-type": "artist",
+                direction: "forward",
+                attributes: ["eponymous"],
+                artist: {
+                  id: "black-midi-new-road",
+                  name: "black midi, New Road",
+                },
+              },
+              {
                 type: "influenced by",
                 "target-type": "artist",
                 direction: "forward",
@@ -694,14 +704,17 @@ async function expandsTextArtistSearchToFocusedMemberRelations(): Promise<void> 
   assert(item.nodes.some((node) => node.ref?.id === "bilinda-butcher"), "Bilinda Butcher member node should be returned");
   assert(item.nodes.some((node) => node.ref?.id === "david-conway"), "David Conway member node should be returned");
   assert(!item.nodes.some((node) => node.ref?.id === "unrelated-artist"), "non-member relations should be filtered out");
+  assert(!item.nodes.some((node) => node.ref?.id === "black-midi-new-road"), "forward member-of-band relation should not be treated as a band member");
   assert(
     item.relations.some((relation) =>
-      relation.type === "has_member"
-      && relation.properties?.musicBrainzType === "member of band"
+      relation.type === "member of band"
+      && relation.direction === "backward"
+      && relationHasEndpoint(relation, "artist:mbv-artist", "group")
+      && relationHasEndpoint(relation, "artist:kevin-shields", "member")
       && (relation.properties?.attributes as string[] | undefined)?.includes("lead vocals")
       && relation.properties?.ended === false
     ),
-    "member relations should preserve MusicBrainz type, role attributes, and date status",
+    "member relations should preserve MusicBrainz type, endpoint roles, role attributes, and date status",
   );
 }
 
@@ -773,8 +786,8 @@ async function expandsTextArtistSearchToBroadRelationsWhenNoFocusIsRequested(): 
   assert(item.nodes.some((node) => node.ref?.id === "influence-artist"), "broad relation target should be returned");
   assert(
     item.relations.some((relation) =>
-      relation.type === "musicbrainz_relation"
-      && relation.properties?.musicBrainzType === "influenced by"
+      relation.type === "influenced by"
+      && relation.direction === "forward"
     ),
     "unfocused relation expansion should preserve broad MusicBrainz relations",
   );

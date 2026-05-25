@@ -152,8 +152,12 @@ type MusicBrainzArtistCredit = {
 
 type MusicBrainzRelation = {
   type?: unknown;
+  "type-id"?: unknown;
   "target-type"?: unknown;
   direction?: unknown;
+  "forward-link-phrase"?: unknown;
+  "reverse-link-phrase"?: unknown;
+  "long-link-phrase"?: unknown;
   begin?: unknown;
   end?: unknown;
   ended?: unknown;
@@ -869,7 +873,10 @@ function isMemberOfBandRelation(relation: unknown): boolean {
     return false;
   }
 
-  return stringValue((relation as MusicBrainzRelation).type)?.toLowerCase() === "member of band";
+  const musicBrainzRelation = relation as MusicBrainzRelation;
+
+  return stringValue(musicBrainzRelation.type)?.toLowerCase() === "member of band"
+    && stringValue(musicBrainzRelation.direction) === "backward";
 }
 
 function recordingToKnowledge(recording: MusicBrainzRecording): StructuredKnowledge {
@@ -1197,13 +1204,12 @@ function appendRelations(
       properties: relationTargetProperties(targetType, target),
     });
     const direction = relationDirection(relation);
+    const phrases = relationPhrases(relation);
     relations.push({
-      type: relationPredicate(relation, targetType),
-      endpoints: [
-        { nodeId: subjectNodeId, role: "source" },
-        { nodeId: targetNodeId, role: targetType },
-      ],
+      type: musicBrainzRelationType(relation),
+      endpoints: relationEndpoints(subjectNodeId, targetNodeId, relation, targetType),
       ...(direction === undefined ? {} : { direction }),
+      ...(phrases === undefined ? {} : { phrases }),
       properties: relationProperties(relation, targetType),
     });
   }
@@ -1267,62 +1273,64 @@ function relationTargetProperties(targetType: string, target: Record<string, unk
   }
 }
 
-function relationPredicate(relation: MusicBrainzRelation, targetType: string): string {
-  const relationType = stringValue(relation.type)?.toLowerCase() ?? "";
+function musicBrainzRelationType(relation: MusicBrainzRelation): string {
+  return stringValue(relation.type) ?? "musicbrainz_relation";
+}
 
-  if (targetType === "work" && relationType.includes("recording of")) {
-    return "recording_of_work";
+function relationEndpoints(
+  rootNodeId: string,
+  targetNodeId: string,
+  relation: MusicBrainzRelation,
+  targetType: string,
+): KnowledgeRelation["endpoints"] {
+  const relationType = stringValue(relation.type)?.toLowerCase();
+  const direction = stringValue(relation.direction);
+
+  if (targetType === "artist" && relationType === "member of band") {
+    if (direction === "backward") {
+      return [
+        { nodeId: rootNodeId, role: "group" },
+        { nodeId: targetNodeId, role: "member" },
+      ];
+    }
+
+    if (direction === "forward") {
+      return [
+        { nodeId: rootNodeId, role: "member" },
+        { nodeId: targetNodeId, role: "group" },
+      ];
+    }
   }
 
-  if (relationType.includes("composer")) {
-    return "composed_by";
-  }
-
-  if (relationType.includes("lyricist")) {
-    return "lyricist";
-  }
-
-  if (relationType.includes("writer")) {
-    return "written_by";
-  }
-
-  if (targetType === "artist" && relationType.includes("member of band")) {
-    return "has_member";
-  }
-
-  if (
-    targetType === "artist"
-    && (
-      relationType.includes("performance")
-      || relationType.includes("performer")
-      || relationType.includes("vocal")
-      || relationType.includes("instrument")
-      || relationType.includes("conductor")
-    )
-  ) {
-    return "performed_by";
-  }
-
-  return "musicbrainz_relation";
+  return [
+    { nodeId: rootNodeId, role: "lookup_entity" },
+    { nodeId: targetNodeId, role: targetType },
+  ];
 }
 
 function relationProperties(relation: MusicBrainzRelation, targetType: string): Record<string, unknown> {
-  const type = stringValue(relation.type);
-  const predicate = relationPredicate(relation, targetType);
-
   return removeUndefined({
-    musicBrainzType: type,
+    musicBrainzTypeId: stringValue(relation["type-id"]),
     targetType,
     begin: stringValue(relation.begin),
     end: stringValue(relation.end),
     ended: booleanValue(relation.ended),
-    role: predicate === "performed_by" ? type : undefined,
     attributes: stringArray(relation.attributes),
   });
 }
 
 function relationDirection(relation: MusicBrainzRelation): KnowledgeRelation["direction"] {
   return stringValue(relation.direction) as KnowledgeRelation["direction"];
+}
+
+function relationPhrases(relation: MusicBrainzRelation): KnowledgeRelation["phrases"] | undefined {
+  const phrases = removeUndefined({
+    forward: stringValue(relation["forward-link-phrase"]),
+    reverse: stringValue(relation["reverse-link-phrase"]),
+    long: stringValue(relation["long-link-phrase"]),
+  }) as NonNullable<KnowledgeRelation["phrases"]>;
+
+  return Object.keys(phrases).length === 0 ? undefined : phrases;
 }
 
 function artistCreditText(value: unknown): string | undefined {

@@ -320,9 +320,10 @@ host-facing and LLM-facing surface.
   and the MusicBrainz provider returns relationship facts through
   `StructuredKnowledge.relations`. MusicBrainz text queries can now use search
   hits internally for supported expansion follow-up lookup or browse, so agents
-  can ask for expanded knowledge without knowing MBIDs. Membership mapping still
-  needs to interpret MusicBrainz direction before treating a returned artist as a
-  group member.
+  can ask for expanded knowledge without knowing MBIDs. Membership-focused
+  artist queries now keep only backward MusicBrainz `member of band`
+  relationships and preserve MusicBrainz relation type, direction, endpoint
+  roles, dates, and attributes.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity

@@ -336,7 +336,8 @@ internals may translate them into MusicBrainz API parameters.
 The first supported value is `members`.
 
 For artist roots, `members` maps to MusicBrainz artist relationships of type
-`member of band`. The provider may request the broader MusicBrainz
+`member of band` where MusicBrainz returns `direction: "backward"` from the
+group artist lookup. The provider may request the broader MusicBrainz
 artist-relationship include and then filter the returned relationships before
 building `StructuredKnowledge`.
 
@@ -344,9 +345,9 @@ Returned member facts should include:
 
 - the member artist node.
 - a relation object connecting the group artist and member artist endpoints.
-- a common relation type, such as `has_member`, until MusicBrainz-specific
-  membership semantics are mapped directly.
-- original MusicBrainz relationship type and direction on the relation.
+- `type: "member of band"` on the relation.
+- `direction: "backward"` on the relation.
+- endpoint roles `group` and `member`.
 - `begin`, `end`, and `ended` when MusicBrainz returns them.
 - relationship attributes such as `lead vocals`, `guitar`, or `drums`.
 
@@ -404,24 +405,15 @@ medium
 url
 ```
 
-Common relation `type` values:
+Provider-derived structural relation `type` values:
 
 ```text
 artist_credit
-performed_by
-composed_by
-lyricist
-written_by
-appears_on_release
 part_of_release_group
 has_medium
 has_track
 represents_recording
-recording_of_work
 published_by_label
-related_url
-musicbrainz_relation
-has_member
 ```
 
 Artist credits should be represented in two forms:
@@ -442,10 +434,10 @@ field in the first version because `artistCreditText` preserves the display
 text. Featuring credits are represented through `artistCreditText` and
 `artist_credit` relations in the first version.
 
-`artist_credit` and `performed_by` are distinct. MusicBrainz artist credits
+`artist_credit` and MusicBrainz performance relationships are distinct. MusicBrainz artist credits
 describe how an entity is credited for display. MusicBrainz artist-recording
 performer, vocal, instrument, orchestra, conductor, and similar relationships
-describe contribution roles and should map to `performed_by`.
+describe contribution roles and should keep their MusicBrainz relationship type.
 
 Tracklists should preserve that `recording` is the primary music entity and
 `track` is a release-specific tracklist entry.
@@ -462,25 +454,16 @@ Track node properties should hold release-specific fields such as `position`,
 `number`, `title`, and `length`. Recording node properties should hold
 recording-level fields such as title, duration, artist credit, and identifiers.
 
-When a MusicBrainz relationship type is too specific for a generic relation type,
-use `musicbrainz_relation` and preserve the MusicBrainz relationship type,
-direction, dates, attributes, and target type on the relation.
+MusicBrainz relationship types from API `relations` should be kept as the
+Knowledge relation `type`. Direction, dates, attributes, target type, and link
+phrases should be preserved on the relation when MusicBrainz returns them.
 
-Important MusicBrainz relationship types should map to common relation types when
-possible:
-
-- performance or performer-style recording relationships -> `performed_by`.
-- composer relationships -> `composed_by`.
-- lyricist relationships -> `lyricist`.
-- writer relationships -> `written_by`.
-- artist membership relationships -> `has_member`.
-
-`performed_by` relation properties should preserve the specific MusicBrainz role
-and attributes when available:
+For example, a MusicBrainz `performance` relation should return:
 
 ```text
-role
+type: performance
 attributes
+direction
 ```
 
 Examples of role values include `performer`, `vocal`, `instrument`, and

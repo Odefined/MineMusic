@@ -717,6 +717,13 @@
   instead of public triple-shaped relationship facts; MusicBrainz provider
   output and existing tests now use that shape. MusicBrainz-specific direction
   interpretation remains the next task.
+- Implemented Knowledge Slot Task 12 MusicBrainz relation mapping. MusicBrainz
+  API relationships now keep the MusicBrainz relationship type as
+  `KnowledgeRelation.type`, preserve direction and optional phrases on the
+  relation, and keep dates plus attributes in relation properties. Focused
+  member queries only treat backward `member of band` artist relationships as
+  members of the root group; forward `member of band` relationships are no
+  longer returned as group members.
 
 ## Next
 
