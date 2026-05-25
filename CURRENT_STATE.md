@@ -268,9 +268,19 @@ host-facing and LLM-facing surface.
   with `StructuredKnowledge` and `TextKnowledge` forms, while keeping identity
   confirmation and canonical writes in Canonical Store review/apply flows. A
   provider-specific MusicBrainz design draft now exists in
-  `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search, MBID
-  lookup, and deterministic provider-internal browse for ref-based list
-  expansions behind the general `music.knowledge.query` tool.
+  `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
+  provider-ref lookup, and deterministic provider-internal browse for ref-based
+  list expansions behind the general `music.knowledge.query` tool. The design
+  also records a future generic persistent provider HTTP cache, defaulting to
+  non-expiring entries with explicit least-recently-used cleanup by
+  `lastUsedAt`. A task-by-task implementation plan for the target Knowledge Slot
+  contract, cache, Stage Interface tool, and MusicBrainz provider now exists in
+  `docs/knowledge-slot/implementation-plan.md`. Future plugin activation should
+  come from plugin `config.json`, including Knowledge providers such as
+  MusicBrainz. That plugin config loader is not implemented yet, so the
+  Knowledge Slot implementation plan keeps first-slice registration compatible
+  with later `config.json` wiring and does not make a MusicBrainz-specific
+  environment variable decide provider activation.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution,
   `MaterialResolveResult` status, and source evidence attachment to known
