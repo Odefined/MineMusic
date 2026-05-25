@@ -261,6 +261,29 @@ export type ToolName =
   | "library.import.status"
   | "library.import.summary"
   | "memory.propose";
+
+export type InstrumentDescriptor = {
+  id: string;
+  label: string;
+  tools: ToolDescriptor[];
+  providers?: InstrumentProviderDescriptor[];
+};
+
+export type InstrumentProviderDescriptor = {
+  id: string;
+  label: string;
+  slot: CapabilitySlot;
+  status: "available" | "requires_setup" | "unavailable" | (string & {});
+  authentication?: "none" | "optional" | "required" | "unknown" | (string & {});
+  operations?: string[];
+  areas?: Array<{
+    id: string;
+    label: string;
+    availability: string;
+    description?: string;
+  }>;
+  notes?: string[];
+};
 ```
 
 Consumes:
@@ -693,11 +716,16 @@ export interface PluginRegistryPort {
     slot: CapabilitySlot;
     providerId: string;
     provider: unknown;
+    descriptor?: InstrumentProviderDescriptor;
   }): Promise<Result<void>>;
 
   listProviders(input: {
     slot: CapabilitySlot;
   }): Promise<Result<string[]>>;
+
+  listProviderDescriptors(input: {
+    slot: CapabilitySlot;
+  }): Promise<Result<InstrumentProviderDescriptor[]>>;
 
   getProvider(input: {
     slot: CapabilitySlot;

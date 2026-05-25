@@ -930,6 +930,7 @@ const effects: EffectBoundaryPort = {
 const plugins: PluginRegistryPort = {
   registerProvider: async () => ({ ok: true, value: undefined }),
   listProviders: async () => ({ ok: true, value: [] }),
+  listProviderDescriptors: async () => ({ ok: true, value: [] }),
   getProvider: async () => ({ ok: true, value: null }),
 };
 

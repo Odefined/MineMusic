@@ -299,6 +299,7 @@ export type MaterialResolveResult =
 
 export interface SourceProvider {
   id: string;
+  descriptor?: InstrumentProviderDescriptor;
   search(input: {
     query: SourceQuery;
     sessionId?: string;
@@ -447,6 +448,7 @@ export type PlatformLibraryReadResult = {
 
 export interface PlatformLibraryProvider {
   id: string;
+  descriptor?: InstrumentProviderDescriptor;
   preview(input: PlatformLibraryPreviewInput): Promise<Result<PlatformLibraryPreview>>;
   readItems(input: PlatformLibraryReadInput): Promise<Result<PlatformLibraryReadResult>>;
 }
@@ -793,6 +795,7 @@ export type InstrumentDescriptor = {
   id: string;
   label: string;
   tools: ToolDescriptor[];
+  providers?: InstrumentProviderDescriptor[];
 };
 
 export type ToolDescriptor = {
@@ -812,6 +815,37 @@ export type CapabilitySlot =
   | "effect"
   | "playback"
   | "storage";
+
+export type InstrumentProviderStatus =
+  | "available"
+  | "requires_setup"
+  | "unavailable"
+  | (string & {});
+
+export type InstrumentProviderAuthentication =
+  | "none"
+  | "optional"
+  | "required"
+  | "unknown"
+  | (string & {});
+
+export type InstrumentProviderAreaDescriptor = {
+  id: string;
+  label: string;
+  availability: PlatformLibraryAvailability | (string & {});
+  description?: string;
+};
+
+export type InstrumentProviderDescriptor = {
+  id: string;
+  label: string;
+  slot: CapabilitySlot;
+  status: InstrumentProviderStatus;
+  authentication?: InstrumentProviderAuthentication;
+  operations?: string[];
+  areas?: InstrumentProviderAreaDescriptor[];
+  notes?: string[];
+};
 
 export type DomainEvent = {
   id: string;

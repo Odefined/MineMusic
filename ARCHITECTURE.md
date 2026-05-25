@@ -307,6 +307,11 @@ The Handbook is generated from current agent-visible `InstrumentDescriptor` /
 `ToolDescriptor` entries and written to the MineMusic skill's `HANDBOOK.md`;
 the `minemusic.handbook` instrument also exposes `handbook.overview.read`,
 `handbook.instrument.read`, and `handbook.tool.read` for on-demand lookup.
+Provider capabilities are part of the owning `InstrumentDescriptor` through
+`providers`, so agent-facing platform/source facts stay attached to
+`minemusic.music` or `minemusic.library` instead of forming a separate Handbook
+surface. These provider descriptors are static registration metadata; live
+library counts and samples still come from Library Import preview tools.
 
 Tool availability is checked through `InstrumentCatalogPort`, not by compiling
 or reading a Handbook as a side effect.

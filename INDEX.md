@@ -200,8 +200,9 @@ This index points agents to the current MVP documentation pack.
 
 50. `src/providers/netease/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
-      `PlatformLibraryProvider` factories, including recording hints with
-      artist/release source refs when available.
+      `PlatformLibraryProvider` factories plus agent-facing provider descriptors
+      for Handbook generation, including recording hints with artist/release
+      source refs when available.
 
 51. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, focused instrument/tool behavior,
@@ -227,11 +228,12 @@ This index points agents to the current MVP documentation pack.
 54. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade, including focused stage/music/library/memory
-      instrument descriptors plus Collection and Library Import tools.
+      instrument descriptors, provider descriptor attachment, Collection tools,
+      and Library Import tools.
 
 55. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
-      instrument entries, and exact tool entries.
+      instrument entries, provider capability sections, and exact tool entries.
 
 56. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.

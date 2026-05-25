@@ -155,6 +155,34 @@ For canonical `release` context:
 
 These fields are search context only. They do not create identity confidence.
 
+For canonical `artist` context:
+
+- search MusicBrainz `artist`.
+- use the canonical label as the primary artist query.
+- use aliases as alternate search terms, not as one combined query.
+- if context includes country, type, or disambiguation-like notes, use them as
+  comparison context for returned hits.
+- do not use related recordings or releases as first-search fields.
+
+These fields are search context only. They do not create identity confidence.
+
+For canonical `release_group` context:
+
+- search MusicBrainz `release-group`.
+- use the canonical label as the release-group title query.
+- if context includes artist labels, use them as narrowing context.
+- if context includes primary type, secondary types, or first release date, use
+  them as comparison context for returned hits.
+- do not use concrete release barcodes as release-group search fields.
+
+These fields are search context only. They do not create identity confidence.
+
+Canonical `work` context search is not part of the first implementation design.
+MineMusic models canonical `work`, and MusicBrainz can return work knowledge,
+but the current runtime does not yet have a practical path that creates or uses
+canonical work records. Add canonical work context search rules when that path
+exists.
+
 ### Provider-Ref Lookup
 
 If the routed request contains a MusicBrainz provider ref and no requested
@@ -227,6 +255,10 @@ Common `expand` values map to MusicBrainz data as follows:
 | `tracklist` | release media, tracks, and linked recordings |
 | `identifiers` | ISRCs, ISWCs, barcodes, label codes, and similar provider identifiers |
 | `urls` | URL relationships and URL entities |
+| `genres` | MusicBrainz genres attached to returned entities |
+| `tags` | MusicBrainz tags attached to returned entities |
+| `ratings` | MusicBrainz ratings attached to returned entities |
+| `annotation` | MusicBrainz annotation text attached to returned entities |
 
 The first public contract should use these general expansion names. Provider
 internals may translate them into MusicBrainz API parameters.
@@ -266,6 +298,51 @@ musicbrainz_relation
 When a MusicBrainz relationship type is too specific for a generic predicate,
 use `musicbrainz_relation` and preserve the MusicBrainz relationship type,
 direction, dates, attributes, and target type in edge `properties`.
+
+Common node `properties` should include MusicBrainz descriptive fields when
+available:
+
+```text
+genres
+tags
+rating
+disambiguation
+annotation
+```
+
+`genres`, `tags`, `rating`, and `disambiguation` should be included by default
+when MusicBrainz returns them. `annotation` should only be fetched when
+`expand` includes `annotation`, because annotations can contain longer
+free-text notes. In the first implementation, annotation may be stored as
+`properties.annotation` on the relevant node.
+
+`rating` should preserve MusicBrainz public community rating shape:
+
+```ts
+rating: {
+  value: number;
+  votesCount?: number;
+}
+```
+
+The first implementation should not request authenticated `user-ratings`.
+
+`genres` and `tags` should preserve MusicBrainz structure instead of flattening
+to strings:
+
+```ts
+genres: Array<{
+  id?: string;
+  name: string;
+  count?: number;
+  disambiguation?: string;
+}>;
+
+tags: Array<{
+  name: string;
+  count?: number;
+}>;
+```
 
 ## API Constraints
 

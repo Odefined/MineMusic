@@ -182,7 +182,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     repository: libraryImportRepository,
   });
   const effects = createEffectBoundary({ repository: effectRepository });
-  const instruments = createInstrumentCatalog();
+  const instruments = createInstrumentCatalog({ plugins });
   const memory = createMemoryService({
     repository: memoryRepository,
     events,

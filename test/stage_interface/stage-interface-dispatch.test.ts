@@ -24,6 +24,7 @@ import type {
   SessionContextPort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
+import { createPluginRegistry } from "../../src/plugins/index.js";
 import {
   createInstrumentCatalog,
   createToolDispatch,
@@ -139,6 +140,46 @@ async function filtersCatalogToExplicitActiveInstruments(): Promise<void> {
   assert(toolNames.includes("library.import.preview"), "active library instrument should expose library tools");
   assert(!toolNames.includes("music.material.resolve"), "inactive music instrument should not expose music tools");
   assert(!toolNames.includes("stage.events.record"), "inactive stage instrument should not expose stage tools");
+}
+
+async function attachesProviderDescriptorsToOwningInstruments(): Promise<void> {
+  const plugins = createPluginRegistry();
+
+  await assertOk(
+    plugins.registerProvider({
+      slot: "platform_library",
+      providerId: "fixture-library",
+      provider: {},
+      descriptor: {
+        id: "fixture-library",
+        label: "Fixture Library",
+        slot: "platform_library",
+        status: "available",
+        authentication: "required",
+        operations: ["preview", "import", "update"],
+        areas: [
+          {
+            id: "saved_recordings",
+            label: "Saved songs",
+            availability: "readable",
+          },
+        ],
+      },
+    }),
+  );
+
+  const descriptors = await assertOk(createInstrumentCatalog({ plugins }).list({ session }));
+  const libraryInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.library");
+
+  assert(libraryInstrument !== undefined, "catalog should expose library instrument");
+  assert(
+    libraryInstrument.providers?.[0]?.id === "fixture-library",
+    "library instrument should include platform-library provider descriptors",
+  );
+  assert(
+    libraryInstrument.providers?.[0]?.areas?.[0]?.availability === "readable",
+    "library provider descriptor should preserve readable area metadata",
+  );
 }
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
@@ -993,6 +1034,7 @@ function emptyImportCounts() {
 
 await listsStableLlmVisibleToolsWithoutProviderDetails();
 await filtersCatalogToExplicitActiveInstruments();
+await attachesProviderDescriptorsToOwningInstruments();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();

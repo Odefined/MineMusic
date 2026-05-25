@@ -138,6 +138,79 @@ async function writesInstrumentHandbookOnStageCoreReady(): Promise<void> {
   }
 }
 
+async function writesProviderCapabilitiesIntoInstrumentHandbook(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-handbook-provider-"));
+  const handbookPath = join(directory, "HANDBOOK.md");
+  let previewCalls = 0;
+  const sourceProvider: SourceProvider = {
+    id: "stage-core-test-provider",
+    async search() {
+      return { ok: true, value: [] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: [] };
+    },
+  };
+  const platformLibraryProvider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    descriptor: {
+      id: "fixture-library",
+      label: "Fixture Library",
+      slot: "platform_library",
+      status: "available",
+      authentication: "required",
+      operations: ["preview", "import", "update"],
+      areas: [
+        {
+          id: "saved_recordings",
+          label: "Saved songs",
+          availability: "readable",
+        },
+      ],
+    },
+    async preview() {
+      previewCalls += 1;
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+  };
+
+  try {
+    const stageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider,
+      platformLibraryProvider,
+      handbookPath,
+    });
+    await stageCore.ready;
+
+    const content = await readFile(handbookPath, "utf8");
+
+    assert(content.includes("### MineMusic Library (`minemusic.library`)"), "handbook should render library instrument");
+    assert(content.includes("#### Providers"), "handbook should render provider section");
+    assert(content.includes("Fixture Library (`fixture-library`, slot `platform_library`)"), "handbook should render provider label and slot");
+    assert(content.includes("Authentication: `required`"), "handbook should render provider authentication");
+    assert(content.includes("Saved songs (`saved_recordings`): `readable`"), "handbook should render readable provider areas");
+    assert(previewCalls === 0, "handbook generation should not call provider preview");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void> {
   const sourceRef: Ref = {
     namespace: "source:provider",
@@ -439,6 +512,7 @@ async function exposesLibraryImportWithInjectedPlatformLibraryProvider(): Promis
 
 await createsStageCoreWithInjectedSourceProvider();
 await writesInstrumentHandbookOnStageCoreReady();
+await writesProviderCapabilitiesIntoInstrumentHandbook();
 await usesInjectedCanonicalRepositoryForMaterialResolve();
 await exposesInitializedCollectionService();
 await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();

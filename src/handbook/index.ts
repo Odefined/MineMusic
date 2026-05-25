@@ -111,9 +111,51 @@ function renderInstrumentSection(instrument: InstrumentDescriptor): string {
   return [
     `### ${instrument.label} (\`${instrument.id}\`)`,
     "",
+    ...renderProviderSection(instrument),
     ...instrument.tools.flatMap((tool) => renderToolSection(tool).trimEnd().split("\n")),
     "",
   ].join("\n");
+}
+
+function renderProviderSection(instrument: InstrumentDescriptor): string[] {
+  if (instrument.providers === undefined || instrument.providers.length === 0) {
+    return [];
+  }
+
+  const lines = [
+    "#### Providers",
+    "",
+  ];
+
+  for (const provider of instrument.providers) {
+    lines.push(`- ${provider.label} (\`${provider.id}\`, slot \`${provider.slot}\`)`);
+    lines.push(`  Status: \`${provider.status}\``);
+
+    if (provider.authentication !== undefined) {
+      lines.push(`  Authentication: \`${provider.authentication}\``);
+    }
+
+    if (provider.operations !== undefined && provider.operations.length > 0) {
+      lines.push(`  Operations: ${provider.operations.map((operation) => `\`${operation}\``).join(", ")}`);
+    }
+
+    if (provider.areas !== undefined && provider.areas.length > 0) {
+      lines.push("  Areas:");
+
+      for (const area of provider.areas) {
+        const description = area.description === undefined ? "" : ` - ${area.description}`;
+        lines.push(`  - ${area.label} (\`${area.id}\`): \`${area.availability}\`${description}`);
+      }
+    }
+
+    if (provider.notes !== undefined && provider.notes.length > 0) {
+      lines.push(`  Notes: ${provider.notes.join(" ")}`);
+    }
+  }
+
+  lines.push("");
+
+  return lines;
 }
 
 function renderToolSection(tool: InstrumentDescriptor["tools"][number]): string {

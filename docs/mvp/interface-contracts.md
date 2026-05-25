@@ -446,6 +446,7 @@ export type InstrumentDescriptor = {
   id: string;
   label: string;
   tools: ToolDescriptor[];
+  providers?: InstrumentProviderDescriptor[];
 };
 
 export type ToolDescriptor = {
@@ -475,6 +476,22 @@ export type CapabilitySlot =
   | "effect"
   | "playback"
   | "storage";
+
+export type InstrumentProviderDescriptor = {
+  id: string;
+  label: string;
+  slot: CapabilitySlot;
+  status: "available" | "requires_setup" | "unavailable" | (string & {});
+  authentication?: "none" | "optional" | "required" | "unknown" | (string & {});
+  operations?: string[];
+  areas?: Array<{
+    id: string;
+    label: string;
+    availability: string;
+    description?: string;
+  }>;
+  notes?: string[];
+};
 
 export type DomainEvent = {
   id: string;

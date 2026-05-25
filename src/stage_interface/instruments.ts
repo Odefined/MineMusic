@@ -1,5 +1,9 @@
-import type { Result } from "../contracts/index.js";
-import type { InstrumentCatalogPort } from "../ports/index.js";
+import type {
+  CapabilitySlot,
+  InstrumentProviderDescriptor,
+  Result,
+} from "../contracts/index.js";
+import type { InstrumentCatalogPort, PluginRegistryPort } from "../ports/index.js";
 import {
   handbookToolDescriptors,
   libraryToolDescriptors,
@@ -8,9 +12,27 @@ import {
   stageToolDescriptors,
 } from "./tools.js";
 
-export function createInstrumentCatalog(): InstrumentCatalogPort {
+export type InstrumentCatalogOptions = {
+  plugins?: PluginRegistryPort;
+};
+
+export function createInstrumentCatalog({
+  plugins,
+}: InstrumentCatalogOptions = {}): InstrumentCatalogPort {
   return {
     async list({ session }) {
+      const sourceProviders = await listProviderDescriptors(plugins, "source");
+
+      if (!sourceProviders.ok) {
+        return sourceProviders;
+      }
+
+      const platformLibraryProviders = await listProviderDescriptors(plugins, "platform_library");
+
+      if (!platformLibraryProviders.ok) {
+        return platformLibraryProviders;
+      }
+
       const instruments = [
         {
           id: "minemusic.handbook",
@@ -28,11 +50,13 @@ export function createInstrumentCatalog(): InstrumentCatalogPort {
           id: "minemusic.music",
           label: "MineMusic Music",
           tools: musicToolDescriptors,
+          providers: sourceProviders.value,
         },
         {
           id: "minemusic.library",
           label: "MineMusic Library",
           tools: libraryToolDescriptors,
+          providers: platformLibraryProviders.value,
         },
         {
           id: "minemusic.memory",
@@ -50,6 +74,17 @@ export function createInstrumentCatalog(): InstrumentCatalogPort {
       return ok(instruments);
     },
   };
+}
+
+async function listProviderDescriptors(
+  plugins: PluginRegistryPort | undefined,
+  slot: CapabilitySlot,
+): Promise<Result<InstrumentProviderDescriptor[]>> {
+  if (plugins === undefined) {
+    return ok([]);
+  }
+
+  return plugins.listProviderDescriptors({ slot });
 }
 
 function ok<T>(value: T): Result<T> {

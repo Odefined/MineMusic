@@ -13,6 +13,7 @@ import type {
   EffectDecision,
   EffectProposal,
   InstrumentDescriptor,
+  InstrumentProviderDescriptor,
   KnowledgeQuery,
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
@@ -339,9 +340,14 @@ export interface PluginRegistryPort {
     slot: CapabilitySlot;
     providerId: string;
     provider: unknown;
+    descriptor?: InstrumentProviderDescriptor;
   }): Promise<Result<void>>;
 
   listProviders(input: { slot: CapabilitySlot }): Promise<Result<string[]>>;
+
+  listProviderDescriptors(input: {
+    slot: CapabilitySlot;
+  }): Promise<Result<InstrumentProviderDescriptor[]>>;
 
   getProvider(input: {
     slot: CapabilitySlot;

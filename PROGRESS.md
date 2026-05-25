@@ -592,6 +592,10 @@
   `stage.*`, Library Import tool ids now live under `library.*`, and the default
   Codex MCP session uses empty `activeInstruments` to expose all current
   MineMusic instruments.
+- Added agent-facing provider descriptors to the Instrument Catalog and
+  Handbook. NetEase now contributes source capability metadata to
+  `minemusic.music` and platform-library import/update area metadata to
+  `minemusic.library` without running live preview during Handbook generation.
 
 ## Next
 

@@ -78,6 +78,7 @@ async function registersNetEaseProviderThroughPlatformLibrarySlot(): Promise<voi
   );
 
   const listed = await assertOk(registry.listProviders({ slot: "platform_library" }));
+  const descriptors = await assertOk(registry.listProviderDescriptors({ slot: "platform_library" }));
   const stored = await assertOk(
     registry.getProvider({
       slot: "platform_library",
@@ -88,6 +89,10 @@ async function registersNetEaseProviderThroughPlatformLibrarySlot(): Promise<voi
   const preview = await assertOk(registeredProvider.preview({ areas: [] }));
 
   assert(listed.length === 1 && listed[0] === "netease", "NetEase provider should list under platform_library");
+  assert(
+    descriptors[0]?.areas?.some((area) => area.id === "saved_recordings" && area.availability === "readable"),
+    "NetEase provider descriptor should expose readable library areas",
+  );
   assert(stored === provider, "NetEase platform library lookup should return the registered provider");
   assert(preview.account?.providerAccountId === "24680", "registered provider should remain callable");
 }

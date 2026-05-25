@@ -51,6 +51,13 @@ Output: `EffectProposal`
 Effect kind: `proposal`
 ### MineMusic Music (`minemusic.music`)
 
+#### Providers
+
+- NetEase Cloud Music (`netease`, slot `source`)
+  Status: `available`
+  Authentication: `none`
+  Operations: `search`, `refresh_playable_links`
+
 #### `music.material.resolve`
 
 Description: Resolve music candidates into material through canonical-first material resolution.
@@ -122,6 +129,19 @@ Description: List owner collections and matching collection items.
 Input: `CollectionListInput`
 Output: `CollectionListOutput`
 ### MineMusic Library (`minemusic.library`)
+
+#### Providers
+
+- NetEase Cloud Music (`netease`, slot `platform_library`)
+  Status: `available`
+  Authentication: `required`
+  Operations: `preview`, `import`, `update`
+  Areas:
+  - Saved songs (`saved_recordings`): `readable`
+  - Saved albums (`saved_releases`): `readable`
+  - Followed artists (`saved_artists`): `readable`
+  - Playlists (`playlists`): `unsupported`
+  - Listening history (`listening_history`): `unsupported`
 
 #### `library.import.preview`
 

@@ -54,6 +54,21 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
       slot: "platform_library",
       providerId: platformLibraryProvider.id,
       provider: platformLibraryProvider,
+      descriptor: {
+        id: "will-be-normalized",
+        label: "Fixture Library",
+        slot: "source",
+        status: "available",
+        authentication: "required",
+        operations: ["preview", "import"],
+        areas: [
+          {
+            id: "saved_recordings",
+            label: "Saved songs",
+            availability: "readable",
+          },
+        ],
+      },
     }),
   );
 
@@ -73,6 +88,9 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
       slot: "platform_library",
       providerId: platformLibraryProvider.id,
     }),
+  );
+  const platformLibraryDescriptors = await assertOk(
+    registry.listProviderDescriptors({ slot: "platform_library" }),
   );
 
   assert(sourceProviders.length === 1 && sourceProviders[0] === "fixture", "source slot should list provider");
@@ -94,6 +112,16 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
     storedPlatformLibraryProvider === platformLibraryProvider,
     "platform library provider lookup should return registered object",
   );
+  assert(platformLibraryDescriptors.length === 1, "platform library slot should list provider descriptor");
+  assert(
+    platformLibraryDescriptors[0]?.id === platformLibraryProvider.id &&
+      platformLibraryDescriptors[0]?.slot === "platform_library",
+    "registry should normalize descriptor id and slot to the registration key",
+  );
+  assert(
+    platformLibraryDescriptors[0]?.areas?.[0]?.id === "saved_recordings",
+    "registry should preserve agent-facing provider area metadata",
+  );
 }
 
 async function returnsStableErrorForMissingProvider(): Promise<void> {
@@ -107,6 +135,8 @@ async function returnsStableErrorForMissingProvider(): Promise<void> {
 
   const emptyList = await assertOk(registry.listProviders({ slot: "source" }));
   assert(emptyList.length === 0, "empty provider slot should still list successfully");
+  const emptyDescriptors = await assertOk(registry.listProviderDescriptors({ slot: "source" }));
+  assert(emptyDescriptors.length === 0, "empty provider descriptor slot should still list successfully");
 }
 
 await registersAndLooksUpProvidersBySlot();

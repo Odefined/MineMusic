@@ -1,4 +1,5 @@
 import type {
+  InstrumentProviderDescriptor,
   MaterialEvidence,
   MusicMaterial,
   PlayableLink,
@@ -103,12 +104,58 @@ const unsupportedPlatformLibraryAreas: PlatformLibraryArea[] = [
 const netEasePageLimit = 100;
 const netEaseSongDetailBatchSize = 1000;
 
+export const netEaseSourceProviderDescriptor: InstrumentProviderDescriptor = {
+  id: "netease",
+  label: "NetEase Cloud Music",
+  slot: "source",
+  status: "available",
+  authentication: "none",
+  operations: ["search", "refresh_playable_links"],
+};
+
+export const netEasePlatformLibraryProviderDescriptor: InstrumentProviderDescriptor = {
+  id: "netease",
+  label: "NetEase Cloud Music",
+  slot: "platform_library",
+  status: "available",
+  authentication: "required",
+  operations: ["preview", "import", "update"],
+  areas: [
+    {
+      id: "saved_recordings",
+      label: "Saved songs",
+      availability: "readable",
+    },
+    {
+      id: "saved_releases",
+      label: "Saved albums",
+      availability: "readable",
+    },
+    {
+      id: "saved_artists",
+      label: "Followed artists",
+      availability: "readable",
+    },
+    {
+      id: "playlists",
+      label: "Playlists",
+      availability: "unsupported",
+    },
+    {
+      id: "listening_history",
+      label: "Listening history",
+      availability: "unsupported",
+    },
+  ],
+};
+
 export function createNetEaseSourceProvider({
   baseUrl = defaultNetEaseBaseUrl,
   requestJson = createDefaultRequester(baseUrl),
 }: NetEaseSourceProviderOptions = {}): SourceProvider {
   return {
     id: "netease",
+    descriptor: netEaseSourceProviderDescriptor,
 
     async search({ query }) {
       const keywords = query.text?.trim();
@@ -166,6 +213,7 @@ export function createNetEasePlatformLibraryProvider({
 }: NetEasePlatformLibraryProviderOptions = {}): PlatformLibraryProvider {
   return {
     id: "netease",
+    descriptor: netEasePlatformLibraryProviderDescriptor,
 
     async preview(input) {
       const account = await resolveNetEaseAccount(requestJson, input.providerAccountId);

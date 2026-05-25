@@ -360,6 +360,7 @@ Public API:
 
 - `PluginRegistryPort.registerProvider(input)`
 - `PluginRegistryPort.listProviders(input)`
+- `PluginRegistryPort.listProviderDescriptors(input)`
 - `PluginRegistryPort.getProvider(input)`
 
 Must not own:

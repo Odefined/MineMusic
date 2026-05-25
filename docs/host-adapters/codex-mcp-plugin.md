@@ -113,6 +113,9 @@ The Codex MCP runtime:
 - seeds a Stage session with `activeInstruments: []`, which means all current
   MineMusic instruments.
 - registers NetEase `source` and `platform_library` providers by default.
+- registers agent-facing provider descriptors for NetEase, so
+  `minemusic.music` shows NetEase source search/link capability and
+  `minemusic.library` shows NetEase library import/update areas.
 - uses `MINEMUSIC_NETEASE_BASE_URL` for both NetEase provider factories when
   provided.
 - uses `MINEMUSIC_CANONICAL_DB_PATH` as an optional SQLite database path for
@@ -143,6 +146,12 @@ Handbook content lives in the `minemusic.handbook` instrument:
 
 The skill-local `HANDBOOK.md` is generated from the current agent-visible
 instrument catalog at runtime startup.
+
+Provider capability notes are rendered from `InstrumentDescriptor.providers`.
+They describe installed platform/source capabilities, operations, authentication
+requirements, and readable/unsupported areas. Handbook generation does not call
+provider preview/read APIs; live counts and samples still come from
+`library.import.preview`.
 
 ## Instrument Enforcement
 

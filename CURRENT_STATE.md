@@ -202,9 +202,11 @@ host-facing and LLM-facing surface.
   `library.import.summary` with explicit MCP schemas and generated
   Handbook entries. The Instrument Catalog now exposes focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
-  `minemusic.memory` instruments instead of a single aggregate MVP instrument.
+  `minemusic.memory` instruments instead of a single aggregate MVP instrument,
+  and it attaches registered provider descriptors to their owning instruments.
   The default Codex MCP runtime now registers NetEase through both `source` and
-  `platform_library` slots and reuses
+  `platform_library` slots, publishes NetEase provider capability metadata for
+  Handbook generation without calling live preview/read APIs, and reuses
   `MINEMUSIC_NETEASE_BASE_URL` for both provider factories. SQLite-backed
   Library Import storage is now implemented under `src/storage/sqlite/**` for
   direct repository injection and Stage Core `libraryImportDatabasePath`
@@ -325,6 +327,9 @@ host-facing and LLM-facing surface.
   the `handbook.*` lookup tools, and `stage.session.update` remain available for
   discovery/reference/recovery; other tools require the focused active
   instrument that owns them.
+- Handbook provider capability sections are generated from
+  `InstrumentDescriptor.providers`; live Library Import counts and samples still
+  require `library.import.preview`.
 - The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
   `MineMusicStageInterface`, not provider or repository internals. Argument-bearing
