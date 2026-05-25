@@ -91,6 +91,9 @@ validate against a local NetEase Cloud Music API service. The default endpoint
 is `http://127.0.0.1:3000`, and it can be changed with
 `MINEMUSIC_NETEASE_BASE_URL`.
 
+`npm run server:minemusic` loads `.env` from the repository root when the file
+exists. Use `.env.example` as the template for local server runtime settings.
+
 The MineMusic server startup path keeps Canonical Store, Collection, and
 Library Import state in memory unless database paths are configured. Set
 `MINEMUSIC_CANONICAL_DB_PATH` to persist canonical entities, external refs, and

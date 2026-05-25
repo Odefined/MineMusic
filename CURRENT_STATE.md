@@ -408,6 +408,9 @@ host-facing and LLM-facing surface.
   Stage Core and exposes MCP at `http://127.0.0.1:37373/mcp` by default.
   `npm run mcp:minemusic:dev` remains an explicitly named embedded stdio
   MCP dev/test path.
+- `npm run server:minemusic` loads repo-root `.env` when present. `.env` is
+  local-only and ignored by git; `.env.example` documents the default server,
+  NetEase, and SQLite path settings.
 - Repo-local Codex plugin packaging lives in `plugins/minemusic` with a local
   marketplace entry at `.agents/plugins/marketplace.json`.
   `plugins/minemusic/.mcp.json` points at the default MineMusic MCP server URL

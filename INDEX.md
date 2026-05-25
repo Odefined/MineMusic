@@ -13,7 +13,7 @@ This index points agents to the current MVP documentation pack.
 
 3. `CONTEXT.md`
    - Project vocabulary for Stage Core, Stage Interface, Stage Modules, Core
-     Capabilities, Plugin Slots, Host Adapters, and Storage.
+     Capabilities, Plugin Slots, host clients/transports, and Storage.
 
 4. `ARCHITECTURE.md`
    - Layer model, runtime flow, and module ownership.

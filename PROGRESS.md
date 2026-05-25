@@ -700,6 +700,9 @@
 - Start and keep the MineMusic server running outside Codex before connecting
   Codex/OpenClaw clients.
 - Add CLI or Web UI peer transports when there is a concrete product workflow.
+- Added local server `.env` support: the repo root `.env` is ignored by git,
+  `.env.example` documents the default server/provider/storage settings, and
+  `npm run server:minemusic` loads `.env` before starting the server.
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.
