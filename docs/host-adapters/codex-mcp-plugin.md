@@ -2,25 +2,47 @@
 
 ## Purpose
 
-The Codex MCP plugin exposes MineMusic to Codex as repo-local instruments while
-preserving the MineMusic boundary:
+The Codex MCP plugin exposes MineMusic tools to Codex through the MCP adapter
+surface. MCP is one adapter surface over the MineMusic service; it is a peer of
+future CLI and Web UI adapters, not the whole service boundary.
 
 ```text
-Codex app/plugin host
--> MCP server
--> MineMusic Stage Interface
--> Stage Interface dispatch
--> Session Context / Material Gate / Source / Events / Memory / Effects
+Codex / OpenClaw MCP clients
+-> MineMusic service process
+   -> MCP adapter surface
+   -> MineMusic Stage Interface
+   -> Stage Interface dispatch
+   -> Session Context / Material Gate / Source / Events / Memory / Effects
 ```
 
 Codex sees MineMusic tools. It does not call provider internals, repositories,
-or runtime composition internals directly.
+or runtime composition internals directly. The Codex plugin should not own
+provider, database, cache, or session runtime configuration; those belong to the
+long-lived MineMusic service process that creates and holds Stage Core.
+
+If a host requires stdio MCP startup, a repo-local plugin may still provide a
+thin MCP transport bridge. That bridge remains an adapter concern and must not
+become the Stage Core owner.
 
 ## Current Implementation
 
+The current repository implementation still combines MCP adapter startup with a
+default Stage Core startup path. That was useful for the first repo-local Codex
+integration, but the target architecture is:
+
+```text
+MineMusic service / daemon
+-> creates and holds Stage Core
+-> exposes MCP / CLI / Web UI adapters
+```
+
+The Codex MCP plugin is therefore documented as an adapter surface. Provider,
+database, cache, and session defaults should move to MineMusic service startup
+as the service boundary is introduced.
+
 | Concern | Location |
 | --- | --- |
-| MCP server | `src/surfaces/mcp/server.ts` |
+| MCP adapter surface | `src/surfaces/mcp/server.ts` |
 | Stage Interface tools | `src/stage_interface/tools.ts` |
 | Stage Interface dispatch | `src/stage_interface/dispatch.ts` |
 | Instrument catalog | `src/stage_interface/instruments.ts` |
@@ -32,7 +54,7 @@ or runtime composition internals directly.
 | Generated skill handbook | `plugins/minemusic/skills/minemusic/HANDBOOK.md` |
 | Local marketplace entry | `.agents/plugins/marketplace.json` |
 
-The package script for the MCP server is:
+The transitional package script for the repo-local MCP surface is:
 
 ```bash
 npm run mcp:minemusic
@@ -88,7 +110,7 @@ library.import.summary
 memory.propose
 ```
 
-The MCP server prefixes these with `minemusic.` for Codex:
+The MCP adapter prefixes these with `minemusic.` for MCP clients:
 
 ```text
 minemusic.stage.context.read
@@ -109,9 +131,9 @@ minemusic.library.import.summary
 minemusic.memory.propose
 ```
 
-## Runtime Shape
+## Target Runtime Shape
 
-The Codex MCP runtime:
+The MineMusic service runtime:
 
 - seeds a Stage session with `activeInstruments: []`, which means all current
   MineMusic instruments.
@@ -130,8 +152,15 @@ The Codex MCP runtime:
   durable Collection storage when provided.
 - uses `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` as an optional SQLite database path
   for durable Library Import storage when provided.
+
+The MCP adapter:
+
+- registers MCP tool names and schemas derived from Stage Interface metadata.
 - delegates tool calls through `MineMusicStageInterface`.
 - returns MineMusic `Result<T>` payloads as MCP text JSON.
+
+The Codex plugin config should point at the MCP adapter surface or bridge. It
+should not carry provider, database, cache, or session runtime ownership.
 
 If NetEase is unavailable, material-resolution tools surface structured
 MineMusic errors. The MCP wrapper does not invent fallback recommendations.
@@ -187,8 +216,8 @@ Deterministic tests cover:
   `minemusic.`.
 - MCP handlers delegate through `MineMusicStageInterface`.
 - argument-bearing tools expose explicit input schemas.
-- the default MCP runtime registers NetEase through separate `source` and
-  `platform_library` slots.
+- the current default MCP startup path registers NetEase through separate
+  `source` and `platform_library` slots.
 - repo-local plugin packaging points at `npm --prefix ... run mcp:minemusic`.
 
 Project-native commands:
@@ -213,3 +242,5 @@ active-session MCP tool calls.
 - durable storage.
 - autonomous DJ mode.
 - moving recommendation policy into the Codex plugin.
+- moving Stage Core ownership or provider/database/cache/session runtime
+  configuration into the Codex plugin.

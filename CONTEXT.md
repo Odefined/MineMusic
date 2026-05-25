@@ -14,6 +14,21 @@ boundaries, instruments, and capability slots.
 
 ## Architecture Vocabulary
 
+### MineMusic Service
+
+The long-lived MineMusic process, daemon, or application host.
+
+MineMusic Service owns:
+
+- process lifecycle.
+- service-level runtime configuration for providers, repositories, caches, and
+  session defaults.
+- creating and holding the Stage Core runtime.
+- exposing one or more Host Adapters over that runtime.
+
+MineMusic Service is not synonymous with the MCP adapter. MCP, CLI, Web UI, and
+future entrypoints are adapter surfaces over the same service-held Stage Core.
+
 ### Host Adapter
 
 A host-specific adapter that translates a transport into MineMusic calls.
@@ -21,11 +36,12 @@ A host-specific adapter that translates a transport into MineMusic calls.
 Examples:
 
 - Codex MCP adapter.
+- OpenClaw MCP adapter.
 - future CLI adapter.
 - future Web adapter.
 
 Host Adapters do not own music policy, provider behavior, tool truth, runtime
-composition, or storage.
+composition, provider/database/cache configuration, or storage.
 
 ### Stage Core
 

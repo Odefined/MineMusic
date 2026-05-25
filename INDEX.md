@@ -218,12 +218,11 @@ This index points agents to the current MVP documentation pack.
       browse expansions, and successful-response Provider HTTP Cache usage.
 
 53. `docs/host-adapters/codex-mcp-plugin.md`
-    - Codex MCP plugin surface design, focused instrument/tool behavior,
+    - Codex MCP adapter surface design, focused instrument/tool behavior,
       packaging, default MusicBrainz Knowledge registration, and verification
-      notes, including the optional
-      `MINEMUSIC_CANONICAL_DB_PATH`,
-      `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`
-      durable storage settings.
+      notes. It records the target boundary that MCP is one MineMusic service
+      adapter surface, while provider/database/cache/session runtime
+      configuration belongs to service startup.
 
 54. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
@@ -234,12 +233,14 @@ This index points agents to the current MVP documentation pack.
       provider registration.
 
 55. `src/surfaces/mcp/server.ts`
-    - Codex-facing MCP server that derives prefixed tools from MineMusic
+    - Codex-facing MCP surface that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; the default runtime registers NetEase for both
       `source` and `platform_library` slots and can use durable Canonical Store,
       Collection, and Library Import storage via environment variables, plus
-      explicit Provider HTTP Cache and Knowledge provider options.
+      explicit Provider HTTP Cache and Knowledge provider options. This startup
+      path is transitional until the long-lived MineMusic service owns Stage
+      Core and exposes MCP as one adapter.
 
 56. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,

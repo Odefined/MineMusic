@@ -663,8 +663,23 @@
   expansion follow-up lookup or browse. MusicBrainz `member of band`
   relationships now map to `has_member` edges with dates and role attributes.
 
+## 2026-05-26
+
+- Clarified the target service/adapter architecture in `CONTEXT.md`,
+  `ARCHITECTURE.md`, `README.md`,
+  `docs/host-adapters/codex-mcp-plugin.md`, and `CURRENT_STATE.md`: MineMusic
+  service owns the long-lived Stage Core runtime and MCP is one adapter surface
+  for clients such as Codex and OpenClaw, with CLI and Web UI as peer adapters.
+- Recorded that the current repo-local Codex MCP startup path is transitional
+  because it still combines MCP adapter startup with default Stage Core/runtime
+  configuration.
+
 ## Next
 
+- Introduce the long-lived MineMusic service / daemon boundary: service startup
+  should own Stage Core, provider registration, repository/cache/session
+  configuration, and adapter startup; MCP should be one adapter surface for
+  Codex/OpenClaw alongside future CLI and Web UI adapters.
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.

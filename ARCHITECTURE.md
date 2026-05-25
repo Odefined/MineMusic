@@ -23,10 +23,12 @@ The original MVP proves a grounded recommendation flow with playable links when
 available. The current architecture also includes Collection Service
 foundations and first-slice Library Import service/runtime/tool composition. It
 also includes direct SQLite repository adapters for Canonical Store, Collection
-Service, and Library Import persistence, plus Stage Core and Codex MCP runtime
-configuration for durable Canonical Store, Collection, and Library Import
-storage. It does not prove playback control, autonomous DJ behavior, playlist
-editing, music intelligence, or notifications.
+Service, and Library Import persistence, plus Stage Core runtime configuration
+for durable Canonical Store, Collection, and Library Import storage. MineMusic
+runtime configuration belongs to the long-lived MineMusic service process, not
+to a particular host adapter such as the Codex MCP plugin. It does not prove
+playback control, autonomous DJ behavior, playlist editing, music intelligence,
+or notifications.
 
 ## Vocabulary Source
 
@@ -44,14 +46,19 @@ Important naming decision:
 ## Layer Model
 
 ```text
-LLM Agent Runtime
-  -> Host Adapter Layer
-     -> Codex MCP adapter
-     -> future CLI adapter
-     -> future Web adapter
+Host Clients
+  -> Codex / OpenClaw MCP clients
+  -> CLI users
+  -> Web UI users
+MineMusic Service Process
+  -> Host Adapter Surfaces
+     -> MCP adapter
+     -> CLI adapter
+     -> Web UI adapter
   -> Stage Core
      -> runtime composition
      -> provider registration
+     -> repository/cache/session dependency wiring
      -> initialization
      -> runtime.ready
      -> runtime lifecycle
@@ -90,23 +97,24 @@ LLM Agent Runtime
      -> durable stores
 ```
 
-Each layer depends only on the public contracts of the layer below it, except
-Stage Core, which is the composition layer and therefore imports module
-factories to assemble a runtime.
+Each layer depends only on public contracts of the layer below it, except Stage
+Core, which is the composition layer and therefore imports module factories to
+assemble a runtime. The MineMusic service process starts Stage Core once and
+keeps it available to adapter surfaces.
 
 Plugin packages do not define core business boundaries. They register adapters
-into Plugin Slots. Provider activation should be driven by plugin runtime
-configuration, with plugin `config.json` as the intended source. Until that
-loader exists, Stage Core may receive explicit provider instances or provider
-factories from the host; factories receive shared runtime dependencies such as
-Provider HTTP Cache without creating provider-specific environment switches.
-The local MCP host registers the bundled MusicBrainz Knowledge provider by
-default unless explicit Knowledge provider options are supplied.
+into Plugin Slots. Provider activation should be driven by MineMusic service
+runtime configuration, with plugin `config.json` as the intended provider
+configuration source. Until that loader exists, Stage Core may receive explicit
+provider instances or provider factories from the service composition layer;
+factories receive shared runtime dependencies such as Provider HTTP Cache
+without creating provider-specific environment switches in host adapter config.
 
 ## Current Code Mapping
 
 | Architecture term | Current implementation |
 | --- | --- |
+| MineMusic Service | target long-lived process boundary around Stage Core and adapter surfaces |
 | Host Adapter | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
 | Stage Core | `src/stage_core/index.ts` |
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
@@ -124,7 +132,8 @@ needs.
 
 | Module | Owns | Does Not Own |
 | --- | --- | --- |
-| Host Adapter | host protocol, tool-name prefixing, host result formatting, host startup env | music policy, provider behavior, storage, tool truth, core capability calls |
+| MineMusic Service | process lifecycle, service-level provider/repository/cache/session configuration, starting adapter surfaces, creating and holding one Stage Core runtime | domain logic inside core capabilities, provider internals, host-specific protocol details, final recommendation judgment |
+| Host Adapter | host protocol or transport, tool-name prefixing, host result formatting | music policy, provider behavior, storage, tool truth, runtime composition, provider/database/cache/session configuration, core capability calls |
 | Stage Core | runtime graph assembly, provider registration, initialization, `runtime.ready`, runtime lifecycle | domain logic inside core capabilities, host protocol, final recommendation judgment |
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
 | Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
@@ -144,27 +153,31 @@ needs.
 ## Runtime Flow
 
 ```text
-1. Host Adapter starts or receives a MineMusic runtime.
-2. Stage Core assembles repositories, Plugin Slots, Core Capabilities, Stage
+1. MineMusic service process starts.
+2. MineMusic service reads service-level runtime configuration and creates a
+   Stage Core runtime.
+3. Stage Core assembles repositories, Plugin Slots, Core Capabilities, Stage
    Modules, and Stage Interface.
-3. Stage Core registers source, platform-library, or other providers and
+4. Stage Core registers source, platform-library, or other providers and
    initializes runtime artifacts such as the generated Handbook.
-4. User asks for music naturally.
-5. LLM interprets the musical situation.
-6. LLM or Host Adapter uses Stage Interface tools.
-7. Stage Interface reads Session Context and Handbook entries when needed.
-8. Stage Interface sends music candidates to Material Resolve.
-9. Material Resolve checks Canonical Store first, then uses Source Grounding as
+5. MineMusic service exposes adapter surfaces such as MCP, CLI, or Web UI over
+   the service-held Stage Interface.
+6. User asks for music naturally through one adapter surface.
+7. LLM or host client interprets the musical situation.
+8. Adapter surface uses Stage Interface tools.
+9. Stage Interface reads Session Context and Handbook entries when needed.
+10. Stage Interface sends music candidates to Material Resolve.
+11. Material Resolve checks Canonical Store first, then uses Source Grounding as
    source evidence when needed.
-10. Source Grounding uses Source Slot adapters for source refs and playable
+12. Source Grounding uses Source Slot adapters for source refs and playable
    links.
-11. Material Resolve returns `MusicMaterial` with honest material state and
+13. Material Resolve returns `MusicMaterial` with honest material state and
    candidate-level resolve status.
-12. Stage Interface sends material through Material Gate before presentation.
-13. LLM selects and explains recommendations.
-14. Stage Interface or the LLM records factual events and proposes memory or
+14. Stage Interface sends material through Material Gate before presentation.
+15. LLM selects and explains recommendations.
+16. Stage Interface or the LLM records factual events and proposes memory or
    effects when appropriate.
-15. Event Service, Memory Service, and Effect Boundary keep consequences
+17. Event Service, Memory Service, and Effect Boundary keep consequences
    governed through their own ports.
 ```
 
@@ -192,10 +205,15 @@ runtime, then exposes composed ports.
 
 ## Host Adapter Policy
 
-The Codex MCP surface is a Host Adapter. It exposes MineMusic instrument tools
-with a `minemusic.` prefix and delegates calls to Stage Interface. It must not
-call source providers, repositories, or core capability implementations
-directly.
+The MCP surface is one Host Adapter, used by MCP clients such as Codex and
+OpenClaw. CLI and Web UI surfaces are peer adapters, not layers underneath MCP.
+Adapters expose MineMusic tools or commands and delegate calls to Stage
+Interface. They must not call source providers, repositories, or core
+capability implementations directly.
+
+Host adapter configuration should cover host protocol concerns only. Provider,
+database, cache, and default-session runtime configuration belongs to the
+MineMusic service process that creates and holds Stage Core.
 
 Host-specific schemas should be derived from Stage Interface tool metadata where
 possible. The host adapter should not become the source of truth for MineMusic
@@ -217,14 +235,17 @@ expose runtime.ready
 return a runtime object
 ```
 
+The MineMusic service process creates Stage Core and keeps the returned runtime
+alive for its adapter surfaces.
+
 Stage Core may know module factories because its job is composition. It should
 not absorb the internal implementation of Material Resolve, Source Grounding,
 Memory Service, Effect Boundary, or other Core Capabilities.
 
 ## Stage Interface Policy
 
-Stage Interface is the external seam for LLMs, Host Adapters, and integration
-tests.
+Stage Interface is the stable callable surface for service adapters, LLM-facing
+tools, and integration tests.
 
 It owns:
 

@@ -58,13 +58,17 @@ Session Context / Material Gate, Stage Interface catalog and dispatch,
 fixture end-to-end MVP slice, final review documentation, and a read-only
 NetEase source provider adapter with opt-in live smoke validation. Wave 8 adds
 a repo-local Codex MCP plugin surface that exposes MineMusic instruments with
-`minemusic.*` tool names and delegates to Stage Interface.
+`minemusic.*` tool names and delegates to Stage Interface. The target runtime
+boundary is a long-lived MineMusic service process that owns Stage Core and
+exposes MCP, CLI, Web UI, or future adapters over that service-held runtime.
 
 The architecture vocabulary is now:
 
 ```text
-Host Adapters -> Stage Core -> Stage Interface / Stage Modules
-  -> Core Capabilities -> Plugin Slots -> Storage
+MineMusic Service
+  -> Host Adapters
+  -> Stage Core -> Stage Interface / Stage Modules
+     -> Core Capabilities -> Plugin Slots -> Storage
 ```
 
 `Stage Core` means runtime composition and lifecycle. Current code maps that to
@@ -86,12 +90,15 @@ validate against a local NetEase Cloud Music API service. The default endpoint
 is `http://127.0.0.1:3000`, and it can be changed with
 `MINEMUSIC_NETEASE_BASE_URL`.
 
-The default Codex MCP runtime keeps Canonical Store, Collection, and Library
-Import state in memory unless database paths are configured. Set
+The current repo-local MCP startup path keeps Canonical Store, Collection, and
+Library Import state in memory unless database paths are configured. Set
 `MINEMUSIC_CANONICAL_DB_PATH` to persist canonical entities, external refs, and
 aliases; set `MINEMUSIC_COLLECTION_DB_PATH` to persist Collections and
 CollectionItems; and set `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to persist Library
-Import batches, reports, snapshots, provenance, and absence records.
+Import batches, reports, snapshots, provenance, and absence records. These
+provider, database, cache, and session settings are service runtime concerns;
+they should move out of Codex plugin config as the long-lived MineMusic service
+boundary is introduced.
 
 The repo-local Codex plugin manifest lives at
 `plugins/minemusic/.codex-plugin/plugin.json`, with MCP startup config in
