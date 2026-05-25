@@ -14,18 +14,35 @@ boundaries, instruments, and capability slots.
 
 ## Architecture Vocabulary
 
-### Host Adapter
+### MineMusic Server
 
-A host-specific adapter that translates a transport into MineMusic calls.
+The long-lived MineMusic server process.
+
+MineMusic Server owns:
+
+- process lifecycle.
+- server-level runtime configuration for providers, repositories, caches, and
+  session defaults.
+- creating and holding the Stage Core runtime.
+- exposing MCP over local transport, with possible future CLI or Web UI
+  transports over the same runtime.
+
+MineMusic Server is not owned by Codex, OpenClaw, or another MCP client. MCP is
+the shared protocol clients use to connect to the same server-held Stage Core.
+
+### Host Client / Transport
+
+A client or transport that talks to the MineMusic server.
 
 Examples:
 
-- Codex MCP adapter.
-- future CLI adapter.
-- future Web adapter.
+- Codex as an MCP client.
+- OpenClaw as an MCP client.
+- future CLI transport.
+- future Web UI transport.
 
-Host Adapters do not own music policy, provider behavior, tool truth, runtime
-composition, or storage.
+Host clients/transports do not own music policy, provider behavior, tool truth, runtime
+composition, provider/database/cache configuration, or storage.
 
 ### Stage Core
 
@@ -38,7 +55,7 @@ Stage Core owns:
 - registering plugin providers.
 - initializing generated runtime artifacts such as the Handbook.
 - exposing `runtime.ready`.
-- maintaining the runtime instance returned to Host Adapters and tests.
+- maintaining the runtime instance returned to the MineMusic server and tests.
 
 Stage Core does not mean "put every business implementation in one file." It
 assembles modules and owns lifecycle; domain behavior stays in the owning

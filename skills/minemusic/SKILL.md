@@ -10,11 +10,15 @@ musical judgment and wording; MineMusic supplies canonical-first material
 resolution, source grounding, Stage guidance, event records, memory proposals,
 and effect proposals.
 
+MineMusic tools come from the external MineMusic server registered in global
+Codex MCP client config. This skill does not start the server, configure MCP,
+or own provider/database/cache/session runtime settings.
+
 ## Required Flow
 
-1. Read `HANDBOOK.md` in this skill directory when you need the current
+1. Read `HANDBOOK.md` in this skill directory when you need the packaged
    MineMusic instrument and tool overview.
-2. For precise tool input/output details, call
+2. For current precise tool input/output details, call
    `minemusic.handbook.tool.read`.
 3. Call `minemusic.stage.context.read` for dynamic session context.
 4. Interpret the user's listening context yourself. "Writing code", "walking",

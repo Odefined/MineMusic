@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `main` with the Wave 8 Codex instruments plugin implementation
-merged locally.
+MineMusic is on `codex/service-adapter-refactor` with the Wave 8 Codex
+skill/MCP implementation and the server/MCP boundary refactor applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -15,18 +15,34 @@ runtime database-path wiring for Canonical Store, Collection, and Library
 Import state.
 Wave 7 adds a read-only NetEase source provider adapter and opt-in live smoke
 command. The local NetEase service is currently verified through explicit live
-smoke against `http://127.0.0.1:3000`. Wave 8 adds a repo-local Codex MCP plugin
-surface. The Codex surface exposes MineMusic instruments, not runtime
-internals, and deterministic MCP/plugin packaging tests pass. The repo-local
-plugin now includes a MineMusic workflow skill, explicit MCP input schemas for
-argument-bearing tools, a generated skill-local `HANDBOOK.md`, and
-`minemusic.handbook.*` lookup tools. The 2026-05-23 architecture refactor
+smoke against `http://127.0.0.1:3000`. Wave 8 adds a Codex skill surface plus
+global MCP client wiring. The Codex surface exposes MineMusic instruments, not
+runtime internals, and deterministic MCP/skill packaging tests pass. The
+repo-local Codex skill includes explicit MCP input schemas for argument-bearing
+tools, a skill-local `HANDBOOK.md` snapshot, and `minemusic.handbook.*` lookup
+tools. The 2026-05-23 architecture refactor
 renamed the current code to Stage Core / Stage Interface / Stage Modules.
+The 2026-05-26 server/MCP refactor adds a MineMusic server runtime and
+streamable HTTP MCP server entrypoint. The server startup path creates and
+holds Stage Core, exposes `minemusic.*` tools directly over MCP, and keeps
+provider/database/cache/session configuration out of Codex/OpenClaw client
+config.
+The local machine now runs MineMusic server as a user `launchd` LaunchAgent
+(`com.minemusic.server`), documented in
+`docs/operations/minemusic-server-launchd.md`; it is no longer dependent on any
+Codex conversation lifecycle.
 The active Codex session has verified live MineMusic MCP tool visibility and a
-real NetEase-backed recommendation flow. Fresh Codex app plugin installation
-and tool visibility in a new session have also been confirmed by the user in
-this thread; no separate repository command transcript captures that host-app
-confirmation.
+real NetEase-backed recommendation flow. Fresh Codex session tool visibility has
+also been confirmed by the user in this thread; the repo now treats Codex as a
+skill plus global MCP client, not a MineMusic plugin package.
+
+The host boundary is now implemented for MCP: the MineMusic server process owns
+Stage Core startup and server-level provider/repository/cache/session
+configuration, while Codex and OpenClaw are MCP clients that connect to the
+server URL. CLI and Web UI remain future peer transports over the same
+server-held Stage Core.
+The phased refactor plan for that change is documented in
+`docs/host-adapters/service-adapter-refactor-plan.md`.
 
 ## Source Basis
 
@@ -70,7 +86,7 @@ host-facing and LLM-facing surface.
 - Contract/type coverage exists in `test/contracts/wave1-contracts.test.ts`.
 - Wave 2 runtime test harness compiles test files into `.tmp-test/`.
 - The runtime test runner imports compiled test modules sequentially so
-  file-writing startup tests do not race plugin packaging checks.
+  file-writing startup tests do not race Codex skill packaging checks.
 - In-memory repositories are exported from `src/storage/index.ts` for sessions,
   canonical records, collection records/items, events, memory entries, and
   effect proposals. The same module also exports the SQLite-backed Canonical
@@ -205,19 +221,20 @@ host-facing and LLM-facing surface.
   `minemusic.library`, and
   `minemusic.memory` instruments instead of a single aggregate MVP instrument,
   and it attaches registered provider descriptors to their owning instruments.
-  The default Codex MCP runtime now registers NetEase through both `source` and
-  `platform_library` slots, publishes NetEase provider capability metadata for
-  Handbook generation without calling live preview/read APIs, and reuses
-  `MINEMUSIC_NETEASE_BASE_URL` for both provider factories. SQLite-backed
+  The service runtime registers NetEase through both
+  `source` and `platform_library` slots, publishes NetEase provider capability
+  metadata for Handbook generation without calling live preview/read APIs, and
+  reuses `MINEMUSIC_NETEASE_BASE_URL` for both provider factories. SQLite-backed
   Library Import storage is now implemented under `src/storage/sqlite/**` for
   direct repository injection and Stage Core `libraryImportDatabasePath`
   configuration: it persists import/update batches, completed reports, area
   snapshots, item provenance, and Platform Library Absence records across
   repository reopen while preserving returned-copy behavior and
-  provider-account-stable baseline lookup. The default Codex MCP runtime accepts
-  `MINEMUSIC_COLLECTION_DB_PATH` and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to
-  initialize durable Collection and Library Import stores; without them, Stage
-  Core still defaults to in-memory Collection and Library Import storage.
+  provider-account-stable baseline lookup. The service runtime accepts
+  `MINEMUSIC_COLLECTION_DB_PATH` and
+  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to initialize durable Collection and
+  Library Import stores; without them, Stage Core still defaults to in-memory
+  Collection and Library Import storage.
   Deterministic integration coverage now exercises discovery preview,
   explicit preview estimates, initial import side effects, Stage Core recreation
   against the same Library Import SQLite database path, repeated import
@@ -279,10 +296,10 @@ host-facing and LLM-facing surface.
   reads update `lastUsedAt`, and maintenance methods can list least-recently
   used entries, delete entries unused before a cutoff, delete one provider entry,
   or clear one provider. Stage Core creates and exposes the Provider HTTP Cache
-  and accepts either repository injection or a SQLite database path; the default
-  MCP runtime accepts an explicit cache path option. The first MusicBrainz
-  Knowledge Provider implementation now exists as an explicit read-only
-  provider factory. It supports structured text search across artist,
+  and accepts either repository injection or a SQLite database path; the service
+  runtime accepts an explicit cache path option. The first
+  MusicBrainz Knowledge Provider implementation now exists as an explicit
+  read-only provider factory. It supports structured text search across artist,
   recording, release, release group, and work entities; lookup through
   MusicBrainz source refs supplied by Canonical context; release-group release
   browse and artist release-group browse expansions; release tracklist,
@@ -290,12 +307,13 @@ host-facing and LLM-facing surface.
   mapping; and successful-response caching through the generic Provider HTTP
   Cache. Stage Core can now register explicit Knowledge provider instances and
   generic Knowledge provider factories; factories receive the Stage Core
-  Provider HTTP Cache, and the default MCP runtime forwards those explicit
-  Knowledge provider options without adding a MusicBrainz-specific environment
-  variable. The default local MCP runtime now registers the bundled MusicBrainz
-  Knowledge provider when no explicit Knowledge providers or factories are
-  supplied, so the agent-facing `minemusic.knowledge.query` tool can return
-  MusicBrainz facts in the installed plugin runtime. `KnowledgeQuery` now also
+  Provider HTTP Cache, and the service runtime forwards
+  those explicit Knowledge provider options without adding a MusicBrainz-specific
+  environment variable. The service runtime now registers
+  the bundled MusicBrainz Knowledge provider when no explicit Knowledge
+  providers or factories are supplied, so the agent-facing
+  `minemusic.knowledge.query` tool can return MusicBrainz facts in the
+  installed plugin runtime. `KnowledgeQuery` now also
   supports `relationFocus: ["members"]`; the Stage Interface schema and
   Handbook expose that focus, Music Knowledge rejects unsupported focus values,
   and the MusicBrainz provider maps `member of band` relationships to
@@ -320,7 +338,7 @@ host-facing and LLM-facing surface.
   Interface tool, MusicBrainz provider, and text-query relation expansion now
   exists in `docs/knowledge-slot/implementation-plan.md`. Future common plugin
   configuration should still be able to drive Knowledge provider activation,
-  but the first local MCP runtime registers bundled MusicBrainz directly and
+  but the first service runtime registers bundled MusicBrainz directly and
   does not make a MusicBrainz-specific environment variable decide provider
   activation.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
@@ -340,8 +358,12 @@ host-facing and LLM-facing surface.
 - `stage.context.read` returns dynamic session context only: session state and
   memory summaries. It does not embed or point at a Handbook.
 - The MineMusic Handbook is generated from current agent-visible
-  `InstrumentDescriptor` / `ToolDescriptor` entries and written to
-  `plugins/minemusic/skills/minemusic/HANDBOOK.md` at runtime startup.
+  `InstrumentDescriptor` / `ToolDescriptor` entries. The live server exposes
+  Handbook lookup through MCP. The file `skills/minemusic/HANDBOOK.md` is a
+  skill-local snapshot, and Stage Core only writes a Handbook file when a caller
+  explicitly passes `handbookPath` or `handbookPaths`. The default server
+  runtime reads `MINEMUSIC_HANDBOOK_PATH` / `MINEMUSIC_HANDBOOK_PATHS` and can
+  write snapshots to multiple consumer-owned paths.
 - The `minemusic.handbook` instrument exposes `handbook.overview.read`,
   `handbook.instrument.read`, and `handbook.tool.read` for on-demand Handbook
   lookup.
@@ -370,8 +392,8 @@ host-facing and LLM-facing surface.
   Source Grounding plugin-slot integration, and source-ref link refresh.
 - `npm run smoke:netease` provides opt-in live validation and skips unless
   `MINEMUSIC_LIVE_NETEASE=1`.
-- The Codex MCP plugin surface design, packaging, and verification notes are
-  documented in `docs/host-adapters/codex-mcp-plugin.md`.
+- The Codex skill surface design, global MCP client boundary, and verification
+  notes are documented in `docs/host-adapters/codex-skill.md`.
 - `stage.materials.prepare` is a stable Stage Interface / Instrument tool, so
   Material Gate behavior is Codex-visible.
 - Tool Dispatch enforces current instrument availability through
@@ -382,15 +404,28 @@ host-facing and LLM-facing surface.
 - Handbook provider capability sections are generated from
   `InstrumentDescriptor.providers`; live Library Import counts and samples still
   require `library.import.preview`.
-- The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
+- The MCP surface is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
   `MineMusicStageInterface`, not provider or repository internals. Argument-bearing
   tools expose explicit input schemas rather than an empty passthrough shape.
-- Repo-local Codex plugin packaging lives in `plugins/minemusic` with a local
-  marketplace entry at `.agents/plugins/marketplace.json`.
-- The repo-local plugin includes a workflow skill at
-  `plugins/minemusic/skills/minemusic/SKILL.md`. The skill triggers on music
-  requests and routes agents through the skill-local `HANDBOOK.md`,
+- The MineMusic server runtime is exported from `src/server/runtime.ts`, and
+  the streamable HTTP MCP server entrypoint is exported from
+  `src/server/index.ts`. `npm run server:minemusic` starts the server-held
+  Stage Core and exposes MCP at `http://127.0.0.1:37373/mcp` by default.
+  `npm run mcp:minemusic:dev` remains an explicitly named embedded stdio
+  MCP dev/test path.
+- Local operation uses the user LaunchAgent `com.minemusic.server`, which starts
+  `npm run server:minemusic` from `/Users/jiajuzang/Documents/Codex/MineMusic`
+  and keeps the MineMusic server alive across Codex restarts. The operation
+  guide is `docs/operations/minemusic-server-launchd.md`.
+- `npm run server:minemusic` loads repo-root `.env` when present. `.env` is
+  local-only and ignored by git; `.env.example` documents the default server,
+  NetEase, SQLite path, and Handbook snapshot output settings.
+- Repo-local Codex plugin packaging has been removed. Codex uses the direct
+  workflow skill at `skills/minemusic/SKILL.md` plus a global MCP client entry
+  for `http://127.0.0.1:37373/mcp`.
+- The workflow skill triggers on music requests and routes agents through the
+  skill-local `HANDBOOK.md`,
   `handbook.tool.read`, `stage.context.read`, `music.material.resolve`, and
   `stage.materials.prepare`.
 - The workflow skill now distinguishes listening context from provider search
@@ -402,10 +437,9 @@ host-facing and LLM-facing surface.
   NetEase, prepare `source_only_playable` materials for recommendation, record
   a recommendation event, create an evidence-backed memory proposal, and create
   an `open_link` effect proposal without executing the effect.
-- Fresh Codex app plugin-session validation is reported complete by the user,
-  so Wave 8 is no longer blocked on plugin visibility. The repository evidence
-  still consists of deterministic packaging tests plus active-session MCP tool
-  calls.
+- Fresh Codex session validation is reported complete by the user, so Wave 8 is
+  no longer blocked on MCP tool visibility. The repository evidence still
+  consists of deterministic skill/MCP tests plus active-session MCP tool calls.
 
 ## Not Yet Implemented
 
@@ -413,19 +447,18 @@ host-facing and LLM-facing surface.
   metadata in `InstrumentDescriptor` / Handbook output.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store,
   Collection, and Library Import repository adapters and their opt-in Stage Core
-  / Codex MCP database-path wiring.
-- Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
-  repo-local Codex MCP surface.
+  / service runtime database-path wiring.
+- Packaged Plugin Slot adapters beyond the in-repo NetEase adapter.
+- CLI and Web UI peer transports over the server-held Stage Core.
 - Automatic Knowledge provider activation through future plugin `config.json`
   remains future work.
-- More host-surface validation for Handbook refresh when plugin tool
-  descriptors change outside runtime startup.
+- More host-surface validation for Handbook snapshot refresh when tool
+  descriptors change.
 
 ## Verification
 
-- `npm test` passes as of the Stage Interface instrument/tool contract cleanup
-  on 2026-05-25.
-- `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
+- `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
+- `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.
 - `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
@@ -435,8 +468,8 @@ host-facing and LLM-facing surface.
   `minemusic.memory.propose`, and `minemusic.stage.effects.propose` passed for a real
   "quiet but not sleepy coding music" scenario, returning NetEase links such as
   `https://music.163.com/#/song?id=22644323`.
-- Fresh Codex app plugin-session visibility is confirmed by the user in this
-  thread. Treat this as host-app validation evidence, not a repo-command test.
+- Fresh Codex MCP tool visibility is confirmed by the user in this thread.
+  Treat this as host-app validation evidence, not a repo-command test.
 - `git diff --check` passes as of the Collection Service documentation/state
   sync.
 - Branch integration for Waves 1 through 8 is complete on `main`.

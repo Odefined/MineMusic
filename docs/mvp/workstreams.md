@@ -249,7 +249,7 @@ Purpose:
 Owns:
 
 - `src/surfaces/**`
-- `plugins/**`
+- `skills/**`
 
 Inputs:
 
@@ -259,7 +259,7 @@ Inputs:
 Outputs:
 
 - Codex MCP adapter.
-- plugin packaging.
+- host skill packaging.
 - host adapter tests.
 
 Rule:

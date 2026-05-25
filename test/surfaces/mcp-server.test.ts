@@ -11,13 +11,14 @@ import type {
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
+import { createDefaultMineMusicServerRuntime } from "../../src/server/runtime.js";
 import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
 import { stableToolNames } from "../../src/stage_interface/index.js";
 import {
   codexToolNameFor,
-  createDefaultMineMusicMcpStageCore,
   createMineMusicMcpToolDefinitions,
   internalToolNameFor,
+  type MineMusicMcpRuntime,
 } from "../../src/surfaces/mcp/server.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -208,6 +209,51 @@ async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
   assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve Stage Core result payload");
 }
 
+async function dispatchesMcpPayloadsThroughInjectedRuntime(): Promise<void> {
+  const runtime = {
+    ready: Promise.resolve(),
+    stageInterface: {
+      tools: {
+        "stage.materials.prepare": async (payload: unknown) => {
+          const materialPayload = payload as { materials: MusicMaterial[] };
+
+          return {
+            ok: true,
+            value: materialPayload.materials,
+          };
+        },
+      },
+    },
+  } satisfies MineMusicMcpRuntime;
+
+  const definitions = createMineMusicMcpToolDefinitions(runtime);
+  const prepareTool = definitions.find(
+    (definition) => definition.name === "minemusic.stage.materials.prepare",
+  );
+  assert(prepareTool !== undefined, "stage materials tool should be exposed through MCP");
+
+  const response = await prepareTool.handler({
+    materials: [
+      {
+        id: "injected-runtime-material",
+        kind: "recording",
+        label: "Injected Runtime Material",
+        state: "grounded",
+      } satisfies MusicMaterial,
+    ],
+    purpose: "recommendation",
+  });
+  const firstContent = response.content[0];
+  assert(firstContent?.type === "text", "MCP handler should return text content");
+
+  const result = JSON.parse(firstContent.text) as Result<MusicMaterial[]>;
+  assert(result.ok, "MCP handler should return the injected runtime result");
+  assert(
+    result.value[0]?.id === "injected-runtime-material",
+    "MCP handler should not require a full Stage Core object",
+  );
+}
+
 async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<void> {
   const previewCalls: Parameters<PlatformLibraryProvider["preview"]>[0][] = [];
   const platformLibraryProvider: PlatformLibraryProvider = {
@@ -274,17 +320,17 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
 }
 
 async function defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary(): Promise<void> {
-  const stageCore = createDefaultMineMusicMcpStageCore({
+  const runtime = createDefaultMineMusicServerRuntime({
     MINEMUSIC_SESSION_ID: "mcp-default-netease-session",
     MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
   });
-  await stageCore.ready;
+  await runtime.ready;
 
-  const sourceProviderResult = await stageCore.plugins.getProvider({
+  const sourceProviderResult = await runtime.stageCore.plugins.getProvider({
     slot: "source",
     providerId: "netease",
   });
-  const platformLibraryProviderResult = await stageCore.plugins.getProvider({
+  const platformLibraryProviderResult = await runtime.stageCore.plugins.getProvider({
     slot: "platform_library",
     providerId: "netease",
   });
@@ -304,7 +350,7 @@ async function defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider(): Promi
   const handbookPath = join(directory, "HANDBOOK.md");
 
   try {
-    const stageCore = createDefaultMineMusicMcpStageCore(
+    const runtime = createDefaultMineMusicServerRuntime(
       {
         MINEMUSIC_SESSION_ID: "mcp-default-musicbrainz-session",
         MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
@@ -313,9 +359,9 @@ async function defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider(): Promi
         handbookPath,
       },
     );
-    await stageCore.ready;
+    await runtime.ready;
 
-    const registeredProvider = await stageCore.plugins.getProvider({
+    const registeredProvider = await runtime.stageCore.plugins.getProvider({
       slot: "knowledge",
       providerId: "musicbrainz",
     });
@@ -332,12 +378,12 @@ async function defaultMcpStageCoreUsesLibraryImportDatabasePathEnv(): Promise<vo
   const databasePath = join(directory, "library-import.sqlite");
 
   try {
-    const stageCore = createDefaultMineMusicMcpStageCore({
+    const runtime = createDefaultMineMusicServerRuntime({
       MINEMUSIC_SESSION_ID: "mcp-default-library-import-db-session",
       MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
       MINEMUSIC_LIBRARY_IMPORT_DB_PATH: databasePath,
     });
-    await stageCore.ready;
+    await runtime.ready;
 
     const databaseFile = await stat(databasePath);
 
@@ -352,12 +398,12 @@ async function defaultMcpStageCoreUsesCollectionDatabasePathEnv(): Promise<void>
   const databasePath = join(directory, "collection.sqlite");
 
   try {
-    const stageCore = createDefaultMineMusicMcpStageCore({
+    const runtime = createDefaultMineMusicServerRuntime({
       MINEMUSIC_SESSION_ID: "mcp-default-collection-db-session",
       MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
       MINEMUSIC_COLLECTION_DB_PATH: databasePath,
     });
-    await stageCore.ready;
+    await runtime.ready;
 
     const databaseFile = await stat(databasePath);
 
@@ -372,12 +418,12 @@ async function defaultMcpStageCoreUsesCanonicalDatabasePathEnv(): Promise<void> 
   const databasePath = join(directory, "canonical.sqlite");
 
   try {
-    const stageCore = createDefaultMineMusicMcpStageCore({
+    const runtime = createDefaultMineMusicServerRuntime({
       MINEMUSIC_SESSION_ID: "mcp-default-canonical-db-session",
       MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
       MINEMUSIC_CANONICAL_DB_PATH: databasePath,
     });
-    await stageCore.ready;
+    await runtime.ready;
 
     const databaseFile = await stat(databasePath);
 
@@ -392,7 +438,7 @@ async function defaultMcpStageCoreAcceptsProviderHttpCachePathOption(): Promise<
   const databasePath = join(directory, "provider-http-cache.sqlite");
 
   try {
-    const stageCore = createDefaultMineMusicMcpStageCore(
+    const runtime = createDefaultMineMusicServerRuntime(
       {
         MINEMUSIC_SESSION_ID: "mcp-default-provider-cache-session",
         MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
@@ -401,7 +447,7 @@ async function defaultMcpStageCoreAcceptsProviderHttpCachePathOption(): Promise<
         providerHttpCacheDatabasePath: databasePath,
       },
     );
-    await stageCore.ready;
+    await runtime.ready;
 
     const databaseFile = await stat(databasePath);
 
@@ -438,7 +484,7 @@ async function defaultMcpStageCoreAcceptsExplicitKnowledgeProviders(): Promise<v
     },
   };
   try {
-    const stageCore = createDefaultMineMusicMcpStageCore(
+    const runtime = createDefaultMineMusicServerRuntime(
       {
         MINEMUSIC_SESSION_ID: "mcp-default-knowledge-provider-session",
         MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
@@ -448,9 +494,9 @@ async function defaultMcpStageCoreAcceptsExplicitKnowledgeProviders(): Promise<v
         knowledgeProviders: [knowledgeProvider],
       },
     );
-    await stageCore.ready;
+    await runtime.ready;
 
-    const registeredProvider = await stageCore.plugins.getProvider({
+    const registeredProvider = await runtime.stageCore.plugins.getProvider({
       slot: "knowledge",
       providerId: "fixture-knowledge",
     });
@@ -474,6 +520,7 @@ await mapsInternalToolsToCodexPrefixedMcpTools();
 await exposesStableToolsThroughMcpDefinitions();
 await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToStageInterface();
+await dispatchesMcpPayloadsThroughInjectedRuntime();
 await dispatchesLibraryImportMcpPayloadsToStageInterface();
 await defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary();
 await defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider();

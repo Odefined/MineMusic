@@ -7,7 +7,6 @@ import type {
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
-import { join } from "node:path";
 import { createCanonicalStore } from "../canonical/index.js";
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
@@ -100,6 +99,7 @@ export type MineMusicStageCoreOptions = {
   knowledgeProviderFactories?: KnowledgeProviderFactory[];
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
+  handbookPaths?: string[];
 };
 
 export type MineMusicStageCoreWithSourceProviderOptions = {
@@ -118,6 +118,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   knowledgeProviderFactories?: KnowledgeProviderFactory[];
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
+  handbookPaths?: string[];
 };
 
 export function createMineMusicStageCore({
@@ -136,6 +137,7 @@ export function createMineMusicStageCore({
   knowledgeProviderFactories = [],
   platformLibraryProvider,
   handbookPath,
+  handbookPaths,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
   return createMineMusicStageCoreWithSourceProvider({
     session,
@@ -153,6 +155,7 @@ export function createMineMusicStageCore({
     knowledgeProviderFactories,
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
+    ...(handbookPaths === undefined ? {} : { handbookPaths }),
   });
 }
 
@@ -171,7 +174,8 @@ export function createMineMusicStageCoreWithSourceProvider({
   knowledgeProviders: injectedKnowledgeProviders = [],
   knowledgeProviderFactories = [],
   platformLibraryProvider,
-  handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
+  handbookPath,
+  handbookPaths,
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
   const canonicalRepository =
     injectedCanonicalRepository ??
@@ -200,6 +204,10 @@ export function createMineMusicStageCoreWithSourceProvider({
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();
+  const resolvedHandbookPaths = normalizeHandbookPaths({
+    ...(handbookPath === undefined ? {} : { handbookPath }),
+    ...(handbookPaths === undefined ? {} : { handbookPaths }),
+  });
 
   const plugins = createPluginRegistry();
   const canonical = createCanonicalStore({ repository: canonicalRepository });
@@ -264,7 +272,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   const ready = seedRuntime({
     canonicalRecords,
     canonicalRepository,
-    handbookPath,
+    handbookPaths: resolvedHandbookPaths,
     instruments,
     session,
     plugins,
@@ -322,7 +330,7 @@ function createFixtureSourceProvider(sourceMaterials: MusicMaterial[]): SourcePr
 async function seedRuntime({
   canonicalRecords,
   canonicalRepository,
-  handbookPath,
+  handbookPaths,
   instruments,
   session,
   plugins,
@@ -333,7 +341,7 @@ async function seedRuntime({
 }: {
   canonicalRecords: CanonicalRecord[];
   canonicalRepository: CanonicalRecordRepository;
-  handbookPath: string;
+  handbookPaths: string[];
   instruments: ReturnType<typeof createInstrumentCatalog>;
   session: StageSession;
   plugins: PluginRegistryPort;
@@ -377,12 +385,31 @@ async function seedRuntime({
   });
   throwIfFailed(initializedCollections);
 
-  const instrumentsResult = await instruments.list({ session });
-  const handbookResult = await writeInstrumentHandbookFile({
-    path: handbookPath,
-    instruments: throwIfFailed(instrumentsResult),
-  });
-  throwIfFailed(handbookResult);
+  if (handbookPaths.length > 0) {
+    const instrumentsResult = await instruments.list({ session });
+    const instrumentDescriptors = throwIfFailed(instrumentsResult);
+
+    for (const handbookPath of handbookPaths) {
+      const handbookResult = await writeInstrumentHandbookFile({
+        path: handbookPath,
+        instruments: instrumentDescriptors,
+      });
+      throwIfFailed(handbookResult);
+    }
+  }
+}
+
+function normalizeHandbookPaths({
+  handbookPath,
+  handbookPaths = [],
+}: {
+  handbookPath?: string;
+  handbookPaths?: string[];
+}): string[] {
+  return [...new Set([
+    ...(handbookPath === undefined ? [] : [handbookPath]),
+    ...handbookPaths,
+  ].map((path) => path.trim()).filter((path) => path.length > 0))];
 }
 
 function throwIfFailed<T>(result: Result<T>): T {

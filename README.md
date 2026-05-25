@@ -57,14 +57,17 @@ domain module skeletons, Stage Core runtime composition, Stage Modules for
 Session Context / Material Gate, Stage Interface catalog and dispatch,
 fixture end-to-end MVP slice, final review documentation, and a read-only
 NetEase source provider adapter with opt-in live smoke validation. Wave 8 adds
-a repo-local Codex MCP plugin surface that exposes MineMusic instruments with
-`minemusic.*` tool names and delegates to Stage Interface.
+a Codex skill surface for using MineMusic MCP tools. The runtime boundary now
+includes a MineMusic server entrypoint that owns Stage Core and exposes MCP
+directly over streamable HTTP.
 
 The architecture vocabulary is now:
 
 ```text
-Host Adapters -> Stage Core -> Stage Interface / Stage Modules
-  -> Core Capabilities -> Plugin Slots -> Storage
+MineMusic Server
+  -> MCP / future host transports
+  -> Stage Core -> Stage Interface / Stage Modules
+     -> Core Capabilities -> Plugin Slots -> Storage
 ```
 
 `Stage Core` means runtime composition and lifecycle. Current code maps that to
@@ -73,7 +76,8 @@ Core; it exports Stage Modules for Session Context and Material Gate.
 
 ```bash
 npm test
-npm run mcp:minemusic
+npm run server:minemusic
+npm run mcp:minemusic:dev
 npm run smoke:netease
 ```
 
@@ -86,19 +90,31 @@ validate against a local NetEase Cloud Music API service. The default endpoint
 is `http://127.0.0.1:3000`, and it can be changed with
 `MINEMUSIC_NETEASE_BASE_URL`.
 
-The default Codex MCP runtime keeps Canonical Store, Collection, and Library
-Import state in memory unless database paths are configured. Set
+`npm run server:minemusic` loads `.env` from the repository root when the file
+exists. Use `.env.example` as the template for local server runtime settings.
+On this machine the MineMusic server is installed as a user `launchd` agent and
+is expected to stay running outside Codex sessions. See
+`docs/operations/minemusic-server-launchd.md` before changing startup or MCP
+client config.
+
+The MineMusic server startup path keeps Canonical Store, Collection, and
+Library Import state in memory unless database paths are configured. Set
 `MINEMUSIC_CANONICAL_DB_PATH` to persist canonical entities, external refs, and
 aliases; set `MINEMUSIC_COLLECTION_DB_PATH` to persist Collections and
 CollectionItems; and set `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to persist Library
-Import batches, reports, snapshots, provenance, and absence records.
+Import batches, reports, snapshots, provenance, and absence records. These
+provider, database, cache, and session settings are MineMusic server runtime
+concerns, not Codex skill configuration. Codex/OpenClaw should connect to the
+server MCP URL, by default `http://127.0.0.1:37373/mcp`.
+Set `MINEMUSIC_HANDBOOK_PATH` for one server-written Handbook file, or
+`MINEMUSIC_HANDBOOK_PATHS` for multiple files separated by the platform path
+delimiter. This is server-owned output configuration; the paths may point at a
+Codex skill, OpenClaw docs, or any other consumer-owned snapshot location.
 
-The repo-local Codex plugin manifest lives at
-`plugins/minemusic/.codex-plugin/plugin.json`, with MCP startup config in
-`plugins/minemusic/.mcp.json`, workflow skill instructions in
-`plugins/minemusic/skills/minemusic/SKILL.md`, and the local marketplace entry
-in `.agents/plugins/marketplace.json`. Fresh Codex app visibility is
-user-confirmed host-app state rather than repository-command test output.
+The Codex workflow skill lives at `skills/minemusic/SKILL.md`, with its
+skill-local Handbook snapshot at `skills/minemusic/HANDBOOK.md`. Codex MCP
+client registration is global host-app state configured with `codex mcp`, not
+repo-local plugin packaging.
 
 ## Non-Goals
 
