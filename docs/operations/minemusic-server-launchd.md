@@ -102,7 +102,7 @@ minemusic
   url: http://127.0.0.1:37373/mcp
 ```
 
-The repo-local plugin MCP config mirrors that boundary:
+The global Codex MCP client config mirrors that boundary:
 
 ```json
 {
@@ -114,7 +114,7 @@ The repo-local plugin MCP config mirrors that boundary:
 }
 ```
 
-Do not replace this with a Codex-started `command` entry for
+Do not replace the global MCP config with a Codex-started `command` entry for
 `npm run server:minemusic`. Doing so makes Codex own the MineMusic server
 lifecycle again and breaks the intended architecture.
 

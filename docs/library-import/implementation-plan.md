@@ -348,7 +348,7 @@ the first Library Import Service implementation.
   - `CURRENT_STATE.md`
   - `PROGRESS.md`
   - `docs/library-import/progress.md`
-  - `plugins/minemusic/skills/minemusic/HANDBOOK.md` if generated descriptors
+  - `skills/minemusic/HANDBOOK.md` if skill packaging descriptors
     change during tests or runtime startup
 - **Description**: Record implemented scope without putting mutable status in the
   design document.
@@ -382,7 +382,7 @@ Search checks:
 
 ```bash
 rg -n "CanonicalStore|Collection|LibraryImport" src/providers/netease
-rg -n "library.import|library.update" src test docs plugins/minemusic
+rg -n "library.import|library.update" src test docs skills/minemusic
 rg -n "library_import\\.item|library_import\\.batch" src test docs
 ```
 

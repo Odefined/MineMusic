@@ -26,7 +26,7 @@ also includes direct SQLite repository adapters for Canonical Store, Collection
 Service, and Library Import persistence, plus Stage Core runtime configuration
 for durable Canonical Store, Collection, and Library Import storage. MineMusic
 runtime configuration belongs to the long-lived MineMusic server process, not
-to a particular host adapter such as the Codex MCP plugin. It does not prove
+to a particular host adapter such as the Codex skill. It does not prove
 playback control, autonomous DJ behavior, playlist editing, music intelligence,
 or notifications.
 
@@ -116,7 +116,8 @@ without creating provider-specific environment switches in host adapter config.
 | Architecture term | Current implementation |
 | --- | --- |
 | MineMusic Server | `src/server/runtime.ts`, `src/server/index.ts` |
-| MCP Surface | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
+| MCP Surface | `src/surfaces/mcp/server.ts` |
+| Codex Skill | `skills/minemusic/**` |
 | Stage Core | `src/stage_core/index.ts` |
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
@@ -337,9 +338,10 @@ dynamic runtime context only: session state and memory summaries. It does not
 embed the Handbook body and does not return a Handbook file reference.
 
 The Handbook is generated from current agent-visible `InstrumentDescriptor` /
-`ToolDescriptor` entries and written to the MineMusic skill's `HANDBOOK.md`;
-the `minemusic.handbook` instrument also exposes `handbook.overview.read`,
-`handbook.instrument.read`, and `handbook.tool.read` for on-demand lookup.
+`ToolDescriptor` entries. The live server exposes Handbook lookup through
+`handbook.overview.read`, `handbook.instrument.read`, and
+`handbook.tool.read`. The Codex skill may ship a static `HANDBOOK.md` snapshot,
+but Stage Core must not depend on the Codex skill path.
 Provider capabilities are part of the owning `InstrumentDescriptor` through
 `providers`, so agent-facing source facts stay attached to `minemusic.music`,
 Knowledge provider facts stay attached to `minemusic.knowledge`, and

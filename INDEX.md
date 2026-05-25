@@ -217,9 +217,9 @@ This index points agents to the current MVP documentation pack.
       read-only Knowledge provider factory for structured music facts, lookup,
       browse expansions, and successful-response Provider HTTP Cache usage.
 
-53. `docs/host-adapters/codex-mcp-plugin.md`
-    - Codex MCP client/plugin design, focused instrument/tool behavior,
-      packaging, default MusicBrainz Knowledge registration, and verification
+53. `docs/host-adapters/codex-skill.md`
+    - Codex skill design, global MCP client boundary, focused instrument/tool
+      behavior, default MusicBrainz Knowledge registration, and verification
       notes. It records that Codex connects to the MineMusic MCP server URL,
       while provider/database/cache/session runtime configuration belongs to
       server startup.
@@ -267,49 +267,43 @@ This index points agents to the current MVP documentation pack.
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, provider capability sections, and exact tool entries.
 
-62. `plugins/minemusic/.codex-plugin/plugin.json`
-    - Repo-local Codex plugin manifest for the MineMusic MCP surface.
-
-63. `plugins/minemusic/.mcp.json`
-    - MCP client config for the MineMusic plugin; it points at
-      `http://127.0.0.1:37373/mcp` and does not carry provider/database/cache/
-      session runtime env or a process startup command.
-
-64. `plugins/minemusic/skills/minemusic/SKILL.md`
+62. `skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
-      tools for music requests.
+      tools for music requests. MineMusic is no longer packaged as a repo-local
+      Codex plugin.
 
-65. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
-    - Generated overview of current agent-visible MineMusic instruments and
-      tools, including Library Import tool entries.
+63. `skills/minemusic/HANDBOOK.md`
+    - Skill-local snapshot of current agent-visible MineMusic instruments and
+      tools, including Library Import tool entries. Live Handbook lookup is
+      served by the MineMusic server through MCP.
 
-66. `docs/platform-library-provider/netease-implementation-plan.md`
+64. `docs/platform-library-provider/netease-implementation-plan.md`
     - Task-by-task implementation plan for the NetEase `platform_library`
       provider, including supported areas, adapter boundaries, issue mapping,
       fixture tests, and verification.
 
-67. `docs/platform-library-provider/progress.md`
+65. `docs/platform-library-provider/progress.md`
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
-68. `src/storage/sqlite/library-import-schema.ts`
+66. `src/storage/sqlite/library-import-schema.ts`
     - SQLite schema initialization for durable Library Import batches, reports,
       area snapshots, item provenance, and absence records.
 
-69. `src/storage/sqlite/library-import-repository.ts`
+67. `src/storage/sqlite/library-import-repository.ts`
     - SQLite-backed `LibraryImportRepository` implementation for direct durable
       repository injection.
 
-70. `test/storage/in-memory-library-import-repository.test.ts`
+68. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
       report, area snapshot, item provenance, absence, and provider-account-stable
       latest complete baseline storage.
 
-71. `test/storage/sqlite-library-import-repository.test.ts`
+69. `test/storage/sqlite-library-import-repository.test.ts`
     - SQLite Library Import repository persistence tests for batch/report,
       snapshot baseline, item provenance, and absence records across reopen.
 
-72. `src/library_import/index.ts`
+70. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
@@ -317,7 +311,7 @@ This index points agents to the current MVP documentation pack.
       started-batch failure handling, and repository-backed batch status/summary
       helpers.
 
-73. `test/library_import/library-import-service.test.ts`
+71. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -325,24 +319,24 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-74. `test/integration/library-import-runtime.test.ts`
+72. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, durable Library Import database path
       reuse, and Stage Interface / MCP exposure.
 
-75. `src/storage/sqlite/provider-http-cache-schema.ts`
+73. `src/storage/sqlite/provider-http-cache-schema.ts`
     - SQLite schema initialization for the generic Provider HTTP Cache.
 
-76. `src/storage/sqlite/provider-http-cache-repository.ts`
+74. `src/storage/sqlite/provider-http-cache-repository.ts`
     - SQLite-backed `ProviderHttpCacheRepository` implementation for persistent
       provider HTTP response caching and least-recently-used cleanup.
 
-77. `test/storage/in-memory-provider-http-cache-repository.test.ts`
+75. `test/storage/in-memory-provider-http-cache-repository.test.ts`
     - In-memory Provider HTTP Cache behavior tests for cache read/write,
       `lastUsedAt` update, clone returns, and maintenance operations.
 
-78. `test/storage/sqlite-provider-http-cache-repository.test.ts`
+76. `test/storage/sqlite-provider-http-cache-repository.test.ts`
     - SQLite Provider HTTP Cache persistence tests across repository reopen.
 
 ## Agent Rule

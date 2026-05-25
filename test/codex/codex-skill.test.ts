@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -11,20 +11,29 @@ async function readsJson(path: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
 }
 
-async function packagesRepoLocalCodexPlugin(): Promise<void> {
-  const root = process.cwd();
-  const pluginJson = await readsJson(join(root, "plugins/minemusic/.codex-plugin/plugin.json"));
-  const mcpJson = await readsJson(join(root, "plugins/minemusic/.mcp.json"));
-  const packageJson = await readsJson(join(root, "package.json"));
-  const marketplaceJson = await readsJson(join(root, ".agents/plugins/marketplace.json"));
-  const skillText = await readFile(join(root, "plugins/minemusic/skills/minemusic/SKILL.md"), "utf8");
-  const handbookText = await readFile(join(root, "plugins/minemusic/skills/minemusic/HANDBOOK.md"), "utf8");
+async function exists(path: string): Promise<boolean> {
+  return access(path)
+    .then(() => true)
+    .catch(() => false);
+}
 
-  assert(pluginJson.name === "minemusic", "plugin name should match local plugin directory");
-  assert(pluginJson.mcpServers === "./.mcp.json", "plugin should point Codex at its MCP config");
-  assert(pluginJson.skills === "./skills/", "plugin should include the MineMusic workflow skill");
-  assert(!JSON.stringify(pluginJson).includes("[TODO:"), "plugin.json should not keep scaffold TODOs");
+async function packagesRepoLocalCodexSkill(): Promise<void> {
+  const root = process.cwd();
+  const packageJson = await readsJson(join(root, "package.json"));
+  const skillText = await readFile(join(root, "skills/minemusic/SKILL.md"), "utf8");
+  const handbookText = await readFile(join(root, "skills/minemusic/HANDBOOK.md"), "utf8");
+  const stageCoreText = await readFile(join(root, "src/stage_core/index.ts"), "utf8");
+
+  assert(!(await exists(join(root, "plugins/minemusic/.codex-plugin/plugin.json"))), "repo should not ship a Codex plugin manifest");
+  assert(!(await exists(join(root, "plugins/minemusic/.mcp.json"))), "repo should not ship plugin-local MCP config");
+  assert(!(await exists(join(root, ".agents/plugins/marketplace.json"))), "repo should not advertise MineMusic as a Codex plugin");
+  assert(!stageCoreText.includes("skills/minemusic"), "Stage Core should not depend on the Codex skill path");
+  assert(!stageCoreText.includes("plugins/minemusic"), "Stage Core should not depend on the old Codex plugin path");
   assert(skillText.includes("name: minemusic"), "MineMusic skill should declare its skill name");
+  assert(
+    skillText.includes("global") && skillText.includes("Codex MCP client config"),
+    "MineMusic skill should describe the external MCP server boundary",
+  );
   assert(
     skillText.includes("minemusic.stage.context.read"),
     "MineMusic skill should route music requests through the current context tool",
@@ -42,7 +51,7 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
     "MineMusic skill should not treat context as carrying a handbook reference",
   );
   assert(!skillText.includes("session handbook"), "MineMusic skill should not mention session handbook files");
-  assert(handbookText.includes("# MineMusic Instrument Handbook"), "plugin should ship a generated handbook overview");
+  assert(handbookText.includes("# MineMusic Instrument Handbook"), "skill should ship a generated handbook overview");
   assert(handbookText.includes("`music.material.resolve`"), "handbook should document the resolve tool");
   assert(handbookText.includes("Input: `MaterialResolveRequest`"), "handbook should document tool input schema refs");
   assert(handbookText.includes("Output: `MaterialResolveResult`"), "handbook should document tool output schema refs");
@@ -74,32 +83,25 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   assert(!skillText.includes("minemusic.context.read"), "MineMusic skill should not mention the old context tool");
   assert(!skillText.includes("minemusic.candidates.build"), "MineMusic skill should not mention the old candidate tool");
   assert(!skillText.includes("minemusic.memory.propose_update"), "MineMusic skill should not mention old memory tool");
-
-  const mcpServers = mcpJson.mcpServers as Record<string, unknown>;
-  const server = mcpServers.minemusic as { command?: unknown; args?: unknown; env?: unknown; url?: unknown };
-
-  assert(server.url === "http://127.0.0.1:37373/mcp", "plugin should connect to the MineMusic MCP server URL");
-  assert(server.command === undefined, "plugin should not start a MineMusic server process");
-  assert(server.args === undefined, "plugin should not define stdio startup args");
   assert(
-    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_NETEASE_BASE_URL"),
-    "plugin config should not own provider runtime env",
+    !skillText.includes("MINEMUSIC_NETEASE_BASE_URL"),
+    "skill should not own provider runtime env",
   );
   assert(
-    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_CANONICAL_DB_PATH"),
-    "plugin config should not own Canonical Store runtime env",
+    !skillText.includes("MINEMUSIC_CANONICAL_DB_PATH"),
+    "skill should not own Canonical Store runtime env",
   );
   assert(
-    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_COLLECTION_DB_PATH"),
-    "plugin config should not own Collection runtime env",
+    !skillText.includes("MINEMUSIC_COLLECTION_DB_PATH"),
+    "skill should not own Collection runtime env",
   );
   assert(
-    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_LIBRARY_IMPORT_DB_PATH"),
-    "plugin config should not own Library Import runtime env",
+    !skillText.includes("MINEMUSIC_LIBRARY_IMPORT_DB_PATH"),
+    "skill should not own Library Import runtime env",
   );
   assert(
-    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_PROVIDER_HTTP_CACHE_DB_PATH"),
-    "plugin config should not own provider cache runtime env",
+    !skillText.includes("MINEMUSIC_PROVIDER_HTTP_CACHE_DB_PATH"),
+    "skill should not own provider cache runtime env",
   );
 
   const scripts = packageJson.scripts as Record<string, unknown>;
@@ -114,19 +116,6 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   );
   assert(!("mcp:minemusic" in scripts), "package scripts should not expose ambiguous embedded MCP startup");
   assert(!("service:minemusic" in scripts), "package scripts should not expose the wrong Codex-owned startup path");
-
-  const marketplacePlugins = marketplaceJson.plugins as Array<{
-    name?: string;
-    source?: { source?: string; path?: string };
-    policy?: { installation?: string; authentication?: string };
-  }>;
-  const entry = marketplacePlugins.find((plugin) => plugin.name === "minemusic");
-
-  assert(entry !== undefined, "marketplace should expose the MineMusic plugin");
-  assert(entry.source?.source === "local", "marketplace should use a local plugin source");
-  assert(entry.source?.path === "./plugins/minemusic", "marketplace should point at repo-local plugin path");
-  assert(entry.policy?.installation === "AVAILABLE", "marketplace should leave install as explicit opt-in");
-  assert(entry.policy?.authentication === "ON_INSTALL", "marketplace should use plugin-creator auth policy");
 }
 
-await packagesRepoLocalCodexPlugin();
+await packagesRepoLocalCodexSkill();

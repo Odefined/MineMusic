@@ -19,7 +19,7 @@ const testModules = [
   "./providers/netease-source-provider.test.js",
   "./providers/netease-platform-library-provider.test.js",
   "./providers/musicbrainz-knowledge-provider.test.js",
-  "./plugins/plugin-packaging.test.js",
+  "./codex/codex-skill.test.js",
   "./server/server-http-mcp.test.js",
   "./server/server-runtime.test.js",
   "./stage_core/stage-core-factory.test.js",

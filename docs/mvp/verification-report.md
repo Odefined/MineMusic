@@ -31,9 +31,9 @@ natural request
 ```
 
 This report claims successful live NetEase search-link smoke validation against
-the current local service. It also claims deterministic MCP/plugin packaging
+the current local service. It also claims deterministic MCP/skill packaging
 verification, active-session Codex MCP tool usability, and user-confirmed
-fresh Codex app plugin visibility. It does not claim durable storage,
+fresh Codex app MCP tool visibility. It does not claim durable storage,
 autonomous DJ behavior, playback execution, queue mutation, playlist writes, or
 source writeback.
 
@@ -49,11 +49,9 @@ source writeback.
 - `test/live/netease-source-smoke.ts`
 - `src/surfaces/mcp/server.ts`
 - `test/surfaces/mcp-server.test.ts`
-- `test/plugins/plugin-packaging.test.ts`
-- `plugins/minemusic/.codex-plugin/plugin.json`
-- `plugins/minemusic/.mcp.json`
-- `plugins/minemusic/skills/minemusic/SKILL.md`
-- `.agents/plugins/marketplace.json`
+- `test/codex/codex-skill.test.ts`
+- `skills/minemusic/SKILL.md`
+- `skills/minemusic/HANDBOOK.md`
 
 ## Method
 
@@ -133,9 +131,10 @@ Codex MCP plugin surface:
   materials/purpose, material, event, proposal, and session patch payloads.
 - MCP handlers delegate through `MineMusicStageInterface` and return JSON text
   containing the MineMusic `Result<T>` payload.
-- Plugin manifest, MCP config, workflow skill, and repo-local marketplace
-  config have no scaffold TODOs or stale old MineMusic tool names, and point at
-  the default MineMusic MCP server URL `http://127.0.0.1:37373/mcp`.
+- The workflow skill and skill-local Handbook snapshot have no stale old
+  MineMusic tool names. Codex MCP registration is global host-app state and
+  points at the default MineMusic MCP server URL
+  `http://127.0.0.1:37373/mcp`.
 - The workflow skill explicitly separates listening context from music
   candidates, so environment words such as writing code are not treated as
   literal song-title searches.
@@ -151,7 +150,7 @@ Codex MCP plugin surface:
 - The real recommendation materials were `source_only_playable`, so Material
   Gate preserved their playable links for recommendation presentation, while
   effect handling remained a proposal and did not open or play anything.
-- Fresh Codex app plugin-session validation is reported complete by the user.
+- Fresh Codex app MCP tool validation is reported complete by the user.
   The captured repository evidence remains deterministic packaging/runtime
   tests and active-session MCP tool calls.
 
@@ -161,9 +160,9 @@ Codex MCP plugin surface:
 - NetEase live access is represented by an adapter and opt-in smoke command,
   plus active-session MCP tool use. Shell live-smoke access can still be
   environment-sensitive inside sandboxed command contexts.
-- Codex plugin packaging is repo-local and deterministic. Fresh host-app
-  visibility is user-confirmed rather than captured by a repository command
-  transcript.
+- Codex uses a repo-local workflow skill plus global MCP client config. Fresh
+  host-app visibility is user-confirmed rather than captured by a repository
+  command transcript.
 - Storage is in-memory.
 - The transcript runner is deterministic and does not claim to be an LLM.
 - Music Knowledge remains a thin service and is not on this critical path.
@@ -205,7 +204,7 @@ session.update
 ```
 
 The flow returned real NetEase links and created inspectable event, memory, and
-effect proposal records. The user also confirmed fresh Codex app plugin-session
+effect proposal records. The user also confirmed fresh Codex app MCP tool
 validation in this thread; that host-app check is recorded as user-confirmed
 evidence rather than a repo-command test.
 

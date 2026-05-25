@@ -32,8 +32,8 @@ MCP client that cannot connect to streamable HTTP.
 ## Reverted Direction
 
 - Do not point Codex at `service:minemusic`.
-- Do not make the Codex plugin start the MineMusic runtime.
-- Do not put provider, database, cache, or session runtime env in Codex plugin
+- Do not make Codex start the MineMusic runtime.
+- Do not put provider, database, cache, or session runtime env in Codex
   config.
 - Do not describe MCP as a Codex-only adapter.
 
@@ -42,7 +42,7 @@ MCP client that cannot connect to streamable HTTP.
 1. Rename the runtime boundary to MineMusic server.
 2. Add a server entrypoint that starts once, holds Stage Core, and exposes
    `minemusic.*` MCP tools over streamable HTTP.
-3. Point repo-local plugin MCP config at the default server URL
+3. Point host MCP client config at the default server URL
    `http://127.0.0.1:37373/mcp`.
 4. Keep `mcp:minemusic:dev` only as an embedded stdio dev/test path.
 5. Update tests so packaging proves the plugin connects by URL and server tests

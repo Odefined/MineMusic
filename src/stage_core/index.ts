@@ -7,7 +7,6 @@ import type {
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
-import { join } from "node:path";
 import { createCanonicalStore } from "../canonical/index.js";
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
@@ -171,7 +170,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   knowledgeProviders: injectedKnowledgeProviders = [],
   knowledgeProviderFactories = [],
   platformLibraryProvider,
-  handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
+  handbookPath,
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
   const canonicalRepository =
     injectedCanonicalRepository ??
@@ -264,7 +263,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   const ready = seedRuntime({
     canonicalRecords,
     canonicalRepository,
-    handbookPath,
+    ...(handbookPath === undefined ? {} : { handbookPath }),
     instruments,
     session,
     plugins,
@@ -333,7 +332,7 @@ async function seedRuntime({
 }: {
   canonicalRecords: CanonicalRecord[];
   canonicalRepository: CanonicalRecordRepository;
-  handbookPath: string;
+  handbookPath?: string;
   instruments: ReturnType<typeof createInstrumentCatalog>;
   session: StageSession;
   plugins: PluginRegistryPort;
@@ -377,12 +376,14 @@ async function seedRuntime({
   });
   throwIfFailed(initializedCollections);
 
-  const instrumentsResult = await instruments.list({ session });
-  const handbookResult = await writeInstrumentHandbookFile({
-    path: handbookPath,
-    instruments: throwIfFailed(instrumentsResult),
-  });
-  throwIfFailed(handbookResult);
+  if (handbookPath !== undefined) {
+    const instrumentsResult = await instruments.list({ session });
+    const handbookResult = await writeInstrumentHandbookFile({
+      path: handbookPath,
+      instruments: throwIfFailed(instrumentsResult),
+    });
+    throwIfFailed(handbookResult);
+  }
 }
 
 function throwIfFailed<T>(result: Result<T>): T {

@@ -112,8 +112,8 @@
   search-link validation is claimed for the current local service.
 - Merged `codex/wave7-live-source-provider` locally back to `main`.
 - Entered Wave 8 on branch `codex/wave8-codex-instruments-plugin`.
-- Added the Wave 8 Codex instruments plugin design spec and implementation
-  planning notes, now preserved in `docs/host-adapters/codex-mcp-plugin.md`.
+- Added the Wave 8 Codex instruments surface design spec and implementation
+  planning notes, now preserved in `docs/host-adapters/codex-skill.md`.
 - Added `stage.materials.prepare` as a stable instrument/Stage Interface entry and
   routed the fixture transcript through the tool-visible Stage Modules gate.
 - Added initial instrument enforcement in Tool Dispatch while keeping
@@ -124,12 +124,13 @@
 - Added a Codex-facing MCP server in `src/surfaces/mcp/server.ts` with
   `minemusic.*` tool names derived from MineMusic instrument descriptors.
 - Added repo-local Codex plugin packaging under `plugins/minemusic` and a local
-  marketplace entry at `.agents/plugins/marketplace.json`.
+  marketplace entry at `.agents/plugins/marketplace.json`; this was later
+  removed when the Codex side was corrected to a direct skill plus global MCP
+  client.
 - Added deterministic tests for instrument enforcement, source-provider runtime
-  composition, MCP tool definitions/handlers, and plugin packaging.
-- Added a repo-local MineMusic workflow skill under
-  `plugins/minemusic/skills/minemusic/SKILL.md`, and updated the plugin
-  manifest to expose `./skills/`.
+  composition, MCP tool definitions/handlers, and Codex packaging.
+- Added a repo-local MineMusic workflow skill, now located at
+  `skills/minemusic/SKILL.md`.
 - Replaced the generic MCP passthrough input schema with explicit schemas for
   argument-bearing MineMusic tools.
 - Corrected the MineMusic workflow skill so listening environments such as
@@ -139,7 +140,7 @@
   now returns only session state and memory summaries; Handbook overview and
   exact tool lookup live under the `minemusic.handbook` instrument.
 - Added instrument-catalog Handbook generation under `src/handbook/` and a
-  skill-local `plugins/minemusic/skills/minemusic/HANDBOOK.md`.
+  skill-local `skills/minemusic/HANDBOOK.md` snapshot.
 - Updated Tool Dispatch to check instrument availability through
   `InstrumentCatalogPort` instead of compiling a Handbook as a side effect.
 - Replaced the agent-facing material tool with `music.material.resolve`.
@@ -187,9 +188,9 @@
   `https://music.163.com/#/song?id=22644323`, while preserving the boundary that
   `open_link` remains an effect proposal rather than an executed action.
 - Updated `CURRENT_STATE.md` and `docs/mvp/verification-report.md` to record
-  current-session Codex tool usability and user-confirmed fresh-session plugin
+  current-session Codex tool usability and user-confirmed fresh-session host-app
   validation with separate evidence boundaries.
-- Recorded user confirmation that fresh Codex app plugin-session validation has
+- Recorded user confirmation that fresh Codex app session validation has
   also been completed, while keeping the evidence boundary explicit: this
   host-app check is not represented by a repository command transcript.
 - Merged `codex/wave8-codex-instruments-plugin` locally into `main`.
@@ -667,7 +668,7 @@
 
 - Clarified the target server/MCP architecture in `CONTEXT.md`,
   `ARCHITECTURE.md`, `README.md`,
-  `docs/host-adapters/codex-mcp-plugin.md`, and `CURRENT_STATE.md`: MineMusic
+  `docs/host-adapters/codex-skill.md`, and `CURRENT_STATE.md`: MineMusic
   server owns the long-lived Stage Core runtime and exposes MCP directly for
   clients such as Codex and OpenClaw.
 - Recorded and then corrected the transitional repo-local Codex startup path
@@ -683,21 +684,28 @@
 - Refactored `src/surfaces/mcp/server.ts` so MCP tool registration depends on a
   lightweight `MineMusicMcpRuntime` (`ready` plus Stage Interface tools) rather
   than a full Stage Core object.
-- Updated plugin packaging so `plugins/minemusic/.mcp.json` points at
-  `http://127.0.0.1:37373/mcp` and no longer carries provider/database/cache/
-  session env or a MineMusic process startup command. The embedded MCP startup
-  path is retained only as `mcp:minemusic:dev`.
+- In the intermediate plugin-packaging slice, updated
+  `plugins/minemusic/.mcp.json` to point at
+  `http://127.0.0.1:37373/mcp` without provider/database/cache/session env or a
+  MineMusic process startup command. That plugin package was later removed in
+  favor of direct `skills/minemusic` plus global MCP client config. The embedded
+  MCP startup path is retained only as `mcp:minemusic:dev`.
 - Corrected that first slice after review: `service:minemusic` was the wrong
   boundary because it still let Codex own the MineMusic runtime lifecycle.
   The retained pieces are the server runtime composition factory and injectable
   MCP tool registration. The main path is now `npm run server:minemusic`, which
   starts a long-lived MineMusic server, holds Stage Core, and exposes MCP over
-  streamable HTTP at `http://127.0.0.1:37373/mcp` by default. The repo-local
-  Codex plugin now connects to that URL instead of starting a MineMusic process.
+  streamable HTTP at `http://127.0.0.1:37373/mcp` by default. Codex connects as
+  a global MCP client instead of starting a MineMusic process.
 - Documented the local persistent runtime operation in
   `docs/operations/minemusic-server-launchd.md`: MineMusic server is kept alive
   by the user `launchd` agent `com.minemusic.server`, while Codex/OpenClaw
   connect as MCP clients to `http://127.0.0.1:37373/mcp`.
+- Corrected the Codex side from repo-local plugin packaging to a direct
+  `skills/minemusic` workflow skill plus global MCP client config. Removed the
+  repo-local plugin manifest, plugin `.mcp.json`, and marketplace entry. Stage
+  Core no longer defaults to writing a Handbook into any Codex path; callers
+  must pass `handbookPath` explicitly when they need a generated file.
 
 ## Next
 
@@ -713,5 +721,4 @@
   case needs it.
 - Design the public `addAlias` method before implementing alias writes through
   `CanonicalStorePort`.
-- Validate Handbook refresh behavior in more host surfaces when plugin tool
-  descriptors change outside runtime startup.
+- Validate Handbook snapshot refresh behavior when tool descriptors change.
