@@ -10,6 +10,7 @@ export const stableToolNames = [
   "stage.events.record",
   "stage.effects.propose",
   "music.material.resolve",
+  "music.knowledge.query",
   "music.links.refresh",
   "music.collection.save",
   "music.collection.unsave",
@@ -99,6 +100,12 @@ export const musicToolDescriptors: StableToolDescriptor[] = [
     description: "Resolve music candidates into material through canonical-first material resolution.",
     inputSchemaRef: "MaterialResolveRequest",
     outputSchemaRef: "MaterialResolveResult",
+  },
+  {
+    name: "music.knowledge.query",
+    description: "Query provider-attributed structured or text music knowledge.",
+    inputSchemaRef: "KnowledgeQuery",
+    outputSchemaRef: "KnowledgeResult",
   },
   {
     name: "music.links.refresh",

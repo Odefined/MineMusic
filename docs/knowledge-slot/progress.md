@@ -18,9 +18,11 @@
 - Provider descriptors now carry Knowledge capability metadata for supported
   formats, entity kinds, expansions, and boundary notes, and Handbook rendering
   includes those fields on the owning music instrument.
+- The read-only `music.knowledge.query` Stage Interface tool is now exposed
+  through stable tool descriptors, dispatch, input schema, Stage Core wiring, and
+  MCP tool definitions.
 
 ## Remaining Work
 
-- The `music.knowledge.query` Stage Interface tool is not implemented yet.
 - Generic provider HTTP cache storage is not implemented yet.
 - MusicBrainz Knowledge Provider is not implemented yet.

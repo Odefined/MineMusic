@@ -12,6 +12,7 @@ import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { writeInstrumentHandbookFile } from "../handbook/index.js";
+import { createMusicKnowledgeService } from "../knowledge/index.js";
 import { createLibraryImportService } from "../library_import/index.js";
 import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
@@ -28,6 +29,7 @@ import type {
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
+  MusicKnowledgePort,
   PluginRegistryPort,
   SessionContextPort,
   SourceGroundingPort,
@@ -63,6 +65,7 @@ export type MineMusicStageCore = {
   collection: CollectionPort;
   materialResolve: MaterialResolvePort;
   source: SourceGroundingPort;
+  knowledge: MusicKnowledgePort;
   libraryImport: LibraryImportPort;
   events: EventPort;
   memory: MemoryPort;
@@ -169,6 +172,10 @@ export function createMineMusicStageCoreWithSourceProvider({
     canonicalStore: canonical,
     pluginRegistry: plugins,
   });
+  const knowledge = createMusicKnowledgeService({
+    pluginRegistry: plugins,
+    canonicalStore: canonical,
+  });
   const materialResolve = createMaterialResolveService({
     canonicalStore: canonical,
     sourceGrounding: source,
@@ -203,6 +210,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     instruments,
     materialResolve,
     source,
+    knowledge,
     events,
     memory,
     effects,
@@ -235,6 +243,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     collection,
     materialResolve,
     source,
+    knowledge,
     libraryImport,
     events,
     memory,

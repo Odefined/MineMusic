@@ -114,6 +114,14 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "resolve tool schema should declare candidate-set input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.knowledge.query"), "text"),
+    "knowledge query schema should declare text input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.knowledge.query"), "canonicalRef"),
+    "knowledge query schema should declare canonicalRef input",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materials"),
     "stage materials tool schema should declare materials input",
   );

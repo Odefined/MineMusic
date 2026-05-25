@@ -63,6 +63,11 @@ Effect kind: `proposal`
 Description: Resolve music candidates into material through canonical-first material resolution.
 Input: `MaterialResolveRequest`
 Output: `MaterialResolveResult`
+#### `music.knowledge.query`
+
+Description: Query provider-attributed structured or text music knowledge.
+Input: `KnowledgeQuery`
+Output: `KnowledgeResult`
 #### `music.links.refresh`
 
 Description: Refresh source-backed playable links for a material item.

@@ -22,6 +22,7 @@ import type {
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
+  MusicKnowledgePort,
   SessionContextPort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
@@ -276,6 +277,24 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       return { ok: true, value: material };
     },
   };
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      calls.push("musicKnowledge.query");
+      return {
+        ok: true,
+        value: {
+          items: [
+            {
+              kind: "text",
+              providerId: "fixture-knowledge",
+              source: { label: "Fixture knowledge" },
+              content: `Knowledge for ${"text" in query ? query.text : query.canonicalRef.id}`,
+            },
+          ],
+        },
+      };
+    },
+  };
   const events: EventPort = {
     record: async ({ event }) => {
       calls.push("stage.events.record");
@@ -307,6 +326,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     instruments: catalog,
     materialResolve,
     source,
+    knowledge,
     events,
     memory,
     effects,
@@ -342,6 +362,17 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
           label: "Material",
           state: "grounded",
         } satisfies MusicMaterial,
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.knowledge.query",
+      payload: {
+        text: "Knowledge Track",
+        formats: ["text"],
+        limit: 1,
       },
     }),
   );
@@ -429,6 +460,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
   assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
+  assert(calls.includes("musicKnowledge.query"), "music.knowledge.query should call MusicKnowledgePort");
   assert(calls.includes("stage.events.record"), "stage.events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");

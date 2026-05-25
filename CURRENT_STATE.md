@@ -270,6 +270,9 @@ host-facing and LLM-facing surface.
   providers for `canonicalRef` queries. Knowledge provider descriptors can now
   describe supported formats, entity kinds, expansions, and boundary notes, and
   Handbook rendering includes those capabilities on the owning music instrument.
+  The read-only `music.knowledge.query` Stage Interface tool is exposed through
+  stable tool descriptors, dispatch, input schema, Stage Core wiring, and MCP
+  tool definitions.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
@@ -381,8 +384,8 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- The `music.knowledge.query` Stage Interface tool, generic provider HTTP cache
-  storage, and the MusicBrainz provider remain future work.
+- Generic provider HTTP cache storage and the MusicBrainz provider remain future
+  work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

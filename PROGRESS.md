@@ -609,6 +609,9 @@
   Handbook rendering. Knowledge provider descriptors can now list formats,
   entity kinds, expansions, and boundary notes, and the Instrument Catalog
   attaches knowledge providers to `minemusic.music`.
+- Implemented Knowledge Slot Task 4 Stage Interface tool exposure. The
+  read-only `music.knowledge.query` tool now has a stable descriptor, input
+  schema, dispatch path, Stage Core wiring, and MCP exposure.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

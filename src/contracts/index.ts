@@ -846,6 +846,7 @@ export type ToolName =
   | "stage.events.record"
   | "stage.effects.propose"
   | "music.material.resolve"
+  | "music.knowledge.query"
   | "music.links.refresh"
   | "music.collection.save"
   | "music.collection.unsave"

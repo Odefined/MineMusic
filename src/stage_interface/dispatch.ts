@@ -7,6 +7,7 @@ import type {
   LibraryImportStartInput,
   LibraryImportStatusInput,
   LibraryImportSummaryInput,
+  KnowledgeQuery,
   MaterialResolveRequest,
   MemoryProposal,
   MusicMaterial,
@@ -30,6 +31,7 @@ import type {
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
+  MusicKnowledgePort,
   SessionContextPort,
   SourceGroundingPort,
   SystemCollectionRelationKind,
@@ -92,6 +94,7 @@ type ToolDispatchOptions = {
   instruments: InstrumentCatalogPort;
   materialResolve: MaterialResolvePort;
   source: SourceGroundingPort;
+  knowledge?: MusicKnowledgePort;
   events: EventPort;
   memory: MemoryPort;
   effects: EffectBoundaryPort;
@@ -105,6 +108,7 @@ export function createToolDispatch({
   instruments,
   materialResolve,
   source,
+  knowledge,
   events,
   memory,
   effects,
@@ -195,6 +199,19 @@ export function createToolDispatch({
 
         case "music.material.resolve":
           return materialResolve.resolve(readPayload<MaterialResolveRequest>(payload, { sessionId }));
+
+        case "music.knowledge.query": {
+          const availableKnowledge = readKnowledge(knowledge);
+
+          if (!availableKnowledge.ok) {
+            return availableKnowledge;
+          }
+
+          return availableKnowledge.value.query({
+            query: readPayload<KnowledgeQuery>(payload),
+            sessionId,
+          });
+        }
 
         case "music.links.refresh":
           return source.refreshPlayableLinks(
@@ -460,10 +477,27 @@ function readLibraryImport(libraryImport: LibraryImportPort | undefined): Result
   return ok(libraryImport);
 }
 
+function readKnowledge(knowledge: MusicKnowledgePort | undefined): Result<MusicKnowledgePort> {
+  if (knowledge === undefined) {
+    return knowledgeUnavailable();
+  }
+
+  return ok(knowledge);
+}
+
 function collectionUnavailable(): Result<never> {
   return fail({
     code: "stage_interface.tool_not_found",
     message: "Collection tools are not available.",
+    module: "stage_interface",
+    retryable: false,
+  });
+}
+
+function knowledgeUnavailable(): Result<never> {
+  return fail({
+    code: "stage_interface.tool_not_found",
+    message: "Music Knowledge tools are not available.",
     module: "stage_interface",
     retryable: false,
   });
