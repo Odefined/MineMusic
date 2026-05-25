@@ -10,6 +10,12 @@ import type {
   EffectProposal,
   Handbook,
   HandbookToolEntry,
+  KnowledgeEdge,
+  KnowledgeItem,
+  KnowledgeNode,
+  KnowledgeQuery,
+  KnowledgeResult,
+  KnowledgeSource,
   LibraryImportBatchKind,
   LibraryImportBatchStatus,
   LibraryImportAreaSnapshot,
@@ -52,6 +58,8 @@ import type {
   StageEvent,
   StageSession,
   StageWarning,
+  StructuredKnowledge,
+  TextKnowledge,
   ToolName,
 } from "../../src/contracts/index.js";
 import { stageErrorCodes } from "../../src/contracts/index.js";
@@ -142,6 +150,47 @@ type _collectionItemStoresCanonicalRef = Expect<Equal<CollectionItem["canonicalR
 
 type _materialResolveRequestCarriesOwnerScope = Expect<
   Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string>
+>;
+
+type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
+  Equal<
+    keyof KnowledgeQuery,
+    "text" | "canonicalRef" | "purpose" | "formats" | "entityKinds" | "expand" | "limit"
+  > &
+    Equal<Extract<KnowledgeQuery, { text: string }>["canonicalRef"], undefined> &
+    Equal<Extract<KnowledgeQuery, { canonicalRef: Ref }>["text"], undefined>
+>;
+
+type _knowledgeResultCarriesProviderAttributedItems = Expect<
+  Equal<keyof KnowledgeResult, "items"> & Equal<KnowledgeResult["items"], KnowledgeItem[]>
+>;
+
+type _structuredKnowledgeContract = Expect<
+  Equal<
+    keyof StructuredKnowledge,
+    | "kind"
+    | "providerId"
+    | "source"
+    | "rootNodeId"
+    | "nodes"
+    | "edges"
+    | "retrievalScore"
+    | "metadata"
+  > &
+    Equal<StructuredKnowledge["kind"], "structured"> &
+    Equal<StructuredKnowledge["source"], KnowledgeSource> &
+    Equal<StructuredKnowledge["nodes"], KnowledgeNode[]> &
+    Equal<StructuredKnowledge["edges"], KnowledgeEdge[]>
+>;
+
+type _textKnowledgeContract = Expect<
+  Equal<
+    keyof TextKnowledge,
+    "kind" | "providerId" | "source" | "content" | "retrievalScore" | "metadata"
+  > &
+    Equal<TextKnowledge["kind"], "text"> &
+    Equal<TextKnowledge["source"], KnowledgeSource> &
+    Equal<Extract<KnowledgeItem, TextKnowledge>, TextKnowledge>
 >;
 
 type _platformLibraryItemKindsMatchFirstContract = Expect<
@@ -559,6 +608,11 @@ const requiredErrorCodes: StageErrorCode[] = [
   "source.unresolved_match",
   "source.blocked",
   "knowledge.no_provider",
+  "knowledge.invalid_query",
+  "knowledge.provider_unavailable",
+  "knowledge.rate_limited",
+  "knowledge.timeout",
+  "knowledge.malformed_response",
   "event.record_failed",
   "memory.insufficient_evidence",
   "memory.proposal_not_found",
@@ -899,7 +953,7 @@ const sourceGrounding: SourceGroundingPort = {
 };
 
 const musicKnowledge: MusicKnowledgePort = {
-  query: async () => ({ ok: true, value: [] }),
+  query: async () => ({ ok: true, value: { items: [] } }),
 };
 
 const events: EventPort = {

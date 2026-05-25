@@ -595,6 +595,11 @@
   registration, and verification into implementation tasks. Runtime registration
   is now aligned with future plugin `config.json` activation instead of a
   MusicBrainz-specific environment variable switch.
+- Implemented Knowledge Slot Task 1 shared contracts. `KnowledgeQuery` now uses
+  `text` or `canonicalRef`, Knowledge providers return `KnowledgeResult`, and
+  shared structured/text knowledge item contracts and provider failure error
+  codes are exported. Module-local progress is tracked in
+  `docs/knowledge-slot/progress.md`.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

@@ -15,6 +15,7 @@ import type {
   InstrumentDescriptor,
   InstrumentProviderDescriptor,
   KnowledgeQuery,
+  KnowledgeResult,
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
   LibraryImportBatchKind,
@@ -306,7 +307,7 @@ export interface MusicKnowledgePort {
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;
-  }): Promise<Result<MusicMaterial[]>>;
+  }): Promise<Result<KnowledgeResult>>;
 }
 
 export interface EventPort {

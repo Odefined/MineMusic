@@ -541,9 +541,9 @@ Must not expose:
 
 Purpose:
 
-- Return facts, relationships, metadata, related material, and identity evidence.
-- Remain a thin MVP stub unless explicitly promoted by an accepted contract
-  change.
+- Return provider-attributed structured or text music knowledge for a text query
+  or MineMusic canonical identity.
+- Keep identity review and canonical writes outside the Knowledge port.
 
 Public port:
 
@@ -552,7 +552,7 @@ export interface MusicKnowledgePort {
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;
-  }): Promise<Result<MusicMaterial[]>>;
+  }): Promise<Result<KnowledgeResult>>;
 }
 ```
 

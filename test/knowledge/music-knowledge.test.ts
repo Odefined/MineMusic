@@ -14,32 +14,33 @@ async function assertOk<T>(result: Promise<{ ok: true; value: T } | { ok: false 
   return awaited.value;
 }
 
-async function queriesKnowledgeProvidersWithoutClaimingPlayability(): Promise<void> {
+async function queriesKnowledgeProvidersAsProviderAttributedItems(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: KnowledgeProvider = {
     id: "fixture-knowledge",
     query: async () => ({
       ok: true,
-      value: [
-        {
-          id: "material-knowledge-1",
-          kind: "recording",
-          label: "Knowledge Track",
-          state: "confirmed_playable",
-          playableLinks: [
-            {
-              url: "https://example.test/play",
-              sourceRef: { namespace: "source:fixture", kind: "track", id: "track-1" },
+      value: {
+        items: [
+          {
+            kind: "structured",
+            providerId: "fixture-knowledge",
+            source: {
+              ref: { namespace: "musicbrainz", kind: "recording", id: "mbid-1" },
             },
-          ],
-          evidence: [
-            {
-              kind: "metadata",
-              source: { namespace: "musicbrainz", kind: "recording", id: "mbid-1" },
-            },
-          ],
-        },
-      ],
+            rootNodeId: "recording:mbid-1",
+            nodes: [
+              {
+                id: "recording:mbid-1",
+                type: "recording",
+                label: "Knowledge Track",
+                ref: { namespace: "musicbrainz", kind: "recording", id: "mbid-1" },
+              },
+            ],
+            edges: [],
+          },
+        ],
+      },
     }),
   };
   await assertOk(
@@ -57,9 +58,9 @@ async function queriesKnowledgeProvidersWithoutClaimingPlayability(): Promise<vo
     }),
   );
 
-  assert(result.length === 1, "knowledge service should return provider material");
-  assert(result[0]?.state === "grounded", "knowledge output should not claim playability");
-  assert(result[0]?.playableLinks === undefined, "knowledge output should strip playable links");
+  assert(result.items.length === 1, "knowledge service should return provider knowledge items");
+  assert(result.items[0]?.kind === "structured", "knowledge output should keep structured items");
+  assert(result.items[0]?.providerId === "fixture-knowledge", "knowledge output should keep provider attribution");
 }
 
 async function reportsMissingKnowledgeProvider(): Promise<void> {
@@ -70,5 +71,5 @@ async function reportsMissingKnowledgeProvider(): Promise<void> {
   assert(result.error.code === "knowledge.no_provider", "missing provider should use stable knowledge error");
 }
 
-await queriesKnowledgeProvidersWithoutClaimingPlayability();
+await queriesKnowledgeProvidersAsProviderAttributedItems();
 await reportsMissingKnowledgeProvider();

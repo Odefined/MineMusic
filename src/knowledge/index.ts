@@ -1,6 +1,6 @@
 import type {
   KnowledgeProvider,
-  MusicMaterial,
+  KnowledgeResult,
   Result,
   StageError,
 } from "../contracts/index.js";
@@ -30,7 +30,7 @@ export function createMusicKnowledgeService({
         });
       }
 
-      const materials: MusicMaterial[] = [];
+      const items: KnowledgeResult["items"] = [];
 
       for (const providerId of providerIds.value) {
         const providerResult = await pluginRegistry.getProvider({
@@ -46,31 +46,18 @@ export function createMusicKnowledgeService({
           continue;
         }
 
-        const providerMaterials = await providerResult.value.query(input);
+        const providerKnowledge = await providerResult.value.query(input);
 
-        if (!providerMaterials.ok) {
-          return providerMaterials;
+        if (!providerKnowledge.ok) {
+          return providerKnowledge;
         }
 
-        materials.push(...providerMaterials.value.map(withoutPlayabilityClaims));
+        items.push(...providerKnowledge.value.items);
       }
 
-      return ok(materials);
+      return ok({ items });
     },
   };
-}
-
-function withoutPlayabilityClaims(material: MusicMaterial): MusicMaterial {
-  const { playableLinks: _playableLinks, ...materialWithoutLinks } = material;
-
-  if (material.state === "confirmed_playable" || material.state === "source_only_playable") {
-    return {
-      ...materialWithoutLinks,
-      state: "grounded",
-    };
-  }
-
-  return materialWithoutLinks;
 }
 
 function isKnowledgeProvider(provider: unknown): provider is KnowledgeProvider {
