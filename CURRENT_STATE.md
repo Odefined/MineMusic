@@ -257,7 +257,11 @@ host-facing and LLM-facing surface.
   matching counts of 1372 saved recordings, 466 saved releases, and 179 saved
   artists.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
-  query service that strips playability claims.
+  query service that strips playability claims. A target Knowledge Slot design
+  draft now exists in `docs/knowledge-slot/design.md`; it records the intended
+  shift from `MusicMaterial[]` output to provider-attributed knowledge items
+  with `StructuredKnowledge` and `TextKnowledge` forms, while keeping identity
+  confirmation and canonical writes in Canonical Store review/apply flows.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution,
   `MaterialResolveResult` status, and source evidence attachment to known
@@ -347,6 +351,8 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
+- The Knowledge Slot target contract is not implemented yet. The current code
+  still exposes the thin MVP `MusicMaterial[]` query path.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

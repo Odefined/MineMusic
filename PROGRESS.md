@@ -577,12 +577,19 @@
   1372 recordings, 466 releases, and 179 artists. SQLite contained 2017 active
   saved Collection items, 3241 canonical source refs, 5249 provisional
   relation rows, and 3189 relation rows with `objectRef`s.
+- Drafted `docs/knowledge-slot/design.md` for the general Knowledge Slot target
+  contract. The draft records the shift from `MusicMaterial[]` to
+  provider-attributed knowledge items, keeps MusicBrainz as
+  `StructuredKnowledge`, allows document-style `TextKnowledge`, and preserves
+  Canonical Store ownership of identity review/apply decisions.
 
 ## Next
 
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.
+- Resolve the Knowledge Slot design queue one decision at a time, starting with
+  the query shape.
 - Design the public `addAlias` method before implementing alias writes through
   `CanonicalStorePort`.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool

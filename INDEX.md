@@ -188,81 +188,86 @@ This index points agents to the current MVP documentation pack.
     - NetEase source and platform-library provider design, runtime behavior,
       boundaries, and verification notes.
 
-48. `src/providers/netease/index.ts`
+48. `docs/knowledge-slot/design.md`
+    - Knowledge Slot design draft for provider-attributed structured graph and
+      text knowledge, including the MusicBrainz and document-knowledge-base
+      boundary.
+
+49. `src/providers/netease/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
       `PlatformLibraryProvider` factories, including recording hints with
       artist/release source refs when available.
 
-49. `docs/host-adapters/codex-mcp-plugin.md`
+50. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, instrument/tool behavior, packaging, and
       verification notes, including the optional `MINEMUSIC_CANONICAL_DB_PATH`,
       `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`
       durable storage settings.
 
-50. `src/stage_core/index.ts`
+51. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, exposes the runtime object, composes Collection
       and Library Import with optional repository/provider injection, and
       supports optional SQLite database path configuration for Canonical Store,
       Collection, and Library Import.
 
-51. `src/surfaces/mcp/server.ts`
+52. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; the default runtime registers NetEase for both
       `source` and `platform_library` slots and can use durable Canonical Store,
       Collection, and Library Import storage via environment variables.
 
-52. `src/stage_interface/**`
+53. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade, including Collection and Library Import
       tools.
 
-53. `src/handbook/index.ts`
+54. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, and exact tool entries.
 
-54. `plugins/minemusic/.codex-plugin/plugin.json`
+55. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-55. `plugins/minemusic/.mcp.json`
+56. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-56. `plugins/minemusic/skills/minemusic/SKILL.md`
+57. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-57. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+58. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools, including Library Import tool entries.
 
-58. `docs/platform-library-provider/netease-implementation-plan.md`
+59. `docs/platform-library-provider/netease-implementation-plan.md`
     - Task-by-task implementation plan for the NetEase `platform_library`
       provider, including supported areas, adapter boundaries, issue mapping,
       fixture tests, and verification.
 
-59. `docs/platform-library-provider/progress.md`
+60. `docs/platform-library-provider/progress.md`
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
-60. `src/storage/sqlite/library-import-schema.ts`
+61. `src/storage/sqlite/library-import-schema.ts`
     - SQLite schema initialization for durable Library Import batches, reports,
       area snapshots, item provenance, and absence records.
 
-61. `src/storage/sqlite/library-import-repository.ts`
+62. `src/storage/sqlite/library-import-repository.ts`
     - SQLite-backed `LibraryImportRepository` implementation for direct durable
       repository injection.
 
-62. `test/storage/in-memory-library-import-repository.test.ts`
+63. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
       report, area snapshot, item provenance, absence, and provider-account-stable
       latest complete baseline storage.
 
-63. `test/storage/sqlite-library-import-repository.test.ts`
+64. `test/storage/sqlite-library-import-repository.test.ts`
     - SQLite Library Import repository persistence tests for batch/report,
       snapshot baseline, item provenance, and absence records across reopen.
 
-64. `src/library_import/index.ts`
+65. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
@@ -270,7 +275,7 @@ This index points agents to the current MVP documentation pack.
       started-batch failure handling, and repository-backed batch status/summary
       helpers.
 
-65. `test/library_import/library-import-service.test.ts`
+66. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -278,7 +283,7 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-66. `test/integration/library-import-runtime.test.ts`
+67. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, durable Library Import database path

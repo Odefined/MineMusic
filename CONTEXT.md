@@ -163,6 +163,32 @@ Material Resolve is where canonical identity, source evidence, playable material
 state, and user collection constraints such as `blocked` come together before
 materials are returned to Stage Interface.
 
+### Music Knowledge
+
+The Core Capability for provider-attributed music knowledge items.
+_Avoid_: identity confirmation, canonical evidence, playable material.
+
+### Knowledge Item
+
+A provider-attributed unit of music knowledge returned by the Knowledge Slot.
+_Avoid_: MusicMaterial, identity candidate, confidence.
+
+### Knowledge Fact
+
+A provider-attributed statement about a music entity or relationship.
+_Avoid_: candidate, evidence, confidence.
+
+### Structured Knowledge
+
+A provider-attributed Knowledge Item with structured entities, properties, or
+relationships.
+_Avoid_: global knowledge graph.
+
+### Text Knowledge
+
+A provider-attributed Knowledge Item with source text for grounding or review.
+_Avoid_: identity evidence.
+
 ### Release Group
 
 The canonical identity for an album-like music object across editions,

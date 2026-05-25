@@ -128,7 +128,7 @@ needs.
 | Library Import Service | external platform library import/update orchestration, import batches, item provenance, update baselines | provider API details, Collection storage schema, canonical admin policy, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution, `MaterialResolveResult` status, canonical evidence attachment | provider internals, playable-link refresh, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
-| Music Knowledge | facts, relationships, metadata, related material | playability claims, canonical writes |
+| Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history | derived preference claims |
 | Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals | raw event logging, external side effects |
 | Effect Boundary | permission and execution boundary for durable writes and external actions | ordinary text recommendation, musical expression |
@@ -283,7 +283,7 @@ New capabilities attach to Plugin Slots:
 ```text
 new source access -> Source Slot adapter
 new platform library reads -> Platform Library Slot adapter
-new music facts -> Knowledge Slot adapter
+new music knowledge -> Knowledge Slot adapter
 new identity evidence -> Identity Signal Slot adapter
 new context slice -> Context Slot adapter
 new external action -> Effect Slot adapter
