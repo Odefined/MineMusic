@@ -1,5 +1,6 @@
 import type { KnowledgeProvider, StageSession } from "../contracts/index.js";
 import type { Result, ToolName } from "../contracts/index.js";
+import { delimiter } from "node:path";
 import {
   createNetEasePlatformLibraryProvider,
   createNetEaseSourceProvider,
@@ -22,6 +23,7 @@ export type MineMusicServerRuntime = {
 
 export type MineMusicServerRuntimeOptions = {
   handbookPath?: string;
+  handbookPaths?: string[];
   knowledgeProviders?: KnowledgeProvider[];
   knowledgeProviderFactories?: KnowledgeProviderFactory[];
   providerHttpCacheDatabasePath?: string;
@@ -40,6 +42,7 @@ export function createDefaultMineMusicServerRuntime(
     options.knowledgeProviderFactories === undefined
       ? defaultKnowledgeProviderFactories
       : options.knowledgeProviderFactories;
+  const handbookPaths = createServerHandbookPaths(env, options);
 
   const stageCore = createMineMusicStageCoreWithSourceProvider({
     session: createDefaultServerSession(env),
@@ -59,7 +62,7 @@ export function createDefaultMineMusicServerRuntime(
       : { providerHttpCacheDatabasePath: options.providerHttpCacheDatabasePath }),
     ...(options.knowledgeProviders === undefined ? {} : { knowledgeProviders: options.knowledgeProviders }),
     knowledgeProviderFactories,
-    ...(options.handbookPath === undefined ? {} : { handbookPath: options.handbookPath }),
+    ...(handbookPaths.length === 0 ? {} : { handbookPaths }),
   });
 
   return {
@@ -86,6 +89,48 @@ export function createDefaultMineMusicServerRuntime(
       return tool(payload);
     },
   };
+}
+
+function createServerHandbookPaths(
+  env: Record<string, string | undefined>,
+  options: MineMusicServerRuntimeOptions,
+): string[] {
+  const optionPaths = normalizeHandbookPaths({
+    ...(options.handbookPath === undefined ? {} : { handbookPath: options.handbookPath }),
+    ...(options.handbookPaths === undefined ? {} : { handbookPaths: options.handbookPaths }),
+  });
+
+  if (optionPaths.length > 0) {
+    return optionPaths;
+  }
+
+  return normalizeHandbookPaths({
+    ...(env.MINEMUSIC_HANDBOOK_PATH === undefined ? {} : { handbookPath: env.MINEMUSIC_HANDBOOK_PATH }),
+    handbookPaths: parseHandbookPathList(env.MINEMUSIC_HANDBOOK_PATHS),
+  });
+}
+
+function parseHandbookPathList(value: string | undefined): string[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  return value
+    .split(delimiter)
+    .flatMap((path) => path.split(","));
+}
+
+function normalizeHandbookPaths({
+  handbookPath,
+  handbookPaths = [],
+}: {
+  handbookPath?: string;
+  handbookPaths?: string[];
+}): string[] {
+  return [...new Set([
+    ...(handbookPath === undefined ? [] : [handbookPath]),
+    ...handbookPaths,
+  ].map((path) => path.trim()).filter((path) => path.length > 0))];
 }
 
 function createNetEaseProviderOptions(env: Record<string, string | undefined>): NetEaseProviderOptions {

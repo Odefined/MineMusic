@@ -339,6 +339,11 @@ This index points agents to the current MVP documentation pack.
 76. `test/storage/sqlite-provider-http-cache-repository.test.ts`
     - SQLite Provider HTTP Cache persistence tests across repository reopen.
 
+77. `.env.example`
+    - Repo-local template for MineMusic server env, including server endpoint,
+      provider base URL, SQLite storage paths, and optional multi-path Handbook
+      snapshot output.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

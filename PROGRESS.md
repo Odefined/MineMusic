@@ -706,13 +706,18 @@
   repo-local plugin manifest, plugin `.mcp.json`, and marketplace entry. Stage
   Core no longer defaults to writing a Handbook into any Codex path; callers
   must pass `handbookPath` explicitly when they need a generated file.
+- Added server-owned Handbook snapshot output env: `MINEMUSIC_HANDBOOK_PATH` for
+  one file and `MINEMUSIC_HANDBOOK_PATHS` for multiple files. The server runtime
+  passes those paths into Stage Core explicitly, so Codex/OpenClaw paths remain
+  runtime configuration, not Stage Core defaults.
 
 ## Next
 
 - Add CLI or Web UI peer transports when there is a concrete product workflow.
 - Added local server `.env` support: the repo root `.env` is ignored by git,
-  `.env.example` documents the default server/provider/storage settings, and
-  `npm run server:minemusic` loads `.env` before starting the server.
+  `.env.example` documents the default server/provider/storage/Handbook output
+  settings, and `npm run server:minemusic` loads `.env` before starting the
+  server.
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.

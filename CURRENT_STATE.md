@@ -361,7 +361,9 @@ host-facing and LLM-facing surface.
   `InstrumentDescriptor` / `ToolDescriptor` entries. The live server exposes
   Handbook lookup through MCP. The file `skills/minemusic/HANDBOOK.md` is a
   skill-local snapshot, and Stage Core only writes a Handbook file when a caller
-  explicitly passes `handbookPath`.
+  explicitly passes `handbookPath` or `handbookPaths`. The default server
+  runtime reads `MINEMUSIC_HANDBOOK_PATH` / `MINEMUSIC_HANDBOOK_PATHS` and can
+  write snapshots to multiple consumer-owned paths.
 - The `minemusic.handbook` instrument exposes `handbook.overview.read`,
   `handbook.instrument.read`, and `handbook.tool.read` for on-demand Handbook
   lookup.
@@ -418,7 +420,7 @@ host-facing and LLM-facing surface.
   guide is `docs/operations/minemusic-server-launchd.md`.
 - `npm run server:minemusic` loads repo-root `.env` when present. `.env` is
   local-only and ignored by git; `.env.example` documents the default server,
-  NetEase, and SQLite path settings.
+  NetEase, SQLite path, and Handbook snapshot output settings.
 - Repo-local Codex plugin packaging has been removed. Codex uses the direct
   workflow skill at `skills/minemusic/SKILL.md` plus a global MCP client entry
   for `http://127.0.0.1:37373/mcp`.

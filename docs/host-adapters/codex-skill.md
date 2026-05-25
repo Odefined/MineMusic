@@ -101,8 +101,14 @@ The live Handbook is exposed through MCP:
 The file `skills/minemusic/HANDBOOK.md` is a skill-local snapshot used for
 progressive disclosure when the skill loads. Stage Core must not default to
 writing into the Codex skill path. Stage Core accepts an optional `handbookPath`
-when a caller explicitly wants a generated Handbook file for tests, exports, or
-packaging.
+or `handbookPaths` when a caller explicitly wants generated Handbook files for
+tests, exports, or packaging.
+
+The MineMusic server may be configured to write snapshots by setting
+`MINEMUSIC_HANDBOOK_PATH` or `MINEMUSIC_HANDBOOK_PATHS` in server env. Those env
+paths are server-owned output configuration and can point at a Codex skill,
+OpenClaw docs, or any other consumer snapshot. They are not Codex skill runtime
+configuration.
 
 ## Verification
 
@@ -118,6 +124,8 @@ Deterministic tests cover:
 - argument-bearing tools expose explicit input schemas.
 - the server runtime registers NetEase through separate `source` and
   `platform_library` slots.
+- the server runtime can write Handbook snapshots to multiple env-configured
+  paths.
 - the embedded MCP startup path is named `mcp:minemusic:dev`.
 
 Project-native commands:

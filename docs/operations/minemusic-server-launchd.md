@@ -40,11 +40,14 @@ Current local `launchd` install:
 | Command | `/opt/homebrew/bin/zsh -lc 'exec /opt/homebrew/bin/npm run server:minemusic'` |
 | MCP endpoint | `http://127.0.0.1:37373/mcp` |
 | Health endpoint | `http://127.0.0.1:37373/health` |
+| Handbook snapshots | `MINEMUSIC_HANDBOOK_PATH` / `MINEMUSIC_HANDBOOK_PATHS` in repo `.env` |
 | stdout log | `/Users/jiajuzang/Library/Logs/MineMusic/server.out.log` |
 | stderr log | `/Users/jiajuzang/Library/Logs/MineMusic/server.err.log` |
 
 `npm run server:minemusic` loads repo-root `.env` when present. The local `.env`
 is ignored by git; `.env.example` is the template for server runtime settings.
+`MINEMUSIC_HANDBOOK_PATH` writes one Handbook snapshot. `MINEMUSIC_HANDBOOK_PATHS`
+writes multiple snapshots using the platform path delimiter, `:` on macOS.
 
 ## Operations
 

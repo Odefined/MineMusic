@@ -341,7 +341,9 @@ The Handbook is generated from current agent-visible `InstrumentDescriptor` /
 `ToolDescriptor` entries. The live server exposes Handbook lookup through
 `handbook.overview.read`, `handbook.instrument.read`, and
 `handbook.tool.read`. The Codex skill may ship a static `HANDBOOK.md` snapshot,
-but Stage Core must not depend on the Codex skill path.
+but Stage Core must not depend on the Codex skill path. When the MineMusic
+server needs file snapshots, server env such as `MINEMUSIC_HANDBOOK_PATHS`
+selects one or more output paths and passes them into Stage Core explicitly.
 Provider capabilities are part of the owning `InstrumentDescriptor` through
 `providers`, so agent-facing source facts stay attached to `minemusic.music`,
 Knowledge provider facts stay attached to `minemusic.knowledge`, and

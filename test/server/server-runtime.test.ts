@@ -1,6 +1,6 @@
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 
 import { createDefaultMineMusicServerRuntime } from "../../src/server/runtime.js";
 
@@ -17,6 +17,7 @@ async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
   const libraryImportDatabasePath = join(directory, "library-import.sqlite");
   const providerHttpCacheDatabasePath = join(directory, "provider-http-cache.sqlite");
   const handbookPath = join(directory, "HANDBOOK.md");
+  const secondHandbookPath = join(directory, "nested", "HANDBOOK.md");
 
   try {
     const runtime = createDefaultMineMusicServerRuntime(
@@ -26,9 +27,9 @@ async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
         MINEMUSIC_CANONICAL_DB_PATH: canonicalDatabasePath,
         MINEMUSIC_COLLECTION_DB_PATH: collectionDatabasePath,
         MINEMUSIC_LIBRARY_IMPORT_DB_PATH: libraryImportDatabasePath,
+        MINEMUSIC_HANDBOOK_PATHS: [handbookPath, secondHandbookPath].join(delimiter),
       },
       {
-        handbookPath,
         providerHttpCacheDatabasePath,
       },
     );
@@ -59,6 +60,12 @@ async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
     assert((await stat(collectionDatabasePath)).isFile(), "server runtime should initialize Collection storage");
     assert((await stat(libraryImportDatabasePath)).isFile(), "server runtime should initialize Library Import storage");
     assert((await stat(providerHttpCacheDatabasePath)).isFile(), "server runtime should initialize Provider HTTP Cache storage");
+    assert((await stat(handbookPath)).isFile(), "server runtime should write the first configured Handbook file");
+    assert((await stat(secondHandbookPath)).isFile(), "server runtime should write the second configured Handbook file");
+    assert(
+      (await readFile(secondHandbookPath, "utf8")).includes("# MineMusic Instrument Handbook"),
+      "server runtime should write Handbook content to each configured path",
+    );
   } finally {
     await rm(directory, { force: true, recursive: true });
   }

@@ -106,6 +106,10 @@ Import batches, reports, snapshots, provenance, and absence records. These
 provider, database, cache, and session settings are MineMusic server runtime
 concerns, not Codex skill configuration. Codex/OpenClaw should connect to the
 server MCP URL, by default `http://127.0.0.1:37373/mcp`.
+Set `MINEMUSIC_HANDBOOK_PATH` for one server-written Handbook file, or
+`MINEMUSIC_HANDBOOK_PATHS` for multiple files separated by the platform path
+delimiter. This is server-owned output configuration; the paths may point at a
+Codex skill, OpenClaw docs, or any other consumer-owned snapshot location.
 
 The Codex workflow skill lives at `skills/minemusic/SKILL.md`, with its
 skill-local Handbook snapshot at `skills/minemusic/HANDBOOK.md`. Codex MCP
