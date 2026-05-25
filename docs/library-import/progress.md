@@ -78,7 +78,9 @@ This file tracks Library Import implementation progress.
   canonical relations from provider hints for imported recordings, including
   performer, release, and duration context; artist/release source-ref hints
   resolve linked canonical records, create provisional records only when no
-  existing binding is found, and become relation `objectRef`s.
+  existing binding is found, and become relation `objectRef`s. Import batches
+  cache saved Collection membership per target kind, avoiding a full saved-item
+  list read for every imported item.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports
@@ -176,3 +178,6 @@ This file tracks Library Import implementation progress.
   and `appears_on_release`, but the full durable import exceeded a 300 second
   MCP client timeout and ended as a failed batch after 1311 imported items.
   Durable full-library import performance remains a follow-up gap.
+- `npm run build:test && node .tmp-test/test/storage/sqlite-canonical-store.test.js && node .tmp-test/test/library_import/library-import-service.test.js && node .tmp-test/test/integration/library-import-runtime.test.js && node .tmp-test/test/integration/canonical-persistence.test.js`
+  passes after adding indexed canonical source-ref lookup and per-batch saved
+  membership caching.

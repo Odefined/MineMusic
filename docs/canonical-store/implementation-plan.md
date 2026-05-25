@@ -25,7 +25,7 @@ MineMusic canonical identity
 
 | Concern | Current file | Evidence |
 | --- | --- | --- |
-| Canonical service | `src/canonical/index.ts` | `createCanonicalStore` currently depends on `CanonicalRecordRepository` and scans `repository.list()` for label/source-ref lookup. |
+| Canonical service | `src/canonical/index.ts` | `createCanonicalStore` depends on `CanonicalRecordRepository`; `src/canonical/storage.ts` uses indexed repository source-ref lookup when available and falls back to `repository.list()` for minimal repositories. |
 | Public port | `src/ports/index.ts` | `CanonicalStorePort` currently exposes `get`, `findByLabel`, `resolveSourceRef`, `createProvisional`, and `attachSourceRef`. |
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` stores records in a process-local `Map`. |
 | Current tests | `test/canonical/canonical-store.test.ts` | Covers provisional create/get, source-ref attach/resolve, and conflict rejection. |

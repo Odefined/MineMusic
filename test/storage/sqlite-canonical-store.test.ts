@@ -177,6 +177,77 @@ async function mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary(): Promis
   }
 }
 
+async function usesIndexedSourceRefLookupWithoutFullRepositoryList(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-indexed-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const sourceRef: Ref = {
+    namespace: "source:netease",
+    kind: "track",
+    id: "indexed-track",
+  };
+
+  try {
+    const sqliteRepository = createSqliteCanonicalRecordRepository({ path: databasePath });
+    const firstStore = createCanonicalStore({
+      repository: sqliteRepository,
+      idFactory: (() => {
+        const ids = ["canonical-indexed", "canonical-other"];
+
+        return () => ids.shift() ?? "unexpected";
+      })(),
+    });
+    const first = await assertOk(
+      firstStore.createProvisional({
+        kind: "recording",
+        label: "Indexed Track",
+        evidence: [sourceRef],
+      }),
+    );
+    const second = await assertOk(
+      firstStore.createProvisional({
+        kind: "recording",
+        label: "Other Indexed Track",
+      }),
+    );
+    const indexedRepository: CanonicalRecordRepository = {
+      get: (ref) => sqliteRepository.get(ref),
+      put: (record) => sqliteRepository.put(record),
+      findBySourceRef: (input) => sqliteRepository.findBySourceRef?.(input) ?? assertUnreachable(),
+      putRelation: (input) => sqliteRepository.putRelation(input),
+      listRelations: (input) => sqliteRepository.listRelations(input),
+      async list() {
+        throw new Error("source-ref lookups should use the SQLite source-ref index");
+      },
+    };
+    const indexedStore = createCanonicalStore({
+      repository: indexedRepository,
+      idFactory: () => "unexpected-created",
+    });
+    const resolved = await assertOk(indexedStore.resolveSourceRef({ ref: sourceRef }));
+    const reused = await assertOk(
+      indexedStore.createProvisional({
+        kind: "recording",
+        label: "Indexed Track Reimport",
+        evidence: [sourceRef],
+      }),
+    );
+    const conflict = await indexedStore.attachSourceRef({
+      canonicalRef: second.ref,
+      sourceRef,
+    });
+
+    assert(resolved?.ref.id === first.ref.id, "source-ref lookup should use the indexed repository path");
+    assert(reused.ref.id === first.ref.id, "provisional creation should reuse indexed source-ref matches");
+    assert(!conflict.ok, "source-ref conflict checks should use the indexed repository path");
+    assert(
+      conflict.error.code === "canonical.source_ref_conflict",
+      "indexed source-ref conflict checks should keep the canonical error code",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function migratesLegacySourceRefTableToSourceRefs(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-migration-"));
   const databasePath = join(directory, "canonical.sqlite");
@@ -349,5 +420,10 @@ async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void>
 await persistsCanonicalRecordsAcrossRepositoryReopen();
 await rejectsSourceRefConflictsAfterRepositoryReopen();
 await mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary();
+await usesIndexedSourceRefLookupWithoutFullRepositoryList();
 await migratesLegacySourceRefTableToSourceRefs();
 await persistsCanonicalRelationsAcrossRepositoryReopen();
+
+function assertUnreachable(): never {
+  throw new Error("SQLite repository should expose indexed source-ref lookup");
+}

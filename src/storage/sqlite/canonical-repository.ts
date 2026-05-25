@@ -195,6 +195,30 @@ export function createSqliteCanonicalRecordRepository({
       });
     },
 
+    async findBySourceRef({ ref, currentOnly = false }) {
+      return readResult(() => {
+        const row = database
+          .prepare(`
+            SELECT canonical_entities.id,
+                   canonical_entities.namespace,
+                   canonical_entities.kind,
+                   canonical_entities.label,
+                   canonical_entities.status
+            FROM canonical_entities
+            INNER JOIN canonical_source_refs
+              ON canonical_source_refs.canonical_id = canonical_entities.id
+            WHERE canonical_source_refs.namespace = ?
+              AND canonical_source_refs.kind = ?
+              AND canonical_source_refs.source_id = ?
+              ${currentOnly ? "AND canonical_entities.status IN ('active', 'provisional')" : ""}
+            LIMIT 1
+          `)
+          .get(ref.namespace, ref.kind, ref.id) as CanonicalEntityRow | undefined;
+
+        return row === undefined ? null : readCanonicalRecord(database, row);
+      });
+    },
+
     async putRelation({ relation }) {
       return readResult(() => {
         database

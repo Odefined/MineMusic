@@ -566,6 +566,11 @@
   MCP import into temp SQLite verified real `objectRef` relation rows but did
   not finish within a 300 second client timeout, leaving durable full-library
   import batching/transaction performance as the next infrastructure gap.
+- Added the first durable full-library import performance pass: SQLite
+  Canonical Store now exposes an indexed source-ref lookup used by
+  `resolveSourceRef`, provisional evidence reuse, and source-ref conflict
+  checks, and Library Import caches saved Collection membership per target kind
+  during a batch instead of listing saved items once per imported item.
 
 ## Next
 

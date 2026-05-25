@@ -136,6 +136,11 @@ export type CanonicalRelationListInput = {
   status?: CanonicalRelationStatus;
 };
 
+export type CanonicalRecordRepositoryFindBySourceRefInput = {
+  ref: Ref;
+  currentOnly?: boolean;
+};
+
 export interface SessionContextPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;
 
@@ -422,6 +427,10 @@ export interface LibraryImportRepository {
 }
 
 export interface CanonicalRecordRepository extends Repository<CanonicalRecord, Ref> {
+  findBySourceRef?(
+    input: CanonicalRecordRepositoryFindBySourceRefInput,
+  ): Promise<Result<CanonicalRecord | null>>;
+
   putRelation(input: { relation: CanonicalRelation }): Promise<Result<CanonicalRelation>>;
 
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;

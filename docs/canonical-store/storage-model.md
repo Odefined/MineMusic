@@ -303,6 +303,10 @@ WHERE canonical_source_refs.namespace = ?
 This is not intelligent identity resolution. It is a durable reverse lookup for
 source refs already attached as evidence.
 
+SQLite-backed repositories should use this indexed lookup directly for
+`resolveSourceRef`, provisional evidence reuse, and source-ref conflict checks.
+In-memory or minimal repositories may still fall back to listing records.
+
 ### `createProvisional({ kind, label, evidence })`
 
 Run in one transaction:

@@ -697,6 +697,69 @@ async function importsSameLabelDifferentSourceRefsAsSeparateProvisionalIdentitie
   assert(savedItems.length === 2, "Collection should contain both provisional source-bound imports");
 }
 
+async function cachesSavedCollectionMembershipDuringImportBatch(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: [
+                providerItem("cache-track-1", "Cache Track 1"),
+                providerItem("cache-track-2", "Cache Track 2"),
+                providerItem("cache-track-3", "Cache Track 3"),
+              ],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const listItems = environment.collections.listItems.bind(environment.collections);
+  let savedRecordingLookups = 0;
+  environment.collections.listItems = (input) => {
+    if (input.collectionKind === "recording" && input.relationKind === "saved") {
+      savedRecordingLookups += 1;
+    }
+
+    return listItems(input);
+  };
+  const report = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+
+  assert(report.counts.importedItems === 3, "fixture import should add every provider item");
+  assert(
+    savedRecordingLookups === 1,
+    "import should read saved recording membership once per batch and update the cache in memory",
+  );
+}
+
 async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
@@ -1271,6 +1334,7 @@ await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
 await importsSameLabelDifferentSourceRefsAsSeparateProvisionalIdentities();
+await cachesSavedCollectionMembershipDuringImportBatch();
 await returnsStoredSummaryAfterServiceRecreation();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
 await previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting();

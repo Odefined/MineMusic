@@ -78,6 +78,21 @@ export function createCanonicalStorage({
         return ok(null);
       }
 
+      if (repository.findBySourceRef !== undefined) {
+        for (const evidenceRef of evidence) {
+          const record = await repository.findBySourceRef({
+            ref: evidenceRef,
+            currentOnly: true,
+          });
+
+          if (!record.ok || record.value !== null) {
+            return record;
+          }
+        }
+
+        return ok(null);
+      }
+
       const records = await repository.list();
 
       if (!records.ok) {
@@ -98,6 +113,13 @@ export function createCanonicalStorage({
     },
 
     async resolveSourceRef(ref) {
+      if (repository.findBySourceRef !== undefined) {
+        return repository.findBySourceRef({
+          ref,
+          currentOnly: true,
+        });
+      }
+
       const records = await repository.list();
 
       if (!records.ok) {
@@ -114,6 +136,16 @@ export function createCanonicalStorage({
     },
 
     async findSourceRefConflict({ canonicalRef, sourceRef }) {
+      if (repository.findBySourceRef !== undefined) {
+        const record = await repository.findBySourceRef({ ref: sourceRef });
+
+        if (!record.ok) {
+          return record;
+        }
+
+        return ok(record.value !== null && !sameRef(record.value.ref, canonicalRef) ? record.value : null);
+      }
+
       const records = await repository.list();
 
       if (!records.ok) {

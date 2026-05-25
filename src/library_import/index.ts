@@ -245,6 +245,8 @@ type PreviewAreaEstimates = {
   absences?: PlatformLibraryAbsenceSummary[];
 };
 
+type SavedMembershipCache = Map<PlatformLibraryItem["targetKind"], Set<string>>;
+
 async function estimateReadablePreviewAreas({
   provider,
   canonicalStore,
@@ -772,6 +774,7 @@ async function startLibraryImport({
   const reportAreas = read.value.areas.map(providerReadAreaToReportArea);
   const itemReports: LibraryImportItemReport[] = [];
   const absences: PlatformLibraryAbsenceSummary[] = [];
+  const savedMembershipsByKind: SavedMembershipCache = new Map();
   let completedWithWarnings = readHasWarnings(read.value.areas, read.value.issues);
 
   const initializedCollections = await collection.initializeOwnerCollections({ ownerScope });
@@ -803,6 +806,7 @@ async function startLibraryImport({
         area: area.area,
         item,
         seenAt: completedAt,
+        savedMembershipsByKind,
       });
 
       if (!itemReport.ok) {
@@ -1014,6 +1018,7 @@ async function importProviderItem({
   area,
   item,
   seenAt,
+  savedMembershipsByKind,
 }: {
   canonicalStore: CanonicalStorePort;
   collection: CollectionPort;
@@ -1028,6 +1033,7 @@ async function importProviderItem({
   area: PlatformLibraryArea;
   item: PlatformLibraryItem;
   seenAt: string;
+  savedMembershipsByKind: SavedMembershipCache;
 }): Promise<Result<LibraryImportItemReport>> {
   const baseReport = itemReportBase({ scope, area, item });
 
@@ -1105,6 +1111,7 @@ async function importProviderItem({
     ownerScope,
     targetKind: item.targetKind,
     canonicalRef: canonicalResult.value.record.ref,
+    savedMembershipsByKind,
   });
 
   if (!alreadyPresent.ok) {
@@ -1121,6 +1128,12 @@ async function importProviderItem({
   if (!collectionItem.ok) {
     return collectionItem;
   }
+
+  rememberSavedMembership({
+    savedMembershipsByKind,
+    targetKind: item.targetKind,
+    canonicalRef: collectionItem.value.canonicalRef,
+  });
 
   const imported: LibraryImportItemReport = {
     ...baseReport,
@@ -1379,12 +1392,45 @@ async function isSavedCollectionItemPresent({
   ownerScope,
   targetKind,
   canonicalRef,
+  savedMembershipsByKind,
 }: {
   collection: CollectionPort;
   ownerScope: string;
   targetKind: PlatformLibraryItem["targetKind"];
   canonicalRef: Ref;
+  savedMembershipsByKind: SavedMembershipCache;
 }): Promise<Result<boolean>> {
+  const savedRefKeys = await savedMembershipKeysForKind({
+    collection,
+    ownerScope,
+    targetKind,
+    savedMembershipsByKind,
+  });
+
+  if (!savedRefKeys.ok) {
+    return savedRefKeys;
+  }
+
+  return ok(savedRefKeys.value.has(refKey(canonicalRef)));
+}
+
+async function savedMembershipKeysForKind({
+  collection,
+  ownerScope,
+  targetKind,
+  savedMembershipsByKind,
+}: {
+  collection: CollectionPort;
+  ownerScope: string;
+  targetKind: PlatformLibraryItem["targetKind"];
+  savedMembershipsByKind: SavedMembershipCache;
+}): Promise<Result<Set<string>>> {
+  const cached = savedMembershipsByKind.get(targetKind);
+
+  if (cached !== undefined) {
+    return ok(cached);
+  }
+
   const savedItems = await collection.listItems({
     ownerScope,
     collectionKind: targetKind,
@@ -1395,7 +1441,26 @@ async function isSavedCollectionItemPresent({
     return savedItems;
   }
 
-  return ok(savedItems.value.some((item) => sameRef(item.canonicalRef, canonicalRef)));
+  const savedRefKeys = new Set(savedItems.value.map((item) => refKey(item.canonicalRef)));
+  savedMembershipsByKind.set(targetKind, savedRefKeys);
+
+  return ok(savedRefKeys);
+}
+
+function rememberSavedMembership({
+  savedMembershipsByKind,
+  targetKind,
+  canonicalRef,
+}: {
+  savedMembershipsByKind: SavedMembershipCache;
+  targetKind: PlatformLibraryItem["targetKind"];
+  canonicalRef: Ref;
+}): void {
+  const savedRefKeys = savedMembershipsByKind.get(targetKind);
+
+  if (savedRefKeys !== undefined) {
+    savedRefKeys.add(refKey(canonicalRef));
+  }
 }
 
 async function recordItemResult({

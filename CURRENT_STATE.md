@@ -380,8 +380,10 @@ host-facing and LLM-facing surface.
 - Do not build heavy recommender scoring into the MVP path.
 - Do not treat a `source_only_playable` event target as durable canonical
   identity.
-- Full live Library Import through MCP with durable SQLite paths is currently
-  too slow for a 300 second client timeout after linked artist/release graph
-  writes; targeted tests pass, and partial live durable verification confirms
-  real relation `objectRef` rows, but full durable import needs batching or
-  transaction performance work.
+- Full live Library Import through MCP with durable SQLite paths previously
+  exceeded a 300 second client timeout after linked artist/release graph
+  writes. A first performance pass now lets SQLite Canonical Store resolve
+  source refs through its indexed table instead of full repository scans, and
+  Library Import caches saved Collection membership per target kind inside a
+  batch. Targeted tests pass; the full live durable import still needs to be
+  rerun to measure the remaining gap.

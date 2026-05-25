@@ -45,6 +45,9 @@ Implemented:
   boundary.
 - SQLite initialization migrates the earlier local development table shape
   `canonical_external_refs.external_id` into `canonical_source_refs.source_id`.
+- SQLite-backed repositories expose indexed source-ref lookup so Canonical
+  Store can resolve source refs, reuse provisional evidence, and check
+  source-ref conflicts without scanning every canonical record.
 - Canonical Store policy now reuses existing records by source-ref evidence.
 - Canonical Store policy keeps normalized label and alias matching as lookup-only
   candidate discovery; `createProvisional` no longer treats label-only matches

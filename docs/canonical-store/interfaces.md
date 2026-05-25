@@ -366,6 +366,8 @@ The durable repository should support:
 - entity lookup by normalized label.
 - alias lookup.
 - source-ref reverse lookup.
+- indexed source-ref lookup for storage engines that can avoid full record
+  scans.
 - transaction-scoped provisional creation.
 - transaction-scoped source-ref attachment.
 - status updates for admin operations.
