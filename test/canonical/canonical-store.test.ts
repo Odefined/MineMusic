@@ -288,6 +288,60 @@ async function attachesSameExternalRefIdempotently(): Promise<void> {
   assert(updated.externalKeys?.length === 1, "same external ref should be attached once");
 }
 
+async function recordsAndListsProvisionalRelations(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "relation-track",
+  };
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "relation-canonical",
+    clock: () => "2026-05-25T00:00:00.000Z",
+  });
+  const created = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Relation Track",
+      evidence: [sourceRef],
+    }),
+  );
+
+  const relations = await assertOk(
+    store.recordProvisionalRelations({
+      subjectRef: created.ref,
+      sourceRef,
+      providerId: "fixture",
+      batchId: "batch-1",
+      relations: [
+        {
+          predicate: "performed_by",
+          objectKind: "artist",
+          objectLabel: "Fixture Artist",
+        },
+        {
+          predicate: "has_duration_ms",
+          objectKind: "duration_ms",
+          objectValue: 123456,
+        },
+      ],
+    }),
+  );
+  const listed = await assertOk(store.listRelations({ subjectRef: created.ref }));
+  const performedBy = await assertOk(
+    store.listRelations({
+      subjectRef: created.ref,
+      predicate: "performed_by",
+    }),
+  );
+
+  assert(relations.length === 2, "provisional relation recording should return stored relations");
+  assert(listed.length === 2, "provisional relations should be listed by subject");
+  assert(performedBy[0]?.objectLabel === "Fixture Artist", "relation lookup should keep object labels");
+  assert(performedBy[0]?.status === "provisional", "new relations should be provisional");
+}
+
 await createsAndGetsProvisionalRecords();
 await resolvesAndAttachesExternalRefsWithoutChangingAuthority();
 await createProvisionalReusesExistingEvidence();
@@ -297,3 +351,4 @@ await findsCurrentRecordsByAlias();
 await resolveExternalRefIgnoresHistoricalRecords();
 await rejectsExternalRefConflicts();
 await attachesSameExternalRefIdempotently();
+await recordsAndListsProvisionalRelations();

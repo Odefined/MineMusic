@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  CanonicalRelationDraft,
   CollectionItem,
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
@@ -1075,6 +1076,22 @@ async function importProviderItem({
     return canonicalResult;
   }
 
+  const relationDrafts = provisionalRelationDraftsForItem(item);
+
+  if (relationDrafts.length > 0) {
+    const relationResult = await canonicalStore.recordProvisionalRelations({
+      subjectRef: canonicalResult.value.record.ref,
+      sourceRef: item.sourceRef,
+      providerId,
+      batchId,
+      relations: relationDrafts,
+    });
+
+    if (!relationResult.ok) {
+      return relationResult;
+    }
+  }
+
   const alreadyPresent = await isSavedCollectionItemPresent({
     collection,
     ownerScope,
@@ -1171,6 +1188,54 @@ async function createAndBindCanonicalRecord(
     record: attached.value,
     outcome: "created_provisional",
   });
+}
+
+function provisionalRelationDraftsForItem(item: PlatformLibraryItem): CanonicalRelationDraft[] {
+  const hints = item.canonicalHints;
+
+  if (hints === undefined) {
+    return [];
+  }
+
+  const relations: CanonicalRelationDraft[] = [];
+
+  for (const artistLabel of uniqueNonEmptyValues(hints.artistLabels ?? [])) {
+    relations.push({
+      predicate: "performed_by",
+      objectKind: "artist",
+      objectLabel: artistLabel,
+    });
+  }
+
+  const releaseLabel = nonEmptyValue(hints.releaseLabel);
+
+  if (releaseLabel !== undefined) {
+    relations.push({
+      predicate: "appears_on_release",
+      objectKind: "release",
+      objectLabel: releaseLabel,
+    });
+  }
+
+  if (hints.durationMs !== undefined) {
+    relations.push({
+      predicate: "has_duration_ms",
+      objectKind: "duration_ms",
+      objectValue: hints.durationMs,
+    });
+  }
+
+  return relations;
+}
+
+function uniqueNonEmptyValues(values: string[]): string[] {
+  return [...new Set(values.map(nonEmptyValue).filter((value): value is string => value !== undefined))];
+}
+
+function nonEmptyValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+
+  return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
 }
 
 async function isSavedCollectionItemPresent({

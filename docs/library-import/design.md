@@ -536,7 +536,10 @@ Collection items. "Eagerly bind" means:
 2. reuse an existing canonical record when found.
 3. create a provisional canonical record only when no binding exists and
    provider metadata is strong enough.
-4. mark the item unresolved or skipped when neither reuse nor provisional
+4. record provisional canonical relations from provider hints, such as artist,
+   release, and duration context, without using those hints as automatic
+   identity merge proof.
+5. mark the item unresolved or skipped when neither reuse nor provisional
    creation is possible.
 
 The first implementation should not defer canonical binding until a later

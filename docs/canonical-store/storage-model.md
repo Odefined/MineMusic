@@ -200,6 +200,38 @@ CREATE INDEX canonical_aliases_lookup_idx
   ON canonical_aliases(normalized_alias);
 ```
 
+### `canonical_relations`
+
+Stores provisional relation context attached to a canonical subject. Imported
+recording hints use this table for relations such as `performed_by`,
+`appears_on_release`, and `has_duration_ms`.
+
+```sql
+CREATE TABLE canonical_relations (
+  id TEXT PRIMARY KEY,
+  subject_namespace TEXT NOT NULL,
+  subject_kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  predicate TEXT NOT NULL,
+  object_kind TEXT NOT NULL,
+  object_ref_json TEXT,
+  object_label TEXT,
+  object_value_json TEXT,
+  source_namespace TEXT NOT NULL,
+  source_kind TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  source_ref_json TEXT NOT NULL,
+  provider_id TEXT,
+  batch_id TEXT,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+```
+
+Relation rows are source-bound provisional context. They do not confirm that two
+source refs identify the same or different real-world recording.
+
 ### `canonical_redirects`
 
 Optional for the first implementation, but required before real merge behavior.

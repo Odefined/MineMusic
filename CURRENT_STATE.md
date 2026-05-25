@@ -85,7 +85,10 @@ host-facing and LLM-facing surface.
   filters ordinary lookup to active/provisional records, and keeps same-record
   external-ref attachment idempotent. Separate source refs may create separate
   source-bound provisional identities, but that is not proof that the real-world
-  recordings are distinct.
+  recordings are distinct. Canonical Store also records provisional relations
+  such as `performed_by`, `appears_on_release`, and `has_duration_ms` from
+  provider hints; these relations are context for review and later merge, not
+  automatic identity proof.
 - The shared Canonical Store contract exports `CanonicalKind`, including
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
@@ -104,11 +107,12 @@ host-facing and LLM-facing surface.
   initialization lives in `src/storage/sqlite/canonical-schema.ts`; repository
   behavior lives in `src/storage/sqlite/canonical-repository.ts`; public exports
   live in `src/storage/sqlite/index.ts`. It persists canonical entities,
-  external refs, and aliases. Tests prove `get`, `resolveExternalRef`,
-  external-ref conflicts across repository reopen, and SQLite uniqueness
-  failures mapped to `canonical.external_ref_conflict` at the Canonical Store
-  boundary. Stage Core still defaults to in-memory canonical storage, and its
-  factories now accept optional `canonicalRepository` injection or
+  external refs, aliases, and provisional relations. Tests prove `get`,
+  `resolveExternalRef`, provisional relation list/reopen behavior, external-ref
+  conflicts across repository reopen, and SQLite uniqueness failures mapped to
+  `canonical.external_ref_conflict` at the Canonical Store boundary. Stage Core
+  still defaults to in-memory canonical storage, and its factories now accept
+  optional `canonicalRepository` injection or
   `canonicalDatabasePath` configuration for host surfaces or tests that need
   durable canonical storage. The Codex MCP default runtime accepts
   `MINEMUSIC_CANONICAL_DB_PATH` to initialize that durable Canonical Store.

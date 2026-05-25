@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  CanonicalRelation,
   Collection,
   CollectionItem,
   EffectProposal,
@@ -73,10 +74,40 @@ export function createInMemoryRepository<TRecord, TKey>({
 }
 
 export function createInMemoryCanonicalRecordRepository(): CanonicalRecordRepository {
-  return createInMemoryRepository<CanonicalRecord, Ref>({
-    recordKey: (record) => record.ref,
-    keyToStorageKey: refToStorageKey,
-  });
+  const records = new Map<string, CanonicalRecord>();
+  const relations = new Map<string, CanonicalRelation>();
+
+  return {
+    async get(ref) {
+      const record = records.get(refToStorageKey(ref));
+
+      return ok(record === undefined ? null : cloneRecord(record));
+    },
+
+    async put(record) {
+      records.set(refToStorageKey(record.ref), cloneRecord(record));
+
+      return ok(cloneRecord(record));
+    },
+
+    async list() {
+      return ok([...records.values()].map((record) => cloneRecord(record)));
+    },
+
+    async putRelation({ relation }) {
+      relations.set(relation.id, cloneRecord(relation));
+
+      return ok(cloneRecord(relation));
+    },
+
+    async listRelations(query) {
+      return ok(
+        [...relations.values()]
+          .filter((relation) => matchesCanonicalRelationQuery(relation, query))
+          .map((relation) => cloneRecord(relation)),
+      );
+    },
+  };
 }
 
 export function createInMemoryCollectionRepository(): CollectionRepository {
@@ -310,6 +341,20 @@ function matchesLibraryImportBatchQuery(
     (query.providerAccountId === undefined || batch.providerAccountId === query.providerAccountId) &&
     (query.batchKind === undefined || batch.batchKind === query.batchKind) &&
     (query.status === undefined || batch.status === query.status)
+  );
+}
+
+function matchesCanonicalRelationQuery(
+  relation: CanonicalRelation,
+  query: Parameters<CanonicalRecordRepository["listRelations"]>[0],
+): boolean {
+  return (
+    (query.subjectRef === undefined ||
+      refToStorageKey(relation.subjectRef) === refToStorageKey(query.subjectRef)) &&
+    (query.sourceRef === undefined ||
+      refToStorageKey(relation.sourceRef) === refToStorageKey(query.sourceRef)) &&
+    (query.predicate === undefined || relation.predicate === query.predicate) &&
+    (query.status === undefined || relation.status === query.status)
   );
 }
 

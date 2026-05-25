@@ -141,6 +141,8 @@ async function mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary(): Prom
     const staleConflictCheckRepository: CanonicalRecordRepository = {
       get: (ref) => sqliteRepository.get(ref),
       put: (record) => sqliteRepository.put(record),
+      putRelation: (input) => sqliteRepository.putRelation(input),
+      listRelations: (input) => sqliteRepository.listRelations(input),
       async list(query) {
         const records = await sqliteRepository.list(query);
 
@@ -174,6 +176,80 @@ async function mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary(): Prom
   }
 }
 
+async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-relations-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const sourceRef: Ref = {
+    namespace: "source:netease",
+    kind: "track",
+    id: "relation-track",
+    label: "Relation Track - Fixture Artist",
+  };
+
+  try {
+    const firstStore = createCanonicalStore({
+      repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+      idFactory: () => "canonical-relation-track",
+      clock: () => "2026-05-25T00:00:00.000Z",
+    });
+    const created = await assertOk(
+      firstStore.createProvisional({
+        kind: "recording",
+        label: "Relation Track - Fixture Artist",
+        evidence: [sourceRef],
+      }),
+    );
+
+    await assertOk(
+      firstStore.recordProvisionalRelations({
+        subjectRef: created.ref,
+        sourceRef,
+        providerId: "netease",
+        batchId: "batch-1",
+        relations: [
+          {
+            predicate: "performed_by",
+            objectKind: "artist",
+            objectLabel: "Fixture Artist",
+          },
+          {
+            predicate: "appears_on_release",
+            objectKind: "release",
+            objectLabel: "Fixture Release",
+          },
+          {
+            predicate: "has_duration_ms",
+            objectKind: "duration_ms",
+            objectValue: 123456,
+          },
+        ],
+      }),
+    );
+
+    const reopenedStore = createCanonicalStore({
+      repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+    });
+    const relations = await assertOk(
+      reopenedStore.listRelations({
+        subjectRef: created.ref,
+      }),
+    );
+
+    assert(relations.length === 3, "reopened canonical repository should load provisional relations");
+    assert(
+      relations.some((relation) => relation.predicate === "performed_by" && relation.objectLabel === "Fixture Artist"),
+      "reopened relations should keep artist labels",
+    );
+    assert(
+      relations.some((relation) => relation.predicate === "has_duration_ms" && relation.objectValue === 123456),
+      "reopened relations should keep duration values",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 await persistsCanonicalRecordsAcrossRepositoryReopen();
 await rejectsExternalRefConflictsAfterRepositoryReopen();
 await mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary();
+await persistsCanonicalRelationsAcrossRepositoryReopen();

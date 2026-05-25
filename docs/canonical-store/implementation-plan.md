@@ -341,7 +341,8 @@ git diff --name-only
 
 ## Non-Goals
 
-- full MusicBrainz-style relationship graph.
+- confirmed full MusicBrainz-style relationship graph beyond source-bound
+  provisional relations.
 - provider-driven canonical writes.
 - playback or queue state.
 - durable memory storage.

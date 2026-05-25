@@ -77,7 +77,13 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
             {
               area: "saved_recordings",
               status: "complete",
-              items: [providerItem(importedSourceRef, "Runtime Imported Track")],
+              items: [
+                providerItem(importedSourceRef, "Runtime Imported Track", {
+                  artistLabels: ["Runtime Artist"],
+                  releaseLabel: "Runtime Release",
+                  durationMs: 180000,
+                }),
+              ],
             },
           ],
         },
@@ -126,6 +132,13 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
         ref: importedSourceRef,
       }),
     );
+    assert(canonicalRecord !== null, "Runtime Library Import should resolve the imported canonical record");
+
+    const relations = await assertOk(
+      stageCore.canonical.listRelations({
+        subjectRef: canonicalRecord.ref,
+      }),
+    );
     const importEvents = await assertOk(
       stageCore.events.listBySession({
         sessionId: `library_import:${report.batchId}`,
@@ -153,6 +166,25 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
     assert(
       canonicalRecord?.externalKeys?.some((ref) => ref.id === importedSourceRef.id),
       "Runtime Library Import should bind the imported source ref through Canonical Store",
+    );
+    assert(
+      relations.some(
+        (relation) =>
+          relation.status === "provisional" &&
+          relation.predicate === "performed_by" &&
+          relation.objectLabel === "Runtime Artist",
+      ),
+      "Runtime Library Import should record provisional artist relations through Canonical Store",
+    );
+    assert(
+      relations.some(
+        (relation) => relation.predicate === "appears_on_release" && relation.objectLabel === "Runtime Release",
+      ),
+      "Runtime Library Import should record provisional release relations through Canonical Store",
+    );
+    assert(
+      relations.some((relation) => relation.predicate === "has_duration_ms" && relation.objectValue === 180000),
+      "Runtime Library Import should record provisional duration relations through Canonical Store",
     );
     assert(
       importEvents.map((event) => event.type).join(",") ===
@@ -662,13 +694,18 @@ function runtimeProviderItem(id: string, label: string): PlatformLibraryItem {
   return providerItem(sourceRef(id), label);
 }
 
-function providerItem(sourceRefValue: Ref, label: string): PlatformLibraryItem {
+function providerItem(
+  sourceRefValue: Ref,
+  label: string,
+  canonicalHints?: PlatformLibraryItem["canonicalHints"],
+): PlatformLibraryItem {
   return {
     providerId: "runtime-platform-library-provider",
     sourceRef: sourceRefValue,
     itemKind: "saved_recording",
     targetKind: "recording",
     label,
+    ...(canonicalHints === undefined ? {} : { canonicalHints }),
   };
 }
 

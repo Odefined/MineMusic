@@ -1,5 +1,8 @@
 import type {
   CanonicalRecord,
+  CanonicalRelation,
+  CanonicalRelationDraft,
+  CanonicalRelationValue,
   Ref,
   Result,
   StageError,
@@ -14,11 +17,13 @@ import { createCanonicalStorage } from "./storage.js";
 type CanonicalStoreOptions = {
   repository: CanonicalRecordRepository;
   idFactory?: () => string;
+  clock?: () => string;
 };
 
 export function createCanonicalStore({
   repository,
   idFactory = createDefaultIdFactory("canonical"),
+  clock = () => new Date().toISOString(),
 }: CanonicalStoreOptions): CanonicalStorePort {
   const storage = createCanonicalStorage({ repository });
 
@@ -119,6 +124,61 @@ export function createCanonicalStore({
         { externalRefForConflict: externalRef },
       );
     },
+
+    async recordProvisionalRelations({ subjectRef, sourceRef, providerId, batchId, relations }) {
+      const subject = await storage.get(subjectRef);
+
+      if (!subject.ok) {
+        return fail(subject.error);
+      }
+
+      if (subject.value === null) {
+        return fail({
+          code: "canonical.not_found",
+          message: `Canonical record '${subjectRef.id}' was not found.`,
+          module: "canonical",
+          retryable: false,
+        });
+      }
+
+      const storedRelations: CanonicalRelation[] = [];
+
+      for (const relation of relations) {
+        const now = clock();
+        const provisionalRelation: CanonicalRelation = {
+          id: canonicalRelationId({
+            subjectRef,
+            sourceRef,
+            relation,
+          }),
+          subjectRef,
+          predicate: relation.predicate,
+          objectKind: relation.objectKind,
+          ...(relation.objectRef === undefined ? {} : { objectRef: relation.objectRef }),
+          ...(relation.objectLabel === undefined ? {} : { objectLabel: relation.objectLabel }),
+          ...(relation.objectValue === undefined ? {} : { objectValue: relation.objectValue }),
+          sourceRef,
+          ...(providerId === undefined ? {} : { providerId }),
+          ...(batchId === undefined ? {} : { batchId }),
+          status: "provisional",
+          createdAt: now,
+          updatedAt: now,
+        };
+        const stored = await storage.putRelation(provisionalRelation);
+
+        if (!stored.ok) {
+          return stored;
+        }
+
+        storedRelations.push(stored.value);
+      }
+
+      return ok(storedRelations);
+    },
+
+    async listRelations(input) {
+      return storage.listRelations(input);
+    },
   };
 }
 
@@ -126,6 +186,34 @@ function createDefaultIdFactory(prefix: string): () => string {
   let nextId = 1;
 
   return () => `${prefix}-${nextId++}`;
+}
+
+function canonicalRelationId({
+  subjectRef,
+  sourceRef,
+  relation,
+}: {
+  subjectRef: Ref;
+  sourceRef: Ref;
+  relation: CanonicalRelationDraft;
+}): string {
+  return JSON.stringify([
+    refKey(subjectRef),
+    relation.predicate,
+    relation.objectKind,
+    relation.objectRef === undefined ? null : refKey(relation.objectRef),
+    relation.objectLabel ?? null,
+    relation.objectValue === undefined ? null : relationValueKey(relation.objectValue),
+    refKey(sourceRef),
+  ]);
+}
+
+function refKey(ref: Ref): string {
+  return `${ref.namespace}:${ref.kind}:${ref.id}`;
+}
+
+function relationValueKey(value: CanonicalRelationValue): string {
+  return JSON.stringify(value);
 }
 
 function ok<T>(value: T): Result<T> {

@@ -1,10 +1,14 @@
 import type {
   CanonicalRecord,
+  CanonicalRelation,
   Ref,
   Result,
   StageError,
 } from "../contracts/index.js";
-import type { CanonicalRecordRepository } from "../ports/index.js";
+import type {
+  CanonicalRecordRepository,
+  CanonicalRelationListInput,
+} from "../ports/index.js";
 import {
   isCurrentCanonicalRecord,
   matchesCanonicalKind,
@@ -27,6 +31,8 @@ export type CanonicalStorage = {
   findByLabel(input: { label: string; kind?: string }): Promise<Result<CanonicalRecord[]>>;
   findCurrentByExternalEvidence(evidence: Ref[]): Promise<Result<CanonicalRecord | null>>;
   resolveExternalRef(ref: Ref): Promise<Result<CanonicalRecord | null>>;
+  putRelation(relation: CanonicalRelation): Promise<Result<CanonicalRelation>>;
+  listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
   findExternalRefConflict(input: {
     canonicalRef: Ref;
     externalRef: Ref;
@@ -123,6 +129,14 @@ export function createCanonicalStorage({
             ),
         ) ?? null,
       );
+    },
+
+    async putRelation(relation) {
+      return repository.putRelation({ relation });
+    },
+
+    async listRelations(input) {
+      return repository.listRelations(input);
     },
   };
 }

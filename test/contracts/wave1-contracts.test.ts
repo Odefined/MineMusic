@@ -855,6 +855,8 @@ const canonicalStore: CanonicalStorePort = {
       externalKeys: [externalRef],
     },
   }),
+  recordProvisionalRelations: async () => ({ ok: true, value: [] }),
+  listRelations: async () => ({ ok: true, value: [] }),
 };
 
 const collectionPort: CollectionPort = {
@@ -939,6 +941,8 @@ const canonicalRecords: CanonicalRecordRepository = {
   get: async () => ({ ok: true, value: null }),
   put: async (record) => ({ ok: true, value: record }),
   list: async () => ({ ok: true, value: [] }),
+  putRelation: async ({ relation }) => ({ ok: true, value: relation }),
+  listRelations: async () => ({ ok: true, value: [] }),
 };
 
 const collectionRepository: CollectionRepository = {

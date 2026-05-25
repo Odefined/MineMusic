@@ -4,6 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   CanonicalRecord,
+  CanonicalRelation,
+  CanonicalRelationValue,
   Ref,
   Result,
   StageError,
@@ -36,6 +38,24 @@ type ExternalRefRow = {
 
 type AliasRow = {
   alias: string;
+};
+
+type RelationRow = {
+  id: string;
+  subject_namespace: string;
+  subject_kind: string;
+  subject_id: string;
+  predicate: CanonicalRelation["predicate"];
+  object_kind: CanonicalRelation["objectKind"];
+  object_ref_json: string | null;
+  object_label: string | null;
+  object_value_json: string | null;
+  source_ref_json: string;
+  provider_id: string | null;
+  batch_id: string | null;
+  status: CanonicalRelation["status"];
+  created_at: string;
+  updated_at: string;
 };
 
 type SqliteConstraintCause = {
@@ -174,6 +194,91 @@ export function createSqliteCanonicalRecordRepository({
         return rows.map((row) => readCanonicalRecord(database, row));
       });
     },
+
+    async putRelation({ relation }) {
+      return readResult(() => {
+        database
+          .prepare(`
+            INSERT INTO canonical_relations (
+              id,
+              subject_namespace,
+              subject_kind,
+              subject_id,
+              predicate,
+              object_kind,
+              object_ref_json,
+              object_label,
+              object_value_json,
+              source_namespace,
+              source_kind,
+              source_id,
+              source_ref_json,
+              provider_id,
+              batch_id,
+              status,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              subject_namespace = excluded.subject_namespace,
+              subject_kind = excluded.subject_kind,
+              subject_id = excluded.subject_id,
+              predicate = excluded.predicate,
+              object_kind = excluded.object_kind,
+              object_ref_json = excluded.object_ref_json,
+              object_label = excluded.object_label,
+              object_value_json = excluded.object_value_json,
+              source_namespace = excluded.source_namespace,
+              source_kind = excluded.source_kind,
+              source_id = excluded.source_id,
+              source_ref_json = excluded.source_ref_json,
+              provider_id = excluded.provider_id,
+              batch_id = excluded.batch_id,
+              status = excluded.status,
+              updated_at = excluded.updated_at
+          `)
+          .run(
+            relation.id,
+            relation.subjectRef.namespace,
+            relation.subjectRef.kind,
+            relation.subjectRef.id,
+            relation.predicate,
+            relation.objectKind,
+            optionalJson(relation.objectRef),
+            relation.objectLabel ?? null,
+            optionalJson(relation.objectValue),
+            relation.sourceRef.namespace,
+            relation.sourceRef.kind,
+            relation.sourceRef.id,
+            toJson(relation.sourceRef),
+            relation.providerId ?? null,
+            relation.batchId ?? null,
+            relation.status,
+            relation.createdAt,
+            relation.updatedAt,
+          );
+
+        return structuredClone(relation);
+      });
+    },
+
+    async listRelations(query) {
+      return readResult(() => {
+        const rows = database
+          .prepare(`
+            SELECT *
+            FROM canonical_relations
+            ORDER BY created_at, id
+          `)
+          .all() as RelationRow[];
+
+        return rows
+          .map(toCanonicalRelation)
+          .filter((relation) => matchesRelationQuery(relation, query))
+          .map((relation) => structuredClone(relation));
+      });
+    },
   };
 }
 
@@ -239,6 +344,73 @@ function toRef(row: ExternalRefRow): Ref {
 
 function normalizeLabel(label: string): string {
   return label.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function toCanonicalRelation(row: RelationRow): CanonicalRelation {
+  const relation: CanonicalRelation = {
+    id: row.id,
+    subjectRef: {
+      namespace: row.subject_namespace,
+      kind: row.subject_kind,
+      id: row.subject_id,
+    },
+    predicate: row.predicate,
+    objectKind: row.object_kind,
+    sourceRef: fromJson<Ref>(row.source_ref_json),
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+
+  if (row.object_ref_json !== null) {
+    relation.objectRef = fromJson<Ref>(row.object_ref_json);
+  }
+
+  if (row.object_label !== null) {
+    relation.objectLabel = row.object_label;
+  }
+
+  if (row.object_value_json !== null) {
+    relation.objectValue = fromJson<CanonicalRelationValue>(row.object_value_json);
+  }
+
+  if (row.provider_id !== null) {
+    relation.providerId = row.provider_id;
+  }
+
+  if (row.batch_id !== null) {
+    relation.batchId = row.batch_id;
+  }
+
+  return relation;
+}
+
+function matchesRelationQuery(
+  relation: CanonicalRelation,
+  query: Parameters<CanonicalRecordRepository["listRelations"]>[0],
+): boolean {
+  return (
+    (query.subjectRef === undefined || sameRef(relation.subjectRef, query.subjectRef)) &&
+    (query.sourceRef === undefined || sameRef(relation.sourceRef, query.sourceRef)) &&
+    (query.predicate === undefined || relation.predicate === query.predicate) &&
+    (query.status === undefined || relation.status === query.status)
+  );
+}
+
+function sameRef(left: Ref, right: Ref): boolean {
+  return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
+}
+
+function optionalJson(value: unknown | undefined): string | null {
+  return value === undefined ? null : toJson(value);
+}
+
+function toJson(value: unknown): string {
+  return JSON.stringify(value);
+}
+
+function fromJson<T>(value: string): T {
+  return JSON.parse(value) as T;
 }
 
 function readResult<T>(read: () => T): Result<T> {

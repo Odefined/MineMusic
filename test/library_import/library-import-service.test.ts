@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  PlatformLibraryItem,
   PlatformLibraryPreviewInput,
   PlatformLibraryProvider,
   Ref,
@@ -466,7 +467,12 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
               status: "complete",
               items: [
                 providerItem("bound-track", "Bound Track"),
-                providerItem("new-track", "New Track"),
+                providerItem("new-track", "New Track", {
+                  label: "New Track",
+                  artistLabels: ["Fixture Artist"],
+                  releaseLabel: "Fixture Release",
+                  durationMs: 123456,
+                }),
                 providerItem("unresolved-track", ""),
               ],
             },
@@ -535,6 +541,15 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
       complete: true,
     }),
   );
+  const newTrackRelations = await assertOk(
+    environment.canonicalStore.listRelations({
+      subjectRef: {
+        namespace: "minemusic",
+        kind: "recording",
+        id: "canonical-1",
+      },
+    }),
+  );
   const importEvents = await assertOk(
     environment.events.listBySession({ sessionId: `library_import:${report.batchId}` }),
   );
@@ -565,6 +580,18 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     "import should create a provisional canonical record with the source ref",
   );
   assert(savedItems.length === 2, "import should add only resolvable items to saved Collection");
+  assert(
+    newTrackRelations.some((relation) => relation.predicate === "performed_by" && relation.objectLabel === "Fixture Artist"),
+    "import should record provisional artist relations from provider hints",
+  );
+  assert(
+    newTrackRelations.some((relation) => relation.predicate === "appears_on_release" && relation.objectLabel === "Fixture Release"),
+    "import should record provisional release relations from provider hints",
+  );
+  assert(
+    newTrackRelations.some((relation) => relation.predicate === "has_duration_ms" && relation.objectValue === 123456),
+    "import should record provisional duration relations from provider hints",
+  );
   assert(provenance.length === 3, "import should store item provenance for every observed provider item");
   assert(snapshots.length === 1, "import should store a complete area snapshot");
   assert(snapshots[0]?.sourceRefs.length === 3, "complete snapshots should keep the full observed source-ref set");
@@ -1154,6 +1181,7 @@ function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPl
 
   return {
     libraryImport,
+    canonicalStore,
     canonicalRepository,
     collections,
     events,
@@ -1167,13 +1195,14 @@ function createSequence(prefix: string): () => string {
   return () => `${prefix}-${nextId++}`;
 }
 
-function providerItem(id: string, label: string) {
+function providerItem(id: string, label: string, canonicalHints?: PlatformLibraryItem["canonicalHints"]) {
   return {
     providerId: "fixture-library",
     sourceRef: sourceRef(id),
     itemKind: "saved_recording",
     targetKind: "recording",
     label,
+    ...(canonicalHints === undefined ? {} : { canonicalHints }),
   } as const;
 }
 

@@ -35,8 +35,8 @@ Implemented:
 - SQLite repository implementation split into
   `src/storage/sqlite/canonical-repository.ts`.
 - SQLite public exports kept in `src/storage/sqlite/index.ts`.
-- Schema covers `canonical_entities`, `canonical_external_refs`, and
-  `canonical_aliases`.
+- Schema covers `canonical_entities`, `canonical_external_refs`,
+  `canonical_aliases`, and `canonical_relations`.
 - Rehydration of public `CanonicalRecord` values from SQLite rows.
 - Persistence/reopen tests in `test/storage/sqlite-canonical-store.test.ts`
   for `get`, `resolveExternalRef`, and external-ref conflicts.
@@ -49,6 +49,8 @@ Implemented:
   as proof of identity.
 - Ordinary Canonical Store lookup filters to `active` and `provisional`.
 - Repeated same-record external-ref attachment is idempotent.
+- Provisional relation recording/listing is implemented for source-bound
+  context such as performer, release, and duration hints.
 - Canonical label/ref/current-record normalization is isolated in
   `src/canonical/normalization.ts`.
 - Canonical Store storage mechanics are isolated in `src/canonical/storage.ts`,
@@ -141,6 +143,8 @@ Pending:
   merge recordings. Added regression coverage for same-label/different-source
   Library Import items, treating them as separate source-bound provisional
   identity candidates rather than confirmed distinct recordings.
+- Added provisional canonical relation contracts, repository methods, SQLite
+  persistence, and Library Import relation writes from provider hints.
 
 ## Verification
 

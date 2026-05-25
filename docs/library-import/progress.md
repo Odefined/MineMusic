@@ -73,8 +73,10 @@ This file tracks Library Import implementation progress.
   `libraryImportDatabasePath` or `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` is provided;
   combine that with `canonicalDatabasePath` / `MINEMUSIC_CANONICAL_DB_PATH` and
   `collectionDatabasePath` / `MINEMUSIC_COLLECTION_DB_PATH` when import-created
-  canonical bindings and Collection writes must persist across runtime
-  recreation.
+  canonical bindings, provisional relation context, and Collection writes must
+  persist across runtime recreation. Library Import now records provisional
+  canonical relations from provider hints for imported recordings, including
+  performer, release, and duration context.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports

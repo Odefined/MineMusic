@@ -548,6 +548,11 @@
   1372 canonical external refs, and 1372 active Collection items. These are
   source-bound provisional identities, not proof that every source ref is a
   distinct real-world recording.
+- Added provisional canonical relations: `CanonicalStorePort` can now record and
+  list `provisional` relations, the in-memory and SQLite canonical repositories
+  persist them, and Library Import writes provider hint relations for imported
+  recordings (`performed_by`, `appears_on_release`, `has_duration_ms`) without
+  using those hints as automatic identity merge proof.
 
 ## Next
 

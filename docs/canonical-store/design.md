@@ -199,6 +199,16 @@ provisional records created from separate source refs are source-bound
 placeholders, not a final assertion that the recordings are distinct. Later
 review/admin merge can collapse them when stronger identity evidence exists.
 
+Provisional records may have provisional relations. For imported recordings,
+Library Import can record provider-hint context such as:
+
+- `performed_by` with an artist label.
+- `appears_on_release` with a release label.
+- `has_duration_ms` with a duration value.
+
+These relations are part of the provisional graph. They help later review,
+dedupe, and merge work, but they are not automatic identity proof.
+
 ## External Evidence
 
 External refs are evidence rows, not canonical authority.
@@ -293,6 +303,7 @@ existing `CanonicalStorePort` methods:
 - durable SQLite-backed canonical repository.
 - evidence reuse for provisional identity creation, with label and alias lookup
   kept as candidate discovery rather than automatic identity merging.
+- provisional relation recording/listing for provider-hint context.
 - active/provisional filtering for ordinary lookup.
 - idempotent same-record external-ref attachment.
 - Stage Core repository injection with in-memory storage as the default.
@@ -313,7 +324,7 @@ Still outside the implementation:
 | Canonical normalization | `src/canonical/normalization.ts` | `normalizeCanonicalLabel`, `sameRef` |
 | Canonical storage mechanics | `src/canonical/storage.ts` | `createCanonicalStorage` |
 | Public ports | `src/ports/index.ts` | `CanonicalStorePort` |
-| Shared contracts | `src/contracts/index.ts` | `CanonicalRecord`, `Ref`, `DomainEventType` |
+| Shared contracts | `src/contracts/index.ts` | `CanonicalRecord`, `CanonicalRelation`, `Ref`, `DomainEventType` |
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` |
 | SQLite schema | `src/storage/sqlite/canonical-schema.ts` | `initializeCanonicalSchema` |
 | SQLite repository | `src/storage/sqlite/canonical-repository.ts` | `createSqliteCanonicalRecordRepository` |

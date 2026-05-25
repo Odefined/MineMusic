@@ -68,8 +68,8 @@ This index points agents to the current MVP documentation pack.
     - Change log for the MVP documentation baseline.
 
 19. `docs/canonical-store/storage-model.md`
-    - Canonical Store durable storage model, implemented SQLite scope, and
-      open design questions.
+    - Canonical Store durable storage model, implemented SQLite scope including
+      provisional relations, and open design questions.
 
 20. `docs/canonical-store/design.md`
     - Canonical Store responsibility, data flow, module boundaries, and
@@ -77,7 +77,8 @@ This index points agents to the current MVP documentation pack.
 
 21. `docs/canonical-store/interfaces.md`
     - Canonical Store public/admin/repository interface design and module access
-      matrix, including implemented methods and design-only methods.
+      matrix, including implemented methods, provisional relation methods, and
+      design-only methods.
 
 22. `docs/canonical-store/implementation-plan.md`
     - Task-by-task plan for implementing durable Canonical Store storage and
@@ -102,8 +103,8 @@ This index points agents to the current MVP documentation pack.
 
 27. `docs/library-import/design.md`
     - Library Import design for import orchestration, library updates,
-      Collection Service writes, Canonical Store external-ref bindings, and
-      import/update event records.
+      Collection Service writes, Canonical Store external-ref bindings,
+      provisional relation writes, and import/update event records.
 
 28. `docs/library-import/implementation-plan.md`
     - Task-by-task Library Import Service implementation plan for contracts,
@@ -130,20 +131,23 @@ This index points agents to the current MVP documentation pack.
       collection lifecycle, item membership, blocked filtering, and events.
 
 33. `src/canonical/index.ts`
-    - Canonical Store public-port implementation and current identity policy.
+    - Canonical Store public-port implementation, provisional relation
+      recording/listing, and current identity policy.
 
 34. `src/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
 35. `src/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
-      mechanics.
+      mechanics, plus relation persistence delegation.
 
 36. `src/storage/sqlite/canonical-schema.ts`
-    - SQLite schema initialization for Canonical Store durable storage.
+    - SQLite schema initialization for Canonical Store durable storage,
+      including provisional relations.
 
 37. `src/storage/sqlite/canonical-repository.ts`
-    - SQLite-backed Canonical Store repository implementation.
+    - SQLite-backed Canonical Store repository implementation for records,
+      external refs, aliases, and provisional relations.
 
 38. `src/storage/sqlite/collection-schema.ts`
     - SQLite schema initialization for durable Collection storage.
@@ -157,7 +161,7 @@ This index points agents to the current MVP documentation pack.
 
 41. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
-      repository.
+      repository, including provisional relation persistence.
 
 42. `test/storage/sqlite-collection-repository.test.ts`
     - Persistence/reopen tests for the SQLite-backed Collection repository.

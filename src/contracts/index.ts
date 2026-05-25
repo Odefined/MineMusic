@@ -163,6 +163,48 @@ export type CanonicalRecord = {
   aliases?: string[];
 };
 
+export type CanonicalRelationStatus =
+  | "provisional"
+  | "confirmed"
+  | "rejected";
+
+export type CanonicalRelationPredicate =
+  | "performed_by"
+  | "appears_on_release"
+  | "has_duration_ms"
+  | (string & {});
+
+export type CanonicalRelationObjectKind =
+  | CanonicalKind
+  | "duration_ms"
+  | (string & {});
+
+export type CanonicalRelationValue = string | number | boolean;
+
+export type CanonicalRelation = {
+  id: string;
+  subjectRef: Ref;
+  predicate: CanonicalRelationPredicate;
+  objectKind: CanonicalRelationObjectKind;
+  objectRef?: Ref;
+  objectLabel?: string;
+  objectValue?: CanonicalRelationValue;
+  sourceRef: Ref;
+  providerId?: string;
+  batchId?: string;
+  status: CanonicalRelationStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CanonicalRelationDraft = {
+  predicate: CanonicalRelationPredicate;
+  objectKind: CanonicalRelationObjectKind;
+  objectRef?: Ref;
+  objectLabel?: string;
+  objectValue?: CanonicalRelationValue;
+};
+
 export type CollectionKind =
   | "recording"
   | "work"

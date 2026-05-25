@@ -1,6 +1,10 @@
 import type {
   CanonicalRecord,
   CanonicalKind,
+  CanonicalRelation,
+  CanonicalRelationDraft,
+  CanonicalRelationPredicate,
+  CanonicalRelationStatus,
   CapabilitySlot,
   Collection,
   CollectionItem,
@@ -125,6 +129,13 @@ export type LibraryImportRepositoryListAbsencesInput = {
   currentBatchId?: string;
 };
 
+export type CanonicalRelationListInput = {
+  subjectRef?: Ref;
+  sourceRef?: Ref;
+  predicate?: CanonicalRelationPredicate;
+  status?: CanonicalRelationStatus;
+};
+
 export interface SessionContextPort {
   getSession(input: { sessionId: string }): Promise<Result<StageSession>>;
 
@@ -178,6 +189,16 @@ export interface CanonicalStorePort {
     canonicalRef: Ref;
     externalRef: Ref;
   }): Promise<Result<CanonicalRecord>>;
+
+  recordProvisionalRelations(input: {
+    subjectRef: Ref;
+    sourceRef: Ref;
+    providerId?: string;
+    batchId?: string;
+    relations: CanonicalRelationDraft[];
+  }): Promise<Result<CanonicalRelation[]>>;
+
+  listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
 }
 
 export interface CollectionPort {
@@ -400,7 +421,11 @@ export interface LibraryImportRepository {
   ): Promise<Result<PlatformLibraryAbsence[]>>;
 }
 
-export type CanonicalRecordRepository = Repository<CanonicalRecord, Ref>;
+export interface CanonicalRecordRepository extends Repository<CanonicalRecord, Ref> {
+  putRelation(input: { relation: CanonicalRelation }): Promise<Result<CanonicalRelation>>;
+
+  listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
+}
 export type EventRepository = Repository<StageEvent, string>;
 export type MemoryRepository = Repository<MemoryEntry, string>;
 export type SessionRepository = Repository<StageSession, string>;

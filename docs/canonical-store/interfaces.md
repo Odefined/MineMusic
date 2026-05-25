@@ -140,6 +140,10 @@ Implemented behavior:
   lookup-only candidate discovery.
 - different source refs do not prove different real-world recordings; separate
   provisional records are source-bound candidates until review/admin merge.
+- `recordProvisionalRelations` records source-bound relation context without
+  confirming identity.
+- `listRelations` returns stored relations filtered by subject, source,
+  predicate, or status.
 - `attachExternalRef` is idempotent for refs already attached to the same
   canonical record.
 - SQLite external-ref uniqueness failures are mapped to

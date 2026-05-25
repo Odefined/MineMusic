@@ -55,5 +55,36 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS canonical_aliases_lookup_idx
       ON canonical_aliases(normalized_alias);
+
+    CREATE TABLE IF NOT EXISTS canonical_relations (
+      id TEXT PRIMARY KEY,
+      subject_namespace TEXT NOT NULL,
+      subject_kind TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      predicate TEXT NOT NULL,
+      object_kind TEXT NOT NULL,
+      object_ref_json TEXT,
+      object_label TEXT,
+      object_value_json TEXT,
+      source_namespace TEXT NOT NULL,
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      source_ref_json TEXT NOT NULL,
+      provider_id TEXT,
+      batch_id TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      CHECK (status IN ('provisional', 'confirmed', 'rejected'))
+    );
+
+    CREATE INDEX IF NOT EXISTS canonical_relations_subject_idx
+      ON canonical_relations(subject_namespace, subject_kind, subject_id, status);
+
+    CREATE INDEX IF NOT EXISTS canonical_relations_source_idx
+      ON canonical_relations(source_namespace, source_kind, source_id);
+
+    CREATE INDEX IF NOT EXISTS canonical_relations_predicate_idx
+      ON canonical_relations(predicate, status);
   `);
 }
