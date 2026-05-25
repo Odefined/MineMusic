@@ -2,18 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { pathToFileURL } from "node:url";
 
-import type { KnowledgeProvider, Result, StageSession, ToolName } from "../../contracts/index.js";
+import type { Result, ToolName } from "../../contracts/index.js";
 import {
-  createNetEasePlatformLibraryProvider,
-  createNetEaseSourceProvider,
-  type NetEaseProviderOptions,
-} from "../../providers/netease/index.js";
-import { createMusicBrainzKnowledgeProvider } from "../../providers/musicbrainz/index.js";
-import {
-  createMineMusicStageCoreWithSourceProvider,
-  type KnowledgeProviderFactory,
-  type MineMusicStageCore,
-} from "../../stage_core/index.js";
+  createDefaultMineMusicServiceRuntime,
+  type MineMusicServiceRuntimeOptions,
+} from "../../service/index.js";
+import type { MineMusicStageCore } from "../../stage_core/index.js";
 import {
   agentToolDescriptors,
   stableToolNames,
@@ -107,64 +101,9 @@ export async function runMineMusicMcpServer(
 
 export function createDefaultMineMusicMcpStageCore(
   env: Record<string, string | undefined> = process.env,
-  options: {
-    handbookPath?: string;
-    knowledgeProviders?: KnowledgeProvider[];
-    knowledgeProviderFactories?: KnowledgeProviderFactory[];
-    providerHttpCacheDatabasePath?: string;
-  } = {},
+  options: MineMusicServiceRuntimeOptions = {},
 ): MineMusicStageCore {
-  const netEaseOptions = createNetEaseProviderOptions(env);
-  const defaultKnowledgeProviderFactories: KnowledgeProviderFactory[] =
-    options.knowledgeProviders === undefined && options.knowledgeProviderFactories === undefined
-      ? [({ providerHttpCache }) => createMusicBrainzKnowledgeProvider({ cache: providerHttpCache })]
-      : [];
-  const knowledgeProviderFactories =
-    options.knowledgeProviderFactories === undefined
-      ? defaultKnowledgeProviderFactories
-      : options.knowledgeProviderFactories;
-
-  return createMineMusicStageCoreWithSourceProvider({
-    session: createDefaultCodexSession(env),
-    sourceProvider: createNetEaseSourceProvider(netEaseOptions),
-    platformLibraryProvider: createNetEasePlatformLibraryProvider(netEaseOptions),
-    ...(env.MINEMUSIC_CANONICAL_DB_PATH === undefined
-      ? {}
-      : { canonicalDatabasePath: env.MINEMUSIC_CANONICAL_DB_PATH }),
-    ...(env.MINEMUSIC_COLLECTION_DB_PATH === undefined
-      ? {}
-      : { collectionDatabasePath: env.MINEMUSIC_COLLECTION_DB_PATH }),
-    ...(env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH === undefined
-      ? {}
-      : { libraryImportDatabasePath: env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH }),
-    ...(options.providerHttpCacheDatabasePath === undefined
-      ? {}
-      : { providerHttpCacheDatabasePath: options.providerHttpCacheDatabasePath }),
-    ...(options.knowledgeProviders === undefined ? {} : { knowledgeProviders: options.knowledgeProviders }),
-    knowledgeProviderFactories,
-    ...(options.handbookPath === undefined ? {} : { handbookPath: options.handbookPath }),
-  });
-}
-
-function createNetEaseProviderOptions(env: Record<string, string | undefined>): NetEaseProviderOptions {
-  return env.MINEMUSIC_NETEASE_BASE_URL === undefined
-    ? {}
-    : {
-        baseUrl: env.MINEMUSIC_NETEASE_BASE_URL,
-      };
-}
-
-function createDefaultCodexSession(env: Record<string, string | undefined>): StageSession {
-  return {
-    id: env.MINEMUSIC_SESSION_ID ?? "codex-default",
-    posture: "recommendation",
-    activeInstruments: [],
-    autonomy: "manual",
-    vibe: {
-      text: env.MINEMUSIC_VIBE ?? "Codex-hosted MineMusic session.",
-      explanationDensity: "brief",
-    },
-  };
+  return createDefaultMineMusicServiceRuntime(env, options).stageCore;
 }
 
 function asTextResult<T>(result: Result<T>): MineMusicMcpToolResult {
