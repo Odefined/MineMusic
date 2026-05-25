@@ -14,7 +14,8 @@ Provider without preserving the old `MusicMaterial[]` knowledge path.
 In scope:
 
 - shared Knowledge contracts for `KnowledgeResult`, `KnowledgeItem`,
-  `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`, and `KnowledgeEdge`.
+  `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`, and
+  `KnowledgeRelation`.
 - `MusicKnowledgePort.query` returning `KnowledgeResult`.
 - general read-only Stage Interface tool `knowledge.query`.
 - provider Handbook capability descriptions.
@@ -45,8 +46,8 @@ Files:
 Work:
 
 - Replace the current Knowledge result shape with `KnowledgeResult`.
-- Add `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`, `KnowledgeEdge`,
-  and related source/descriptor types.
+- Add `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`,
+  `KnowledgeRelation`, and related source/descriptor types.
 - Change `KnowledgeQuery.ref` to `canonicalRef`.
 - Add `formats` and `expand`.
 - Add first-version query validation rule: exactly one of `text` or
@@ -275,7 +276,8 @@ Work:
 - For text queries such as artist + `expand: ["relations"]` +
   `relationFocus: ["members"]`, search artists, take the returned MBID
   internally, look up artist relationships, then return member facts.
-- Map MusicBrainz `member of band` relationships to `has_member` edges.
+- Map MusicBrainz `member of band` relationships to structured member
+  relations.
 - Preserve original MusicBrainz relationship type, direction, begin date, end
   date, ended flag, and attributes such as `lead vocals`.
 - Keep agents on the general `knowledge.query` interface. Agents should not need

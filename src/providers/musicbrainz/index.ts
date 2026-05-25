@@ -4,6 +4,7 @@ import type {
   KnowledgeNode,
   KnowledgeProvider,
   KnowledgeQuery,
+  KnowledgeRelation,
   KnowledgeRelationFocus,
   Ref,
   Result,
@@ -884,9 +885,9 @@ function recordingToKnowledge(recording: MusicBrainzRecording): StructuredKnowle
       properties: recordingProperties(recording),
     },
   ];
-  const edges: StructuredKnowledge["edges"] = [];
-  appendArtistCredits(nodes, edges, rootNodeId, recording["artist-credit"]);
-  appendRelations(nodes, edges, rootNodeId, recording.relations);
+  const relations: KnowledgeRelation[] = [];
+  appendArtistCredits(nodes, relations, rootNodeId, recording["artist-credit"]);
+  appendRelations(nodes, relations, rootNodeId, recording.relations);
 
   const retrievalScore = numberValue(recording.score);
 
@@ -898,7 +899,7 @@ function recordingToKnowledge(recording: MusicBrainzRecording): StructuredKnowle
     },
     rootNodeId,
     nodes,
-    edges,
+    relations,
     ...(retrievalScore === undefined ? {} : { retrievalScore }),
   };
 }
@@ -916,11 +917,11 @@ function releaseToKnowledge(release: MusicBrainzRelease): StructuredKnowledge {
       properties: releaseProperties(release),
     },
   ];
-  const edges: StructuredKnowledge["edges"] = [];
+  const relations: KnowledgeRelation[] = [];
   const releaseGroup = releaseGroupValue(release["release-group"]);
   const releaseGroupId = stringValue(releaseGroup?.id);
 
-  appendArtistCredits(nodes, edges, rootNodeId, release["artist-credit"]);
+  appendArtistCredits(nodes, relations, rootNodeId, release["artist-credit"]);
 
   if (releaseGroupId !== undefined) {
     const releaseGroupLabel = stringValue(releaseGroup?.title);
@@ -932,16 +933,18 @@ function releaseToKnowledge(release: MusicBrainzRelease): StructuredKnowledge {
       ref: musicBrainzRef("release_group", releaseGroupId, releaseGroupLabel),
       properties: releaseGroupProperties(releaseGroup ?? {}),
     });
-    edges.push({
-      subject: rootNodeId,
-      predicate: "part_of_release_group",
-      object: releaseGroupNodeId,
+    relations.push({
+      type: "part_of_release_group",
+      endpoints: [
+        { nodeId: rootNodeId, role: "release" },
+        { nodeId: releaseGroupNodeId, role: "release_group" },
+      ],
     });
   }
 
-  appendReleaseLabels(nodes, edges, rootNodeId, release["label-info"]);
-  appendTracklist(nodes, edges, rootNodeId, releaseId, release.media);
-  appendRelations(nodes, edges, rootNodeId, release.relations);
+  appendReleaseLabels(nodes, relations, rootNodeId, release["label-info"]);
+  appendTracklist(nodes, relations, rootNodeId, releaseId, release.media);
+  appendRelations(nodes, relations, rootNodeId, release.relations);
 
   const retrievalScore = numberValue(release.score);
 
@@ -953,7 +956,7 @@ function releaseToKnowledge(release: MusicBrainzRelease): StructuredKnowledge {
     },
     rootNodeId,
     nodes,
-    edges,
+    relations,
     ...(retrievalScore === undefined ? {} : { retrievalScore }),
   };
 }
@@ -971,9 +974,9 @@ function releaseGroupToKnowledge(releaseGroup: MusicBrainzReleaseGroup): Structu
       properties: releaseGroupProperties(releaseGroup),
     },
   ];
-  const edges: StructuredKnowledge["edges"] = [];
-  appendArtistCredits(nodes, edges, rootNodeId, releaseGroup["artist-credit"]);
-  appendRelations(nodes, edges, rootNodeId, releaseGroup.relations);
+  const relations: KnowledgeRelation[] = [];
+  appendArtistCredits(nodes, relations, rootNodeId, releaseGroup["artist-credit"]);
+  appendRelations(nodes, relations, rootNodeId, releaseGroup.relations);
 
   const retrievalScore = numberValue(releaseGroup.score);
 
@@ -985,7 +988,7 @@ function releaseGroupToKnowledge(releaseGroup: MusicBrainzReleaseGroup): Structu
     },
     rootNodeId,
     nodes,
-    edges,
+    relations,
     ...(retrievalScore === undefined ? {} : { retrievalScore }),
   };
 }
@@ -1004,8 +1007,8 @@ function artistToKnowledge(artist: MusicBrainzArtist): StructuredKnowledge {
       properties: artistProperties(artist),
     },
   ];
-  const edges: StructuredKnowledge["edges"] = [];
-  appendRelations(nodes, edges, rootNodeId, artist.relations);
+  const relations: KnowledgeRelation[] = [];
+  appendRelations(nodes, relations, rootNodeId, artist.relations);
 
   return {
     kind: "structured",
@@ -1015,7 +1018,7 @@ function artistToKnowledge(artist: MusicBrainzArtist): StructuredKnowledge {
     },
     rootNodeId,
     nodes,
-    edges,
+    relations,
     ...(retrievalScore === undefined ? {} : { retrievalScore }),
   };
 }
@@ -1034,8 +1037,8 @@ function workToKnowledge(work: MusicBrainzWork): StructuredKnowledge {
       properties: workProperties(work),
     },
   ];
-  const edges: StructuredKnowledge["edges"] = [];
-  appendRelations(nodes, edges, rootNodeId, work.relations);
+  const relations: KnowledgeRelation[] = [];
+  appendRelations(nodes, relations, rootNodeId, work.relations);
 
   return {
     kind: "structured",
@@ -1045,7 +1048,7 @@ function workToKnowledge(work: MusicBrainzWork): StructuredKnowledge {
     },
     rootNodeId,
     nodes,
-    edges,
+    relations,
     ...(retrievalScore === undefined ? {} : { retrievalScore }),
   };
 }
@@ -1128,7 +1131,7 @@ function artistCredits(value: unknown): MusicBrainzArtistCredit[] {
 
 function appendArtistCredits(
   nodes: KnowledgeNode[],
-  edges: StructuredKnowledge["edges"],
+  relations: KnowledgeRelation[],
   subjectNodeId: string,
   value: unknown,
 ): void {
@@ -1151,10 +1154,12 @@ function appendArtistCredits(
         disambiguation: stringValue(credit.artist?.disambiguation),
       }),
     });
-    edges.push({
-      subject: subjectNodeId,
-      predicate: "artist_credit",
-      object: artistNodeId,
+    relations.push({
+      type: "artist_credit",
+      endpoints: [
+        { nodeId: subjectNodeId, role: "credited_entity" },
+        { nodeId: artistNodeId, role: "artist" },
+      ],
       properties: {
         creditedName: stringValue(credit.name) ?? stringValue(credit.artist?.name),
         position,
@@ -1165,7 +1170,7 @@ function appendArtistCredits(
 
 function appendRelations(
   nodes: KnowledgeNode[],
-  edges: StructuredKnowledge["edges"],
+  relations: KnowledgeRelation[],
   subjectNodeId: string,
   value: unknown,
 ): void {
@@ -1191,10 +1196,14 @@ function appendRelations(
       ref: musicBrainzRef(targetType, targetId, targetLabel),
       properties: relationTargetProperties(targetType, target),
     });
-    edges.push({
-      subject: subjectNodeId,
-      predicate: relationPredicate(relation, targetType),
-      object: targetNodeId,
+    const direction = relationDirection(relation);
+    relations.push({
+      type: relationPredicate(relation, targetType),
+      endpoints: [
+        { nodeId: subjectNodeId, role: "source" },
+        { nodeId: targetNodeId, role: targetType },
+      ],
+      ...(direction === undefined ? {} : { direction }),
       properties: relationProperties(relation, targetType),
     });
   }
@@ -1304,13 +1313,16 @@ function relationProperties(relation: MusicBrainzRelation, targetType: string): 
   return removeUndefined({
     musicBrainzType: type,
     targetType,
-    direction: stringValue(relation.direction),
     begin: stringValue(relation.begin),
     end: stringValue(relation.end),
     ended: booleanValue(relation.ended),
     role: predicate === "performed_by" ? type : undefined,
     attributes: stringArray(relation.attributes),
   });
+}
+
+function relationDirection(relation: MusicBrainzRelation): KnowledgeRelation["direction"] {
+  return stringValue(relation.direction) as KnowledgeRelation["direction"];
 }
 
 function artistCreditText(value: unknown): string | undefined {
@@ -1335,7 +1347,7 @@ function releaseGroupValue(value: unknown): MusicBrainzReleaseGroup | undefined 
 
 function appendReleaseLabels(
   nodes: KnowledgeNode[],
-  edges: StructuredKnowledge["edges"],
+  relations: KnowledgeRelation[],
   releaseNodeId: string,
   value: unknown,
 ): void {
@@ -1376,10 +1388,12 @@ function appendReleaseLabels(
         type: stringValue(labelInfo.label?.type),
       }),
     });
-    edges.push({
-      subject: releaseNodeId,
-      predicate: "published_by_label",
-      object: labelNodeId,
+    relations.push({
+      type: "published_by_label",
+      endpoints: [
+        { nodeId: releaseNodeId, role: "release" },
+        { nodeId: labelNodeId, role: "label" },
+      ],
       properties: removeUndefined({
         catalogNumber: stringValue(labelInfo["catalog-number"]),
       }),
@@ -1389,7 +1403,7 @@ function appendReleaseLabels(
 
 function appendTracklist(
   nodes: KnowledgeNode[],
-  edges: StructuredKnowledge["edges"],
+  relations: KnowledgeRelation[],
   releaseNodeId: string,
   releaseId: string,
   value: unknown,
@@ -1411,10 +1425,12 @@ function appendTracklist(
         trackCount: numberValue(medium["track-count"]),
       }),
     });
-    edges.push({
-      subject: releaseNodeId,
-      predicate: "has_medium",
-      object: mediumNodeId,
+    relations.push({
+      type: "has_medium",
+      endpoints: [
+        { nodeId: releaseNodeId, role: "release" },
+        { nodeId: mediumNodeId, role: "medium" },
+      ],
     });
 
     if (!Array.isArray(medium.tracks)) {
@@ -1440,10 +1456,12 @@ function appendTracklist(
           lengthMs: numberValue(track.length),
         }),
       });
-      edges.push({
-        subject: mediumNodeId,
-        predicate: "has_track",
-        object: trackNodeId,
+      relations.push({
+        type: "has_track",
+        endpoints: [
+          { nodeId: mediumNodeId, role: "medium" },
+          { nodeId: trackNodeId, role: "track" },
+        ],
       });
 
       const recording = objectValue(track.recording);
@@ -1462,11 +1480,13 @@ function appendTracklist(
         ref: musicBrainzRef("recording", recordingId, recordingTitle),
         properties: recordingProperties(recording),
       });
-      appendArtistCredits(nodes, edges, recordingNodeId, recording["artist-credit"]);
-      edges.push({
-        subject: trackNodeId,
-        predicate: "represents_recording",
-        object: recordingNodeId,
+      appendArtistCredits(nodes, relations, recordingNodeId, recording["artist-credit"]);
+      relations.push({
+        type: "represents_recording",
+        endpoints: [
+          { nodeId: trackNodeId, role: "track" },
+          { nodeId: recordingNodeId, role: "recording" },
+        ],
       });
     }
   }

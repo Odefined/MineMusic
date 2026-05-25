@@ -581,8 +581,9 @@
 - Drafted `docs/knowledge-slot/design.md` for the general Knowledge Slot target
   contract. The draft records the shift from `MusicMaterial[]` to
   provider-attributed knowledge items, keeps MusicBrainz as
-  `StructuredKnowledge`, allows document-style `TextKnowledge`, and preserves
-  Canonical Store ownership of identity review/apply decisions.
+  `StructuredKnowledge`, allows document-style `TextKnowledge`, models
+  structured facts with endpoint-based `KnowledgeRelation` objects, and
+  preserves Canonical Store ownership of identity review/apply decisions.
 - Drafted `docs/knowledge-slot/musicbrainz-provider.md` for the MusicBrainz
   Knowledge Provider. The draft records v1 support for text search,
   provider-ref lookup, and deterministic provider-internal browse for ref-based
@@ -662,7 +663,8 @@
   Handbook expose supported focus values, Music Knowledge rejects unsupported
   focus values, and MusicBrainz text searches can run provider-internal
   expansion follow-up lookup or browse. MusicBrainz `member of band`
-  relationships now map to `has_member` edges with dates and role attributes.
+  relationships now return structured relation facts with dates and role
+  attributes.
 
 ## 2026-05-26
 
@@ -710,6 +712,11 @@
   one file and `MINEMUSIC_HANDBOOK_PATHS` for multiple files. The server runtime
   passes those paths into Stage Core explicitly, so Codex/OpenClaw paths remain
   runtime configuration, not Stage Core defaults.
+- Implemented Knowledge Slot Task 11 relation object contract. Structured
+  knowledge now returns `relations: KnowledgeRelation[]` with endpoint roles
+  instead of public triple-shaped relationship facts; MusicBrainz provider
+  output and existing tests now use that shape. MusicBrainz-specific direction
+  interpretation remains the next task.
 
 ## Next
 

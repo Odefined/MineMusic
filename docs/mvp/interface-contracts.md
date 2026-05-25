@@ -342,7 +342,7 @@ export type StructuredKnowledge = {
   source: KnowledgeSource;
   rootNodeId?: string;
   nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
+  relations: KnowledgeRelation[];
   retrievalScore?: number;
   metadata?: Record<string, unknown>;
 };
@@ -364,11 +364,27 @@ export type KnowledgeNode = {
   properties?: Record<string, unknown>;
 };
 
-export type KnowledgeEdge = {
+export type KnowledgeRelationDirection =
+  | "forward"
+  | "backward"
+  | "none"
+  | (string & {});
+
+export type KnowledgeRelationEndpoint = {
+  nodeId: string;
+  role?: string;
+};
+
+export type KnowledgeRelation = {
   id?: string;
-  subject: string;
-  predicate: string;
-  object: string;
+  type: string;
+  endpoints: KnowledgeRelationEndpoint[];
+  direction?: KnowledgeRelationDirection;
+  phrases?: {
+    forward?: string;
+    reverse?: string;
+    long?: string;
+  };
   properties?: Record<string, unknown>;
 };
 

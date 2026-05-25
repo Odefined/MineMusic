@@ -93,14 +93,14 @@ export type StructuredKnowledge = {
   source: KnowledgeSource;
   rootNodeId?: string;
   nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
+  relations: KnowledgeRelation[];
   retrievalScore?: number;
   metadata?: Record<string, unknown>;
 };
 ```
 
-Structured knowledge uses generic graph primitives rather than first-slice
-music-specific typed objects.
+Structured knowledge uses provider-attributed nodes and relation objects rather
+than first-slice music-specific typed objects.
 
 ```ts
 export type KnowledgeNode = {
@@ -111,20 +111,35 @@ export type KnowledgeNode = {
   properties?: Record<string, unknown>;
 };
 
-export type KnowledgeEdge = {
+export type KnowledgeRelation = {
   id?: string;
-  subject: string;
-  predicate: string;
-  object: string;
+  type: string;
+  endpoints: KnowledgeRelationEndpoint[];
+  direction?: "forward" | "backward" | "none" | (string & {});
+  phrases?: {
+    forward?: string;
+    reverse?: string;
+    long?: string;
+  };
   properties?: Record<string, unknown>;
+};
+
+export type KnowledgeRelationEndpoint = {
+  nodeId: string;
+  role?: string;
 };
 ```
 
 `KnowledgeNode.id` is stable within the `StructuredKnowledge` item. `ref` carries
-a provider ref when one is available. `type` and `predicate` should use
+a provider ref when one is available. Node `type` and relation `type` should use
 music-friendly names such as `artist`, `recording`, `release`, `work`,
 `artist_credit`, `appears_on_release`, or `recording_of_work`, but the contract
 does not require a MusicBrainz-specific object model.
+
+A relation is not required to pick a subject and object. Direction, when the
+provider has one, is recorded as provider context. Relations with no inherent
+direction can use `direction: "none"` or omit direction and rely on endpoint
+roles.
 
 `rootNodeId` is a provider-declared primary node for the structured result. It
 points to a `KnowledgeNode.id` in the same item. Knowledge Service must not infer
@@ -163,9 +178,10 @@ Structured search results should return one `StructuredKnowledge` item per
 provider hit.
 
 Each hit can carry its own `rootNodeId`, `retrievalScore`, source attribution,
-nodes, and edges. Lookup by exact provider ref usually returns one structured
-item. Search or browse calls that produce multiple provider hits should not merge
-those hits into one large structured item at the provider boundary.
+nodes, and relations. Lookup by exact provider ref usually returns one
+structured item. Search or browse calls that produce multiple provider hits
+should not merge those hits into one large structured item at the provider
+boundary.
 
 Later review, UI, or orchestration layers may group or compare items, but the
 Knowledge provider contract should preserve provider result boundaries.
@@ -219,7 +235,7 @@ Provider-only entities may appear in structured knowledge when the source has th
 example, MusicBrainz tracks can appear as provider facts inside a release
 tracklist even though `track` is not currently a MineMusic canonical kind.
 
-Structured knowledge must remain provider-attributed. An edge can say that
+Structured knowledge must remain provider-attributed. A relation can say that
 MusicBrainz relates a recording MBID to a work MBID; it cannot say that a
 MineMusic provisional recording is confirmed as that MBID.
 

@@ -43,7 +43,7 @@ async function queriesKnowledgeProvidersAsProviderAttributedItems(): Promise<voi
                 ref: { namespace: "musicbrainz", kind: "recording", id: "mbid-1" },
               },
             ],
-            edges: [],
+            relations: [],
           },
         ],
       },

@@ -3,8 +3,9 @@
 ## Current Implementation State
 
 - Shared Knowledge contracts now expose `KnowledgeResult`, `KnowledgeItem`,
-  `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`, `KnowledgeEdge`, and
-  `KnowledgeSource`.
+  `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`,
+  `KnowledgeRelation`, `KnowledgeRelationEndpoint`, `KnowledgeSource`, and
+  endpoint-based structured relations.
 - `KnowledgeQuery` now accepts exactly one of `text` or `canonicalRef`, plus
   optional `purpose`, `formats`, `entityKinds`, `expand`, `relationFocus`, and
   `limit`. The first supported relation focus is `members`.
@@ -36,9 +37,8 @@
   MusicBrainz-ref lookup through Canonical context source refs, supports
   deterministic browse expansions for release-group releases and artist release
   groups, maps tracklists, labels, ratings, tags, genres, annotations, and
-  selected relations to `StructuredKnowledge`, maps artist membership
-  relationships to `has_member`, and uses the generic Provider HTTP Cache for
-  successful JSON responses.
+  selected relations to `StructuredKnowledge.relations`, and uses the generic
+  Provider HTTP Cache for successful JSON responses.
 - MusicBrainz text queries now honor expansion requests that require follow-up
   provider calls for supported cases. The provider can search by text, use the
   returned MusicBrainz ref internally for lookup or browse, and return expanded
@@ -55,9 +55,8 @@
 
 ## Remaining Work
 
-- Knowledge relation output still needs to move from edge-style
-  `subject/predicate/object` facts to endpoint-based relation objects, so
-  MusicBrainz relationships can preserve direction, phrases, dates, attributes,
-  and no-direction relations without inventing fake predicates.
+- MusicBrainz relationship mapping still needs to stop flattening provider
+  relationship types into generic directional names such as `has_member` when
+  MusicBrainz direction says the root is not the group being described.
 - Common plugin configuration still needs to become the durable activation path
   for bundled and third-party Knowledge providers.

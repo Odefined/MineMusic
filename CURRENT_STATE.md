@@ -281,7 +281,8 @@ host-facing and LLM-facing surface.
   artists.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a provider query
   service returning `KnowledgeResult`. The shared Knowledge contracts now expose
-  `StructuredKnowledge`, `TextKnowledge`, graph nodes/edges, source
+  `StructuredKnowledge`, `TextKnowledge`, graph nodes, endpoint-based
+  `KnowledgeRelation` objects, source
   attribution, `canonicalRef` query input, `formats`, and `expand`. The service
   validates text-vs-canonicalRef query shape, aggregates provider knowledge
   items, preserves provider warnings, and passes Canonical Store context to
@@ -316,10 +317,12 @@ host-facing and LLM-facing surface.
   installed plugin runtime. `KnowledgeQuery` now also
   supports `relationFocus: ["members"]`; the Stage Interface schema and
   Handbook expose that focus, Music Knowledge rejects unsupported focus values,
-  and the MusicBrainz provider maps `member of band` relationships to
-  `has_member` edges with dates and role attributes. MusicBrainz text queries
-  can now use search hits internally for supported expansion follow-up lookup
-  or browse, so agents can ask for expanded knowledge without knowing MBIDs.
+  and the MusicBrainz provider returns relationship facts through
+  `StructuredKnowledge.relations`. MusicBrainz text queries can now use search
+  hits internally for supported expansion follow-up lookup or browse, so agents
+  can ask for expanded knowledge without knowing MBIDs. Membership mapping still
+  needs to interpret MusicBrainz direction before treating a returned artist as a
+  group member.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity

@@ -13,12 +13,14 @@ import type {
   HandbookToolEntry,
   InstrumentProviderDescriptor,
   KnowledgeCanonicalContext,
-  KnowledgeEdge,
   KnowledgeItem,
   KnowledgeNode,
   KnowledgeProvider,
   KnowledgeProviderCapabilityDescriptor,
   KnowledgeQuery,
+  KnowledgeRelation,
+  KnowledgeRelationDirection,
+  KnowledgeRelationEndpoint,
   KnowledgeRelationFocus,
   KnowledgeResult,
   KnowledgeSource,
@@ -183,14 +185,34 @@ type _structuredKnowledgeContract = Expect<
     | "source"
     | "rootNodeId"
     | "nodes"
-    | "edges"
+    | "relations"
     | "retrievalScore"
     | "metadata"
   > &
     Equal<StructuredKnowledge["kind"], "structured"> &
     Equal<StructuredKnowledge["source"], KnowledgeSource> &
     Equal<StructuredKnowledge["nodes"], KnowledgeNode[]> &
-    Equal<StructuredKnowledge["edges"], KnowledgeEdge[]>
+    Equal<StructuredKnowledge["relations"], KnowledgeRelation[]>
+>;
+
+type _knowledgeRelationContract = Expect<
+  Equal<
+    keyof KnowledgeRelation,
+    "id" | "type" | "endpoints" | "direction" | "phrases" | "properties"
+  > &
+    Equal<KnowledgeRelation["type"], string> &
+    Equal<KnowledgeRelation["endpoints"], KnowledgeRelationEndpoint[]> &
+    Equal<KnowledgeRelation["direction"], KnowledgeRelationDirection | undefined>
+>;
+
+type _knowledgeRelationEndpointContract = Expect<
+  Equal<keyof KnowledgeRelationEndpoint, "nodeId" | "role"> &
+    Equal<KnowledgeRelationEndpoint["nodeId"], string> &
+    Equal<KnowledgeRelationEndpoint["role"], string | undefined>
+>;
+
+type _knowledgeRelationDirectionAllowsNoDirection = Expect<
+  Equal<Extract<KnowledgeRelationDirection, "none">, "none">
 >;
 
 type _textKnowledgeContract = Expect<

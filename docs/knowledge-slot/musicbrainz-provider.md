@@ -131,8 +131,8 @@ Each MusicBrainz search hit returns one `StructuredKnowledge` item with:
 - `rootNodeId` pointing to the hit entity node.
 - `retrievalScore` from MusicBrainz search score when available.
 - one MusicBrainz `Ref` on the root node.
-- related nodes and edges requested by `expand` when available in the search or
-  follow-up lookup response.
+- related nodes and relations requested by `expand` when available in the search
+  or follow-up lookup response.
 
 If a text query requests an expansion that search does not return, the provider
 must use each returned search hit's MusicBrainz ref, up to `query.limit`, and
@@ -145,7 +145,7 @@ browse after the search hit supplies the provider ref. For example:
 
 | Text search hit | Requested expansion | Follow-up step |
 | --- | --- | --- |
-| `artist` | `relations` + `relationFocus: ["members"]` | lookup artist relationships, then keep membership edges |
+| `artist` | `relations` + `relationFocus: ["members"]` | lookup artist relationships, then keep membership relations |
 | `artist` | `release_groups` | browse release groups by artist |
 | `artist` | `recordings` | browse recordings by artist |
 | `artist` | `works` | browse works by artist |
@@ -242,7 +242,7 @@ The lookup result returns one `StructuredKnowledge` item with:
 
 - `rootNodeId` pointing to the looked-up entity node.
 - source attribution for the MusicBrainz entity.
-- nodes and edges from the lookup response.
+- nodes and relations from the lookup response.
 
 ### Browse For List Expansion
 
@@ -343,9 +343,10 @@ building `StructuredKnowledge`.
 Returned member facts should include:
 
 - the member artist node.
-- an edge from the band artist to the member artist.
-- a common predicate, `has_member`.
-- original MusicBrainz relationship type and direction in edge properties.
+- a relation object connecting the group artist and member artist endpoints.
+- a common relation type, such as `has_member`, until MusicBrainz-specific
+  membership semantics are mapped directly.
+- original MusicBrainz relationship type and direction on the relation.
 - `begin`, `end`, and `ended` when MusicBrainz returns them.
 - relationship attributes such as `lead vocals`, `guitar`, or `drums`.
 
@@ -403,7 +404,7 @@ medium
 url
 ```
 
-Common edge `predicate` values:
+Common relation `type` values:
 
 ```text
 artist_credit
@@ -426,9 +427,9 @@ has_member
 Artist credits should be represented in two forms:
 
 - `artistCreditText` on the credited entity node for easy display.
-- `artist_credit` edges from the credited entity node to artist nodes.
+- `artist_credit` relations between the credited entity node and artist nodes.
 
-`artist_credit` edge properties should include:
+`artist_credit` relation properties should include:
 
 ```text
 creditedName
@@ -436,10 +437,10 @@ position
 ```
 
 The MusicBrainz artist MBID lives on the target artist node's `ref.id`. Do not
-duplicate it on the edge. `joinPhrase` does not need a separate structured field
-in the first version because `artistCreditText` preserves the display text.
-Featuring credits are represented through `artistCreditText` and
-`artist_credit` edges in the first version.
+duplicate it on the relation. `joinPhrase` does not need a separate structured
+field in the first version because `artistCreditText` preserves the display
+text. Featuring credits are represented through `artistCreditText` and
+`artist_credit` relations in the first version.
 
 `artist_credit` and `performed_by` are distinct. MusicBrainz artist credits
 describe how an entity is credited for display. MusicBrainz artist-recording
@@ -452,20 +453,20 @@ Tracklists should preserve that `recording` is the primary music entity and
 Use this structure:
 
 ```text
-release --has_medium--> medium
-medium --has_track--> track
-track --represents_recording--> recording
+has_medium endpoints: release, medium
+has_track endpoints: medium, track
+represents_recording endpoints: track, recording
 ```
 
 Track node properties should hold release-specific fields such as `position`,
 `number`, `title`, and `length`. Recording node properties should hold
 recording-level fields such as title, duration, artist credit, and identifiers.
 
-When a MusicBrainz relationship type is too specific for a generic predicate,
+When a MusicBrainz relationship type is too specific for a generic relation type,
 use `musicbrainz_relation` and preserve the MusicBrainz relationship type,
-direction, dates, attributes, and target type in edge `properties`.
+direction, dates, attributes, and target type on the relation.
 
-Important MusicBrainz relationship types should map to common predicates when
+Important MusicBrainz relationship types should map to common relation types when
 possible:
 
 - performance or performer-style recording relationships -> `performed_by`.
@@ -474,8 +475,8 @@ possible:
 - writer relationships -> `written_by`.
 - artist membership relationships -> `has_member`.
 
-`performed_by` edge properties should preserve the specific MusicBrainz role and
-attributes when available:
+`performed_by` relation properties should preserve the specific MusicBrainz role
+and attributes when available:
 
 ```text
 role
@@ -505,8 +506,8 @@ considered full relationships for this rule.
 
 When `relationFocus` is present, fetch the smallest MusicBrainz relationship
 include family that can answer that focus, then filter returned relationships
-before producing Knowledge edges. For `relationFocus: ["members"]` on artist
-roots, fetch artist relationships and return only membership-style edges.
+before producing Knowledge relations. For `relationFocus: ["members"]` on artist
+roots, fetch artist relationships and return only membership-style relations.
 
 `works` is a narrow expansion for work links. `relations` is the broad
 relationship expansion and includes work links when available.

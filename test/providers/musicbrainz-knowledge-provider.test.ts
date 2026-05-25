@@ -1,4 +1,4 @@
-import type { KnowledgeProvider, Result } from "../../src/contracts/index.js";
+import type { KnowledgeProvider, KnowledgeRelation, Result } from "../../src/contracts/index.js";
 import {
   createMusicBrainzKnowledgeProvider,
   type MusicBrainzRequester,
@@ -15,6 +15,12 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
   return awaited.value;
+}
+
+function relationHasEndpoint(relation: KnowledgeRelation, nodeId: string, role?: string): boolean {
+  return relation.endpoints.some((endpoint) =>
+    endpoint.nodeId === nodeId && (role === undefined || endpoint.role === role)
+  );
 }
 
 async function searchesRecordingsAsStructuredKnowledge(): Promise<void> {
@@ -82,8 +88,8 @@ async function searchesRecordingsAsStructuredKnowledge(): Promise<void> {
   assert((root?.properties?.tags as Array<{ name: string }> | undefined)?.[0]?.name === "minimal", "tags should be preserved");
   assert((root?.properties?.rating as { value?: number } | undefined)?.value === 4.2, "rating should be preserved");
   assert(
-    item.edges.some((edge) => edge.predicate === "artist_credit" && edge.properties?.creditedName === "The xx"),
-    "artist credit should be represented as a structured edge",
+    item.relations.some((relation) => relation.type === "artist_credit" && relation.properties?.creditedName === "The xx"),
+    "artist credit should be represented as a structured relation",
   );
 }
 
@@ -253,11 +259,14 @@ async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<
     "release label should be represented as a label node",
   );
   assert(
-    release.edges.some((edge) => edge.predicate === "published_by_label" && edge.properties?.catalogNumber === "YT031"),
-    "release label catalog number should be represented on the label edge",
+    release.relations.some((relation) => relation.type === "published_by_label" && relation.properties?.catalogNumber === "YT031"),
+    "release label catalog number should be represented on the label relation",
   );
   assert(
-    release.edges.some((edge) => edge.predicate === "part_of_release_group" && edge.object === "release_group:release-group-mbid-1"),
+    release.relations.some((relation) =>
+      relation.type === "part_of_release_group"
+      && relationHasEndpoint(relation, "release_group:release-group-mbid-1", "release_group")
+    ),
     "release should link to its release group",
   );
   assert(releaseGroup?.kind === "structured", "release group hit should be structured");
@@ -512,9 +521,9 @@ async function mapsReleaseTracklistExpansion(): Promise<void> {
   assert(item.nodes.some((node) => node.type === "medium" && node.id === "medium:release-mbid-1:1"), "medium node should be present");
   assert(item.nodes.some((node) => node.type === "track" && node.ref?.id === "track-mbid-1"), "track node should be present");
   assert(item.nodes.some((node) => node.type === "recording" && node.ref?.id === "recording-mbid-1"), "recording node should be present");
-  assert(item.edges.some((edge) => edge.predicate === "has_medium"), "release should link to medium");
-  assert(item.edges.some((edge) => edge.predicate === "has_track"), "medium should link to track");
-  assert(item.edges.some((edge) => edge.predicate === "represents_recording"), "track should link to recording");
+  assert(item.relations.some((relation) => relation.type === "has_medium"), "release should link to medium");
+  assert(item.relations.some((relation) => relation.type === "has_track"), "medium should link to track");
+  assert(item.relations.some((relation) => relation.type === "represents_recording"), "track should link to recording");
 }
 
 async function mapsMusicBrainzRelations(): Promise<void> {
@@ -566,10 +575,10 @@ async function mapsMusicBrainzRelations(): Promise<void> {
 
   assert(item?.kind === "structured", "relation lookup should be structured");
   assert(item.nodes.some((node) => node.type === "work" && node.ref?.id === "work-mbid-1"), "work relation target should be a node");
-  assert(item.edges.some((edge) => edge.predicate === "recording_of_work"), "recording-of-work should map to a common predicate");
-  assert(item.edges.some((edge) => edge.predicate === "performed_by" && edge.properties?.role === "performance"), "performance should map to performed_by");
+  assert(item.relations.some((relation) => relation.type === "recording_of_work"), "recording-of-work should map to a common relation type");
+  assert(item.relations.some((relation) => relation.type === "performed_by" && relation.properties?.role === "performance"), "performance should map to performed_by");
   assert(
-    item.edges.some((edge) => (edge.properties?.attributes as string[] | undefined)?.[0] === "vocal"),
+    item.relations.some((relation) => (relation.properties?.attributes as string[] | undefined)?.[0] === "vocal"),
     "relation attributes should be preserved",
   );
 }
@@ -686,13 +695,13 @@ async function expandsTextArtistSearchToFocusedMemberRelations(): Promise<void> 
   assert(item.nodes.some((node) => node.ref?.id === "david-conway"), "David Conway member node should be returned");
   assert(!item.nodes.some((node) => node.ref?.id === "unrelated-artist"), "non-member relations should be filtered out");
   assert(
-    item.edges.some((edge) =>
-      edge.predicate === "has_member"
-      && edge.properties?.musicBrainzType === "member of band"
-      && (edge.properties?.attributes as string[] | undefined)?.includes("lead vocals")
-      && edge.properties?.ended === false
+    item.relations.some((relation) =>
+      relation.type === "has_member"
+      && relation.properties?.musicBrainzType === "member of band"
+      && (relation.properties?.attributes as string[] | undefined)?.includes("lead vocals")
+      && relation.properties?.ended === false
     ),
-    "member edges should preserve MusicBrainz type, role attributes, and date status",
+    "member relations should preserve MusicBrainz type, role attributes, and date status",
   );
 }
 
@@ -763,9 +772,9 @@ async function expandsTextArtistSearchToBroadRelationsWhenNoFocusIsRequested(): 
   assert(item?.kind === "structured", "broad relation result should be structured");
   assert(item.nodes.some((node) => node.ref?.id === "influence-artist"), "broad relation target should be returned");
   assert(
-    item.edges.some((edge) =>
-      edge.predicate === "musicbrainz_relation"
-      && edge.properties?.musicBrainzType === "influenced by"
+    item.relations.some((relation) =>
+      relation.type === "musicbrainz_relation"
+      && relation.properties?.musicBrainzType === "influenced by"
     ),
     "unfocused relation expansion should preserve broad MusicBrainz relations",
   );
