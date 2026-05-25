@@ -319,3 +319,203 @@ Verification:
 - `git diff --name-only`.
 - `npm test`.
 - `npm run typecheck` if not included in `npm test`.
+
+## Task 11: Relation Object Contract
+
+Goal:
+
+Replace edge-style relationship output with relation objects that do not require
+`subject -> predicate -> object`.
+
+Files:
+
+- `src/contracts/index.ts`
+- `src/stage_interface/schemas.ts`
+- contract and schema tests.
+- `docs/knowledge-slot/design.md`
+- `docs/mvp/interface-contracts.md`
+- `docs/mvp/module-interfaces.md`
+
+Work:
+
+- Add a shared `KnowledgeRelation` contract.
+- Change `StructuredKnowledge` so provider relationships are returned as
+  `relations: KnowledgeRelation[]`.
+- Stop using `KnowledgeEdge` as the public way to express provider
+  relationships.
+- Model a relation as:
+  - a relation `type`.
+  - two or more endpoint node ids.
+  - optional endpoint roles, such as `member`, `group`, `recording`, `work`,
+    `release`, `label`, or `participant`.
+  - optional provider/source fields, such as MusicBrainz direction, forward
+    phrase, reverse phrase, begin date, end date, ended flag, and attributes.
+- Keep `rootNodeId` as the result's primary node only. It must not define a
+  relation's subject.
+- Keep relation objects provider-attributed. They still do not confirm
+  MineMusic canonical identity.
+
+Verification:
+
+- Contract tests cover a relation with endpoint roles.
+- Contract tests cover a relation with no inherent direction.
+- Schema tests expose `relations` and no longer require `edges`.
+
+Commit:
+
+- Commit this task before changing provider mapping.
+
+## Task 12: MusicBrainz Relation Mapping
+
+Goal:
+
+Map MusicBrainz relationships without flattening them into fake directional
+predicates such as `has_member`.
+
+Files:
+
+- `src/providers/musicbrainz/index.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+- `docs/knowledge-slot/musicbrainz-provider.md`
+
+Work:
+
+- Change MusicBrainz relationship mapping to create `KnowledgeRelation`
+  objects.
+- Preserve MusicBrainz relationship facts:
+  - relationship type.
+  - target entity ref and node.
+  - direction relative to the MusicBrainz lookup entity.
+  - forward and reverse phrases when available.
+  - begin date, end date, ended flag, and attributes.
+- For MusicBrainz `member of band`:
+  - `direction: "backward"` from a group artist means the target artist is a
+    member of the root group.
+  - `direction: "forward"` from a group artist means the root artist is a
+    member of the target group; it must not be returned as a group member in
+    `relationFocus: ["members"]`.
+  - endpoint roles should make the relation readable without relying on
+    `subject` or `object`.
+- Keep broad `expand: ["relations"]` as broad relation retrieval, but return
+  relation objects with MusicBrainz direction and phrases intact.
+
+Verification:
+
+- Fixture test proves Black Country, New Road member lookup includes Isaac Wood,
+  The Guest, and Tyler Hyde as member relations when MusicBrainz returns
+  backward `member of band`.
+- Fixture test proves a forward `member of band` relation, such as
+  `black midi, New Road`, is not emitted as a member of Black Country, New Road
+  for `relationFocus: ["members"]`.
+- Fixture tests prove relationship dates and role attributes such as
+  `lead vocals` survive the mapping.
+
+Commit:
+
+- Commit this task before migrating non-membership structured facts.
+
+## Task 13: Structured Fact Migration
+
+Goal:
+
+Move existing structured MusicBrainz links from edge output to relation output
+without changing the public query behavior.
+
+Files:
+
+- `src/providers/musicbrainz/index.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+- Knowledge service tests affected by result snapshots.
+- Handbook or surface tests that assert result shapes.
+
+Work:
+
+- Convert current provider links such as artist credits, tracklist membership,
+  recording-work links, release-release-group links, release labels, release
+  appearances, and URL links to `KnowledgeRelation`.
+- Keep simple scalar facts, such as duration, barcode, rating, tags, genres, and
+  annotation, on node or relation properties as appropriate.
+- Do not create subject/object equivalents under different names.
+- Keep one `StructuredKnowledge` item per provider hit.
+- Preserve node ids and provider refs so callers can still identify returned
+  artists, recordings, releases, release groups, works, labels, tracks, and
+  URLs.
+
+Verification:
+
+- Existing MusicBrainz fixture tests are updated to assert `relations`.
+- Tests prove tracklist, release label, artist credit, recording-work, ratings,
+  tags, genres, and annotation facts still return.
+- `npm test` passes after the migration.
+
+Commit:
+
+- Commit this task after the provider tests pass.
+
+## Task 14: Service, Handbook, And Real Tool Smoke
+
+Goal:
+
+Make the general Knowledge tool and installed plugin behavior match the new
+relation contract.
+
+Files:
+
+- `src/knowledge/index.ts`
+- `src/handbook/index.ts`
+- `src/stage_interface/**`
+- `src/surfaces/mcp/server.ts`
+- `plugins/minemusic/**`
+- relevant docs and generated Handbook files.
+
+Work:
+
+- Ensure `knowledge.query` returns the new relation shape unchanged from the
+  provider.
+- Update schema descriptions and Handbook text so agents ask for relation
+  focus, not provider-specific MusicBrainz API details.
+- Refresh the installed local plugin cache after code and Handbook changes.
+- Run a real `minemusic.knowledge.query` smoke test for:
+  - `Black Country, New Road` with `expand: ["relations"]` and
+    `relationFocus: ["members"]`.
+  - a broad artist relation query without `relationFocus`.
+
+Verification:
+
+- Stage Interface and MCP exposure tests pass.
+- Local plugin cache matches `plugins/minemusic`.
+- Real tool smoke proves the agent-facing Knowledge tool can retrieve member
+  changes without treating a forward MusicBrainz relation as a group member.
+
+Commit:
+
+- Commit this task after the real tool smoke passes.
+
+## Task 15: Final State Sync
+
+Files:
+
+- `INDEX.md`
+- `CURRENT_STATE.md`
+- `ARCHITECTURE.md`
+- `PROGRESS.md`
+- `docs/knowledge-slot/design.md`
+- `docs/knowledge-slot/implementation-plan.md`
+- `docs/knowledge-slot/musicbrainz-provider.md`
+- `docs/knowledge-slot/progress.md`
+
+Work:
+
+- Update global and module-local state documents after the relation migration.
+- Record any remaining gaps, especially Canonical Store review/apply work and
+  future provider configuration loading.
+
+Verification:
+
+- `git diff --name-only`.
+- `npm test`.
+- `npm run typecheck` if it is not included in `npm test`.
+
+Commit:
+
+- Commit final documentation/state sync separately.

@@ -55,5 +55,9 @@
 
 ## Remaining Work
 
+- Knowledge relation output still needs to move from edge-style
+  `subject/predicate/object` facts to endpoint-based relation objects, so
+  MusicBrainz relationships can preserve direction, phrases, dates, attributes,
+  and no-direction relations without inventing fake predicates.
 - Common plugin configuration still needs to become the durable activation path
   for bundled and third-party Knowledge providers.
