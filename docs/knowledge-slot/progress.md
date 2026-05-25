@@ -15,10 +15,12 @@
   `KnowledgeItem[]` from registered Knowledge providers, preserves provider
   warnings, and passes Canonical Store context to providers for `canonicalRef`
   queries.
+- Provider descriptors now carry Knowledge capability metadata for supported
+  formats, entity kinds, expansions, and boundary notes, and Handbook rendering
+  includes those fields on the owning music instrument.
 
 ## Remaining Work
 
-- Provider Handbook capability descriptors are not implemented yet.
 - The `music.knowledge.query` Stage Interface tool is not implemented yet.
 - Generic provider HTTP cache storage is not implemented yet.
 - MusicBrainz Knowledge Provider is not implemented yet.

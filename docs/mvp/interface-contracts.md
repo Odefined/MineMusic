@@ -558,6 +558,12 @@ export type InstrumentProviderDescriptor = {
     availability: string;
     description?: string;
   }>;
+  knowledge?: {
+    formats?: Array<"structured" | "text">;
+    entityKinds?: string[];
+    expansions?: string[];
+    boundaryNotes?: string[];
+  };
   notes?: string[];
 };
 

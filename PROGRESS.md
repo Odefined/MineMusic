@@ -605,6 +605,10 @@
   failures explicit, aggregates provider knowledge items, preserves provider
   warnings, and routes Canonical Store context to providers for `canonicalRef`
   queries.
+- Implemented Knowledge Slot Task 3 provider capability descriptors and
+  Handbook rendering. Knowledge provider descriptors can now list formats,
+  entity kinds, expansions, and boundary notes, and the Instrument Catalog
+  attaches knowledge providers to `minemusic.music`.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

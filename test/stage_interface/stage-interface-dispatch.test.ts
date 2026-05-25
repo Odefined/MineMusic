@@ -13,6 +13,7 @@ import type {
   StageSession,
   ToolName,
 } from "../../src/contracts/index.js";
+import { buildInstrumentHandbook } from "../../src/handbook/index.js";
 import type {
   CollectionPort,
   EffectBoundaryPort,
@@ -180,6 +181,48 @@ async function attachesProviderDescriptorsToOwningInstruments(): Promise<void> {
     libraryInstrument.providers?.[0]?.areas?.[0]?.availability === "readable",
     "library provider descriptor should preserve readable area metadata",
   );
+}
+
+async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
+  const plugins = createPluginRegistry();
+
+  await assertOk(
+    plugins.registerProvider({
+      slot: "knowledge",
+      providerId: "musicbrainz",
+      provider: {},
+      descriptor: {
+        id: "musicbrainz",
+        label: "MusicBrainz",
+        slot: "knowledge",
+        status: "available",
+        authentication: "none",
+        operations: ["query"],
+        knowledge: {
+          formats: ["structured"],
+          entityKinds: ["artist", "recording", "release", "release_group", "work"],
+          expansions: ["credits", "relations", "release_labels", "tracklist"],
+          boundaryNotes: ["No playable links.", "No identity confirmation."],
+        },
+      },
+    }),
+  );
+
+  const descriptors = await assertOk(createInstrumentCatalog({ plugins }).list({ session }));
+  const musicInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.music");
+  const handbook = buildInstrumentHandbook(descriptors);
+
+  assert(musicInstrument !== undefined, "catalog should expose music instrument");
+  assert(
+    musicInstrument.providers?.some((provider) => provider.id === "musicbrainz"),
+    "music instrument should include knowledge provider descriptors",
+  );
+  assert(handbook.content.includes("MusicBrainz"), "handbook should render knowledge provider label");
+  assert(handbook.content.includes("Formats: `structured`"), "handbook should render supported knowledge formats");
+  assert(handbook.content.includes("Entity kinds: `artist`, `recording`, `release`, `release_group`, `work`"), "handbook should render entity kinds");
+  assert(handbook.content.includes("Expansions: `credits`, `relations`, `release_labels`, `tracklist`"), "handbook should render knowledge expansions");
+  assert(handbook.content.includes("Boundaries: No playable links. No identity confirmation."), "handbook should render boundary notes");
+  assert(!handbook.content.includes("browse"), "handbook should not expose provider-internal API modes");
 }
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
@@ -1035,6 +1078,7 @@ function emptyImportCounts() {
 await listsStableLlmVisibleToolsWithoutProviderDetails();
 await filtersCatalogToExplicitActiveInstruments();
 await attachesProviderDescriptorsToOwningInstruments();
+await rendersKnowledgeProviderCapabilitiesInHandbook();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();

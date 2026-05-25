@@ -282,6 +282,12 @@ export type InstrumentProviderDescriptor = {
     availability: string;
     description?: string;
   }>;
+  knowledge?: {
+    formats?: Array<"structured" | "text">;
+    entityKinds?: string[];
+    expansions?: string[];
+    boundaryNotes?: string[];
+  };
   notes?: string[];
 };
 ```
@@ -301,7 +307,7 @@ Publishes domain events:
 
 Must not expose:
 
-- plugin provider names unless returned as source evidence.
+- provider internals beyond registered provider capability descriptors.
 - storage records.
 - non-public module methods.
 - a reverse import from Session Context or Material Gate private implementation.

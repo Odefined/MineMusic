@@ -912,6 +912,13 @@ export type InstrumentProviderAreaDescriptor = {
   description?: string;
 };
 
+export type KnowledgeProviderCapabilityDescriptor = {
+  formats?: KnowledgeItemFormat[];
+  entityKinds?: string[];
+  expansions?: string[];
+  boundaryNotes?: string[];
+};
+
 export type InstrumentProviderDescriptor = {
   id: string;
   label: string;
@@ -920,6 +927,7 @@ export type InstrumentProviderDescriptor = {
   authentication?: InstrumentProviderAuthentication;
   operations?: string[];
   areas?: InstrumentProviderAreaDescriptor[];
+  knowledge?: KnowledgeProviderCapabilityDescriptor;
   notes?: string[];
 };
 

@@ -148,6 +148,26 @@ function renderProviderSection(instrument: InstrumentDescriptor): string[] {
       }
     }
 
+    if (provider.knowledge !== undefined) {
+      const { formats, entityKinds, expansions, boundaryNotes } = provider.knowledge;
+
+      if (formats !== undefined && formats.length > 0) {
+        lines.push(`  Formats: ${formats.map((format) => `\`${format}\``).join(", ")}`);
+      }
+
+      if (entityKinds !== undefined && entityKinds.length > 0) {
+        lines.push(`  Entity kinds: ${entityKinds.map((kind) => `\`${kind}\``).join(", ")}`);
+      }
+
+      if (expansions !== undefined && expansions.length > 0) {
+        lines.push(`  Expansions: ${expansions.map((expansion) => `\`${expansion}\``).join(", ")}`);
+      }
+
+      if (boundaryNotes !== undefined && boundaryNotes.length > 0) {
+        lines.push(`  Boundaries: ${boundaryNotes.join(" ")}`);
+      }
+    }
+
     if (provider.notes !== undefined && provider.notes.length > 0) {
       lines.push(`  Notes: ${provider.notes.join(" ")}`);
     }

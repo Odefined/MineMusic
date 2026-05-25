@@ -11,11 +11,13 @@ import type {
   EffectProposal,
   Handbook,
   HandbookToolEntry,
+  InstrumentProviderDescriptor,
   KnowledgeCanonicalContext,
   KnowledgeEdge,
   KnowledgeItem,
   KnowledgeNode,
   KnowledgeProvider,
+  KnowledgeProviderCapabilityDescriptor,
   KnowledgeQuery,
   KnowledgeResult,
   KnowledgeSource,
@@ -207,6 +209,15 @@ type _knowledgeProviderInputCarriesCanonicalContext = Expect<
   > &
     Equal<KnowledgeCanonicalContext["record"], CanonicalRecord> &
     Equal<KnowledgeCanonicalContext["relations"], CanonicalRelation[]>
+>;
+
+type _knowledgeProviderCapabilityDescriptorContract = Expect<
+  Equal<
+    keyof KnowledgeProviderCapabilityDescriptor,
+    "formats" | "entityKinds" | "expansions" | "boundaryNotes"
+  > &
+    Equal<KnowledgeProviderCapabilityDescriptor["formats"], Array<"structured" | "text"> | undefined> &
+    Equal<InstrumentProviderDescriptor["knowledge"], KnowledgeProviderCapabilityDescriptor | undefined>
 >;
 
 type _platformLibraryItemKindsMatchFirstContract = Expect<

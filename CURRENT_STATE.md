@@ -267,11 +267,14 @@ host-facing and LLM-facing surface.
   attribution, `canonicalRef` query input, `formats`, and `expand`. The service
   validates text-vs-canonicalRef query shape, aggregates provider knowledge
   items, preserves provider warnings, and passes Canonical Store context to
-  providers for `canonicalRef` queries. A target Knowledge Slot design draft now
-  exists in `docs/knowledge-slot/design.md`; it records the shift from
-  `MusicMaterial[]` output to provider-attributed knowledge items while keeping
-  identity confirmation and canonical writes in Canonical Store review/apply
-  flows. A provider-specific MusicBrainz design draft now exists in
+  providers for `canonicalRef` queries. Knowledge provider descriptors can now
+  describe supported formats, entity kinds, expansions, and boundary notes, and
+  Handbook rendering includes those capabilities on the owning music instrument.
+  A target Knowledge Slot design draft now exists in
+  `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
+  output to provider-attributed knowledge items while keeping identity
+  confirmation and canonical writes in Canonical Store review/apply flows. A
+  provider-specific MusicBrainz design draft now exists in
   `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
   provider-ref lookup, and deterministic provider-internal browse for ref-based
   list expansions behind the general `music.knowledge.query` tool. The design
@@ -378,8 +381,7 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- Knowledge Slot provider Handbook capability descriptors, the
-  `music.knowledge.query` Stage Interface tool, generic provider HTTP cache
+- The `music.knowledge.query` Stage Interface tool, generic provider HTTP cache
   storage, and the MusicBrainz provider remain future work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.

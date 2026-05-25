@@ -33,6 +33,12 @@ export function createInstrumentCatalog({
         return platformLibraryProviders;
       }
 
+      const knowledgeProviders = await listProviderDescriptors(plugins, "knowledge");
+
+      if (!knowledgeProviders.ok) {
+        return knowledgeProviders;
+      }
+
       const instruments = [
         {
           id: "minemusic.handbook",
@@ -50,7 +56,7 @@ export function createInstrumentCatalog({
           id: "minemusic.music",
           label: "MineMusic Music",
           tools: musicToolDescriptors,
-          providers: sourceProviders.value,
+          providers: [...sourceProviders.value, ...knowledgeProviders.value],
         },
         {
           id: "minemusic.library",
