@@ -36,10 +36,13 @@
   groups, maps tracklists, labels, ratings, tags, genres, annotations, and
   selected relations to `StructuredKnowledge`, and uses the generic Provider
   HTTP Cache for successful JSON responses.
+- Stage Core now accepts explicit Knowledge provider instances and generic
+  Knowledge provider factories. Factories receive the Stage Core Provider HTTP
+  Cache, so MusicBrainz can be registered without a provider-specific
+  environment-variable switch. The default MCP runtime forwards the same
+  explicit Knowledge provider options.
 
 ## Remaining Work
 
-- Runtime MusicBrainz registration through future plugin `config.json` remains
-  future work. The current implementation can be instantiated explicitly in
-  tests or host wiring without adding a MusicBrainz-specific environment
-  variable.
+- Automatic provider activation through future plugin `config.json` remains
+  future work.

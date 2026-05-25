@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type {
+  KnowledgeProvider,
   LibraryImportPreview,
   MusicMaterial,
   PlatformLibraryProvider,
@@ -374,6 +375,57 @@ async function defaultMcpStageCoreAcceptsProviderHttpCachePathOption(): Promise<
   }
 }
 
+async function defaultMcpStageCoreAcceptsExplicitKnowledgeProviders(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-knowledge-provider-"));
+  const handbookPath = join(directory, "HANDBOOK.md");
+  const knowledgeProvider: KnowledgeProvider = {
+    id: "fixture-knowledge",
+    descriptor: {
+      id: "fixture-knowledge",
+      label: "Fixture Knowledge",
+      slot: "knowledge",
+      status: "available",
+      authentication: "none",
+      operations: ["query"],
+      knowledge: {
+        formats: ["structured"],
+        entityKinds: ["recording"],
+      },
+    },
+    async query() {
+      return {
+        ok: true,
+        value: {
+          items: [],
+        },
+      };
+    },
+  };
+  try {
+    const stageCore = createDefaultMineMusicMcpStageCore(
+      {
+        MINEMUSIC_SESSION_ID: "mcp-default-knowledge-provider-session",
+        MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+      },
+      {
+        handbookPath,
+        knowledgeProviders: [knowledgeProvider],
+      },
+    );
+    await stageCore.ready;
+
+    const registeredProvider = await stageCore.plugins.getProvider({
+      slot: "knowledge",
+      providerId: "fixture-knowledge",
+    });
+
+    assert(registeredProvider.ok, "default MCP runtime should accept explicit Knowledge providers");
+    assert(registeredProvider.ok && registeredProvider.value === knowledgeProvider, "explicit Knowledge provider should be registered");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function hasSchemaKey(schema: unknown, key: string): boolean {
   return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
 }
@@ -392,3 +444,4 @@ await defaultMcpStageCoreUsesLibraryImportDatabasePathEnv();
 await defaultMcpStageCoreUsesCollectionDatabasePathEnv();
 await defaultMcpStageCoreUsesCanonicalDatabasePathEnv();
 await defaultMcpStageCoreAcceptsProviderHttpCachePathOption();
+await defaultMcpStageCoreAcceptsExplicitKnowledgeProviders();

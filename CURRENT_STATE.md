@@ -286,7 +286,11 @@ host-facing and LLM-facing surface.
   browse and artist release-group browse expansions; release tracklist,
   label/catalog, rating, tag, genre, annotation, and selected relationship
   mapping; and successful-response caching through the generic Provider HTTP
-  Cache.
+  Cache. Stage Core can now register explicit Knowledge provider instances and
+  generic Knowledge provider factories; factories receive the Stage Core
+  Provider HTTP Cache, and the default MCP runtime forwards those explicit
+  Knowledge provider options without adding a MusicBrainz-specific environment
+  variable.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
@@ -398,8 +402,8 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- MusicBrainz runtime activation through future plugin `config.json` remains
-  future work.
+- Automatic Knowledge provider activation through future plugin `config.json`
+  remains future work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

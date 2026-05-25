@@ -96,7 +96,10 @@ factories to assemble a runtime.
 
 Plugin packages do not define core business boundaries. They register adapters
 into Plugin Slots. Provider activation should be driven by plugin runtime
-configuration, with plugin `config.json` as the intended source.
+configuration, with plugin `config.json` as the intended source. Until that
+loader exists, Stage Core may receive explicit provider instances or provider
+factories from the host; factories receive shared runtime dependencies such as
+Provider HTTP Cache without creating provider-specific environment switches.
 
 ## Current Code Mapping
 

@@ -229,14 +229,16 @@ This index points agents to the current MVP documentation pack.
       initializes the Handbook, exposes the runtime object, composes Collection
       and Library Import with optional repository/provider injection, and
       supports optional SQLite database path configuration for Canonical Store,
-      Collection, and Library Import.
+      Collection, Library Import, Provider HTTP Cache, and explicit Knowledge
+      provider registration.
 
 55. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP server that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; the default runtime registers NetEase for both
       `source` and `platform_library` slots and can use durable Canonical Store,
-      Collection, and Library Import storage via environment variables.
+      Collection, and Library Import storage via environment variables, plus
+      explicit Provider HTTP Cache and Knowledge provider options.
 
 56. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,

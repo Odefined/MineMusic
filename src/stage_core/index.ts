@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  KnowledgeProvider,
   MusicMaterial,
   PlatformLibraryProvider,
   Result,
@@ -77,6 +78,12 @@ export type MineMusicStageCore = {
   providerHttpCache: ProviderHttpCacheRepository;
 };
 
+export type KnowledgeProviderFactoryContext = {
+  providerHttpCache: ProviderHttpCacheRepository;
+};
+
+export type KnowledgeProviderFactory = (context: KnowledgeProviderFactoryContext) => KnowledgeProvider;
+
 export type MineMusicStageCoreOptions = {
   session: StageSession;
   sourceMaterials: MusicMaterial[];
@@ -89,6 +96,8 @@ export type MineMusicStageCoreOptions = {
   libraryImportDatabasePath?: string;
   providerHttpCacheRepository?: ProviderHttpCacheRepository;
   providerHttpCacheDatabasePath?: string;
+  knowledgeProviders?: KnowledgeProvider[];
+  knowledgeProviderFactories?: KnowledgeProviderFactory[];
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -105,6 +114,8 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   libraryImportDatabasePath?: string;
   providerHttpCacheRepository?: ProviderHttpCacheRepository;
   providerHttpCacheDatabasePath?: string;
+  knowledgeProviders?: KnowledgeProvider[];
+  knowledgeProviderFactories?: KnowledgeProviderFactory[];
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -121,6 +132,8 @@ export function createMineMusicStageCore({
   libraryImportDatabasePath,
   providerHttpCacheRepository,
   providerHttpCacheDatabasePath,
+  knowledgeProviders = [],
+  knowledgeProviderFactories = [],
   platformLibraryProvider,
   handbookPath,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
@@ -136,6 +149,8 @@ export function createMineMusicStageCore({
     ...(libraryImportDatabasePath === undefined ? {} : { libraryImportDatabasePath }),
     ...(providerHttpCacheRepository === undefined ? {} : { providerHttpCacheRepository }),
     ...(providerHttpCacheDatabasePath === undefined ? {} : { providerHttpCacheDatabasePath }),
+    knowledgeProviders,
+    knowledgeProviderFactories,
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
   });
@@ -153,6 +168,8 @@ export function createMineMusicStageCoreWithSourceProvider({
   libraryImportDatabasePath,
   providerHttpCacheRepository: injectedProviderHttpCacheRepository,
   providerHttpCacheDatabasePath,
+  knowledgeProviders: injectedKnowledgeProviders = [],
+  knowledgeProviderFactories = [],
   platformLibraryProvider,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
@@ -176,6 +193,10 @@ export function createMineMusicStageCoreWithSourceProvider({
     (providerHttpCacheDatabasePath === undefined
       ? createInMemoryProviderHttpCacheRepository()
       : createSqliteProviderHttpCacheRepository({ path: providerHttpCacheDatabasePath }));
+  const knowledgeProviders = [
+    ...injectedKnowledgeProviders,
+    ...knowledgeProviderFactories.map((factory) => factory({ providerHttpCache })),
+  ];
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();
@@ -248,6 +269,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     session,
     plugins,
     sourceProvider,
+    knowledgeProviders,
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     collection,
   });
@@ -305,6 +327,7 @@ async function seedRuntime({
   session,
   plugins,
   sourceProvider,
+  knowledgeProviders,
   platformLibraryProvider,
   collection,
 }: {
@@ -315,6 +338,7 @@ async function seedRuntime({
   session: StageSession;
   plugins: PluginRegistryPort;
   sourceProvider: SourceProvider;
+  knowledgeProviders: KnowledgeProvider[];
   platformLibraryProvider?: PlatformLibraryProvider;
   collection: CollectionPort;
 }): Promise<void> {
@@ -329,6 +353,15 @@ async function seedRuntime({
     provider: sourceProvider,
   });
   throwIfFailed(registerResult);
+
+  for (const knowledgeProvider of knowledgeProviders) {
+    const registerKnowledgeResult = await plugins.registerProvider({
+      slot: "knowledge",
+      providerId: knowledgeProvider.id,
+      provider: knowledgeProvider,
+    });
+    throwIfFailed(registerKnowledgeResult);
+  }
 
   if (platformLibraryProvider !== undefined) {
     const registerPlatformLibraryResult = await plugins.registerProvider({

@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { pathToFileURL } from "node:url";
 
-import type { Result, StageSession, ToolName } from "../../contracts/index.js";
+import type { KnowledgeProvider, Result, StageSession, ToolName } from "../../contracts/index.js";
 import {
   createNetEasePlatformLibraryProvider,
   createNetEaseSourceProvider,
@@ -10,6 +10,7 @@ import {
 } from "../../providers/netease/index.js";
 import {
   createMineMusicStageCoreWithSourceProvider,
+  type KnowledgeProviderFactory,
   type MineMusicStageCore,
 } from "../../stage_core/index.js";
 import {
@@ -106,6 +107,9 @@ export async function runMineMusicMcpServer(
 export function createDefaultMineMusicMcpStageCore(
   env: Record<string, string | undefined> = process.env,
   options: {
+    handbookPath?: string;
+    knowledgeProviders?: KnowledgeProvider[];
+    knowledgeProviderFactories?: KnowledgeProviderFactory[];
     providerHttpCacheDatabasePath?: string;
   } = {},
 ): MineMusicStageCore {
@@ -127,6 +131,11 @@ export function createDefaultMineMusicMcpStageCore(
     ...(options.providerHttpCacheDatabasePath === undefined
       ? {}
       : { providerHttpCacheDatabasePath: options.providerHttpCacheDatabasePath }),
+    ...(options.knowledgeProviders === undefined ? {} : { knowledgeProviders: options.knowledgeProviders }),
+    ...(options.knowledgeProviderFactories === undefined
+      ? {}
+      : { knowledgeProviderFactories: options.knowledgeProviderFactories }),
+    ...(options.handbookPath === undefined ? {} : { handbookPath: options.handbookPath }),
   });
 }
 

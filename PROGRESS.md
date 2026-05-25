@@ -627,6 +627,11 @@
   release labels, tracklists, ratings, tags, genres, annotations, and selected
   MusicBrainz relations to `StructuredKnowledge`, and uses the generic Provider
   HTTP Cache for successful JSON responses.
+- Implemented Knowledge Slot Task 8 runtime registration. Stage Core now
+  accepts explicit Knowledge provider instances and generic Knowledge provider
+  factories; factories receive the Stage Core Provider HTTP Cache, and the
+  default MCP runtime forwards explicit Knowledge provider options without
+  introducing a MusicBrainz-specific environment variable.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

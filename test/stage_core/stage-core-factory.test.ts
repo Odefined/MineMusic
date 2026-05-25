@@ -14,6 +14,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
+import { createMusicBrainzKnowledgeProvider } from "../../src/providers/musicbrainz/index.js";
 import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
@@ -375,6 +376,66 @@ async function usesProviderHttpCacheDatabasePath(): Promise<void> {
   }
 }
 
+async function registersMusicBrainzKnowledgeProviderFactoryWithProviderHttpCache(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-handbook-knowledge-provider-"));
+  const handbookPath = join(directory, "HANDBOOK.md");
+  let networkCalls = 0;
+
+  try {
+    const stageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider: emptySourceProvider(),
+      handbookPath,
+      knowledgeProviderFactories: [
+        ({ providerHttpCache }) => createMusicBrainzKnowledgeProvider({
+          cache: providerHttpCache,
+          requestJson: async () => {
+            networkCalls += 1;
+
+            return {
+              ok: true,
+              value: {
+                status: 200,
+                json: {
+                  recordings: [
+                    {
+                      id: "recording-mbid-1",
+                      title: "Intro",
+                    },
+                  ],
+                },
+              },
+            };
+          },
+        }),
+      ],
+    });
+    await stageCore.ready;
+
+    const registeredProvider = await assertOk(
+      stageCore.plugins.getProvider({
+        slot: "knowledge",
+        providerId: "musicbrainz",
+      }),
+    );
+    const firstResult = await assertOk(
+      stageCore.knowledge.query({ query: { text: "Intro", limit: 1 } }),
+    );
+    const secondResult = await assertOk(
+      stageCore.knowledge.query({ query: { text: "Intro", limit: 1 } }),
+    );
+    const handbook = await readFile(handbookPath, "utf8");
+
+    assert(registeredProvider !== null, "Stage Core should register the MusicBrainz Knowledge provider");
+    assert(firstResult.items[0]?.providerId === "musicbrainz", "Music Knowledge should route to registered MusicBrainz");
+    assert(secondResult.items[0]?.providerId === "musicbrainz", "MusicBrainz should remain queryable after cache hit");
+    assert(networkCalls === 1, "MusicBrainz factory should receive Stage Core Provider HTTP Cache");
+    assert(handbook.includes("MusicBrainz (`musicbrainz`, slot `knowledge`)"), "handbook should include MusicBrainz provider capabilities");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering(): Promise<void> {
   const canonicalRecord: CanonicalRecord = {
     ref: {
@@ -601,6 +662,7 @@ await usesInjectedCanonicalRepositoryForMaterialResolve();
 await exposesInitializedCollectionService();
 await exposesInjectedProviderHttpCacheRepository();
 await usesProviderHttpCacheDatabasePath();
+await registersMusicBrainzKnowledgeProviderFactoryWithProviderHttpCache();
 await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
 await usesInjectedCollectionRepository();
 await exposesLibraryImportWithInjectedPlatformLibraryProvider();
