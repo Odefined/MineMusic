@@ -6,6 +6,8 @@
   `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`,
   `KnowledgeRelation`, `KnowledgeRelationEndpoint`, `KnowledgeSource`, and
   endpoint-based structured relations.
+- The public structured Knowledge output now uses `relations` for provider
+  relationship facts and no longer returns legacy `edges`.
 - `KnowledgeQuery` now accepts exactly one of `text` or `canonicalRef`, plus
   optional `purpose`, `formats`, `entityKinds`, `expand`, `relationFocus`, and
   `limit`. The first supported relation focus is `members`.
