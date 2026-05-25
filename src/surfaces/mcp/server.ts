@@ -1,13 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { pathToFileURL } from "node:url";
 
 import type { Result, ToolName } from "../../contracts/index.js";
-import {
-  createDefaultMineMusicServiceRuntime,
-  type MineMusicServiceRuntimeOptions,
-} from "../../service/index.js";
-import type { MineMusicStageCore } from "../../stage_core/index.js";
 import {
   agentToolDescriptors,
   stableToolNames,
@@ -78,7 +71,7 @@ export function createMineMusicMcpToolDefinitions(
 }
 
 export function createMineMusicMcpServer(
-  runtime: MineMusicMcpRuntime = createDefaultMineMusicMcpRuntime(),
+  runtime: MineMusicMcpRuntime,
 ): McpServer {
   const server = new McpServer({
     name: "minemusic",
@@ -100,26 +93,15 @@ export function createMineMusicMcpServer(
 }
 
 export async function runMineMusicMcpServer(
-  runtime: MineMusicMcpRuntime = createDefaultMineMusicMcpRuntime(),
-): Promise<void> {
+  runtime: MineMusicMcpRuntime,
+  transport: Parameters<McpServer["connect"]>[0],
+): Promise<McpServer> {
   await runtime.ready;
 
   const server = createMineMusicMcpServer(runtime);
-  await server.connect(new StdioServerTransport());
-}
+  await server.connect(transport);
 
-export function createDefaultMineMusicMcpRuntime(
-  env: Record<string, string | undefined> = process.env,
-  options: MineMusicServiceRuntimeOptions = {},
-): MineMusicMcpRuntime {
-  return createDefaultMineMusicServiceRuntime(env, options);
-}
-
-export function createDefaultMineMusicMcpStageCore(
-  env: Record<string, string | undefined> = process.env,
-  options: MineMusicServiceRuntimeOptions = {},
-): MineMusicStageCore {
-  return createDefaultMineMusicServiceRuntime(env, options).stageCore;
+  return server;
 }
 
 function missingToolResult(toolName: ToolName): Result<never> {
@@ -143,21 +125,4 @@ function asTextResult<T>(result: Result<T>): MineMusicMcpToolResult {
       },
     ],
   };
-}
-
-if (isDirectRun()) {
-  runMineMusicMcpServer().catch((error: unknown) => {
-    console.error(error);
-    process.exit(1);
-  });
-}
-
-function isDirectRun(): boolean {
-  const entrypoint = process.argv[1];
-
-  if (entrypoint === undefined) {
-    return false;
-  }
-
-  return import.meta.url === pathToFileURL(entrypoint).href;
 }

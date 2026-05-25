@@ -14,33 +14,34 @@ boundaries, instruments, and capability slots.
 
 ## Architecture Vocabulary
 
-### MineMusic Service
+### MineMusic Server
 
-The long-lived MineMusic process, daemon, or application host.
+The long-lived MineMusic server process.
 
-MineMusic Service owns:
+MineMusic Server owns:
 
 - process lifecycle.
-- service-level runtime configuration for providers, repositories, caches, and
+- server-level runtime configuration for providers, repositories, caches, and
   session defaults.
 - creating and holding the Stage Core runtime.
-- exposing one or more Host Adapters over that runtime.
+- exposing MCP over local transport, with possible future CLI or Web UI
+  transports over the same runtime.
 
-MineMusic Service is not synonymous with the MCP adapter. MCP, CLI, Web UI, and
-future entrypoints are adapter surfaces over the same service-held Stage Core.
+MineMusic Server is not owned by Codex, OpenClaw, or another MCP client. MCP is
+the shared protocol clients use to connect to the same server-held Stage Core.
 
-### Host Adapter
+### Host Client / Transport
 
-A host-specific adapter that translates a transport into MineMusic calls.
+A client or transport that talks to the MineMusic server.
 
 Examples:
 
-- Codex MCP adapter.
-- OpenClaw MCP adapter.
-- future CLI adapter.
-- future Web adapter.
+- Codex as an MCP client.
+- OpenClaw as an MCP client.
+- future CLI transport.
+- future Web UI transport.
 
-Host Adapters do not own music policy, provider behavior, tool truth, runtime
+Host clients/transports do not own music policy, provider behavior, tool truth, runtime
 composition, provider/database/cache configuration, or storage.
 
 ### Stage Core
@@ -54,7 +55,7 @@ Stage Core owns:
 - registering plugin providers.
 - initializing generated runtime artifacts such as the Handbook.
 - exposing `runtime.ready`.
-- maintaining the runtime instance returned to Host Adapters and tests.
+- maintaining the runtime instance returned to the MineMusic server and tests.
 
 Stage Core does not mean "put every business implementation in one file." It
 assembles modules and owns lifecycle; domain behavior stays in the owning

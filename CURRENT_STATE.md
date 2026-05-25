@@ -3,8 +3,8 @@
 ## Status
 
 MineMusic is on `codex/service-adapter-refactor` with the Wave 8 Codex
-instruments plugin implementation and the first service/adapter boundary
-refactor commits applied locally.
+instruments plugin implementation and the server/MCP boundary refactor applied
+locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -23,21 +23,22 @@ plugin now includes a MineMusic workflow skill, explicit MCP input schemas for
 argument-bearing tools, a generated skill-local `HANDBOOK.md`, and
 `minemusic.handbook.*` lookup tools. The 2026-05-23 architecture refactor
 renamed the current code to Stage Core / Stage Interface / Stage Modules.
-The 2026-05-26 service/adapter refactor adds a MineMusic service runtime and
-service entrypoint. The service startup path creates and holds Stage Core,
-starts the MCP adapter surface, and keeps provider/database/cache/session
-configuration out of the Codex plugin config.
+The 2026-05-26 server/MCP refactor adds a MineMusic server runtime and
+streamable HTTP MCP server entrypoint. The server startup path creates and
+holds Stage Core, exposes `minemusic.*` tools directly over MCP, and keeps
+provider/database/cache/session configuration out of Codex/OpenClaw client
+config.
 The active Codex session has verified live MineMusic MCP tool visibility and a
 real NetEase-backed recommendation flow. Fresh Codex app plugin installation
 and tool visibility in a new session have also been confirmed by the user in
 this thread; no separate repository command transcript captures that host-app
 confirmation.
 
-The host boundary is now partly implemented: the MineMusic service process owns
-Stage Core startup and service-level provider/repository/cache/session
-configuration, while MCP is one adapter surface for clients such as Codex and
-OpenClaw. CLI and Web UI remain future peer adapters over the same
-service-held Stage Core.
+The host boundary is now implemented for MCP: the MineMusic server process owns
+Stage Core startup and server-level provider/repository/cache/session
+configuration, while Codex and OpenClaw are MCP clients that connect to the
+server URL. CLI and Web UI remain future peer transports over the same
+server-held Stage Core.
 The phased refactor plan for that change is documented in
 `docs/host-adapters/service-adapter-refactor-plan.md`.
 
@@ -397,19 +398,21 @@ host-facing and LLM-facing surface.
 - Handbook provider capability sections are generated from
   `InstrumentDescriptor.providers`; live Library Import counts and samples still
   require `library.import.preview`.
-- The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
+- The MCP surface is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
   `MineMusicStageInterface`, not provider or repository internals. Argument-bearing
   tools expose explicit input schemas rather than an empty passthrough shape.
-- The MineMusic service runtime is exported from `src/service/index.ts`, and
-  the service entrypoint is exported from `src/service/server.ts`.
-  `npm run service:minemusic` starts the service-held Stage Core and MCP adapter
-  surface. `npm run mcp:minemusic:dev` remains an explicitly named embedded
+- The MineMusic server runtime is exported from `src/server/runtime.ts`, and
+  the streamable HTTP MCP server entrypoint is exported from
+  `src/server/index.ts`. `npm run server:minemusic` starts the server-held
+  Stage Core and exposes MCP at `http://127.0.0.1:37373/mcp` by default.
+  `npm run mcp:minemusic:dev` remains an explicitly named embedded stdio
   MCP dev/test path.
 - Repo-local Codex plugin packaging lives in `plugins/minemusic` with a local
   marketplace entry at `.agents/plugins/marketplace.json`.
-  `plugins/minemusic/.mcp.json` points at `service:minemusic` and does not
-  include provider/database/cache/session runtime env.
+  `plugins/minemusic/.mcp.json` points at the default MineMusic MCP server URL
+  and does not include provider/database/cache/session runtime env or a process
+  startup command.
 - The repo-local plugin includes a workflow skill at
   `plugins/minemusic/skills/minemusic/SKILL.md`. The skill triggers on music
   requests and routes agents through the skill-local `HANDBOOK.md`,
@@ -438,8 +441,7 @@ host-facing and LLM-facing surface.
   / service runtime database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- External daemon transport beyond the current stdio service entrypoint, plus
-  CLI and Web UI peer adapters over the service-held Stage Core.
+- CLI and Web UI peer transports over the server-held Stage Core.
 - Automatic Knowledge provider activation through future plugin `config.json`
   remains future work.
 - More host-surface validation for Handbook refresh when plugin tool
@@ -447,7 +449,7 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the service/adapter boundary refactor on 2026-05-26.
+- `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

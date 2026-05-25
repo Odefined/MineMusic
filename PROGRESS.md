@@ -665,32 +665,41 @@
 
 ## 2026-05-26
 
-- Clarified the target service/adapter architecture in `CONTEXT.md`,
+- Clarified the target server/MCP architecture in `CONTEXT.md`,
   `ARCHITECTURE.md`, `README.md`,
   `docs/host-adapters/codex-mcp-plugin.md`, and `CURRENT_STATE.md`: MineMusic
-  service owns the long-lived Stage Core runtime and MCP is one adapter surface
-  for clients such as Codex and OpenClaw, with CLI and Web UI as peer adapters.
-- Recorded that the current repo-local Codex MCP startup path is transitional
-  because it still combines MCP adapter startup with default Stage Core/runtime
-  configuration.
+  server owns the long-lived Stage Core runtime and exposes MCP directly for
+  clients such as Codex and OpenClaw.
+- Recorded and then corrected the transitional repo-local Codex startup path
+  that combined MCP startup with default Stage Core/runtime configuration.
 - Added `docs/host-adapters/service-adapter-refactor-plan.md` with phased
   tasks, file boundaries, verification targets, and stopping conditions for
-  moving runtime ownership into the long-lived MineMusic service while keeping
-  MCP as one adapter surface.
-- Implemented the first service/adapter refactor slice with TDD:
-  `src/service/index.ts` now owns the default service runtime and
-  `src/service/server.ts` starts the service-held Stage Core plus MCP adapter.
+  moving runtime ownership into the long-lived MineMusic server while exposing
+  MCP directly.
+- Implemented the corrected server/MCP slice with TDD:
+  `src/server/runtime.ts` owns the default server runtime and
+  `src/server/index.ts` starts the server-held Stage Core plus streamable HTTP
+  MCP surface.
 - Refactored `src/surfaces/mcp/server.ts` so MCP tool registration depends on a
   lightweight `MineMusicMcpRuntime` (`ready` plus Stage Interface tools) rather
   than a full Stage Core object.
-- Updated plugin packaging so `plugins/minemusic/.mcp.json` starts
-  `service:minemusic` and no longer carries provider/database/cache/session env.
-  The embedded MCP startup path is retained only as `mcp:minemusic:dev`.
+- Updated plugin packaging so `plugins/minemusic/.mcp.json` points at
+  `http://127.0.0.1:37373/mcp` and no longer carries provider/database/cache/
+  session env or a MineMusic process startup command. The embedded MCP startup
+  path is retained only as `mcp:minemusic:dev`.
+- Corrected that first slice after review: `service:minemusic` was the wrong
+  boundary because it still let Codex own the MineMusic runtime lifecycle.
+  The retained pieces are the server runtime composition factory and injectable
+  MCP tool registration. The main path is now `npm run server:minemusic`, which
+  starts a long-lived MineMusic server, holds Stage Core, and exposes MCP over
+  streamable HTTP at `http://127.0.0.1:37373/mcp` by default. The repo-local
+  Codex plugin now connects to that URL instead of starting a MineMusic process.
 
 ## Next
 
-- Decide the next service-hosting step: external daemon transport, stdio bridge
-  to an already-running service, CLI adapter, or Web UI adapter.
+- Start and keep the MineMusic server running outside Codex before connecting
+  Codex/OpenClaw clients.
+- Add CLI or Web UI peer transports when there is a concrete product workflow.
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.

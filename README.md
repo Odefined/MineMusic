@@ -59,14 +59,14 @@ fixture end-to-end MVP slice, final review documentation, and a read-only
 NetEase source provider adapter with opt-in live smoke validation. Wave 8 adds
 a repo-local Codex MCP plugin surface that exposes MineMusic instruments with
 `minemusic.*` tool names and delegates to Stage Interface. The runtime boundary
-now includes a MineMusic service entrypoint that owns Stage Core and exposes
-MCP as one adapter surface over that service-held runtime.
+now includes a MineMusic server entrypoint that owns Stage Core and exposes
+MCP directly over streamable HTTP.
 
 The architecture vocabulary is now:
 
 ```text
-MineMusic Service
-  -> Host Adapters
+MineMusic Server
+  -> MCP / future host transports
   -> Stage Core -> Stage Interface / Stage Modules
      -> Core Capabilities -> Plugin Slots -> Storage
 ```
@@ -77,7 +77,7 @@ Core; it exports Stage Modules for Session Context and Material Gate.
 
 ```bash
 npm test
-npm run service:minemusic
+npm run server:minemusic
 npm run mcp:minemusic:dev
 npm run smoke:netease
 ```
@@ -91,14 +91,15 @@ validate against a local NetEase Cloud Music API service. The default endpoint
 is `http://127.0.0.1:3000`, and it can be changed with
 `MINEMUSIC_NETEASE_BASE_URL`.
 
-The MineMusic service startup path keeps Canonical Store, Collection, and
+The MineMusic server startup path keeps Canonical Store, Collection, and
 Library Import state in memory unless database paths are configured. Set
 `MINEMUSIC_CANONICAL_DB_PATH` to persist canonical entities, external refs, and
 aliases; set `MINEMUSIC_COLLECTION_DB_PATH` to persist Collections and
 CollectionItems; and set `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to persist Library
 Import batches, reports, snapshots, provenance, and absence records. These
-provider, database, cache, and session settings are service runtime concerns,
-not Codex plugin configuration.
+provider, database, cache, and session settings are MineMusic server runtime
+concerns, not Codex plugin configuration. Codex/OpenClaw should connect to the
+server MCP URL, by default `http://127.0.0.1:37373/mcp`.
 
 The repo-local Codex plugin manifest lives at
 `plugins/minemusic/.codex-plugin/plugin.json`, with MCP startup config in

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build:test": "tsc -p tsconfig.test.json",
-    "mcp:minemusic:dev": "npm run build:test && node .tmp-test/src/surfaces/mcp/server.js",
-    "service:minemusic": "npm run build:test && node .tmp-test/src/service/server.js",
+    "mcp:minemusic:dev": "npm run build:test && node .tmp-test/src/surfaces/mcp/stdio-dev.js",
+    "server:minemusic": "npm run build:test && node .tmp-test/src/server/index.js",
     "smoke:netease": "npm run build:test && node .tmp-test/test/live/netease-source-smoke.js",
     "test": "npm run typecheck && npm run test:stage-core",
     "test:stage-core": "npm run build:test && node .tmp-test/test/run-stage-core-tests.js",

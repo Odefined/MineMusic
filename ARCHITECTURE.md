@@ -25,7 +25,7 @@ foundations and first-slice Library Import service/runtime/tool composition. It
 also includes direct SQLite repository adapters for Canonical Store, Collection
 Service, and Library Import persistence, plus Stage Core runtime configuration
 for durable Canonical Store, Collection, and Library Import storage. MineMusic
-runtime configuration belongs to the long-lived MineMusic service process, not
+runtime configuration belongs to the long-lived MineMusic server process, not
 to a particular host adapter such as the Codex MCP plugin. It does not prove
 playback control, autonomous DJ behavior, playlist editing, music intelligence,
 or notifications.
@@ -50,11 +50,12 @@ Host Clients
   -> Codex / OpenClaw MCP clients
   -> CLI users
   -> Web UI users
-MineMusic Service Process
-  -> Host Adapter Surfaces
-     -> MCP adapter
-     -> CLI adapter
-     -> Web UI adapter
+MineMusic Server Process
+  -> MCP transport
+     -> streamable HTTP endpoint
+  -> Future Host Transports
+     -> CLI
+     -> Web UI
   -> Stage Core
      -> runtime composition
      -> provider registration
@@ -99,11 +100,11 @@ MineMusic Service Process
 
 Each layer depends only on public contracts of the layer below it, except Stage
 Core, which is the composition layer and therefore imports module factories to
-assemble a runtime. The MineMusic service process starts Stage Core once and
-keeps it available to adapter surfaces.
+assemble a runtime. The MineMusic server process starts Stage Core once and
+keeps it available to MCP clients and future host transports.
 
 Plugin packages do not define core business boundaries. They register adapters
-into Plugin Slots. Provider activation should be driven by MineMusic service
+into Plugin Slots. Provider activation should be driven by MineMusic server
 runtime configuration, with plugin `config.json` as the intended provider
 configuration source. Until that loader exists, Stage Core may receive explicit
 provider instances or provider factories from the service composition layer;
@@ -114,8 +115,8 @@ without creating provider-specific environment switches in host adapter config.
 
 | Architecture term | Current implementation |
 | --- | --- |
-| MineMusic Service | `src/service/index.ts`, `src/service/server.ts` |
-| Host Adapter | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
+| MineMusic Server | `src/server/runtime.ts`, `src/server/index.ts` |
+| MCP Surface | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
 | Stage Core | `src/stage_core/index.ts` |
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
@@ -132,8 +133,8 @@ needs.
 
 | Module | Owns | Does Not Own |
 | --- | --- | --- |
-| MineMusic Service | process lifecycle, service-level provider/repository/cache/session configuration, starting adapter surfaces, creating and holding one Stage Core runtime | domain logic inside core capabilities, provider internals, host-specific protocol details, final recommendation judgment |
-| Host Adapter | host protocol or transport, tool-name prefixing, host result formatting | music policy, provider behavior, storage, tool truth, runtime composition, provider/database/cache/session configuration, core capability calls |
+| MineMusic Server | process lifecycle, server-level provider/repository/cache/session configuration, creating and holding one Stage Core runtime, exposing MCP over local transport | domain logic inside core capabilities, provider internals, final recommendation judgment |
+| MCP Surface | MCP tool-name prefixing, schema exposure, result formatting | music policy, provider behavior, storage, tool truth, runtime composition, provider/database/cache/session configuration, core capability calls |
 | Stage Core | runtime graph assembly, provider registration, initialization, `runtime.ready`, runtime lifecycle | domain logic inside core capabilities, host protocol, final recommendation judgment |
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
 | Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
@@ -153,18 +154,18 @@ needs.
 ## Runtime Flow
 
 ```text
-1. MineMusic service process starts.
-2. MineMusic service reads service-level runtime configuration and creates a
+1. MineMusic server process starts.
+2. MineMusic server reads server-level runtime configuration and creates a
    Stage Core runtime.
 3. Stage Core assembles repositories, Plugin Slots, Core Capabilities, Stage
    Modules, and Stage Interface.
 4. Stage Core registers source, platform-library, or other providers and
    initializes runtime artifacts such as the generated Handbook.
-5. MineMusic service exposes adapter surfaces such as MCP, CLI, or Web UI over
-   the service-held Stage Interface.
-6. User asks for music naturally through one adapter surface.
+5. MineMusic server exposes MCP over local streamable HTTP for clients such as
+   Codex and OpenClaw. CLI or Web UI can become peer transports later.
+6. User asks for music naturally through an MCP client or future host surface.
 7. LLM or host client interprets the musical situation.
-8. Adapter surface uses Stage Interface tools.
+8. MCP client calls Stage Interface tools through the server's MCP surface.
 9. Stage Interface reads Session Context and Handbook entries when needed.
 10. Stage Interface sends music candidates to Material Resolve.
 11. Material Resolve checks Canonical Store first, then uses Source Grounding as
@@ -203,17 +204,18 @@ Private implementation imports across module boundaries are not allowed. Stage
 Core is the exception for construction only: it imports factories to assemble a
 runtime, then exposes composed ports.
 
-## Host Adapter Policy
+## Host Client Policy
 
-The MCP surface is one Host Adapter, used by MCP clients such as Codex and
-OpenClaw. CLI and Web UI surfaces are peer adapters, not layers underneath MCP.
-Adapters expose MineMusic tools or commands and delegate calls to Stage
+The MCP surface is the shared protocol surface used by MCP clients such as
+Codex and OpenClaw. CLI and Web UI surfaces can be peer transports later, not
+layers underneath MCP.
+MCP exposes MineMusic tools and delegates calls to Stage
 Interface. They must not call source providers, repositories, or core
 capability implementations directly.
 
-Host adapter configuration should cover host protocol concerns only. Provider,
+Host/client configuration should cover endpoint concerns only. Provider,
 database, cache, and default-session runtime configuration belongs to the
-MineMusic service process that creates and holds Stage Core.
+MineMusic server process that creates and holds Stage Core.
 
 Host-specific schemas should be derived from Stage Interface tool metadata where
 possible. The host adapter should not become the source of truth for MineMusic
@@ -235,8 +237,8 @@ expose runtime.ready
 return a runtime object
 ```
 
-The MineMusic service process creates Stage Core and keeps the returned runtime
-alive for its adapter surfaces.
+The MineMusic server process creates Stage Core and keeps the returned runtime
+alive for MCP clients and future host transports.
 
 Stage Core may know module factories because its job is composition. It should
 not absorb the internal implementation of Material Resolve, Source Grounding,

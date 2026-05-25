@@ -1,9 +1,10 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 import type { Result } from "../../src/contracts/index.js";
-import { runMineMusicService } from "../../src/service/server.js";
-import type { MineMusicMcpRuntime } from "../../src/surfaces/mcp/server.js";
+import { runMineMusicServer } from "../../src/server/index.js";
+import type { MineMusicServerRuntime } from "../../src/server/runtime.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -11,12 +12,13 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-async function serviceEntrypointExposesMcpAdapterFromServiceRuntime(): Promise<void> {
+async function serverExposesMcpOverStreamableHttp(): Promise<void> {
   let readyAwaited = false;
   const runtime = {
     ready: Promise.resolve().then(() => {
       readyAwaited = true;
     }),
+    stageCore: {},
     stageInterface: {
       tools: {
         "stage.materials.prepare": async (payload: unknown) => {
@@ -29,27 +31,32 @@ async function serviceEntrypointExposesMcpAdapterFromServiceRuntime(): Promise<v
         },
       },
     },
-  } satisfies MineMusicMcpRuntime;
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const service = await runMineMusicService({
+    callTool: async () => ({
+      ok: true,
+      value: null,
+    }),
+  } as unknown as MineMusicServerRuntime;
+  const server = await runMineMusicServer({
+    host: "127.0.0.1",
+    port: 0,
     runtime,
-    transport: serverTransport,
   });
   const client = new Client({
-    name: "minemusic-service-test-client",
+    name: "minemusic-server-test-client",
     version: "0.0.0",
   });
+  const transport = new StreamableHTTPClientTransport(new URL(server.endpointUrl));
 
   try {
-    await client.connect(clientTransport);
+    await client.connect(transport as Transport);
 
     const tools = await client.listTools();
     const toolNames = tools.tools.map((tool) => tool.name);
 
-    assert(readyAwaited, "service entrypoint should await the service runtime before accepting MCP calls");
+    assert(readyAwaited, "MineMusic server should await the server runtime before accepting MCP calls");
     assert(
       toolNames.includes("minemusic.stage.materials.prepare"),
-      "service entrypoint should expose MineMusic MCP tools",
+      "MineMusic server should expose MineMusic MCP tools over streamable HTTP",
     );
 
     const response = await client.callTool({
@@ -57,9 +64,9 @@ async function serviceEntrypointExposesMcpAdapterFromServiceRuntime(): Promise<v
       arguments: {
         materials: [
           {
-            id: "service-entrypoint-material",
+            id: "server-http-material",
             kind: "recording",
-            label: "Service Entrypoint Material",
+            label: "Server HTTP Material",
             state: "grounded",
           },
         ],
@@ -74,15 +81,15 @@ async function serviceEntrypointExposesMcpAdapterFromServiceRuntime(): Promise<v
     assert(firstContent?.type === "text", "MCP call should return text content");
     const result = JSON.parse(firstContent.text) as Result<Array<{ id: string }>>;
 
-    assert(result.ok, "MCP tool call should return the service runtime result");
+    assert(result.ok, "MCP tool call should return the server runtime result");
     assert(
-      result.value[0]?.id === "service-entrypoint-material",
-      "MCP tool call should route through the service-held Stage Interface",
+      result.value[0]?.id === "server-http-material",
+      "MCP tool call should route through the server-held Stage Interface",
     );
   } finally {
-    await client.close();
-    await service.close();
+    await client.close().catch(() => {});
+    await server.close();
   }
 }
 
-await serviceEntrypointExposesMcpAdapterFromServiceRuntime();
+await serverExposesMcpOverStreamableHttp();

@@ -218,26 +218,25 @@ This index points agents to the current MVP documentation pack.
       browse expansions, and successful-response Provider HTTP Cache usage.
 
 53. `docs/host-adapters/codex-mcp-plugin.md`
-    - Codex MCP adapter surface design, focused instrument/tool behavior,
+    - Codex MCP client/plugin design, focused instrument/tool behavior,
       packaging, default MusicBrainz Knowledge registration, and verification
-      notes. It records that MCP is one MineMusic service adapter surface,
+      notes. It records that Codex connects to the MineMusic MCP server URL,
       while provider/database/cache/session runtime configuration belongs to
-      service startup.
+      server startup.
 
 54. `docs/host-adapters/service-adapter-refactor-plan.md`
-    - Refactor plan for moving runtime ownership from the repo-local Codex MCP
-      startup path into a long-lived MineMusic service process, with MCP as one
-      adapter surface alongside future CLI and Web UI adapters.
+    - Corrected refactor plan for moving runtime ownership out of Codex into a
+      long-lived MineMusic server that exposes MCP directly.
 
-55. `src/service/index.ts`
-    - MineMusic service runtime boundary that creates the default service-held
+55. `src/server/runtime.ts`
+    - MineMusic server runtime boundary that creates the default server-held
       Stage Core, registers bundled provider factories, applies
       provider/database/cache/session runtime configuration, and exposes the
-      service-held Stage Interface.
+      server-held Stage Interface.
 
-56. `src/service/server.ts`
-    - MineMusic service entrypoint that waits for the service runtime and starts
-      the MCP adapter surface over that service-held runtime.
+56. `src/server/index.ts`
+    - MineMusic server entrypoint that waits for the server runtime and exposes
+      MCP over local streamable HTTP.
 
 57. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
@@ -248,11 +247,10 @@ This index points agents to the current MVP documentation pack.
       provider registration.
 
 58. `src/surfaces/mcp/server.ts`
-    - Codex-facing MCP surface that derives prefixed tools from MineMusic
+    - MCP surface that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
-      `MineMusicStageInterface`; the default MCP runtime now comes from the
-      MineMusic service runtime, while the embedded MCP startup is retained only
-      as `mcp:minemusic:dev`.
+      `MineMusicStageInterface`; embedded stdio startup is retained only as
+      `mcp:minemusic:dev`.
 
 59. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
@@ -268,9 +266,9 @@ This index points agents to the current MVP documentation pack.
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
 62. `plugins/minemusic/.mcp.json`
-    - MCP startup config for the MineMusic plugin; it starts
-      `service:minemusic` and does not carry provider/database/cache/session
-      runtime env.
+    - MCP client config for the MineMusic plugin; it points at
+      `http://127.0.0.1:37373/mcp` and does not carry provider/database/cache/
+      session runtime env or a process startup command.
 
 63. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP

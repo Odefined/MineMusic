@@ -76,14 +76,11 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   assert(!skillText.includes("minemusic.memory.propose_update"), "MineMusic skill should not mention old memory tool");
 
   const mcpServers = mcpJson.mcpServers as Record<string, unknown>;
-  const server = mcpServers.minemusic as { command?: unknown; args?: unknown; env?: unknown };
+  const server = mcpServers.minemusic as { command?: unknown; args?: unknown; env?: unknown; url?: unknown };
 
-  assert(server.command === "npm", "MCP server should start through npm");
-  assert(Array.isArray(server.args), "MCP server should define args");
-  assert(server.args.includes("--prefix"), "MCP server should run from the MineMusic repo root");
-  assert(server.args.includes(root), "MCP server should use this repo as npm prefix");
-  assert(server.args.includes("service:minemusic"), "plugin should start the MineMusic service entrypoint");
-  assert(!server.args.includes("mcp:minemusic"), "plugin should not start the transitional MCP runtime path");
+  assert(server.url === "http://127.0.0.1:37373/mcp", "plugin should connect to the MineMusic MCP server URL");
+  assert(server.command === undefined, "plugin should not start a MineMusic server process");
+  assert(server.args === undefined, "plugin should not define stdio startup args");
   assert(
     !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_NETEASE_BASE_URL"),
     "plugin config should not own provider runtime env",
@@ -108,14 +105,15 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   const scripts = packageJson.scripts as Record<string, unknown>;
 
   assert(
-    typeof scripts["service:minemusic"] === "string" && scripts["service:minemusic"].includes("src/service/server.js"),
-    "service script should start the MineMusic service entrypoint",
+    typeof scripts["server:minemusic"] === "string" && scripts["server:minemusic"].includes("src/server/index.js"),
+    "server script should start the MineMusic server entrypoint",
   );
   assert(
-    typeof scripts["mcp:minemusic:dev"] === "string" && scripts["mcp:minemusic:dev"].includes("src/surfaces/mcp/server.js"),
+    typeof scripts["mcp:minemusic:dev"] === "string" && scripts["mcp:minemusic:dev"].includes("src/surfaces/mcp/stdio-dev.js"),
     "embedded MCP startup should be named as a dev path",
   );
   assert(!("mcp:minemusic" in scripts), "package scripts should not expose ambiguous embedded MCP startup");
+  assert(!("service:minemusic" in scripts), "package scripts should not expose the wrong Codex-owned startup path");
 
   const marketplacePlugins = marketplaceJson.plugins as Array<{
     name?: string;

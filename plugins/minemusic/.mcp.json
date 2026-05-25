@@ -1,13 +1,7 @@
 {
   "mcpServers": {
     "minemusic": {
-      "command": "npm",
-      "args": [
-        "--prefix",
-        "/Users/jiajuzang/Documents/Codex/MineMusic",
-        "run",
-        "service:minemusic"
-      ]
+      "url": "http://127.0.0.1:37373/mcp"
     }
   }
 }
