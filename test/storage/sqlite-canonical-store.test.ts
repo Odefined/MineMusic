@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { createCanonicalStore } from "../../src/canonical/index.js";
 import type { CanonicalRecord, Ref, Result } from "../../src/contracts/index.js";
@@ -47,21 +48,21 @@ async function persistsCanonicalRecordsAcrossRepositoryReopen(): Promise<void> {
       repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
     });
     const loaded = await assertOk(reopenedStore.get({ ref: created.ref }));
-    const resolved = await assertOk(reopenedStore.resolveExternalRef({ ref: sourceRef }));
+    const resolved = await assertOk(reopenedStore.resolveSourceRef({ ref: sourceRef }));
 
     assert(loaded?.ref.id === created.ref.id, "reopened store should load canonical record");
     assert(resolved?.ref.id === created.ref.id, "reopened store should resolve source ref evidence");
     assert(loaded?.ref.namespace === "minemusic", "canonical identity should remain MineMusic-owned");
     assert(
-      resolved?.externalKeys?.[0]?.namespace === "source:netease",
-      "source refs should remain external evidence",
+      resolved?.sourceRefs?.[0]?.namespace === "source:netease",
+      "source refs should remain source-ref evidence",
     );
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
 }
 
-async function rejectsExternalRefConflictsAfterRepositoryReopen(): Promise<void> {
+async function rejectsSourceRefConflictsAfterRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-conflict-"));
   const databasePath = join(directory, "canonical.sqlite");
   const sourceRef: Ref = {
@@ -94,22 +95,22 @@ async function rejectsExternalRefConflictsAfterRepositoryReopen(): Promise<void>
         label: "Other Track",
       }),
     );
-    const conflict = await reopenedStore.attachExternalRef({
+    const conflict = await reopenedStore.attachSourceRef({
       canonicalRef: other.ref,
-      externalRef: sourceRef,
+      sourceRef: sourceRef,
     });
 
-    assert(!conflict.ok, "external ref should not attach to two canonical records after reopen");
+    assert(!conflict.ok, "source ref should not attach to two canonical records after reopen");
     assert(
-      conflict.error.code === "canonical.external_ref_conflict",
-      "durable external ref conflicts should use the canonical conflict code",
+      conflict.error.code === "canonical.source_ref_conflict",
+      "durable source ref conflicts should use the canonical conflict code",
     );
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
 }
 
-async function mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary(): Promise<void> {
+async function mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-race-"));
   const databasePath = join(directory, "canonical.sqlite");
   const sourceRef: Ref = {
@@ -122,7 +123,7 @@ async function mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary(): Prom
     kind: "recording",
     label: "First Race",
     status: "active",
-    externalKeys: [sourceRef],
+    sourceRefs: [sourceRef],
   };
   const second: CanonicalRecord = {
     ref: { namespace: "minemusic", kind: "recording", id: "second-race" },
@@ -161,15 +162,111 @@ async function mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary(): Prom
     const store = createCanonicalStore({
       repository: staleConflictCheckRepository,
     });
-    const conflict = await store.attachExternalRef({
+    const conflict = await store.attachSourceRef({
       canonicalRef: second.ref,
-      externalRef: sourceRef,
+      sourceRef: sourceRef,
     });
 
-    assert(!conflict.ok, "SQLite unique external-ref failure should cross the canonical boundary");
+    assert(!conflict.ok, "SQLite unique source-ref failure should cross the canonical boundary");
     assert(
-      conflict.error.code === "canonical.external_ref_conflict",
-      "SQLite unique external-ref failure should map to canonical conflict code",
+      conflict.error.code === "canonical.source_ref_conflict",
+      "SQLite unique source-ref failure should map to canonical conflict code",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function migratesLegacySourceRefTableToSourceRefs(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-migration-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const sourceRef: Ref = {
+    namespace: "source:netease",
+    kind: "track",
+    id: "legacy-track",
+  };
+
+  try {
+    const legacyDatabase = new DatabaseSync(databasePath);
+
+    legacyDatabase.exec(`
+      CREATE TABLE canonical_entities (
+        id TEXT PRIMARY KEY,
+        namespace TEXT NOT NULL DEFAULT 'minemusic',
+        kind TEXT NOT NULL,
+        label TEXT NOT NULL,
+        normalized_label TEXT NOT NULL,
+        status TEXT NOT NULL,
+        merged_into_id TEXT,
+        disambiguation TEXT,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (status IN ('active', 'provisional', 'merged', 'rejected'))
+      );
+
+      CREATE TABLE canonical_external_refs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        canonical_id TEXT NOT NULL,
+        namespace TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        label TEXT,
+        url TEXT,
+        confidence REAL,
+        evidence_event_id TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (canonical_id) REFERENCES canonical_entities(id),
+        UNIQUE(namespace, kind, external_id)
+      );
+
+      INSERT INTO canonical_entities (
+        id,
+        namespace,
+        kind,
+        label,
+        normalized_label,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        'legacy-canonical',
+        'minemusic',
+        'recording',
+        'Legacy Track',
+        'legacy track',
+        'provisional',
+        '2026-05-25T00:00:00.000Z',
+        '2026-05-25T00:00:00.000Z'
+      );
+
+      INSERT INTO canonical_external_refs (
+        canonical_id,
+        namespace,
+        kind,
+        external_id,
+        created_at
+      )
+      VALUES (
+        'legacy-canonical',
+        'source:netease',
+        'track',
+        'legacy-track',
+        '2026-05-25T00:00:00.000Z'
+      );
+    `);
+    legacyDatabase.close();
+
+    const store = createCanonicalStore({
+      repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+    });
+    const resolved = await assertOk(store.resolveSourceRef({ ref: sourceRef }));
+
+    assert(resolved?.ref.id === "legacy-canonical", "legacy source refs should migrate");
+    assert(
+      resolved?.sourceRefs?.[0]?.id === sourceRef.id,
+      "migrated canonical records should expose sourceRefs",
     );
   } finally {
     await rm(directory, { force: true, recursive: true });
@@ -250,6 +347,7 @@ async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void>
 }
 
 await persistsCanonicalRecordsAcrossRepositoryReopen();
-await rejectsExternalRefConflictsAfterRepositoryReopen();
-await mapsSqliteExternalRefUniquenessFailureAtCanonicalBoundary();
+await rejectsSourceRefConflictsAfterRepositoryReopen();
+await mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary();
+await migratesLegacySourceRefTableToSourceRefs();
 await persistsCanonicalRelationsAcrossRepositoryReopen();

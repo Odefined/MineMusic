@@ -190,7 +190,7 @@ the first Library Import Service implementation.
     when an area is readable, provider `readItems` to estimate canonical and
     Collection outcomes without writing.
   - Estimate canonical binding by exact source-ref lookup only through
-    `CanonicalStorePort.resolveExternalRef`.
+    `CanonicalStorePort.resolveSourceRef`.
   - Estimate provisional creation only from provider item facts:
     - stable source ref is present.
     - target kind is a first-slice canonical kind.
@@ -213,7 +213,7 @@ the first Library Import Service implementation.
     - resolve `sourceRef` through Canonical Store.
     - create a provisional canonical record when no binding exists and provider
       metadata is strong enough.
-    - attach the external source ref when needed.
+    - attach the source ref when needed.
     - write to the owner's saved system Collection through
       `addItemToSystemCollection`.
     - upsert item provenance.
@@ -333,7 +333,7 @@ the first Library Import Service implementation.
     would-add Collection items.
   - Initial import creates or reuses canonical records, saves Collection items,
     records item provenance, records events, and stores complete baselines.
-  - Repeated import is idempotent for canonical external refs and Collection
+  - Repeated import is idempotent for canonical source refs and Collection
     membership.
   - Update preview and start classify newly observed, still-present, absent, and
     skipped/failed items.

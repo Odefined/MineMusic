@@ -230,7 +230,7 @@ the same canonical object, Collection Service should still keep one idempotent
 Collection item for that canonical ref.
 
 Collection items do not store source refs. Source refs remain recoverable
-through Canonical Store external refs and import event provenance.
+through Canonical Store source refs and import event provenance.
 
 Library Import should retain item-level provenance that connects provider id,
 provider account id, import scope, source ref, and canonical ref for imported
@@ -356,18 +356,18 @@ and may later seed memory proposals.
 
 ### Canonical Store
 
-Owns MineMusic identity anchors and external ref bindings.
+Owns MineMusic identity anchors and source ref bindings.
 
 During import, Canonical Store is used to:
 
 - resolve known source refs.
-- reuse existing records when an external ref is already bound.
+- reuse existing records when an source ref is already bound.
 - create provisional records for explicit imported user assets when provider
   metadata is strong enough.
 - resolve provider hint source refs for artist and release records before
   writing recording relations, creating provisional artist/release records only
   when no existing canonical binding is found.
-- attach external refs to canonical records through the public canonical port.
+- attach source refs to canonical records through the public canonical port.
 
 Canonical Store should not treat a platform id as a canonical id.
 
@@ -427,7 +427,7 @@ sequenceDiagram
     Import->>Provider: read platform library items for scope
     Provider-->>Import: complete or partial item result
     Import->>Events: record batch/item facts
-    Import->>Canonical: resolve external ref
+    Import->>Canonical: resolve source ref
     alt known binding
         Canonical-->>Import: canonical record
     else strong platform metadata
@@ -503,12 +503,12 @@ import batch:
 collection item:
   collection id + canonical ref
 
-canonical external ref:
+canonical source ref:
   source ref namespace + kind + id
 ```
 
 On repeated import, Library Import should first use the platform source ref to
-recognize the same external asset and ask Canonical Store for the existing
+recognize the same source asset and ask Canonical Store for the existing
 canonical record. Collection Service then keeps the Collection item idempotent
 by `collectionId + canonicalRef`. Re-importing the same platform asset should
 not create a second provisional canonical record or a second Collection item.
@@ -517,7 +517,7 @@ Readable provider items without stable `sourceRef` are not importable. Library
 Import should skip them or report provider warnings rather than writing
 Collection items or update baselines.
 
-Library Import must treat provider `sourceRef` values as opaque stable external
+Library Import must treat provider `sourceRef` values as opaque stable source
 keys. It must not branch on provider-specific `sourceRef.kind` values. Import
 behavior should use the provider-slot `itemKind` and `targetKind` fields.
 

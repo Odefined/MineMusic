@@ -258,15 +258,15 @@ return the same ref across preview, import, and later update reads.
 
 The generic `platform_library` slot does not define provider-specific
 `sourceRef.kind` values. `sourceRef.namespace`, `sourceRef.kind`, and
-`sourceRef.id` are provider-owned external identity fields. Library Import
+`sourceRef.id` are provider-owned source identity fields. Library Import
 should treat them as opaque stable refs, not as MineMusic object taxonomy.
-Provider plugins decide their own external ref kinds when they implement the
+Provider plugins decide their own source ref kinds when they implement the
 slot.
 
 Items without a stable `sourceRef` must not be returned as readable import/update
 items. They may appear only as preview samples or as skipped/unavailable facts.
 Library Import relies on stable source refs for idempotency, update baselines,
-Platform Library Absence derivation, and Canonical Store external-ref binding.
+Platform Library Absence derivation, and Canonical Store source-ref binding.
 
 Platform album saves should be expressed as `saved_release` in this slot
 contract. Providers should not return `saved_album` as a separate item kind.

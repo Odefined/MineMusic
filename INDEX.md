@@ -104,7 +104,7 @@ This index points agents to the current MVP documentation pack.
 
 27. `docs/library-import/design.md`
     - Library Import design for import orchestration, library updates,
-      Collection Service writes, Canonical Store external-ref bindings,
+      Collection Service writes, Canonical Store source-ref bindings,
       linked artist/release graph writes through canonical source-ref
       resolution, and import/update event records.
 
@@ -149,7 +149,7 @@ This index points agents to the current MVP documentation pack.
 
 37. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation for records,
-      external refs, aliases, and provisional relations.
+      source refs, aliases, and provisional relations.
 
 38. `src/storage/sqlite/collection-schema.ts`
     - SQLite schema initialization for durable Collection storage.

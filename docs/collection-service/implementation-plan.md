@@ -56,7 +56,7 @@ owner-scoped Collections
 
 - Keep Collection canonical-only.
   Collection items require `canonicalRef`; source refs belong to Canonical Store
-  external refs and import/event provenance.
+  source refs and import/event provenance.
 
 - Keep bulk orchestration outside Collection Service.
   Collection ports operate on one item at a time. Library Import should loop,
@@ -282,7 +282,7 @@ Use Collection blocked membership during material resolve.
 - Call `collection.filterBlocked`.
 - If a candidate/material canonical ref is blocked, return blocked state instead
   of silently removing it.
-- If material only has source refs, rely on existing canonical external-ref
+- If material only has source refs, rely on existing canonical source-ref
   binding first. Without a canonical ref, Collection-level blocked filtering
   cannot apply.
 

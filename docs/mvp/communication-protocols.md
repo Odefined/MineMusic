@@ -114,7 +114,7 @@ export type DomainEventType =
   | "instrument.called"
   | "instrument.failed"
   | "canonical.provisional.created"
-  | "canonical.external_ref.attached"
+  | "canonical.source_ref.attached"
   | "source.material.grounded"
   | "source.links.refreshed"
   | "source.material.unresolved"
@@ -264,7 +264,7 @@ stage.session_not_found
 stage.material_state_invalid
 stage_interface.tool_not_found
 canonical.not_found
-canonical.external_ref_conflict
+canonical.source_ref_conflict
 source.no_provider
 source.no_playable_link
 source.unresolved_match

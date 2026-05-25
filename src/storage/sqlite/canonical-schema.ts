@@ -22,24 +22,28 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS canonical_entities_status_idx
       ON canonical_entities(status);
+  `);
 
-    CREATE TABLE IF NOT EXISTS canonical_external_refs (
+  migrateLegacySourceRefTable(database);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS canonical_source_refs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       canonical_id TEXT NOT NULL,
       namespace TEXT NOT NULL,
       kind TEXT NOT NULL,
-      external_id TEXT NOT NULL,
+      source_id TEXT NOT NULL,
       label TEXT,
       url TEXT,
       confidence REAL,
       evidence_event_id TEXT,
       created_at TEXT NOT NULL,
       FOREIGN KEY (canonical_id) REFERENCES canonical_entities(id),
-      UNIQUE(namespace, kind, external_id)
+      UNIQUE(namespace, kind, source_id)
     );
 
-    CREATE INDEX IF NOT EXISTS canonical_external_refs_canonical_idx
-      ON canonical_external_refs(canonical_id);
+    CREATE INDEX IF NOT EXISTS canonical_source_refs_canonical_idx
+      ON canonical_source_refs(canonical_id);
 
     CREATE TABLE IF NOT EXISTS canonical_aliases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,4 +91,74 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS canonical_relations_predicate_idx
       ON canonical_relations(predicate, status);
   `);
+}
+
+function migrateLegacySourceRefTable(database: DatabaseSync): void {
+  if (!sqliteObjectExists(database, "table", "canonical_external_refs")) {
+    return;
+  }
+
+  if (!sqliteObjectExists(database, "table", "canonical_source_refs")) {
+    database.exec(`
+      ALTER TABLE canonical_external_refs RENAME TO canonical_source_refs;
+    `);
+
+    if (
+      tableHasColumn(database, "canonical_source_refs", "external_id") &&
+      !tableHasColumn(database, "canonical_source_refs", "source_id")
+    ) {
+      database.exec(`
+        ALTER TABLE canonical_source_refs RENAME COLUMN external_id TO source_id;
+      `);
+    }
+
+    return;
+  }
+
+  database.exec(`
+    INSERT OR IGNORE INTO canonical_source_refs (
+      canonical_id,
+      namespace,
+      kind,
+      source_id,
+      label,
+      url,
+      confidence,
+      evidence_event_id,
+      created_at
+    )
+    SELECT
+      canonical_id,
+      namespace,
+      kind,
+      external_id,
+      label,
+      url,
+      confidence,
+      evidence_event_id,
+      created_at
+    FROM canonical_external_refs;
+
+    DROP TABLE canonical_external_refs;
+  `);
+}
+
+function sqliteObjectExists(
+  database: DatabaseSync,
+  type: "table",
+  name: string,
+): boolean {
+  const row = database
+    .prepare("SELECT name FROM sqlite_master WHERE type = ? AND name = ?")
+    .get(type, name) as { name: string } | undefined;
+
+  return row !== undefined;
+}
+
+function tableHasColumn(database: DatabaseSync, table: string, column: string): boolean {
+  const columns = database
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as { name: string }[];
+
+  return columns.some((entry) => entry.name === column);
 }

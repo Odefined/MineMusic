@@ -52,7 +52,7 @@ const canonicalRecording: CanonicalRecord = {
   kind: "recording",
   label: "Quiet Canonical Recording",
   status: "active",
-  externalKeys: [sourceRecordingRef],
+  sourceRefs: [sourceRecordingRef],
 };
 const sourceRecordingMaterial: MusicMaterial = {
   id: "fixture:track:quiet-canonical-recording",

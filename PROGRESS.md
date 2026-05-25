@@ -41,7 +41,7 @@
 - Verified Wave 2 with `npm test`.
 - Entered Wave 3 for core domain modules.
 - Added Canonical Store in `src/canonical/index.ts` with provisional records,
-  external ref resolution, external ref attachment, and conflict rejection.
+  source ref resolution, source ref attachment, and conflict rejection.
 - Added Event Service in `src/events/index.ts` with factual event recording and
   session-scoped listing.
 - Added Effect Boundary in `src/effects/index.ts` with proposal and decision
@@ -212,19 +212,19 @@
 - Started Canonical Store implementation with a TDD tracer bullet against the
   documented SQLite storage model.
 - Added `src/storage/sqlite/index.ts`, a `node:sqlite`-backed
-  `CanonicalRecordRepository` that initializes canonical entity, external-ref,
+  `CanonicalRecordRepository` that initializes canonical entity, source-ref,
   and alias tables and rehydrates public `CanonicalRecord` values.
 - Added `test/storage/sqlite-canonical-store.test.ts` to prove canonical record
-  persistence, external-ref reverse lookup, and external-ref conflict behavior
+  persistence, source-ref reverse lookup, and source-ref conflict behavior
   across repository reopen.
 - Tightened `src/canonical/index.ts` identity policy so provisional creation
-  reuses existing current records by external evidence; ordinary label/external
-  ref lookup ignores historical records; label/alias matches remain lookup-only
-  candidate discovery; and repeated same-record external-ref attachment stays
-  idempotent.
+  reuses existing current records by source-ref evidence; ordinary label lookup
+  and source-ref lookup ignore historical records; label/alias matches remain
+  lookup-only candidate discovery; and repeated same-record source-ref
+  attachment stays idempotent.
 - Added Canonical Store policy tests for evidence reuse, label/alias lookup,
   no automatic label-only provisional reuse, historical-status filtering,
-  durable conflict behavior, and idempotent external-ref attachment.
+  durable conflict behavior, and idempotent source-ref attachment.
 - Changed the stage-core runtime test runner to import test modules
   sequentially, removing a handbook file read/write race between plugin
   packaging checks and Stage Core startup tests.
@@ -233,8 +233,12 @@
   design, storage-model, interface, and implementation-plan documents.
 - Completed Canonical Store plan Task 2 by splitting SQLite schema and
   repository code into dedicated files, exporting the SQLite repository factory
-  through `src/storage/index.ts`, and mapping SQLite external-ref uniqueness
-  failures to `canonical.external_ref_conflict` at the Canonical Store boundary.
+  through `src/storage/index.ts`, and mapping SQLite source-ref uniqueness
+  failures to `canonical.source_ref_conflict` at the Canonical Store boundary.
+- Added SQLite schema migration from the legacy
+  `canonical_external_refs.external_id` shape to
+  `canonical_source_refs.source_id` so existing local durable stores keep their
+  source-ref bindings after the terminology refactor.
 - Completed Canonical Store plan Task 3 by splitting canonical normalization
   and repository-backed lookup/write mechanics out of `src/canonical/index.ts`
   into `src/canonical/normalization.ts` and `src/canonical/storage.ts`.
@@ -258,7 +262,7 @@
   Service and Platform Library Provider slot for helping users switch from
   external platforms by importing saved songs, albums, followed artists,
   and other first-slice platform-library facts into MineMusic Collection items,
-  canonical external-ref bindings, and import/update event records. Playlist
+  canonical source-ref bindings, and import/update event records. Playlist
   import is documented as a later feature.
 - Added `docs/library-import/progress.md` as the module-local implementation
   status document for Library Import, keeping mutable implementation state out
@@ -320,7 +324,7 @@
   Material Resolve now accepts an optional `CollectionPort`, defaults blocked
   filtering to `local_profile:default` when `ownerScope` is missing, marks
   blocked canonical materials/candidates as `blocked`, and resolves source
-  material external refs through Canonical Store before applying blocked
+  material source refs through Canonical Store before applying blocked
   filtering.
 - Completed Collection Service implementation plan Task 6 with a TDD loop:
   Stage Core now creates and exposes Collection Service, initializes
@@ -542,10 +546,10 @@
   runtime coverage for Stage Core recreation against the same canonical
   database path and MCP database initialization.
 - Corrected Canonical Store provisional identity policy so automatic creation
-  only reuses by exact external evidence, not by normalized label or alias
+  only reuses by exact source-ref evidence, not by normalized label or alias
   alone. Added regression coverage for same-label/different-source imports and
   verified live NetEase saved-recording import now produces 1372 item reports,
-  1372 canonical external refs, and 1372 active Collection items. These are
+  1372 canonical source refs, and 1372 active Collection items. These are
   source-bound provisional identities, not proof that every source ref is a
   distinct real-world recording.
 - Added provisional canonical relations: `CanonicalStorePort` can now record and

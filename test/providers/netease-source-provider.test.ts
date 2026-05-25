@@ -126,7 +126,7 @@ async function integratesWithSourceGroundingThroughPluginSlot(): Promise<void> {
     kind: "recording",
     label: "Canonical NetEase Track",
     status: "active",
-    externalKeys: [{ namespace: "source:netease", kind: "track", id: "123" }],
+    sourceRefs: [{ namespace: "source:netease", kind: "track", id: "123" }],
   };
   await assertOk(canonicalRepository.put(canonical));
 

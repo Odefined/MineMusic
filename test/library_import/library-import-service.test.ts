@@ -312,7 +312,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
     kind: "recording",
     label: "Bound Track",
     status: "active",
-    externalKeys: [sourceRef("bound-track")],
+    sourceRefs: [sourceRef("bound-track")],
   };
   const unsavedCanonical: CanonicalRecord = {
     ref: {
@@ -323,7 +323,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
     kind: "recording",
     label: "Unsaved Bound Track",
     status: "active",
-    externalKeys: [sourceRef("bound-unsaved-track")],
+    sourceRefs: [sourceRef("bound-unsaved-track")],
   };
   await assertOk(environment.canonicalRepository.put(boundCanonical));
   await assertOk(environment.canonicalRepository.put(unsavedCanonical));
@@ -495,7 +495,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     kind: "recording",
     label: "Bound Track",
     status: "active",
-    externalKeys: [sourceRef("bound-track")],
+    sourceRefs: [sourceRef("bound-track")],
   };
   await assertOk(environment.canonicalRepository.put(boundCanonical));
   await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
@@ -553,12 +553,12 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     }),
   );
   const fixtureArtist = await assertOk(
-    environment.canonicalStore.resolveExternalRef({
+    environment.canonicalStore.resolveSourceRef({
       ref: artistSourceRef("fixture-artist", "Fixture Artist"),
     }),
   );
   const fixtureRelease = await assertOk(
-    environment.canonicalStore.resolveExternalRef({
+    environment.canonicalStore.resolveSourceRef({
       ref: releaseSourceRef("fixture-release", "Fixture Release"),
     }),
   );
@@ -588,7 +588,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     "import report should include skipped item results",
   );
   assert(
-    canonicalRecords.some((record) => record.externalKeys?.some((ref) => ref.id === "new-track")),
+    canonicalRecords.some((record) => record.sourceRefs?.some((ref) => ref.id === "new-track")),
     "import should create a provisional canonical record with the source ref",
   );
   assert(savedItems.length === 2, "import should add only resolvable items to saved Collection");
@@ -880,7 +880,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
     kind: "recording",
     label: "Saved New Track",
     status: "active",
-    externalKeys: [sourceRef("saved-new-track")],
+    sourceRefs: [sourceRef("saved-new-track")],
   };
   await assertOk(environment.canonicalRepository.put(preExistingCanonical));
   await assertOk(

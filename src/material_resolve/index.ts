@@ -203,7 +203,7 @@ async function findCanonicalForCandidate(
   const sourceRef = candidate.sourceRef ?? candidate.query?.sourceRef;
 
   if (sourceRef !== undefined) {
-    const canonical = await canonicalStore.resolveExternalRef({ ref: sourceRef });
+    const canonical = await canonicalStore.resolveSourceRef({ ref: sourceRef });
 
     if (!canonical.ok || canonical.value !== null) {
       return canonical;
@@ -270,9 +270,9 @@ async function attachCanonicalToMaterials(
     );
 
     for (const sourceRef of sourceRefs) {
-      const attachResult = await canonicalStore.attachExternalRef({
+      const attachResult = await canonicalStore.attachSourceRef({
         canonicalRef: canonical.ref,
-        externalRef: sourceRef,
+        sourceRef: sourceRef,
       });
 
       if (!attachResult.ok) {
@@ -329,7 +329,7 @@ async function findCanonicalForSourceRefs(
   sourceRefs: Ref[],
 ): Promise<Result<CanonicalRecord | null>> {
   for (const sourceRef of sourceRefs) {
-    const canonical = await canonicalStore.resolveExternalRef({ ref: sourceRef });
+    const canonical = await canonicalStore.resolveSourceRef({ ref: sourceRef });
 
     if (!canonical.ok || canonical.value !== null) {
       return canonical;

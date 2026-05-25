@@ -13,8 +13,8 @@ import type {
 import type { CanonicalRecordRepository } from "../../ports/index.js";
 import { initializeCanonicalSchema } from "./canonical-schema.js";
 
-export const sqliteCanonicalExternalRefConflictConstraint =
-  "canonical_external_refs_unique";
+export const sqliteCanonicalSourceRefConflictConstraint =
+  "canonical_source_refs_unique";
 
 export type SqliteCanonicalRecordRepositoryOptions = {
   path: string;
@@ -28,10 +28,10 @@ type CanonicalEntityRow = {
   status: CanonicalRecord["status"];
 };
 
-type ExternalRefRow = {
+type SourceRefRow = {
   namespace: string;
   kind: string;
-  external_id: string;
+  source_id: string;
   label: string | null;
   url: string | null;
 };
@@ -60,7 +60,7 @@ type RelationRow = {
 
 type SqliteConstraintCause = {
   kind: "sqlite.constraint";
-  constraint: typeof sqliteCanonicalExternalRefConflictConstraint;
+  constraint: typeof sqliteCanonicalSourceRefConflictConstraint;
   message: string;
   cause: unknown;
 };
@@ -125,17 +125,17 @@ export function createSqliteCanonicalRecordRepository({
             );
 
           database
-            .prepare("DELETE FROM canonical_external_refs WHERE canonical_id = ?")
+            .prepare("DELETE FROM canonical_source_refs WHERE canonical_id = ?")
             .run(record.ref.id);
 
-          for (const externalRef of record.externalKeys ?? []) {
+          for (const sourceRef of record.sourceRefs ?? []) {
             database
               .prepare(`
-                INSERT INTO canonical_external_refs (
+                INSERT INTO canonical_source_refs (
                   canonical_id,
                   namespace,
                   kind,
-                  external_id,
+                  source_id,
                   label,
                   url,
                   created_at
@@ -144,11 +144,11 @@ export function createSqliteCanonicalRecordRepository({
               `)
               .run(
                 record.ref.id,
-                externalRef.namespace,
-                externalRef.kind,
-                externalRef.id,
-                externalRef.label ?? null,
-                externalRef.url ?? null,
+                sourceRef.namespace,
+                sourceRef.kind,
+                sourceRef.id,
+                sourceRef.label ?? null,
+                sourceRef.url ?? null,
                 now,
               );
           }
@@ -295,14 +295,14 @@ function getEntityRow(database: DatabaseSync, ref: Ref): CanonicalEntityRow | nu
 }
 
 function readCanonicalRecord(database: DatabaseSync, row: CanonicalEntityRow): CanonicalRecord {
-  const externalKeys = database
+  const sourceRefs = database
     .prepare(`
-      SELECT namespace, kind, external_id, label, url
-      FROM canonical_external_refs
+      SELECT namespace, kind, source_id, label, url
+      FROM canonical_source_refs
       WHERE canonical_id = ?
       ORDER BY id
     `)
-    .all(row.id) as ExternalRefRow[];
+    .all(row.id) as SourceRefRow[];
   const aliases = database
     .prepare(`
       SELECT alias
@@ -322,21 +322,21 @@ function readCanonicalRecord(database: DatabaseSync, row: CanonicalEntityRow): C
     label: row.label,
     status: row.status,
   };
-  const refs = externalKeys.map(toRef);
+  const refs = sourceRefs.map(toRef);
   const aliasValues = aliases.map((alias) => alias.alias);
 
   return {
     ...record,
-    ...(refs.length === 0 ? {} : { externalKeys: refs }),
+    ...(refs.length === 0 ? {} : { sourceRefs: refs }),
     ...(aliasValues.length === 0 ? {} : { aliases: aliasValues }),
   };
 }
 
-function toRef(row: ExternalRefRow): Ref {
+function toRef(row: SourceRefRow): Ref {
   return {
     namespace: row.namespace,
     kind: row.kind,
-    id: row.external_id,
+    id: row.source_id,
     ...(row.label === null ? {} : { label: row.label }),
     ...(row.url === null ? {} : { url: row.url }),
   };
@@ -428,10 +428,10 @@ function readResult<T>(read: () => T): Result<T> {
 }
 
 function normalizeSqliteCause(cause: unknown): unknown {
-  if (isExternalRefUniqueConstraintFailure(cause)) {
+  if (isSourceRefUniqueConstraintFailure(cause)) {
     return {
       kind: "sqlite.constraint",
-      constraint: sqliteCanonicalExternalRefConflictConstraint,
+      constraint: sqliteCanonicalSourceRefConflictConstraint,
       message: errorMessage(cause),
       cause,
     } satisfies SqliteConstraintCause;
@@ -440,13 +440,13 @@ function normalizeSqliteCause(cause: unknown): unknown {
   return cause;
 }
 
-function isExternalRefUniqueConstraintFailure(cause: unknown): boolean {
+function isSourceRefUniqueConstraintFailure(cause: unknown): boolean {
   const message = errorMessage(cause);
 
   return (
     message.includes("UNIQUE constraint failed") &&
-    message.includes("canonical_external_refs") &&
-    message.includes("external_id")
+    message.includes("canonical_source_refs") &&
+    message.includes("source_id")
   );
 }
 

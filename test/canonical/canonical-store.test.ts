@@ -36,11 +36,11 @@ async function createsAndGetsProvisionalRecords(): Promise<void> {
 
   assert(created.status === "provisional", "created record should be provisional");
   assert(created.ref.namespace === "minemusic", "canonical refs should be MineMusic-owned");
-  assert(created.externalKeys?.[0]?.id === evidence.id, "source refs should be attached as evidence");
+  assert(created.sourceRefs?.[0]?.id === evidence.id, "source refs should be attached as evidence");
   assert(loaded?.ref.id === created.ref.id, "created record should be retrievable");
 }
 
-async function resolvesAndAttachesExternalRefsWithoutChangingAuthority(): Promise<void> {
+async function resolvesAndAttachesSourceRefsWithoutChangingAuthority(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const canonicalRef: Ref = {
     namespace: "minemusic",
@@ -62,16 +62,16 @@ async function resolvesAndAttachesExternalRefsWithoutChangingAuthority(): Promis
 
   await assertOk(repository.put(record));
   const updated = await assertOk(
-    store.attachExternalRef({
+    store.attachSourceRef({
       canonicalRef,
-      externalRef: sourceRef,
+      sourceRef: sourceRef,
     }),
   );
-  const resolved = await assertOk(store.resolveExternalRef({ ref: sourceRef }));
+  const resolved = await assertOk(store.resolveSourceRef({ ref: sourceRef }));
 
-  assert(updated.ref.id === canonicalRef.id, "external refs must not replace canonical identity");
-  assert(updated.externalKeys?.[0]?.id === sourceRef.id, "external ref should be stored as evidence");
-  assert(resolved?.ref.id === canonicalRef.id, "external ref should resolve to canonical record");
+  assert(updated.ref.id === canonicalRef.id, "source refs must not replace canonical identity");
+  assert(updated.sourceRefs?.[0]?.id === sourceRef.id, "source ref should be stored as evidence");
+  assert(resolved?.ref.id === canonicalRef.id, "source ref should resolve to canonical record");
 }
 
 async function createProvisionalReusesExistingEvidence(): Promise<void> {
@@ -105,7 +105,7 @@ async function createProvisionalReusesExistingEvidence(): Promise<void> {
   );
   const records = await assertOk(repository.list());
 
-  assert(second.ref.id === first.ref.id, "same external evidence should reuse canonical identity");
+  assert(second.ref.id === first.ref.id, "same source-ref evidence should reuse canonical identity");
   assert(records.length === 1, "reused evidence should not create duplicate provisional records");
 }
 
@@ -210,7 +210,7 @@ async function findsCurrentRecordsByAlias(): Promise<void> {
   assert(matches[0]?.ref.id === canonical.ref.id, "alias lookup should return the aliased record");
 }
 
-async function resolveExternalRefIgnoresHistoricalRecords(): Promise<void> {
+async function resolveSourceRefIgnoresHistoricalRecords(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const sourceRef: Ref = {
     namespace: "source:fixture",
@@ -222,20 +222,20 @@ async function resolveExternalRefIgnoresHistoricalRecords(): Promise<void> {
     kind: "recording",
     label: "Rejected Track",
     status: "rejected",
-    externalKeys: [sourceRef],
+    sourceRefs: [sourceRef],
   };
   const store = createCanonicalStore({ repository });
 
   await assertOk(repository.put(rejected));
 
-  const resolved = await assertOk(store.resolveExternalRef({ ref: sourceRef }));
+  const resolved = await assertOk(store.resolveSourceRef({ ref: sourceRef }));
 
   assert(resolved === null, "historical records should not resolve as current identity");
 }
 
-async function rejectsExternalRefConflicts(): Promise<void> {
+async function rejectsSourceRefConflicts(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
-  const externalRef: Ref = {
+  const sourceRef: Ref = {
     namespace: "source:fixture",
     kind: "track",
     id: "shared-track",
@@ -245,7 +245,7 @@ async function rejectsExternalRefConflicts(): Promise<void> {
     kind: "recording",
     label: "First",
     status: "active",
-    externalKeys: [externalRef],
+    sourceRefs: [sourceRef],
   };
   const second: CanonicalRecord = {
     ref: { namespace: "minemusic", kind: "recording", id: "second" },
@@ -257,16 +257,16 @@ async function rejectsExternalRefConflicts(): Promise<void> {
 
   await assertOk(repository.put(first));
   await assertOk(repository.put(second));
-  const result = await store.attachExternalRef({
+  const result = await store.attachSourceRef({
     canonicalRef: second.ref,
-    externalRef,
+    sourceRef,
   });
 
-  assert(!result.ok, "conflicting external refs should be rejected");
-  assert(result.error.code === "canonical.external_ref_conflict", "conflict should use stable error code");
+  assert(!result.ok, "conflicting source refs should be rejected");
+  assert(result.error.code === "canonical.source_ref_conflict", "conflict should use stable error code");
 }
 
-async function attachesSameExternalRefIdempotently(): Promise<void> {
+async function attachesSameSourceRefIdempotently(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const canonical: CanonicalRecord = {
     ref: { namespace: "minemusic", kind: "recording", id: "idempotent" },
@@ -282,10 +282,10 @@ async function attachesSameExternalRefIdempotently(): Promise<void> {
   const store = createCanonicalStore({ repository });
 
   await assertOk(repository.put(canonical));
-  await assertOk(store.attachExternalRef({ canonicalRef: canonical.ref, externalRef: sourceRef }));
-  const updated = await assertOk(store.attachExternalRef({ canonicalRef: canonical.ref, externalRef: sourceRef }));
+  await assertOk(store.attachSourceRef({ canonicalRef: canonical.ref, sourceRef: sourceRef }));
+  const updated = await assertOk(store.attachSourceRef({ canonicalRef: canonical.ref, sourceRef: sourceRef }));
 
-  assert(updated.externalKeys?.length === 1, "same external ref should be attached once");
+  assert(updated.sourceRefs?.length === 1, "same source ref should be attached once");
 }
 
 async function recordsAndListsProvisionalRelations(): Promise<void> {
@@ -343,12 +343,12 @@ async function recordsAndListsProvisionalRelations(): Promise<void> {
 }
 
 await createsAndGetsProvisionalRecords();
-await resolvesAndAttachesExternalRefsWithoutChangingAuthority();
+await resolvesAndAttachesSourceRefsWithoutChangingAuthority();
 await createProvisionalReusesExistingEvidence();
 await createProvisionalDoesNotReuseByNormalizedLabelOnly();
 await createProvisionalDoesNotReuseByAliasOnly();
 await findsCurrentRecordsByAlias();
-await resolveExternalRefIgnoresHistoricalRecords();
-await rejectsExternalRefConflicts();
-await attachesSameExternalRefIdempotently();
+await resolveSourceRefIgnoresHistoricalRecords();
+await rejectsSourceRefConflicts();
+await attachesSameSourceRefIdempotently();
 await recordsAndListsProvisionalRelations();

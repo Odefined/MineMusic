@@ -154,7 +154,7 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
     kind: "recording",
     label: "Known Canonical Track",
     status: "active",
-    externalKeys: [sourceRef],
+    sourceRefs: [sourceRef],
   };
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const material: MusicMaterial = {

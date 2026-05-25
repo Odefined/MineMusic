@@ -154,7 +154,7 @@ Inputs:
 Outputs:
 
 - canonical lookup.
-- external ref resolution.
+- source ref resolution.
 - provisional canonical creation.
 - tests for source ref attachment and provisional targets.
 

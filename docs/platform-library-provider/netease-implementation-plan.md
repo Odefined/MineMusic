@@ -98,11 +98,11 @@ Collection status.
 - **Description**: Map NetEase account-library responses into generic
   `PlatformLibraryItem` records.
 - **Details**:
-  - `saved_recordings` items use stable NetEase track refs as external
+  - `saved_recordings` items use stable NetEase track refs as provider
     `sourceRef` values.
-  - `saved_releases` items use stable NetEase album refs as external
+  - `saved_releases` items use stable NetEase album refs as provider
     `sourceRef` values.
-  - `saved_artists` items use stable NetEase artist refs as external
+  - `saved_artists` items use stable NetEase artist refs as provider
     `sourceRef` values.
   - `label` and `canonicalHints` use generic names only.
   - `canonicalHints` may include `label`, `artistLabels`,

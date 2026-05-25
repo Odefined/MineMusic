@@ -130,7 +130,7 @@ async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
   );
   const updatedCanonical = await assertOk(canonicalRepository.get(canonical.ref));
   assert(
-    updatedCanonical?.externalKeys?.some((ref) => ref.id === "known-source-track"),
+    updatedCanonical?.sourceRefs?.some((ref) => ref.id === "known-source-track"),
     "resolve should attach discovered source evidence to the canonical record",
   );
 }
@@ -211,7 +211,7 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
   );
 }
 
-async function blocksSourceMaterialsAfterExternalRefCanonicalLookup(): Promise<void> {
+async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<void> {
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const sourceRef: Ref = {
     namespace: "source:fixture",
@@ -219,11 +219,11 @@ async function blocksSourceMaterialsAfterExternalRefCanonicalLookup(): Promise<v
     id: "external-blocked-track",
   };
   const canonical: CanonicalRecord = {
-    ref: { namespace: "minemusic", kind: "recording", id: "canonical-from-external-ref" },
+    ref: { namespace: "minemusic", kind: "recording", id: "canonical-from-source-ref" },
     kind: "recording",
     label: "Canonical Different Label",
     status: "active",
-    externalKeys: [sourceRef],
+    sourceRefs: [sourceRef],
   };
   await assertOk(canonicalRepository.put(canonical));
 
@@ -243,7 +243,7 @@ async function blocksSourceMaterialsAfterExternalRefCanonicalLookup(): Promise<v
       ok: true,
       value: [
         {
-          id: "source-only-with-known-external-ref",
+          id: "source-only-with-known-source-ref",
           kind: "recording",
           label: "Source Label",
           state: "source_only_playable",
@@ -277,15 +277,15 @@ async function blocksSourceMaterialsAfterExternalRefCanonicalLookup(): Promise<v
     }),
   );
 
-  assert(resolved.kind === "single", "source external-ref resolve should return a single result");
+  assert(resolved.kind === "single", "source source-ref resolve should return a single result");
   assert(resolved.result.status === "blocked", "source material with blocked canonical binding should mark the candidate blocked");
   assert(
     resolved.result.materials[0]?.canonicalRef?.id === canonical.ref.id,
-    "source material external-ref binding should attach the canonical ref",
+    "source material source-ref binding should attach the canonical ref",
   );
   assert(
     resolved.result.materials[0]?.state === "blocked",
-    "source material external-ref binding should allow blocked filtering",
+    "source material source-ref binding should allow blocked filtering",
   );
   assert(ownerScopes[0] === "local_profile:night", "explicit ownerScope should be used for blocked filtering");
 }
@@ -310,4 +310,4 @@ assert(sourceOnlyMaterial.state === "source_only_playable", "material resolve fi
 
 await resolvesCandidateSetsWithCanonicalFirstLookup();
 await blocksCanonicalResolvedMaterialsThroughCollectionPort();
-await blocksSourceMaterialsAfterExternalRefCanonicalLookup();
+await blocksSourceMaterialsAfterSourceRefCanonicalLookup();

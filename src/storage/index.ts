@@ -31,7 +31,7 @@ export {
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
-  sqliteCanonicalExternalRefConflictConstraint,
+  sqliteCanonicalSourceRefConflictConstraint,
 } from "./sqlite/index.js";
 export type {
   SqliteCanonicalRecordRepositoryOptions,

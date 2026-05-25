@@ -45,7 +45,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
         kind: "recording",
         label: "Quiet Coding Track",
         status: "active",
-        externalKeys: [fixtureSourceRef],
+        sourceRefs: [fixtureSourceRef],
       },
     ],
   });

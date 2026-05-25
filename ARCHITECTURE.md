@@ -123,7 +123,7 @@ needs.
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
 | Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
-| Canonical Store | MineMusic-owned identity anchors and external identity evidence | current playability, user taste, source account state |
+| Canonical Store | MineMusic-owned identity anchors and source-ref identity evidence | current playability, user taste, source account state |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
 | Library Import Service | external platform library import/update orchestration, import batches, item provenance, update baselines | provider API details, Collection storage schema, canonical admin policy, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution, `MaterialResolveResult` status, canonical evidence attachment | provider internals, playable-link refresh, final recommendation selection |

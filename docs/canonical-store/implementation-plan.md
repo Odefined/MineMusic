@@ -16,7 +16,7 @@ it into a full music metadata system. The first implementation should prove:
 ```text
 MineMusic canonical identity
 -> persisted across runtime restart
--> external refs remain unique
+-> source refs remain unique
 -> source refs remain evidence, not canonical authority
 -> Material Resolve and Source Grounding can keep using public ports
 ```
@@ -25,15 +25,15 @@ MineMusic canonical identity
 
 | Concern | Current file | Evidence |
 | --- | --- | --- |
-| Canonical service | `src/canonical/index.ts` | `createCanonicalStore` currently depends on `CanonicalRecordRepository` and scans `repository.list()` for label/external-ref lookup. |
-| Public port | `src/ports/index.ts` | `CanonicalStorePort` currently exposes `get`, `findByLabel`, `resolveExternalRef`, `createProvisional`, and `attachExternalRef`. |
+| Canonical service | `src/canonical/index.ts` | `createCanonicalStore` currently depends on `CanonicalRecordRepository` and scans `repository.list()` for label/source-ref lookup. |
+| Public port | `src/ports/index.ts` | `CanonicalStorePort` currently exposes `get`, `findByLabel`, `resolveSourceRef`, `createProvisional`, and `attachSourceRef`. |
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` stores records in a process-local `Map`. |
-| Current tests | `test/canonical/canonical-store.test.ts` | Covers provisional create/get, external-ref attach/resolve, and conflict rejection. |
-| Material Resolve integration | `src/material_resolve/index.ts` | Material Resolve calls `get`, `resolveExternalRef`, `findByLabel`, and `attachExternalRef`. |
-| Source Grounding integration | `src/source/index.ts` | Source Grounding calls `resolveExternalRef` when normalizing provider-returned source refs. |
+| Current tests | `test/canonical/canonical-store.test.ts` | Covers provisional create/get, source-ref attach/resolve, and conflict rejection. |
+| Material Resolve integration | `src/material_resolve/index.ts` | Material Resolve calls `get`, `resolveSourceRef`, `findByLabel`, and `attachSourceRef`. |
+| Source Grounding integration | `src/source/index.ts` | Source Grounding calls `resolveSourceRef` when normalizing provider-returned source refs. |
 | Design docs | `docs/canonical-store/*.md` | Storage model, module responsibilities, and interface boundaries are documented. |
-| SQLite storage | `src/storage/sqlite/index.ts` | Persists canonical entities, external refs, and aliases through `node:sqlite`. |
-| Durable tests | `test/storage/sqlite-canonical-store.test.ts` | Proves reopen persistence, external-ref reverse lookup, and conflict behavior. |
+| SQLite storage | `src/storage/sqlite/index.ts` | Persists canonical entities, source refs, and aliases through `node:sqlite`. |
+| Durable tests | `test/storage/sqlite-canonical-store.test.ts` | Proves reopen persistence, source-ref reverse lookup, and conflict behavior. |
 
 ## Progress Tracking
 
@@ -54,7 +54,7 @@ and remaining gaps are tracked in `docs/canonical-store/progress.md`.
 
 - Introduce a canonical-specific storage boundary behind the service.
   The current generic `Repository<CanonicalRecord, Ref>` is enough for in-memory
-  tests, but durable canonical behavior needs indexed lookup, external-ref
+  tests, but durable canonical behavior needs indexed lookup, source-ref
   uniqueness, alias lookup, and transactions. These should be storage-facing
   operations, not public business methods.
 
@@ -86,11 +86,11 @@ Add failing tests for the storage behavior that does not exist yet.
 - `createProvisional` with a NetEase source ref.
 - Reopen the SQLite-backed store against the same path.
 - Assert `get` returns the canonical record after reopen.
-- Assert `resolveExternalRef` returns the same canonical record after reopen.
-- Assert attaching the same external ref to a different canonical record returns
-  `canonical.external_ref_conflict` after reopen.
+- Assert `resolveSourceRef` returns the same canonical record after reopen.
+- Assert attaching the same source ref to a different canonical record returns
+  `canonical.source_ref_conflict` after reopen.
 - Assert returned refs keep `namespace: "minemusic"` for canonical identity and
-  keep `source:netease` only as external evidence.
+  keep `source:netease` only as source-ref evidence.
 
 **Dependencies**
 
@@ -118,15 +118,15 @@ Implement the durable storage adapter behind Canonical Store.
 - Use `node:sqlite` through a thin local wrapper.
 - Create schema from `docs/canonical-store/storage-model.md`:
   - `canonical_entities`
-  - `canonical_external_refs`
+  - `canonical_source_refs`
   - `canonical_aliases`
   - defer `canonical_redirects` unless needed for tests.
 - Add idempotent schema initialization.
 - Rehydrate public `CanonicalRecord` values from relational rows.
-- Persist `externalKeys` in `canonical_external_refs`.
+- Persist `sourceRefs` in `canonical_source_refs`.
 - Persist `aliases` in `canonical_aliases`.
-- Enforce `UNIQUE(namespace, kind, external_id)` in SQLite.
-- Convert SQLite uniqueness failures into `canonical.external_ref_conflict`
+- Enforce `UNIQUE(namespace, kind, source_id)` in SQLite.
+- Convert SQLite uniqueness failures into `canonical.source_ref_conflict`
   at the Canonical Store boundary.
 - Keep all exported functions returning `Promise<Result<T>>` for compatibility
   even if the underlying SQLite API is synchronous.
@@ -161,16 +161,16 @@ durable lookup and constraints.
   - lowercase.
   - collapse internal whitespace.
 - Treat only `active` and `provisional` as current records for ordinary
-  `findByLabel` and `resolveExternalRef`.
+  `findByLabel` and `resolveSourceRef`.
 - Reuse an existing current record in `createProvisional` when evidence already
   resolves to a canonical record.
 - Keep normalized label and alias matching available through `findByLabel`, but
   do not let `createProvisional` merge identities by label or alias alone.
 - Do not create duplicate provisional records for the same evidence.
-- Keep `attachExternalRef` idempotent when the ref is already attached to the
+- Keep `attachSourceRef` idempotent when the ref is already attached to the
   same canonical record.
 - Keep `canonical.not_found` for missing canonical refs.
-- Keep `canonical.external_ref_conflict` for refs attached to another canonical
+- Keep `canonical.source_ref_conflict` for refs attached to another canonical
   record.
 
 **Dependencies**
@@ -185,7 +185,7 @@ Tasks 1 and 2.
   - status filtering.
   - provisional reuse by evidence.
   - no automatic provisional reuse by normalized label alone.
-  - idempotent same-record external-ref attach.
+  - idempotent same-record source-ref attach.
 
 ### Task 4: Add Stage Core Wiring Without Changing Defaults
 
@@ -302,7 +302,7 @@ git diff --name-only
   - no automatic reuse by normalized label alone.
   - alias lookup.
   - status filtering.
-  - external-ref conflict.
+  - source-ref conflict.
   - idempotent same-record attach.
 
 - SQLite adapter:
@@ -316,7 +316,7 @@ git diff --name-only
 
 - Stage Core can use injected durable canonical storage.
 - Material Resolve can attach source evidence to a persisted canonical record.
-- Recreated runtime can resolve the same external ref.
+- Recreated runtime can resolve the same source ref.
 - Material state remains honest:
   - canonical plus playable link -> `confirmed_playable`.
   - source ref plus playable link only -> `source_only_playable`.
@@ -331,8 +331,8 @@ git diff --name-only
 
 | Module | Integration |
 | --- | --- |
-| Material Resolve | Continue using `CanonicalStorePort`; may benefit from durable `resolveExternalRef` and `attachExternalRef`. |
-| Source Grounding | Continue using `CanonicalStorePort.resolveExternalRef` for source-ref normalization. |
+| Material Resolve | Continue using `CanonicalStorePort`; may benefit from durable `resolveSourceRef` and `attachSourceRef`. |
+| Source Grounding | Continue using `CanonicalStorePort.resolveSourceRef` for source-ref normalization. |
 | Memory Service | Can later use canonical refs as durable memory targets; no direct storage access. |
 | Event Service | Records target refs supplied by callers; should not create identity. |
 | Stage Core | Owns runtime wiring and injection of canonical storage implementation. |
@@ -357,15 +357,15 @@ git diff --name-only
 | SQLite sync API blocks long operations | Canonical MVP writes are tiny; wrap access so a future async driver can replace it. |
 | Generic repository shape hides useful indexes | Add canonical-specific storage operations behind Canonical Store, not in public module APIs. |
 | Provisional identity duplicates | Reuse by exact evidence before insert; leave label-only duplicates to later review/admin merge so same-title recordings are not collapsed automatically. |
-| Source refs become durable identity by accident | Keep source refs in `canonical_external_refs`; reconstruct MineMusic refs only from `canonical_entities`. |
+| Source refs become durable identity by accident | Keep source refs in `canonical_source_refs`; reconstruct MineMusic refs only from `canonical_entities`. |
 | Tests become path/order dependent | Use temp directories and reopen adapters explicitly. |
 
 ## Acceptance Criteria
 
 - A SQLite-backed Canonical Store can persist records across process/runtime
   recreation.
-- `resolveExternalRef` works after reopening storage.
-- duplicate external refs cannot attach to two canonical records.
+- `resolveSourceRef` works after reopening storage.
+- duplicate source refs cannot attach to two canonical records.
 - Material Resolve and Source Grounding still call only public ports.
 - default Stage Core remains deterministic and in-memory.
 - all existing tests pass.

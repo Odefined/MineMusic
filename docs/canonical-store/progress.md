@@ -35,20 +35,22 @@ Implemented:
 - SQLite repository implementation split into
   `src/storage/sqlite/canonical-repository.ts`.
 - SQLite public exports kept in `src/storage/sqlite/index.ts`.
-- Schema covers `canonical_entities`, `canonical_external_refs`,
+- Schema covers `canonical_entities`, `canonical_source_refs`,
   `canonical_aliases`, and `canonical_relations`.
 - Rehydration of public `CanonicalRecord` values from SQLite rows.
 - Persistence/reopen tests in `test/storage/sqlite-canonical-store.test.ts`
-  for `get`, `resolveExternalRef`, and external-ref conflicts.
-- SQLite `canonical_external_refs` uniqueness failures are tagged by storage
-  and mapped to `canonical.external_ref_conflict` at the Canonical Store
+  for `get`, `resolveSourceRef`, and source-ref conflicts.
+- SQLite `canonical_source_refs` uniqueness failures are tagged by storage
+  and mapped to `canonical.source_ref_conflict` at the Canonical Store
   boundary.
-- Canonical Store policy now reuses existing records by external evidence.
+- SQLite initialization migrates the earlier local development table shape
+  `canonical_external_refs.external_id` into `canonical_source_refs.source_id`.
+- Canonical Store policy now reuses existing records by source-ref evidence.
 - Canonical Store policy keeps normalized label and alias matching as lookup-only
   candidate discovery; `createProvisional` no longer treats label-only matches
   as proof of identity.
 - Ordinary Canonical Store lookup filters to `active` and `provisional`.
-- Repeated same-record external-ref attachment is idempotent.
+- Repeated same-record source-ref attachment is idempotent.
 - Provisional relation recording/listing is implemented for source-bound
   context such as performer, release, and duration hints. Recording imports can
   now link `performed_by` and `appears_on_release` relations to canonical
@@ -77,9 +79,9 @@ Implemented public methods:
 
 - `get`
 - `findByLabel`
-- `resolveExternalRef`
+- `resolveSourceRef`
 - `createProvisional`
-- `attachExternalRef`
+- `attachSourceRef`
 
 Design-only public/admin methods:
 
@@ -103,7 +105,7 @@ Pending:
 - Added storage model, design, interface, and implementation-plan documents for
   durable Canonical Store work.
 - Chose SQLite as the first durable store.
-- Defined the boundary that source refs remain external evidence, not
+- Defined the boundary that source refs remain source-ref evidence, not
   MineMusic canonical identity.
 
 ### 2026-05-24
@@ -111,11 +113,11 @@ Pending:
 - Added a TDD tracer bullet for SQLite-backed Canonical Store persistence.
 - Added the first SQLite repository implementation.
 - Completed Task 2 by splitting schema/repository/public exports, exporting the
-  SQLite factory through `src/storage/index.ts`, and mapping SQLite external-ref
-  uniqueness failures to `canonical.external_ref_conflict` at the Canonical
+  SQLite factory through `src/storage/index.ts`, and mapping SQLite source-ref
+  uniqueness failures to `canonical.source_ref_conflict` at the Canonical
   Store boundary.
 - Completed Task 3 by moving canonical normalization into
-  `src/canonical/normalization.ts`, moving label/external-ref/current-record
+  `src/canonical/normalization.ts`, moving label/source-ref/current-record
   lookup mechanics into `src/canonical/storage.ts`, and keeping
   `src/canonical/index.ts` focused on Canonical Store policy flow.
 - Completed Task 4 by adding optional `canonicalRepository` injection to Stage
@@ -141,7 +143,7 @@ Pending:
 - Updated the canonical persistence integration test to exercise
   `canonicalDatabasePath` directly, and added MCP database initialization
   coverage.
-- Corrected provisional identity creation so exact external evidence can reuse
+- Corrected provisional identity creation so exact source-ref evidence can reuse
   an existing identity, but normalized label or alias alone cannot automatically
   merge recordings. Added regression coverage for same-label/different-source
   Library Import items, treating them as separate source-bound provisional
@@ -177,7 +179,7 @@ Evidence boundary:
   `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease`.
 - Live NetEase full saved-recording import was also run manually against a temp
   SQLite runtime after the label-only merge correction and produced 1372 item
-  reports, 1372 canonical external refs, and 1372 active Collection items,
+  reports, 1372 canonical source refs, and 1372 active Collection items,
   pending later duplicate-candidate review/merge semantics.
 - The Codex MCP default runtime accepts `MINEMUSIC_CANONICAL_DB_PATH` when the
   host wants durable Canonical Store state.

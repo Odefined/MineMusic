@@ -78,20 +78,21 @@ host-facing and LLM-facing surface.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
-- Canonical Store is exported from `src/canonical/index.ts` with get, external
-  ref resolution, provisional record creation, and external ref attachment. It
-  reuses current canonical records by external evidence during provisional
-  creation, keeps label/alias matching as lookup-only candidate discovery,
-  filters ordinary lookup to active/provisional records, and keeps same-record
-  external-ref attachment idempotent. Separate source refs may create separate
-  source-bound provisional identities, but that is not proof that the real-world
-  recordings are distinct. Canonical Store also records provisional relations
-  such as `performed_by`, `appears_on_release`, and `has_duration_ms` from
-  provider hints. When imported recording hints include stable artist/release
-  source refs, Library Import resolves linked artist/release records, creates
-  provisional records only when no existing canonical binding is found, and
-  stores relation `objectRef`s. These relations are context for catalog
-  navigation, review, and later merge, not automatic identity proof.
+- Canonical Store is exported from `src/canonical/index.ts` with get,
+  source-ref resolution, provisional record creation, and source ref
+  attachment. It reuses current canonical records by source-ref evidence during
+  provisional creation, keeps label/alias matching as lookup-only candidate
+  discovery, filters ordinary lookup to active/provisional records, and keeps
+  same-record source-ref attachment idempotent. Separate source refs may create
+  separate source-bound provisional identities, but that is not proof that the
+  real-world recordings are distinct. Canonical Store also records provisional
+  relations such as `performed_by`, `appears_on_release`, and
+  `has_duration_ms` from provider hints. When imported recording hints include
+  stable artist/release source refs, Library Import resolves linked
+  artist/release records, creates provisional records only when no existing
+  canonical binding is found, and stores relation `objectRef`s. These relations
+  are context for catalog navigation, review, and later merge, not automatic
+  identity proof.
 - The shared Canonical Store contract exports `CanonicalKind`, including
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
@@ -110,14 +111,16 @@ host-facing and LLM-facing surface.
   initialization lives in `src/storage/sqlite/canonical-schema.ts`; repository
   behavior lives in `src/storage/sqlite/canonical-repository.ts`; public exports
   live in `src/storage/sqlite/index.ts`. It persists canonical entities,
-  external refs, aliases, and provisional relations. Tests prove `get`,
-  `resolveExternalRef`, provisional relation list/reopen behavior, external-ref
+  source refs, aliases, and provisional relations. Tests prove `get`,
+  `resolveSourceRef`, provisional relation list/reopen behavior, source-ref
   conflicts across repository reopen, and SQLite uniqueness failures mapped to
-  `canonical.external_ref_conflict` at the Canonical Store boundary. Stage Core
+  `canonical.source_ref_conflict` at the Canonical Store boundary. Stage Core
   still defaults to in-memory canonical storage, and its factories now accept
   optional `canonicalRepository` injection or
   `canonicalDatabasePath` configuration for host surfaces or tests that need
-  durable canonical storage. The Codex MCP default runtime accepts
+  durable canonical storage. SQLite initialization migrates the legacy
+  `canonical_external_refs.external_id` table shape to
+  `canonical_source_refs.source_id`. The Codex MCP default runtime accepts
   `MINEMUSIC_CANONICAL_DB_PATH` to initialize that durable Canonical Store.
 - Canonical Store persistence integration is covered by
   `test/integration/canonical-persistence.test.ts`: it recreates Stage Core
@@ -154,7 +157,7 @@ host-facing and LLM-facing surface.
   documented in `docs/library-import/design.md` as the path for helping users
   switch from platforms such as NetEase by importing saved songs, albums,
   followed artists, and other first-slice platform-library facts into
-  MineMusic-owned Collection items, canonical external-ref bindings, and
+  MineMusic-owned Collection items, canonical source-ref bindings, and
   import/update event records.
   Playlist import is documented as a later feature. The implementation task
   breakdown is documented in `docs/library-import/implementation-plan.md`, and
@@ -261,7 +264,7 @@ host-facing and LLM-facing surface.
   canonical records. It can accept `CollectionPort` for owner-scoped blocked
   filtering, defaults missing `ownerScope` to `local_profile:default`, marks
   blocked canonical materials as `blocked`, and can recover canonical identity
-  from source material external-ref bindings before blocked checks.
+  from source material source-ref bindings before blocked checks.
 - Source Grounding is exported from `src/source/index.ts` with provider search,
   playable-link refresh, canonical-ref lookup from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.

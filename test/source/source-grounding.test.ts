@@ -27,7 +27,7 @@ async function groundsSourceOnlyAndConfirmedPlayableMaterials(): Promise<void> {
     kind: "recording",
     label: "Canonical Track",
     status: "active",
-    externalKeys: [{ namespace: "source:fixture", kind: "track", id: "known-track" }],
+    sourceRefs: [{ namespace: "source:fixture", kind: "track", id: "known-track" }],
   };
   await assertOk(canonicalRepository.put(canonical));
 

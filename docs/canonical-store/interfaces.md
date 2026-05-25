@@ -72,7 +72,7 @@ export interface CanonicalStorePort {
     limit?: number;
   }): Promise<Result<CanonicalRecord[]>>;
 
-  resolveExternalRef(input: {
+  resolveSourceRef(input: {
     ref: Ref;
     includeHistorical?: boolean;
     followRedirects?: boolean;
@@ -87,9 +87,9 @@ export interface CanonicalStorePort {
     evidenceEventId?: string;
   }): Promise<Result<CanonicalRecord>>;
 
-  attachExternalRef(input: {
+  attachSourceRef(input: {
     canonicalRef: Ref;
-    externalRef: Ref;
+    sourceRef: Ref;
     evidenceEventId?: string;
     confidence?: number;
   }): Promise<Result<CanonicalRecord>>;
@@ -109,9 +109,9 @@ The current implemented port has:
 ```text
 get
 findByLabel
-resolveExternalRef
+resolveSourceRef
 createProvisional
-attachExternalRef
+attachSourceRef
 ```
 
 The first implementation should keep this compatibility and add optional fields
@@ -125,17 +125,17 @@ Implemented methods:
 
 - `get`
 - `findByLabel`
-- `resolveExternalRef`
+- `resolveSourceRef`
 - `createProvisional`
-- `attachExternalRef`
+- `attachSourceRef`
 
 Implemented behavior:
 
 - label normalization trims, lowercases, and collapses internal whitespace.
 - `findByLabel` searches primary labels and aliases.
-- `findByLabel` and `resolveExternalRef` return only `active` and
+- `findByLabel` and `resolveSourceRef` return only `active` and
   `provisional` records.
-- `createProvisional` reuses existing current records by external evidence
+- `createProvisional` reuses existing current records by source-ref evidence
   before creating a new provisional record; label and alias matches remain
   lookup-only candidate discovery.
 - different source refs do not prove different real-world recordings; separate
@@ -145,10 +145,10 @@ Implemented behavior:
   artist or release records created from provider hint source refs.
 - `listRelations` returns stored relations filtered by subject, source,
   predicate, or status.
-- `attachExternalRef` is idempotent for refs already attached to the same
+- `attachSourceRef` is idempotent for refs already attached to the same
   canonical record.
-- SQLite external-ref uniqueness failures are mapped to
-  `canonical.external_ref_conflict` at the Canonical Store boundary.
+- SQLite source-ref uniqueness failures are mapped to
+  `canonical.source_ref_conflict` at the Canonical Store boundary.
 
 Design-only methods and fields:
 
@@ -172,7 +172,7 @@ Input:
 Behavior:
 
 - returns the matching canonical record or `null`.
-- does not search external refs.
+- does not search source refs.
 - does not create records.
 - may optionally follow merge redirects when `followRedirects` is true.
 
@@ -203,7 +203,7 @@ Consumers:
 - Memory Service when explicit user feedback has only text.
 - future Knowledge Service identity hints.
 
-### `resolveExternalRef`
+### `resolveSourceRef`
 
 Input:
 
@@ -211,7 +211,7 @@ Input:
 
 Behavior:
 
-- looks up an already attached external ref.
+- looks up an already attached source ref.
 - returns the attached canonical record or `null`.
 - does not fuzzy match.
 - does not create records.
@@ -221,7 +221,7 @@ Consumers:
 - Material Resolve before source-only fallback.
 - Source Grounding when normalizing source refs returned by providers.
 - Memory Service when feedback targets a source ref.
-- Knowledge Service when external facts include stable refs.
+- Knowledge Service when source facts include stable refs.
 
 ### `createProvisional`
 
@@ -250,25 +250,25 @@ Consumers:
 - Memory Service for explicit wrong-version or identity feedback.
 - future Stage Interface identity confirmation tools.
 
-### `attachExternalRef`
+### `attachSourceRef`
 
 Input:
 
 - MineMusic canonical ref.
-- external ref.
+- source ref.
 - optional confidence/event evidence.
 
 Behavior:
 
 - verifies the canonical record exists and is current.
-- inserts the external ref evidence.
-- rejects conflicts through `canonical.external_ref_conflict`.
+- inserts the source ref evidence.
+- rejects conflicts through `canonical.source_ref_conflict`.
 - does not change playability.
 
 Consumers:
 
 - Material Resolve after a known canonical match.
-- Knowledge Service when adding external identity evidence.
+- Knowledge Service when adding source-ref identity evidence.
 - admin tools.
 
 ### `addAlias`
@@ -365,14 +365,14 @@ The durable repository should support:
 - entity lookup by canonical ref.
 - entity lookup by normalized label.
 - alias lookup.
-- external-ref reverse lookup.
+- source-ref reverse lookup.
 - transaction-scoped provisional creation.
-- transaction-scoped external-ref attachment.
+- transaction-scoped source-ref attachment.
 - status updates for admin operations.
 
 It should enforce:
 
-- external ref uniqueness.
+- source ref uniqueness.
 - canonical entity existence.
 - transaction atomicity.
 - status validity.
@@ -381,11 +381,11 @@ It should enforce:
 
 | Module | Allowed Interface | Allowed Methods | Forbidden |
 | --- | --- | --- | --- |
-| Material Resolve | `CanonicalStorePort` | `get`, `findByLabel`, `resolveExternalRef`, `attachExternalRef`; `createProvisional` only after explicit confirmation path | repository, admin merge/reject |
-| Source Grounding | `CanonicalStorePort` | `resolveExternalRef` for provider-returned source refs | repository, admin merge/reject, canonical creation |
-| Memory Service | `CanonicalStorePort` | `get`, `resolveExternalRef`, `createProvisional` for explicit feedback | repository, provider refs as canonical authority |
+| Material Resolve | `CanonicalStorePort` | `get`, `findByLabel`, `resolveSourceRef`, `attachSourceRef`; `createProvisional` only after explicit confirmation path | repository, admin merge/reject |
+| Source Grounding | `CanonicalStorePort` | `resolveSourceRef` for provider-returned source refs | repository, admin merge/reject, canonical creation |
+| Memory Service | `CanonicalStorePort` | `get`, `resolveSourceRef`, `createProvisional` for explicit feedback | repository, provider refs as canonical authority |
 | Event Service | usually none; optional `CanonicalStorePort` validation | `get` only when validating caller-provided target | creating identity while recording events |
-| Music Knowledge | `CanonicalStorePort` | `resolveExternalRef`, `attachExternalRef`, `addAlias` | playability decisions, canonical merge authority |
+| Music Knowledge | `CanonicalStorePort` | `resolveSourceRef`, `attachSourceRef`, `addAlias` | playability decisions, canonical merge authority |
 | Stage Interface | governed tools only | public port; admin port only through explicit admin tools | repository internals |
 | Source Provider | none | none | any canonical write |
 | Material Gate | none | none | identity lookup or mutation |
@@ -397,7 +397,7 @@ Existing stable errors:
 
 ```text
 canonical.not_found
-canonical.external_ref_conflict
+canonical.source_ref_conflict
 ```
 
 Potential future errors:
@@ -417,8 +417,8 @@ The first durable implementation should prove:
 
 1. `createProvisional` persists a record.
 2. reopening storage preserves `get`.
-3. external refs persist and support `resolveExternalRef`.
-4. duplicate external refs fail through the database uniqueness constraint.
+3. source refs persist and support `resolveSourceRef`.
+4. duplicate source refs fail through the database uniqueness constraint.
 5. `findByLabel` works for normalized labels.
 6. source refs never become MineMusic refs.
 7. provider adapters cannot import the repository.

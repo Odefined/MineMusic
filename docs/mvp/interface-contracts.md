@@ -150,7 +150,7 @@ export type CanonicalRecord = {
   kind: CanonicalKind;
   label: string;
   status: "active" | "provisional" | "merged" | "rejected";
-  externalKeys?: Ref[];
+  sourceRefs?: Ref[];
   aliases?: string[];
 };
 ```
@@ -492,7 +492,7 @@ export type DomainEventType =
   | "instrument.called"
   | "instrument.failed"
   | "canonical.provisional.created"
-  | "canonical.external_ref.attached"
+  | "canonical.source_ref.attached"
   | "source.material.grounded"
   | "source.links.refreshed"
   | "source.material.unresolved"

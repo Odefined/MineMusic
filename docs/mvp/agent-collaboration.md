@@ -129,7 +129,7 @@ Stage Interface:
 
 Canonical Store:
 
-- external ref attachment and provisional identity tests.
+- source ref attachment and provisional identity tests.
 
 Material Resolve and Source Grounding:
 

@@ -169,7 +169,7 @@ async function resolveCanonicalRef(
   sourceRefs: Ref[],
 ): Promise<Ref | undefined> {
   for (const sourceRef of sourceRefs) {
-    const canonical = await canonicalStore.resolveExternalRef({ ref: sourceRef });
+    const canonical = await canonicalStore.resolveSourceRef({ ref: sourceRef });
 
     if (canonical.ok && canonical.value !== null) {
       return canonical.value.ref;

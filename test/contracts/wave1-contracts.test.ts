@@ -549,7 +549,7 @@ const requiredErrorCodes: StageErrorCode[] = [
   "stage.material_state_invalid",
   "stage_interface.tool_not_found",
   "canonical.not_found",
-  "canonical.external_ref_conflict",
+  "canonical.source_ref_conflict",
   "collection.not_found",
   "collection.duplicate_label",
   "collection.system_collection_immutable",
@@ -836,7 +836,7 @@ const toolDispatch: ToolDispatchPort = {
 const canonicalStore: CanonicalStorePort = {
   get: async () => ({ ok: true, value: null }),
   findByLabel: async () => ({ ok: true, value: [] }),
-  resolveExternalRef: async () => ({ ok: true, value: null }),
+  resolveSourceRef: async () => ({ ok: true, value: null }),
   createProvisional: async ({ kind, label, evidence }) => ({
     ok: true,
     value: {
@@ -844,17 +844,17 @@ const canonicalStore: CanonicalStorePort = {
       kind,
       label,
       status: "provisional",
-      externalKeys: evidence ?? [],
+      sourceRefs: evidence ?? [],
     },
   }),
-  attachExternalRef: async ({ canonicalRef, externalRef }) => ({
+  attachSourceRef: async ({ canonicalRef, sourceRef }) => ({
     ok: true,
     value: {
       ref: canonicalRef,
       kind: canonicalRef.kind,
       label: canonicalRef.label ?? canonicalRef.id,
       status: "active",
-      externalKeys: [externalRef],
+      sourceRefs: [sourceRef],
     },
   }),
   recordProvisionalRelations: async () => ({ ok: true, value: [] }),

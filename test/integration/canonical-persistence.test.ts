@@ -54,7 +54,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     kind: "recording",
     label: "Persisted Canonical Track",
     status: "active",
-    externalKeys: [sourceRef],
+    sourceRefs: [sourceRef],
   };
   const canonicalMaterial: MusicMaterial = {
     id: "provider:track:persisted-track",

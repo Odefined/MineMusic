@@ -34,7 +34,7 @@ Canonical Store owns:
 - MineMusic canonical refs.
 - canonical records.
 - provisional identity records.
-- external source or knowledge evidence attached to canonical records.
+- source-ref or knowledge evidence attached to canonical records.
 - alias lookup for identity matching.
 - merge/rejection state once admin operations exist.
 
@@ -70,7 +70,7 @@ materials map to concrete recordings. `release` is needed when platform account
 libraries expose concrete album saves. `work`, `artist`, and `release_group`
 remain available for future memory, knowledge, and edition-grouping use.
 
-Source-context `track` ids should normally remain external refs rather than
+Source-context `track` ids should normally remain source refs rather than
 MineMusic canonical kinds.
 
 ## Status Model
@@ -94,7 +94,7 @@ Meaning:
 | `rejected` | invalid or intentionally discarded identity candidate | no by default |
 
 `merged` and `rejected` records exist for auditability. They should not appear
-as ordinary `findByLabel` or `resolveExternalRef` hits unless the caller
+as ordinary `findByLabel` or `resolveSourceRef` hits unless the caller
 explicitly asks for historical state.
 
 ## Component Boundaries
@@ -152,14 +152,14 @@ sequenceDiagram
     participant Gate as Material Gate
 
     LLM->>Resolve: resolve(candidate)
-    Resolve->>Canonical: get / findByLabel / resolveExternalRef
+    Resolve->>Canonical: get / findByLabel / resolveSourceRef
     Canonical-->>Resolve: canonical record or null
     Resolve->>Grounding: ground(query with canonical/source hints)
     Grounding->>Provider: search(query)
     Provider-->>Grounding: MusicMaterial with source refs/evidence
-    Grounding->>Canonical: resolveExternalRef for source refs
+    Grounding->>Canonical: resolveSourceRef for source refs
     Grounding-->>Resolve: source-grounded material
-    Resolve->>Canonical: attachExternalRef when canonical target is known
+    Resolve->>Canonical: attachSourceRef when canonical target is known
     Resolve-->>LLM: resolved material state
     LLM->>Gate: prepareMaterials(...)
     Gate-->>LLM: presentation-safe material
@@ -183,7 +183,7 @@ Examples:
 
 Before creating a provisional record, Canonical Store should:
 
-1. check every evidence ref through `resolveExternalRef`.
+1. check every evidence ref through `resolveSourceRef`.
 2. reuse an existing active/provisional record only when an evidence ref is
    already bound.
 3. keep normalized label and alias lookup available for candidate discovery and
@@ -213,9 +213,9 @@ queries navigate from a recording to its artist and release when source-ref
 hints are present. They help later review, dedupe, and merge work, but they
 are not automatic identity proof.
 
-## External Evidence
+## Source-Ref Evidence
 
-External refs are evidence rows, not canonical authority.
+Source refs are evidence rows, not canonical authority.
 
 Example:
 
@@ -231,10 +231,10 @@ minemusic:recording:<id>
 
 but it is not itself MineMusic identity.
 
-`resolveExternalRef` should be understood as:
+`resolveSourceRef` should be understood as:
 
 ```text
-Find the canonical record already attached to this external ref.
+Find the canonical record already attached to this source ref.
 ```
 
 It is not fuzzy matching and should not infer identity from a search result by
@@ -246,7 +246,7 @@ The existing MVP docs list these domain events:
 
 ```text
 canonical.provisional.created
-canonical.external_ref.attached
+canonical.source_ref.attached
 ```
 
 The current code does not yet wire Canonical Store to a domain-event publisher.
@@ -261,16 +261,16 @@ or record enough data for an outbox-style event.
 Implement SQLite-backed storage for:
 
 - canonical entities.
-- external refs.
+- source refs.
 - aliases.
 
 Keep the existing public MVP methods:
 
 - `get`
 - `findByLabel`
-- `resolveExternalRef`
+- `resolveSourceRef`
 - `createProvisional`
-- `attachExternalRef`
+- `attachSourceRef`
 
 Add tests that create records, reopen storage, and prove lookup still works.
 
@@ -281,7 +281,7 @@ Add:
 - alias handling.
 - duplicate provisional prevention.
 - status filtering.
-- stricter external-ref conflict behavior from database constraints.
+- stricter source-ref conflict behavior from database constraints.
 
 ### Phase 3: Admin Operations
 
@@ -310,7 +310,7 @@ existing `CanonicalStorePort` methods:
 - provisional relation recording/listing for provider-hint context, including
   optional linked artist/release `objectRef`s.
 - active/provisional filtering for ordinary lookup.
-- idempotent same-record external-ref attachment.
+- idempotent same-record source-ref attachment.
 - Stage Core repository injection with in-memory storage as the default.
 - restart-style persistence coverage through a temp SQLite database.
 

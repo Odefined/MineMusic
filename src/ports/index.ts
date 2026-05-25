@@ -175,7 +175,7 @@ export interface CanonicalStorePort {
     kind?: CanonicalKind;
   }): Promise<Result<CanonicalRecord[]>>;
 
-  resolveExternalRef(input: {
+  resolveSourceRef(input: {
     ref: Ref;
   }): Promise<Result<CanonicalRecord | null>>;
 
@@ -185,9 +185,9 @@ export interface CanonicalStorePort {
     evidence?: Ref[];
   }): Promise<Result<CanonicalRecord>>;
 
-  attachExternalRef(input: {
+  attachSourceRef(input: {
     canonicalRef: Ref;
-    externalRef: Ref;
+    sourceRef: Ref;
   }): Promise<Result<CanonicalRecord>>;
 
   recordProvisionalRelations(input: {

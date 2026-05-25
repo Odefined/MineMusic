@@ -207,16 +207,16 @@ Own:
 
 - MineMusic canonical refs.
 - canonical records.
-- external ref attachment.
+- source ref attachment.
 - provisional identity records.
 
 Public API:
 
 - `CanonicalStorePort.get(input)`
 - `CanonicalStorePort.findByLabel(input)`
-- `CanonicalStorePort.resolveExternalRef(input)`
+- `CanonicalStorePort.resolveSourceRef(input)`
 - `CanonicalStorePort.createProvisional(input)`
-- `CanonicalStorePort.attachExternalRef(input)`
+- `CanonicalStorePort.attachSourceRef(input)`
 
 Must not own:
 

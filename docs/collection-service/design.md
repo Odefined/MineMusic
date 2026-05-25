@@ -198,14 +198,14 @@ Rules:
   return a blocked status/material state so the caller can explain why the
   candidate was not recommended.
 - Blocked checks use canonical refs only. If material only has source refs,
-  Material Resolve should first use Canonical Store external-ref binding to find
+  Material Resolve should first use Canonical Store source-ref binding to find
   a canonical ref. Without a canonical ref, Collection-level blocked filtering
   cannot apply.
 - `CollectionItem.label` is stored on the item for display or user adjustment.
   It is not identity authority.
 - `CollectionItem.description` belongs to that item in that Collection. It is not
   a shared canonical-object description.
-- Source refs belong to Canonical Store external refs and Library Import/Event
+- Source refs belong to Canonical Store source refs and Library Import/Event
   provenance, not Collection item identity.
 - `removedAt` marks removal without physical deletion.
 - Collection item ids are Collection-owned, not provider ids.

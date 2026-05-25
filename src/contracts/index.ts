@@ -18,7 +18,7 @@ export const stageErrorCodes = [
   "stage.material_state_invalid",
   "stage_interface.tool_not_found",
   "canonical.not_found",
-  "canonical.external_ref_conflict",
+  "canonical.source_ref_conflict",
   "collection.not_found",
   "collection.duplicate_label",
   "collection.system_collection_immutable",
@@ -159,7 +159,7 @@ export type CanonicalRecord = {
   kind: CanonicalKind;
   label: string;
   status: "active" | "provisional" | "merged" | "rejected";
-  externalKeys?: Ref[];
+  sourceRefs?: Ref[];
   aliases?: string[];
 };
 
@@ -829,7 +829,7 @@ export type DomainEventType =
   | "instrument.called"
   | "instrument.failed"
   | "canonical.provisional.created"
-  | "canonical.external_ref.attached"
+  | "canonical.source_ref.attached"
   | "source.material.grounded"
   | "source.links.refreshed"
   | "source.material.unresolved"

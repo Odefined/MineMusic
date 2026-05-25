@@ -301,7 +301,7 @@ export interface CanonicalStorePort {
     kind?: CanonicalKind;
   }): Promise<Result<CanonicalRecord[]>>;
 
-  resolveExternalRef(input: {
+  resolveSourceRef(input: {
     ref: Ref;
   }): Promise<Result<CanonicalRecord | null>>;
 
@@ -311,9 +311,9 @@ export interface CanonicalStorePort {
     evidence?: Ref[];
   }): Promise<Result<CanonicalRecord>>;
 
-  attachExternalRef(input: {
+  attachSourceRef(input: {
     canonicalRef: Ref;
-    externalRef: Ref;
+    sourceRef: Ref;
   }): Promise<Result<CanonicalRecord>>;
 }
 ```
@@ -325,7 +325,7 @@ Consumes:
 Publishes domain events:
 
 - `canonical.provisional.created`
-- `canonical.external_ref.attached`
+- `canonical.source_ref.attached`
 
 Must not expose:
 

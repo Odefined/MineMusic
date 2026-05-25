@@ -1,6 +1,6 @@
 export {
   createSqliteCanonicalRecordRepository,
-  sqliteCanonicalExternalRefConflictConstraint,
+  sqliteCanonicalSourceRefConflictConstraint,
 } from "./canonical-repository.js";
 export type { SqliteCanonicalRecordRepositoryOptions } from "./canonical-repository.js";
 export { createSqliteCollectionRepository } from "./collection-repository.js";

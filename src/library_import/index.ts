@@ -400,7 +400,7 @@ async function estimatePreviewItem({
     return ok("unresolved");
   }
 
-  const canonical = await canonicalStore.resolveExternalRef({ ref: item.sourceRef });
+  const canonical = await canonicalStore.resolveSourceRef({ ref: item.sourceRef });
 
   if (!canonical.ok) {
     return canonical;
@@ -1059,7 +1059,7 @@ async function importProviderItem({
     return ok(skipped);
   }
 
-  const resolved = await canonicalStore.resolveExternalRef({ ref: item.sourceRef });
+  const resolved = await canonicalStore.resolveSourceRef({ ref: item.sourceRef });
 
   if (!resolved.ok) {
     return resolved;
@@ -1183,9 +1183,9 @@ async function createAndBindCanonicalRecord(
     return created;
   }
 
-  const attached = await canonicalStore.attachExternalRef({
+  const attached = await canonicalStore.attachSourceRef({
     canonicalRef: created.value.ref,
-    externalRef: item.sourceRef,
+    sourceRef: item.sourceRef,
   });
 
   if (!attached.ok) {
@@ -1341,7 +1341,7 @@ async function resolveOrCreateLinkedCanonicalRecord({
   label: string;
   sourceRef: Ref;
 }): Promise<Result<CanonicalRecord>> {
-  const resolved = await canonicalStore.resolveExternalRef({ ref: sourceRef });
+  const resolved = await canonicalStore.resolveSourceRef({ ref: sourceRef });
 
   if (!resolved.ok) {
     return resolved;

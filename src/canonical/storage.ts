@@ -22,20 +22,20 @@ type CanonicalStorageOptions = {
 };
 
 type PutOptions = {
-  externalRefForConflict?: Ref;
+  sourceRefForConflict?: Ref;
 };
 
 export type CanonicalStorage = {
   get(ref: Ref): Promise<Result<CanonicalRecord | null>>;
   put(record: CanonicalRecord, options?: PutOptions): Promise<Result<CanonicalRecord>>;
   findByLabel(input: { label: string; kind?: string }): Promise<Result<CanonicalRecord[]>>;
-  findCurrentByExternalEvidence(evidence: Ref[]): Promise<Result<CanonicalRecord | null>>;
-  resolveExternalRef(ref: Ref): Promise<Result<CanonicalRecord | null>>;
+  findCurrentBySourceEvidence(evidence: Ref[]): Promise<Result<CanonicalRecord | null>>;
+  resolveSourceRef(ref: Ref): Promise<Result<CanonicalRecord | null>>;
   putRelation(relation: CanonicalRelation): Promise<Result<CanonicalRelation>>;
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
-  findExternalRefConflict(input: {
+  findSourceRefConflict(input: {
     canonicalRef: Ref;
-    externalRef: Ref;
+    sourceRef: Ref;
   }): Promise<Result<CanonicalRecord | null>>;
 };
 
@@ -50,7 +50,7 @@ export function createCanonicalStorage({
     async put(record, options = {}) {
       return mapRepositoryWriteResult(
         await repository.put(record),
-        options.externalRefForConflict,
+        options.sourceRefForConflict,
       );
     },
 
@@ -73,7 +73,7 @@ export function createCanonicalStorage({
       );
     },
 
-    async findCurrentByExternalEvidence(evidence) {
+    async findCurrentBySourceEvidence(evidence) {
       if (evidence.length === 0) {
         return ok(null);
       }
@@ -89,15 +89,15 @@ export function createCanonicalStorage({
           (record) =>
             isCurrentCanonicalRecord(record) &&
             evidence.some((evidenceRef) =>
-              (record.externalKeys ?? []).some((externalRef) =>
-                sameRef(externalRef, evidenceRef),
+              (record.sourceRefs ?? []).some((sourceRef) =>
+                sameRef(sourceRef, evidenceRef),
               ),
             ),
         ) ?? null,
       );
     },
 
-    async resolveExternalRef(ref) {
+    async resolveSourceRef(ref) {
       const records = await repository.list();
 
       if (!records.ok) {
@@ -108,12 +108,12 @@ export function createCanonicalStorage({
         records.value.find(
           (record) =>
             isCurrentCanonicalRecord(record) &&
-            (record.externalKeys ?? []).some((externalRef) => sameRef(externalRef, ref)),
+            (record.sourceRefs ?? []).some((sourceRef) => sameRef(sourceRef, ref)),
         ) ?? null,
       );
     },
 
-    async findExternalRefConflict({ canonicalRef, externalRef }) {
+    async findSourceRefConflict({ canonicalRef, sourceRef }) {
       const records = await repository.list();
 
       if (!records.ok) {
@@ -124,8 +124,8 @@ export function createCanonicalStorage({
         records.value.find(
           (record) =>
             !sameRef(record.ref, canonicalRef) &&
-            (record.externalKeys ?? []).some((candidateRef) =>
-              sameRef(candidateRef, externalRef),
+            (record.sourceRefs ?? []).some((candidateRef) =>
+              sameRef(candidateRef, sourceRef),
             ),
         ) ?? null,
       );
@@ -143,44 +143,44 @@ export function createCanonicalStorage({
 
 function mapRepositoryWriteResult(
   result: Result<CanonicalRecord>,
-  externalRef: Ref | undefined,
+  sourceRef: Ref | undefined,
 ): Result<CanonicalRecord> {
-  if (result.ok || !isExternalRefUniqueStorageError(result.error)) {
+  if (result.ok || !isSourceRefUniqueStorageError(result.error)) {
     return result;
   }
 
   return fail({
-    code: "canonical.external_ref_conflict",
+    code: "canonical.source_ref_conflict",
     message:
-      externalRef === undefined
-        ? "An external ref is already attached to another canonical record."
-        : `External ref '${externalRef.namespace}:${externalRef.kind}:${externalRef.id}' is already attached to another canonical record.`,
+      sourceRef === undefined
+        ? "A source ref is already attached to another canonical record."
+        : `Source ref '${sourceRef.namespace}:${sourceRef.kind}:${sourceRef.id}' is already attached to another canonical record.`,
     module: "canonical",
     retryable: false,
   });
 }
 
-function isExternalRefUniqueStorageError(error: StageError): boolean {
+function isSourceRefUniqueStorageError(error: StageError): boolean {
   return (
     error.code === "storage.unavailable" &&
-    hasExternalRefUniqueConstraint(error.cause)
+    hasSourceRefUniqueConstraint(error.cause)
   );
 }
 
-function hasExternalRefUniqueConstraint(cause: unknown): boolean {
+function hasSourceRefUniqueConstraint(cause: unknown): boolean {
   if (typeof cause !== "object" || cause === null) {
     return false;
   }
 
   if (
     "constraint" in cause &&
-    cause.constraint === "canonical_external_refs_unique"
+    cause.constraint === "canonical_source_refs_unique"
   ) {
     return true;
   }
 
   if ("cause" in cause) {
-    return hasExternalRefUniqueConstraint(cause.cause);
+    return hasSourceRefUniqueConstraint(cause.cause);
   }
 
   return false;

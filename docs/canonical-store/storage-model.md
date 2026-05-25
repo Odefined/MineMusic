@@ -16,7 +16,7 @@ The storage model below keeps those boundaries explicit:
 
 ```text
 MineMusic canonical identity
-  <- external source / knowledge evidence
+  <- source-ref / knowledge evidence
   <- aliases and labels
   <- merge / rejection state
 
@@ -27,7 +27,7 @@ not:
   recommendation scoring
 ```
 
-## External References
+## Source References
 
 This model follows the shape of established music metadata systems without
 copying them wholesale:
@@ -55,7 +55,7 @@ Reference links:
 
 1. MineMusic canonical refs are MineMusic-owned.
 2. Source refs never become canonical authority by accident.
-3. External refs are evidence and lookup keys.
+3. Source refs are evidence and lookup keys.
 4. `recording`, `work`, `artist`, `release_group`, and `release` should stay
    distinct.
 5. A source `track` is usually source-context evidence, not a MineMusic core
@@ -71,8 +71,8 @@ Use SQLite for the first durable Canonical Store implementation.
 Reason:
 
 - Canonical identity needs uniqueness constraints.
-- External-ref conflict detection should be enforced by the store.
-- `get`, label lookup, alias lookup, and external-ref lookup need indexes.
+- Source-ref conflict detection should be enforced by the store.
+- `get`, label lookup, alias lookup, and source-ref lookup need indexes.
 - Transactions matter when creating provisional records with evidence.
 - SQLite is enough for local MVP persistence and testable without a service.
 
@@ -84,8 +84,13 @@ canonical identity store.
 The current durable implementation uses this SQLite model for:
 
 - `canonical_entities`
-- `canonical_external_refs`
+- `canonical_source_refs`
 - `canonical_aliases`
+- `canonical_relations`
+
+Initialization migrates the earlier local development table shape
+`canonical_external_refs.external_id` into `canonical_source_refs.source_id`
+before normal schema creation.
 
 `canonical_redirects` remains design-only until merge behavior exists.
 
@@ -140,38 +145,38 @@ Notes:
 - `merged_into_id` is set only when `status = 'merged'`.
 - `metadata_json` is for non-query-critical notes only.
 
-### `canonical_external_refs`
+### `canonical_source_refs`
 
 Stores source and knowledge evidence attached to a canonical entity.
 
 ```sql
-CREATE TABLE canonical_external_refs (
+CREATE TABLE canonical_source_refs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   canonical_id TEXT NOT NULL,
   namespace TEXT NOT NULL,
   kind TEXT NOT NULL,
-  external_id TEXT NOT NULL,
+  source_id TEXT NOT NULL,
   label TEXT,
   url TEXT,
   confidence REAL,
   evidence_event_id TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (canonical_id) REFERENCES canonical_entities(id),
-  UNIQUE(namespace, kind, external_id)
+  UNIQUE(namespace, kind, source_id)
 );
 ```
 
 Indexes:
 
 ```sql
-CREATE INDEX canonical_external_refs_canonical_idx
-  ON canonical_external_refs(canonical_id);
+CREATE INDEX canonical_source_refs_canonical_idx
+  ON canonical_source_refs(canonical_id);
 ```
 
 Notes:
 
 - The uniqueness constraint is the durable version of
-  `canonical.external_ref_conflict`.
+  `canonical.source_ref_conflict`.
 - `source:netease / track / 22644323` maps to one canonical entity at most.
 - The row does not imply the source item is currently playable.
 
@@ -280,49 +285,49 @@ canonical_aliases.normalized_alias
 Return only `active` and `provisional` entities by default. `merged` and
 `rejected` records are historical state, not normal lookup hits.
 
-### `resolveExternalRef({ ref })`
+### `resolveSourceRef({ ref })`
 
 Lookup:
 
 ```sql
 SELECT canonical_entities.*
-FROM canonical_external_refs
+FROM canonical_source_refs
 JOIN canonical_entities
-  ON canonical_entities.id = canonical_external_refs.canonical_id
-WHERE canonical_external_refs.namespace = ?
-  AND canonical_external_refs.kind = ?
-  AND canonical_external_refs.external_id = ?
+  ON canonical_entities.id = canonical_source_refs.canonical_id
+WHERE canonical_source_refs.namespace = ?
+  AND canonical_source_refs.kind = ?
+  AND canonical_source_refs.source_id = ?
   AND canonical_entities.status IN ('active', 'provisional');
 ```
 
 This is not intelligent identity resolution. It is a durable reverse lookup for
-external refs already attached as evidence.
+source refs already attached as evidence.
 
 ### `createProvisional({ kind, label, evidence })`
 
 Run in one transaction:
 
 1. Normalize label for storage and later candidate lookup.
-2. For each evidence ref, try `resolveExternalRef`.
+2. For each evidence ref, try `resolveSourceRef`.
 3. If evidence resolves to an active/provisional entity, return that entity.
 4. Do not automatically reuse records by label or alias alone.
 5. Insert a `provisional` row in `canonical_entities`.
-6. Insert evidence refs into `canonical_external_refs`.
+6. Insert evidence refs into `canonical_source_refs`.
 7. Emit or record `canonical.provisional.created` when domain events are wired.
 
 Separate source refs may still refer to the same real-world recording. The
 resulting provisional rows are source-bound identity candidates until a later
 review or stronger matching process merges them.
 
-### `attachExternalRef({ canonicalRef, externalRef })`
+### `attachSourceRef({ canonicalRef, sourceRef })`
 
 Run in one transaction:
 
 1. Ensure the canonical entity exists and is `active` or `provisional`.
-2. Insert into `canonical_external_refs`.
-3. If `UNIQUE(namespace, kind, external_id)` fails, return
-   `canonical.external_ref_conflict`.
-4. Emit or record `canonical.external_ref.attached` when domain events are
+2. Insert into `canonical_source_refs`.
+3. If `UNIQUE(namespace, kind, source_id)` fails, return
+   `canonical.source_ref_conflict`.
+4. Emit or record `canonical.source_ref.attached` when domain events are
    wired.
 
 ## Migration Path
@@ -335,8 +340,8 @@ Run in one transaction:
    - create provisional.
    - reopen store.
    - `get` returns the record.
-   - `resolveExternalRef` returns the record.
-   - duplicate external ref fails after reopen.
+   - `resolveSourceRef` returns the record.
+   - duplicate source ref fails after reopen.
 5. Only after that, consider alias search, merge operations, and richer entity
    relationships.
 

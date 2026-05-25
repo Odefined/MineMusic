@@ -39,12 +39,12 @@ export function createCanonicalStore({
       });
     },
 
-    async resolveExternalRef({ ref }) {
-      return storage.resolveExternalRef(ref);
+    async resolveSourceRef({ ref }) {
+      return storage.resolveSourceRef(ref);
     },
 
     async createProvisional({ kind, label, evidence }) {
-      const existingByEvidence = await storage.findCurrentByExternalEvidence(evidence ?? []);
+      const existingByEvidence = await storage.findCurrentBySourceEvidence(evidence ?? []);
 
       if (!existingByEvidence.ok) {
         return existingByEvidence;
@@ -64,7 +64,7 @@ export function createCanonicalStore({
         kind,
         label,
         status: "provisional",
-        externalKeys: evidence ?? [],
+        sourceRefs: evidence ?? [],
       };
 
       const evidenceRefForConflict = evidence?.[0];
@@ -73,11 +73,11 @@ export function createCanonicalStore({
         record,
         evidenceRefForConflict === undefined
           ? {}
-          : { externalRefForConflict: evidenceRefForConflict },
+          : { sourceRefForConflict: evidenceRefForConflict },
       );
     },
 
-    async attachExternalRef({ canonicalRef, externalRef }) {
+    async attachSourceRef({ canonicalRef, sourceRef }) {
       const canonicalRecord = await storage.get(canonicalRef);
 
       if (!canonicalRecord.ok) {
@@ -93,9 +93,9 @@ export function createCanonicalStore({
         });
       }
 
-      const conflict = await storage.findExternalRefConflict({
+      const conflict = await storage.findSourceRefConflict({
         canonicalRef,
-        externalRef,
+        sourceRef,
       });
 
       if (!conflict.ok) {
@@ -104,24 +104,24 @@ export function createCanonicalStore({
 
       if (conflict.value !== null) {
         return fail({
-          code: "canonical.external_ref_conflict",
-          message: `External ref '${externalRef.namespace}:${externalRef.kind}:${externalRef.id}' is already attached to canonical record '${conflict.value.ref.id}'.`,
+          code: "canonical.source_ref_conflict",
+          message: `Source ref '${sourceRef.namespace}:${sourceRef.kind}:${sourceRef.id}' is already attached to canonical record '${conflict.value.ref.id}'.`,
           module: "canonical",
           retryable: false,
         });
       }
 
-      const existingExternalKeys = canonicalRecord.value.externalKeys ?? [];
-      const externalKeys = existingExternalKeys.some((ref) => sameRef(ref, externalRef))
-        ? existingExternalKeys
-        : [...existingExternalKeys, externalRef];
+      const existingSourceRefs = canonicalRecord.value.sourceRefs ?? [];
+      const sourceRefs = existingSourceRefs.some((ref) => sameRef(ref, sourceRef))
+        ? existingSourceRefs
+        : [...existingSourceRefs, sourceRef];
 
       return storage.put(
         {
           ...canonicalRecord.value,
-          externalKeys,
+          sourceRefs,
         },
-        { externalRefForConflict: externalRef },
+        { sourceRefForConflict: sourceRef },
       );
     },
 

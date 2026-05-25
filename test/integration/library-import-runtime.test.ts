@@ -130,7 +130,7 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
       }),
     );
     const canonicalRecord = await assertOk(
-      stageCore.canonical.resolveExternalRef({
+      stageCore.canonical.resolveSourceRef({
         ref: importedSourceRef,
       }),
     );
@@ -142,12 +142,12 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
       }),
     );
     const runtimeArtist = await assertOk(
-      stageCore.canonical.resolveExternalRef({
+      stageCore.canonical.resolveSourceRef({
         ref: runtimeArtistSourceRef("runtime-artist", "Runtime Artist"),
       }),
     );
     const runtimeRelease = await assertOk(
-      stageCore.canonical.resolveExternalRef({
+      stageCore.canonical.resolveSourceRef({
         ref: runtimeReleaseSourceRef("runtime-release", "Runtime Release"),
       }),
     );
@@ -176,7 +176,7 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
       "Runtime Library Import should write through the composed Collection Service",
     );
     assert(
-      canonicalRecord?.externalKeys?.some((ref) => ref.id === importedSourceRef.id),
+      canonicalRecord?.sourceRefs?.some((ref) => ref.id === importedSourceRef.id),
       "Runtime Library Import should bind the imported source ref through Canonical Store",
     );
     assert(runtimeArtist?.kind === "artist", "Runtime Library Import should create linked artist canonical records");
@@ -398,7 +398,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     );
     const savedItemsAfterFirstImport = await listSavedRecordingItems(stageCore);
     const newStrongCanonical = await assertOk(
-      stageCore.canonical.resolveExternalRef({
+      stageCore.canonical.resolveSourceRef({
         ref: sourceRef("new-strong-track"),
       }),
     );
@@ -673,7 +673,7 @@ function canonicalRecording(id: string, label: string, sourceRefId: string): Can
     kind: "recording",
     label,
     status: "active",
-    externalKeys: [sourceRef(sourceRefId)],
+    sourceRefs: [sourceRef(sourceRefId)],
   };
 }
 
