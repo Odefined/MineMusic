@@ -612,6 +612,9 @@
 - Implemented Knowledge Slot Task 4 Stage Interface tool exposure. The
   read-only `music.knowledge.query` tool now has a stable descriptor, input
   schema, dispatch path, Stage Core wiring, and MCP exposure.
+- Implemented Knowledge Slot Task 5 generic Provider HTTP Cache storage.
+  Added shared cache entry/repository contracts, in-memory and SQLite-backed
+  repositories, `lastUsedAt` updates on read, and explicit maintenance methods.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

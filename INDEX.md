@@ -308,6 +308,20 @@ This index points agents to the current MVP documentation pack.
       diffing, partial-read absence guards, durable Library Import database path
       reuse, and Stage Interface / MCP exposure.
 
+71. `src/storage/sqlite/provider-http-cache-schema.ts`
+    - SQLite schema initialization for the generic Provider HTTP Cache.
+
+72. `src/storage/sqlite/provider-http-cache-repository.ts`
+    - SQLite-backed `ProviderHttpCacheRepository` implementation for persistent
+      provider HTTP response caching and least-recently-used cleanup.
+
+73. `test/storage/in-memory-provider-http-cache-repository.test.ts`
+    - In-memory Provider HTTP Cache behavior tests for cache read/write,
+      `lastUsedAt` update, clone returns, and maintenance operations.
+
+74. `test/storage/sqlite-provider-http-cache-repository.test.ts`
+    - SQLite Provider HTTP Cache persistence tests across repository reopen.
+
 ## Agent Rule
 
 When implementing a module, read only the proposal, shared contracts, module

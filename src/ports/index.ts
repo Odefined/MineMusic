@@ -36,6 +36,7 @@ import type {
   MemoryProposal,
   MusicMaterial,
   PlatformLibraryAbsence,
+  ProviderHttpCacheEntry,
   PlatformLibraryArea,
   Ref,
   Result,
@@ -136,6 +137,16 @@ export type CanonicalRelationListInput = {
   sourceRef?: Ref;
   predicate?: CanonicalRelationPredicate;
   status?: CanonicalRelationStatus;
+};
+
+export type ProviderHttpCacheListInput = {
+  providerId?: string;
+  limit?: number;
+};
+
+export type ProviderHttpCacheDeleteUnusedInput = {
+  providerId?: string;
+  lastUsedBefore: string;
 };
 
 export type CanonicalRecordRepositoryFindBySourceRefInput = {
@@ -285,6 +296,31 @@ export interface LibraryImportPort {
   getStatus(input: LibraryImportStatusInput): Promise<Result<LibraryImportStatus>>;
 
   getSummary(input: LibraryImportSummaryInput): Promise<Result<LibraryImportSummary>>;
+}
+
+export interface ProviderHttpCacheRepository {
+  get(input: {
+    providerId: string;
+    cacheKey: string;
+    now: string;
+  }): Promise<Result<ProviderHttpCacheEntry | null>>;
+
+  put(input: {
+    entry: ProviderHttpCacheEntry;
+  }): Promise<Result<ProviderHttpCacheEntry>>;
+
+  listLeastRecentlyUsed(input: ProviderHttpCacheListInput): Promise<Result<ProviderHttpCacheEntry[]>>;
+
+  deleteUnusedSince(input: ProviderHttpCacheDeleteUnusedInput): Promise<Result<number>>;
+
+  deleteByProvider(input: {
+    providerId: string;
+    cacheKey: string;
+  }): Promise<Result<boolean>>;
+
+  clearProvider(input: {
+    providerId: string;
+  }): Promise<Result<number>>;
 }
 
 export interface MaterialResolvePort {

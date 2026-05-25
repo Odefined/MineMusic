@@ -799,6 +799,38 @@ export interface CollectionRepository {
   }): Promise<Result<CollectionItem | null>>;
   listItems(input: CollectionRepositoryListItemsInput): Promise<Result<CollectionItem[]>>;
 }
+
+export type ProviderHttpCacheEntry = {
+  providerId: string;
+  cacheKey: string;
+  requestUrl: string;
+  responseJson: unknown;
+  status: number;
+  fetchedAt: string;
+  lastUsedAt: string;
+};
+
+export interface ProviderHttpCacheRepository {
+  get(input: {
+    providerId: string;
+    cacheKey: string;
+    now: string;
+  }): Promise<Result<ProviderHttpCacheEntry | null>>;
+  put(input: { entry: ProviderHttpCacheEntry }): Promise<Result<ProviderHttpCacheEntry>>;
+  listLeastRecentlyUsed(input: {
+    providerId?: string;
+    limit?: number;
+  }): Promise<Result<ProviderHttpCacheEntry[]>>;
+  deleteUnusedSince(input: {
+    providerId?: string;
+    lastUsedBefore: string;
+  }): Promise<Result<number>>;
+  deleteByProvider(input: {
+    providerId: string;
+    cacheKey: string;
+  }): Promise<Result<boolean>>;
+  clearProvider(input: { providerId: string }): Promise<Result<number>>;
+}
 ```
 
 Consumes:

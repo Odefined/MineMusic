@@ -10,6 +10,7 @@ import type {
   LibraryImportReport,
   MemoryEntry,
   PlatformLibraryAbsence,
+  ProviderHttpCacheEntry,
   Ref,
   Result,
   StageError,
@@ -23,6 +24,7 @@ import type {
   EventRepository,
   LibraryImportRepository,
   MemoryRepository,
+  ProviderHttpCacheRepository,
   Repository,
   SessionRepository,
 } from "../ports/index.js";
@@ -31,12 +33,14 @@ export {
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
+  createSqliteProviderHttpCacheRepository,
   sqliteCanonicalSourceRefConflictConstraint,
 } from "./sqlite/index.js";
 export type {
   SqliteCanonicalRecordRepositoryOptions,
   SqliteCollectionRepositoryOptions,
   SqliteLibraryImportRepositoryOptions,
+  SqliteProviderHttpCacheRepositoryOptions,
 } from "./sqlite/index.js";
 
 type RepositoryOptions<TRecord, TKey> = {
@@ -299,6 +303,77 @@ export function createInMemoryLibraryImportRepository(): LibraryImportRepository
   };
 }
 
+export function createInMemoryProviderHttpCacheRepository(): ProviderHttpCacheRepository {
+  const entries = new Map<string, ProviderHttpCacheEntry>();
+
+  return {
+    async get({ providerId, cacheKey, now }) {
+      const storageKey = providerHttpCacheStorageKey(providerId, cacheKey);
+      const entry = entries.get(storageKey);
+
+      if (entry === undefined) {
+        return ok(null);
+      }
+
+      const updatedEntry = {
+        ...entry,
+        lastUsedAt: now,
+      };
+      entries.set(storageKey, cloneRecord(updatedEntry));
+
+      return ok(cloneRecord(updatedEntry));
+    },
+
+    async put({ entry }) {
+      entries.set(providerHttpCacheStorageKey(entry.providerId, entry.cacheKey), cloneRecord(entry));
+
+      return ok(cloneRecord(entry));
+    },
+
+    async listLeastRecentlyUsed({ providerId, limit }) {
+      const matched = [...entries.values()]
+        .filter((entry) => providerId === undefined || entry.providerId === providerId)
+        .sort((left, right) => left.lastUsedAt.localeCompare(right.lastUsedAt))
+        .slice(0, limit);
+
+      return ok(matched.map((entry) => cloneRecord(entry)));
+    },
+
+    async deleteUnusedSince({ providerId, lastUsedBefore }) {
+      let deleted = 0;
+
+      for (const [storageKey, entry] of entries) {
+        if (
+          (providerId === undefined || entry.providerId === providerId) &&
+          entry.lastUsedAt < lastUsedBefore
+        ) {
+          entries.delete(storageKey);
+          deleted += 1;
+        }
+      }
+
+      return ok(deleted);
+    },
+
+    async deleteByProvider({ providerId, cacheKey }) {
+      return ok(entries.delete(providerHttpCacheStorageKey(providerId, cacheKey)));
+    },
+
+    async clearProvider({ providerId }) {
+      let deleted = 0;
+
+      for (const [storageKey, entry] of entries) {
+        if (entry.providerId === providerId) {
+          entries.delete(storageKey);
+          deleted += 1;
+        }
+      }
+
+      return ok(deleted);
+    },
+  };
+}
+
 export function createInMemoryEventRepository(): EventRepository {
   return createInMemoryRepository<StageEvent, string>({
     recordKey: (record) => record.id,
@@ -443,6 +518,10 @@ function matchesCollectionQuery(
     (query.relationKind === undefined || collection.relationKind === query.relationKind) &&
     (query.includeRemoved === true || collection.removedAt === undefined)
   );
+}
+
+function providerHttpCacheStorageKey(providerId: string, cacheKey: string): string {
+  return `${providerId}:${cacheKey}`;
 }
 
 function findActiveCollectionLabelConflict(

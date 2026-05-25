@@ -272,7 +272,11 @@ host-facing and LLM-facing surface.
   Handbook rendering includes those capabilities on the owning music instrument.
   The read-only `music.knowledge.query` Stage Interface tool is exposed through
   stable tool descriptors, dispatch, input schema, Stage Core wiring, and MCP
-  tool definitions.
+  tool definitions. Generic Provider HTTP Cache storage now exists as a shared
+  repository contract with in-memory and SQLite-backed implementations. Cache
+  reads update `lastUsedAt`, and maintenance methods can list least-recently
+  used entries, delete entries unused before a cutoff, delete one provider entry,
+  or clear one provider.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
@@ -384,8 +388,8 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- Generic provider HTTP cache storage and the MusicBrainz provider remain future
-  work.
+- Stage Core provider HTTP cache injection and the MusicBrainz provider remain
+  future work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

@@ -21,8 +21,10 @@
 - The read-only `music.knowledge.query` Stage Interface tool is now exposed
   through stable tool descriptors, dispatch, input schema, Stage Core wiring, and
   MCP tool definitions.
+- Generic Provider HTTP Cache storage now has shared entry/repository contracts,
+  in-memory storage, SQLite storage, `lastUsedAt` updates on read, and explicit
+  least-recently-used maintenance operations.
 
 ## Remaining Work
 
-- Generic provider HTTP cache storage is not implemented yet.
 - MusicBrainz Knowledge Provider is not implemented yet.

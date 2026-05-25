@@ -785,6 +785,16 @@ export type KnowledgeCanonicalContext = {
   relations: CanonicalRelation[];
 };
 
+export type ProviderHttpCacheEntry = {
+  providerId: string;
+  cacheKey: string;
+  requestUrl: string;
+  responseJson: unknown;
+  status: number;
+  fetchedAt: string;
+  lastUsedAt: string;
+};
+
 export interface KnowledgeProvider {
   id: string;
   query(input: {

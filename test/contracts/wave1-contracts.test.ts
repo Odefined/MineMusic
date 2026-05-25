@@ -55,6 +55,7 @@ import type {
   PlatformLibraryTargetKind,
   PlatformLibraryPreview,
   PlayableLink,
+  ProviderHttpCacheEntry,
   Ref,
   Result,
   SourceProvider,
@@ -86,6 +87,7 @@ import type {
   MemoryRepository,
   MusicKnowledgePort,
   PluginRegistryPort,
+  ProviderHttpCacheRepository,
   Repository,
   SessionRepository,
   SessionContextPort,
@@ -218,6 +220,28 @@ type _knowledgeProviderCapabilityDescriptorContract = Expect<
   > &
     Equal<KnowledgeProviderCapabilityDescriptor["formats"], Array<"structured" | "text"> | undefined> &
     Equal<InstrumentProviderDescriptor["knowledge"], KnowledgeProviderCapabilityDescriptor | undefined>
+>;
+
+type _providerHttpCacheEntryContract = Expect<
+  Equal<
+    keyof ProviderHttpCacheEntry,
+    | "providerId"
+    | "cacheKey"
+    | "requestUrl"
+    | "responseJson"
+    | "status"
+    | "fetchedAt"
+    | "lastUsedAt"
+  >
+>;
+
+type _providerHttpCacheRepositoryMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<ProviderHttpCacheRepository, "get"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "put"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "listLeastRecentlyUsed"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "deleteUnusedSince"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "deleteByProvider"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "clearProvider">
 >;
 
 type _platformLibraryItemKindsMatchFirstContract = Expect<
