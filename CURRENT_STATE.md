@@ -303,12 +303,16 @@ host-facing and LLM-facing surface.
   provider-specific MusicBrainz design draft now exists in
   `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
   provider-ref lookup, and deterministic provider-internal browse for ref-based
-  list expansions behind the general `knowledge.query` tool. The design
-  also records a future generic persistent provider HTTP cache, defaulting to
-  non-expiring entries with explicit least-recently-used cleanup by
-  `lastUsedAt`. A task-by-task implementation plan for the target Knowledge Slot
-  contract, cache, Stage Interface tool, and MusicBrainz provider now exists in
-  `docs/knowledge-slot/implementation-plan.md`. Future common plugin
+  list expansions behind the general `knowledge.query` tool. The Knowledge
+  Slot design now also records that text queries should honor requested
+  expansions through provider-internal follow-up lookup or browse, and that
+  `relationFocus: ["members"]` narrows broad relationships to membership facts
+  while preserving dates and role attributes. The design also records a future
+  generic persistent provider HTTP cache, defaulting to non-expiring entries
+  with explicit least-recently-used cleanup by `lastUsedAt`. A task-by-task
+  implementation plan for the target Knowledge Slot contract, cache, Stage
+  Interface tool, MusicBrainz provider, and text-query relation expansion now
+  exists in `docs/knowledge-slot/implementation-plan.md`. Future common plugin
   configuration should still be able to drive Knowledge provider activation,
   but the first local MCP runtime registers bundled MusicBrainz directly and
   does not make a MusicBrainz-specific environment variable decide provider

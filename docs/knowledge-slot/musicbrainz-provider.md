@@ -77,7 +77,9 @@ The description may include:
 - supported root entity kinds: `artist`, `recording`, `release`,
   `release_group`, and `work`.
 - useful expansion names: `credits`, `relations`, `releases`,
-  `release_groups`, `works`, `release_labels`, `tracklist`, `identifiers`, and `urls`.
+  `release_groups`, `recordings`, `works`, `release_labels`, `tracklist`,
+  `identifiers`, `urls`, `genres`, `tags`, `ratings`, and `annotation`.
+- useful relation focus values: `members`.
 - boundary notes: no playable links, no identity confirmation, no Canonical Store
   writes.
 
@@ -131,6 +133,40 @@ Each MusicBrainz search hit returns one `StructuredKnowledge` item with:
 - one MusicBrainz `Ref` on the root node.
 - related nodes and edges requested by `expand` when available in the search or
   follow-up lookup response.
+
+If a text query requests an expansion that search does not return, the provider
+must use each returned search hit's MusicBrainz ref, up to `query.limit`, and
+run the deterministic lookup or browse step before returning the item. The agent
+still makes one general `knowledge.query` call and does not need to know the
+MusicBrainz search, lookup, or browse API.
+
+Text-query expansion follows the same expansion rules as provider-ref lookup or
+browse after the search hit supplies the provider ref. For example:
+
+| Text search hit | Requested expansion | Follow-up step |
+| --- | --- | --- |
+| `artist` | `relations` + `relationFocus: ["members"]` | lookup artist relationships, then keep membership edges |
+| `artist` | `release_groups` | browse release groups by artist |
+| `artist` | `recordings` | browse recordings by artist |
+| `artist` | `works` | browse works by artist |
+| `release` | `tracklist` | lookup release with media, tracks, recordings, artist credits, release labels, and release group |
+| `release_group` | `releases` | browse releases by release group |
+| `recording` | `releases` | lookup recording releases first; browse by recording when lookup limits are insufficient |
+
+Example:
+
+```json
+{
+  "text": "My Bloody Valentine",
+  "entityKinds": ["artist"],
+  "expand": ["relations"],
+  "relationFocus": ["members"]
+}
+```
+
+This should search artists, take each returned artist MBID, look up artist
+relationships for the returned artists, then return membership relationship
+facts with dates and role attributes.
 
 `query.limit` limits the number of search hits returned. Default search limit is
 5. Maximum first-version limit is 50.
@@ -278,6 +314,7 @@ Common `expand` values map to MusicBrainz data as follows:
 | `relations` | MusicBrainz relationships for the queried entity and included entities |
 | `releases` | releases linked to recording, release group, artist, or label |
 | `release_groups` | release groups linked to artist or release |
+| `recordings` | recordings linked to artist or work |
 | `works` | works linked to recordings or artists |
 | `release_labels` | label and catalog-number info on releases |
 | `tracklist` | release media, tracks, and linked recordings |
@@ -290,6 +327,30 @@ Common `expand` values map to MusicBrainz data as follows:
 
 The first public contract should use these general expansion names. Provider
 internals may translate them into MusicBrainz API parameters.
+
+### Relation Focus
+
+`relationFocus` narrows the relationship family returned by `expand:
+["relations"]` without exposing MusicBrainz relationship type names to agents.
+
+The first supported value is `members`.
+
+For artist roots, `members` maps to MusicBrainz artist relationships of type
+`member of band`. The provider may request the broader MusicBrainz
+artist-relationship include and then filter the returned relationships before
+building `StructuredKnowledge`.
+
+Returned member facts should include:
+
+- the member artist node.
+- an edge from the band artist to the member artist.
+- a common predicate, `has_member`.
+- original MusicBrainz relationship type and direction in edge properties.
+- `begin`, `end`, and `ended` when MusicBrainz returns them.
+- relationship attributes such as `lead vocals`, `guitar`, or `drums`.
+
+Time status is represented by the returned date fields. Agents that need to
+answer current-lineup questions should read those fields and attributes.
 
 ## Default Return Scope
 
@@ -359,6 +420,7 @@ recording_of_work
 published_by_label
 related_url
 musicbrainz_relation
+has_member
 ```
 
 Artist credits should be represented in two forms:
@@ -410,6 +472,7 @@ possible:
 - composer relationships -> `composed_by`.
 - lyricist relationships -> `lyricist`.
 - writer relationships -> `written_by`.
+- artist membership relationships -> `has_member`.
 
 `performed_by` edge properties should preserve the specific MusicBrainz role and
 attributes when available:
@@ -439,6 +502,11 @@ on the relevant node.
 Full MusicBrainz relationships should be fetched when `expand` includes
 `relations`. Artist credits and the default descriptive fields above are not
 considered full relationships for this rule.
+
+When `relationFocus` is present, fetch the smallest MusicBrainz relationship
+include family that can answer that focus, then filter returned relationships
+before producing Knowledge edges. For `relationFocus: ["members"]` on artist
+roots, fetch artist relationships and return only membership-style edges.
 
 `works` is a narrow expansion for work links. `relations` is the broad
 relationship expansion and includes work links when available.

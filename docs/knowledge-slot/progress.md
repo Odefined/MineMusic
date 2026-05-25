@@ -48,5 +48,9 @@
 
 ## Remaining Work
 
+- Implement Task 9 from `docs/knowledge-slot/implementation-plan.md`: add
+  `relationFocus` to the public Knowledge query contract and make MusicBrainz
+  text queries honor expansion requests through provider-internal follow-up
+  lookup or browse.
 - Common plugin configuration still needs to become the durable activation path
   for bundled and third-party Knowledge providers.

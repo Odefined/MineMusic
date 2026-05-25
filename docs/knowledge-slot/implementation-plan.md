@@ -101,7 +101,7 @@ Work:
 
 - Define a Knowledge provider capability descriptor.
 - Let Knowledge providers describe supported formats, entity kinds, expansions,
-  and boundary notes.
+  relation focus values, and boundary notes.
 - Render provider capability descriptions into the general Knowledge tool
   Handbook entry.
 - Do not expose provider-internal API modes or provider-specific tools.
@@ -250,7 +250,53 @@ Verification:
 - runtime test with fixture MusicBrainz provider.
 - optional live smoke script guarded by explicit opt-in, if useful.
 
-## Task 9: State Sync
+## Task 9: Text Query Expansion And Relation Focus
+
+Files:
+
+- `src/contracts/index.ts`
+- `src/stage_interface/schemas.ts`
+- `src/providers/musicbrainz/index.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+- `docs/knowledge-slot/design.md`
+- `docs/knowledge-slot/musicbrainz-provider.md`
+
+Work:
+
+- Add `relationFocus?: KnowledgeRelationFocus[]` to `KnowledgeQuery`.
+- Define the first allowed focus value as `members`.
+- Keep `relationFocus` general. Do not expose provider-specific relationship
+  names, MusicBrainz include names, or MusicBrainz API modes to agents.
+- Return relationship dates and let the agent interpret them. Keep separate
+  time-filtering out of this slice.
+- Make MusicBrainz text search honor requested expansions by doing provider-
+  internal follow-up lookup or browse for each returned search hit up to
+  `query.limit`.
+- For text queries such as artist + `expand: ["relations"]` +
+  `relationFocus: ["members"]`, search artists, take the returned MBID
+  internally, look up artist relationships, then return member facts.
+- Map MusicBrainz `member of band` relationships to `has_member` edges.
+- Preserve original MusicBrainz relationship type, direction, begin date, end
+  date, ended flag, and attributes such as `lead vocals`.
+- Keep agents on the general `knowledge.query` interface. Agents should not need
+  to know MBIDs, MusicBrainz lookup, or MusicBrainz browse to ask for fuller
+  knowledge.
+
+Verification:
+
+- Contract tests cover `relationFocus`.
+- Stage Interface schema tests expose `relationFocus`.
+- MusicBrainz fixture tests prove text artist query + relation expansion triggers
+  search followed by lookup with artist relationships.
+- MusicBrainz fixture tests prove My Bloody Valentine-style membership facts can
+  return Kevin Shields, Bilinda Butcher, and David Conway with `lead vocals`
+  attributes and date fields.
+- Tests cover that omitting `relationFocus` preserves broad `relations`
+  behavior.
+- Tests cover unsupported focus values with a warning or validation error,
+  depending on the chosen public contract behavior.
+
+## Task 10: State Sync
 
 Files:
 
@@ -259,7 +305,9 @@ Files:
 - `ARCHITECTURE.md`
 - `PROGRESS.md`
 - `docs/knowledge-slot/design.md`
+- `docs/knowledge-slot/implementation-plan.md`
 - `docs/knowledge-slot/musicbrainz-provider.md`
+- `docs/knowledge-slot/progress.md`
 
 Work:
 

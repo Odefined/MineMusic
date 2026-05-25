@@ -253,6 +253,7 @@ export type KnowledgeQuery = {
   formats?: Array<"structured" | "text">;
   entityKinds?: string[];
   expand?: string[];
+  relationFocus?: Array<"members">;
   limit?: number;
 };
 ```
@@ -306,9 +307,32 @@ result. It controls response breadth only. It is not an identity signal and does
 not imply confidence.
 
 Common expansion names should be readable to agents, such as `credits`,
-`relations`, `releases`, `release_groups`, `works`, `release_labels`, `tracklist`,
-`identifiers`, and `urls`. Unsupported expansions should produce warnings when
-possible instead of failing the whole query.
+`relations`, `releases`, `release_groups`, `recordings`, `works`,
+`release_labels`, `tracklist`, `identifiers`, `urls`, `genres`, `tags`,
+`ratings`, and `annotation`.
+Unsupported expansions should produce warnings when possible instead of failing
+the whole query.
+
+`expand` is a request for a broader information package. It must be honored for
+text queries as well as ref-backed queries whenever the provider can do so. For
+example, a text query for an artist with `expand: ["relations"]` should not stop
+at a search hit when the provider can use the hit's provider ref to fetch the
+requested relationship facts internally.
+
+`relations` may be too broad for common agent questions. A query may include a
+coarse `relationFocus` to ask for a smaller relationship family without exposing
+provider-specific relationship names:
+
+```ts
+relationFocus?: Array<"members">;
+```
+
+The first focus value is `members`, used for questions such as "who is in this
+band?" or "who is the vocalist?". It filters returned relationship facts to
+membership-style relationships and preserves relationship dates and attributes,
+such as instruments or vocal roles. Agents should read `begin`, `end`, `ended`,
+and attributes from returned facts when they need to answer a time-sensitive
+question.
 
 When `canonicalRef` is supplied, Music Knowledge Service may use Canonical Store
 to read source/provider refs already attached to that canonical identity. Slot
@@ -344,20 +368,25 @@ The first public tool should not write Canonical Store state. It can return
 knowledge items for explanation or later review, but identity confirmation and
 apply operations remain separate Canonical Store workflows.
 
-Provider-specific filtering can be added later if a real use case needs it. It
-should not be part of the first public tool contract.
+Coarse relation focus is part of the general Knowledge query contract. It is not
+provider-specific filtering and should not teach agents provider terms such as
+MusicBrainz relationship include names.
 
 Knowledge providers may contribute capability descriptions for Handbook
 generation. These descriptions can tell agents what kind of knowledge is
 available through the general tool, such as supported formats, entity kinds, and
-expansion names.
+expansion names. If a provider supports coarse relationship narrowing, the
+description may also list supported `relationFocus` values.
 
 Provider Handbook contributions must not expose provider-internal API modes or
 transport details as agent actions. For example, a MusicBrainz provider may say
 that it can return structured recording, release, artist, release group, and
-work facts with expansions such as `credits`, `releases`, `works`, `tracklist`,
-`release_labels`, `identifiers`, and `relations`. It should not teach agents to call
-MusicBrainz search, lookup, browse, or MusicBrainz API parameters directly.
+work facts with expansions such as `credits`, `relations`, `releases`,
+`release_groups`, `recordings`, `works`, `release_labels`, `tracklist`,
+`identifiers`, `urls`, `genres`, `tags`, `ratings`, and `annotation`. It may say
+that `relationFocus: ["members"]` narrows relationships to band-member facts.
+It should not teach agents to call MusicBrainz search, lookup, browse, or
+MusicBrainz API parameters directly.
 
 ## Migration Rule
 

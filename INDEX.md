@@ -191,18 +191,19 @@ This index points agents to the current MVP documentation pack.
 48. `docs/knowledge-slot/design.md`
     - Knowledge Slot design draft for provider-attributed structured graph and
       text knowledge, including the MusicBrainz and document-knowledge-base
-      boundary.
+      boundary, general expansion names, and coarse relationship focus.
 
 49. `docs/knowledge-slot/musicbrainz-provider.md`
     - MusicBrainz Knowledge Provider design draft covering supported query
       modes, deterministic search/lookup/browse API planning, first structured
-      knowledge scope, expansion mapping, provider activation, and provider
-      boundaries.
+      knowledge scope, expansion mapping, text-query expansion follow-up,
+      relation focus, provider activation, and provider boundaries.
 
 50. `docs/knowledge-slot/implementation-plan.md`
     - Task-by-task implementation plan for the target Knowledge Slot contract,
       generic provider HTTP cache, Stage Interface knowledge tool, and first
-      MusicBrainz provider, including runtime provider-factory activation.
+      MusicBrainz provider, including runtime provider-factory activation and
+      the text-query relation expansion follow-up task.
 
 51. `docs/knowledge-slot/progress.md`
     - Knowledge Slot implementation progress, including implemented shared

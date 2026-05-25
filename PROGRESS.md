@@ -651,14 +651,19 @@
   knowledge capability metadata to `minemusic.knowledge`, and platform-library
   import/update area metadata goes to `minemusic.library` without running live
   preview during Handbook generation.
+- Documented the next Knowledge Slot implementation slice: text queries with
+  requested expansions should run provider-internal follow-up lookup or browse,
+  and `relationFocus: ["members"]` should return MusicBrainz membership facts
+  with dates and role attributes through the general `knowledge.query`
+  contract.
 
 ## Next
 
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.
-- Resolve the Knowledge Slot design queue one decision at a time, starting with
-  the query shape.
+- Implement Knowledge Slot Task 9: text-query expansion and member relationship
+  focus for MusicBrainz-backed Knowledge results.
 - Design the public `addAlias` method before implementing alias writes through
   `CanonicalStorePort`.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool
