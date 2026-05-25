@@ -118,6 +118,12 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
       canonicalRef: { namespace: "minemusic", kind: "recording", id: "canonical-1" },
     } as never,
   });
+  const resultWithUnsupportedRelationFocus = await knowledge.query({
+    query: {
+      text: "anything",
+      relationFocus: ["lineup"],
+    } as never,
+  });
 
   assert(!result.ok, "invalid knowledge query should fail explicitly");
   assert(result.error.code === "knowledge.invalid_query", "invalid query should be rejected before provider lookup");
@@ -125,6 +131,11 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
   assert(
     resultWithBothInputs.error.code === "knowledge.invalid_query",
     "query with both text and canonicalRef should be rejected",
+  );
+  assert(!resultWithUnsupportedRelationFocus.ok, "unsupported relation focus should fail explicitly");
+  assert(
+    resultWithUnsupportedRelationFocus.error.code === "knowledge.invalid_query",
+    "unsupported relation focus should be rejected before provider lookup",
   );
 }
 

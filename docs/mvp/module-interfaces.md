@@ -287,6 +287,7 @@ export type InstrumentProviderDescriptor = {
     formats?: Array<"structured" | "text">;
     entityKinds?: string[];
     expansions?: string[];
+    relationFocuses?: Array<"members">;
     boundaryNotes?: string[];
   };
   notes?: string[];

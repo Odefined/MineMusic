@@ -149,7 +149,7 @@ function renderProviderSection(instrument: InstrumentDescriptor): string[] {
     }
 
     if (provider.knowledge !== undefined) {
-      const { formats, entityKinds, expansions, boundaryNotes } = provider.knowledge;
+      const { formats, entityKinds, expansions, relationFocuses, boundaryNotes } = provider.knowledge;
 
       if (formats !== undefined && formats.length > 0) {
         lines.push(`  Formats: ${formats.map((format) => `\`${format}\``).join(", ")}`);
@@ -161,6 +161,10 @@ function renderProviderSection(instrument: InstrumentDescriptor): string[] {
 
       if (expansions !== undefined && expansions.length > 0) {
         lines.push(`  Expansions: ${expansions.map((expansion) => `\`${expansion}\``).join(", ")}`);
+      }
+
+      if (relationFocuses !== undefined && relationFocuses.length > 0) {
+        lines.push(`  Relation focus: ${relationFocuses.map((focus) => `\`${focus}\``).join(", ")}`);
       }
 
       if (boundaryNotes !== undefined && boundaryNotes.length > 0) {

@@ -4,6 +4,7 @@ import type {
   KnowledgeNode,
   KnowledgeProvider,
   KnowledgeQuery,
+  KnowledgeRelationFocus,
   Ref,
   Result,
   StageError,
@@ -201,6 +202,7 @@ export const musicBrainzKnowledgeProviderDescriptor: InstrumentProviderDescripto
       "ratings",
       "annotation",
     ],
+    relationFocuses: ["members"],
     boundaryNotes: [
       "No playable links.",
       "No identity confirmation.",
@@ -310,7 +312,31 @@ async function searchMusicBrainzText({
       return response;
     }
 
-    items.push(...entitiesFromSearch(response.value, search.responseKey).map(search.toKnowledge));
+    for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
+      const followUpRef = textSearchFollowUpRef(entityKind, entity, query);
+
+      if (followUpRef === undefined) {
+        items.push(search.toKnowledge(entity));
+        continue;
+      }
+
+      const followUp = await lookupMusicBrainzRef({
+        baseUrl,
+        cache,
+        clock,
+        rateLimiter,
+        requestJson,
+        userAgent,
+        query: lookupQueryFromTextQuery(query, followUpRef),
+        ref: followUpRef,
+      });
+
+      if (!followUp.ok) {
+        return followUp;
+      }
+
+      items.push(...followUp.value.items);
+    }
   }
 
   return ok({ items });
@@ -345,7 +371,7 @@ async function lookupMusicBrainzRef({
     userAgent,
     path: `/ws/2/${lookup.apiKind}/${encodeURIComponent(ref.id)}`,
     query: {
-      inc: lookupIncFor(refKind, query.expand),
+      inc: lookupIncFor(refKind, query.expand, query.relationFocus),
     },
   });
 
@@ -353,7 +379,7 @@ async function lookupMusicBrainzRef({
     return response;
   }
 
-  const items = [lookup.toKnowledge(response.value)];
+  const items = [lookup.toKnowledge(filterEntityRelationsForFocus(refKind, response.value, query.relationFocus))];
 
   if (refKind === "release_group" && query.expand?.includes("releases") === true) {
     const browse = await requestMusicBrainz({
@@ -367,7 +393,7 @@ async function lookupMusicBrainzRef({
       query: {
         "release-group": ref.id,
         limit: String(normalizedBrowseLimit(query.limit)),
-        inc: lookupIncFor("release", query.expand),
+        inc: lookupIncFor("release", query.expand, query.relationFocus),
       },
     });
 
@@ -390,7 +416,7 @@ async function lookupMusicBrainzRef({
       query: {
         artist: ref.id,
         limit: String(normalizedBrowseLimit(query.limit)),
-        inc: lookupIncFor("release_group", query.expand),
+        inc: lookupIncFor("release_group", query.expand, query.relationFocus),
       },
     });
 
@@ -451,6 +477,10 @@ function textQueryFromCanonicalContext(
     textQuery.expand = query.expand;
   }
 
+  if (query.relationFocus !== undefined) {
+    textQuery.relationFocus = query.relationFocus;
+  }
+
   if (query.formats !== undefined) {
     textQuery.formats = query.formats;
   }
@@ -464,6 +494,73 @@ function textQueryFromCanonicalContext(
   }
 
   return textQuery;
+}
+
+function textSearchFollowUpRef(
+  entityKind: string,
+  entity: Record<string, unknown>,
+  query: TextMusicBrainzQuery,
+): Ref | undefined {
+  const normalizedKind = normalizedMusicBrainzKind(entityKind);
+
+  if (lookupConfigFor(normalizedKind) === undefined) {
+    return undefined;
+  }
+
+  if (!textSearchRequiresFollowUp(normalizedKind, query.expand)) {
+    return undefined;
+  }
+
+  const id = stringValue(entity.id);
+
+  if (id === undefined) {
+    return undefined;
+  }
+
+  return musicBrainzRef(normalizedKind, id, stringValue(entity.name) ?? stringValue(entity.title));
+}
+
+function textSearchRequiresFollowUp(entityKind: string, expand: string[] | undefined): boolean {
+  if (expand === undefined || expand.length === 0) {
+    return false;
+  }
+
+  if (expand.includes("relations") || expand.includes("annotation")) {
+    return true;
+  }
+
+  if (entityKind === "artist" && expand.includes("release_groups")) {
+    return true;
+  }
+
+  if (entityKind === "release_group" && expand.includes("releases")) {
+    return true;
+  }
+
+  if (entityKind === "release" && (expand.includes("tracklist") || expand.includes("release_labels"))) {
+    return true;
+  }
+
+  if (
+    entityKind === "recording"
+    && (expand.includes("releases") || expand.includes("release_groups") || expand.includes("works"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function lookupQueryFromTextQuery(query: TextMusicBrainzQuery, ref: Ref): CanonicalMusicBrainzQuery {
+  return {
+    canonicalRef: ref,
+    ...(query.purpose === undefined ? {} : { purpose: query.purpose }),
+    ...(query.formats === undefined ? {} : { formats: query.formats }),
+    ...(query.entityKinds === undefined ? {} : { entityKinds: query.entityKinds }),
+    ...(query.expand === undefined ? {} : { expand: query.expand }),
+    ...(query.relationFocus === undefined ? {} : { relationFocus: query.relationFocus }),
+    ...(query.limit === undefined ? {} : { limit: query.limit }),
+  };
 }
 
 function canonicalSearchEntityKind(kind: string | undefined): string | undefined {
@@ -558,7 +655,11 @@ function lookupConfigFor(entityKind: string): MusicBrainzLookupConfig | undefine
   }
 }
 
-function lookupIncFor(entityKind: string, expand: string[] | undefined): string {
+function lookupIncFor(
+  entityKind: string,
+  expand: string[] | undefined,
+  relationFocus?: KnowledgeRelationFocus[],
+): string {
   const includes = new Set<string>(["genres", "ratings", "tags"]);
 
   switch (entityKind) {
@@ -611,10 +712,22 @@ function lookupIncFor(entityKind: string, expand: string[] | undefined): string 
   }
 
   if (expand?.includes("relations") === true) {
-    relationshipIncludesFor(entityKind).forEach((include) => includes.add(include));
+    const relationshipIncludes = relationshipIncludesForFocus(entityKind, relationFocus);
+    relationshipIncludes.forEach((include) => includes.add(include));
   }
 
   return Array.from(includes).sort().join("+");
+}
+
+function relationshipIncludesForFocus(
+  entityKind: string,
+  relationFocus: KnowledgeRelationFocus[] | undefined,
+): string[] {
+  if (relationFocus?.includes("members") === true && entityKind === "artist") {
+    return ["artist-rels"];
+  }
+
+  return relationshipIncludesFor(entityKind);
 }
 
 function relationshipIncludesFor(entityKind: string): string[] {
@@ -726,6 +839,36 @@ function entitiesFromSearch(response: unknown, responseKey: string): Record<stri
   return Array.isArray(entities)
     ? entities.filter((entity): entity is Record<string, unknown> => typeof entity === "object" && entity !== null)
     : [];
+}
+
+function filterEntityRelationsForFocus(
+  entityKind: string,
+  entity: unknown,
+  relationFocus: KnowledgeRelationFocus[] | undefined,
+): unknown {
+  if (relationFocus?.includes("members") !== true || entityKind !== "artist") {
+    return entity;
+  }
+
+  const source = objectValue(entity);
+  const relations = source.relations;
+
+  if (!Array.isArray(relations)) {
+    return source;
+  }
+
+  return {
+    ...source,
+    relations: relations.filter(isMemberOfBandRelation),
+  };
+}
+
+function isMemberOfBandRelation(relation: unknown): boolean {
+  if (typeof relation !== "object" || relation === null) {
+    return false;
+  }
+
+  return stringValue((relation as MusicBrainzRelation).type)?.toLowerCase() === "member of band";
 }
 
 function recordingToKnowledge(recording: MusicBrainzRecording): StructuredKnowledge {
@@ -1132,6 +1275,10 @@ function relationPredicate(relation: MusicBrainzRelation, targetType: string): s
 
   if (relationType.includes("writer")) {
     return "written_by";
+  }
+
+  if (targetType === "artist" && relationType.includes("member of band")) {
+    return "has_member";
   }
 
   if (

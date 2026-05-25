@@ -713,11 +713,14 @@ export type KnowledgeQueryPurpose = "lookup" | "explain" | "review" | "discover"
 
 export type KnowledgeItemFormat = "structured" | "text";
 
+export type KnowledgeRelationFocus = "members";
+
 export type KnowledgeQueryBase = {
   purpose?: KnowledgeQueryPurpose;
   formats?: KnowledgeItemFormat[];
   entityKinds?: string[];
   expand?: string[];
+  relationFocus?: KnowledgeRelationFocus[];
   limit?: number;
 };
 
@@ -928,6 +931,7 @@ export type KnowledgeProviderCapabilityDescriptor = {
   formats?: KnowledgeItemFormat[];
   entityKinds?: string[];
   expansions?: string[];
+  relationFocuses?: KnowledgeRelationFocus[];
   boundaryNotes?: string[];
 };
 

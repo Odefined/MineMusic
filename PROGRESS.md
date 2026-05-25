@@ -656,14 +656,21 @@
   and `relationFocus: ["members"]` should return MusicBrainz membership facts
   with dates and role attributes through the general `knowledge.query`
   contract.
+- Implemented Knowledge Slot Task 9 text-query expansion and relation focus.
+  `KnowledgeQuery` now carries `relationFocus`, the Stage Interface schema and
+  Handbook expose supported focus values, Music Knowledge rejects unsupported
+  focus values, and MusicBrainz text searches can run provider-internal
+  expansion follow-up lookup or browse. MusicBrainz `member of band`
+  relationships now map to `has_member` edges with dates and role attributes.
 
 ## Next
 
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.
-- Implement Knowledge Slot Task 9: text-query expansion and member relationship
-  focus for MusicBrainz-backed Knowledge results.
+- Expand MusicBrainz browse coverage beyond the currently implemented
+  release-group releases and artist release groups when a concrete agent use
+  case needs it.
 - Design the public `addAlias` method before implementing alias writes through
   `CanonicalStorePort`.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool

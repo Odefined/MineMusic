@@ -326,6 +326,7 @@ export type KnowledgeQueryBase = {
   formats?: Array<"structured" | "text">;
   entityKinds?: string[];
   expand?: string[];
+  relationFocus?: Array<"members">;
   limit?: number;
 };
 
@@ -398,6 +399,8 @@ Rules:
 
 - Knowledge providers return provider-attributed structured or text knowledge.
 - `KnowledgeQuery` accepts exactly one of `text` or `canonicalRef`.
+- `relationFocus` currently accepts `members` to narrow broad relationship
+  expansion to membership facts.
 - Music Knowledge Service passes `KnowledgeCanonicalContext` for `canonicalRef`
   queries after reading Canonical Store.
 - `retrievalScore` is retrieval relevance only.
@@ -564,6 +567,7 @@ export type InstrumentProviderDescriptor = {
     formats?: Array<"structured" | "text">;
     entityKinds?: string[];
     expansions?: string[];
+    relationFocuses?: Array<"members">;
     boundaryNotes?: string[];
   };
   notes?: string[];

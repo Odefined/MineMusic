@@ -27,6 +27,7 @@ const knowledgeQuerySchema = {
   formats: z.array(z.enum(["structured", "text"])).optional(),
   entityKinds: z.array(z.string()).optional(),
   expand: z.array(z.string()).optional(),
+  relationFocus: z.array(z.enum(["members"])).optional(),
   limit: z.number().int().positive().optional(),
 };
 const musicCandidateSchema = z.object({

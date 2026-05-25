@@ -19,6 +19,7 @@ import type {
   KnowledgeProvider,
   KnowledgeProviderCapabilityDescriptor,
   KnowledgeQuery,
+  KnowledgeRelationFocus,
   KnowledgeResult,
   KnowledgeSource,
   LibraryImportBatchKind,
@@ -162,8 +163,10 @@ type _materialResolveRequestCarriesOwnerScope = Expect<
 type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
   Equal<
     keyof KnowledgeQuery,
-    "text" | "canonicalRef" | "purpose" | "formats" | "entityKinds" | "expand" | "limit"
+    "text" | "canonicalRef" | "purpose" | "formats" | "entityKinds" | "expand" | "relationFocus" | "limit"
   > &
+    Equal<KnowledgeRelationFocus, "members"> &
+    Equal<KnowledgeQuery["relationFocus"], KnowledgeRelationFocus[] | undefined> &
     Equal<Extract<KnowledgeQuery, { text: string }>["canonicalRef"], undefined> &
     Equal<Extract<KnowledgeQuery, { canonicalRef: Ref }>["text"], undefined>
 >;
@@ -221,9 +224,10 @@ type _knowledgeProviderInputCarriesCanonicalContext = Expect<
 type _knowledgeProviderCapabilityDescriptorContract = Expect<
   Equal<
     keyof KnowledgeProviderCapabilityDescriptor,
-    "formats" | "entityKinds" | "expansions" | "boundaryNotes"
+    "formats" | "entityKinds" | "expansions" | "relationFocuses" | "boundaryNotes"
   > &
     Equal<KnowledgeProviderCapabilityDescriptor["formats"], Array<"structured" | "text"> | undefined> &
+    Equal<KnowledgeProviderCapabilityDescriptor["relationFocuses"], KnowledgeRelationFocus[] | undefined> &
     Equal<InstrumentProviderDescriptor["knowledge"], KnowledgeProviderCapabilityDescriptor | undefined>
 >;
 

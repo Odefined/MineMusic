@@ -148,7 +148,7 @@ function validateKnowledgeQuery(query: unknown): StageError | null {
     return invalidQueryError();
   }
 
-  const queryShape = query as { text?: unknown; canonicalRef?: unknown };
+  const queryShape = query as { text?: unknown; canonicalRef?: unknown; relationFocus?: unknown };
   const hasText = typeof queryShape.text === "string";
   const hasCanonicalRef = isRef(queryShape.canonicalRef);
 
@@ -156,7 +156,15 @@ function validateKnowledgeQuery(query: unknown): StageError | null {
     return invalidQueryError();
   }
 
+  if (!isValidRelationFocus(queryShape.relationFocus)) {
+    return invalidQueryError();
+  }
+
   return null;
+}
+
+function isValidRelationFocus(value: unknown): boolean {
+  return value === undefined || (Array.isArray(value) && value.every((focus) => focus === "members"));
 }
 
 function isRef(value: unknown): value is Ref {

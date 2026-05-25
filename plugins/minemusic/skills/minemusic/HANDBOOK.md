@@ -60,6 +60,7 @@ Effect kind: `proposal`
   Formats: `structured`
   Entity kinds: `artist`, `recording`, `release`, `release_group`, `work`
   Expansions: `credits`, `relations`, `releases`, `release_groups`, `works`, `release_labels`, `tracklist`, `identifiers`, `urls`, `genres`, `tags`, `ratings`, `annotation`
+  Relation focus: `members`
   Boundaries: No playable links. No identity confirmation. No Canonical Store writes.
 
 #### `knowledge.query`

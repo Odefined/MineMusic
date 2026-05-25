@@ -59,6 +59,10 @@ async function searchesRecordingsAsStructuredKnowledge(): Promise<void> {
   assert(provider.id === "musicbrainz", "provider id should be stable");
   assert(provider.descriptor?.slot === "knowledge", "provider descriptor should register in knowledge slot");
   assert(provider.descriptor?.knowledge?.formats?.[0] === "structured", "descriptor should describe structured knowledge");
+  assert(
+    provider.descriptor?.knowledge?.relationFocuses?.includes("members") === true,
+    "descriptor should advertise supported relation focus values",
+  );
 
   const result = await assertOk(provider.query({ query: { text: "Intro The xx", limit: 1 } }));
   const item = result.items[0];
@@ -570,6 +574,281 @@ async function mapsMusicBrainzRelations(): Promise<void> {
   );
 }
 
+async function expandsTextArtistSearchToFocusedMemberRelations(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      if (request.path === "/ws/2/artist") {
+        return {
+          ok: true,
+          value: {
+            status: 200,
+            json: {
+              artists: [
+                {
+                  id: "mbv-artist",
+                  name: "My Bloody Valentine",
+                  type: "Group",
+                  score: 100,
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            id: "mbv-artist",
+            name: "My Bloody Valentine",
+            type: "Group",
+            relations: [
+              {
+                type: "member of band",
+                "target-type": "artist",
+                direction: "backward",
+                begin: "1983",
+                end: "1987",
+                ended: true,
+                attributes: ["lead vocals"],
+                artist: {
+                  id: "david-conway",
+                  name: "David Conway",
+                },
+              },
+              {
+                type: "member of band",
+                "target-type": "artist",
+                direction: "backward",
+                begin: "1987",
+                end: "1997",
+                ended: true,
+                attributes: ["lead vocals"],
+                artist: {
+                  id: "bilinda-butcher",
+                  name: "Bilinda Butcher",
+                },
+              },
+              {
+                type: "member of band",
+                "target-type": "artist",
+                direction: "backward",
+                begin: "2007",
+                ended: false,
+                attributes: ["lead vocals"],
+                artist: {
+                  id: "kevin-shields",
+                  name: "Kevin Shields",
+                },
+              },
+              {
+                type: "influenced by",
+                "target-type": "artist",
+                direction: "forward",
+                artist: {
+                  id: "unrelated-artist",
+                  name: "Unrelated Artist",
+                },
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        text: "My Bloody Valentine",
+        entityKinds: ["artist"],
+        expand: ["relations"],
+        relationFocus: ["members"],
+        limit: 1,
+      },
+    }),
+  );
+
+  const item = result.items[0];
+
+  assert(requests.length === 2, "focused relation text query should search then look up the search hit");
+  assert(requests[0]?.path === "/ws/2/artist", "first request should search artists");
+  assert(requests[1]?.path === "/ws/2/artist/mbv-artist", "second request should look up the returned artist");
+  assert(requests[1]?.query.inc?.includes("artist-rels"), "member relation expansion should request artist relationships");
+  assert(item?.kind === "structured", "member relation result should be structured");
+  assert(item.nodes.some((node) => node.ref?.id === "kevin-shields"), "Kevin Shields member node should be returned");
+  assert(item.nodes.some((node) => node.ref?.id === "bilinda-butcher"), "Bilinda Butcher member node should be returned");
+  assert(item.nodes.some((node) => node.ref?.id === "david-conway"), "David Conway member node should be returned");
+  assert(!item.nodes.some((node) => node.ref?.id === "unrelated-artist"), "non-member relations should be filtered out");
+  assert(
+    item.edges.some((edge) =>
+      edge.predicate === "has_member"
+      && edge.properties?.musicBrainzType === "member of band"
+      && (edge.properties?.attributes as string[] | undefined)?.includes("lead vocals")
+      && edge.properties?.ended === false
+    ),
+    "member edges should preserve MusicBrainz type, role attributes, and date status",
+  );
+}
+
+async function expandsTextArtistSearchToBroadRelationsWhenNoFocusIsRequested(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      if (request.path === "/ws/2/artist") {
+        return {
+          ok: true,
+          value: {
+            status: 200,
+            json: {
+              artists: [
+                {
+                  id: "artist-mbid-1",
+                  name: "The xx",
+                  type: "Group",
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            id: "artist-mbid-1",
+            name: "The xx",
+            type: "Group",
+            relations: [
+              {
+                type: "influenced by",
+                "target-type": "artist",
+                direction: "forward",
+                artist: {
+                  id: "influence-artist",
+                  name: "Influence Artist",
+                },
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        text: "The xx",
+        entityKinds: ["artist"],
+        expand: ["relations"],
+        limit: 1,
+      },
+    }),
+  );
+
+  const item = result.items[0];
+
+  assert(requests.length === 2, "broad relation text query should search then look up the search hit");
+  assert(requests[1]?.query.inc?.includes("recording-rels"), "broad relations should keep full artist relationship includes");
+  assert(item?.kind === "structured", "broad relation result should be structured");
+  assert(item.nodes.some((node) => node.ref?.id === "influence-artist"), "broad relation target should be returned");
+  assert(
+    item.edges.some((edge) =>
+      edge.predicate === "musicbrainz_relation"
+      && edge.properties?.musicBrainzType === "influenced by"
+    ),
+    "unfocused relation expansion should preserve broad MusicBrainz relations",
+  );
+}
+
+async function expandsTextArtistSearchToReleaseGroupBrowse(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      if (request.path === "/ws/2/artist") {
+        return {
+          ok: true,
+          value: {
+            status: 200,
+            json: {
+              artists: [
+                {
+                  id: "artist-mbid-1",
+                  name: "The xx",
+                  type: "Group",
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      if (request.path === "/ws/2/release-group") {
+        return {
+          ok: true,
+          value: {
+            status: 200,
+            json: {
+              "release-groups": [
+                {
+                  id: "release-group-mbid-1",
+                  title: "xx",
+                  "primary-type": "Album",
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            id: "artist-mbid-1",
+            name: "The xx",
+            type: "Group",
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        text: "The xx",
+        entityKinds: ["artist"],
+        expand: ["release_groups"],
+        limit: 1,
+      },
+    }),
+  );
+
+  assert(requests.map((request) => request.path).join(",") === "/ws/2/artist,/ws/2/artist/artist-mbid-1,/ws/2/release-group", "release-group text expansion should search, lookup, then browse");
+  assert(requests[2]?.query.artist === "artist-mbid-1", "release-group browse should use the search hit artist MBID");
+  assert(
+    result.items.some((item) =>
+      item.kind === "structured"
+      && item.nodes.some((node) => node.type === "release_group" && node.ref?.id === "release-group-mbid-1")
+    ),
+    "release-group browse results should be returned as structured knowledge",
+  );
+}
+
 async function cachesSuccessfulJsonAndSkipsRateLimiterOnHit(): Promise<void> {
   const cache = createInMemoryProviderHttpCacheRepository();
   const nowValues = ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"];
@@ -779,6 +1058,9 @@ await browsesReleasesForReleaseGroupExpansion();
 await browsesReleaseGroupsForArtistExpansion();
 await mapsReleaseTracklistExpansion();
 await mapsMusicBrainzRelations();
+await expandsTextArtistSearchToFocusedMemberRelations();
+await expandsTextArtistSearchToBroadRelationsWhenNoFocusIsRequested();
+await expandsTextArtistSearchToReleaseGroupBrowse();
 await cachesSuccessfulJsonAndSkipsRateLimiterOnHit();
 await searchesFromCanonicalContextWithoutMusicBrainzRef();
 await doesNotSearchCanonicalWorkContextInFirstSlice();

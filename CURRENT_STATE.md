@@ -295,7 +295,13 @@ host-facing and LLM-facing surface.
   variable. The default local MCP runtime now registers the bundled MusicBrainz
   Knowledge provider when no explicit Knowledge providers or factories are
   supplied, so the agent-facing `minemusic.knowledge.query` tool can return
-  MusicBrainz facts in the installed plugin runtime.
+  MusicBrainz facts in the installed plugin runtime. `KnowledgeQuery` now also
+  supports `relationFocus: ["members"]`; the Stage Interface schema and
+  Handbook expose that focus, Music Knowledge rejects unsupported focus values,
+  and the MusicBrainz provider maps `member of band` relationships to
+  `has_member` edges with dates and role attributes. MusicBrainz text queries
+  can now use search hits internally for supported expansion follow-up lookup
+  or browse, so agents can ask for expanded knowledge without knowing MBIDs.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity

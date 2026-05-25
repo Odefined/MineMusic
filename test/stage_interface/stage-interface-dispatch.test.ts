@@ -208,6 +208,7 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
           formats: ["structured"],
           entityKinds: ["artist", "recording", "release", "release_group", "work"],
           expansions: ["credits", "relations", "release_labels", "tracklist"],
+          relationFocuses: ["members"],
           boundaryNotes: ["No playable links.", "No identity confirmation."],
         },
       },
@@ -235,6 +236,7 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
   assert(handbook.content.includes("Formats: `structured`"), "handbook should render supported knowledge formats");
   assert(handbook.content.includes("Entity kinds: `artist`, `recording`, `release`, `release_group`, `work`"), "handbook should render entity kinds");
   assert(handbook.content.includes("Expansions: `credits`, `relations`, `release_labels`, `tracklist`"), "handbook should render knowledge expansions");
+  assert(handbook.content.includes("Relation focus: `members`"), "handbook should render relation focus values");
   assert(handbook.content.includes("Boundaries: No playable links. No identity confirmation."), "handbook should render boundary notes");
   assert(!handbook.content.includes("browse"), "handbook should not expose provider-internal API modes");
 }
