@@ -2,7 +2,9 @@
 
 ## Status
 
-Design draft.
+Design draft. The current TypeScript implementation still exposes the thin MVP
+`MusicMaterial[]` knowledge query path. This document records the target
+contract discussion before implementation.
 
 ## Discussion Summary
 
@@ -65,10 +67,6 @@ recommendation flow.
   confirmation, merge, and reject decisions.
 - LLM assistance belongs in Canonical Store review workflows and must not write
   directly to Canonical Store repositories.
-- Knowledge provider activation should come from plugin runtime configuration.
-  Plugin `config.json` is the intended configuration source. Until the loader
-  exists, tests and host surfaces may pass explicit runtime options, but those
-  options should not become per-provider activation switches.
 
 ## Proposed Top-Level Contract
 
@@ -306,7 +304,7 @@ result. It controls response breadth only. It is not an identity signal and does
 not imply confidence.
 
 Common expansion names should be readable to agents, such as `credits`,
-`relations`, `releases`, `release_groups`, `works`, `release_labels`, `tracklist`,
+`relations`, `releases`, `release_groups`, `works`, `labels`, `tracklist`,
 `identifiers`, and `urls`. Unsupported expansions should produce warnings when
 possible instead of failing the whole query.
 
@@ -355,7 +353,7 @@ Provider Handbook contributions must not expose provider-internal API modes or
 transport details as agent actions. For example, a MusicBrainz provider may say
 that it can return structured recording, release, artist, release group, and
 work facts with expansions such as `credits`, `releases`, `works`, `tracklist`,
-`release_labels`, `identifiers`, and `relations`. It should not teach agents to call
+`labels`, `identifiers`, and `relations`. It should not teach agents to call
 MusicBrainz search, lookup, browse, or MusicBrainz API parameters directly.
 
 ## Migration Rule

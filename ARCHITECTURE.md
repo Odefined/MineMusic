@@ -95,8 +95,7 @@ Stage Core, which is the composition layer and therefore imports module
 factories to assemble a runtime.
 
 Plugin packages do not define core business boundaries. They register adapters
-into Plugin Slots. Provider activation should be driven by plugin runtime
-configuration, with plugin `config.json` as the intended source.
+into Plugin Slots.
 
 ## Current Code Mapping
 

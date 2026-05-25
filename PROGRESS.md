@@ -583,18 +583,9 @@
   `StructuredKnowledge`, allows document-style `TextKnowledge`, and preserves
   Canonical Store ownership of identity review/apply decisions.
 - Drafted `docs/knowledge-slot/musicbrainz-provider.md` for the MusicBrainz
-  Knowledge Provider. The draft records v1 support for text search,
-  provider-ref lookup, and deterministic provider-internal browse for ref-based
-  list expansions without exposing MusicBrainz as a separate Stage Interface
-  tool. It also records the generic persistent provider HTTP cache direction
-  with explicit
-  least-recently-used cleanup by `lastUsedAt`.
-- Drafted `docs/knowledge-slot/implementation-plan.md` to break the target
-  Knowledge Slot contract, provider descriptor Handbook support, generic
-  provider HTTP cache, Stage Interface tool, MusicBrainz provider, runtime
-  registration, and verification into implementation tasks. Runtime registration
-  is now aligned with future plugin `config.json` activation instead of a
-  MusicBrainz-specific environment variable switch.
+  Knowledge Provider. The draft records v1 support for text search, MBID lookup,
+  and deterministic provider-internal browse for ref-based list expansions
+  without exposing MusicBrainz as a separate Stage Interface tool.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under
