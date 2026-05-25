@@ -724,6 +724,10 @@
   member queries only treat backward `member of band` artist relationships as
   members of the root group; forward `member of band` relationships are no
   longer returned as group members.
+- Implemented Knowledge Slot Task 13 structured fact endpoint migration.
+  Provider-derived relations such as artist credits, release groups, labels, and
+  tracklists now use endpoint roles, and broad MusicBrainz relationship output
+  uses root and target node kinds as endpoint roles by default.
 
 ## Next
 

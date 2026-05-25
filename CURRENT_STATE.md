@@ -323,7 +323,8 @@ host-facing and LLM-facing surface.
   can ask for expanded knowledge without knowing MBIDs. Membership-focused
   artist queries now keep only backward MusicBrainz `member of band`
   relationships and preserve MusicBrainz relation type, direction, endpoint
-  roles, dates, and attributes.
+  roles, dates, and attributes. Broad MusicBrainz relationship output uses root
+  and target node kinds as endpoint roles by default.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity

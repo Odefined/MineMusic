@@ -457,6 +457,9 @@ recording-level fields such as title, duration, artist credit, and identifiers.
 MusicBrainz relationship types from API `relations` should be kept as the
 Knowledge relation `type`. Direction, dates, attributes, target type, and link
 phrases should be preserved on the relation when MusicBrainz returns them.
+Endpoints use the root node kind and target node kind as roles by default, such
+as `recording` and `work`. MusicBrainz membership relationships use the clearer
+roles `group` and `member`.
 
 For example, a MusicBrainz `performance` relation should return:
 
@@ -466,7 +469,7 @@ attributes
 direction
 ```
 
-Examples of role values include `performer`, `vocal`, `instrument`, and
+Examples of attribute values include `performer`, `vocal`, `instrument`, and
 `conductor`.
 
 Common node `properties` should include MusicBrainz descriptive fields when

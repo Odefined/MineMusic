@@ -37,8 +37,8 @@
   MusicBrainz-ref lookup through Canonical context source refs, supports
   deterministic browse expansions for release-group releases and artist release
   groups, maps tracklists, labels, ratings, tags, genres, annotations, and
-  selected relations to `StructuredKnowledge.relations`, and uses the generic
-  Provider HTTP Cache for successful JSON responses.
+  selected relations to `StructuredKnowledge.relations` with endpoint roles, and
+  uses the generic Provider HTTP Cache for successful JSON responses.
 - MusicBrainz text queries now honor expansion requests that require follow-up
   provider calls for supported cases. The provider can search by text, use the
   returned MusicBrainz ref internally for lookup or browse, and return expanded
@@ -55,8 +55,5 @@
 
 ## Remaining Work
 
-- Non-membership MusicBrainz structured facts still need a final pass to make
-  relation endpoint roles consistent across artist credits, release groups,
-  labels, tracklists, works, URLs, and broad MusicBrainz relationship results.
 - Common plugin configuration still needs to become the durable activation path
   for bundled and third-party Knowledge providers.

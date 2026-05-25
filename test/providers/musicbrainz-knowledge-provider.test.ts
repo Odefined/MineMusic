@@ -575,7 +575,15 @@ async function mapsMusicBrainzRelations(): Promise<void> {
 
   assert(item?.kind === "structured", "relation lookup should be structured");
   assert(item.nodes.some((node) => node.type === "work" && node.ref?.id === "work-mbid-1"), "work relation target should be a node");
-  assert(item.relations.some((relation) => relation.type === "recording of" && relation.direction === "forward"), "recording-of-work should preserve MusicBrainz relation type and direction");
+  assert(
+    item.relations.some((relation) =>
+      relation.type === "recording of"
+      && relation.direction === "forward"
+      && relationHasEndpoint(relation, "recording:recording-mbid-1", "recording")
+      && relationHasEndpoint(relation, "work:work-mbid-1", "work")
+    ),
+    "recording-of-work should preserve MusicBrainz relation type, direction, and endpoint roles",
+  );
   assert(item.relations.some((relation) => relation.type === "performance"), "performance should preserve MusicBrainz relation type");
   assert(
     item.relations.some((relation) => (relation.properties?.attributes as string[] | undefined)?.[0] === "vocal"),

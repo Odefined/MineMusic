@@ -1303,9 +1303,15 @@ function relationEndpoints(
   }
 
   return [
-    { nodeId: rootNodeId, role: "lookup_entity" },
+    { nodeId: rootNodeId, role: nodeKindFromId(rootNodeId) ?? "lookup_entity" },
     { nodeId: targetNodeId, role: targetType },
   ];
+}
+
+function nodeKindFromId(nodeId: string): string | undefined {
+  const separatorIndex = nodeId.indexOf(":");
+
+  return separatorIndex === -1 ? undefined : nodeId.slice(0, separatorIndex);
 }
 
 function relationProperties(relation: MusicBrainzRelation, targetType: string): Record<string, unknown> {
