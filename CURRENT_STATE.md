@@ -292,7 +292,10 @@ host-facing and LLM-facing surface.
   generic Knowledge provider factories; factories receive the Stage Core
   Provider HTTP Cache, and the default MCP runtime forwards those explicit
   Knowledge provider options without adding a MusicBrainz-specific environment
-  variable.
+  variable. The default local MCP runtime now registers the bundled MusicBrainz
+  Knowledge provider when no explicit Knowledge providers or factories are
+  supplied, so the agent-facing `minemusic.knowledge.query` tool can return
+  MusicBrainz facts in the installed plugin runtime.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
@@ -305,12 +308,11 @@ host-facing and LLM-facing surface.
   non-expiring entries with explicit least-recently-used cleanup by
   `lastUsedAt`. A task-by-task implementation plan for the target Knowledge Slot
   contract, cache, Stage Interface tool, and MusicBrainz provider now exists in
-  `docs/knowledge-slot/implementation-plan.md`. Future plugin activation should
-  come from plugin `config.json`, including Knowledge providers such as
-  MusicBrainz. That plugin config loader is not implemented yet, so the
-  Knowledge Slot implementation plan keeps first-slice registration compatible
-  with later `config.json` wiring and does not make a MusicBrainz-specific
-  environment variable decide provider activation.
+  `docs/knowledge-slot/implementation-plan.md`. Future common plugin
+  configuration should still be able to drive Knowledge provider activation,
+  but the first local MCP runtime registers bundled MusicBrainz directly and
+  does not make a MusicBrainz-specific environment variable decide provider
+  activation.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution,
   `MaterialResolveResult` status, and source evidence attachment to known

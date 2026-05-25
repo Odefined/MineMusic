@@ -8,6 +8,7 @@ import {
   createNetEaseSourceProvider,
   type NetEaseProviderOptions,
 } from "../../providers/netease/index.js";
+import { createMusicBrainzKnowledgeProvider } from "../../providers/musicbrainz/index.js";
 import {
   createMineMusicStageCoreWithSourceProvider,
   type KnowledgeProviderFactory,
@@ -114,6 +115,14 @@ export function createDefaultMineMusicMcpStageCore(
   } = {},
 ): MineMusicStageCore {
   const netEaseOptions = createNetEaseProviderOptions(env);
+  const defaultKnowledgeProviderFactories: KnowledgeProviderFactory[] =
+    options.knowledgeProviders === undefined && options.knowledgeProviderFactories === undefined
+      ? [({ providerHttpCache }) => createMusicBrainzKnowledgeProvider({ cache: providerHttpCache })]
+      : [];
+  const knowledgeProviderFactories =
+    options.knowledgeProviderFactories === undefined
+      ? defaultKnowledgeProviderFactories
+      : options.knowledgeProviderFactories;
 
   return createMineMusicStageCoreWithSourceProvider({
     session: createDefaultCodexSession(env),
@@ -132,9 +141,7 @@ export function createDefaultMineMusicMcpStageCore(
       ? {}
       : { providerHttpCacheDatabasePath: options.providerHttpCacheDatabasePath }),
     ...(options.knowledgeProviders === undefined ? {} : { knowledgeProviders: options.knowledgeProviders }),
-    ...(options.knowledgeProviderFactories === undefined
-      ? {}
-      : { knowledgeProviderFactories: options.knowledgeProviderFactories }),
+    knowledgeProviderFactories,
     ...(options.handbookPath === undefined ? {} : { handbookPath: options.handbookPath }),
   });
 }

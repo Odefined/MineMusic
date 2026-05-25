@@ -116,10 +116,12 @@ The Codex MCP runtime:
 - seeds a Stage session with `activeInstruments: []`, which means all current
   MineMusic instruments.
 - registers NetEase `source` and `platform_library` providers by default.
-- registers agent-facing provider descriptors for NetEase, so
+- registers the bundled MusicBrainz Knowledge provider by default when no
+  explicit Knowledge providers or factories are supplied.
+- registers agent-facing provider descriptors for NetEase and MusicBrainz, so
   `minemusic.music` shows NetEase source search/link capability and
-  `minemusic.library` shows NetEase library import/update areas. Knowledge
-  providers register under `minemusic.knowledge`.
+  `minemusic.library` shows NetEase library import/update areas, while
+  `minemusic.knowledge` shows MusicBrainz Knowledge capability.
 - uses `MINEMUSIC_NETEASE_BASE_URL` for both NetEase provider factories when
   provided.
 - uses `MINEMUSIC_CANONICAL_DB_PATH` as an optional SQLite database path for

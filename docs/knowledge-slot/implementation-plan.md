@@ -234,13 +234,13 @@ Files:
 
 Work:
 
-- Register MusicBrainz provider in the `knowledge` slot when plugin runtime
-  configuration enables it.
+- Register MusicBrainz provider in the `knowledge` slot from local MCP runtime
+  composition, while preserving explicit provider injection for tests and later
+  host configuration.
 - Do not make a MusicBrainz-specific environment variable decide provider
   activation.
 - Keep provider activation compatible with the future plugin `config.json`
-  loader. The loader is not implemented yet, so first implementation tests may
-  pass explicit runtime configuration or explicit provider factories directly.
+  loader by routing through generic Knowledge provider factories.
 - Once plugin `config.json` loading exists, map its enabled provider entries to
   Knowledge provider registration.
 - Ensure provider capability appears in Handbook when registered.

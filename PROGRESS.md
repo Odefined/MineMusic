@@ -633,6 +633,11 @@
   factories; factories receive the Stage Core Provider HTTP Cache, and the
   default MCP runtime forwards explicit Knowledge provider options without
   introducing a MusicBrainz-specific environment variable.
+- Wired the default local MCP runtime to register the bundled MusicBrainz
+  Knowledge provider when no explicit Knowledge providers or factories are
+  supplied. The generated Handbook now shows MusicBrainz under
+  `minemusic.knowledge`, and the default `minemusic.knowledge.query` path can
+  return MusicBrainz facts.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.knowledge`, `minemusic.music`,
   `minemusic.library`, and

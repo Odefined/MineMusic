@@ -41,8 +41,12 @@
   Cache, so MusicBrainz can be registered without a provider-specific
   environment-variable switch. The default MCP runtime forwards the same
   explicit Knowledge provider options.
+- The default local MCP runtime now registers the bundled MusicBrainz Knowledge
+  provider when no explicit Knowledge providers or factories are supplied. This
+  makes the installed `minemusic.knowledge.query` path usable for MusicBrainz
+  facts without exposing a MusicBrainz-specific agent tool.
 
 ## Remaining Work
 
-- Automatic provider activation through future plugin `config.json` remains
-  future work.
+- Common plugin configuration still needs to become the durable activation path
+  for bundled and third-party Knowledge providers.

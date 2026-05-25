@@ -87,9 +87,10 @@ API usage.
 
 ## Activation
 
-MusicBrainz provider activation should follow the common plugin configuration
-path. The plugin runtime reads plugin `config.json` and registers enabled
-providers into their slots.
+MusicBrainz provider activation should remain a host runtime decision behind the
+Knowledge slot. The local MCP runtime may register the bundled MusicBrainz
+provider directly; common plugin configuration can later supply the same
+provider through the generic provider-factory path.
 
 Runtime options such as request cache location or User-Agent override should
 eventually come from plugin `config.json` or explicit Stage Core configuration.

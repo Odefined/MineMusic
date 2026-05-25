@@ -100,6 +100,8 @@ configuration, with plugin `config.json` as the intended source. Until that
 loader exists, Stage Core may receive explicit provider instances or provider
 factories from the host; factories receive shared runtime dependencies such as
 Provider HTTP Cache without creating provider-specific environment switches.
+The local MCP host registers the bundled MusicBrainz Knowledge provider by
+default unless explicit Knowledge provider options are supplied.
 
 ## Current Code Mapping
 

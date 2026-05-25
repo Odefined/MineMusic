@@ -295,6 +295,34 @@ async function defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary():
   );
 }
 
+async function defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-musicbrainz-"));
+  const handbookPath = join(directory, "HANDBOOK.md");
+
+  try {
+    const stageCore = createDefaultMineMusicMcpStageCore(
+      {
+        MINEMUSIC_SESSION_ID: "mcp-default-musicbrainz-session",
+        MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+      },
+      {
+        handbookPath,
+      },
+    );
+    await stageCore.ready;
+
+    const registeredProvider = await stageCore.plugins.getProvider({
+      slot: "knowledge",
+      providerId: "musicbrainz",
+    });
+
+    assert(registeredProvider.ok, "default MCP runtime should read the Knowledge provider registry");
+    assert(registeredProvider.value !== null, "default MCP runtime should register MusicBrainz knowledge");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function defaultMcpStageCoreUsesLibraryImportDatabasePathEnv(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-library-import-db-"));
   const databasePath = join(directory, "library-import.sqlite");
@@ -444,6 +472,7 @@ await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToStageInterface();
 await dispatchesLibraryImportMcpPayloadsToStageInterface();
 await defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary();
+await defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider();
 await defaultMcpStageCoreUsesLibraryImportDatabasePathEnv();
 await defaultMcpStageCoreUsesCollectionDatabasePathEnv();
 await defaultMcpStageCoreUsesCanonicalDatabasePathEnv();

@@ -202,8 +202,7 @@ This index points agents to the current MVP documentation pack.
 50. `docs/knowledge-slot/implementation-plan.md`
     - Task-by-task implementation plan for the target Knowledge Slot contract,
       generic provider HTTP cache, Stage Interface knowledge tool, and first
-      MusicBrainz provider, including the future plugin `config.json`
-      activation path.
+      MusicBrainz provider, including runtime provider-factory activation.
 
 51. `docs/knowledge-slot/progress.md`
     - Knowledge Slot implementation progress, including implemented shared
@@ -219,7 +218,8 @@ This index points agents to the current MVP documentation pack.
 
 53. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, focused instrument/tool behavior,
-      packaging, and verification notes, including the optional
+      packaging, default MusicBrainz Knowledge registration, and verification
+      notes, including the optional
       `MINEMUSIC_CANONICAL_DB_PATH`,
       `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`
       durable storage settings.
