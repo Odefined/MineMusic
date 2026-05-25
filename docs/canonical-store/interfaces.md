@@ -135,8 +135,9 @@ Implemented behavior:
 - `findByLabel` searches primary labels and aliases.
 - `findByLabel` and `resolveExternalRef` return only `active` and
   `provisional` records.
-- `createProvisional` reuses existing current records by external evidence,
-  normalized label, or alias before creating a new provisional record.
+- `createProvisional` reuses existing current records by external evidence
+  before creating a new provisional record; label and alias matches remain
+  lookup-only candidate discovery.
 - `attachExternalRef` is idempotent for refs already attached to the same
   canonical record.
 - SQLite external-ref uniqueness failures are mapped to
@@ -229,8 +230,10 @@ Behavior:
 
 - runs in a transaction.
 - first tries to reuse an existing active/provisional record by evidence.
-- then tries to reuse an existing active/provisional record by label/alias.
-- creates a provisional record only when no existing identity matches.
+- does not automatically reuse an existing active/provisional record by
+  label/alias alone.
+- creates a provisional record only when no evidence ref resolves to an
+  existing identity.
 - attaches evidence refs to the provisional record.
 - does not mark the record active.
 

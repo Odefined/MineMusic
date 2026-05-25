@@ -218,12 +218,13 @@
   persistence, external-ref reverse lookup, and external-ref conflict behavior
   across repository reopen.
 - Tightened `src/canonical/index.ts` identity policy so provisional creation
-  reuses existing current records by external evidence, normalized label, or
-  alias; ordinary label/external-ref lookup ignores historical records; and
-  repeated same-record external-ref attachment stays idempotent.
-- Added Canonical Store policy tests for evidence reuse, normalized-label reuse,
-  alias reuse and lookup, historical-status filtering, durable conflict
-  behavior, and idempotent external-ref attachment.
+  reuses existing current records by external evidence; ordinary label/external
+  ref lookup ignores historical records; label/alias matches remain lookup-only
+  candidate discovery; and repeated same-record external-ref attachment stays
+  idempotent.
+- Added Canonical Store policy tests for evidence reuse, label/alias lookup,
+  no automatic label-only provisional reuse, historical-status filtering,
+  durable conflict behavior, and idempotent external-ref attachment.
 - Changed the stage-core runtime test runner to import test modules
   sequentially, removing a handbook file read/write race between plugin
   packaging checks and Stage Core startup tests.
@@ -540,6 +541,11 @@
   `MINEMUSIC_CANONICAL_DB_PATH` configures the default MCP runtime. Updated
   runtime coverage for Stage Core recreation against the same canonical
   database path and MCP database initialization.
+- Corrected Canonical Store provisional identity policy so automatic creation
+  only reuses by exact external evidence, not by normalized label or alias
+  alone. Added regression coverage for same-label/different-source imports and
+  verified live NetEase saved-recording import now produces 1372 item reports,
+  1372 canonical external refs, and 1372 active Collection items.
 
 ## Next
 

@@ -164,9 +164,9 @@ durable lookup and constraints.
   `findByLabel` and `resolveExternalRef`.
 - Reuse an existing current record in `createProvisional` when evidence already
   resolves to a canonical record.
-- Reuse an existing current record in `createProvisional` when normalized label
-  or alias matches the same kind.
-- Do not create duplicate provisional records for the same evidence or label.
+- Keep normalized label and alias matching available through `findByLabel`, but
+  do not let `createProvisional` merge identities by label or alias alone.
+- Do not create duplicate provisional records for the same evidence.
 - Keep `attachExternalRef` idempotent when the ref is already attached to the
   same canonical record.
 - Keep `canonical.not_found` for missing canonical refs.
@@ -184,7 +184,7 @@ Tasks 1 and 2.
   - alias lookup.
   - status filtering.
   - provisional reuse by evidence.
-  - provisional reuse by normalized label.
+  - no automatic provisional reuse by normalized label alone.
   - idempotent same-record external-ref attach.
 
 ### Task 4: Add Stage Core Wiring Without Changing Defaults
@@ -299,7 +299,7 @@ git diff --name-only
 - Canonical Store policy:
   - create provisional.
   - reuse by evidence.
-  - reuse by normalized label.
+  - no automatic reuse by normalized label alone.
   - alias lookup.
   - status filtering.
   - external-ref conflict.
@@ -355,7 +355,7 @@ git diff --name-only
 | --- | --- |
 | SQLite sync API blocks long operations | Canonical MVP writes are tiny; wrap access so a future async driver can replace it. |
 | Generic repository shape hides useful indexes | Add canonical-specific storage operations behind Canonical Store, not in public module APIs. |
-| Provisional identity duplicates | Make `createProvisional` reuse by evidence and normalized label before insert. |
+| Provisional identity duplicates | Reuse by exact evidence before insert; leave label-only duplicates to later review/admin merge so same-title recordings are not collapsed automatically. |
 | Source refs become durable identity by accident | Keep source refs in `canonical_external_refs`; reconstruct MineMusic refs only from `canonical_entities`. |
 | Tests become path/order dependent | Use temp directories and reopen adapters explicitly. |
 

@@ -44,8 +44,9 @@ Implemented:
   and mapped to `canonical.external_ref_conflict` at the Canonical Store
   boundary.
 - Canonical Store policy now reuses existing records by external evidence.
-- Canonical Store policy now reuses existing records by normalized label.
-- Canonical Store policy now reuses existing records by alias.
+- Canonical Store policy keeps normalized label and alias matching as lookup-only
+  candidate discovery; `createProvisional` no longer treats label-only matches
+  as proof of identity.
 - Ordinary Canonical Store lookup filters to `active` and `provisional`.
 - Repeated same-record external-ref attachment is idempotent.
 - Canonical label/ref/current-record normalization is isolated in
@@ -135,6 +136,10 @@ Pending:
 - Updated the canonical persistence integration test to exercise
   `canonicalDatabasePath` directly, and added MCP database initialization
   coverage.
+- Corrected provisional identity creation so exact external evidence can reuse
+  an existing identity, but normalized label or alias alone cannot automatically
+  merge recordings. Added regression coverage for same-label/different-source
+  Library Import items.
 
 ## Verification
 
@@ -162,6 +167,9 @@ Evidence boundary:
   `test/integration/canonical-persistence.test.ts`.
 - Live NetEase validation is separate and remains opt-in through
   `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease`.
+- Live NetEase full saved-recording import was also run manually against a temp
+  SQLite runtime after the label-only merge correction and produced 1372 item
+  reports, 1372 canonical external refs, and 1372 active Collection items.
 - The Codex MCP default runtime accepts `MINEMUSIC_CANONICAL_DB_PATH` when the
   host wants durable Canonical Store state.
 

@@ -184,11 +184,15 @@ Examples:
 Before creating a provisional record, Canonical Store should:
 
 1. check every evidence ref through `resolveExternalRef`.
-2. check normalized label and aliases for the same kind.
-3. reuse an existing active/provisional record when found.
+2. reuse an existing active/provisional record only when an evidence ref is
+   already bound.
+3. keep normalized label and alias lookup available for candidate discovery and
+   later review, but do not treat label-only matches as automatic identity
+   proof.
 4. otherwise create a new provisional identity and attach evidence.
 
-This prevents accidental duplicate provisional records.
+This prevents duplicate provisional records for already-bound evidence without
+falsely merging same-title recordings.
 
 ## External Evidence
 
@@ -282,7 +286,8 @@ The completed MVP implementation covers Phase 1 and Phase 2 behavior for the
 existing `CanonicalStorePort` methods:
 
 - durable SQLite-backed canonical repository.
-- evidence, label, and alias reuse for provisional identity creation.
+- evidence reuse for provisional identity creation, with label and alias lookup
+  kept as candidate discovery rather than automatic identity merging.
 - active/provisional filtering for ordinary lookup.
 - idempotent same-record external-ref attachment.
 - Stage Core repository injection with in-memory storage as the default.

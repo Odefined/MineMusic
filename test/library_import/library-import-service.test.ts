@@ -575,6 +575,68 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   );
 }
 
+async function importsSameLabelDifferentSourceRefsAsSeparateCanonicalRecordings(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_recordings",
+              status: "complete",
+              items: [
+                providerItem("same-title-first", "Same Title"),
+                providerItem("same-title-second", "Same Title"),
+              ],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+
+  const report = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_recordings"],
+    }),
+  );
+  const canonicalRecords = await assertOk(environment.canonicalRepository.list());
+  const savedItems = await assertOk(
+    environment.collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+
+  assert(report.counts.canonicalRecordsCreated === 2, "same labels should not collapse canonical creates");
+  assert(report.counts.collectionItemsAdded === 2, "same labels with different source refs should both save");
+  assert(canonicalRecords.length === 2, "same-label imported recordings should remain separate provisional records");
+  assert(savedItems.length === 2, "Collection should contain both imported same-label recordings");
+}
+
 async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
@@ -1128,6 +1190,7 @@ await marksStartedBatchFailedWhenProviderReadFails();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
+await importsSameLabelDifferentSourceRefsAsSeparateCanonicalRecordings();
 await returnsStoredSummaryAfterServiceRecreation();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
 await previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting();

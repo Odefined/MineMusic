@@ -109,7 +109,7 @@ async function createProvisionalReusesExistingEvidence(): Promise<void> {
   assert(records.length === 1, "reused evidence should not create duplicate provisional records");
 }
 
-async function createProvisionalReusesExistingNormalizedLabel(): Promise<void> {
+async function createProvisionalDoesNotReuseByNormalizedLabelOnly(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const store = createCanonicalStore({
     repository,
@@ -123,21 +123,35 @@ async function createProvisionalReusesExistingNormalizedLabel(): Promise<void> {
     store.createProvisional({
       kind: "recording",
       label: "Quiet   Coding Track",
+      evidence: [
+        {
+          namespace: "source:fixture",
+          kind: "track",
+          id: "first-track",
+        },
+      ],
     }),
   );
   const second = await assertOk(
     store.createProvisional({
       kind: "recording",
       label: " quiet coding track ",
+      evidence: [
+        {
+          namespace: "source:fixture",
+          kind: "track",
+          id: "second-track",
+        },
+      ],
     }),
   );
   const records = await assertOk(repository.list());
 
-  assert(second.ref.id === first.ref.id, "same normalized label should reuse canonical identity");
-  assert(records.length === 1, "reused label should not create duplicate provisional records");
+  assert(second.ref.id !== first.ref.id, "same normalized label alone should not prove canonical identity");
+  assert(records.length === 2, "label-only matches should remain separate provisional records");
 }
 
-async function createProvisionalReusesExistingAlias(): Promise<void> {
+async function createProvisionalDoesNotReuseByAliasOnly(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const canonical: CanonicalRecord = {
     ref: { namespace: "minemusic", kind: "recording", id: "alias-provisional-reuse" },
@@ -157,12 +171,19 @@ async function createProvisionalReusesExistingAlias(): Promise<void> {
     store.createProvisional({
       kind: "recording",
       label: " aruarian   dance - nujabes ",
+      evidence: [
+        {
+          namespace: "source:fixture",
+          kind: "track",
+          id: "different-track",
+        },
+      ],
     }),
   );
   const records = await assertOk(repository.list());
 
-  assert(reused.ref.id === canonical.ref.id, "alias match should reuse canonical identity");
-  assert(records.length === 1, "reused alias should not create duplicate provisional records");
+  assert(reused.ref.id !== canonical.ref.id, "alias match alone should not prove canonical identity");
+  assert(records.length === 2, "alias-only matches should remain separate provisional records");
 }
 
 async function findsCurrentRecordsByAlias(): Promise<void> {
@@ -270,8 +291,8 @@ async function attachesSameExternalRefIdempotently(): Promise<void> {
 await createsAndGetsProvisionalRecords();
 await resolvesAndAttachesExternalRefsWithoutChangingAuthority();
 await createProvisionalReusesExistingEvidence();
-await createProvisionalReusesExistingNormalizedLabel();
-await createProvisionalReusesExistingAlias();
+await createProvisionalDoesNotReuseByNormalizedLabelOnly();
+await createProvisionalDoesNotReuseByAliasOnly();
 await findsCurrentRecordsByAlias();
 await resolveExternalRefIgnoresHistoricalRecords();
 await rejectsExternalRefConflicts();

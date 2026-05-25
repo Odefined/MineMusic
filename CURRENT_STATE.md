@@ -80,9 +80,10 @@ host-facing and LLM-facing surface.
   behavior.
 - Canonical Store is exported from `src/canonical/index.ts` with get, external
   ref resolution, provisional record creation, and external ref attachment. It
-  now reuses current canonical records by external evidence, normalized label,
-  or alias, filters ordinary lookup to active/provisional records, and keeps
-  same-record external-ref attachment idempotent.
+  reuses current canonical records by external evidence during provisional
+  creation, keeps label/alias matching as lookup-only candidate discovery,
+  filters ordinary lookup to active/provisional records, and keeps same-record
+  external-ref attachment idempotent.
 - The shared Canonical Store contract exports `CanonicalKind`, including
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
@@ -338,8 +339,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the Stage Core / MCP Canonical Store database-path
-  wiring on 2026-05-25.
+- `npm test` passes as of the Canonical Store label-only auto-merge correction
+  on 2026-05-25.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
 - `npm run smoke:netease` skips successfully unless explicitly enabled.

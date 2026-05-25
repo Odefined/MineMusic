@@ -266,11 +266,10 @@ external refs already attached as evidence.
 
 Run in one transaction:
 
-1. Normalize label.
+1. Normalize label for storage and later candidate lookup.
 2. For each evidence ref, try `resolveExternalRef`.
 3. If evidence resolves to an active/provisional entity, return that entity.
-4. If label or alias already resolves to an active/provisional entity of the
-   same kind, return that entity.
+4. Do not automatically reuse records by label or alias alone.
 5. Insert a `provisional` row in `canonical_entities`.
 6. Insert evidence refs into `canonical_external_refs`.
 7. Emit or record `canonical.provisional.created` when domain events are wired.

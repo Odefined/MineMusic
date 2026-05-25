@@ -49,16 +49,6 @@ export function createCanonicalStore({
         return ok(existingByEvidence.value);
       }
 
-      const existingByLabel = await storage.findByLabel({ kind, label });
-
-      if (!existingByLabel.ok) {
-        return existingByLabel;
-      }
-
-      if (existingByLabel.value[0] !== undefined) {
-        return ok(existingByLabel.value[0]);
-      }
-
       const record: CanonicalRecord = {
         ref: {
           namespace: "minemusic",
