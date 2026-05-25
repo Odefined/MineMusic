@@ -673,6 +673,10 @@
 - Recorded that the current repo-local Codex MCP startup path is transitional
   because it still combines MCP adapter startup with default Stage Core/runtime
   configuration.
+- Added `docs/host-adapters/service-adapter-refactor-plan.md` with phased
+  tasks, file boundaries, verification targets, and stopping conditions for
+  moving runtime ownership into the long-lived MineMusic service while keeping
+  MCP as one adapter surface.
 
 ## Next
 

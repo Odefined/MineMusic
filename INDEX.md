@@ -224,7 +224,12 @@ This index points agents to the current MVP documentation pack.
       adapter surface, while provider/database/cache/session runtime
       configuration belongs to service startup.
 
-54. `src/stage_core/index.ts`
+54. `docs/host-adapters/service-adapter-refactor-plan.md`
+    - Refactor plan for moving runtime ownership from the repo-local Codex MCP
+      startup path into a long-lived MineMusic service process, with MCP as one
+      adapter surface alongside future CLI and Web UI adapters.
+
+55. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, exposes the runtime object, composes Collection
       and Library Import with optional repository/provider injection, and
@@ -232,7 +237,7 @@ This index points agents to the current MVP documentation pack.
       Collection, Library Import, Provider HTTP Cache, and explicit Knowledge
       provider registration.
 
-55. `src/surfaces/mcp/server.ts`
+56. `src/surfaces/mcp/server.ts`
     - Codex-facing MCP surface that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; the default runtime registers NetEase for both
@@ -242,57 +247,57 @@ This index points agents to the current MVP documentation pack.
       path is transitional until the long-lived MineMusic service owns Stage
       Core and exposes MCP as one adapter.
 
-56. `src/stage_interface/**`
+57. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade, including focused
       stage/knowledge/music/library/memory instrument descriptors, provider
       descriptor attachment, Collection tools, and Library Import tools.
 
-57. `src/handbook/index.ts`
+58. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, provider capability sections, and exact tool entries.
 
-58. `plugins/minemusic/.codex-plugin/plugin.json`
+59. `plugins/minemusic/.codex-plugin/plugin.json`
     - Repo-local Codex plugin manifest for the MineMusic MCP surface.
 
-59. `plugins/minemusic/.mcp.json`
+60. `plugins/minemusic/.mcp.json`
     - MCP startup config for the MineMusic plugin.
 
-60. `plugins/minemusic/skills/minemusic/SKILL.md`
+61. `plugins/minemusic/skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests.
 
-61. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
+62. `plugins/minemusic/skills/minemusic/HANDBOOK.md`
     - Generated overview of current agent-visible MineMusic instruments and
       tools, including Library Import tool entries.
 
-62. `docs/platform-library-provider/netease-implementation-plan.md`
+63. `docs/platform-library-provider/netease-implementation-plan.md`
     - Task-by-task implementation plan for the NetEase `platform_library`
       provider, including supported areas, adapter boundaries, issue mapping,
       fixture tests, and verification.
 
-63. `docs/platform-library-provider/progress.md`
+64. `docs/platform-library-provider/progress.md`
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
-64. `src/storage/sqlite/library-import-schema.ts`
+65. `src/storage/sqlite/library-import-schema.ts`
     - SQLite schema initialization for durable Library Import batches, reports,
       area snapshots, item provenance, and absence records.
 
-65. `src/storage/sqlite/library-import-repository.ts`
+66. `src/storage/sqlite/library-import-repository.ts`
     - SQLite-backed `LibraryImportRepository` implementation for direct durable
       repository injection.
 
-66. `test/storage/in-memory-library-import-repository.test.ts`
+67. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
       report, area snapshot, item provenance, absence, and provider-account-stable
       latest complete baseline storage.
 
-67. `test/storage/sqlite-library-import-repository.test.ts`
+68. `test/storage/sqlite-library-import-repository.test.ts`
     - SQLite Library Import repository persistence tests for batch/report,
       snapshot baseline, item provenance, and absence records across reopen.
 
-68. `src/library_import/index.ts`
+69. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
@@ -300,7 +305,7 @@ This index points agents to the current MVP documentation pack.
       started-batch failure handling, and repository-backed batch status/summary
       helpers.
 
-69. `test/library_import/library-import-service.test.ts`
+70. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -308,24 +313,24 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-70. `test/integration/library-import-runtime.test.ts`
+71. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, durable Library Import database path
       reuse, and Stage Interface / MCP exposure.
 
-71. `src/storage/sqlite/provider-http-cache-schema.ts`
+72. `src/storage/sqlite/provider-http-cache-schema.ts`
     - SQLite schema initialization for the generic Provider HTTP Cache.
 
-72. `src/storage/sqlite/provider-http-cache-repository.ts`
+73. `src/storage/sqlite/provider-http-cache-repository.ts`
     - SQLite-backed `ProviderHttpCacheRepository` implementation for persistent
       provider HTTP response caching and least-recently-used cleanup.
 
-73. `test/storage/in-memory-provider-http-cache-repository.test.ts`
+74. `test/storage/in-memory-provider-http-cache-repository.test.ts`
     - In-memory Provider HTTP Cache behavior tests for cache read/write,
       `lastUsedAt` update, clone returns, and maintenance operations.
 
-74. `test/storage/sqlite-provider-http-cache-repository.test.ts`
+75. `test/storage/sqlite-provider-http-cache-repository.test.ts`
     - SQLite Provider HTTP Cache persistence tests across repository reopen.
 
 ## Agent Rule

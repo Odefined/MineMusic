@@ -36,6 +36,8 @@ service-held Stage Core. The current repo-local Codex MCP startup path still
 combines MCP adapter startup with default Stage Core/runtime configuration, so
 separating the MineMusic service boundary from the Codex plugin remains a
 pending architecture-alignment change.
+The phased refactor plan for that change is documented in
+`docs/host-adapters/service-adapter-refactor-plan.md`.
 
 ## Source Basis
 
