@@ -10,7 +10,7 @@ export const stableToolNames = [
   "stage.events.record",
   "stage.effects.propose",
   "music.material.resolve",
-  "music.knowledge.query",
+  "knowledge.query",
   "music.links.refresh",
   "music.collection.save",
   "music.collection.unsave",
@@ -102,12 +102,6 @@ export const musicToolDescriptors: StableToolDescriptor[] = [
     outputSchemaRef: "MaterialResolveResult",
   },
   {
-    name: "music.knowledge.query",
-    description: "Query provider-attributed structured or text music knowledge.",
-    inputSchemaRef: "KnowledgeQuery",
-    outputSchemaRef: "KnowledgeResult",
-  },
-  {
     name: "music.links.refresh",
     description: "Refresh source-backed playable links for a material item.",
     inputSchemaRef: "MusicMaterial",
@@ -187,6 +181,15 @@ export const musicToolDescriptors: StableToolDescriptor[] = [
   },
 ];
 
+export const knowledgeToolDescriptors: StableToolDescriptor[] = [
+  {
+    name: "knowledge.query",
+    description: "Query provider-attributed structured or text knowledge.",
+    inputSchemaRef: "KnowledgeQuery",
+    outputSchemaRef: "KnowledgeResult",
+  },
+];
+
 export const libraryToolDescriptors: StableToolDescriptor[] = [
   {
     name: "library.import.preview",
@@ -238,6 +241,7 @@ export const memoryToolDescriptors: StableToolDescriptor[] = [
 export const agentToolDescriptors: StableToolDescriptor[] = [
   ...handbookToolDescriptors,
   ...stageToolDescriptors,
+  ...knowledgeToolDescriptors,
   ...musicToolDescriptors,
   ...libraryToolDescriptors,
   ...memoryToolDescriptors,

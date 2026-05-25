@@ -325,10 +325,11 @@ treat label-based retrieval as identity confirmation.
 Stage Interface should expose Knowledge through one general read-only tool:
 
 ```text
-music.knowledge.query
+knowledge.query
 ```
 
-The tool accepts `KnowledgeQuery` and returns `KnowledgeResult`.
+The tool lives under the dedicated `minemusic.knowledge` instrument. It accepts
+`KnowledgeQuery` and returns `KnowledgeResult`.
 
 Agents should use this tool to ask for music knowledge. They should not call
 provider-specific tools such as MusicBrainz search directly. Provider selection,
@@ -365,7 +366,7 @@ directly from `MusicMaterial[]` to `KnowledgeResult`.
 
 Do not keep a compatibility method such as `queryMaterials`. Knowledge should not
 remain a material provider. Any current caller that expects `MusicMaterial[]`
-must either move to `music.knowledge.query` for knowledge items or use Material
+must either move to `knowledge.query` for knowledge items or use Material
 Resolve / Source Grounding for material resolution.
 
 ## MusicBrainz Implications

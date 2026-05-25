@@ -77,7 +77,7 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
   const descriptors = await assertOk(catalog.list({ session }));
   const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
 
-  assert(descriptors.length === 5, "catalog should expose handbook plus stage, music, library, and memory instruments");
+  assert(descriptors.length === 6, "catalog should expose handbook plus stage, knowledge, music, library, and memory instruments");
   assert(stableToolNames.every((toolName) => toolNames.includes(toolName)), "catalog should expose every stable tool");
   assert(
     descriptors.every((descriptor) => !descriptor.label.includes("fixture") && !descriptor.label.includes("provider")),
@@ -100,6 +100,10 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     "catalog should expose stage tools as their own instrument",
   );
   assert(
+    descriptors.some((descriptor) => descriptor.id === "minemusic.knowledge"),
+    "catalog should expose knowledge tools as their own instrument",
+  );
+  assert(
     descriptors.some((descriptor) => descriptor.id === "minemusic.music"),
     "catalog should expose music tools as their own instrument",
   );
@@ -115,6 +119,7 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     toolNames.includes("handbook.tool.read"),
     "catalog should expose precise handbook tool lookup",
   );
+  assert(toolNames.includes("knowledge.query"), "catalog should expose knowledge query tool");
   assert(toolNames.includes("music.collection.save"), "catalog should expose collection save tool");
   assert(toolNames.includes("music.collection.create"), "catalog should expose custom collection create tool");
   assert(toolNames.includes("music.collection.list"), "catalog should expose collection list tool");
@@ -211,13 +216,21 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
 
   const descriptors = await assertOk(createInstrumentCatalog({ plugins }).list({ session }));
   const musicInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.music");
+  const knowledgeInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.knowledge");
   const handbook = buildInstrumentHandbook(descriptors);
 
   assert(musicInstrument !== undefined, "catalog should expose music instrument");
+  assert(knowledgeInstrument !== undefined, "catalog should expose knowledge instrument");
   assert(
-    musicInstrument.providers?.some((provider) => provider.id === "musicbrainz"),
-    "music instrument should include knowledge provider descriptors",
+    musicInstrument.providers?.some((provider) => provider.id === "musicbrainz") !== true,
+    "music instrument should not include knowledge provider descriptors",
   );
+  assert(
+    knowledgeInstrument.providers?.some((provider) => provider.id === "musicbrainz"),
+    "knowledge instrument should include knowledge provider descriptors",
+  );
+  assert(handbook.content.includes("MineMusic Knowledge (`minemusic.knowledge`)"), "handbook should render knowledge instrument");
+  assert(handbook.content.includes("#### `knowledge.query`"), "handbook should render knowledge query under knowledge instrument");
   assert(handbook.content.includes("MusicBrainz"), "handbook should render knowledge provider label");
   assert(handbook.content.includes("Formats: `structured`"), "handbook should render supported knowledge formats");
   assert(handbook.content.includes("Entity kinds: `artist`, `recording`, `release`, `release_group`, `work`"), "handbook should render entity kinds");
@@ -368,7 +381,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.knowledge.query",
+      toolName: "knowledge.query",
       payload: {
         text: "Knowledge Track",
         formats: ["text"],
@@ -460,7 +473,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
   assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
-  assert(calls.includes("musicKnowledge.query"), "music.knowledge.query should call MusicKnowledgePort");
+  assert(calls.includes("musicKnowledge.query"), "knowledge.query should call MusicKnowledgePort");
   assert(calls.includes("stage.events.record"), "stage.events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");

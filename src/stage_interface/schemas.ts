@@ -81,7 +81,7 @@ export const stageInterfaceToolInputSchemas = {
     ownerScope: z.string().optional(),
     limitPerCandidate: z.number().int().positive().optional(),
   },
-  "music.knowledge.query": knowledgeQuerySchema,
+  "knowledge.query": knowledgeQuerySchema,
   "music.links.refresh": {
     material: musicMaterialSchema,
   },

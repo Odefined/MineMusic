@@ -6,6 +6,7 @@ import type {
 import type { InstrumentCatalogPort, PluginRegistryPort } from "../ports/index.js";
 import {
   handbookToolDescriptors,
+  knowledgeToolDescriptors,
   libraryToolDescriptors,
   memoryToolDescriptors,
   musicToolDescriptors,
@@ -53,10 +54,16 @@ export function createInstrumentCatalog({
           tools: stageToolDescriptors,
         },
         {
+          id: "minemusic.knowledge",
+          label: "MineMusic Knowledge",
+          tools: knowledgeToolDescriptors,
+          providers: knowledgeProviders.value,
+        },
+        {
           id: "minemusic.music",
           label: "MineMusic Music",
           tools: musicToolDescriptors,
-          providers: [...sourceProviders.value, ...knowledgeProviders.value],
+          providers: sourceProviders.value,
         },
         {
           id: "minemusic.library",

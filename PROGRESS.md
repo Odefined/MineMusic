@@ -607,10 +607,11 @@
   queries.
 - Implemented Knowledge Slot Task 3 provider capability descriptors and
   Handbook rendering. Knowledge provider descriptors can now list formats,
-  entity kinds, expansions, and boundary notes, and the Instrument Catalog
-  attaches knowledge providers to `minemusic.music`.
+  entity kinds, expansions, and boundary notes, and the Instrument Catalog now
+  attaches knowledge providers to the dedicated `minemusic.knowledge`
+  instrument.
 - Implemented Knowledge Slot Task 4 Stage Interface tool exposure. The
-  read-only `music.knowledge.query` tool now has a stable descriptor, input
+  read-only `knowledge.query` tool now has a stable descriptor, input
   schema, dispatch path, Stage Core wiring, and MCP exposure.
 - Implemented Knowledge Slot Task 5 generic Provider HTTP Cache storage.
   Added shared cache entry/repository contracts, in-memory and SQLite-backed
@@ -633,15 +634,18 @@
   default MCP runtime forwards explicit Knowledge provider options without
   introducing a MusicBrainz-specific environment variable.
 - Replaced the aggregate MVP instrument with focused
-  `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
+  `minemusic.stage`, `minemusic.knowledge`, `minemusic.music`,
+  `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under
   `stage.*`, Library Import tool ids now live under `library.*`, and the default
   Codex MCP session uses empty `activeInstruments` to expose all current
   MineMusic instruments.
 - Added agent-facing provider descriptors to the Instrument Catalog and
   Handbook. NetEase now contributes source capability metadata to
-  `minemusic.music` and platform-library import/update area metadata to
-  `minemusic.library` without running live preview during Handbook generation.
+  `minemusic.music`, MusicBrainz-style Knowledge providers contribute
+  knowledge capability metadata to `minemusic.knowledge`, and platform-library
+  import/update area metadata goes to `minemusic.library` without running live
+  preview during Handbook generation.
 
 ## Next
 

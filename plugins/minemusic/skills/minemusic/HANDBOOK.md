@@ -49,6 +49,13 @@ Description: Create a proposal for a durable write or external action.
 Input: `EffectProposalDraft`
 Output: `EffectProposal`
 Effect kind: `proposal`
+### MineMusic Knowledge (`minemusic.knowledge`)
+
+#### `knowledge.query`
+
+Description: Query provider-attributed structured or text knowledge.
+Input: `KnowledgeQuery`
+Output: `KnowledgeResult`
 ### MineMusic Music (`minemusic.music`)
 
 #### Providers
@@ -63,11 +70,6 @@ Effect kind: `proposal`
 Description: Resolve music candidates into material through canonical-first material resolution.
 Input: `MaterialResolveRequest`
 Output: `MaterialResolveResult`
-#### `music.knowledge.query`
-
-Description: Query provider-attributed structured or text music knowledge.
-Input: `KnowledgeQuery`
-Output: `KnowledgeResult`
 #### `music.links.refresh`
 
 Description: Refresh source-backed playable links for a material item.

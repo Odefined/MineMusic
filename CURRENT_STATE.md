@@ -201,7 +201,8 @@ host-facing and LLM-facing surface.
   `library.update.start`, `library.import.status`, and
   `library.import.summary` with explicit MCP schemas and generated
   Handbook entries. The Instrument Catalog now exposes focused
-  `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
+  `minemusic.stage`, `minemusic.knowledge`, `minemusic.music`,
+  `minemusic.library`, and
   `minemusic.memory` instruments instead of a single aggregate MVP instrument,
   and it attaches registered provider descriptors to their owning instruments.
   The default Codex MCP runtime now registers NetEase through both `source` and
@@ -269,8 +270,9 @@ host-facing and LLM-facing surface.
   items, preserves provider warnings, and passes Canonical Store context to
   providers for `canonicalRef` queries. Knowledge provider descriptors can now
   describe supported formats, entity kinds, expansions, and boundary notes, and
-  Handbook rendering includes those capabilities on the owning music instrument.
-  The read-only `music.knowledge.query` Stage Interface tool is exposed through
+  Handbook rendering includes those capabilities on the dedicated Knowledge
+  instrument.
+  The read-only `knowledge.query` Stage Interface tool is exposed through
   stable tool descriptors, dispatch, input schema, Stage Core wiring, and MCP
   tool definitions. Generic Provider HTTP Cache storage now exists as a shared
   repository contract with in-memory and SQLite-backed implementations. Cache
@@ -298,7 +300,7 @@ host-facing and LLM-facing surface.
   provider-specific MusicBrainz design draft now exists in
   `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
   provider-ref lookup, and deterministic provider-internal browse for ref-based
-  list expansions behind the general `music.knowledge.query` tool. The design
+  list expansions behind the general `knowledge.query` tool. The design
   also records a future generic persistent provider HTTP cache, defaulting to
   non-expiring entries with explicit least-recently-used cleanup by
   `lastUsedAt`. A task-by-task implementation plan for the target Knowledge Slot

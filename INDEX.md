@@ -242,9 +242,9 @@ This index points agents to the current MVP documentation pack.
 
 56. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
-      dispatch, and callable facade, including focused stage/music/library/memory
-      instrument descriptors, provider descriptor attachment, Collection tools,
-      and Library Import tools.
+      dispatch, and callable facade, including focused
+      stage/knowledge/music/library/memory instrument descriptors, provider
+      descriptor attachment, Collection tools, and Library Import tools.
 
 57. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,

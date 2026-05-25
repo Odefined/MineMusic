@@ -50,14 +50,14 @@ refs even when they are not MineMusic canonical kinds.
 ## Supported Query Modes
 
 MusicBrainz provider v1 supports three internal API modes behind the general
-`music.knowledge.query` tool:
+`knowledge.query` tool:
 
 1. text search.
 2. provider-ref lookup.
 3. provider-internal browse for ref-based list expansion.
 
 Browse is not exposed as a separate Stage Interface tool. The public tool remains
-`music.knowledge.query`.
+`knowledge.query`.
 
 These modes are provider-internal. Agents should not be expected to know
 MusicBrainz search, lookup, browse, MBIDs, or MusicBrainz API parameters. Agents
@@ -82,7 +82,7 @@ The description may include:
   writes.
 
 The description must not expose MusicBrainz API modes as separate agent actions.
-It should help agents form `music.knowledge.query` calls, not teach MusicBrainz
+It should help agents form `knowledge.query` calls, not teach MusicBrainz
 API usage.
 
 ## Activation
@@ -528,7 +528,7 @@ clearProvider
 ```
 
 These operations may be exposed later through scripts or governed admin tools.
-They should not be part of `music.knowledge.query`.
+They should not be part of `knowledge.query`.
 
 ## API Constraints
 

@@ -312,10 +312,11 @@ The Handbook is generated from current agent-visible `InstrumentDescriptor` /
 the `minemusic.handbook` instrument also exposes `handbook.overview.read`,
 `handbook.instrument.read`, and `handbook.tool.read` for on-demand lookup.
 Provider capabilities are part of the owning `InstrumentDescriptor` through
-`providers`, so agent-facing platform/source facts stay attached to
-`minemusic.music` or `minemusic.library` instead of forming a separate Handbook
-surface. These provider descriptors are static registration metadata; live
-library counts and samples still come from Library Import preview tools.
+`providers`, so agent-facing source facts stay attached to `minemusic.music`,
+Knowledge provider facts stay attached to `minemusic.knowledge`, and
+platform-library facts stay attached to `minemusic.library`. These provider
+descriptors are static registration metadata; live library counts and samples
+still come from Library Import preview tools.
 
 Tool availability is checked through `InstrumentCatalogPort`, not by compiling
 or reading a Handbook as a side effect.
@@ -325,6 +326,7 @@ host-facing MCP names are prefixed, for example
 `minemusic.stage.context.read`, `minemusic.handbook.tool.read`, and
 `minemusic.stage.materials.prepare`, while the internal public tool names remain
 the stable `ToolName` union. The catalog exposes focused `minemusic.stage`,
-`minemusic.music`, `minemusic.library`, and `minemusic.memory` instruments
-instead of a single aggregate MVP instrument; an empty `activeInstruments` list
-means all current MineMusic instruments are available.
+`minemusic.knowledge`, `minemusic.music`, `minemusic.library`, and
+`minemusic.memory` instruments instead of a single aggregate MVP instrument; an
+empty `activeInstruments` list means all current MineMusic instruments are
+available.

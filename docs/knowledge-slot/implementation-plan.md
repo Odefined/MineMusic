@@ -16,7 +16,7 @@ In scope:
 - shared Knowledge contracts for `KnowledgeResult`, `KnowledgeItem`,
   `StructuredKnowledge`, `TextKnowledge`, `KnowledgeNode`, and `KnowledgeEdge`.
 - `MusicKnowledgePort.query` returning `KnowledgeResult`.
-- general read-only Stage Interface tool `music.knowledge.query`.
+- general read-only Stage Interface tool `knowledge.query`.
 - provider Handbook capability descriptions.
 - generic persistent provider HTTP cache storage.
 - MusicBrainz Knowledge Provider.
@@ -109,7 +109,7 @@ Work:
 Verification:
 
 - Handbook render tests show MusicBrainz capability guidance under
-  `music.knowledge.query`.
+  `knowledge.query`.
 
 ## Task 4: Stage Interface Tool
 
@@ -123,7 +123,7 @@ Files:
 
 Work:
 
-- Add stable tool name `music.knowledge.query`.
+- Add stable tool name `knowledge.query`.
 - Add input schema for `KnowledgeQuery`.
 - Dispatch to `MusicKnowledgePort.query`.
 - Return `KnowledgeResult`.
@@ -157,7 +157,7 @@ Work:
   - `deleteUnusedSince`
   - `deleteByProvider`
   - `clearProvider`
-- Do not expose cache maintenance through `music.knowledge.query`.
+- Do not expose cache maintenance through `knowledge.query`.
 
 Verification:
 

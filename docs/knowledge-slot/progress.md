@@ -17,10 +17,10 @@
   queries.
 - Provider descriptors now carry Knowledge capability metadata for supported
   formats, entity kinds, expansions, and boundary notes, and Handbook rendering
-  includes those fields on the owning music instrument.
-- The read-only `music.knowledge.query` Stage Interface tool is now exposed
-  through stable tool descriptors, dispatch, input schema, Stage Core wiring, and
-  MCP tool definitions.
+  includes those fields on the dedicated Knowledge instrument.
+- The read-only `knowledge.query` Stage Interface tool is now exposed
+  through the `minemusic.knowledge` instrument, stable tool descriptors,
+  dispatch, input schema, Stage Core wiring, and MCP tool definitions.
 - Generic Provider HTTP Cache storage now has shared entry/repository contracts,
   in-memory storage, SQLite storage, `lastUsedAt` updates on read, and explicit
   least-recently-used maintenance operations.

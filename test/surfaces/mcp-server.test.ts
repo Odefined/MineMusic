@@ -60,6 +60,10 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP should expose canonical-first material resolve with the MineMusic prefix",
   );
   assert(
+    codexToolNameFor("knowledge.query") === "minemusic.knowledge.query",
+    "MCP should expose Knowledge query through the Knowledge instrument prefix",
+  );
+  assert(
     codexToolNameFor("music.collection.save") === "minemusic.music.collection.save",
     "MCP should expose collection tools with the MineMusic prefix",
   );
@@ -115,11 +119,11 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "resolve tool schema should declare candidate-set input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.knowledge.query"), "text"),
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "text"),
     "knowledge query schema should declare text input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.knowledge.query"), "canonicalRef"),
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "canonicalRef"),
     "knowledge query schema should declare canonicalRef input",
   );
   assert(

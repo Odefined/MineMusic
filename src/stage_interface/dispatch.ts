@@ -200,7 +200,7 @@ export function createToolDispatch({
         case "music.material.resolve":
           return materialResolve.resolve(readPayload<MaterialResolveRequest>(payload, { sessionId }));
 
-        case "music.knowledge.query": {
+        case "knowledge.query": {
           const availableKnowledge = readKnowledge(knowledge);
 
           if (!availableKnowledge.ok) {

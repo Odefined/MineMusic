@@ -47,6 +47,7 @@ Current instruments:
 ```text
 minemusic.handbook
 minemusic.stage
+minemusic.knowledge
 minemusic.music
 minemusic.library
 minemusic.memory
@@ -63,6 +64,7 @@ stage.materials.prepare
 stage.session.update
 stage.events.record
 stage.effects.propose
+knowledge.query
 music.material.resolve
 music.links.refresh
 music.collection.save
@@ -95,6 +97,7 @@ minemusic.stage.materials.prepare
 minemusic.stage.session.update
 minemusic.stage.events.record
 minemusic.stage.effects.propose
+minemusic.knowledge.query
 minemusic.music.material.resolve
 minemusic.music.links.refresh
 minemusic.music.collection.save
@@ -115,7 +118,8 @@ The Codex MCP runtime:
 - registers NetEase `source` and `platform_library` providers by default.
 - registers agent-facing provider descriptors for NetEase, so
   `minemusic.music` shows NetEase source search/link capability and
-  `minemusic.library` shows NetEase library import/update areas.
+  `minemusic.library` shows NetEase library import/update areas. Knowledge
+  providers register under `minemusic.knowledge`.
 - uses `MINEMUSIC_NETEASE_BASE_URL` for both NetEase provider factories when
   provided.
 - uses `MINEMUSIC_CANONICAL_DB_PATH` as an optional SQLite database path for
