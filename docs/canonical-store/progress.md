@@ -184,6 +184,11 @@ Evidence boundary:
   SQLite runtime after the label-only merge correction and produced 1372 item
   reports, 1372 canonical source refs, and 1372 active Collection items,
   pending later duplicate-candidate review/merge semantics.
+- Live NetEase full first-slice import was rerun manually against a temp durable
+  MCP runtime after indexed source-ref lookup was added. Importing
+  `saved_recordings`, `saved_releases`, and `saved_artists` completed in 13
+  seconds and persisted 3241 canonical source refs, 5249 provisional relations,
+  and 3189 relation rows with `objectRef`s.
 - The Codex MCP default runtime accepts `MINEMUSIC_CANONICAL_DB_PATH` when the
   host wants durable Canonical Store state.
 

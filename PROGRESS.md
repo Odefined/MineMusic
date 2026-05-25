@@ -571,6 +571,12 @@
   `resolveSourceRef`, provisional evidence reuse, and source-ref conflict
   checks, and Library Import caches saved Collection membership per target kind
   during a batch instead of listing saved items once per imported item.
+- Re-ran live NetEase Library Import through a temp durable MCP runtime after
+  the performance pass. Importing `saved_recordings`, `saved_releases`, and
+  `saved_artists` completed in 13 seconds with 2017 imported item reports:
+  1372 recordings, 466 releases, and 179 artists. SQLite contained 2017 active
+  saved Collection items, 3241 canonical source refs, 5249 provisional
+  relation rows, and 3189 relation rows with `objectRef`s.
 
 ## Next
 

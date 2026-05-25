@@ -380,10 +380,10 @@ host-facing and LLM-facing surface.
 - Do not build heavy recommender scoring into the MVP path.
 - Do not treat a `source_only_playable` event target as durable canonical
   identity.
-- Full live Library Import through MCP with durable SQLite paths previously
-  exceeded a 300 second client timeout after linked artist/release graph
-  writes. A first performance pass now lets SQLite Canonical Store resolve
-  source refs through its indexed table instead of full repository scans, and
-  Library Import caches saved Collection membership per target kind inside a
-  batch. Targeted tests pass; the full live durable import still needs to be
-  rerun to measure the remaining gap.
+- Full live Library Import through MCP with durable SQLite paths now completes
+  after the indexed source-ref lookup and per-batch saved-membership cache
+  performance pass. On 2026-05-25, a temp durable MCP runtime imported NetEase
+  `saved_recordings`, `saved_releases`, and `saved_artists` in 13 seconds:
+  2017 item reports, 2017 active saved Collection items, 3241 canonical source
+  refs, and 5249 provisional relation rows, including 3189 relation rows with
+  `objectRef`s.

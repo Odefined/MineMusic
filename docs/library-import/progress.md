@@ -173,11 +173,15 @@ This file tracks Library Import implementation progress.
   passes after adding artist/release source-ref hints, linked provisional
   artist/release canonical creation, and relation `objectRef` coverage.
 - `npm test` passes after the linked provisional graph changes.
-- A live MCP import against a temp SQLite runtime verified real NetEase
-  `objectRef` relation rows, including `canonical-1` links for `performed_by`
-  and `appears_on_release`, but the full durable import exceeded a 300 second
-  MCP client timeout and ended as a failed batch after 1311 imported items.
-  Durable full-library import performance remains a follow-up gap.
+- A live MCP import against a temp SQLite runtime initially verified real
+  NetEase `objectRef` relation rows but exceeded a 300 second client timeout
+  before the first performance pass.
 - `npm run build:test && node .tmp-test/test/storage/sqlite-canonical-store.test.js && node .tmp-test/test/library_import/library-import-service.test.js && node .tmp-test/test/integration/library-import-runtime.test.js && node .tmp-test/test/integration/canonical-persistence.test.js`
   passes after adding indexed canonical source-ref lookup and per-batch saved
   membership caching.
+- A follow-up live durable MCP import after that performance pass completed in
+  13 seconds for `saved_recordings`, `saved_releases`, and `saved_artists`.
+  It produced 2017 imported item reports and persisted 3 complete area
+  snapshots, 2017 item provenance rows, 2017 active saved Collection items,
+  3241 canonical source refs, 5249 provisional relations, and 3189 relation
+  rows with `objectRef`s.
