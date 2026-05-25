@@ -311,28 +311,100 @@ duplicate its field-level contract here.
 ## Knowledge Types
 
 ```ts
-export type KnowledgeQuery = {
-  text?: string;
-  ref?: Ref;
+export type KnowledgeQuery =
+  | (KnowledgeQueryBase & {
+      text: string;
+      canonicalRef?: never;
+    })
+  | (KnowledgeQueryBase & {
+      text?: never;
+      canonicalRef: Ref;
+    });
+
+export type KnowledgeQueryBase = {
+  purpose?: "lookup" | "explain" | "review" | "discover";
+  formats?: Array<"structured" | "text">;
+  entityKinds?: string[];
+  expand?: string[];
+  relationFocus?: Array<"members">;
   limit?: number;
+};
+
+export type KnowledgeResult = {
+  items: KnowledgeItem[];
+};
+
+export type KnowledgeItem = StructuredKnowledge | TextKnowledge;
+
+export type StructuredKnowledge = {
+  kind: "structured";
+  providerId: string;
+  source: KnowledgeSource;
+  rootNodeId?: string;
+  nodes: KnowledgeNode[];
+  edges: KnowledgeEdge[];
+  retrievalScore?: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type TextKnowledge = {
+  kind: "text";
+  providerId: string;
+  source: KnowledgeSource;
+  content: string;
+  retrievalScore?: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type KnowledgeNode = {
+  id: string;
+  ref?: Ref;
+  type: string;
+  label?: string;
+  properties?: Record<string, unknown>;
+};
+
+export type KnowledgeEdge = {
+  id?: string;
+  subject: string;
+  predicate: string;
+  object: string;
+  properties?: Record<string, unknown>;
+};
+
+export type KnowledgeSource = {
+  ref?: Ref;
+  url?: string;
+  label?: string;
+  retrievedAt?: string;
+};
+
+export type KnowledgeCanonicalContext = {
+  record: CanonicalRecord;
+  relations: CanonicalRelation[];
 };
 
 export interface KnowledgeProvider {
   id: string;
+  descriptor?: InstrumentProviderDescriptor;
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;
-  }): Promise<Result<MusicMaterial[]>>;
+    canonicalContext?: KnowledgeCanonicalContext;
+  }): Promise<Result<KnowledgeResult>>;
 }
 ```
 
 Rules:
 
-- Knowledge providers return facts, relationships, metadata, or related
-  material.
-- Knowledge output is not playable until Source Grounding confirms a link.
-- Music Knowledge is a thin MVP stub unless a later phase explicitly promotes it
-  into the critical path.
+- Knowledge providers return provider-attributed structured or text knowledge.
+- `KnowledgeQuery` accepts exactly one of `text` or `canonicalRef`.
+- `relationFocus` currently accepts `members` to narrow broad relationship
+  expansion to membership facts.
+- Music Knowledge Service passes `KnowledgeCanonicalContext` for `canonicalRef`
+  queries after reading Canonical Store.
+- `retrievalScore` is retrieval relevance only.
+- Music Knowledge does not return playable material.
 
 ## Event Types
 
@@ -421,6 +493,7 @@ export type ToolName =
   | "stage.events.record"
   | "stage.effects.propose"
   | "music.material.resolve"
+  | "knowledge.query"
   | "music.links.refresh"
   | "music.collection.save"
   | "music.collection.unsave"
@@ -490,6 +563,13 @@ export type InstrumentProviderDescriptor = {
     availability: string;
     description?: string;
   }>;
+  knowledge?: {
+    formats?: Array<"structured" | "text">;
+    entityKinds?: string[];
+    expansions?: string[];
+    relationFocuses?: Array<"members">;
+    boundaryNotes?: string[];
+  };
   notes?: string[];
 };
 

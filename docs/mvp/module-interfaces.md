@@ -241,6 +241,7 @@ export type ToolName =
   | "stage.events.record"
   | "stage.effects.propose"
   | "music.material.resolve"
+  | "knowledge.query"
   | "music.links.refresh"
   | "music.collection.save"
   | "music.collection.unsave"
@@ -282,6 +283,13 @@ export type InstrumentProviderDescriptor = {
     availability: string;
     description?: string;
   }>;
+  knowledge?: {
+    formats?: Array<"structured" | "text">;
+    entityKinds?: string[];
+    expansions?: string[];
+    relationFocuses?: Array<"members">;
+    boundaryNotes?: string[];
+  };
   notes?: string[];
 };
 ```
@@ -301,7 +309,7 @@ Publishes domain events:
 
 Must not expose:
 
-- plugin provider names unless returned as source evidence.
+- provider internals beyond registered provider capability descriptors.
 - storage records.
 - non-public module methods.
 - a reverse import from Session Context or Material Gate private implementation.
@@ -541,9 +549,9 @@ Must not expose:
 
 Purpose:
 
-- Return facts, relationships, metadata, related material, and identity evidence.
-- Remain a thin MVP stub unless explicitly promoted by an accepted contract
-  change.
+- Return provider-attributed structured or text music knowledge for a text query
+  or MineMusic canonical identity.
+- Keep identity review and canonical writes outside the Knowledge port.
 
 Public port:
 
@@ -552,14 +560,14 @@ export interface MusicKnowledgePort {
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;
-  }): Promise<Result<MusicMaterial[]>>;
+  }): Promise<Result<KnowledgeResult>>;
 }
 ```
 
 Consumes:
 
 - Knowledge Slot adapters from Plugin Slots.
-- optional Identity Signal Slot providers.
+- Canonical Store for `canonicalRef` query context.
 
 Publishes domain events:
 
@@ -791,6 +799,38 @@ export interface CollectionRepository {
     includeRemoved?: boolean;
   }): Promise<Result<CollectionItem | null>>;
   listItems(input: CollectionRepositoryListItemsInput): Promise<Result<CollectionItem[]>>;
+}
+
+export type ProviderHttpCacheEntry = {
+  providerId: string;
+  cacheKey: string;
+  requestUrl: string;
+  responseJson: unknown;
+  status: number;
+  fetchedAt: string;
+  lastUsedAt: string;
+};
+
+export interface ProviderHttpCacheRepository {
+  get(input: {
+    providerId: string;
+    cacheKey: string;
+    now: string;
+  }): Promise<Result<ProviderHttpCacheEntry | null>>;
+  put(input: { entry: ProviderHttpCacheEntry }): Promise<Result<ProviderHttpCacheEntry>>;
+  listLeastRecentlyUsed(input: {
+    providerId?: string;
+    limit?: number;
+  }): Promise<Result<ProviderHttpCacheEntry[]>>;
+  deleteUnusedSince(input: {
+    providerId?: string;
+    lastUsedBefore: string;
+  }): Promise<Result<number>>;
+  deleteByProvider(input: {
+    providerId: string;
+    cacheKey: string;
+  }): Promise<Result<boolean>>;
+  clearProvider(input: { providerId: string }): Promise<Result<number>>;
 }
 ```
 

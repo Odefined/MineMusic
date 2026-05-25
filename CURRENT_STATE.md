@@ -201,7 +201,8 @@ host-facing and LLM-facing surface.
   `library.update.start`, `library.import.status`, and
   `library.import.summary` with explicit MCP schemas and generated
   Handbook entries. The Instrument Catalog now exposes focused
-  `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
+  `minemusic.stage`, `minemusic.knowledge`, `minemusic.music`,
+  `minemusic.library`, and
   `minemusic.memory` instruments instead of a single aggregate MVP instrument,
   and it attaches registered provider descriptors to their owning instruments.
   The default Codex MCP runtime now registers NetEase through both `source` and
@@ -261,16 +262,67 @@ host-facing and LLM-facing surface.
   live platform-library `preview` and `readItems` prove the account and return
   matching counts of 1372 saved recordings, 466 saved releases, and 179 saved
   artists.
-- Music Knowledge is exported from `src/knowledge/index.ts` as a thin provider
-  query service that strips playability claims. A target Knowledge Slot design
-  draft now exists in `docs/knowledge-slot/design.md`; it records the intended
-  shift from `MusicMaterial[]` output to provider-attributed knowledge items
-  with `StructuredKnowledge` and `TextKnowledge` forms, while keeping identity
+- Music Knowledge is exported from `src/knowledge/index.ts` as a provider query
+  service returning `KnowledgeResult`. The shared Knowledge contracts now expose
+  `StructuredKnowledge`, `TextKnowledge`, graph nodes/edges, source
+  attribution, `canonicalRef` query input, `formats`, and `expand`. The service
+  validates text-vs-canonicalRef query shape, aggregates provider knowledge
+  items, preserves provider warnings, and passes Canonical Store context to
+  providers for `canonicalRef` queries. Knowledge provider descriptors can now
+  describe supported formats, entity kinds, expansions, and boundary notes, and
+  Handbook rendering includes those capabilities on the dedicated Knowledge
+  instrument.
+  The read-only `knowledge.query` Stage Interface tool is exposed through
+  stable tool descriptors, dispatch, input schema, Stage Core wiring, and MCP
+  tool definitions. Generic Provider HTTP Cache storage now exists as a shared
+  repository contract with in-memory and SQLite-backed implementations. Cache
+  reads update `lastUsedAt`, and maintenance methods can list least-recently
+  used entries, delete entries unused before a cutoff, delete one provider entry,
+  or clear one provider. Stage Core creates and exposes the Provider HTTP Cache
+  and accepts either repository injection or a SQLite database path; the default
+  MCP runtime accepts an explicit cache path option. The first MusicBrainz
+  Knowledge Provider implementation now exists as an explicit read-only
+  provider factory. It supports structured text search across artist,
+  recording, release, release group, and work entities; lookup through
+  MusicBrainz source refs supplied by Canonical context; release-group release
+  browse and artist release-group browse expansions; release tracklist,
+  label/catalog, rating, tag, genre, annotation, and selected relationship
+  mapping; and successful-response caching through the generic Provider HTTP
+  Cache. Stage Core can now register explicit Knowledge provider instances and
+  generic Knowledge provider factories; factories receive the Stage Core
+  Provider HTTP Cache, and the default MCP runtime forwards those explicit
+  Knowledge provider options without adding a MusicBrainz-specific environment
+  variable. The default local MCP runtime now registers the bundled MusicBrainz
+  Knowledge provider when no explicit Knowledge providers or factories are
+  supplied, so the agent-facing `minemusic.knowledge.query` tool can return
+  MusicBrainz facts in the installed plugin runtime. `KnowledgeQuery` now also
+  supports `relationFocus: ["members"]`; the Stage Interface schema and
+  Handbook expose that focus, Music Knowledge rejects unsupported focus values,
+  and the MusicBrainz provider maps `member of band` relationships to
+  `has_member` edges with dates and role attributes. MusicBrainz text queries
+  can now use search hits internally for supported expansion follow-up lookup
+  or browse, so agents can ask for expanded knowledge without knowing MBIDs.
+  A target Knowledge Slot design draft now exists in
+  `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
+  output to provider-attributed knowledge items while keeping identity
   confirmation and canonical writes in Canonical Store review/apply flows. A
   provider-specific MusicBrainz design draft now exists in
-  `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search, MBID
-  lookup, and deterministic provider-internal browse for ref-based list
-  expansions behind the general `music.knowledge.query` tool.
+  `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
+  provider-ref lookup, and deterministic provider-internal browse for ref-based
+  list expansions behind the general `knowledge.query` tool. The Knowledge
+  Slot design now also records that text queries should honor requested
+  expansions through provider-internal follow-up lookup or browse, and that
+  `relationFocus: ["members"]` narrows broad relationships to membership facts
+  while preserving dates and role attributes. The design also records a future
+  generic persistent provider HTTP cache, defaulting to non-expiring entries
+  with explicit least-recently-used cleanup by `lastUsedAt`. A task-by-task
+  implementation plan for the target Knowledge Slot contract, cache, Stage
+  Interface tool, MusicBrainz provider, and text-query relation expansion now
+  exists in `docs/knowledge-slot/implementation-plan.md`. Future common plugin
+  configuration should still be able to drive Knowledge provider activation,
+  but the first local MCP runtime registers bundled MusicBrainz directly and
+  does not make a MusicBrainz-specific environment variable decide provider
+  activation.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution,
   `MaterialResolveResult` status, and source evidence attachment to known
@@ -364,8 +416,8 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- The Knowledge Slot target contract is not implemented yet. The current code
-  still exposes the thin MVP `MusicMaterial[]` query path.
+- Automatic Knowledge provider activation through future plugin `config.json`
+  remains future work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

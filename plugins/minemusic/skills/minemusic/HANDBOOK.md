@@ -49,6 +49,25 @@ Description: Create a proposal for a durable write or external action.
 Input: `EffectProposalDraft`
 Output: `EffectProposal`
 Effect kind: `proposal`
+### MineMusic Knowledge (`minemusic.knowledge`)
+
+#### Providers
+
+- MusicBrainz (`musicbrainz`, slot `knowledge`)
+  Status: `available`
+  Authentication: `none`
+  Operations: `query`
+  Formats: `structured`
+  Entity kinds: `artist`, `recording`, `release`, `release_group`, `work`
+  Expansions: `credits`, `relations`, `releases`, `release_groups`, `works`, `release_labels`, `tracklist`, `identifiers`, `urls`, `genres`, `tags`, `ratings`, `annotation`
+  Relation focus: `members`
+  Boundaries: No playable links. No identity confirmation. No Canonical Store writes.
+
+#### `knowledge.query`
+
+Description: Query provider-attributed structured or text knowledge.
+Input: `KnowledgeQuery`
+Output: `KnowledgeResult`
 ### MineMusic Music (`minemusic.music`)
 
 #### Providers

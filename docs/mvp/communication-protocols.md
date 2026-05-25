@@ -270,6 +270,11 @@ source.no_playable_link
 source.unresolved_match
 source.blocked
 knowledge.no_provider
+knowledge.invalid_query
+knowledge.provider_unavailable
+knowledge.rate_limited
+knowledge.timeout
+knowledge.malformed_response
 event.record_failed
 memory.insufficient_evidence
 memory.proposal_not_found

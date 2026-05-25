@@ -1,6 +1,12 @@
-import type { KnowledgeProvider } from "../../src/contracts/index.js";
+import type {
+  CanonicalRecord,
+  CanonicalRelation,
+  KnowledgeProvider,
+  Ref,
+} from "../../src/contracts/index.js";
 import { createMusicKnowledgeService } from "../../src/knowledge/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
+import type { CanonicalStorePort } from "../../src/ports/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -14,32 +20,33 @@ async function assertOk<T>(result: Promise<{ ok: true; value: T } | { ok: false 
   return awaited.value;
 }
 
-async function queriesKnowledgeProvidersWithoutClaimingPlayability(): Promise<void> {
+async function queriesKnowledgeProvidersAsProviderAttributedItems(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: KnowledgeProvider = {
     id: "fixture-knowledge",
     query: async () => ({
       ok: true,
-      value: [
-        {
-          id: "material-knowledge-1",
-          kind: "recording",
-          label: "Knowledge Track",
-          state: "confirmed_playable",
-          playableLinks: [
-            {
-              url: "https://example.test/play",
-              sourceRef: { namespace: "source:fixture", kind: "track", id: "track-1" },
+      value: {
+        items: [
+          {
+            kind: "structured",
+            providerId: "fixture-knowledge",
+            source: {
+              ref: { namespace: "musicbrainz", kind: "recording", id: "mbid-1" },
             },
-          ],
-          evidence: [
-            {
-              kind: "metadata",
-              source: { namespace: "musicbrainz", kind: "recording", id: "mbid-1" },
-            },
-          ],
-        },
-      ],
+            rootNodeId: "recording:mbid-1",
+            nodes: [
+              {
+                id: "recording:mbid-1",
+                type: "recording",
+                label: "Knowledge Track",
+                ref: { namespace: "musicbrainz", kind: "recording", id: "mbid-1" },
+              },
+            ],
+            edges: [],
+          },
+        ],
+      },
     }),
   };
   await assertOk(
@@ -57,9 +64,9 @@ async function queriesKnowledgeProvidersWithoutClaimingPlayability(): Promise<vo
     }),
   );
 
-  assert(result.length === 1, "knowledge service should return provider material");
-  assert(result[0]?.state === "grounded", "knowledge output should not claim playability");
-  assert(result[0]?.playableLinks === undefined, "knowledge output should strip playable links");
+  assert(result.items.length === 1, "knowledge service should return provider knowledge items");
+  assert(result.items[0]?.kind === "structured", "knowledge output should keep structured items");
+  assert(result.items[0]?.providerId === "fixture-knowledge", "knowledge output should keep provider attribution");
 }
 
 async function reportsMissingKnowledgeProvider(): Promise<void> {
@@ -70,5 +77,130 @@ async function reportsMissingKnowledgeProvider(): Promise<void> {
   assert(result.error.code === "knowledge.no_provider", "missing provider should use stable knowledge error");
 }
 
-await queriesKnowledgeProvidersWithoutClaimingPlayability();
+async function preservesProviderWarnings(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: KnowledgeProvider = {
+    id: "fixture-knowledge",
+    query: async () => ({
+      ok: true,
+      value: { items: [] },
+      warnings: [
+        {
+          code: "knowledge.partial_result",
+          message: "Provider returned a partial result.",
+          module: "knowledge",
+        },
+      ],
+    }),
+  };
+  await assertOk(
+    registry.registerProvider({
+      slot: "knowledge",
+      providerId: provider.id,
+      provider,
+    }),
+  );
+
+  const knowledge = createMusicKnowledgeService({ pluginRegistry: registry });
+  const result = await knowledge.query({ query: { text: "anything" } });
+
+  assert(result.ok, "knowledge query should succeed");
+  assert(result.warnings?.length === 1, "knowledge service should preserve provider warnings");
+  assert(result.warnings[0]?.code === "knowledge.partial_result", "warning code should be preserved");
+}
+
+async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void> {
+  const knowledge = createMusicKnowledgeService({ pluginRegistry: createPluginRegistry() });
+  const result = await knowledge.query({ query: {} as never });
+  const resultWithBothInputs = await knowledge.query({
+    query: {
+      text: "anything",
+      canonicalRef: { namespace: "minemusic", kind: "recording", id: "canonical-1" },
+    } as never,
+  });
+  const resultWithUnsupportedRelationFocus = await knowledge.query({
+    query: {
+      text: "anything",
+      relationFocus: ["lineup"],
+    } as never,
+  });
+
+  assert(!result.ok, "invalid knowledge query should fail explicitly");
+  assert(result.error.code === "knowledge.invalid_query", "invalid query should be rejected before provider lookup");
+  assert(!resultWithBothInputs.ok, "knowledge query with two primary inputs should fail explicitly");
+  assert(
+    resultWithBothInputs.error.code === "knowledge.invalid_query",
+    "query with both text and canonicalRef should be rejected",
+  );
+  assert(!resultWithUnsupportedRelationFocus.ok, "unsupported relation focus should fail explicitly");
+  assert(
+    resultWithUnsupportedRelationFocus.error.code === "knowledge.invalid_query",
+    "unsupported relation focus should be rejected before provider lookup",
+  );
+}
+
+async function routesCanonicalContextToProviders(): Promise<void> {
+  const registry = createPluginRegistry();
+  const canonicalRef: Ref = { namespace: "minemusic", kind: "recording", id: "canonical-1" };
+  const canonicalRecord: CanonicalRecord = {
+    ref: canonicalRef,
+    kind: "recording",
+    label: "Canonical Track",
+    status: "active",
+    sourceRefs: [{ namespace: "musicbrainz", kind: "recording", id: "mbid-1" }],
+    aliases: ["Canonical Track Alias"],
+  };
+  const relation: CanonicalRelation = {
+    id: "relation-1",
+    subjectRef: canonicalRef,
+    predicate: "performed_by",
+    objectKind: "artist",
+    objectLabel: "Canonical Artist",
+    sourceRef: { namespace: "source:fixture", kind: "recording", id: "source-1" },
+    status: "provisional",
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z",
+  };
+  let capturedContext:
+    | {
+        record?: CanonicalRecord;
+        relations?: CanonicalRelation[];
+      }
+    | undefined;
+  const provider: KnowledgeProvider = {
+    id: "fixture-knowledge",
+    query: async (input) => {
+      capturedContext = input.canonicalContext;
+      return { ok: true, value: { items: [] } };
+    },
+  };
+  const canonicalStore: CanonicalStorePort = {
+    get: async () => ({ ok: true, value: canonicalRecord }),
+    findByLabel: async () => ({ ok: true, value: [] }),
+    resolveSourceRef: async () => ({ ok: true, value: null }),
+    createProvisional: async () => ({ ok: true, value: canonicalRecord }),
+    attachSourceRef: async () => ({ ok: true, value: canonicalRecord }),
+    recordProvisionalRelations: async () => ({ ok: true, value: [] }),
+    listRelations: async () => ({ ok: true, value: [relation] }),
+  };
+
+  await assertOk(
+    registry.registerProvider({
+      slot: "knowledge",
+      providerId: provider.id,
+      provider,
+    }),
+  );
+
+  const knowledge = createMusicKnowledgeService({ pluginRegistry: registry, canonicalStore });
+  await assertOk(knowledge.query({ query: { canonicalRef } }));
+
+  assert(capturedContext?.record?.label === "Canonical Track", "provider should receive canonical record context");
+  assert(capturedContext?.relations?.[0]?.objectLabel === "Canonical Artist", "provider should receive relation context");
+}
+
+await queriesKnowledgeProvidersAsProviderAttributedItems();
 await reportsMissingKnowledgeProvider();
+await preservesProviderWarnings();
+await rejectsInvalidKnowledgeQueryBeforeProviderLookup();
+await routesCanonicalContextToProviders();

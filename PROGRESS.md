@@ -583,27 +583,94 @@
   `StructuredKnowledge`, allows document-style `TextKnowledge`, and preserves
   Canonical Store ownership of identity review/apply decisions.
 - Drafted `docs/knowledge-slot/musicbrainz-provider.md` for the MusicBrainz
-  Knowledge Provider. The draft records v1 support for text search, MBID lookup,
-  and deterministic provider-internal browse for ref-based list expansions
-  without exposing MusicBrainz as a separate Stage Interface tool.
+  Knowledge Provider. The draft records v1 support for text search,
+  provider-ref lookup, and deterministic provider-internal browse for ref-based
+  list expansions without exposing MusicBrainz as a separate Stage Interface
+  tool. It also records the generic persistent provider HTTP cache direction
+  with explicit
+  least-recently-used cleanup by `lastUsedAt`.
+- Drafted `docs/knowledge-slot/implementation-plan.md` to break the target
+  Knowledge Slot contract, provider descriptor Handbook support, generic
+  provider HTTP cache, Stage Interface tool, MusicBrainz provider, runtime
+  registration, and verification into implementation tasks. Runtime registration
+  is now aligned with future plugin `config.json` activation instead of a
+  MusicBrainz-specific environment variable switch.
+- Implemented Knowledge Slot Task 1 shared contracts. `KnowledgeQuery` now uses
+  `text` or `canonicalRef`, Knowledge providers return `KnowledgeResult`, and
+  shared structured/text knowledge item contracts and provider failure error
+  codes are exported. Module-local progress is tracked in
+  `docs/knowledge-slot/progress.md`.
+- Implemented Knowledge Slot Task 2 Music Knowledge Service behavior. The
+  service now rejects invalid public query shapes, keeps missing-provider
+  failures explicit, aggregates provider knowledge items, preserves provider
+  warnings, and routes Canonical Store context to providers for `canonicalRef`
+  queries.
+- Implemented Knowledge Slot Task 3 provider capability descriptors and
+  Handbook rendering. Knowledge provider descriptors can now list formats,
+  entity kinds, expansions, and boundary notes, and the Instrument Catalog now
+  attaches knowledge providers to the dedicated `minemusic.knowledge`
+  instrument.
+- Implemented Knowledge Slot Task 4 Stage Interface tool exposure. The
+  read-only `knowledge.query` tool now has a stable descriptor, input
+  schema, dispatch path, Stage Core wiring, and MCP exposure.
+- Implemented Knowledge Slot Task 5 generic Provider HTTP Cache storage.
+  Added shared cache entry/repository contracts, in-memory and SQLite-backed
+  repositories, `lastUsedAt` updates on read, and explicit maintenance methods.
+- Implemented Knowledge Slot Task 6 Stage Core cache wiring. Stage Core now
+  creates and exposes Provider HTTP Cache storage through repository injection
+  or SQLite database path configuration, and the default MCP runtime accepts an
+  explicit provider cache path option.
+- Implemented Knowledge Slot Task 7 MusicBrainz Knowledge Provider. The
+  provider exposes a Knowledge descriptor, performs structured text search for
+  artist, recording, release, release group, and work facts, performs
+  MusicBrainz-ref lookup through Canonical context source refs, uses fixed
+  browse rules for release-group releases and artist release groups, maps
+  release labels, tracklists, ratings, tags, genres, annotations, and selected
+  MusicBrainz relations to `StructuredKnowledge`, and uses the generic Provider
+  HTTP Cache for successful JSON responses.
+- Implemented Knowledge Slot Task 8 runtime registration. Stage Core now
+  accepts explicit Knowledge provider instances and generic Knowledge provider
+  factories; factories receive the Stage Core Provider HTTP Cache, and the
+  default MCP runtime forwards explicit Knowledge provider options without
+  introducing a MusicBrainz-specific environment variable.
+- Wired the default local MCP runtime to register the bundled MusicBrainz
+  Knowledge provider when no explicit Knowledge providers or factories are
+  supplied. The generated Handbook now shows MusicBrainz under
+  `minemusic.knowledge`, and the default `minemusic.knowledge.query` path can
+  return MusicBrainz facts.
 - Replaced the aggregate MVP instrument with focused
-  `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
+  `minemusic.stage`, `minemusic.knowledge`, `minemusic.music`,
+  `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under
   `stage.*`, Library Import tool ids now live under `library.*`, and the default
   Codex MCP session uses empty `activeInstruments` to expose all current
   MineMusic instruments.
 - Added agent-facing provider descriptors to the Instrument Catalog and
   Handbook. NetEase now contributes source capability metadata to
-  `minemusic.music` and platform-library import/update area metadata to
-  `minemusic.library` without running live preview during Handbook generation.
+  `minemusic.music`, MusicBrainz-style Knowledge providers contribute
+  knowledge capability metadata to `minemusic.knowledge`, and platform-library
+  import/update area metadata goes to `minemusic.library` without running live
+  preview during Handbook generation.
+- Documented the next Knowledge Slot implementation slice: text queries with
+  requested expansions should run provider-internal follow-up lookup or browse,
+  and `relationFocus: ["members"]` should return MusicBrainz membership facts
+  with dates and role attributes through the general `knowledge.query`
+  contract.
+- Implemented Knowledge Slot Task 9 text-query expansion and relation focus.
+  `KnowledgeQuery` now carries `relationFocus`, the Stage Interface schema and
+  Handbook expose supported focus values, Music Knowledge rejects unsupported
+  focus values, and MusicBrainz text searches can run provider-internal
+  expansion follow-up lookup or browse. MusicBrainz `member of band`
+  relationships now map to `has_member` edges with dates and role attributes.
 
 ## Next
 
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.
-- Resolve the Knowledge Slot design queue one decision at a time, starting with
-  the query shape.
+- Expand MusicBrainz browse coverage beyond the currently implemented
+  release-group releases and artist release groups when a concrete agent use
+  case needs it.
 - Design the public `addAlias` method before implementing alias writes through
   `CanonicalStorePort`.
 - Validate Handbook refresh behavior in more host surfaces when plugin tool

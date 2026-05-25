@@ -20,6 +20,16 @@ const sourceQuerySchema = z.object({
   sourceRef: refSchema.optional(),
   limit: z.number().int().positive().optional(),
 });
+const knowledgeQuerySchema = {
+  text: z.string().optional(),
+  canonicalRef: refSchema.optional(),
+  purpose: z.enum(["lookup", "explain", "review", "discover"]).optional(),
+  formats: z.array(z.enum(["structured", "text"])).optional(),
+  entityKinds: z.array(z.string()).optional(),
+  expand: z.array(z.string()).optional(),
+  relationFocus: z.array(z.enum(["members"])).optional(),
+  limit: z.number().int().positive().optional(),
+};
 const musicCandidateSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -72,6 +82,7 @@ export const stageInterfaceToolInputSchemas = {
     ownerScope: z.string().optional(),
     limitPerCandidate: z.number().int().positive().optional(),
   },
+  "knowledge.query": knowledgeQuerySchema,
   "music.links.refresh": {
     material: musicMaterialSchema,
   },

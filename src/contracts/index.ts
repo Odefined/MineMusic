@@ -28,6 +28,11 @@ export const stageErrorCodes = [
   "source.unresolved_match",
   "source.blocked",
   "knowledge.no_provider",
+  "knowledge.invalid_query",
+  "knowledge.provider_unavailable",
+  "knowledge.rate_limited",
+  "knowledge.timeout",
+  "knowledge.malformed_response",
   "event.record_failed",
   "memory.insufficient_evidence",
   "memory.proposal_not_found",
@@ -704,18 +709,103 @@ export type PlatformLibraryAbsence = {
   recordedAt: string;
 };
 
-export type KnowledgeQuery = {
-  text?: string;
-  ref?: Ref;
+export type KnowledgeQueryPurpose = "lookup" | "explain" | "review" | "discover";
+
+export type KnowledgeItemFormat = "structured" | "text";
+
+export type KnowledgeRelationFocus = "members";
+
+export type KnowledgeQueryBase = {
+  purpose?: KnowledgeQueryPurpose;
+  formats?: KnowledgeItemFormat[];
+  entityKinds?: string[];
+  expand?: string[];
+  relationFocus?: KnowledgeRelationFocus[];
   limit?: number;
+};
+
+export type KnowledgeQuery =
+  | (KnowledgeQueryBase & {
+      text: string;
+      canonicalRef?: never;
+    })
+  | (KnowledgeQueryBase & {
+      text?: never;
+      canonicalRef: Ref;
+    });
+
+export type KnowledgeResult = {
+  items: KnowledgeItem[];
+};
+
+export type KnowledgeItem = StructuredKnowledge | TextKnowledge;
+
+export type StructuredKnowledge = {
+  kind: "structured";
+  providerId: string;
+  source: KnowledgeSource;
+  rootNodeId?: string;
+  nodes: KnowledgeNode[];
+  edges: KnowledgeEdge[];
+  retrievalScore?: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type TextKnowledge = {
+  kind: "text";
+  providerId: string;
+  source: KnowledgeSource;
+  content: string;
+  retrievalScore?: number;
+  metadata?: Record<string, unknown>;
+};
+
+export type KnowledgeNode = {
+  id: string;
+  ref?: Ref;
+  type: string;
+  label?: string;
+  properties?: Record<string, unknown>;
+};
+
+export type KnowledgeEdge = {
+  id?: string;
+  subject: string;
+  predicate: string;
+  object: string;
+  properties?: Record<string, unknown>;
+};
+
+export type KnowledgeSource = {
+  ref?: Ref;
+  url?: string;
+  label?: string;
+  retrievedAt?: string;
+};
+
+export type KnowledgeCanonicalContext = {
+  record: CanonicalRecord;
+  relations: CanonicalRelation[];
+};
+
+export type ProviderHttpCacheEntry = {
+  providerId: string;
+  cacheKey: string;
+  requestUrl: string;
+  responseJson: unknown;
+  status: number;
+  fetchedAt: string;
+  lastUsedAt: string;
 };
 
 export interface KnowledgeProvider {
   id: string;
+  descriptor?: InstrumentProviderDescriptor;
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;
-  }): Promise<Result<MusicMaterial[]>>;
+    canonicalContext?: KnowledgeCanonicalContext;
+  }): Promise<Result<KnowledgeResult>>;
 }
 
 export type StageEvent = {
@@ -770,6 +860,7 @@ export type ToolName =
   | "stage.events.record"
   | "stage.effects.propose"
   | "music.material.resolve"
+  | "knowledge.query"
   | "music.links.refresh"
   | "music.collection.save"
   | "music.collection.unsave"
@@ -836,6 +927,14 @@ export type InstrumentProviderAreaDescriptor = {
   description?: string;
 };
 
+export type KnowledgeProviderCapabilityDescriptor = {
+  formats?: KnowledgeItemFormat[];
+  entityKinds?: string[];
+  expansions?: string[];
+  relationFocuses?: KnowledgeRelationFocus[];
+  boundaryNotes?: string[];
+};
+
 export type InstrumentProviderDescriptor = {
   id: string;
   label: string;
@@ -844,6 +943,7 @@ export type InstrumentProviderDescriptor = {
   authentication?: InstrumentProviderAuthentication;
   operations?: string[];
   areas?: InstrumentProviderAreaDescriptor[];
+  knowledge?: KnowledgeProviderCapabilityDescriptor;
   notes?: string[];
 };
 

@@ -7,3 +7,5 @@ export { createSqliteCollectionRepository } from "./collection-repository.js";
 export type { SqliteCollectionRepositoryOptions } from "./collection-repository.js";
 export { createSqliteLibraryImportRepository } from "./library-import-repository.js";
 export type { SqliteLibraryImportRepositoryOptions } from "./library-import-repository.js";
+export { createSqliteProviderHttpCacheRepository } from "./provider-http-cache-repository.js";
+export type { SqliteProviderHttpCacheRepositoryOptions } from "./provider-http-cache-repository.js";

@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  KnowledgeProvider,
   MusicMaterial,
   PlatformLibraryProvider,
   Result,
@@ -12,6 +13,7 @@ import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { writeInstrumentHandbookFile } from "../handbook/index.js";
+import { createMusicKnowledgeService } from "../knowledge/index.js";
 import { createLibraryImportService } from "../library_import/index.js";
 import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
@@ -28,7 +30,9 @@ import type {
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
+  MusicKnowledgePort,
   PluginRegistryPort,
+  ProviderHttpCacheRepository,
   SessionContextPort,
   SourceGroundingPort,
   ToolDispatchPort,
@@ -48,9 +52,11 @@ import {
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
   createInMemoryMemoryRepository,
+  createInMemoryProviderHttpCacheRepository,
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
+  createSqliteProviderHttpCacheRepository,
 } from "../storage/index.js";
 
 export type MineMusicStageCore = {
@@ -63,12 +69,20 @@ export type MineMusicStageCore = {
   collection: CollectionPort;
   materialResolve: MaterialResolvePort;
   source: SourceGroundingPort;
+  knowledge: MusicKnowledgePort;
   libraryImport: LibraryImportPort;
   events: EventPort;
   memory: MemoryPort;
   effects: EffectBoundaryPort;
   plugins: PluginRegistryPort;
+  providerHttpCache: ProviderHttpCacheRepository;
 };
+
+export type KnowledgeProviderFactoryContext = {
+  providerHttpCache: ProviderHttpCacheRepository;
+};
+
+export type KnowledgeProviderFactory = (context: KnowledgeProviderFactoryContext) => KnowledgeProvider;
 
 export type MineMusicStageCoreOptions = {
   session: StageSession;
@@ -80,6 +94,10 @@ export type MineMusicStageCoreOptions = {
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
   libraryImportDatabasePath?: string;
+  providerHttpCacheRepository?: ProviderHttpCacheRepository;
+  providerHttpCacheDatabasePath?: string;
+  knowledgeProviders?: KnowledgeProvider[];
+  knowledgeProviderFactories?: KnowledgeProviderFactory[];
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -94,6 +112,10 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
   libraryImportDatabasePath?: string;
+  providerHttpCacheRepository?: ProviderHttpCacheRepository;
+  providerHttpCacheDatabasePath?: string;
+  knowledgeProviders?: KnowledgeProvider[];
+  knowledgeProviderFactories?: KnowledgeProviderFactory[];
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -108,6 +130,10 @@ export function createMineMusicStageCore({
   collectionDatabasePath,
   libraryImportRepository,
   libraryImportDatabasePath,
+  providerHttpCacheRepository,
+  providerHttpCacheDatabasePath,
+  knowledgeProviders = [],
+  knowledgeProviderFactories = [],
   platformLibraryProvider,
   handbookPath,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
@@ -121,6 +147,10 @@ export function createMineMusicStageCore({
     ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
     ...(libraryImportRepository === undefined ? {} : { libraryImportRepository }),
     ...(libraryImportDatabasePath === undefined ? {} : { libraryImportDatabasePath }),
+    ...(providerHttpCacheRepository === undefined ? {} : { providerHttpCacheRepository }),
+    ...(providerHttpCacheDatabasePath === undefined ? {} : { providerHttpCacheDatabasePath }),
+    knowledgeProviders,
+    knowledgeProviderFactories,
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
   });
@@ -136,6 +166,10 @@ export function createMineMusicStageCoreWithSourceProvider({
   collectionDatabasePath,
   libraryImportRepository: injectedLibraryImportRepository,
   libraryImportDatabasePath,
+  providerHttpCacheRepository: injectedProviderHttpCacheRepository,
+  providerHttpCacheDatabasePath,
+  knowledgeProviders: injectedKnowledgeProviders = [],
+  knowledgeProviderFactories = [],
   platformLibraryProvider,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
@@ -154,6 +188,15 @@ export function createMineMusicStageCoreWithSourceProvider({
     (libraryImportDatabasePath === undefined
       ? createInMemoryLibraryImportRepository()
       : createSqliteLibraryImportRepository({ path: libraryImportDatabasePath }));
+  const providerHttpCache =
+    injectedProviderHttpCacheRepository ??
+    (providerHttpCacheDatabasePath === undefined
+      ? createInMemoryProviderHttpCacheRepository()
+      : createSqliteProviderHttpCacheRepository({ path: providerHttpCacheDatabasePath }));
+  const knowledgeProviders = [
+    ...injectedKnowledgeProviders,
+    ...knowledgeProviderFactories.map((factory) => factory({ providerHttpCache })),
+  ];
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();
@@ -168,6 +211,10 @@ export function createMineMusicStageCoreWithSourceProvider({
   const source = createSourceGroundingService({
     canonicalStore: canonical,
     pluginRegistry: plugins,
+  });
+  const knowledge = createMusicKnowledgeService({
+    pluginRegistry: plugins,
+    canonicalStore: canonical,
   });
   const materialResolve = createMaterialResolveService({
     canonicalStore: canonical,
@@ -203,6 +250,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     instruments,
     materialResolve,
     source,
+    knowledge,
     events,
     memory,
     effects,
@@ -221,6 +269,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     session,
     plugins,
     sourceProvider,
+    knowledgeProviders,
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     collection,
   });
@@ -235,11 +284,13 @@ export function createMineMusicStageCoreWithSourceProvider({
     collection,
     materialResolve,
     source,
+    knowledge,
     libraryImport,
     events,
     memory,
     effects,
     plugins,
+    providerHttpCache,
   };
 }
 
@@ -276,6 +327,7 @@ async function seedRuntime({
   session,
   plugins,
   sourceProvider,
+  knowledgeProviders,
   platformLibraryProvider,
   collection,
 }: {
@@ -286,6 +338,7 @@ async function seedRuntime({
   session: StageSession;
   plugins: PluginRegistryPort;
   sourceProvider: SourceProvider;
+  knowledgeProviders: KnowledgeProvider[];
   platformLibraryProvider?: PlatformLibraryProvider;
   collection: CollectionPort;
 }): Promise<void> {
@@ -300,6 +353,15 @@ async function seedRuntime({
     provider: sourceProvider,
   });
   throwIfFailed(registerResult);
+
+  for (const knowledgeProvider of knowledgeProviders) {
+    const registerKnowledgeResult = await plugins.registerProvider({
+      slot: "knowledge",
+      providerId: knowledgeProvider.id,
+      provider: knowledgeProvider,
+    });
+    throwIfFailed(registerKnowledgeResult);
+  }
 
   if (platformLibraryProvider !== undefined) {
     const registerPlatformLibraryResult = await plugins.registerProvider({

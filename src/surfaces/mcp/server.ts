@@ -2,14 +2,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { pathToFileURL } from "node:url";
 
-import type { Result, StageSession, ToolName } from "../../contracts/index.js";
+import type { KnowledgeProvider, Result, StageSession, ToolName } from "../../contracts/index.js";
 import {
   createNetEasePlatformLibraryProvider,
   createNetEaseSourceProvider,
   type NetEaseProviderOptions,
 } from "../../providers/netease/index.js";
+import { createMusicBrainzKnowledgeProvider } from "../../providers/musicbrainz/index.js";
 import {
   createMineMusicStageCoreWithSourceProvider,
+  type KnowledgeProviderFactory,
   type MineMusicStageCore,
 } from "../../stage_core/index.js";
 import {
@@ -105,8 +107,22 @@ export async function runMineMusicMcpServer(
 
 export function createDefaultMineMusicMcpStageCore(
   env: Record<string, string | undefined> = process.env,
+  options: {
+    handbookPath?: string;
+    knowledgeProviders?: KnowledgeProvider[];
+    knowledgeProviderFactories?: KnowledgeProviderFactory[];
+    providerHttpCacheDatabasePath?: string;
+  } = {},
 ): MineMusicStageCore {
   const netEaseOptions = createNetEaseProviderOptions(env);
+  const defaultKnowledgeProviderFactories: KnowledgeProviderFactory[] =
+    options.knowledgeProviders === undefined && options.knowledgeProviderFactories === undefined
+      ? [({ providerHttpCache }) => createMusicBrainzKnowledgeProvider({ cache: providerHttpCache })]
+      : [];
+  const knowledgeProviderFactories =
+    options.knowledgeProviderFactories === undefined
+      ? defaultKnowledgeProviderFactories
+      : options.knowledgeProviderFactories;
 
   return createMineMusicStageCoreWithSourceProvider({
     session: createDefaultCodexSession(env),
@@ -121,6 +137,12 @@ export function createDefaultMineMusicMcpStageCore(
     ...(env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH === undefined
       ? {}
       : { libraryImportDatabasePath: env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH }),
+    ...(options.providerHttpCacheDatabasePath === undefined
+      ? {}
+      : { providerHttpCacheDatabasePath: options.providerHttpCacheDatabasePath }),
+    ...(options.knowledgeProviders === undefined ? {} : { knowledgeProviders: options.knowledgeProviders }),
+    knowledgeProviderFactories,
+    ...(options.handbookPath === undefined ? {} : { handbookPath: options.handbookPath }),
   });
 }
 

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type {
+  KnowledgeProvider,
   LibraryImportPreview,
   MusicMaterial,
   PlatformLibraryProvider,
@@ -59,6 +60,10 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP should expose canonical-first material resolve with the MineMusic prefix",
   );
   assert(
+    codexToolNameFor("knowledge.query") === "minemusic.knowledge.query",
+    "MCP should expose Knowledge query through the Knowledge instrument prefix",
+  );
+  assert(
     codexToolNameFor("music.collection.save") === "minemusic.music.collection.save",
     "MCP should expose collection tools with the MineMusic prefix",
   );
@@ -112,6 +117,18 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidates"),
     "resolve tool schema should declare candidate-set input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "text"),
+    "knowledge query schema should declare text input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "canonicalRef"),
+    "knowledge query schema should declare canonicalRef input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "relationFocus"),
+    "knowledge query schema should declare relationFocus input",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materials"),
@@ -282,6 +299,34 @@ async function defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary():
   );
 }
 
+async function defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-musicbrainz-"));
+  const handbookPath = join(directory, "HANDBOOK.md");
+
+  try {
+    const stageCore = createDefaultMineMusicMcpStageCore(
+      {
+        MINEMUSIC_SESSION_ID: "mcp-default-musicbrainz-session",
+        MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+      },
+      {
+        handbookPath,
+      },
+    );
+    await stageCore.ready;
+
+    const registeredProvider = await stageCore.plugins.getProvider({
+      slot: "knowledge",
+      providerId: "musicbrainz",
+    });
+
+    assert(registeredProvider.ok, "default MCP runtime should read the Knowledge provider registry");
+    assert(registeredProvider.value !== null, "default MCP runtime should register MusicBrainz knowledge");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function defaultMcpStageCoreUsesLibraryImportDatabasePathEnv(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-library-import-db-"));
   const databasePath = join(directory, "library-import.sqlite");
@@ -342,6 +387,81 @@ async function defaultMcpStageCoreUsesCanonicalDatabasePathEnv(): Promise<void> 
   }
 }
 
+async function defaultMcpStageCoreAcceptsProviderHttpCachePathOption(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-provider-http-cache-"));
+  const databasePath = join(directory, "provider-http-cache.sqlite");
+
+  try {
+    const stageCore = createDefaultMineMusicMcpStageCore(
+      {
+        MINEMUSIC_SESSION_ID: "mcp-default-provider-cache-session",
+        MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+      },
+      {
+        providerHttpCacheDatabasePath: databasePath,
+      },
+    );
+    await stageCore.ready;
+
+    const databaseFile = await stat(databasePath);
+
+    assert(databaseFile.isFile(), "default MCP runtime should accept explicit Provider HTTP Cache database path");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function defaultMcpStageCoreAcceptsExplicitKnowledgeProviders(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-knowledge-provider-"));
+  const handbookPath = join(directory, "HANDBOOK.md");
+  const knowledgeProvider: KnowledgeProvider = {
+    id: "fixture-knowledge",
+    descriptor: {
+      id: "fixture-knowledge",
+      label: "Fixture Knowledge",
+      slot: "knowledge",
+      status: "available",
+      authentication: "none",
+      operations: ["query"],
+      knowledge: {
+        formats: ["structured"],
+        entityKinds: ["recording"],
+      },
+    },
+    async query() {
+      return {
+        ok: true,
+        value: {
+          items: [],
+        },
+      };
+    },
+  };
+  try {
+    const stageCore = createDefaultMineMusicMcpStageCore(
+      {
+        MINEMUSIC_SESSION_ID: "mcp-default-knowledge-provider-session",
+        MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+      },
+      {
+        handbookPath,
+        knowledgeProviders: [knowledgeProvider],
+      },
+    );
+    await stageCore.ready;
+
+    const registeredProvider = await stageCore.plugins.getProvider({
+      slot: "knowledge",
+      providerId: "fixture-knowledge",
+    });
+
+    assert(registeredProvider.ok, "default MCP runtime should accept explicit Knowledge providers");
+    assert(registeredProvider.ok && registeredProvider.value === knowledgeProvider, "explicit Knowledge provider should be registered");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function hasSchemaKey(schema: unknown, key: string): boolean {
   return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
 }
@@ -356,6 +476,9 @@ await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToStageInterface();
 await dispatchesLibraryImportMcpPayloadsToStageInterface();
 await defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary();
+await defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider();
 await defaultMcpStageCoreUsesLibraryImportDatabasePathEnv();
 await defaultMcpStageCoreUsesCollectionDatabasePathEnv();
 await defaultMcpStageCoreUsesCanonicalDatabasePathEnv();
+await defaultMcpStageCoreAcceptsProviderHttpCachePathOption();
+await defaultMcpStageCoreAcceptsExplicitKnowledgeProviders();

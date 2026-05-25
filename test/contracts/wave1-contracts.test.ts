@@ -1,6 +1,7 @@
 import type {
   CapabilitySlot,
   CanonicalRecord,
+  CanonicalRelation,
   Collection,
   CollectionItem,
   CollectionKind,
@@ -10,6 +11,17 @@ import type {
   EffectProposal,
   Handbook,
   HandbookToolEntry,
+  InstrumentProviderDescriptor,
+  KnowledgeCanonicalContext,
+  KnowledgeEdge,
+  KnowledgeItem,
+  KnowledgeNode,
+  KnowledgeProvider,
+  KnowledgeProviderCapabilityDescriptor,
+  KnowledgeQuery,
+  KnowledgeRelationFocus,
+  KnowledgeResult,
+  KnowledgeSource,
   LibraryImportBatchKind,
   LibraryImportBatchStatus,
   LibraryImportAreaSnapshot,
@@ -44,6 +56,7 @@ import type {
   PlatformLibraryTargetKind,
   PlatformLibraryPreview,
   PlayableLink,
+  ProviderHttpCacheEntry,
   Ref,
   Result,
   SourceProvider,
@@ -52,6 +65,8 @@ import type {
   StageEvent,
   StageSession,
   StageWarning,
+  StructuredKnowledge,
+  TextKnowledge,
   ToolName,
 } from "../../src/contracts/index.js";
 import { stageErrorCodes } from "../../src/contracts/index.js";
@@ -73,6 +88,7 @@ import type {
   MemoryRepository,
   MusicKnowledgePort,
   PluginRegistryPort,
+  ProviderHttpCacheRepository,
   Repository,
   SessionRepository,
   SessionContextPort,
@@ -142,6 +158,99 @@ type _collectionItemStoresCanonicalRef = Expect<Equal<CollectionItem["canonicalR
 
 type _materialResolveRequestCarriesOwnerScope = Expect<
   Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string>
+>;
+
+type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
+  Equal<
+    keyof KnowledgeQuery,
+    "text" | "canonicalRef" | "purpose" | "formats" | "entityKinds" | "expand" | "relationFocus" | "limit"
+  > &
+    Equal<KnowledgeRelationFocus, "members"> &
+    Equal<KnowledgeQuery["relationFocus"], KnowledgeRelationFocus[] | undefined> &
+    Equal<Extract<KnowledgeQuery, { text: string }>["canonicalRef"], undefined> &
+    Equal<Extract<KnowledgeQuery, { canonicalRef: Ref }>["text"], undefined>
+>;
+
+type _knowledgeResultCarriesProviderAttributedItems = Expect<
+  Equal<keyof KnowledgeResult, "items"> & Equal<KnowledgeResult["items"], KnowledgeItem[]>
+>;
+
+type _structuredKnowledgeContract = Expect<
+  Equal<
+    keyof StructuredKnowledge,
+    | "kind"
+    | "providerId"
+    | "source"
+    | "rootNodeId"
+    | "nodes"
+    | "edges"
+    | "retrievalScore"
+    | "metadata"
+  > &
+    Equal<StructuredKnowledge["kind"], "structured"> &
+    Equal<StructuredKnowledge["source"], KnowledgeSource> &
+    Equal<StructuredKnowledge["nodes"], KnowledgeNode[]> &
+    Equal<StructuredKnowledge["edges"], KnowledgeEdge[]>
+>;
+
+type _textKnowledgeContract = Expect<
+  Equal<
+    keyof TextKnowledge,
+    "kind" | "providerId" | "source" | "content" | "retrievalScore" | "metadata"
+  > &
+    Equal<TextKnowledge["kind"], "text"> &
+    Equal<TextKnowledge["source"], KnowledgeSource> &
+    Equal<Extract<KnowledgeItem, TextKnowledge>, TextKnowledge>
+>;
+
+type _knowledgeProviderInputCarriesCanonicalContext = Expect<
+  Equal<
+    keyof KnowledgeProvider,
+    "id" | "descriptor" | "query"
+  > &
+  Equal<KnowledgeProvider["descriptor"], InstrumentProviderDescriptor | undefined> &
+  Equal<
+    Parameters<KnowledgeProvider["query"]>[0],
+    {
+      query: KnowledgeQuery;
+      sessionId?: string;
+      canonicalContext?: KnowledgeCanonicalContext;
+    }
+  > &
+    Equal<KnowledgeCanonicalContext["record"], CanonicalRecord> &
+    Equal<KnowledgeCanonicalContext["relations"], CanonicalRelation[]>
+>;
+
+type _knowledgeProviderCapabilityDescriptorContract = Expect<
+  Equal<
+    keyof KnowledgeProviderCapabilityDescriptor,
+    "formats" | "entityKinds" | "expansions" | "relationFocuses" | "boundaryNotes"
+  > &
+    Equal<KnowledgeProviderCapabilityDescriptor["formats"], Array<"structured" | "text"> | undefined> &
+    Equal<KnowledgeProviderCapabilityDescriptor["relationFocuses"], KnowledgeRelationFocus[] | undefined> &
+    Equal<InstrumentProviderDescriptor["knowledge"], KnowledgeProviderCapabilityDescriptor | undefined>
+>;
+
+type _providerHttpCacheEntryContract = Expect<
+  Equal<
+    keyof ProviderHttpCacheEntry,
+    | "providerId"
+    | "cacheKey"
+    | "requestUrl"
+    | "responseJson"
+    | "status"
+    | "fetchedAt"
+    | "lastUsedAt"
+  >
+>;
+
+type _providerHttpCacheRepositoryMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<ProviderHttpCacheRepository, "get"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "put"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "listLeastRecentlyUsed"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "deleteUnusedSince"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "deleteByProvider"> &
+    MethodAcceptsSingleObject<ProviderHttpCacheRepository, "clearProvider">
 >;
 
 type _platformLibraryItemKindsMatchFirstContract = Expect<
@@ -559,6 +668,11 @@ const requiredErrorCodes: StageErrorCode[] = [
   "source.unresolved_match",
   "source.blocked",
   "knowledge.no_provider",
+  "knowledge.invalid_query",
+  "knowledge.provider_unavailable",
+  "knowledge.rate_limited",
+  "knowledge.timeout",
+  "knowledge.malformed_response",
   "event.record_failed",
   "memory.insufficient_evidence",
   "memory.proposal_not_found",
@@ -899,7 +1013,7 @@ const sourceGrounding: SourceGroundingPort = {
 };
 
 const musicKnowledge: MusicKnowledgePort = {
-  query: async () => ({ ok: true, value: [] }),
+  query: async () => ({ ok: true, value: { items: [] } }),
 };
 
 const events: EventPort = {

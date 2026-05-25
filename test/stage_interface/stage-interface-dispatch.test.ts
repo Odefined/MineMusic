@@ -13,6 +13,7 @@ import type {
   StageSession,
   ToolName,
 } from "../../src/contracts/index.js";
+import { buildInstrumentHandbook } from "../../src/handbook/index.js";
 import type {
   CollectionPort,
   EffectBoundaryPort,
@@ -21,6 +22,7 @@ import type {
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
+  MusicKnowledgePort,
   SessionContextPort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
@@ -75,7 +77,7 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
   const descriptors = await assertOk(catalog.list({ session }));
   const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
 
-  assert(descriptors.length === 5, "catalog should expose handbook plus stage, music, library, and memory instruments");
+  assert(descriptors.length === 6, "catalog should expose handbook plus stage, knowledge, music, library, and memory instruments");
   assert(stableToolNames.every((toolName) => toolNames.includes(toolName)), "catalog should expose every stable tool");
   assert(
     descriptors.every((descriptor) => !descriptor.label.includes("fixture") && !descriptor.label.includes("provider")),
@@ -98,6 +100,10 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     "catalog should expose stage tools as their own instrument",
   );
   assert(
+    descriptors.some((descriptor) => descriptor.id === "minemusic.knowledge"),
+    "catalog should expose knowledge tools as their own instrument",
+  );
+  assert(
     descriptors.some((descriptor) => descriptor.id === "minemusic.music"),
     "catalog should expose music tools as their own instrument",
   );
@@ -113,6 +119,7 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     toolNames.includes("handbook.tool.read"),
     "catalog should expose precise handbook tool lookup",
   );
+  assert(toolNames.includes("knowledge.query"), "catalog should expose knowledge query tool");
   assert(toolNames.includes("music.collection.save"), "catalog should expose collection save tool");
   assert(toolNames.includes("music.collection.create"), "catalog should expose custom collection create tool");
   assert(toolNames.includes("music.collection.list"), "catalog should expose collection list tool");
@@ -182,6 +189,58 @@ async function attachesProviderDescriptorsToOwningInstruments(): Promise<void> {
   );
 }
 
+async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
+  const plugins = createPluginRegistry();
+
+  await assertOk(
+    plugins.registerProvider({
+      slot: "knowledge",
+      providerId: "musicbrainz",
+      provider: {},
+      descriptor: {
+        id: "musicbrainz",
+        label: "MusicBrainz",
+        slot: "knowledge",
+        status: "available",
+        authentication: "none",
+        operations: ["query"],
+        knowledge: {
+          formats: ["structured"],
+          entityKinds: ["artist", "recording", "release", "release_group", "work"],
+          expansions: ["credits", "relations", "release_labels", "tracklist"],
+          relationFocuses: ["members"],
+          boundaryNotes: ["No playable links.", "No identity confirmation."],
+        },
+      },
+    }),
+  );
+
+  const descriptors = await assertOk(createInstrumentCatalog({ plugins }).list({ session }));
+  const musicInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.music");
+  const knowledgeInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.knowledge");
+  const handbook = buildInstrumentHandbook(descriptors);
+
+  assert(musicInstrument !== undefined, "catalog should expose music instrument");
+  assert(knowledgeInstrument !== undefined, "catalog should expose knowledge instrument");
+  assert(
+    musicInstrument.providers?.some((provider) => provider.id === "musicbrainz") !== true,
+    "music instrument should not include knowledge provider descriptors",
+  );
+  assert(
+    knowledgeInstrument.providers?.some((provider) => provider.id === "musicbrainz"),
+    "knowledge instrument should include knowledge provider descriptors",
+  );
+  assert(handbook.content.includes("MineMusic Knowledge (`minemusic.knowledge`)"), "handbook should render knowledge instrument");
+  assert(handbook.content.includes("#### `knowledge.query`"), "handbook should render knowledge query under knowledge instrument");
+  assert(handbook.content.includes("MusicBrainz"), "handbook should render knowledge provider label");
+  assert(handbook.content.includes("Formats: `structured`"), "handbook should render supported knowledge formats");
+  assert(handbook.content.includes("Entity kinds: `artist`, `recording`, `release`, `release_group`, `work`"), "handbook should render entity kinds");
+  assert(handbook.content.includes("Expansions: `credits`, `relations`, `release_labels`, `tracklist`"), "handbook should render knowledge expansions");
+  assert(handbook.content.includes("Relation focus: `members`"), "handbook should render relation focus values");
+  assert(handbook.content.includes("Boundaries: No playable links. No identity confirmation."), "handbook should render boundary notes");
+  assert(!handbook.content.includes("browse"), "handbook should not expose provider-internal API modes");
+}
+
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   const calls: string[] = [];
   const catalog = createInstrumentCatalog();
@@ -233,6 +292,24 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       return { ok: true, value: material };
     },
   };
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      calls.push("musicKnowledge.query");
+      return {
+        ok: true,
+        value: {
+          items: [
+            {
+              kind: "text",
+              providerId: "fixture-knowledge",
+              source: { label: "Fixture knowledge" },
+              content: `Knowledge for ${"text" in query ? query.text : query.canonicalRef.id}`,
+            },
+          ],
+        },
+      };
+    },
+  };
   const events: EventPort = {
     record: async ({ event }) => {
       calls.push("stage.events.record");
@@ -264,6 +341,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     instruments: catalog,
     materialResolve,
     source,
+    knowledge,
     events,
     memory,
     effects,
@@ -299,6 +377,17 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
           label: "Material",
           state: "grounded",
         } satisfies MusicMaterial,
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "knowledge.query",
+      payload: {
+        text: "Knowledge Track",
+        formats: ["text"],
+        limit: 1,
       },
     }),
   );
@@ -386,6 +475,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
   assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
+  assert(calls.includes("musicKnowledge.query"), "knowledge.query should call MusicKnowledgePort");
   assert(calls.includes("stage.events.record"), "stage.events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");
@@ -1035,6 +1125,7 @@ function emptyImportCounts() {
 await listsStableLlmVisibleToolsWithoutProviderDetails();
 await filtersCatalogToExplicitActiveInstruments();
 await attachesProviderDescriptorsToOwningInstruments();
+await rendersKnowledgeProviderCapabilitiesInHandbook();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
