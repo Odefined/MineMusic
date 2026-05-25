@@ -75,13 +75,34 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   assert(!skillText.includes("minemusic.memory.propose_update"), "MineMusic skill should not mention old memory tool");
 
   const mcpServers = mcpJson.mcpServers as Record<string, unknown>;
-  const server = mcpServers.minemusic as { command?: unknown; args?: unknown };
+  const server = mcpServers.minemusic as { command?: unknown; args?: unknown; env?: unknown };
 
   assert(server.command === "npm", "MCP server should start through npm");
   assert(Array.isArray(server.args), "MCP server should define args");
   assert(server.args.includes("--prefix"), "MCP server should run from the MineMusic repo root");
   assert(server.args.includes(root), "MCP server should use this repo as npm prefix");
-  assert(server.args.includes("mcp:minemusic"), "MCP server should use the MineMusic MCP script");
+  assert(server.args.includes("service:minemusic"), "plugin should start the MineMusic service entrypoint");
+  assert(!server.args.includes("mcp:minemusic"), "plugin should not start the transitional MCP runtime path");
+  assert(
+    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_NETEASE_BASE_URL"),
+    "plugin config should not own provider runtime env",
+  );
+  assert(
+    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_CANONICAL_DB_PATH"),
+    "plugin config should not own Canonical Store runtime env",
+  );
+  assert(
+    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_COLLECTION_DB_PATH"),
+    "plugin config should not own Collection runtime env",
+  );
+  assert(
+    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_LIBRARY_IMPORT_DB_PATH"),
+    "plugin config should not own Library Import runtime env",
+  );
+  assert(
+    !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_PROVIDER_HTTP_CACHE_DB_PATH"),
+    "plugin config should not own provider cache runtime env",
+  );
 
   const marketplacePlugins = marketplaceJson.plugins as Array<{
     name?: string;

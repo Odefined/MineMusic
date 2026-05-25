@@ -6,11 +6,8 @@
         "--prefix",
         "/Users/jiajuzang/Documents/Codex/MineMusic",
         "run",
-        "mcp:minemusic"
-      ],
-      "env": {
-        "MINEMUSIC_NETEASE_BASE_URL": "http://127.0.0.1:3000"
-      }
+        "service:minemusic"
+      ]
     }
   }
 }
