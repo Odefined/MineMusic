@@ -28,7 +28,18 @@
   inject a repository directly or provide a database path for SQLite-backed
   cache storage, and the default MCP runtime accepts an explicit cache path
   option.
+- MusicBrainz Knowledge Provider now exists as a read-only Knowledge provider.
+  It exposes a Knowledge capability descriptor, supports text search for
+  artist, recording, release, release group, and work facts, supports
+  MusicBrainz-ref lookup through Canonical context source refs, supports
+  deterministic browse expansions for release-group releases and artist release
+  groups, maps tracklists, labels, ratings, tags, genres, annotations, and
+  selected relations to `StructuredKnowledge`, and uses the generic Provider
+  HTTP Cache for successful JSON responses.
 
 ## Remaining Work
 
-- MusicBrainz Knowledge Provider is not implemented yet.
+- Runtime MusicBrainz registration through future plugin `config.json` remains
+  future work. The current implementation can be instantiated explicitly in
+  tests or host wiring without adding a MusicBrainz-specific environment
+  variable.

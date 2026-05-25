@@ -278,7 +278,15 @@ host-facing and LLM-facing surface.
   used entries, delete entries unused before a cutoff, delete one provider entry,
   or clear one provider. Stage Core creates and exposes the Provider HTTP Cache
   and accepts either repository injection or a SQLite database path; the default
-  MCP runtime accepts an explicit cache path option.
+  MCP runtime accepts an explicit cache path option. The first MusicBrainz
+  Knowledge Provider implementation now exists as an explicit read-only
+  provider factory. It supports structured text search across artist,
+  recording, release, release group, and work entities; lookup through
+  MusicBrainz source refs supplied by Canonical context; release-group release
+  browse and artist release-group browse expansions; release tracklist,
+  label/catalog, rating, tag, genre, annotation, and selected relationship
+  mapping; and successful-response caching through the generic Provider HTTP
+  Cache.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
@@ -390,7 +398,8 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- MusicBrainz provider implementation remains future work.
+- MusicBrainz runtime activation through future plugin `config.json` remains
+  future work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

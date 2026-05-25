@@ -207,13 +207,15 @@ This index points agents to the current MVP documentation pack.
 
 51. `docs/knowledge-slot/progress.md`
     - Knowledge Slot implementation progress, including implemented shared
-      contracts and remaining provider/service/tool/cache work.
+      contracts, Provider HTTP Cache work, and MusicBrainz provider status.
 
-52. `src/providers/netease/index.ts`
+52. `src/providers/netease/index.ts`, `src/providers/musicbrainz/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
       `PlatformLibraryProvider` factories plus agent-facing provider descriptors
       for Handbook generation, including recording hints with artist/release
-      source refs when available.
+      source refs when available. The MusicBrainz adapter implements the
+      read-only Knowledge provider factory for structured music facts, lookup,
+      browse expansions, and successful-response Provider HTTP Cache usage.
 
 53. `docs/host-adapters/codex-mcp-plugin.md`
     - Codex MCP plugin surface design, focused instrument/tool behavior,

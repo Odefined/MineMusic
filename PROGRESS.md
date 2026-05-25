@@ -619,6 +619,14 @@
   creates and exposes Provider HTTP Cache storage through repository injection
   or SQLite database path configuration, and the default MCP runtime accepts an
   explicit provider cache path option.
+- Implemented Knowledge Slot Task 7 MusicBrainz Knowledge Provider. The
+  provider exposes a Knowledge descriptor, performs structured text search for
+  artist, recording, release, release group, and work facts, performs
+  MusicBrainz-ref lookup through Canonical context source refs, uses fixed
+  browse rules for release-group releases and artist release groups, maps
+  release labels, tracklists, ratings, tags, genres, annotations, and selected
+  MusicBrainz relations to `StructuredKnowledge`, and uses the generic Provider
+  HTTP Cache for successful JSON responses.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

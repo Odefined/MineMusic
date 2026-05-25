@@ -797,6 +797,7 @@ export type ProviderHttpCacheEntry = {
 
 export interface KnowledgeProvider {
   id: string;
+  descriptor?: InstrumentProviderDescriptor;
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;

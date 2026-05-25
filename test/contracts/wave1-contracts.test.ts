@@ -202,6 +202,11 @@ type _textKnowledgeContract = Expect<
 
 type _knowledgeProviderInputCarriesCanonicalContext = Expect<
   Equal<
+    keyof KnowledgeProvider,
+    "id" | "descriptor" | "query"
+  > &
+  Equal<KnowledgeProvider["descriptor"], InstrumentProviderDescriptor | undefined> &
+  Equal<
     Parameters<KnowledgeProvider["query"]>[0],
     {
       query: KnowledgeQuery;
