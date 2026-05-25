@@ -378,11 +378,17 @@ export type KnowledgeSource = {
   retrievedAt?: string;
 };
 
+export type KnowledgeCanonicalContext = {
+  record: CanonicalRecord;
+  relations: CanonicalRelation[];
+};
+
 export interface KnowledgeProvider {
   id: string;
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;
+    canonicalContext?: KnowledgeCanonicalContext;
   }): Promise<Result<KnowledgeResult>>;
 }
 ```
@@ -391,6 +397,8 @@ Rules:
 
 - Knowledge providers return provider-attributed structured or text knowledge.
 - `KnowledgeQuery` accepts exactly one of `text` or `canonicalRef`.
+- Music Knowledge Service passes `KnowledgeCanonicalContext` for `canonicalRef`
+  queries after reading Canonical Store.
 - `retrievalScore` is retrieval relevance only.
 - Music Knowledge does not return playable material.
 

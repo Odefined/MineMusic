@@ -600,6 +600,11 @@
   shared structured/text knowledge item contracts and provider failure error
   codes are exported. Module-local progress is tracked in
   `docs/knowledge-slot/progress.md`.
+- Implemented Knowledge Slot Task 2 Music Knowledge Service behavior. The
+  service now rejects invalid public query shapes, keeps missing-provider
+  failures explicit, aggregates provider knowledge items, preserves provider
+  warnings, and routes Canonical Store context to providers for `canonicalRef`
+  queries.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

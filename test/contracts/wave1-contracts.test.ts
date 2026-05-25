@@ -1,6 +1,7 @@
 import type {
   CapabilitySlot,
   CanonicalRecord,
+  CanonicalRelation,
   Collection,
   CollectionItem,
   CollectionKind,
@@ -10,9 +11,11 @@ import type {
   EffectProposal,
   Handbook,
   HandbookToolEntry,
+  KnowledgeCanonicalContext,
   KnowledgeEdge,
   KnowledgeItem,
   KnowledgeNode,
+  KnowledgeProvider,
   KnowledgeQuery,
   KnowledgeResult,
   KnowledgeSource,
@@ -191,6 +194,19 @@ type _textKnowledgeContract = Expect<
     Equal<TextKnowledge["kind"], "text"> &
     Equal<TextKnowledge["source"], KnowledgeSource> &
     Equal<Extract<KnowledgeItem, TextKnowledge>, TextKnowledge>
+>;
+
+type _knowledgeProviderInputCarriesCanonicalContext = Expect<
+  Equal<
+    Parameters<KnowledgeProvider["query"]>[0],
+    {
+      query: KnowledgeQuery;
+      sessionId?: string;
+      canonicalContext?: KnowledgeCanonicalContext;
+    }
+  > &
+    Equal<KnowledgeCanonicalContext["record"], CanonicalRecord> &
+    Equal<KnowledgeCanonicalContext["relations"], CanonicalRelation[]>
 >;
 
 type _platformLibraryItemKindsMatchFirstContract = Expect<

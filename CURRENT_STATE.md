@@ -264,12 +264,14 @@ host-facing and LLM-facing surface.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a provider query
   service returning `KnowledgeResult`. The shared Knowledge contracts now expose
   `StructuredKnowledge`, `TextKnowledge`, graph nodes/edges, source
-  attribution, `canonicalRef` query input, `formats`, and `expand`. A target
-  Knowledge Slot design draft now exists in `docs/knowledge-slot/design.md`; it
-  records the shift from `MusicMaterial[]` output to provider-attributed
-  knowledge items while keeping identity confirmation and canonical writes in
-  Canonical Store review/apply flows. A provider-specific MusicBrainz design
-  draft now exists in
+  attribution, `canonicalRef` query input, `formats`, and `expand`. The service
+  validates text-vs-canonicalRef query shape, aggregates provider knowledge
+  items, preserves provider warnings, and passes Canonical Store context to
+  providers for `canonicalRef` queries. A target Knowledge Slot design draft now
+  exists in `docs/knowledge-slot/design.md`; it records the shift from
+  `MusicMaterial[]` output to provider-attributed knowledge items while keeping
+  identity confirmation and canonical writes in Canonical Store review/apply
+  flows. A provider-specific MusicBrainz design draft now exists in
   `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
   provider-ref lookup, and deterministic provider-internal browse for ref-based
   list expansions behind the general `music.knowledge.query` tool. The design
@@ -376,11 +378,9 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- Knowledge Slot service behavior beyond the shared contract is not implemented
-  yet: public query validation, warning preservation, canonical context routing,
-  provider Handbook capability descriptors, the `music.knowledge.query` Stage
-  Interface tool, generic provider HTTP cache storage, and the MusicBrainz
-  provider remain future work.
+- Knowledge Slot provider Handbook capability descriptors, the
+  `music.knowledge.query` Stage Interface tool, generic provider HTTP cache
+  storage, and the MusicBrainz provider remain future work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

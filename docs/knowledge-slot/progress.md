@@ -11,12 +11,13 @@
   `Result<KnowledgeResult>`.
 - Shared Knowledge error codes now include invalid-query and provider failure
   cases for the target Knowledge Slot implementation.
+- Music Knowledge Service now validates public query shape, aggregates
+  `KnowledgeItem[]` from registered Knowledge providers, preserves provider
+  warnings, and passes Canonical Store context to providers for `canonicalRef`
+  queries.
 
 ## Remaining Work
 
-- Music Knowledge Service still needs full target behavior: public query
-  validation, warning preservation, canonical context routing, and provider
-  aggregation tests.
 - Provider Handbook capability descriptors are not implemented yet.
 - The `music.knowledge.query` Stage Interface tool is not implemented yet.
 - Generic provider HTTP cache storage is not implemented yet.

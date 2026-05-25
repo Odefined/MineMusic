@@ -559,7 +559,7 @@ export interface MusicKnowledgePort {
 Consumes:
 
 - Knowledge Slot adapters from Plugin Slots.
-- optional Identity Signal Slot providers.
+- Canonical Store for `canonicalRef` query context.
 
 Publishes domain events:
 

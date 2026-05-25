@@ -780,11 +780,17 @@ export type KnowledgeSource = {
   retrievedAt?: string;
 };
 
+export type KnowledgeCanonicalContext = {
+  record: CanonicalRecord;
+  relations: CanonicalRelation[];
+};
+
 export interface KnowledgeProvider {
   id: string;
   query(input: {
     query: KnowledgeQuery;
     sessionId?: string;
+    canonicalContext?: KnowledgeCanonicalContext;
   }): Promise<Result<KnowledgeResult>>;
 }
 
