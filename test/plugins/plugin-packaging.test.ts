@@ -15,6 +15,7 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
   const root = process.cwd();
   const pluginJson = await readsJson(join(root, "plugins/minemusic/.codex-plugin/plugin.json"));
   const mcpJson = await readsJson(join(root, "plugins/minemusic/.mcp.json"));
+  const packageJson = await readsJson(join(root, "package.json"));
   const marketplaceJson = await readsJson(join(root, ".agents/plugins/marketplace.json"));
   const skillText = await readFile(join(root, "plugins/minemusic/skills/minemusic/SKILL.md"), "utf8");
   const handbookText = await readFile(join(root, "plugins/minemusic/skills/minemusic/HANDBOOK.md"), "utf8");
@@ -103,6 +104,18 @@ async function packagesRepoLocalCodexPlugin(): Promise<void> {
     !JSON.stringify(server.env ?? {}).includes("MINEMUSIC_PROVIDER_HTTP_CACHE_DB_PATH"),
     "plugin config should not own provider cache runtime env",
   );
+
+  const scripts = packageJson.scripts as Record<string, unknown>;
+
+  assert(
+    typeof scripts["service:minemusic"] === "string" && scripts["service:minemusic"].includes("src/service/server.js"),
+    "service script should start the MineMusic service entrypoint",
+  );
+  assert(
+    typeof scripts["mcp:minemusic:dev"] === "string" && scripts["mcp:minemusic:dev"].includes("src/surfaces/mcp/server.js"),
+    "embedded MCP startup should be named as a dev path",
+  );
+  assert(!("mcp:minemusic" in scripts), "package scripts should not expose ambiguous embedded MCP startup");
 
   const marketplacePlugins = marketplaceJson.plugins as Array<{
     name?: string;
