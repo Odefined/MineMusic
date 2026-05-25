@@ -8,6 +8,7 @@ import type {
   MaterialResolveResult,
   MusicMaterial,
   PlatformLibraryProvider,
+  ProviderHttpCacheEntry,
   Ref,
   Result,
   SourceProvider,
@@ -17,6 +18,7 @@ import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
+  createInMemoryProviderHttpCacheRepository,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -315,6 +317,64 @@ async function exposesInitializedCollectionService(): Promise<void> {
   );
 }
 
+async function exposesInjectedProviderHttpCacheRepository(): Promise<void> {
+  const sourceProvider = emptySourceProvider();
+  const providerHttpCache = createInMemoryProviderHttpCacheRepository();
+  const entry = providerHttpCacheEntry("injected-cache");
+
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+    providerHttpCacheRepository: providerHttpCache,
+  });
+  await stageCore.ready;
+  await assertOk(stageCore.providerHttpCache.put({ entry }));
+
+  const cached = await assertOk(
+    providerHttpCache.get({
+      providerId: "musicbrainz",
+      cacheKey: "injected-cache",
+      now: "2026-05-25T01:00:00.000Z",
+    }),
+  );
+
+  assert(cached?.cacheKey === entry.cacheKey, "Stage Core should expose the injected Provider HTTP Cache repository");
+}
+
+async function usesProviderHttpCacheDatabasePath(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-provider-http-cache-"));
+  const databasePath = join(directory, "provider-http-cache.sqlite");
+  const entry = providerHttpCacheEntry("sqlite-cache");
+
+  try {
+    const firstStageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider: emptySourceProvider(),
+      providerHttpCacheDatabasePath: databasePath,
+    });
+    await firstStageCore.ready;
+    await assertOk(firstStageCore.providerHttpCache.put({ entry }));
+
+    const secondStageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider: emptySourceProvider(),
+      providerHttpCacheDatabasePath: databasePath,
+    });
+    await secondStageCore.ready;
+    const cached = await assertOk(
+      secondStageCore.providerHttpCache.get({
+        providerId: "musicbrainz",
+        cacheKey: "sqlite-cache",
+        now: "2026-05-25T01:00:00.000Z",
+      }),
+    );
+
+    assert(cached?.cacheKey === entry.cacheKey, "Stage Core should persist Provider HTTP Cache by database path");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering(): Promise<void> {
   const canonicalRecord: CanonicalRecord = {
     ref: {
@@ -510,11 +570,37 @@ async function exposesLibraryImportWithInjectedPlatformLibraryProvider(): Promis
   );
 }
 
+function emptySourceProvider(): SourceProvider {
+  return {
+    id: "stage-core-empty-source-provider",
+    async search() {
+      return { ok: true, value: [] };
+    },
+    async getPlayableLinks() {
+      return { ok: true, value: [] };
+    },
+  };
+}
+
+function providerHttpCacheEntry(cacheKey: string): ProviderHttpCacheEntry {
+  return {
+    providerId: "musicbrainz",
+    cacheKey,
+    requestUrl: `https://musicbrainz.org/ws/2/${cacheKey}?fmt=json`,
+    responseJson: { cacheKey },
+    status: 200,
+    fetchedAt: "2026-05-25T00:00:00.000Z",
+    lastUsedAt: "2026-05-25T00:00:00.000Z",
+  };
+}
+
 await createsStageCoreWithInjectedSourceProvider();
 await writesInstrumentHandbookOnStageCoreReady();
 await writesProviderCapabilitiesIntoInstrumentHandbook();
 await usesInjectedCanonicalRepositoryForMaterialResolve();
 await exposesInitializedCollectionService();
+await exposesInjectedProviderHttpCacheRepository();
+await usesProviderHttpCacheDatabasePath();
 await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
 await usesInjectedCollectionRepository();
 await exposesLibraryImportWithInjectedPlatformLibraryProvider();

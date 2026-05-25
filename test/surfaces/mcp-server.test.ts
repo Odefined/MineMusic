@@ -350,6 +350,30 @@ async function defaultMcpStageCoreUsesCanonicalDatabasePathEnv(): Promise<void> 
   }
 }
 
+async function defaultMcpStageCoreAcceptsProviderHttpCachePathOption(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-provider-http-cache-"));
+  const databasePath = join(directory, "provider-http-cache.sqlite");
+
+  try {
+    const stageCore = createDefaultMineMusicMcpStageCore(
+      {
+        MINEMUSIC_SESSION_ID: "mcp-default-provider-cache-session",
+        MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
+      },
+      {
+        providerHttpCacheDatabasePath: databasePath,
+      },
+    );
+    await stageCore.ready;
+
+    const databaseFile = await stat(databasePath);
+
+    assert(databaseFile.isFile(), "default MCP runtime should accept explicit Provider HTTP Cache database path");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function hasSchemaKey(schema: unknown, key: string): boolean {
   return typeof schema === "object" && schema !== null && Object.prototype.hasOwnProperty.call(schema, key);
 }
@@ -367,3 +391,4 @@ await defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary();
 await defaultMcpStageCoreUsesLibraryImportDatabasePathEnv();
 await defaultMcpStageCoreUsesCollectionDatabasePathEnv();
 await defaultMcpStageCoreUsesCanonicalDatabasePathEnv();
+await defaultMcpStageCoreAcceptsProviderHttpCachePathOption();

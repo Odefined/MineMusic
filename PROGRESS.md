@@ -615,6 +615,10 @@
 - Implemented Knowledge Slot Task 5 generic Provider HTTP Cache storage.
   Added shared cache entry/repository contracts, in-memory and SQLite-backed
   repositories, `lastUsedAt` updates on read, and explicit maintenance methods.
+- Implemented Knowledge Slot Task 6 Stage Core cache wiring. Stage Core now
+  creates and exposes Provider HTTP Cache storage through repository injection
+  or SQLite database path configuration, and the default MCP runtime accepts an
+  explicit provider cache path option.
 - Replaced the aggregate MVP instrument with focused
   `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under

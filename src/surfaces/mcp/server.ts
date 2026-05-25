@@ -105,6 +105,9 @@ export async function runMineMusicMcpServer(
 
 export function createDefaultMineMusicMcpStageCore(
   env: Record<string, string | undefined> = process.env,
+  options: {
+    providerHttpCacheDatabasePath?: string;
+  } = {},
 ): MineMusicStageCore {
   const netEaseOptions = createNetEaseProviderOptions(env);
 
@@ -121,6 +124,9 @@ export function createDefaultMineMusicMcpStageCore(
     ...(env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH === undefined
       ? {}
       : { libraryImportDatabasePath: env.MINEMUSIC_LIBRARY_IMPORT_DB_PATH }),
+    ...(options.providerHttpCacheDatabasePath === undefined
+      ? {}
+      : { providerHttpCacheDatabasePath: options.providerHttpCacheDatabasePath }),
   });
 }
 

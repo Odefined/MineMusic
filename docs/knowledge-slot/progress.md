@@ -24,6 +24,10 @@
 - Generic Provider HTTP Cache storage now has shared entry/repository contracts,
   in-memory storage, SQLite storage, `lastUsedAt` updates on read, and explicit
   least-recently-used maintenance operations.
+- Stage Core now creates and exposes Provider HTTP Cache storage. Callers can
+  inject a repository directly or provide a database path for SQLite-backed
+  cache storage, and the default MCP runtime accepts an explicit cache path
+  option.
 
 ## Remaining Work
 

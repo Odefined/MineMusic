@@ -276,7 +276,9 @@ host-facing and LLM-facing surface.
   repository contract with in-memory and SQLite-backed implementations. Cache
   reads update `lastUsedAt`, and maintenance methods can list least-recently
   used entries, delete entries unused before a cutoff, delete one provider entry,
-  or clear one provider.
+  or clear one provider. Stage Core creates and exposes the Provider HTTP Cache
+  and accepts either repository injection or a SQLite database path; the default
+  MCP runtime accepts an explicit cache path option.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
@@ -388,8 +390,7 @@ host-facing and LLM-facing surface.
   / Codex MCP database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter and
   repo-local Codex MCP surface.
-- Stage Core provider HTTP cache injection and the MusicBrainz provider remain
-  future work.
+- MusicBrainz provider implementation remains future work.
 - More host-surface validation for Handbook refresh when plugin tool
   descriptors change outside runtime startup.
 

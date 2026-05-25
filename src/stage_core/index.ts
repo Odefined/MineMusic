@@ -31,6 +31,7 @@ import type {
   MemoryPort,
   MusicKnowledgePort,
   PluginRegistryPort,
+  ProviderHttpCacheRepository,
   SessionContextPort,
   SourceGroundingPort,
   ToolDispatchPort,
@@ -50,9 +51,11 @@ import {
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
   createInMemoryMemoryRepository,
+  createInMemoryProviderHttpCacheRepository,
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
+  createSqliteProviderHttpCacheRepository,
 } from "../storage/index.js";
 
 export type MineMusicStageCore = {
@@ -71,6 +74,7 @@ export type MineMusicStageCore = {
   memory: MemoryPort;
   effects: EffectBoundaryPort;
   plugins: PluginRegistryPort;
+  providerHttpCache: ProviderHttpCacheRepository;
 };
 
 export type MineMusicStageCoreOptions = {
@@ -83,6 +87,8 @@ export type MineMusicStageCoreOptions = {
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
   libraryImportDatabasePath?: string;
+  providerHttpCacheRepository?: ProviderHttpCacheRepository;
+  providerHttpCacheDatabasePath?: string;
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -97,6 +103,8 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
   libraryImportDatabasePath?: string;
+  providerHttpCacheRepository?: ProviderHttpCacheRepository;
+  providerHttpCacheDatabasePath?: string;
   platformLibraryProvider?: PlatformLibraryProvider;
   handbookPath?: string;
 };
@@ -111,6 +119,8 @@ export function createMineMusicStageCore({
   collectionDatabasePath,
   libraryImportRepository,
   libraryImportDatabasePath,
+  providerHttpCacheRepository,
+  providerHttpCacheDatabasePath,
   platformLibraryProvider,
   handbookPath,
 }: MineMusicStageCoreOptions): MineMusicStageCore {
@@ -124,6 +134,8 @@ export function createMineMusicStageCore({
     ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
     ...(libraryImportRepository === undefined ? {} : { libraryImportRepository }),
     ...(libraryImportDatabasePath === undefined ? {} : { libraryImportDatabasePath }),
+    ...(providerHttpCacheRepository === undefined ? {} : { providerHttpCacheRepository }),
+    ...(providerHttpCacheDatabasePath === undefined ? {} : { providerHttpCacheDatabasePath }),
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     ...(handbookPath === undefined ? {} : { handbookPath }),
   });
@@ -139,6 +151,8 @@ export function createMineMusicStageCoreWithSourceProvider({
   collectionDatabasePath,
   libraryImportRepository: injectedLibraryImportRepository,
   libraryImportDatabasePath,
+  providerHttpCacheRepository: injectedProviderHttpCacheRepository,
+  providerHttpCacheDatabasePath,
   platformLibraryProvider,
   handbookPath = join(process.cwd(), "plugins/minemusic/skills/minemusic/HANDBOOK.md"),
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
@@ -157,6 +171,11 @@ export function createMineMusicStageCoreWithSourceProvider({
     (libraryImportDatabasePath === undefined
       ? createInMemoryLibraryImportRepository()
       : createSqliteLibraryImportRepository({ path: libraryImportDatabasePath }));
+  const providerHttpCache =
+    injectedProviderHttpCacheRepository ??
+    (providerHttpCacheDatabasePath === undefined
+      ? createInMemoryProviderHttpCacheRepository()
+      : createSqliteProviderHttpCacheRepository({ path: providerHttpCacheDatabasePath }));
   const eventRepository = createInMemoryEventRepository();
   const memoryRepository = createInMemoryMemoryRepository();
   const effectRepository = createInMemoryEffectProposalRepository();
@@ -249,6 +268,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     memory,
     effects,
     plugins,
+    providerHttpCache,
   };
 }
 
