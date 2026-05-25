@@ -183,7 +183,7 @@ the first Library Import Service implementation.
 - **File**: `src/library_import/index.ts`
 - **Tests**: `test/library_import/library-import-service.test.ts`
 - **Description**: Return side-effect-free facts for
-  `music.library.import.preview`.
+  `library.import.preview`.
 - **Details**:
   - `discovery` preview calls provider `preview({ discovery: true })`.
   - Explicit first-slice previews call provider `preview` for availability and,
@@ -287,12 +287,12 @@ the first Library Import Service implementation.
   Stage Interface and MCP derivation path.
 - **Details**:
   - Add these tools to `stableToolNames`:
-    - `music.library.import.preview`
-    - `music.library.import.start`
-    - `music.library.update.preview`
-    - `music.library.update.start`
-    - `music.library.import.status`
-    - `music.library.import.summary`
+    - `library.import.preview`
+    - `library.import.start`
+    - `library.update.preview`
+    - `library.update.start`
+    - `library.import.status`
+    - `library.import.summary`
   - Add descriptors that describe import/update intent, not database operations.
   - Add explicit schemas for provider id, optional provider account id,
     owner scope, scopes, sample limit, and batch id.
@@ -382,7 +382,7 @@ Search checks:
 
 ```bash
 rg -n "CanonicalStore|Collection|LibraryImport" src/providers/netease
-rg -n "music.library.import|music.library.update" src test docs plugins/minemusic
+rg -n "library.import|library.update" src test docs plugins/minemusic
 rg -n "library_import\\.item|library_import\\.batch" src test docs
 ```
 

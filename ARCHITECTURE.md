@@ -315,4 +315,7 @@ Codex-visible tools are derived from MineMusic instrument descriptors. The
 host-facing MCP names are prefixed, for example
 `minemusic.stage.context.read`, `minemusic.handbook.tool.read`, and
 `minemusic.stage.materials.prepare`, while the internal public tool names remain
-the stable `ToolName` union.
+the stable `ToolName` union. The catalog exposes focused `minemusic.stage`,
+`minemusic.music`, `minemusic.library`, and `minemusic.memory` instruments
+instead of a single aggregate MVP instrument; an empty `activeInstruments` list
+means all current MineMusic instruments are available.

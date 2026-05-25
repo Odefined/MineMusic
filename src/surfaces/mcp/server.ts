@@ -136,7 +136,7 @@ function createDefaultCodexSession(env: Record<string, string | undefined>): Sta
   return {
     id: env.MINEMUSIC_SESSION_ID ?? "codex-default",
     posture: "recommendation",
-    activeInstruments: ["minemusic.mvp"],
+    activeInstruments: [],
     autonomy: "manual",
     vibe: {
       text: env.MINEMUSIC_VIBE ?? "Codex-hosted MineMusic session.",

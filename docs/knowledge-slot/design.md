@@ -30,7 +30,8 @@ MineMusic canonical authority by itself.
 Knowledge Slot providers answer:
 
 ```text
-What provider-attributed music knowledge is available for this query or ref?
+What provider-attributed music knowledge is available for this text query or
+MineMusic canonical identity?
 ```
 
 They do not answer:
@@ -237,15 +238,15 @@ score.
 
 ## Query Model
 
-Agents should query by knowledge intent, not by storage shape. Structured/text should
-be a preference, not the business action.
+Agents should query by knowledge intent, not by provider internals or storage
+shape. Structured/text should be a preference, not the business action.
 
 Proposed target shape:
 
 ```ts
 export type KnowledgeQuery = {
   text?: string;
-  ref?: Ref;
+  canonicalRef?: Ref;
   purpose?: "lookup" | "explain" | "review" | "discover";
   formats?: Array<"structured" | "text">;
   entityKinds?: string[];
@@ -287,16 +288,35 @@ Examples:
 If `formats` is omitted, the Knowledge service may return the best
 available mix from registered providers.
 
+`text` is for open knowledge lookup when no MineMusic identity is known.
+`canonicalRef` is for knowledge lookup around a MineMusic canonical identity.
+Agents should not pass provider refs such as MusicBrainz MBIDs as ordinary query
+input.
+
+First-version `KnowledgeQuery` must provide exactly one of `text` or
+`canonicalRef`. If both are present or both are absent, Music Knowledge should
+return a non-retryable invalid-query error. If a future flow needs text as a hint
+for canonical lookup, it should introduce a separate hint field rather than
+overloading `text`.
+
 `expand` asks a provider to return related knowledge around the primary query
 result. It controls response breadth only. It is not an identity signal and does
 not imply confidence.
 
 Common expansion names should be readable to agents, such as `credits`,
 `relations`, `releases`, `release_groups`, `works`, `labels`, `tracklist`,
-`identifiers`, and `urls`. Provider-specific expansions may use a provider
-prefix, such as `musicbrainz:isrcs`, when a generic name is not precise enough.
-Unsupported expansions should produce warnings when possible instead of failing
-the whole query.
+`identifiers`, and `urls`. Unsupported expansions should produce warnings when
+possible instead of failing the whole query.
+
+When `canonicalRef` is supplied, Music Knowledge Service may use Canonical Store
+to read source/provider refs already attached to that canonical identity. Slot
+providers must not call Canonical Store directly.
+
+A `canonicalRef` query does not require every provider to have an attached
+provider ref. Providers that require a provider ref may return no items with a
+warning when no usable ref exists. Providers that can use general canonical
+context, such as label or aliases, may still return knowledge. No provider may
+treat label-based retrieval as identity confirmation.
 
 ## Stage Interface Exposure
 
@@ -312,12 +332,29 @@ Agents should use this tool to ask for music knowledge. They should not call
 provider-specific tools such as MusicBrainz search directly. Provider selection,
 registration, and aggregation belong behind Music Knowledge and Plugin Slots.
 
+Agents may query by text or by a MineMusic canonical ref. They should not need
+to know provider refs such as MusicBrainz MBIDs. Provider refs may appear in
+returned knowledge items, but they are not the ordinary agent-facing identity
+input.
+
 The first public tool should not write Canonical Store state. It can return
 knowledge items for explanation or later review, but identity confirmation and
 apply operations remain separate Canonical Store workflows.
 
 Provider-specific filtering can be added later if a real use case needs it. It
 should not be part of the first public tool contract.
+
+Knowledge providers may contribute capability descriptions for Handbook
+generation. These descriptions can tell agents what kind of knowledge is
+available through the general tool, such as supported formats, entity kinds, and
+expansion names.
+
+Provider Handbook contributions must not expose provider-internal API modes or
+transport details as agent actions. For example, a MusicBrainz provider may say
+that it can return structured recording, release, artist, release group, and
+work facts with expansions such as `credits`, `releases`, `works`, `tracklist`,
+`labels`, `identifiers`, and `relations`. It should not teach agents to call
+MusicBrainz search, lookup, browse, or MusicBrainz API parameters directly.
 
 ## Migration Rule
 
@@ -332,6 +369,9 @@ Resolve / Source Grounding for material resolution.
 ## MusicBrainz Implications
 
 MusicBrainz should map naturally to `StructuredKnowledge`.
+
+The provider-specific MusicBrainz design lives in
+`docs/knowledge-slot/musicbrainz-provider.md`.
 
 First useful structured facts:
 

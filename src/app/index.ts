@@ -71,7 +71,7 @@ export async function runRecommendationTranscript(
 
   const presentedMaterials = preparedResult.value as MusicMaterial[];
   const response = buildRecommendationResponse(presentedMaterials);
-  const eventResult = await stageCore.stageInterface.tools["events.record"]({
+  const eventResult = await stageCore.stageInterface.tools["stage.events.record"]({
     event: {
       sessionId: input.sessionId,
       actor: "llm",
@@ -110,7 +110,7 @@ export async function runRecommendationTranscript(
     return memoryProposalResult;
   }
 
-  const effectProposalResult = await stageCore.stageInterface.tools["effects.propose"]({
+  const effectProposalResult = await stageCore.stageInterface.tools["stage.effects.propose"]({
     proposal: {
       kind: input.effectKind,
       target: presentedMaterials[0],

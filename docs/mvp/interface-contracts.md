@@ -417,6 +417,9 @@ export type ToolName =
   | "handbook.instrument.read"
   | "handbook.tool.read"
   | "stage.materials.prepare"
+  | "stage.session.update"
+  | "stage.events.record"
+  | "stage.effects.propose"
   | "music.material.resolve"
   | "music.links.refresh"
   | "music.collection.save"
@@ -431,16 +434,13 @@ export type ToolName =
   | "music.collection.update"
   | "music.collection.delete"
   | "music.collection.list"
-  | "music.library.import.preview"
-  | "music.library.import.start"
-  | "music.library.update.preview"
-  | "music.library.update.start"
-  | "music.library.import.status"
-  | "music.library.import.summary"
-  | "events.record"
-  | "memory.propose"
-  | "effects.propose"
-  | "session.update";
+  | "library.import.preview"
+  | "library.import.start"
+  | "library.update.preview"
+  | "library.update.start"
+  | "library.import.status"
+  | "library.import.summary"
+  | "memory.propose";
 
 export type InstrumentDescriptor = {
   id: string;

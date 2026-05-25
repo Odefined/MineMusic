@@ -793,8 +793,8 @@ const instrumentCatalog: InstrumentCatalogPort = {
     ok: true,
     value: [
       {
-        id: "mvp",
-        label: "MVP Instruments",
+        id: "minemusic.music",
+        label: "MineMusic Music",
         tools: [
           {
             name: "music.material.resolve",
@@ -810,12 +810,12 @@ const instrumentCatalog: InstrumentCatalogPort = {
 
 const toolName: ToolName = "music.material.resolve";
 const collectionToolName: ToolName = "music.collection.save";
-const libraryImportToolName: ToolName = "music.library.import.preview";
-const libraryUpdateToolName: ToolName = "music.library.update.start";
+const libraryImportToolName: ToolName = "library.import.preview";
+const libraryUpdateToolName: ToolName = "library.update.start";
 const handbookToolEntry: HandbookToolEntry = {
   instrument: {
-    id: "mvp",
-    label: "MVP Instruments",
+    id: "minemusic.music",
+    label: "MineMusic Music",
   },
   tool: {
     name: toolName,

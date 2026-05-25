@@ -557,12 +557,12 @@ Do not expose database-shaped tools.
 Expose user-semantic tools:
 
 ```text
-music.library.import.preview
-music.library.import.start
-music.library.update.preview
-music.library.update.start
-music.library.import.status
-music.library.import.summary
+library.import.preview
+library.import.start
+library.update.preview
+library.update.start
+library.import.status
+library.import.summary
 ```
 
 Import and update use separate preview/start tools because they represent
@@ -591,15 +591,15 @@ Platform Library Provider marks `readable`.
 
 Expected behavior:
 
-- `music.library.import.preview` checks the requested initial import scope and
+- `library.import.preview` checks the requested initial import scope and
   gives counts when the platform supports counts.
-- `music.library.import.preview` may also accept a discovery-style scope for
+- `library.import.preview` may also accept a discovery-style scope for
   "show me what can be imported" and return provider-supported library areas
   with counts or availability notes.
-- `music.library.update.preview` checks the requested update scope against the
-  latest eligible Library Import baseline and reports what `update.start` would
-  do without writing.
-- `music.library.update.preview` should report factual update categories:
+- `library.update.preview` checks the requested update scope against the
+  latest eligible Library Import baseline and reports what `library.update.start`
+  would do without writing.
+- `library.update.preview` should report factual update categories:
   would add, already present, no longer returned by the provider with
   Collection unchanged, and failed or skipped.
 - Discovery preview may include provider-visible library areas that MineMusic
@@ -640,13 +640,13 @@ Expected behavior:
 - Preview is not a required precondition for start. If the LLM-facing caller has
   an explicit provider, account/default-account choice, and import or update
   scope, it may call the relevant start tool directly.
-- `music.library.import.start` creates an `initial_import` batch with a batch
+- `library.import.start` creates an `initial_import` batch with a batch
   id, then begins the import with the explicit import scope.
-- `music.library.update.start` creates a `library_update` batch with a batch id,
+- `library.update.start` creates a `library_update` batch with a batch id,
   then begins the update with the explicit update scope.
-- `music.library.import.status` reports progress, partial failures, and current
+- `library.import.status` reports progress, partial failures, and current
   counts for any Library Import batch id.
-- `music.library.import.summary` returns the completed structured report for any
+- `library.import.summary` returns the completed structured report for any
   Library Import batch id.
 
 The LLM should not call Canonical Store, storage repositories, or provider APIs
@@ -761,7 +761,7 @@ The preview result should include:
   unresolved, or skipped.
 - estimated Collection counts: already present, would add, would add after
   provisional canonical creation, or skipped.
-- for `music.library.update.preview`, factual update counts: would add, already
+- for `library.update.preview`, factual update counts: would add, already
   present, no longer returned by the provider with Collection unchanged, and
   failed or skipped.
 - for update preview absence estimates, enough baseline-derived item facts to

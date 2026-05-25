@@ -54,6 +54,16 @@ export const stageInterfaceToolInputSchemas = {
     materials: z.array(musicMaterialSchema),
     purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
   },
+  "stage.session.update": {
+    patch: z.object({}).passthrough(),
+    sessionId: z.string().optional(),
+  },
+  "stage.events.record": {
+    event: z.object({}).passthrough(),
+  },
+  "stage.effects.propose": {
+    proposal: z.object({}).passthrough(),
+  },
   "music.material.resolve": {
     kind: z.enum(["single", "candidate_set"]),
     candidate: musicCandidateSchema.optional(),
@@ -128,51 +138,41 @@ export const stageInterfaceToolInputSchemas = {
     limit: z.number().int().positive().optional(),
     cursor: z.string().optional(),
   },
-  "music.library.import.preview": {
+  "library.import.preview": {
     providerId: z.string(),
     providerAccountId: z.string().optional(),
     ownerScope: z.string().optional(),
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
   },
-  "music.library.import.start": {
+  "library.import.start": {
     providerId: z.string(),
     providerAccountId: z.string().optional(),
     ownerScope: z.string().optional(),
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
   },
-  "music.library.update.preview": {
+  "library.update.preview": {
     providerId: z.string(),
     providerAccountId: z.string().optional(),
     ownerScope: z.string().optional(),
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
   },
-  "music.library.update.start": {
+  "library.update.start": {
     providerId: z.string(),
     providerAccountId: z.string().optional(),
     ownerScope: z.string().optional(),
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
   },
-  "music.library.import.status": {
+  "library.import.status": {
     batchId: z.string(),
   },
-  "music.library.import.summary": {
+  "library.import.summary": {
     batchId: z.string(),
-  },
-  "events.record": {
-    event: z.object({}).passthrough(),
   },
   "memory.propose": {
     proposal: z.object({}).passthrough(),
-  },
-  "effects.propose": {
-    proposal: z.object({}).passthrough(),
-  },
-  "session.update": {
-    patch: z.object({}).passthrough(),
-    sessionId: z.string().optional(),
   },
 } satisfies Record<StableToolName, StageInterfaceToolInputSchema>;

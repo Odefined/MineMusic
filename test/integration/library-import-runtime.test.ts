@@ -35,7 +35,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 const session: StageSession = {
   id: "library-import-runtime-session",
   posture: "recommendation",
-  activeInstruments: ["minemusic.mvp"],
+  activeInstruments: [],
 };
 
 async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
@@ -339,7 +339,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     ];
 
     const discovery = await assertOk(
-      stageCore.stageInterface.tools["music.library.import.preview"]({
+      stageCore.stageInterface.tools["library.import.preview"]({
         providerId: platformLibraryProvider.id,
         scopes: ["discovery"],
       }) as Promise<Result<LibraryImportPreview>>,
@@ -354,7 +354,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     );
 
     const preview = await assertOk(
-      stageCore.stageInterface.tools["music.library.import.preview"]({
+      stageCore.stageInterface.tools["library.import.preview"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportPreview>>,
@@ -377,7 +377,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     assert(previewArea?.collectionEstimates.skipped === 1, "preview should estimate skipped weak metadata");
 
     const firstImport = await assertOk(
-      stageCore.stageInterface.tools["music.library.import.start"]({
+      stageCore.stageInterface.tools["library.import.start"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportReport>>,
@@ -416,7 +416,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     assert(firstProvenance.length === 4, "initial import should store provenance for every observed item");
 
     const repeatedImport = await assertOk(
-      stageCore.stageInterface.tools["music.library.import.start"]({
+      stageCore.stageInterface.tools["library.import.start"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportReport>>,
@@ -441,7 +441,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     ];
 
     const updatePreview = await assertOk(
-      stageCore.stageInterface.tools["music.library.update.preview"]({
+      stageCore.stageInterface.tools["library.update.preview"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportPreview>>,
@@ -457,7 +457,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     );
 
     const updateReport = await assertOk(
-      stageCore.stageInterface.tools["music.library.update.start"]({
+      stageCore.stageInterface.tools["library.update.start"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportReport>>,
@@ -496,12 +496,12 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
 
     const mcpToolNames = createMineMusicMcpToolDefinitions(stageCore).map((definition) => definition.name);
     const libraryImportToolNames = [
-      "music.library.import.preview",
-      "music.library.import.start",
-      "music.library.update.preview",
-      "music.library.update.start",
-      "music.library.import.status",
-      "music.library.import.summary",
+      "library.import.preview",
+      "library.import.start",
+      "library.update.preview",
+      "library.update.start",
+      "library.import.status",
+      "library.import.summary",
     ] as const;
 
     assert(
@@ -542,7 +542,7 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
     await stageCore.ready;
 
     await assertOk(
-      stageCore.stageInterface.tools["music.library.import.start"]({
+      stageCore.stageInterface.tools["library.import.start"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportReport>>,
@@ -566,13 +566,13 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
     ];
 
     const partialPreview = await assertOk(
-      stageCore.stageInterface.tools["music.library.update.preview"]({
+      stageCore.stageInterface.tools["library.update.preview"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportPreview>>,
     );
     const partialReport = await assertOk(
-      stageCore.stageInterface.tools["music.library.update.start"]({
+      stageCore.stageInterface.tools["library.update.start"]({
         providerId: platformLibraryProvider.id,
         scopes: ["saved_recordings"],
       }) as Promise<Result<LibraryImportReport>>,

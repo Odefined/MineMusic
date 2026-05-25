@@ -61,11 +61,11 @@ and effect proposals.
    material in `confirmed_playable` or `source_only_playable` state with a
    `playableLinks` entry.
 9. Record user feedback such as liked, disliked, wrong version, not playable,
-   too loud, too boring, or accepted with `minemusic.events.record`.
+   too loud, too boring, or accepted with `minemusic.stage.events.record`.
 10. For durable preference learning, call `minemusic.memory.propose`; do not
    write memory directly.
 11. For external actions such as open, play, queue, save, source writeback, or
-   notification, call `minemusic.effects.propose`; do not execute the action
+   notification, call `minemusic.stage.effects.propose`; do not execute the action
    directly.
 
 ## Boundaries

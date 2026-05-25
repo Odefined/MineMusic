@@ -30,7 +30,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     session: {
       id: "session-integration",
       posture: "recommendation",
-      activeInstruments: ["minemusic.mvp"],
+      activeInstruments: [],
       vibe: {
         text: "quiet but not sleepy coding music",
         tone: "focused",

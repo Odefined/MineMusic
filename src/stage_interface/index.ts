@@ -1,8 +1,11 @@
 export {
   agentToolDescriptors,
   handbookToolDescriptors,
-  mvpToolDescriptors,
+  libraryToolDescriptors,
+  memoryToolDescriptors,
+  musicToolDescriptors,
   stableToolNames,
+  stageToolDescriptors,
 } from "./tools.js";
 export type {
   StableToolDescriptor,

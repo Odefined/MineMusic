@@ -21,7 +21,7 @@ Output: `HandbookInstrumentEntry`
 Description: Read input, output, effect, and description metadata for one available MineMusic tool.
 Input: `HandbookToolReadInput`
 Output: `HandbookToolEntry`
-### MineMusic MVP (`minemusic.mvp`)
+### MineMusic Stage (`minemusic.stage`)
 
 #### `stage.context.read`
 
@@ -33,6 +33,24 @@ Output: `StageContextReadOutput`
 Description: Prepare grounded materials through the Material Gate before presentation.
 Input: `StageMaterialsPrepareInput`
 Output: `MusicMaterial[]`
+#### `stage.session.update`
+
+Description: Update soft session state through Session Context.
+Input: `StageSessionPatch`
+Output: `StageSession`
+#### `stage.events.record`
+
+Description: Record a factual session event.
+Input: `StageEventDraft`
+Output: `StageEvent`
+#### `stage.effects.propose`
+
+Description: Create a proposal for a durable write or external action.
+Input: `EffectProposalDraft`
+Output: `EffectProposal`
+Effect kind: `proposal`
+### MineMusic Music (`minemusic.music`)
+
 #### `music.material.resolve`
 
 Description: Resolve music candidates into material through canonical-first material resolution.
@@ -103,55 +121,43 @@ Output: `Collection`
 Description: List owner collections and matching collection items.
 Input: `CollectionListInput`
 Output: `CollectionListOutput`
-#### `music.library.import.preview`
+### MineMusic Library (`minemusic.library`)
+
+#### `library.import.preview`
 
 Description: Preview importing saved platform library facts into MineMusic state.
 Input: `LibraryImportPreviewInput`
 Output: `LibraryImportPreview`
-#### `music.library.import.start`
+#### `library.import.start`
 
 Description: Start importing saved platform library facts into MineMusic state.
 Input: `LibraryImportStartInput`
 Output: `LibraryImportReport`
-#### `music.library.update.preview`
+#### `library.update.preview`
 
 Description: Preview a platform library update against MineMusic's latest complete baseline.
 Input: `LibraryImportPreviewInput`
 Output: `LibraryImportPreview`
-#### `music.library.update.start`
+#### `library.update.start`
 
 Description: Start a platform library update against MineMusic's latest complete baseline.
 Input: `LibraryImportStartInput`
 Output: `LibraryImportReport`
-#### `music.library.import.status`
+#### `library.import.status`
 
 Description: Read current status for a Library Import batch.
 Input: `LibraryImportStatusInput`
 Output: `LibraryImportStatus`
-#### `music.library.import.summary`
+#### `library.import.summary`
 
 Description: Read the completed report for a Library Import batch.
 Input: `LibraryImportSummaryInput`
 Output: `LibraryImportSummary`
-#### `events.record`
+### MineMusic Memory (`minemusic.memory`)
 
-Description: Record a factual session event.
-Input: `StageEventDraft`
-Output: `StageEvent`
 #### `memory.propose`
 
 Description: Create an evidence-backed memory proposal.
 Input: `MemoryProposalDraft`
 Output: `MemoryProposal`
-#### `effects.propose`
-
-Description: Create a proposal for a durable write or external action.
-Input: `EffectProposalDraft`
-Output: `EffectProposal`
-Effect kind: `proposal`
-#### `session.update`
-
-Description: Update soft session state through Session Context.
-Input: `StageSessionPatch`
-Output: `StageSession`
 

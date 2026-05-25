@@ -28,7 +28,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 const session: StageSession = {
   id: "canonical-persistence-session",
   posture: "recommendation",
-  activeInstruments: ["minemusic.mvp"],
+  activeInstruments: [],
 };
 
 async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<void> {

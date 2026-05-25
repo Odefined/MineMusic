@@ -28,7 +28,7 @@ function assert(condition: unknown, message: string): asserts condition {
 const session: StageSession = {
   id: "mcp-session",
   posture: "recommendation",
-  activeInstruments: ["minemusic.mvp"],
+  activeInstruments: [],
 };
 
 const sourceProvider: SourceProvider = {
@@ -63,7 +63,7 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP should expose collection tools with the MineMusic prefix",
   );
   assert(
-    codexToolNameFor("music.library.import.preview") === "minemusic.music.library.import.preview",
+    codexToolNameFor("library.import.preview") === "minemusic.library.import.preview",
     "MCP should expose library import tools with the MineMusic prefix",
   );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
@@ -122,7 +122,7 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "stage materials tool schema should declare purpose input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.events.record"), "event"),
+    hasSchemaKey(schemasByName.get("minemusic.stage.events.record"), "event"),
     "event tool schema should declare event input",
   );
   assert(
@@ -138,15 +138,15 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "collection list schema should declare ownerScope input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.library.import.preview"), "providerId"),
+    hasSchemaKey(schemasByName.get("minemusic.library.import.preview"), "providerId"),
     "library import preview schema should declare provider id input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.library.import.preview"), "scopes"),
+    hasSchemaKey(schemasByName.get("minemusic.library.import.preview"), "scopes"),
     "library import preview schema should declare scopes input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.library.import.status"), "batchId"),
+    hasSchemaKey(schemasByName.get("minemusic.library.import.status"), "batchId"),
     "library import status schema should declare batch id input",
   );
   assert(
@@ -233,7 +233,7 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
 
   const definitions = createMineMusicMcpToolDefinitions(stageCore);
   const importPreviewTool = definitions.find(
-    (definition) => definition.name === "minemusic.music.library.import.preview",
+    (definition) => definition.name === "minemusic.library.import.preview",
   );
   assert(importPreviewTool !== undefined, "library import preview tool should be exposed through MCP");
 

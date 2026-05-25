@@ -34,7 +34,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 const session: StageSession = {
   id: "stage-core-factory-session",
   posture: "recommendation",
-  activeInstruments: ["minemusic.mvp"],
+  activeInstruments: [],
 };
 
 async function createsStageCoreWithInjectedSourceProvider(): Promise<void> {

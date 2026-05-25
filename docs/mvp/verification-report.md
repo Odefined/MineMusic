@@ -126,7 +126,7 @@ Codex MCP plugin surface:
   tool set.
 - Tool Dispatch rejects normal instrument tools when the current instrument
   catalog does not expose them, while `stage.context.read`, `handbook.*` lookup
-  tools, and `session.update` remain available.
+  tools, and `stage.session.update` remain available.
 - MCP tool definitions use `minemusic.*` names and map back to internal
   `ToolName` values.
 - Argument-bearing MCP tools expose explicit input schemas for query,
@@ -141,8 +141,8 @@ Codex MCP plugin surface:
   literal song-title searches.
 - The active Codex session can discover and call the `minemusic.*` MCP tools.
   A real recommendation scenario for quiet, not-sleepy coding music completed
-  through `session.update`, `music.material.resolve`, `stage.materials.prepare`,
-  `events.record`, `memory.propose`, and `effects.propose`.
+  through `stage.session.update`, `music.material.resolve`, `stage.materials.prepare`,
+  `stage.events.record`, `memory.propose`, and `stage.effects.propose`.
 - The live active-session flow returned source-backed NetEase materials such as
   `Aruarian Dance - Nujabes, Fat Jon`
   (`https://music.163.com/#/song?id=22644323`), `Feather ... - Nujabes`

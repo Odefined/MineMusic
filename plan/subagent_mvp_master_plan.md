@@ -492,8 +492,8 @@ Required behavior:
 - dispatch stable tool names.
 - hide provider internals.
 - route `stage.context.read`, `stage.materials.prepare`,
-  `music.material.resolve`, `music.links.refresh`, `events.record`,
-  `memory.propose`, `effects.propose`, and `session.update`.
+  `music.material.resolve`, `music.links.refresh`, `stage.events.record`,
+  `memory.propose`, `stage.effects.propose`, and `stage.session.update`.
 - keep `InstrumentCatalogPort` independent from Session Context private
   implementation; only `ToolDispatchPort` may call Stage Modules and core ports
   through injected public dependencies.

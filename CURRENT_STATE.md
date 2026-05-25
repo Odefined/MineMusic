@@ -196,12 +196,15 @@ host-facing and LLM-facing surface.
   in-memory Library Import repository by default, accepts optional
   `libraryImportRepository` and `platformLibraryProvider` injections, and
   registers source and platform-library providers separately during runtime
-  readiness. Stage Interface now exposes `music.library.import.preview`,
-  `music.library.import.start`, `music.library.update.preview`,
-  `music.library.update.start`, `music.library.import.status`, and
-  `music.library.import.summary` with explicit MCP schemas and generated
-  Handbook entries. The default Codex MCP runtime now registers NetEase through
-  both `source` and `platform_library` slots and reuses
+  readiness. Stage Interface now exposes `library.import.preview`,
+  `library.import.start`, `library.update.preview`,
+  `library.update.start`, `library.import.status`, and
+  `library.import.summary` with explicit MCP schemas and generated
+  Handbook entries. The Instrument Catalog now exposes focused
+  `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
+  `minemusic.memory` instruments instead of a single aggregate MVP instrument.
+  The default Codex MCP runtime now registers NetEase through both `source` and
+  `platform_library` slots and reuses
   `MINEMUSIC_NETEASE_BASE_URL` for both provider factories. SQLite-backed
   Library Import storage is now implemented under `src/storage/sqlite/**` for
   direct repository injection and Stage Core `libraryImportDatabasePath`
@@ -261,7 +264,11 @@ host-facing and LLM-facing surface.
   draft now exists in `docs/knowledge-slot/design.md`; it records the intended
   shift from `MusicMaterial[]` output to provider-attributed knowledge items
   with `StructuredKnowledge` and `TextKnowledge` forms, while keeping identity
-  confirmation and canonical writes in Canonical Store review/apply flows.
+  confirmation and canonical writes in Canonical Store review/apply flows. A
+  provider-specific MusicBrainz design draft now exists in
+  `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search, MBID
+  lookup, and deterministic provider-internal browse for ref-based list
+  expansions behind the general `music.knowledge.query` tool.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution,
   `MaterialResolveResult` status, and source evidence attachment to known
@@ -315,8 +322,9 @@ host-facing and LLM-facing surface.
   Material Gate behavior is Codex-visible.
 - Tool Dispatch enforces current instrument availability through
   `InstrumentCatalogPort`, not by compiling a Handbook. `stage.context.read`,
-  the `handbook.*` lookup tools, and `session.update` remain available for
-  discovery/reference/recovery.
+  the `handbook.*` lookup tools, and `stage.session.update` remain available for
+  discovery/reference/recovery; other tools require the focused active
+  instrument that owns them.
 - The Codex-facing MCP server is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
   `MineMusicStageInterface`, not provider or repository internals. Argument-bearing
@@ -344,8 +352,8 @@ host-facing and LLM-facing surface.
 
 ## Not Yet Implemented
 
-- Stage Interface can still be deepened: host schemas, tool metadata, Handbook
-  rendering, and dispatch are not yet fully owned by one implementation file.
+- Stage Interface can still be deepened with richer provider capability
+  metadata in `InstrumentDescriptor` / Handbook output.
 - Durable storage repositories beyond the direct SQLite-backed Canonical Store,
   Collection, and Library Import repository adapters and their opt-in Stage Core
   / Codex MCP database-path wiring.
@@ -358,7 +366,7 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
-- `npm test` passes as of the Canonical Store label-only auto-merge correction
+- `npm test` passes as of the Stage Interface instrument/tool contract cleanup
   on 2026-05-25.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/plugin
   implementation and is covered inside the latest `npm test` run.
@@ -366,8 +374,8 @@ host-facing and LLM-facing surface.
 - `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
   `http://127.0.0.1:3000` in this session.
 - Active Codex MCP tool calls through `minemusic.music.material.resolve`,
-  `minemusic.stage.materials.prepare`, `minemusic.events.record`,
-  `minemusic.memory.propose`, and `minemusic.effects.propose` passed for a real
+  `minemusic.stage.materials.prepare`, `minemusic.stage.events.record`,
+  `minemusic.memory.propose`, and `minemusic.stage.effects.propose` passed for a real
   "quiet but not sleepy coding music" scenario, returning NetEase links such as
   `https://music.163.com/#/song?id=22644323`.
 - Fresh Codex app plugin-session visibility is confirmed by the user in this

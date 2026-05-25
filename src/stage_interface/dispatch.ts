@@ -116,7 +116,7 @@ export function createToolDispatch({
     "handbook.overview.read",
     "handbook.instrument.read",
     "handbook.tool.read",
-    "session.update",
+    "stage.session.update",
   ]);
 
   return {
@@ -309,7 +309,7 @@ export function createToolDispatch({
           });
         }
 
-        case "music.library.import.preview": {
+        case "library.import.preview": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
           if (!availableLibraryImport.ok) {
@@ -321,7 +321,7 @@ export function createToolDispatch({
           );
         }
 
-        case "music.library.import.start": {
+        case "library.import.start": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
           if (!availableLibraryImport.ok) {
@@ -333,7 +333,7 @@ export function createToolDispatch({
           );
         }
 
-        case "music.library.update.preview": {
+        case "library.update.preview": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
           if (!availableLibraryImport.ok) {
@@ -345,7 +345,7 @@ export function createToolDispatch({
           );
         }
 
-        case "music.library.update.start": {
+        case "library.update.start": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
           if (!availableLibraryImport.ok) {
@@ -357,7 +357,7 @@ export function createToolDispatch({
           );
         }
 
-        case "music.library.import.status": {
+        case "library.import.status": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
           if (!availableLibraryImport.ok) {
@@ -369,7 +369,7 @@ export function createToolDispatch({
           );
         }
 
-        case "music.library.import.summary": {
+        case "library.import.summary": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
           if (!availableLibraryImport.ok) {
@@ -381,16 +381,16 @@ export function createToolDispatch({
           );
         }
 
-        case "events.record":
+        case "stage.events.record":
           return events.record(readPayload<{ event: Omit<StageEvent, "id" | "time"> }>(payload));
 
         case "memory.propose":
           return memory.propose(readPayload<{ proposal: Omit<MemoryProposal, "id"> }>(payload));
 
-        case "effects.propose":
+        case "stage.effects.propose":
           return effects.propose(readPayload<{ proposal: Omit<EffectProposal, "id"> }>(payload));
 
-        case "session.update":
+        case "stage.session.update":
           return sessionContext.updateSession(
             readPayload<{
               sessionId: string;

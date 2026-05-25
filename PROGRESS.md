@@ -117,7 +117,7 @@
 - Added `stage.materials.prepare` as a stable instrument/Stage Interface entry and
   routed the fixture transcript through the tool-visible Stage Modules gate.
 - Added initial instrument enforcement in Tool Dispatch while keeping
-  `stage.context.read` available for discovery and `session.update` available
+  `stage.context.read` available for discovery and `stage.session.update` available
   for recovery.
 - Added `createMineMusicStageCoreWithSourceProvider(...)` for host surfaces that
   need a concrete source provider runtime.
@@ -179,8 +179,8 @@
   `src/stage_interface` and updated Stage Core, MCP, app, and tests to call
   through Stage Interface directly.
 - Verified current active Codex MCP tool usability with a real recommendation
-  scenario: `session.update`, `music.material.resolve`, `stage.materials.prepare`,
-  `events.record`, `memory.propose`, and `effects.propose` all returned
+  scenario: `stage.session.update`, `music.material.resolve`, `stage.materials.prepare`,
+  `stage.events.record`, `memory.propose`, and `stage.effects.propose` all returned
   successful `Result<T>` payloads through the `minemusic.*` tools.
 - The live current-session flow grounded coding-music candidates through
   NetEase and returned source-backed links such as
@@ -582,6 +582,16 @@
   provider-attributed knowledge items, keeps MusicBrainz as
   `StructuredKnowledge`, allows document-style `TextKnowledge`, and preserves
   Canonical Store ownership of identity review/apply decisions.
+- Drafted `docs/knowledge-slot/musicbrainz-provider.md` for the MusicBrainz
+  Knowledge Provider. The draft records v1 support for text search, MBID lookup,
+  and deterministic provider-internal browse for ref-based list expansions
+  without exposing MusicBrainz as a separate Stage Interface tool.
+- Replaced the aggregate MVP instrument with focused
+  `minemusic.stage`, `minemusic.music`, `minemusic.library`, and
+  `minemusic.memory` descriptors. Stage-owned tool ids now live under
+  `stage.*`, Library Import tool ids now live under `library.*`, and the default
+  Codex MCP session uses empty `activeInstruments` to expose all current
+  MineMusic instruments.
 
 ## Next
 

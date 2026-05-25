@@ -33,7 +33,7 @@ const session: StageSession = {
     explorationLevel: "low",
     explanationDensity: "brief",
   },
-  activeInstruments: ["minemusic.mvp"],
+  activeInstruments: [],
 };
 
 function createDependencies(eventsSeen: string[] = []) {
@@ -101,7 +101,7 @@ async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
       sessionId: session.id,
       patch: {
         notes: "User wants less sleepy music.",
-        activeInstruments: ["minemusic.mvp"],
+        activeInstruments: [],
       },
     }),
   );

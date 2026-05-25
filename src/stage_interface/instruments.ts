@@ -1,6 +1,12 @@
 import type { Result } from "../contracts/index.js";
 import type { InstrumentCatalogPort } from "../ports/index.js";
-import { handbookToolDescriptors, mvpToolDescriptors } from "./tools.js";
+import {
+  handbookToolDescriptors,
+  libraryToolDescriptors,
+  memoryToolDescriptors,
+  musicToolDescriptors,
+  stageToolDescriptors,
+} from "./tools.js";
 
 export function createInstrumentCatalog(): InstrumentCatalogPort {
   return {
@@ -12,17 +18,34 @@ export function createInstrumentCatalog(): InstrumentCatalogPort {
           tools: handbookToolDescriptors,
         },
       ];
+      const domainInstruments = [
+        {
+          id: "minemusic.stage",
+          label: "MineMusic Stage",
+          tools: stageToolDescriptors,
+        },
+        {
+          id: "minemusic.music",
+          label: "MineMusic Music",
+          tools: musicToolDescriptors,
+        },
+        {
+          id: "minemusic.library",
+          label: "MineMusic Library",
+          tools: libraryToolDescriptors,
+        },
+        {
+          id: "minemusic.memory",
+          label: "MineMusic Memory",
+          tools: memoryToolDescriptors,
+        },
+      ];
+      const activeDomainInstruments =
+        session.activeInstruments.length === 0
+          ? domainInstruments
+          : domainInstruments.filter((instrument) => session.activeInstruments.includes(instrument.id));
 
-      if (
-        session.activeInstruments.length === 0 ||
-        session.activeInstruments.includes("minemusic.mvp")
-      ) {
-        instruments.push({
-          id: "minemusic.mvp",
-          label: "MineMusic MVP",
-          tools: mvpToolDescriptors,
-        });
-      }
+      instruments.push(...activeDomainInstruments);
 
       return ok(instruments);
     },

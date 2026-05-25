@@ -45,7 +45,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 const session: StageSession = {
   id: "session-1",
   posture: "recommendation",
-  activeInstruments: ["minemusic.mvp"],
+  activeInstruments: [],
 };
 const collectionRef: Ref = {
   namespace: "minemusic",
@@ -74,7 +74,7 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
   const descriptors = await assertOk(catalog.list({ session }));
   const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
 
-  assert(descriptors.length === 2, "catalog should expose handbook and MVP instrument descriptors");
+  assert(descriptors.length === 5, "catalog should expose handbook plus stage, music, library, and memory instruments");
   assert(stableToolNames.every((toolName) => toolNames.includes(toolName)), "catalog should expose every stable tool");
   assert(
     descriptors.every((descriptor) => !descriptor.label.includes("fixture") && !descriptor.label.includes("provider")),
@@ -93,14 +93,52 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     "catalog should expose handbook lookup as an instrument",
   );
   assert(
+    descriptors.some((descriptor) => descriptor.id === "minemusic.stage"),
+    "catalog should expose stage tools as their own instrument",
+  );
+  assert(
+    descriptors.some((descriptor) => descriptor.id === "minemusic.music"),
+    "catalog should expose music tools as their own instrument",
+  );
+  assert(
+    descriptors.some((descriptor) => descriptor.id === "minemusic.library"),
+    "catalog should expose library tools as their own instrument",
+  );
+  assert(
+    descriptors.some((descriptor) => descriptor.id === "minemusic.memory"),
+    "catalog should expose memory tools as their own instrument",
+  );
+  assert(
     toolNames.includes("handbook.tool.read"),
     "catalog should expose precise handbook tool lookup",
   );
   assert(toolNames.includes("music.collection.save"), "catalog should expose collection save tool");
   assert(toolNames.includes("music.collection.create"), "catalog should expose custom collection create tool");
   assert(toolNames.includes("music.collection.list"), "catalog should expose collection list tool");
-  assert(toolNames.includes("music.library.import.preview"), "catalog should expose library import preview");
-  assert(toolNames.includes("music.library.update.start"), "catalog should expose library update start");
+  assert(toolNames.includes("library.import.preview"), "catalog should expose library import preview");
+  assert(toolNames.includes("library.update.start"), "catalog should expose library update start");
+}
+
+async function filtersCatalogToExplicitActiveInstruments(): Promise<void> {
+  const catalog = createInstrumentCatalog();
+  const descriptors = await assertOk(
+    catalog.list({
+      session: {
+        ...session,
+        activeInstruments: ["minemusic.library"],
+      },
+    }),
+  );
+  const instrumentIds = descriptors.map((descriptor) => descriptor.id);
+  const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
+
+  assert(
+    instrumentIds.join(",") === "minemusic.handbook,minemusic.library",
+    "catalog should expose handbook plus the explicitly active instrument",
+  );
+  assert(toolNames.includes("library.import.preview"), "active library instrument should expose library tools");
+  assert(!toolNames.includes("music.material.resolve"), "inactive music instrument should not expose music tools");
+  assert(!toolNames.includes("stage.events.record"), "inactive stage instrument should not expose stage tools");
 }
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
@@ -156,7 +194,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   };
   const events: EventPort = {
     record: async ({ event }) => {
-      calls.push("events.record");
+      calls.push("stage.events.record");
       return { ok: true, value: { ...event, id: "event-1", time: "2026-05-17T00:00:00.000Z" } };
     },
     listBySession: async () => ({ ok: true, value: [] }),
@@ -174,7 +212,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   };
   const effects: EffectBoundaryPort = {
     propose: async ({ proposal }) => {
-      calls.push("effects.propose");
+      calls.push("stage.effects.propose");
       return { ok: true, value: { ...proposal, id: "effect-1" } };
     },
     decide: async () => ({ ok: true, value: undefined }),
@@ -226,7 +264,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "events.record",
+      toolName: "stage.events.record",
       payload: {
         event: {
           sessionId: session.id,
@@ -257,7 +295,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "effects.propose",
+      toolName: "stage.effects.propose",
       payload: {
         proposal: {
           kind: "open_link",
@@ -286,7 +324,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "session.update",
+      toolName: "stage.session.update",
       payload: { sessionId: session.id, patch: { notes: "updated" } },
     }),
   );
@@ -307,10 +345,10 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
   assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
-  assert(calls.includes("events.record"), "events.record should call EventPort");
+  assert(calls.includes("stage.events.record"), "stage.events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
-  assert(calls.includes("effects.propose"), "effects.propose should call EffectBoundaryPort");
-  assert(calls.includes("sessionContext.updateSession"), "session.update should call SessionContextPort");
+  assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");
+  assert(calls.includes("sessionContext.updateSession"), "stage.session.update should call SessionContextPort");
 }
 
 async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promise<void> {
@@ -377,10 +415,10 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
 
   const update = await dispatch.call({
     sessionId: restrictedSession.id,
-    toolName: "session.update",
+    toolName: "stage.session.update",
     payload: { sessionId: restrictedSession.id, patch: { notes: "recover" } },
   });
-  assert(update.ok, "session.update should remain available for recovery");
+  assert(update.ok, "stage.session.update should remain available for recovery");
 
   const result = await dispatch.call({
     sessionId: restrictedSession.id,
@@ -815,42 +853,42 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.library.import.preview",
+      toolName: "library.import.preview",
       payload: { providerId: "fixture-library", scopes: ["saved_recordings"] },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.library.import.start",
+      toolName: "library.import.start",
       payload: { providerId: "fixture-library", ownerScope: "local_profile:guest", scopes: ["saved_releases"] },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.library.update.preview",
+      toolName: "library.update.preview",
       payload: { providerId: "fixture-library", scopes: ["saved_artists"] },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.library.update.start",
+      toolName: "library.update.start",
       payload: { providerId: "fixture-library", scopes: ["saved_recordings"] },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.library.import.status",
+      toolName: "library.import.status",
       payload: { batchId: "import-batch-1" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
-      toolName: "music.library.import.summary",
+      toolName: "library.import.summary",
       payload: { batchId: "import-batch-1" },
     }),
   );
@@ -954,6 +992,7 @@ function emptyImportCounts() {
 }
 
 await listsStableLlmVisibleToolsWithoutProviderDetails();
+await filtersCatalogToExplicitActiveInstruments();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();

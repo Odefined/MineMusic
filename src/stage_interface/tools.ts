@@ -6,6 +6,9 @@ export const stableToolNames = [
   "handbook.instrument.read",
   "handbook.tool.read",
   "stage.materials.prepare",
+  "stage.session.update",
+  "stage.events.record",
+  "stage.effects.propose",
   "music.material.resolve",
   "music.links.refresh",
   "music.collection.save",
@@ -20,16 +23,13 @@ export const stableToolNames = [
   "music.collection.update",
   "music.collection.delete",
   "music.collection.list",
-  "music.library.import.preview",
-  "music.library.import.start",
-  "music.library.update.preview",
-  "music.library.update.start",
-  "music.library.import.status",
-  "music.library.import.summary",
-  "events.record",
+  "library.import.preview",
+  "library.import.start",
+  "library.update.preview",
+  "library.update.start",
+  "library.import.status",
+  "library.import.summary",
   "memory.propose",
-  "effects.propose",
-  "session.update",
 ] as const satisfies readonly ToolName[];
 
 export type StableToolName = (typeof stableToolNames)[number];
@@ -59,7 +59,7 @@ export const handbookToolDescriptors: StableToolDescriptor[] = [
   },
 ];
 
-export const mvpToolDescriptors: StableToolDescriptor[] = [
+export const stageToolDescriptors: StableToolDescriptor[] = [
   {
     name: "stage.context.read",
     description: "Read dynamic session context.",
@@ -72,6 +72,28 @@ export const mvpToolDescriptors: StableToolDescriptor[] = [
     inputSchemaRef: "StageMaterialsPrepareInput",
     outputSchemaRef: "MusicMaterial[]",
   },
+  {
+    name: "stage.session.update",
+    description: "Update soft session state through Session Context.",
+    inputSchemaRef: "StageSessionPatch",
+    outputSchemaRef: "StageSession",
+  },
+  {
+    name: "stage.events.record",
+    description: "Record a factual session event.",
+    inputSchemaRef: "StageEventDraft",
+    outputSchemaRef: "StageEvent",
+  },
+  {
+    name: "stage.effects.propose",
+    description: "Create a proposal for a durable write or external action.",
+    inputSchemaRef: "EffectProposalDraft",
+    outputSchemaRef: "EffectProposal",
+    effectKind: "proposal",
+  },
+];
+
+export const musicToolDescriptors: StableToolDescriptor[] = [
   {
     name: "music.material.resolve",
     description: "Resolve music candidates into material through canonical-first material resolution.",
@@ -156,70 +178,60 @@ export const mvpToolDescriptors: StableToolDescriptor[] = [
     inputSchemaRef: "CollectionListInput",
     outputSchemaRef: "CollectionListOutput",
   },
+];
+
+export const libraryToolDescriptors: StableToolDescriptor[] = [
   {
-    name: "music.library.import.preview",
+    name: "library.import.preview",
     description: "Preview importing saved platform library facts into MineMusic state.",
     inputSchemaRef: "LibraryImportPreviewInput",
     outputSchemaRef: "LibraryImportPreview",
   },
   {
-    name: "music.library.import.start",
+    name: "library.import.start",
     description: "Start importing saved platform library facts into MineMusic state.",
     inputSchemaRef: "LibraryImportStartInput",
     outputSchemaRef: "LibraryImportReport",
   },
   {
-    name: "music.library.update.preview",
+    name: "library.update.preview",
     description: "Preview a platform library update against MineMusic's latest complete baseline.",
     inputSchemaRef: "LibraryImportPreviewInput",
     outputSchemaRef: "LibraryImportPreview",
   },
   {
-    name: "music.library.update.start",
+    name: "library.update.start",
     description: "Start a platform library update against MineMusic's latest complete baseline.",
     inputSchemaRef: "LibraryImportStartInput",
     outputSchemaRef: "LibraryImportReport",
   },
   {
-    name: "music.library.import.status",
+    name: "library.import.status",
     description: "Read current status for a Library Import batch.",
     inputSchemaRef: "LibraryImportStatusInput",
     outputSchemaRef: "LibraryImportStatus",
   },
   {
-    name: "music.library.import.summary",
+    name: "library.import.summary",
     description: "Read the completed report for a Library Import batch.",
     inputSchemaRef: "LibraryImportSummaryInput",
     outputSchemaRef: "LibraryImportSummary",
   },
-  {
-    name: "events.record",
-    description: "Record a factual session event.",
-    inputSchemaRef: "StageEventDraft",
-    outputSchemaRef: "StageEvent",
-  },
+];
+
+export const memoryToolDescriptors: StableToolDescriptor[] = [
   {
     name: "memory.propose",
     description: "Create an evidence-backed memory proposal.",
     inputSchemaRef: "MemoryProposalDraft",
     outputSchemaRef: "MemoryProposal",
   },
-  {
-    name: "effects.propose",
-    description: "Create a proposal for a durable write or external action.",
-    inputSchemaRef: "EffectProposalDraft",
-    outputSchemaRef: "EffectProposal",
-    effectKind: "proposal",
-  },
-  {
-    name: "session.update",
-    description: "Update soft session state through Session Context.",
-    inputSchemaRef: "StageSessionPatch",
-    outputSchemaRef: "StageSession",
-  },
 ];
 
 export const agentToolDescriptors: StableToolDescriptor[] = [
   ...handbookToolDescriptors,
-  ...mvpToolDescriptors,
+  ...stageToolDescriptors,
+  ...musicToolDescriptors,
+  ...libraryToolDescriptors,
+  ...memoryToolDescriptors,
 ];

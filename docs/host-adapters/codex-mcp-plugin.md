@@ -46,7 +46,10 @@ Current instruments:
 
 ```text
 minemusic.handbook
-minemusic.mvp
+minemusic.stage
+minemusic.music
+minemusic.library
+minemusic.memory
 ```
 
 Current internal tool names:
@@ -57,6 +60,9 @@ handbook.instrument.read
 handbook.tool.read
 stage.context.read
 stage.materials.prepare
+stage.session.update
+stage.events.record
+stage.effects.propose
 music.material.resolve
 music.links.refresh
 music.collection.save
@@ -71,16 +77,13 @@ music.collection.create
 music.collection.update
 music.collection.delete
 music.collection.list
-music.library.import.preview
-music.library.import.start
-music.library.update.preview
-music.library.update.start
-music.library.import.status
-music.library.import.summary
-events.record
+library.import.preview
+library.import.start
+library.update.preview
+library.update.start
+library.import.status
+library.import.summary
 memory.propose
-effects.propose
-session.update
 ```
 
 The MCP server prefixes these with `minemusic.` for Codex:
@@ -89,25 +92,26 @@ The MCP server prefixes these with `minemusic.` for Codex:
 minemusic.stage.context.read
 minemusic.handbook.tool.read
 minemusic.stage.materials.prepare
+minemusic.stage.session.update
+minemusic.stage.events.record
+minemusic.stage.effects.propose
 minemusic.music.material.resolve
 minemusic.music.links.refresh
 minemusic.music.collection.save
 minemusic.music.collection.list
-minemusic.music.library.import.preview
-minemusic.music.library.update.start
-minemusic.music.library.import.status
-minemusic.music.library.import.summary
-minemusic.events.record
+minemusic.library.import.preview
+minemusic.library.update.start
+minemusic.library.import.status
+minemusic.library.import.summary
 minemusic.memory.propose
-minemusic.effects.propose
-minemusic.session.update
 ```
 
 ## Runtime Shape
 
 The Codex MCP runtime:
 
-- seeds a Stage session with `activeInstruments: ["minemusic.mvp"]`.
+- seeds a Stage session with `activeInstruments: []`, which means all current
+  MineMusic instruments.
 - registers NetEase `source` and `platform_library` providers by default.
 - uses `MINEMUSIC_NETEASE_BASE_URL` for both NetEase provider factories when
   provided.
@@ -151,7 +155,7 @@ Discovery and recovery tools remain available:
 - `handbook.overview.read`
 - `handbook.instrument.read`
 - `handbook.tool.read`
-- `session.update`
+- `stage.session.update`
 
 Other tools require the current session to expose an instrument containing that
 tool.
@@ -160,7 +164,8 @@ tool.
 
 Deterministic tests cover:
 
-- `stage.materials.prepare` is exposed through `minemusic.mvp`.
+- Stage, music, library, and memory tools are exposed through separate
+  instrument descriptors.
 - Stage Interface dispatch can call `stage.materials.prepare`.
 - normal instrument tools are rejected when unavailable for the session.
 - MCP tool descriptors are derived from MineMusic descriptors and prefixed with
