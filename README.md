@@ -93,6 +93,10 @@ is `http://127.0.0.1:3000`, and it can be changed with
 
 `npm run server:minemusic` loads `.env` from the repository root when the file
 exists. Use `.env.example` as the template for local server runtime settings.
+On this machine the MineMusic server is installed as a user `launchd` agent and
+is expected to stay running outside Codex sessions. See
+`docs/operations/minemusic-server-launchd.md` before changing startup or MCP
+client config.
 
 The MineMusic server startup path keeps Canonical Store, Collection, and
 Library Import state in memory unless database paths are configured. Set

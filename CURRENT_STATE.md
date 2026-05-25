@@ -28,6 +28,10 @@ streamable HTTP MCP server entrypoint. The server startup path creates and
 holds Stage Core, exposes `minemusic.*` tools directly over MCP, and keeps
 provider/database/cache/session configuration out of Codex/OpenClaw client
 config.
+The local machine now runs MineMusic server as a user `launchd` LaunchAgent
+(`com.minemusic.server`), documented in
+`docs/operations/minemusic-server-launchd.md`; it is no longer dependent on any
+Codex conversation lifecycle.
 The active Codex session has verified live MineMusic MCP tool visibility and a
 real NetEase-backed recommendation flow. Fresh Codex app plugin installation
 and tool visibility in a new session have also been confirmed by the user in
@@ -408,6 +412,10 @@ host-facing and LLM-facing surface.
   Stage Core and exposes MCP at `http://127.0.0.1:37373/mcp` by default.
   `npm run mcp:minemusic:dev` remains an explicitly named embedded stdio
   MCP dev/test path.
+- Local operation uses the user LaunchAgent `com.minemusic.server`, which starts
+  `npm run server:minemusic` from `/Users/jiajuzang/Documents/Codex/MineMusic`
+  and keeps the MineMusic server alive across Codex restarts. The operation
+  guide is `docs/operations/minemusic-server-launchd.md`.
 - `npm run server:minemusic` loads repo-root `.env` when present. `.env` is
   local-only and ignored by git; `.env.example` documents the default server,
   NetEase, and SQLite path settings.

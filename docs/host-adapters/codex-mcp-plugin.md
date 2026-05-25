@@ -33,8 +33,10 @@ MineMusic server entrypoint
 
 The Codex MCP plugin points at the server URL. It does not start the server
 process and does not carry provider, database, cache, or session runtime
-configuration. The embedded stdio MCP startup path still exists only as an
-explicitly named dev/test command.
+configuration. On this machine the server process is kept alive by the user
+LaunchAgent `com.minemusic.server`; the operational details live in
+`docs/operations/minemusic-server-launchd.md`. The embedded stdio MCP startup
+path still exists only as an explicitly named dev/test command.
 
 | Concern | Location |
 | --- | --- |
@@ -57,6 +59,10 @@ The server package script is:
 ```bash
 npm run server:minemusic
 ```
+
+Normal Codex/OpenClaw use should not run that script from MCP client config.
+The server is expected to be already running through `launchd` and reachable at
+`http://127.0.0.1:37373/mcp`.
 
 The embedded MCP startup path is retained for local dev/test use:
 
@@ -166,6 +172,9 @@ The MCP surface:
 The Codex plugin config points at `http://127.0.0.1:37373/mcp` by default. It
 does not start a MineMusic process and does not carry provider, database,
 cache, or session runtime ownership.
+For this local installation, that URL is served by the user `launchd` job
+`com.minemusic.server`; see `docs/operations/minemusic-server-launchd.md` for
+status, restart, logs, and troubleshooting commands.
 
 If NetEase is unavailable, material-resolution tools surface structured
 MineMusic errors. The MCP wrapper does not invent fallback recommendations.

@@ -216,6 +216,10 @@ capability implementations directly.
 Host/client configuration should cover endpoint concerns only. Provider,
 database, cache, and default-session runtime configuration belongs to the
 MineMusic server process that creates and holds Stage Core.
+For the current local installation, that long-lived process is managed by the
+user `launchd` agent `com.minemusic.server`; operational details are recorded in
+`docs/operations/minemusic-server-launchd.md`. Codex/OpenClaw must remain MCP
+clients of that server URL rather than starting the MineMusic runtime.
 
 Host-specific schemas should be derived from Stage Interface tool metadata where
 possible. The host adapter should not become the source of truth for MineMusic

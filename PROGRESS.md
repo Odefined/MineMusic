@@ -694,11 +694,13 @@
   starts a long-lived MineMusic server, holds Stage Core, and exposes MCP over
   streamable HTTP at `http://127.0.0.1:37373/mcp` by default. The repo-local
   Codex plugin now connects to that URL instead of starting a MineMusic process.
+- Documented the local persistent runtime operation in
+  `docs/operations/minemusic-server-launchd.md`: MineMusic server is kept alive
+  by the user `launchd` agent `com.minemusic.server`, while Codex/OpenClaw
+  connect as MCP clients to `http://127.0.0.1:37373/mcp`.
 
 ## Next
 
-- Start and keep the MineMusic server running outside Codex before connecting
-  Codex/OpenClaw clients.
 - Add CLI or Web UI peer transports when there is a concrete product workflow.
 - Added local server `.env` support: the repo root `.env` is ignored by git,
   `.env.example` documents the default server/provider/storage settings, and
