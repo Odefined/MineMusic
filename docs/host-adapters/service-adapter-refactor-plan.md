@@ -25,9 +25,10 @@ MineMusic service / daemon
 MCP is an adapter surface over the service-held Stage Core. It is not the whole
 service boundary and should not own Stage Core composition.
 
-## Current Problem
+## Pre-Refactor Problem
 
-The current repo-local MCP startup path combines three responsibilities:
+Before this refactor, the repo-local MCP startup path combined three
+responsibilities:
 
 ```text
 Codex plugin .mcp.json

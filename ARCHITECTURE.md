@@ -114,7 +114,7 @@ without creating provider-specific environment switches in host adapter config.
 
 | Architecture term | Current implementation |
 | --- | --- |
-| MineMusic Service | target long-lived process boundary around Stage Core and adapter surfaces |
+| MineMusic Service | `src/service/index.ts`, `src/service/server.ts` |
 | Host Adapter | `src/surfaces/mcp/server.ts`, `plugins/minemusic/**` |
 | Stage Core | `src/stage_core/index.ts` |
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |

@@ -26,23 +26,24 @@ become the Stage Core owner.
 
 ## Current Implementation
 
-The current repository implementation still combines MCP adapter startup with a
-default Stage Core startup path. That was useful for the first repo-local Codex
-integration, but the target architecture is:
+The current repository implementation now has a MineMusic service startup path
+that creates and holds Stage Core, then starts the MCP adapter surface:
 
 ```text
-MineMusic service / daemon
+MineMusic service entrypoint
 -> creates and holds Stage Core
--> exposes MCP / CLI / Web UI adapters
+-> starts MCP adapter surface
 ```
 
-The Codex MCP plugin is therefore documented as an adapter surface. Provider,
-database, cache, and session defaults should move to MineMusic service startup
-as the service boundary is introduced.
+The Codex MCP plugin starts the service entrypoint and does not carry provider,
+database, cache, or session runtime configuration. The embedded MCP startup path
+still exists only as an explicitly named dev/test command.
 
 | Concern | Location |
 | --- | --- |
 | MCP adapter surface | `src/surfaces/mcp/server.ts` |
+| Service runtime | `src/service/index.ts` |
+| Service entrypoint | `src/service/server.ts` |
 | Stage Interface tools | `src/stage_interface/tools.ts` |
 | Stage Interface dispatch | `src/stage_interface/dispatch.ts` |
 | Instrument catalog | `src/stage_interface/instruments.ts` |
@@ -54,10 +55,16 @@ as the service boundary is introduced.
 | Generated skill handbook | `plugins/minemusic/skills/minemusic/HANDBOOK.md` |
 | Local marketplace entry | `.agents/plugins/marketplace.json` |
 
-The transitional package script for the repo-local MCP surface is:
+The service package script is:
 
 ```bash
-npm run mcp:minemusic
+npm run service:minemusic
+```
+
+The embedded MCP startup path is retained for local dev/test use:
+
+```bash
+npm run mcp:minemusic:dev
 ```
 
 ## Instrument Surface
@@ -131,7 +138,7 @@ minemusic.library.import.summary
 minemusic.memory.propose
 ```
 
-## Target Runtime Shape
+## Runtime Shape
 
 The MineMusic service runtime:
 
@@ -159,8 +166,8 @@ The MCP adapter:
 - delegates tool calls through `MineMusicStageInterface`.
 - returns MineMusic `Result<T>` payloads as MCP text JSON.
 
-The Codex plugin config should point at the MCP adapter surface or bridge. It
-should not carry provider, database, cache, or session runtime ownership.
+The Codex plugin config points at the service entrypoint. It does not carry
+provider, database, cache, or session runtime ownership.
 
 If NetEase is unavailable, material-resolution tools surface structured
 MineMusic errors. The MCP wrapper does not invent fallback recommendations.
@@ -216,9 +223,10 @@ Deterministic tests cover:
   `minemusic.`.
 - MCP handlers delegate through `MineMusicStageInterface`.
 - argument-bearing tools expose explicit input schemas.
-- the current default MCP startup path registers NetEase through separate
+- the service runtime registers NetEase through separate
   `source` and `platform_library` slots.
-- repo-local plugin packaging points at `npm --prefix ... run mcp:minemusic`.
+- repo-local plugin packaging points at `npm --prefix ... run service:minemusic`.
+- the embedded MCP startup path is named `mcp:minemusic:dev`.
 
 Project-native commands:
 

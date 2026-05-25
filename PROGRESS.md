@@ -677,13 +677,20 @@
   tasks, file boundaries, verification targets, and stopping conditions for
   moving runtime ownership into the long-lived MineMusic service while keeping
   MCP as one adapter surface.
+- Implemented the first service/adapter refactor slice with TDD:
+  `src/service/index.ts` now owns the default service runtime and
+  `src/service/server.ts` starts the service-held Stage Core plus MCP adapter.
+- Refactored `src/surfaces/mcp/server.ts` so MCP tool registration depends on a
+  lightweight `MineMusicMcpRuntime` (`ready` plus Stage Interface tools) rather
+  than a full Stage Core object.
+- Updated plugin packaging so `plugins/minemusic/.mcp.json` starts
+  `service:minemusic` and no longer carries provider/database/cache/session env.
+  The embedded MCP startup path is retained only as `mcp:minemusic:dev`.
 
 ## Next
 
-- Introduce the long-lived MineMusic service / daemon boundary: service startup
-  should own Stage Core, provider registration, repository/cache/session
-  configuration, and adapter startup; MCP should be one adapter surface for
-  Codex/OpenClaw alongside future CLI and Web UI adapters.
+- Decide the next service-hosting step: external daemon transport, stdio bridge
+  to an already-running service, CLI adapter, or Web UI adapter.
 - Pick the next Library Import slice: playlist import, listening-history import,
   background jobs, cleanup guidance, or deeper durable storage wiring for other
   modules.
