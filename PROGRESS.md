@@ -771,6 +771,11 @@
   native MCP smoke confirmed `formats: ["text"]` yields empty MusicBrainz
   results and multi-tag Tag Query pagination returns non-empty, non-repeating
   chunks.
+- Hardened the MineMusic server streamable HTTP MCP boundary after review. The
+  server now uses stateless per-request MCP transports while keeping Stage Core
+  long-lived in the server runtime, so stale client `mcp-session-id` headers no
+  longer break Codex/OpenClaw calls after a server restart. Added regression
+  coverage for a client initialized with a stale session id.
 
 ## Next
 

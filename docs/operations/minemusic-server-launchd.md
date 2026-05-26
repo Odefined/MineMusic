@@ -117,6 +117,11 @@ The global Codex MCP client config mirrors that boundary:
 }
 ```
 
+The MineMusic streamable HTTP endpoint is intentionally stateless at the MCP
+transport layer. It does not require clients to preserve a server-issued
+`mcp-session-id`, and stale client session headers should not block calls after
+the launchd-managed server restarts.
+
 Do not replace the global MCP config with a Codex-started `command` entry for
 `npm run server:minemusic`. Doing so makes Codex own the MineMusic server
 lifecycle again and breaks the intended architecture.

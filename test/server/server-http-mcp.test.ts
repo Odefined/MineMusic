@@ -92,4 +92,55 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
   }
 }
 
+async function serverAcceptsStaleClientSessionIds(): Promise<void> {
+  const runtime = {
+    ready: Promise.resolve(),
+    stageCore: {},
+    stageInterface: {
+      tools: {
+        "stage.materials.prepare": async (payload: unknown) => {
+          const materialPayload = payload as { materials: unknown[] };
+
+          return {
+            ok: true,
+            value: materialPayload.materials,
+          };
+        },
+      },
+    },
+    callTool: async () => ({
+      ok: true,
+      value: null,
+    }),
+  } as unknown as MineMusicServerRuntime;
+  const server = await runMineMusicServer({
+    host: "127.0.0.1",
+    port: 0,
+    runtime,
+  });
+  const client = new Client({
+    name: "minemusic-stale-session-test-client",
+    version: "0.0.0",
+  });
+  const transport = new StreamableHTTPClientTransport(new URL(server.endpointUrl), {
+    sessionId: "stale-session-from-previous-server-process",
+  });
+
+  try {
+    await client.connect(transport as Transport);
+
+    const tools = await client.listTools();
+    const toolNames = tools.tools.map((tool) => tool.name);
+
+    assert(
+      toolNames.includes("minemusic.stage.materials.prepare"),
+      "MineMusic server should not reject stale client MCP session ids after a server restart",
+    );
+  } finally {
+    await client.close().catch(() => {});
+    await server.close();
+  }
+}
+
 await serverExposesMcpOverStreamableHttp();
+await serverAcceptsStaleClientSessionIds();

@@ -221,6 +221,10 @@ For the current local installation, that long-lived process is managed by the
 user `launchd` agent `com.minemusic.server`; operational details are recorded in
 `docs/operations/minemusic-server-launchd.md`. Codex/OpenClaw must remain MCP
 clients of that server URL rather than starting the MineMusic runtime.
+The current streamable HTTP MCP endpoint is stateless at the transport layer:
+the server creates a fresh MCP transport for each POST request and does not
+bind client calls to in-memory `mcp-session-id` values. Stage Core remains the
+long-lived runtime owner underneath that per-request protocol transport.
 
 Host-specific schemas should be derived from Stage Interface tool metadata where
 possible. The host adapter should not become the source of truth for MineMusic

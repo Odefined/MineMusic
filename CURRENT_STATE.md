@@ -438,6 +438,10 @@ host-facing and LLM-facing surface.
   the streamable HTTP MCP server entrypoint is exported from
   `src/server/index.ts`. `npm run server:minemusic` starts the server-held
   Stage Core and exposes MCP at `http://127.0.0.1:37373/mcp` by default.
+  The HTTP MCP transport is stateless per POST request: stale client
+  `mcp-session-id` headers are ignored so Codex/OpenClaw clients can continue
+  after a MineMusic server restart without depending on the old in-memory
+  session map.
   `npm run mcp:minemusic:dev` remains an explicitly named embedded stdio
   MCP dev/test path.
 - Local operation uses the user LaunchAgent `com.minemusic.server`, which starts

@@ -1,10 +1,8 @@
-import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
 
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 
 import { createMineMusicMcpServer } from "../surfaces/mcp/server.js";
 import {
@@ -28,11 +26,6 @@ export type RunningMineMusicServer = {
   close: () => Promise<void>;
 };
 
-type McpSession = {
-  mcpServer: ReturnType<typeof createMineMusicMcpServer>;
-  transport: StreamableHTTPServerTransport;
-};
-
 const defaultHost = "127.0.0.1";
 const defaultPort = 37373;
 const defaultPath = "/mcp";
@@ -42,13 +35,12 @@ export async function runMineMusicServer(options: MineMusicServerOptions = {}): 
   const host = options.host ?? process.env.MINEMUSIC_SERVER_HOST ?? defaultHost;
   const port = options.port ?? parseServerPort(process.env.MINEMUSIC_SERVER_PORT);
   const path = normalizePath(options.path ?? process.env.MINEMUSIC_MCP_PATH ?? defaultPath);
-  const sessions = new Map<string, McpSession>();
 
   await runtime.ready;
 
   const httpServer = createServer(async (request, response) => {
     try {
-      await handleRequest({ request, response, runtime, sessions, path });
+      await handleRequest({ request, response, runtime, path });
     } catch (error) {
       console.error(error);
       writeJsonRpcError(response, 500, -32603, "Internal server error");
@@ -66,12 +58,6 @@ export async function runMineMusicServer(options: MineMusicServerOptions = {}): 
     path,
     runtime,
     close: async () => {
-      await Promise.all(
-        Array.from(sessions.values()).map(async (session) => {
-          await session.mcpServer.close().catch(() => {});
-        }),
-      );
-      sessions.clear();
       await closeHttpServer(httpServer);
     },
   };
@@ -81,7 +67,6 @@ type RequestContext = {
   request: IncomingMessage;
   response: ServerResponse;
   runtime: MineMusicServerRuntime;
-  sessions: Map<string, McpSession>;
   path: string;
 };
 
@@ -112,55 +97,36 @@ async function handleRequest(context: RequestContext): Promise<void> {
   writeJson(response, 405, { error: "method_not_allowed" });
 }
 
-async function handleMcpPost({ request, response, runtime, sessions }: RequestContext): Promise<void> {
-  const sessionId = headerValue(request.headers["mcp-session-id"]);
+async function handleMcpPost({ request, response, runtime }: RequestContext): Promise<void> {
   const body = await readJsonBody(request);
-  const existingSession = sessionId === undefined ? undefined : sessions.get(sessionId);
+  const transport = new StreamableHTTPServerTransport();
+  const mcpServer = createMineMusicMcpServer(runtime);
+  let closed = false;
+  const closeMcpRequest = async () => {
+    if (closed) {
+      return;
+    }
 
-  if (existingSession !== undefined) {
-    await existingSession.transport.handleRequest(request, response, body);
-    return;
-  }
+    closed = true;
+    await transport.close().catch(() => {});
+    await mcpServer.close().catch(() => {});
+  };
 
-  if (sessionId === undefined && isInitializeRequest(body)) {
-    let session: McpSession | undefined;
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (initializedSessionId) => {
-        if (session !== undefined) {
-          sessions.set(initializedSessionId, session);
-        }
-      },
-    });
-    const mcpServer = createMineMusicMcpServer(runtime);
+  response.once("close", () => {
+    void closeMcpRequest();
+  });
 
-    session = { mcpServer, transport };
-    transport.onclose = () => {
-      const initializedSessionId = transport.sessionId;
-
-      if (initializedSessionId !== undefined) {
-        sessions.delete(initializedSessionId);
-      }
-    };
-
+  try {
     await mcpServer.connect(transport as Transport);
     await transport.handleRequest(request, response, body);
-    return;
+  } catch (error) {
+    await closeMcpRequest();
+    throw error;
   }
-
-  writeJsonRpcError(response, 400, -32000, "Bad Request: no valid MCP session");
 }
 
-async function handleMcpSessionRequest({ request, response, sessions }: RequestContext): Promise<void> {
-  const sessionId = headerValue(request.headers["mcp-session-id"]);
-  const session = sessionId === undefined ? undefined : sessions.get(sessionId);
-
-  if (session === undefined) {
-    writeJsonRpcError(response, 400, -32000, "Bad Request: invalid or missing MCP session");
-    return;
-  }
-
-  await session.transport.handleRequest(request, response);
+async function handleMcpSessionRequest({ response }: RequestContext): Promise<void> {
+  writeJsonRpcError(response, 405, -32000, "Method not allowed.");
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
@@ -177,10 +143,6 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const raw = Buffer.concat(chunks).toString("utf8").trim();
 
   return raw.length === 0 ? undefined : JSON.parse(raw);
-}
-
-function headerValue(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
 }
 
 function writeJson(response: ServerResponse, statusCode: number, body: unknown): void {
