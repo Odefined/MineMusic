@@ -1,3 +1,6 @@
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+
 import type { KnowledgeProvider, KnowledgeRelation, Result } from "../../src/contracts/index.js";
 import {
   createMusicBrainzKnowledgeProvider,
@@ -15,6 +18,29 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
   return awaited.value;
+}
+
+function listen(httpServer: Server): Promise<number> {
+  return new Promise((resolve, reject) => {
+    httpServer.once("error", reject);
+    httpServer.listen(0, "127.0.0.1", () => {
+      httpServer.off("error", reject);
+      resolve((httpServer.address() as AddressInfo).port);
+    });
+  });
+}
+
+function closeServer(httpServer: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    httpServer.close((error) => {
+      if (error === undefined) {
+        resolve();
+        return;
+      }
+
+      reject(error);
+    });
+  });
 }
 
 function relationHasEndpoint(relation: KnowledgeRelation, nodeId: string, role?: string): boolean {
@@ -1838,6 +1864,27 @@ async function mapsRateLimitErrorWithoutCachingFailure(): Promise<void> {
   assert(entries.length === 0, "failed MusicBrainz responses should not be cached");
 }
 
+async function mapsNonJsonRateLimitFromDefaultRequester(): Promise<void> {
+  const httpServer = createServer((_request, response) => {
+    response.writeHead(429, { "content-type": "text/plain" });
+    response.end("rate limited");
+  });
+  const port = await listen(httpServer);
+  const provider = createMusicBrainzKnowledgeProvider({
+    baseUrl: `http://127.0.0.1:${port}`,
+  });
+
+  try {
+    const result = await provider.query({ query: { text: "Intro", limit: 1 } });
+
+    assert(!result.ok, "non-JSON 429 should fail");
+    assert(!result.ok && result.error.code === "knowledge.rate_limited", "non-JSON 429 should preserve HTTP status");
+    assert(!result.ok && result.error.retryable, "rate limit errors should stay retryable");
+  } finally {
+    await closeServer(httpServer);
+  }
+}
+
 await searchesRecordingsAsStructuredKnowledge();
 await skipsTextSearchWhenStructuredFormatIsExcluded();
 await searchesRequestedEntityKinds();
@@ -1865,3 +1912,4 @@ await searchesFromCanonicalContextWithoutMusicBrainzRef();
 await doesNotSearchCanonicalWorkContextInFirstSlice();
 await mapsAnnotationWhenReturned();
 await mapsRateLimitErrorWithoutCachingFailure();
+await mapsNonJsonRateLimitFromDefaultRequester();

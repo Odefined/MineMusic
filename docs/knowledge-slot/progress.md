@@ -53,7 +53,9 @@
   deterministic browse expansions for release-group releases and artist release
   groups, maps tracklists, labels, ratings, tags, genres, annotations, and
   selected relations to `StructuredKnowledge.relations` with endpoint roles, and
-  uses the generic Provider HTTP Cache for successful JSON responses.
+  uses the generic Provider HTTP Cache for successful JSON responses. Its
+  default HTTP requester preserves non-JSON error response status codes so 429
+  responses still map to `knowledge.rate_limited`.
 - MusicBrainz text queries now honor expansion requests that require follow-up
   provider calls for supported cases. The provider can search by text, use the
   returned MusicBrainz ref internally for lookup or browse, and return expanded

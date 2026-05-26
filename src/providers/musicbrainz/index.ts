@@ -2466,7 +2466,23 @@ function createDefaultRequester(baseUrl: string): MusicBrainzRequester {
   return async ({ path, query, headers }) => {
     try {
       const response = await fetch(buildUrl(baseUrl, path, query), { headers });
-      const json = await response.json() as unknown;
+      let json: unknown;
+
+      try {
+        json = await response.json() as unknown;
+      } catch (cause) {
+        if (response.ok) {
+          return fail({
+            code: "knowledge.malformed_response",
+            message: "MusicBrainz response was not valid JSON.",
+            module: "knowledge",
+            retryable: false,
+            cause,
+          });
+        }
+
+        json = undefined;
+      }
 
       return ok({
         status: response.status,

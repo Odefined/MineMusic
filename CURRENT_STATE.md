@@ -350,6 +350,9 @@ host-facing and LLM-facing surface.
   entity kinds. Public Knowledge query validation now also rejects unsupported
   `purpose`, `formats`, malformed `entityKinds`/`expand`, and non-integer or
   above-cap `limit` values before provider lookup.
+  MusicBrainz's default HTTP requester preserves status codes from non-JSON
+  error bodies, so rate-limit responses still map to retryable
+  `knowledge.rate_limited` errors.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
