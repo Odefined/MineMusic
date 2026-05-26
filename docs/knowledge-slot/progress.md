@@ -61,5 +61,14 @@
 
 ## Remaining Work
 
+- Implement the target Tag Query and tag filter contract: `tagQuery`,
+  `filters.tags.include`, `filters.tags.exclude`, provider-local tag-match
+  ranking, match metadata, and opaque cursor-based continuation.
+- Implement the target Field Query contract: `fieldQuery`, music-domain field
+  mapping, conjunctive field search, and cursor continuation.
+- Extend MusicBrainz first-class Knowledge root support to `label`.
+- The first Tag Query implementation should target MusicBrainz. The shared
+  contract remains provider-general, but document-style Knowledge storage and
+  indexing are not part of that first implementation slice.
 - Common plugin configuration still needs to become the durable activation path
   for bundled and third-party Knowledge providers.

@@ -195,6 +195,18 @@ _Avoid_: MusicMaterial, identity candidate, confidence.
 A provider-attributed statement about a music entity or relationship.
 _Avoid_: candidate, evidence, confidence.
 
+### Tag Query
+
+A Knowledge query that uses provider-attributed tags as the primary lookup
+intent.
+_Avoid_: tag filter, genre filter.
+
+### Knowledge Filter
+
+A condition layer that narrows or orders items returned by a Knowledge query
+entry.
+_Avoid_: query entry, expansion.
+
 ### Structured Knowledge
 
 A provider-attributed Knowledge Item with structured entities, properties, or

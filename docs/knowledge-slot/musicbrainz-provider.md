@@ -100,13 +100,36 @@ They should not decide whether the provider is enabled.
 
 ## Deterministic API Plan
 
-Music Knowledge Service routes either text queries or provider-ref follow-up
-queries to the MusicBrainz provider. The provider derives a MusicBrainz API plan
-from that routed request.
+Music Knowledge Service routes text queries, Tag Queries, Field Queries, or
+provider-ref follow-up queries to the MusicBrainz provider. The provider derives a
+MusicBrainz API plan from that routed request.
 
-The public `KnowledgeQuery` must provide exactly one of `text` or
-`canonicalRef`. Invalid public query shape should be rejected by Music Knowledge
-Service before routing to providers.
+The public `KnowledgeQuery` must provide exactly one query entry: `text`,
+`canonicalRef`, a Tag Query represented by non-empty `tagQuery`, or a Field
+Query represented by non-empty `fieldQuery`.
+Invalid public query shape should be rejected by Music Knowledge Service before
+routing to providers.
+
+Empty `tagQuery` arrays are invalid query shape.
+Tag strings that normalize to empty strings are also invalid query shape.
+Empty `fieldQuery` objects and empty field values are invalid query shape.
+
+`filters` is not a query entry and does not participate in query-entry mutual
+exclusion. The first filter family is `filters.tags`; it can narrow or order
+items found by text search, Field Search, Tag Search, or provider-ref lookup
+when the returned facts include tags or genres.
+Filters cannot be the only query condition.
+MusicBrainz filters apply to root items returned by the query entry, not to
+expanded child facts in the first implementation.
+For root items with no returned tags or genres, `filters.tags.include` removes
+the item and `filters.tags.exclude` does not remove it.
+All include tags must be present on the root item. Any excluded tag removes the
+root item.
+After normalization, `filters.tags.exclude` must not overlap with
+`filters.tags.include`. `filters.tags` may be used with Tag Search, but exclude
+tags must not overlap with the effective Tag Query tags.
+`filters.tags.include` does not need to be a subset of Tag Search query tags.
+Any-of tag matching belongs to Tag Search, not to `filters.tags.include`.
 
 When the original agent query uses `canonicalRef`, Music Knowledge Service is
 responsible for reading the canonical record and finding attached MusicBrainz
@@ -170,6 +193,184 @@ facts with dates and role attributes.
 
 `query.limit` limits the number of search hits returned. Default search limit is
 5. Maximum first-version limit is 50.
+
+### Field Search
+
+If the routed request contains a Field Query and no MusicBrainz provider ref,
+use MusicBrainz indexed search with provider-specific fields derived from the
+general music-domain fields. Agents must not send raw MusicBrainz Lucene syntax
+or MusicBrainz field names.
+
+Field Search is MusicBrainz indexed search, not canonical scoping or exact
+identity confirmation. A returned hit remains provider-attributed knowledge.
+The first MusicBrainz Field Search does not implement canonical scoped search.
+For recording searches, `fieldQuery.release` maps to MusicBrainz release-style
+search data. It is not a strict release-group tracklist scope.
+
+The first Field Query field set is:
+
+| General field | MusicBrainz mapping |
+| --- | --- |
+| `title` | root title field for the requested kind: `recording`, `release`, `releasegroup`, `artist`, or `work` |
+| `artist` | `artist` where the MusicBrainz index supports it |
+| `release` | `release` where the MusicBrainz index supports it |
+| `label` | `label` where the MusicBrainz index supports it |
+| `date` | `date` or `firstreleasedate`, depending on root kind |
+| `country` | `country` where the MusicBrainz index supports it |
+| `barcode` | `barcode` for release search |
+| `catalogNumber` | `catno` for release search |
+| `type` | `type`, `primarytype`, or `secondarytype`, depending on root kind |
+
+If `entityKinds` is omitted, Field Search should search `recording`.
+
+Unsupported fields for a requested `entityKind` should be ignored with a warning
+when other fields remain usable. If no supplied field can be mapped for a
+requested kind, the provider should return no items for that kind and warn.
+
+`type` is mapped per MusicBrainz entity kind. It does not imply one global type
+vocabulary across artists, release groups, releases, recordings, and works.
+
+Multiple usable Field Query fields should be joined with `AND` in the
+MusicBrainz indexed search query.
+
+Field Query values are strings. The first MusicBrainz Field Search does not
+translate array values into `OR` queries.
+
+`date` values should be passed as escaped string terms for the mapped date field.
+The first MusicBrainz Field Search does not implement date ranges.
+
+`country` values should be uppercased and sent as two-letter country-code
+terms. The provider should not translate country names to codes.
+
+Field Search should quote or escape values when building MusicBrainz search
+queries. It should not expose regular expressions, fuzzy searches, wildcards, or
+arbitrary boolean operators as public Knowledge contract behavior.
+
+Field Search may use the same opaque cursor continuation contract as Tag Search
+and text search.
+When `filters.tags` is present, Field Search may fetch more internal candidates
+than the public `limit` so filtering can still fill the public result chunk. The
+returned chunk must not exceed `limit`, and remaining candidate space should be
+continued through `nextCursor`.
+The first MusicBrainz implementation can use an internal candidate cap such as
+`min(limit * 5, 50)`; this cap is provider implementation detail, not public
+Knowledge contract.
+Before applying `filters.tags`, the provider must ensure each root item has
+MusicBrainz `tags` and `genres` available. If the search response does not carry
+them, the provider should perform follow-up lookup for the root item before
+filtering.
+
+### Tag Search
+
+If the routed request contains a Tag Query and no MusicBrainz provider ref, use
+MusicBrainz indexed search with `tag:` clauses. The provider searches the
+requested `entityKinds`. If `entityKinds` is omitted, the provider searches
+`recording` only.
+
+Supported Tag Query root kinds match the first structured knowledge root scope:
+
+- `artist`.
+- `label`.
+- `recording`.
+- `release`.
+- `release_group`.
+- `work`.
+
+The provider mechanically normalizes `tagQuery` and `filters.tags` before
+building the API request or filtering root items. It must not rewrite musical
+meaning. For example, `post-rock` remains `post-rock`, while `post rock` remains
+`post rock` after basic whitespace normalization. Choosing provider-useful tag
+names is the agent's responsibility.
+
+If MusicBrainz returns no items after tag query and filter checks, the provider
+may use the existing warning channel to say that no MusicBrainz results matched
+the requested tags.
+
+MusicBrainz search should use `tag:` rather than `genre:`. `genre:` is not the
+reliable public search field for this use case. Example:
+
+```text
+tag:"ambient" OR tag:"post-rock" OR tag:"neoclassicism"
+```
+
+When `filters.tags.include` is present with Tag Search, the provider may include
+those required tags in the internal MusicBrainz search query as an optimization,
+for example:
+
+```text
+(tag:"ambient" OR tag:"post-rock") AND tag:"shoegaze"
+```
+
+The provider must still verify the final result against returned `tags` and
+`genres`; the public contract does not expose the MusicBrainz query syntax.
+
+The first MusicBrainz implementation should not push `filters.tags.exclude` into
+the indexed search query. Exclusion is applied after returned `tags` and
+`genres` are available.
+
+After search, the provider must inspect returned entity facts before returning
+items:
+
+- collect tag names from both MusicBrainz `tags` and MusicBrainz `genres`.
+- drop items that match none of the effective query tags.
+- apply `filters.tags.include` and `filters.tags.exclude` to root items.
+- compute `matchedTags` and `matchedTagCount`.
+- order results by larger `matchedTagCount` first, using MusicBrainz search
+  score as a provider-local tie breaker when available.
+
+MusicBrainz search score should remain `retrievalScore`. The provider must not
+overwrite it with `matchedTagCount`.
+
+Tag Search should return `tags` and `genres` on root entity properties by
+default. Agents should not need to request `expand: ["tags", "genres"]` to see
+the match basis.
+
+Tag Search may use the same expansion follow-up rules as text search. The
+provider first finds root entities by tags, then uses root MusicBrainz refs for
+requested lookup or browse expansions when supported. `query.limit` continues to
+limit root search results, not expanded child facts.
+
+Tag Search may use `relationFocus` when `expand` includes `relations`, using the
+same focused relationship mapping as text search follow-up. If `relationFocus`
+is present without `expand: ["relations"]`, the provider may warn that the focus
+was ignored.
+
+MusicBrainz Tag Search returns `StructuredKnowledge` only. If `formats` excludes
+`structured`, the provider should return no MusicBrainz items and may emit a
+warning rather than generating text knowledge.
+
+`query.limit` is global to the whole tag response, not per MusicBrainz entity
+kind. When a Tag Query requests multiple `entityKinds`, the provider may fetch
+additional internal candidates per kind to rank mixed results, but the returned
+chunk should not exceed the query limit.
+
+Mixed-kind Tag Query results should be ordered across entity kinds by
+provider-local match quality: larger `matchedTagCount` first, then MusicBrainz
+search score when available, then stable provider order.
+MusicBrainz tag and genre `count` values should be preserved as facts, but the
+first Tag Search should not rank primarily by those counts.
+
+The first MusicBrainz Tag Search does not implement negative tag clauses or
+agent-facing tag exclusion fields.
+Tag exclusion belongs to `filters.tags.exclude` after the query entry has found
+candidate items.
+
+The first MusicBrainz Tag Search does not implement per-tag weights. Importance
+is not represented by tag weights in the first version.
+
+Each returned `StructuredKnowledge` item should preserve provider facts and add
+retrieval metadata:
+
+```ts
+metadata: {
+  matchedTags: string[];
+  matchedTagCount: number;
+}
+```
+
+The tag metadata uses mechanically normalized tag names. It describes this
+retrieval operation only; it is not a recommendation score, identity confidence,
+or new MusicBrainz fact.
 
 If the original public query used `canonicalRef` but no MusicBrainz provider ref
 is attached, Music Knowledge Service may route canonical context to the
@@ -255,8 +456,12 @@ then use browse to fetch the requested list.
 
 `query.limit` limits browse result lists as well as search hit lists. Default
 browse limit is 25. Maximum first-version limit is 50. If a browse list is
-incomplete, record pagination metadata on the returned
-`StructuredKnowledge` item:
+incomplete, return an opaque top-level `nextCursor` when the provider can
+continue the same query. The cursor may encode MusicBrainz offsets internally,
+but offsets must not be exposed as agent-facing API.
+
+Item metadata may still record local list truncation details for explanation or
+debugging:
 
 ```ts
 metadata: {
@@ -266,6 +471,15 @@ metadata: {
   offset?: number;
 }
 ```
+
+When `cursor` is supplied, the provider should verify that the cursor belongs to
+the same effective query shape except for `limit`. Detectably mismatched cursor
+use should return a non-retryable invalid-query error.
+MusicBrainz cursors should bind to the provider-local API plan they continue.
+The provider-local continuation state is wrapped by Music Knowledge Service into
+the public opaque `nextCursor`.
+The public cursor is a short-lived continuation token, not a durable MusicBrainz
+bookmark.
 
 Deterministic mappings:
 
@@ -289,6 +503,7 @@ Tracklist is not a browse expansion in the first version:
 First version root entity kinds:
 
 - `artist`.
+- `label`.
 - `recording`.
 - `release`.
 - `release_group`.
@@ -296,13 +511,12 @@ First version root entity kinds:
 
 Related node kinds:
 
-- `label`.
 - `track`.
 - `medium`.
 - `url`.
 
-`label`, `track`, `medium`, and `url` can appear as related structured knowledge
-without becoming primary MineMusic canonical kinds.
+`track`, `medium`, and `url` can appear as related structured knowledge without
+becoming primary MineMusic canonical kinds.
 
 ## Expansion Mapping
 

@@ -265,12 +265,42 @@ Proposed target shape:
 export type KnowledgeQuery = {
   text?: string;
   canonicalRef?: Ref;
+  tagQuery?: string[];
+  fieldQuery?: KnowledgeFieldQuery;
+  filters?: KnowledgeFilters;
   purpose?: "lookup" | "explain" | "review" | "discover";
   formats?: Array<"structured" | "text">;
   entityKinds?: string[];
   expand?: string[];
   relationFocus?: Array<"members">;
   limit?: number;
+  cursor?: string;
+};
+
+export type KnowledgeResult = {
+  items: KnowledgeItem[];
+  nextCursor?: string;
+};
+
+export type KnowledgeFieldQuery = {
+  title?: string;
+  artist?: string;
+  release?: string;
+  label?: string;
+  date?: string;
+  country?: string;
+  barcode?: string;
+  catalogNumber?: string;
+  type?: string;
+};
+
+export type KnowledgeFilters = {
+  tags?: KnowledgeTagFilter;
+};
+
+export type KnowledgeTagFilter = {
+  include?: string[];
+  exclude?: string[];
 };
 ```
 
@@ -304,6 +334,31 @@ Examples:
 }
 ```
 
+```ts
+{
+  entityKinds: ["recording"],
+  tagQuery: ["ambient", "post-rock", "neoclassicism"],
+  limit: 10
+}
+```
+
+```ts
+{
+  entityKinds: ["recording"],
+  fieldQuery: {
+    title: "Sacred Play Secret Place",
+    artist: "matryoshka"
+  },
+  filters: {
+    tags: {
+      include: ["ambient"],
+      exclude: ["new age"]
+    }
+  },
+  limit: 5
+}
+```
+
 If `formats` is omitted, the Knowledge service may return the best
 available mix from registered providers.
 
@@ -312,11 +367,245 @@ available mix from registered providers.
 Agents should not pass provider refs such as MusicBrainz MBIDs as ordinary query
 input.
 
-First-version `KnowledgeQuery` must provide exactly one of `text` or
-`canonicalRef`. If both are present or both are absent, Music Knowledge should
-return a non-retryable invalid-query error. If a future flow needs text as a hint
-for canonical lookup, it should introduce a separate hint field rather than
-overloading `text`.
+Target `KnowledgeQuery` must provide exactly one query entry:
+
+- `text`.
+- `canonicalRef`.
+- a Tag Query, represented by non-empty `tagQuery`.
+- a Field Query, represented by non-empty `fieldQuery`.
+
+These entries are mutually exclusive. For example, `text` must not be mixed with
+`tagQuery`, `fieldQuery` must not be mixed with `tagQuery`, and `canonicalRef`
+must not be mixed with another query entry. If a future flow needs text as a
+hint for another lookup mode, it should introduce a separate hint field rather
+than overloading `text`.
+
+`filters` is not a query entry and does not participate in query-entry
+mutual exclusion. It narrows or orders items found by the query entry.
+Filters cannot be the only query condition. If the caller wants to search by
+tags alone, it should use the Tag Query entry.
+
+The first filter family is `filters.tags`:
+
+```ts
+filters: {
+  tags: {
+    include: ["ambient", "post-rock"],
+    exclude: ["new age"]
+  }
+}
+```
+
+`filters.tags.include` is a hard condition: every returned item must carry all
+listed include tags. `filters.tags.exclude` is a hard exclusion: items carrying
+any excluded tag must be removed.
+
+If a root item has no returned tags or genres, `filters.tags.include` should
+remove it and `filters.tags.exclude` should not remove it.
+After mechanical normalization, `filters.tags.exclude` must not overlap with
+`filters.tags.include`; such overlap should be rejected as invalid query shape.
+`filters.tags` may be used with the Tag Query entry. For example, a caller may
+search by `tagQuery` and use `filters.tags.exclude` to remove unwanted tagged
+items. `filters.tags.exclude` must also not overlap with the effective Tag Query
+tags.
+`filters.tags.include` does not need to be a subset of `tagQuery`; it can add
+hard tag requirements after the Tag Query has found candidates.
+The first tag filter does not have any-of include semantics. If the caller wants
+to find items matching one or more tags, it should use the Tag Query entry.
+
+The first filter contract includes `filters.tags` only. Do not add
+`filters.fields` until field filtering has its own concrete use case and
+include/exclude semantics.
+
+Filters apply to root items returned by the query entry. They do not filter
+expanded child facts in the first contract. If the caller wants recordings, it
+should set `entityKinds: ["recording"]` rather than querying an artist root and
+expecting `filters.tags` to filter `expand: ["recordings"]`.
+
+Providers may fetch more internal candidates than `limit` when filters could
+remove candidates before the public result chunk is filled. The returned result
+chunk still must not exceed `limit`, and continuation should use `nextCursor`
+when more candidates may exist.
+
+Tag Query arrays must either be omitted or non-empty. Empty `tagQuery` arrays
+should be rejected as invalid query shape rather than treated as absent.
+
+Each tag string must remain non-empty after mechanical normalization. A tag that
+normalizes to an empty string should make the query invalid rather than being
+silently dropped.
+
+`fieldQuery` is a first-class Knowledge lookup entry for common music-domain
+fields. It is not a raw provider query language. The first field set is:
+
+- `title`.
+- `artist`.
+- `release`.
+- `label`.
+- `date`.
+- `country`.
+- `barcode`.
+- `catalogNumber`.
+- `type`.
+
+Field Query implementations should translate these fields to provider-specific
+search fields internally. Agents should not send MusicBrainz Lucene syntax,
+provider field names such as `arid` or `qdur`, regular expressions, fuzzy
+search syntax, wildcards, or arbitrary boolean query trees through
+`fieldQuery`.
+
+Field Query fields are provider search conditions, not canonical scope or exact
+identity equality. For example, `fieldQuery.artist` asks providers to search for
+items with matching artist text or indexed artist data; it does not confirm that
+the returned item belongs to a specific MineMusic canonical artist.
+The first Field Query contract does not support canonical scoped search such as
+"recordings under this confirmed canonical artist." That needs a later explicit
+scope model.
+For `entityKinds: ["recording"]`, `fieldQuery.release` is a provider search
+condition for recordings associated with a release-like title. It is not a
+strict "only this confirmed album tracklist" scope.
+
+`fieldQuery` must contain at least one non-empty field value after mechanical
+string normalization. Empty `fieldQuery` objects or fields that normalize to
+empty strings should be rejected as invalid query shape.
+
+If a Field Query omits `entityKinds`, the default entity kind is `recording`.
+
+Multiple fields in a Field Query are conjunctive by default: providers should
+look for items satisfying all usable fields. Agents that want broad free-text
+matching should use `text` instead of `fieldQuery`.
+
+Field Query values are strings in the first contract. Array values and implicit
+`OR` semantics are not supported.
+
+`date` is a string field. The first contract allows year-like or date-like
+values, such as `2012` or `2012-12-12`, but does not include range fields such
+as `dateFrom`, `dateTo`, or `yearRange`.
+
+`country` uses a two-letter ISO 3166-1 alpha-2 country code. Providers may
+normalize casing, but the Knowledge service should not translate country names
+such as `Japan` or `日本` into country codes.
+
+`type` is interpreted within each requested `entityKind`. It is not a global
+MineMusic type vocabulary. Agents should avoid mixing `type` with multiple
+entity kinds when the intended provider type meaning would be ambiguous.
+
+`tagQuery` is a first-class Knowledge lookup entry. It is not a post-search
+filter. It asks providers for entities carrying provider-attributed tags. The
+default result semantics are:
+
+- return items that match one or more effective query tags.
+- rank items with more matched effective query tags earlier when the provider
+  can support or approximate that ranking.
+- do not treat matched tag count as recommendation score, identity confidence,
+  or fact confidence.
+
+When a Tag Query returns no items, providers may use the existing warning
+channel to explain that no provider results matched the requested tags. This
+does not add a field to `KnowledgeResult`.
+
+Tag names in `tagQuery` and `filters.tags` are mechanically normalized before
+query planning and comparison:
+
+- trim leading and trailing whitespace.
+- lowercase.
+- Unicode normalize.
+- collapse repeated whitespace.
+- deduplicate.
+
+The Knowledge service must not rewrite tag meaning. It must not perform synonym
+expansion, style inference, vocabulary lookup, or spelling conversion such as
+`post rock` to `post-rock`. The agent is responsible for choosing provider-useful
+tag names.
+
+Tag Query results should expose retrieval metadata without turning it into music
+facts. Structured results may use item metadata such as:
+
+```ts
+metadata: {
+  matchedTags: ["ambient", "post-rock"],
+  matchedTagCount: 2
+}
+```
+
+All tag names in this metadata use the mechanically normalized form. Provider
+facts remain in `properties.tags` and `properties.genres`.
+
+`matchedTagCount` must stay separate from `retrievalScore`. `retrievalScore`
+remains provider retrieval relevance when the provider supplies one; it must not
+be overwritten with tag-match count or interpreted as recommendation score.
+Provider tag counts may be returned as provider facts, but the first Tag Query
+contract does not use tag counts as the primary ranking rule.
+
+A Tag Query should return tag and genre facts for root entities by default. The
+agent should not need to add `expand: ["tags", "genres"]` merely to understand
+why a tag result matched.
+
+If a Tag Query omits `entityKinds`, the default entity kind is `recording`.
+
+Tag Query may use `expand`. The provider should first find root items by tag,
+then fetch requested related knowledge around those roots when it can. `limit`
+continues to limit root items in the response chunk; expanded child facts do not
+become additional top-level items merely because they were fetched through an
+expansion.
+
+Tag Query may use `relationFocus` when `expand` includes `relations`.
+`relationFocus` has no effect without a relationship expansion; providers may
+warn about ignored relation focus instead of failing the whole query.
+
+Tag Query is not limited to structured providers. A provider may support Tag
+Query for structured items, text items, or both. A provider must not synthesize a
+format it does not own; if `formats` excludes every format a provider can
+return, that provider should return no items and may emit a warning.
+Document-style knowledge bases may support Tag Query when their passages or
+documents have provider-attributed tags, but the Tag Query contract does not
+require a document storage/index design in the first implementation.
+
+The first Tag Query contract does not include tag exclusion. Avoid fields such
+as `tagMustExclude` until the product has a concrete provider-grounded need for
+negative tag queries.
+
+Tag exclusion belongs to `filters.tags.exclude`, not to the Tag Query entry.
+
+The first Tag Query and tag filter contract does not include per-tag weights.
+`tagQuery`, `filters.tags.include`, and `filters.tags.exclude` are string arrays.
+
+`limit` controls the maximum number of items in one response chunk. `cursor` is
+an opaque continuation token for continuing the same Knowledge query. `cursor`
+must not expose provider offsets, provider ids, or storage details to the agent.
+When a result has more data available, `KnowledgeResult.nextCursor` carries the
+token for the next chunk.
+
+`limit` is global to the whole Knowledge query response. It is not per provider,
+per format, or per `entityKinds` value. Providers may fetch additional internal
+candidates when needed for ranking, but the returned chunk should not exceed the
+query limit.
+
+When a Tag Query requests multiple `entityKinds`, results may be mixed across
+entity kinds. The primary ordering remains tag-match quality for the whole
+query, not entity-kind grouping. Agents that need separate groups should make
+separate queries.
+
+When `cursor` is supplied, all query fields except `limit` must describe the same
+query as the original request. Providers or the Knowledge service should reject
+detectably mismatched cursor use with a non-retryable invalid-query error.
+Providers that cannot continue a query simply omit `nextCursor`.
+
+Continuation is tied to the provider set that produced the cursor. If the
+registered Knowledge provider set changes between chunks and that change is
+detectable, the Knowledge service may reject the cursor as invalid rather than
+mixing old and new result spaces.
+
+Cursor creation is layered. Providers may return provider-local continuation
+state to Music Knowledge Service, but the public `nextCursor` is generated by
+Music Knowledge Service and remains opaque to Stage Interface and agents. A
+later request gives the public cursor back to Music Knowledge Service, which
+routes decoded provider-local continuation state to the appropriate providers.
+
+`nextCursor` is a short-lived continuation token, not a bookmark or durable
+knowledge identifier. It does not need to remain valid across server restarts,
+provider-set changes, provider cache maintenance, or long time intervals. If a
+cursor cannot be decoded or resumed, the service should reject it as invalid
+rather than guessing a continuation.
 
 `expand` asks a provider to return related knowledge around the primary query
 result. It controls response breadth only. It is not an identity signal and does
@@ -375,10 +664,10 @@ Agents should use this tool to ask for music knowledge. They should not call
 provider-specific tools such as MusicBrainz search directly. Provider selection,
 registration, and aggregation belong behind Music Knowledge and Plugin Slots.
 
-Agents may query by text or by a MineMusic canonical ref. They should not need
-to know provider refs such as MusicBrainz MBIDs. Provider refs may appear in
-returned knowledge items, but they are not the ordinary agent-facing identity
-input.
+Agents may query by text, by a MineMusic canonical ref, or by Tag Query. They
+should not need to know provider refs such as MusicBrainz MBIDs. Provider refs
+may appear in returned knowledge items, but they are not the ordinary
+agent-facing identity input.
 
 The first public tool should not write Canonical Store state. It can return
 knowledge items for explanation or later review, but identity confirmation and
@@ -397,11 +686,13 @@ description may also list supported `relationFocus` values.
 Provider Handbook contributions must not expose provider-internal API modes or
 transport details as agent actions. For example, a MusicBrainz provider may say
 that it can return structured recording, release, artist, release group, and
-work facts with expansions such as `credits`, `relations`, `releases`,
+work, and label facts with expansions such as `credits`, `relations`, `releases`,
 `release_groups`, `recordings`, `works`, `release_labels`, `tracklist`,
 `identifiers`, `urls`, `genres`, `tags`, `ratings`, and `annotation`. It may say
-that `relationFocus: ["members"]` narrows relationships to band-member facts.
-It should not teach agents to call MusicBrainz search, lookup, browse, or
+that `tagQuery` finds entities by provider-attributed tags, that
+`filters.tags.include` and `filters.tags.exclude` narrow tag results, and that
+`relationFocus: ["members"]` narrows relationships to band-member facts. It
+should not teach agents to call MusicBrainz search, lookup, browse, offsets, or
 MusicBrainz API parameters directly.
 
 ## Migration Rule

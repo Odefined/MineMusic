@@ -521,3 +521,341 @@ Verification:
 Commit:
 
 - Commit final documentation/state sync separately.
+
+## Task 16: Query Entry And Filter Contract
+
+Goal:
+
+Add the target Knowledge query contract for structured search entries and tag
+filters without changing provider behavior yet.
+
+Files:
+
+- `src/contracts/index.ts`
+- `src/knowledge/index.ts`
+- `src/stage_interface/schemas.ts`
+- `test/contracts/wave1-contracts.test.ts`
+- `test/knowledge/music-knowledge.test.ts`
+- `test/surfaces/mcp-server.test.ts`
+
+Work:
+
+- Add shared contracts:
+  - `KnowledgeFieldQuery`.
+  - `KnowledgeFilters`.
+  - `KnowledgeTagFilter`.
+- Add `tagQuery?: string[]`, `fieldQuery?: KnowledgeFieldQuery`,
+  `filters?: KnowledgeFilters`, and `cursor?: string` to `KnowledgeQuery`.
+- Add `nextCursor?: string` to `KnowledgeResult`.
+- Keep query entries mutually exclusive:
+  - `text`.
+  - `canonicalRef`.
+  - `tagQuery`.
+  - `fieldQuery`.
+- Keep `filters` outside query-entry mutual exclusion.
+- Reject filters as the only query condition.
+- Validate `filters.tags.include` and `filters.tags.exclude`:
+  - arrays must be omitted or non-empty.
+  - tag strings must remain non-empty after mechanical normalization.
+  - `include` and `exclude` must not overlap after normalization.
+- Validate `tagQuery`:
+  - array must be non-empty when supplied.
+  - tag strings must remain non-empty after mechanical normalization.
+- Keep `filters.tags.include` as hard all-tags inclusion.
+- Keep `filters.tags.exclude` as hard any-tag exclusion.
+- Do not add a separate hard-include tag query field, tag weights, or field
+  filters.
+- Update Stage Interface schema and MCP schema exposure for the new fields.
+
+Verification:
+
+- Contract tests prove the new query shape and `KnowledgeResult.nextCursor`.
+- Knowledge service tests reject:
+  - no query entry.
+  - multiple query entries.
+  - filters-only queries.
+  - empty tag arrays.
+  - empty normalized tag values.
+  - overlapping include/exclude tags.
+- Surface tests prove `minemusic.knowledge.query` exposes `tagQuery`,
+  `fieldQuery`, `filters`, and `cursor`.
+- `npm test` passes.
+
+Commit:
+
+- Commit this task before provider behavior changes.
+
+## Task 17: MusicBrainz Label Root And Shared Tag Helpers
+
+Goal:
+
+Prepare MusicBrainz provider support for label roots and shared tag matching
+without adding new query modes yet.
+
+Files:
+
+- `src/providers/musicbrainz/index.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+
+Work:
+
+- Add `label` to the MusicBrainz Knowledge provider descriptor `entityKinds`.
+- Add `label` search config.
+- Add `label` lookup config.
+- Add a label-to-`StructuredKnowledge` mapper with:
+  - MBID.
+  - name.
+  - disambiguation.
+  - type.
+  - country or area when returned.
+  - tags, genres, and rating when returned.
+- Keep `label` as a Knowledge root, not a MineMusic canonical priority claim.
+- Add shared helpers:
+  - mechanical tag normalization.
+  - root node tag/genre extraction.
+  - `matchedTags` and `matchedTagCount` calculation.
+  - root-item `filters.tags.include/exclude` application.
+- Ensure tag matching reads both MusicBrainz `tags` and `genres`.
+
+Verification:
+
+- Provider descriptor test includes `label`.
+- Fixture search/lookup tests cover a label root item.
+- Helper-driven tests prove:
+  - genres count as tag matches.
+  - `include` requires every included tag.
+  - `exclude` removes an item if any excluded tag is present.
+  - root items with no tags/genres fail `include` and do not fail `exclude`.
+- `npm test` passes.
+
+Commit:
+
+- Commit this preparation before adding tag search.
+
+## Task 18: MusicBrainz Tag Query
+
+Goal:
+
+Implement `tagQuery` as a first-class Knowledge query entry through MusicBrainz
+indexed search.
+
+Files:
+
+- `src/providers/musicbrainz/index.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+- `test/knowledge/music-knowledge.test.ts`
+
+Work:
+
+- Route `tagQuery` requests separately from text and canonical lookup.
+- Default `entityKinds` to `["recording"]`.
+- Support tag search for:
+  - `artist`.
+  - `label`.
+  - `recording`.
+  - `release`.
+  - `release_group`.
+  - `work`.
+- Build MusicBrainz indexed search using `tag:` clauses, such as
+  `tag:"ambient" OR tag:"post-rock"`.
+- Do not expose MusicBrainz query syntax to Stage Interface, Handbook, or
+  callers.
+- Return only root items that match at least one effective query tag.
+- Sort returned root items by:
+  - larger `matchedTagCount`.
+  - MusicBrainz search score as tie breaker when available.
+  - stable provider order.
+- Add `metadata.matchedTags` and `metadata.matchedTagCount`.
+- Apply `filters.tags.include/exclude` after returned `tags` and `genres` are
+  available.
+- Allow `filters.tags.include` with `tagQuery`; it does not need to be a subset
+  of `tagQuery`.
+- Reject overlap between `filters.tags.exclude` and the effective Tag Query
+  tags.
+- Do not push `filters.tags.exclude` into MusicBrainz search in the first
+  implementation.
+- `filters.tags.include` may be pushed into the internal MusicBrainz query as an
+  optimization, but returned facts must still be checked.
+- Preserve current text query and canonical lookup behavior.
+
+Verification:
+
+- Fixture tests prove the provider builds expected `tag:` search requests.
+- Fixture tests prove root results must match at least one `tagQuery` tag.
+- Fixture tests prove include/exclude behavior with returned tags and genres.
+- Fixture tests prove `matchedTags` and `matchedTagCount` metadata.
+- Fixture tests prove mixed `entityKinds` results are globally limited and
+  ordered by tag match quality.
+- `npm test` passes.
+
+Commit:
+
+- Commit this task after tag query tests pass.
+
+## Task 19: MusicBrainz Field Query
+
+Goal:
+
+Implement `fieldQuery` as a provider search condition entry for MusicBrainz
+indexed search.
+
+Files:
+
+- `src/providers/musicbrainz/index.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+- `test/knowledge/music-knowledge.test.ts`
+
+Work:
+
+- Route `fieldQuery` requests separately from text, canonical lookup, and
+  `tagQuery`.
+- Default `entityKinds` to `["recording"]`.
+- Support first-version fields:
+  - `title`.
+  - `artist`.
+  - `release`.
+  - `label`.
+  - `date`.
+  - `country`.
+  - `barcode`.
+  - `catalogNumber`.
+  - `type`.
+- Map fields to MusicBrainz indexed search fields per requested entity kind.
+- Join usable field clauses with `AND`.
+- Quote or escape field values when building MusicBrainz queries.
+- Treat Field Query as provider search condition, not canonical scope or exact
+  identity equality.
+- Keep `fieldQuery.release` for recording search as release-style search data,
+  not strict release-group tracklist scope.
+- Uppercase `country` values but do not translate country names.
+- Do not support arrays, implicit `OR`, fuzzy search, wildcards, raw Lucene, or
+  date ranges.
+- When `filters.tags` is present:
+  - ensure each root item has `tags` and `genres`.
+  - use follow-up lookup when search results do not include them.
+  - apply include/exclude only to root items.
+  - allow provider-internal over-fetch to fill the public `limit`.
+- Keep internal over-fetch capped as a provider detail, for example
+  `min(limit * 5, 50)`.
+
+Verification:
+
+- Fixture tests prove mapped MusicBrainz field queries for recording, release,
+  release group, artist, work, and label where supported.
+- Fixture tests prove unsupported fields for an entity kind warn or return no
+  items without crashing.
+- Fixture tests prove `fieldQuery.artist` plus `filters.tags.include` can return
+  matching recordings.
+- Fixture tests prove `fieldQuery.release` plus `filters.tags.include` remains a
+  search-style query and does not claim strict album scope.
+- Fixture tests prove follow-up lookup happens before tag filtering when search
+  results lack tags/genres.
+- `npm test` passes.
+
+Commit:
+
+- Commit this task after field query tests pass.
+
+## Task 20: Knowledge Cursor Continuation
+
+Goal:
+
+Add opaque continuation for paged Knowledge search results without exposing
+provider offsets or provider-local state to agents.
+
+Files:
+
+- `src/contracts/index.ts`
+- `src/knowledge/index.ts`
+- `src/providers/musicbrainz/index.ts`
+- `test/knowledge/music-knowledge.test.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+- `test/stage_interface/stage-interface-dispatch.test.ts`
+
+Work:
+
+- Keep public input as `KnowledgeQuery.cursor?: string`.
+- Keep public output as `KnowledgeResult.nextCursor?: string`.
+- Make Music Knowledge Service own public cursor encoding and decoding.
+- Add an internal provider continuation path so providers can receive
+  provider-local continuation state without exposing it to Stage Interface or
+  agents.
+- Bind cursor use to the original query shape except `limit`.
+- Bind cursor use to the provider set that produced the cursor.
+- Treat cursor as short-lived continuation, not a bookmark.
+- Return `knowledge.invalid_query` for undecodable or mismatched cursors.
+- Implement MusicBrainz continuation for search-backed text, tag, and field
+  queries using provider-local offset state.
+- Preserve public `limit` as the returned chunk cap.
+
+Verification:
+
+- Service tests prove public cursor wrapping and mismatch rejection.
+- Provider tests prove first page and second page use the expected MusicBrainz
+  offsets.
+- Provider tests prove changed query shape with an old cursor is rejected.
+- Stage Interface dispatch test proves `nextCursor` returns through
+  `knowledge.query`.
+- `npm test` passes.
+
+Commit:
+
+- Commit this task after cursor tests pass.
+
+## Task 21: Handbook, Interface Docs, And Real Smoke
+
+Goal:
+
+Expose the new Knowledge query capabilities to agents without teaching
+provider-specific MusicBrainz API details.
+
+Files:
+
+- `src/handbook/index.ts`
+- `src/stage_interface/**`
+- `src/surfaces/mcp/**`
+- `docs/mvp/interface-contracts.md`
+- `docs/knowledge-slot/design.md`
+- `docs/knowledge-slot/musicbrainz-provider.md`
+- `docs/knowledge-slot/progress.md`
+- `CURRENT_STATE.md`
+- `PROGRESS.md`
+
+Work:
+
+- Update Handbook generation so the Knowledge instrument describes:
+  - `tagQuery`.
+  - `fieldQuery`.
+  - `filters.tags.include`.
+  - `filters.tags.exclude`.
+  - cursor continuation.
+- Keep Handbook language provider-general.
+- Do not expose MusicBrainz Lucene, search endpoints, lookup endpoints, browse
+  endpoints, or offsets as agent actions.
+- Update `docs/mvp/interface-contracts.md` only after the code contract exists.
+- Update module progress with implemented scope and remaining gaps:
+  - no strict canonical scoped search.
+  - no strict release-group tracklist scope.
+  - no field filters.
+  - no tag weights.
+- Restart the local MineMusic server if needed for real MCP smoke.
+- Run real `minemusic.knowledge.query` smoke cases:
+  - `tagQuery` for ambient/post-rock recordings.
+  - `fieldQuery.artist` plus `filters.tags.include`.
+  - `fieldQuery.release` plus `filters.tags.include`.
+  - `tagQuery` plus `filters.tags.exclude`.
+
+Verification:
+
+- `npm test`.
+- MCP schema exposes the new Knowledge query fields.
+- Real MCP smoke proves the installed tool can call the new query forms.
+- State-sync gate:
+  - `git diff --name-only`.
+  - report whether `INDEX.md`, `CURRENT_STATE.md`, `ARCHITECTURE.md`, and
+    `PROGRESS.md` were updated or not needed with a concrete reason.
+
+Commit:
+
+- Commit final interface docs, Handbook, real smoke notes, and state sync
+  separately.
