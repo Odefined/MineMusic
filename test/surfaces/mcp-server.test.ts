@@ -128,8 +128,24 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "knowledge query schema should declare canonicalRef input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "tagQuery"),
+    "knowledge query schema should declare tagQuery input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "fieldQuery"),
+    "knowledge query schema should declare fieldQuery input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "filters"),
+    "knowledge query schema should declare filters input",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "relationFocus"),
     "knowledge query schema should declare relationFocus input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "cursor"),
+    "knowledge query schema should declare cursor input",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materials"),

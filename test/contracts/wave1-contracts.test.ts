@@ -13,6 +13,8 @@ import type {
   HandbookToolEntry,
   InstrumentProviderDescriptor,
   KnowledgeCanonicalContext,
+  KnowledgeFieldQuery,
+  KnowledgeFilters,
   KnowledgeItem,
   KnowledgeNode,
   KnowledgeProvider,
@@ -24,6 +26,7 @@ import type {
   KnowledgeRelationFocus,
   KnowledgeResult,
   KnowledgeSource,
+  KnowledgeTagFilter,
   LibraryImportBatchKind,
   LibraryImportBatchStatus,
   LibraryImportAreaSnapshot,
@@ -165,16 +168,44 @@ type _materialResolveRequestCarriesOwnerScope = Expect<
 type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
   Equal<
     keyof KnowledgeQuery,
-    "text" | "canonicalRef" | "purpose" | "formats" | "entityKinds" | "expand" | "relationFocus" | "limit"
+    | "text"
+    | "canonicalRef"
+    | "tagQuery"
+    | "fieldQuery"
+    | "filters"
+    | "purpose"
+    | "formats"
+    | "entityKinds"
+    | "expand"
+    | "relationFocus"
+    | "limit"
+    | "cursor"
   > &
     Equal<KnowledgeRelationFocus, "members"> &
     Equal<KnowledgeQuery["relationFocus"], KnowledgeRelationFocus[] | undefined> &
     Equal<Extract<KnowledgeQuery, { text: string }>["canonicalRef"], undefined> &
-    Equal<Extract<KnowledgeQuery, { canonicalRef: Ref }>["text"], undefined>
+    Equal<Extract<KnowledgeQuery, { canonicalRef: Ref }>["text"], undefined> &
+    Equal<Extract<KnowledgeQuery, { tagQuery: string[] }>["text"], undefined> &
+    Equal<Extract<KnowledgeQuery, { fieldQuery: KnowledgeFieldQuery }>["canonicalRef"], undefined> &
+    Equal<KnowledgeQuery["filters"], KnowledgeFilters | undefined> &
+    Equal<KnowledgeQuery["cursor"], string | undefined>
+>;
+
+type _knowledgeStructuredQueryContract = Expect<
+  Equal<
+    keyof KnowledgeFieldQuery,
+    "title" | "artist" | "release" | "label" | "date" | "country" | "barcode" | "catalogNumber" | "type"
+  > &
+    Equal<KnowledgeFieldQuery["artist"], string | undefined> &
+    Equal<KnowledgeFilters["tags"], KnowledgeTagFilter | undefined> &
+    Equal<KnowledgeTagFilter["include"], string[] | undefined> &
+    Equal<KnowledgeTagFilter["exclude"], string[] | undefined>
 >;
 
 type _knowledgeResultCarriesProviderAttributedItems = Expect<
-  Equal<keyof KnowledgeResult, "items"> & Equal<KnowledgeResult["items"], KnowledgeItem[]>
+  Equal<keyof KnowledgeResult, "items" | "nextCursor"> &
+    Equal<KnowledgeResult["items"], KnowledgeItem[]> &
+    Equal<KnowledgeResult["nextCursor"], string | undefined>
 >;
 
 type _structuredKnowledgeContract = Expect<

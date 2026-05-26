@@ -318,7 +318,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
                 direction: "backward",
               },
             ],
-            metadata: { queryText: "text" in query ? query.text : query.canonicalRef.id },
+            metadata: { queryText: "text" in query ? query.text : query.canonicalRef?.id ?? "structured-query" },
           },
         ],
       },

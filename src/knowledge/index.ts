@@ -1,7 +1,11 @@
 import type {
   KnowledgeProvider,
+  KnowledgeQuery,
+  KnowledgeQueryBase,
   KnowledgeResult,
   KnowledgeCanonicalContext,
+  KnowledgeFieldQuery,
+  KnowledgeFilters,
   Ref,
   Result,
   StageError,
@@ -24,10 +28,10 @@ export function createMusicKnowledgeService({
 }: MusicKnowledgeServiceOptions): MusicKnowledgePort {
   return {
     async query(input) {
-      const invalidQuery = validateKnowledgeQuery(input.query);
+      const normalizedQuery = normalizeKnowledgeQuery(input.query);
 
-      if (invalidQuery !== null) {
-        return fail(invalidQuery);
+      if (!normalizedQuery.ok) {
+        return normalizedQuery;
       }
 
       const providerIds = await pluginRegistry.listProviders({ slot: "knowledge" });
@@ -46,7 +50,7 @@ export function createMusicKnowledgeService({
       }
 
       const canonicalContextResult = await readCanonicalContext({
-        query: input.query,
+        query: normalizedQuery.value,
         canonicalStore,
       });
 
@@ -72,7 +76,8 @@ export function createMusicKnowledgeService({
         }
 
         const providerKnowledge = await providerResult.value.query({
-          ...input,
+          query: normalizedQuery.value,
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
           ...(canonicalContextResult.value === undefined
             ? {}
             : { canonicalContext: canonicalContextResult.value }),
@@ -143,28 +148,256 @@ async function readCanonicalContext({
   });
 }
 
-function validateKnowledgeQuery(query: unknown): StageError | null {
+function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
   if (typeof query !== "object" || query === null) {
-    return invalidQueryError();
+    return fail(invalidQueryError());
   }
 
-  const queryShape = query as { text?: unknown; canonicalRef?: unknown; relationFocus?: unknown };
+  const queryShape = query as Record<string, unknown>;
   const hasText = typeof queryShape.text === "string";
   const hasCanonicalRef = isRef(queryShape.canonicalRef);
+  const tagQuery = normalizeOptionalTagArray(queryShape.tagQuery);
+  const fieldQuery = normalizeFieldQuery(queryShape.fieldQuery);
+  const filters = normalizeFilters(queryShape.filters);
 
-  if (hasText === hasCanonicalRef) {
-    return invalidQueryError();
+  if (!tagQuery.ok) {
+    return tagQuery;
   }
 
-  if (!isValidRelationFocus(queryShape.relationFocus)) {
-    return invalidQueryError();
+  if (!fieldQuery.ok) {
+    return fieldQuery;
   }
 
-  return null;
+  if (!filters.ok) {
+    return filters;
+  }
+
+  if (!isValidRelationFocus(queryShape.relationFocus) || !isValidCursor(queryShape.cursor)) {
+    return fail(invalidQueryError());
+  }
+
+  const queryEntryCount = [
+    hasText,
+    hasCanonicalRef,
+    tagQuery.value !== undefined,
+    fieldQuery.value !== undefined,
+  ].filter(Boolean).length;
+
+  if (queryEntryCount !== 1) {
+    return fail(invalidQueryError());
+  }
+
+  const base = knowledgeQueryBase(queryShape, filters.value);
+
+  if (hasText) {
+    return ok({
+      ...base,
+      text: queryShape.text as string,
+    });
+  }
+
+  if (hasCanonicalRef) {
+    return ok({
+      ...base,
+      canonicalRef: queryShape.canonicalRef as Ref,
+    });
+  }
+
+  if (tagQuery.value !== undefined) {
+    return ok({
+      ...base,
+      tagQuery: tagQuery.value,
+    });
+  }
+
+  return ok({
+    ...base,
+    fieldQuery: fieldQuery.value as KnowledgeFieldQuery,
+  });
+}
+
+function knowledgeQueryBase(
+  queryShape: Record<string, unknown>,
+  filters: KnowledgeFilters | undefined,
+): KnowledgeQueryBase {
+  const base: KnowledgeQueryBase = {};
+
+  if (filters !== undefined) {
+    base.filters = filters;
+  }
+
+  if (queryShape.purpose !== undefined) {
+    base.purpose = queryShape.purpose as NonNullable<KnowledgeQueryBase["purpose"]>;
+  }
+
+  if (queryShape.formats !== undefined) {
+    base.formats = queryShape.formats as NonNullable<KnowledgeQueryBase["formats"]>;
+  }
+
+  if (queryShape.entityKinds !== undefined) {
+    base.entityKinds = queryShape.entityKinds as string[];
+  }
+
+  if (queryShape.expand !== undefined) {
+    base.expand = queryShape.expand as string[];
+  }
+
+  if (queryShape.relationFocus !== undefined) {
+    base.relationFocus = queryShape.relationFocus as NonNullable<KnowledgeQueryBase["relationFocus"]>;
+  }
+
+  if (queryShape.limit !== undefined) {
+    base.limit = queryShape.limit as number;
+  }
+
+  if (queryShape.cursor !== undefined) {
+    base.cursor = queryShape.cursor as string;
+  }
+
+  return base;
+}
+
+function normalizeOptionalTagArray(value: unknown): Result<string[] | undefined> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+
+  if (!Array.isArray(value) || value.length === 0) {
+    return fail(invalidQueryError());
+  }
+
+  const tags: string[] = [];
+
+  for (const tag of value) {
+    if (typeof tag !== "string") {
+      return fail(invalidQueryError());
+    }
+
+    const normalizedTag = normalizeTag(tag);
+
+    if (normalizedTag.length === 0) {
+      return fail(invalidQueryError());
+    }
+
+    if (!tags.includes(normalizedTag)) {
+      tags.push(normalizedTag);
+    }
+  }
+
+  return ok(tags);
+}
+
+function normalizeFilters(value: unknown): Result<KnowledgeFilters | undefined> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return fail(invalidQueryError());
+  }
+
+  const tagsValue = (value as { tags?: unknown }).tags;
+
+  if (tagsValue === undefined) {
+    return ok(undefined);
+  }
+
+  if (typeof tagsValue !== "object" || tagsValue === null || Array.isArray(tagsValue)) {
+    return fail(invalidQueryError());
+  }
+
+  const include = normalizeOptionalTagArray((tagsValue as { include?: unknown }).include);
+  const exclude = normalizeOptionalTagArray((tagsValue as { exclude?: unknown }).exclude);
+
+  if (!include.ok) {
+    return include;
+  }
+
+  if (!exclude.ok) {
+    return exclude;
+  }
+
+  if (
+    include.value !== undefined &&
+    exclude.value !== undefined &&
+    include.value.some((tag) => exclude.value?.includes(tag) === true)
+  ) {
+    return fail(invalidQueryError());
+  }
+
+  return ok({
+    tags: {
+      ...(include.value === undefined ? {} : { include: include.value }),
+      ...(exclude.value === undefined ? {} : { exclude: exclude.value }),
+    },
+  });
+}
+
+const knowledgeFieldQueryKeys = [
+  "title",
+  "artist",
+  "release",
+  "label",
+  "date",
+  "country",
+  "barcode",
+  "catalogNumber",
+  "type",
+] as const;
+
+function normalizeFieldQuery(value: unknown): Result<KnowledgeFieldQuery | undefined> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return fail(invalidQueryError());
+  }
+
+  const source = value as Record<string, unknown>;
+  const fields: KnowledgeFieldQuery = {};
+
+  for (const key of knowledgeFieldQueryKeys) {
+    const fieldValue = source[key];
+
+    if (fieldValue === undefined) {
+      continue;
+    }
+
+    if (typeof fieldValue !== "string") {
+      return fail(invalidQueryError());
+    }
+
+    const normalizedValue = normalizeFieldValue(fieldValue);
+
+    if (normalizedValue.length === 0) {
+      return fail(invalidQueryError());
+    }
+
+    fields[key] = normalizedValue;
+  }
+
+  if (Object.keys(fields).length === 0) {
+    return fail(invalidQueryError());
+  }
+
+  return ok(fields);
+}
+
+function normalizeTag(value: string): string {
+  return normalizeFieldValue(value).toLowerCase();
+}
+
+function normalizeFieldValue(value: string): string {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ");
 }
 
 function isValidRelationFocus(value: unknown): boolean {
   return value === undefined || (Array.isArray(value) && value.every((focus) => focus === "members"));
+}
+
+function isValidCursor(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
 }
 
 function isRef(value: unknown): value is Ref {

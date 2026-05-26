@@ -715,27 +715,67 @@ export type KnowledgeItemFormat = "structured" | "text";
 
 export type KnowledgeRelationFocus = "members";
 
+export type KnowledgeFieldQuery = {
+  title?: string;
+  artist?: string;
+  release?: string;
+  label?: string;
+  date?: string;
+  country?: string;
+  barcode?: string;
+  catalogNumber?: string;
+  type?: string;
+};
+
+export type KnowledgeTagFilter = {
+  include?: string[];
+  exclude?: string[];
+};
+
+export type KnowledgeFilters = {
+  tags?: KnowledgeTagFilter;
+};
+
 export type KnowledgeQueryBase = {
+  filters?: KnowledgeFilters;
   purpose?: KnowledgeQueryPurpose;
   formats?: KnowledgeItemFormat[];
   entityKinds?: string[];
   expand?: string[];
   relationFocus?: KnowledgeRelationFocus[];
   limit?: number;
+  cursor?: string;
 };
 
 export type KnowledgeQuery =
   | (KnowledgeQueryBase & {
       text: string;
       canonicalRef?: never;
+      tagQuery?: never;
+      fieldQuery?: never;
     })
   | (KnowledgeQueryBase & {
       text?: never;
       canonicalRef: Ref;
+      tagQuery?: never;
+      fieldQuery?: never;
+    })
+  | (KnowledgeQueryBase & {
+      text?: never;
+      canonicalRef?: never;
+      tagQuery: string[];
+      fieldQuery?: never;
+    })
+  | (KnowledgeQueryBase & {
+      text?: never;
+      canonicalRef?: never;
+      tagQuery?: never;
+      fieldQuery: KnowledgeFieldQuery;
     });
 
 export type KnowledgeResult = {
   items: KnowledgeItem[];
+  nextCursor?: string;
 };
 
 export type KnowledgeItem = StructuredKnowledge | TextKnowledge;

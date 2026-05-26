@@ -124,6 +124,43 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
       relationFocus: ["lineup"],
     } as never,
   });
+  const filtersOnly = await knowledge.query({
+    query: {
+      filters: { tags: { include: ["ambient"] } },
+    } as never,
+  });
+  const emptyTagQuery = await knowledge.query({
+    query: {
+      tagQuery: [],
+    } as never,
+  });
+  const emptyNormalizedTagQuery = await knowledge.query({
+    query: {
+      tagQuery: ["   "],
+    } as never,
+  });
+  const overlappingTagFilters = await knowledge.query({
+    query: {
+      text: "anything",
+      filters: {
+        tags: {
+          include: [" Ambient "],
+          exclude: ["ambient"],
+        },
+      },
+    } as never,
+  });
+  const emptyFieldQuery = await knowledge.query({
+    query: {
+      fieldQuery: {},
+    } as never,
+  });
+  const multipleStructuredEntries = await knowledge.query({
+    query: {
+      tagQuery: ["ambient"],
+      fieldQuery: { artist: "Stars of the Lid" },
+    } as never,
+  });
 
   assert(!result.ok, "invalid knowledge query should fail explicitly");
   assert(result.error.code === "knowledge.invalid_query", "invalid query should be rejected before provider lookup");
@@ -136,6 +173,27 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
   assert(
     resultWithUnsupportedRelationFocus.error.code === "knowledge.invalid_query",
     "unsupported relation focus should be rejected before provider lookup",
+  );
+  assert(!filtersOnly.ok, "filters-only knowledge query should fail explicitly");
+  assert(filtersOnly.error.code === "knowledge.invalid_query", "filters should not be a query entry");
+  assert(!emptyTagQuery.ok, "empty tag query should fail explicitly");
+  assert(emptyTagQuery.error.code === "knowledge.invalid_query", "empty tag arrays should be rejected");
+  assert(!emptyNormalizedTagQuery.ok, "empty normalized tag values should fail explicitly");
+  assert(
+    emptyNormalizedTagQuery.error.code === "knowledge.invalid_query",
+    "empty normalized tag values should be rejected",
+  );
+  assert(!overlappingTagFilters.ok, "overlapping include/exclude tag filters should fail explicitly");
+  assert(
+    overlappingTagFilters.error.code === "knowledge.invalid_query",
+    "overlapping tag filters should be rejected",
+  );
+  assert(!emptyFieldQuery.ok, "empty field query should fail explicitly");
+  assert(emptyFieldQuery.error.code === "knowledge.invalid_query", "empty field query should be rejected");
+  assert(!multipleStructuredEntries.ok, "tagQuery and fieldQuery should be mutually exclusive");
+  assert(
+    multipleStructuredEntries.error.code === "knowledge.invalid_query",
+    "structured query entries should be mutually exclusive",
   );
 }
 
@@ -199,8 +257,54 @@ async function routesCanonicalContextToProviders(): Promise<void> {
   assert(capturedContext?.relations?.[0]?.objectLabel === "Canonical Artist", "provider should receive relation context");
 }
 
+async function routesStructuredTagQueriesWithNormalizedTags(): Promise<void> {
+  const registry = createPluginRegistry();
+  let capturedQuery: unknown;
+  const provider: KnowledgeProvider = {
+    id: "fixture-knowledge",
+    query: async (input) => {
+      capturedQuery = input.query;
+      return { ok: true, value: { items: [] } };
+    },
+  };
+
+  await assertOk(
+    registry.registerProvider({
+      slot: "knowledge",
+      providerId: provider.id,
+      provider,
+    }),
+  );
+
+  const knowledge = createMusicKnowledgeService({ pluginRegistry: registry });
+  await assertOk(
+    knowledge.query({
+      query: {
+        tagQuery: [" Ambient ", "ambient", "Post   Rock"],
+        filters: {
+          tags: {
+            include: [" Shoegaze "],
+            exclude: [" New Age "],
+          },
+        },
+        limit: 3,
+      },
+    }),
+  );
+
+  const query = capturedQuery as {
+    tagQuery?: string[];
+    filters?: { tags?: { include?: string[]; exclude?: string[] } };
+  };
+
+  assert(query.tagQuery?.join(",") === "ambient,post rock", "tagQuery should be normalized and deduplicated");
+  assert(query.filters?.tags?.include?.[0] === "shoegaze", "included tags should be normalized");
+  assert(query.filters?.tags?.exclude?.[0] === "new age", "excluded tags should be normalized");
+}
+
 await queriesKnowledgeProvidersAsProviderAttributedItems();
 await reportsMissingKnowledgeProvider();
 await preservesProviderWarnings();
 await rejectsInvalidKnowledgeQueryBeforeProviderLookup();
 await routesCanonicalContextToProviders();
+await routesStructuredTagQueriesWithNormalizedTags();

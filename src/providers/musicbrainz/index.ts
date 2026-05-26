@@ -237,6 +237,10 @@ export function createMusicBrainzKnowledgeProvider(options: MusicBrainzKnowledge
         return searchMusicBrainzText({ ...runtime, query });
       }
 
+      if (!isCanonicalQuery(query)) {
+        return ok({ items: [] });
+      }
+
       const ref = musicBrainzRefFromQuery(query, canonicalContext);
 
       if (ref === undefined) {
@@ -448,6 +452,11 @@ function musicBrainzRefFromQuery(
 
 function isTextQuery(query: KnowledgeQuery): query is TextMusicBrainzQuery {
   return typeof (query as { text?: unknown }).text === "string";
+}
+
+function isCanonicalQuery(query: KnowledgeQuery): query is CanonicalMusicBrainzQuery {
+  return typeof (query as { canonicalRef?: unknown }).canonicalRef === "object"
+    && (query as { canonicalRef?: unknown }).canonicalRef !== null;
 }
 
 function textQueryFromCanonicalContext(
