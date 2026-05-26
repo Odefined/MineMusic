@@ -436,6 +436,150 @@ async function appliesTagQueryFiltersToReturnedRootFacts(): Promise<void> {
   );
 }
 
+async function buildsFieldQueriesForRequestedEntityKinds(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            artists: [],
+            labels: [],
+            recordings: [],
+            releases: [],
+            "release-groups": [],
+            works: [],
+          },
+        },
+      };
+    },
+  });
+
+  await assertOk(
+    provider.query({
+      query: {
+        fieldQuery: {
+          title: "Sacred Play Secret Place",
+          artist: "matryoshka",
+          release: "Laideronnette",
+          label: "Virgin Babylon",
+          date: "2012",
+          country: "jp",
+          barcode: "1234567890123",
+          catalogNumber: "VBR-001",
+          type: "Album",
+        },
+        entityKinds: ["recording", "release", "release_group", "artist", "work", "label"],
+        limit: 3,
+      },
+    }),
+  );
+
+  const queriesByPath = new Map(requests.map((request) => [request.path, request.query.query]));
+
+  assert(
+    queriesByPath.get("/ws/2/recording")
+      === 'recording:"Sacred Play Secret Place" AND artist:"matryoshka" AND release:"Laideronnette" AND date:"2012" AND country:"JP"',
+    "recording field query should map title, artist, release, date, and country",
+  );
+  assert(
+    queriesByPath.get("/ws/2/release")
+      === 'release:"Sacred Play Secret Place" AND artist:"matryoshka" AND label:"Virgin Babylon" AND date:"2012" AND country:"JP" AND barcode:"1234567890123" AND catno:"VBR-001" AND type:"Album"',
+    "release field query should map release, label, barcode, catalog number, country, date, artist, and type",
+  );
+  assert(
+    queriesByPath.get("/ws/2/release-group")
+      === 'releasegroup:"Sacred Play Secret Place" AND artist:"matryoshka" AND firstreleasedate:"2012" AND primarytype:"Album"',
+    "release-group field query should map title, artist, first release date, and primary type",
+  );
+  assert(
+    queriesByPath.get("/ws/2/artist") === 'artist:"Sacred Play Secret Place" AND country:"JP" AND type:"Album"',
+    "artist field query should map title, country, and artist type",
+  );
+  assert(
+    queriesByPath.get("/ws/2/work") === 'work:"Sacred Play Secret Place" AND artist:"matryoshka" AND type:"Album"',
+    "work field query should map title, artist, and work type",
+  );
+  assert(
+    queriesByPath.get("/ws/2/label") === 'label:"Sacred Play Secret Place" AND country:"JP" AND type:"Album"',
+    "label field query should map title, country, and label type",
+  );
+}
+
+async function fieldQueryLooksUpMissingTagsBeforeFiltering(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      if (request.path === "/ws/2/recording/recording-mbid-1") {
+        return {
+          ok: true,
+          value: {
+            status: 200,
+            json: {
+              id: "recording-mbid-1",
+              title: "Sacred Play Secret Place",
+              genres: [{ name: "Ambient" }],
+              tags: [{ name: "Glitch" }],
+            },
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            recordings: [
+              {
+                id: "recording-mbid-1",
+                title: "Sacred Play Secret Place",
+                score: 92,
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        fieldQuery: {
+          artist: "matryoshka",
+          release: "Laideronnette",
+        },
+        filters: {
+          tags: {
+            include: ["ambient"],
+          },
+        },
+        limit: 1,
+      },
+    }),
+  );
+
+  assert(requests[0]?.path === "/ws/2/recording", "field query should default to recording search");
+  assert(
+    requests[0]?.query.query === 'artist:"matryoshka" AND release:"Laideronnette"',
+    "recording fieldQuery.release should remain a release-style search condition",
+  );
+  assert(requests[1]?.path === "/ws/2/recording/recording-mbid-1", "field query filters should trigger lookup when tags are missing");
+  assert(result.items.length === 1, "lookup-provided tags should allow field query results through filters");
+  assert(
+    result.items[0]?.kind === "structured"
+    && result.items[0].rootNodeId === "recording:recording-mbid-1",
+    "field query should return the looked-up root after tag filtering",
+  );
+}
+
 async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<void> {
   const paths: string[] = [];
   const provider = createMusicBrainzKnowledgeProvider({
@@ -1364,6 +1508,8 @@ await searchesLabelsAsStructuredKnowledge();
 await filtersRootItemsByReturnedTagsAndGenres();
 await searchesTagQueryAndRanksMatchesAcrossKinds();
 await appliesTagQueryFiltersToReturnedRootFacts();
+await buildsFieldQueriesForRequestedEntityKinds();
+await fieldQueryLooksUpMissingTagsBeforeFiltering();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
 await looksUpMusicBrainzRefFromCanonicalContext();
 await browsesReleasesForReleaseGroupExpansion();

@@ -189,6 +189,7 @@ type MusicBrainzRelation = {
 type TextMusicBrainzQuery = KnowledgeQuery & { text: string };
 type CanonicalMusicBrainzQuery = KnowledgeQuery & { canonicalRef: Ref };
 type TagMusicBrainzQuery = KnowledgeQuery & { tagQuery: string[] };
+type FieldMusicBrainzQuery = KnowledgeQuery & { fieldQuery: NonNullable<KnowledgeQuery["fieldQuery"]> };
 type MusicBrainzRequestRuntime = {
   baseUrl: string;
   cache: ProviderHttpCacheRepository | undefined;
@@ -257,6 +258,10 @@ export function createMusicBrainzKnowledgeProvider(options: MusicBrainzKnowledge
         return searchMusicBrainzTags({ ...runtime, query });
       }
 
+      if (isFieldQuery(query)) {
+        return searchMusicBrainzFields({ ...runtime, query });
+      }
+
       if (!isCanonicalQuery(query)) {
         return ok({ items: [] });
       }
@@ -270,6 +275,81 @@ export function createMusicBrainzKnowledgeProvider(options: MusicBrainzKnowledge
       return lookupMusicBrainzRef({ ...runtime, query, ref });
     },
   };
+}
+
+async function searchMusicBrainzFields({
+  baseUrl,
+  cache,
+  clock,
+  rateLimiter,
+  requestJson,
+  userAgent,
+  query,
+}: MusicBrainzRequestRuntime & {
+  query: FieldMusicBrainzQuery;
+}): Promise<Result<{ items: StructuredKnowledge[] }>> {
+  if (query.formats !== undefined && !query.formats.includes("structured")) {
+    return ok({ items: [] });
+  }
+
+  const entityKinds = query.entityKinds ?? ["recording"];
+  const items: StructuredKnowledge[] = [];
+
+  for (const entityKind of entityKinds) {
+    const search = searchConfigFor(entityKind);
+    const searchQuery = fieldSearchQueryFor(entityKind, query.fieldQuery);
+
+    if (search === undefined || searchQuery === undefined) {
+      continue;
+    }
+
+    const response = await requestMusicBrainz({
+      baseUrl,
+      cache,
+      clock,
+      rateLimiter,
+      requestJson,
+      userAgent,
+      path: search.path,
+      query: {
+        query: searchQuery,
+        limit: String(fieldSearchRequestLimit(query)),
+      },
+    });
+
+    if (!response.ok) {
+      return response;
+    }
+
+    for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
+      const item = search.toKnowledge(entity);
+      const followUpRef = fieldSearchFollowUpRef(entityKind, item, query);
+
+      if (followUpRef !== undefined) {
+        const followUp = await lookupMusicBrainzRef({
+          baseUrl,
+          cache,
+          clock,
+          rateLimiter,
+          requestJson,
+          userAgent,
+          query: lookupQueryFromFieldQuery(query, followUpRef),
+          ref: followUpRef,
+        });
+
+        if (!followUp.ok) {
+          return followUp;
+        }
+
+        items.push(...followUp.value.items);
+        continue;
+      }
+
+      items.push(...applyRootTagFilters([item], query.filters));
+    }
+  }
+
+  return ok({ items: items.slice(0, normalizedSearchLimit(query.limit)) });
 }
 
 async function searchMusicBrainzTags({
@@ -557,6 +637,12 @@ function isTagQuery(query: KnowledgeQuery): query is TagMusicBrainzQuery {
   return Array.isArray((query as { tagQuery?: unknown }).tagQuery);
 }
 
+function isFieldQuery(query: KnowledgeQuery): query is FieldMusicBrainzQuery {
+  return typeof (query as { fieldQuery?: unknown }).fieldQuery === "object"
+    && (query as { fieldQuery?: unknown }).fieldQuery !== null
+    && !Array.isArray((query as { fieldQuery?: unknown }).fieldQuery);
+}
+
 function isCanonicalQuery(query: KnowledgeQuery): query is CanonicalMusicBrainzQuery {
   return typeof (query as { canonicalRef?: unknown }).canonicalRef === "object"
     && (query as { canonicalRef?: unknown }).canonicalRef !== null;
@@ -680,6 +766,52 @@ function lookupQueryFromTextQuery(query: TextMusicBrainzQuery, ref: Ref): Canoni
   };
 }
 
+function lookupQueryFromFieldQuery(query: FieldMusicBrainzQuery, ref: Ref): CanonicalMusicBrainzQuery {
+  return {
+    canonicalRef: ref,
+    ...(query.filters === undefined ? {} : { filters: query.filters }),
+    ...(query.purpose === undefined ? {} : { purpose: query.purpose }),
+    ...(query.formats === undefined ? {} : { formats: query.formats }),
+    ...(query.entityKinds === undefined ? {} : { entityKinds: query.entityKinds }),
+    ...(query.expand === undefined ? {} : { expand: query.expand }),
+    ...(query.relationFocus === undefined ? {} : { relationFocus: query.relationFocus }),
+    ...(query.limit === undefined ? {} : { limit: query.limit }),
+  };
+}
+
+function fieldSearchFollowUpRef(
+  entityKind: string,
+  item: StructuredKnowledge,
+  query: FieldMusicBrainzQuery,
+): Ref | undefined {
+  const root = item.nodes.find((node) => node.id === item.rootNodeId);
+
+  if (root?.ref === undefined) {
+    return undefined;
+  }
+
+  const normalizedKind = normalizedMusicBrainzKind(entityKind);
+
+  if (
+    query.filters?.tags !== undefined &&
+    !rootHasTagFacts(item)
+  ) {
+    return root.ref;
+  }
+
+  if (textSearchRequiresFollowUp(normalizedKind, query.expand)) {
+    return root.ref;
+  }
+
+  return undefined;
+}
+
+function fieldSearchRequestLimit(query: FieldMusicBrainzQuery): number {
+  const limit = normalizedSearchLimit(query.limit);
+
+  return query.filters?.tags === undefined ? limit : Math.min(limit * 5, 50);
+}
+
 function canonicalSearchEntityKind(kind: string | undefined): string | undefined {
   switch (kind) {
     case "artist":
@@ -691,6 +823,88 @@ function canonicalSearchEntityKind(kind: string | undefined): string | undefined
       return undefined;
   }
 }
+
+const fieldQueryKeys = [
+  "title",
+  "artist",
+  "release",
+  "label",
+  "date",
+  "country",
+  "barcode",
+  "catalogNumber",
+  "type",
+] as const;
+
+type FieldQueryKey = typeof fieldQueryKeys[number];
+
+function fieldSearchQueryFor(
+  entityKind: string,
+  fieldQuery: FieldMusicBrainzQuery["fieldQuery"],
+): string | undefined {
+  const fields = musicBrainzFieldMappings[entityKind];
+
+  if (fields === undefined) {
+    return undefined;
+  }
+
+  const clauses: string[] = [];
+
+  for (const key of fieldQueryKeys) {
+    const field = fields[key];
+    const value = fieldQuery[key];
+
+    if (field === undefined || typeof value !== "string" || value.length === 0) {
+      continue;
+    }
+
+    const searchValue = key === "country" ? value.toUpperCase() : value;
+    clauses.push(`${field}:${quoteMusicBrainzSearchValue(searchValue)}`);
+  }
+
+  return clauses.length === 0 ? undefined : clauses.join(" AND ");
+}
+
+const musicBrainzFieldMappings: Record<string, Partial<Record<FieldQueryKey, string>>> = {
+  recording: {
+    title: "recording",
+    artist: "artist",
+    release: "release",
+    date: "date",
+    country: "country",
+  },
+  release: {
+    title: "release",
+    artist: "artist",
+    label: "label",
+    date: "date",
+    country: "country",
+    barcode: "barcode",
+    catalogNumber: "catno",
+    type: "type",
+  },
+  release_group: {
+    title: "releasegroup",
+    artist: "artist",
+    date: "firstreleasedate",
+    type: "primarytype",
+  },
+  artist: {
+    title: "artist",
+    country: "country",
+    type: "type",
+  },
+  work: {
+    title: "work",
+    artist: "artist",
+    type: "type",
+  },
+  label: {
+    title: "label",
+    country: "country",
+    type: "type",
+  },
+};
 
 type MusicBrainzSearchConfig = {
   path: string;
@@ -1091,6 +1305,12 @@ function rootTagSet(item: StructuredKnowledge): Set<string> {
     ...tagNamesFromProperty(root.properties.tags),
     ...tagNamesFromProperty(root.properties.genres),
   ]);
+}
+
+function rootHasTagFacts(item: StructuredKnowledge): boolean {
+  const root = item.nodes.find((node) => node.id === item.rootNodeId);
+
+  return root?.properties?.tags !== undefined || root?.properties?.genres !== undefined;
 }
 
 function tagNamesFromProperty(value: unknown): string[] {
