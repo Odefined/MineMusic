@@ -158,6 +158,136 @@ async function searchesRequestedEntityKinds(): Promise<void> {
   assert(result.items[1]?.nodes[0]?.type === "work", "work hit root should be work");
 }
 
+async function searchesLabelsAsStructuredKnowledge(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            labels: [
+              {
+                id: "label-mbid-1",
+                name: "Young",
+                disambiguation: "UK independent label",
+                type: "Original Production",
+                country: "GB",
+                score: 94,
+                genres: [{ name: "indie pop", count: 2 }],
+                tags: [{ name: "independent", count: 4 }],
+                rating: { value: 4.1, "votes-count": 9 },
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        text: "Young",
+        entityKinds: ["label"],
+        limit: 1,
+      },
+    }),
+  );
+  const item = result.items[0];
+  const root = item?.kind === "structured" ? item.nodes.find((node) => node.id === item.rootNodeId) : undefined;
+
+  assert(
+    provider.descriptor?.knowledge?.entityKinds?.includes("label") === true,
+    "descriptor should advertise label knowledge roots",
+  );
+  assert(requests[0]?.path === "/ws/2/label", "label text search should use label search");
+  assert(item?.kind === "structured", "label hit should be structured");
+  assert(root?.type === "label", "label hit root should be label");
+  assert(root?.ref?.id === "label-mbid-1", "label root should carry MusicBrainz label MBID");
+  assert(root?.properties?.country === "GB", "label country should be preserved");
+  assert((root?.properties?.tags as Array<{ name: string }> | undefined)?.[0]?.name === "independent", "label tags should be preserved");
+  assert(item.retrievalScore === 94, "label search score should become retrievalScore");
+}
+
+async function filtersRootItemsByReturnedTagsAndGenres(): Promise<void> {
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async () => ({
+      ok: true,
+      value: {
+        status: 200,
+        json: {
+          recordings: [
+            {
+              id: "matching-recording",
+              title: "Matching",
+              score: 80,
+              genres: [{ name: "Ambient" }],
+              tags: [{ name: "Shoegaze" }],
+            },
+            {
+              id: "excluded-recording",
+              title: "Excluded",
+              score: 99,
+              genres: [{ name: "Ambient" }],
+              tags: [{ name: "New Age" }],
+            },
+            {
+              id: "untagged-recording",
+              title: "Untagged",
+              score: 70,
+            },
+          ],
+        },
+      },
+    }),
+  });
+
+  const includeAndExclude = await assertOk(
+    provider.query({
+      query: {
+        text: "ambient",
+        filters: {
+          tags: {
+            include: [" ambient ", "shoegaze"],
+            exclude: ["new age"],
+          },
+        },
+      },
+    }),
+  );
+  const excludeOnly = await assertOk(
+    provider.query({
+      query: {
+        text: "ambient",
+        filters: {
+          tags: {
+            exclude: ["new age"],
+          },
+        },
+      },
+    }),
+  );
+
+  assert(includeAndExclude.items.length === 1, "include tags should require every requested root tag");
+  assert(
+    includeAndExclude.items[0]?.kind === "structured"
+    && includeAndExclude.items[0].rootNodeId === "recording:matching-recording",
+    "genres should count as tag matches and excluded tags should remove roots",
+  );
+  assert(
+    excludeOnly.items.some((item) => item.kind === "structured" && item.rootNodeId === "recording:untagged-recording"),
+    "roots without tags should not fail exclude-only filters",
+  );
+  assert(
+    !excludeOnly.items.some((item) => item.kind === "structured" && item.rootNodeId === "recording:excluded-recording"),
+    "exclude filters should remove roots carrying excluded tags",
+  );
+}
+
 async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<void> {
   const paths: string[] = [];
   const provider = createMusicBrainzKnowledgeProvider({
@@ -1082,6 +1212,8 @@ async function mapsRateLimitErrorWithoutCachingFailure(): Promise<void> {
 
 await searchesRecordingsAsStructuredKnowledge();
 await searchesRequestedEntityKinds();
+await searchesLabelsAsStructuredKnowledge();
+await filtersRootItemsByReturnedTagsAndGenres();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
 await looksUpMusicBrainzRefFromCanonicalContext();
 await browsesReleasesForReleaseGroupExpansion();

@@ -122,6 +122,21 @@ type MusicBrainzRelease = {
   rating?: unknown;
 };
 
+type MusicBrainzLabel = {
+  id?: unknown;
+  name?: unknown;
+  disambiguation?: unknown;
+  type?: unknown;
+  country?: unknown;
+  area?: unknown;
+  score?: unknown;
+  relations?: unknown;
+  annotation?: unknown;
+  genres?: unknown;
+  tags?: unknown;
+  rating?: unknown;
+};
+
 type MusicBrainzMedium = {
   position?: unknown;
   format?: unknown;
@@ -191,7 +206,7 @@ export const musicBrainzKnowledgeProviderDescriptor: InstrumentProviderDescripto
   operations: ["query"],
   knowledge: {
     formats: ["structured"],
-    entityKinds: ["artist", "recording", "release", "release_group", "work"],
+    entityKinds: ["artist", "label", "recording", "release", "release_group", "work"],
     expansions: [
       "credits",
       "relations",
@@ -348,7 +363,7 @@ async function searchMusicBrainzText({
     }
   }
 
-  return ok({ items });
+  return ok({ items: applyRootTagFilters(items, query.filters) });
 }
 
 async function lookupMusicBrainzRef({
@@ -436,7 +451,7 @@ async function lookupMusicBrainzRef({
     items.push(...entitiesFromSearch(browse.value, "release-groups").map(releaseGroupToKnowledge));
   }
 
-  return ok({ items });
+  return ok({ items: applyRootTagFilters(items, query.filters) });
 }
 
 function musicBrainzRefFromQuery(
@@ -609,6 +624,12 @@ function searchConfigFor(entityKind: string): MusicBrainzSearchConfig | undefine
         responseKey: "recordings",
         toKnowledge: (entity) => recordingToKnowledge(entity),
       };
+    case "label":
+      return {
+        path: "/ws/2/label",
+        responseKey: "labels",
+        toKnowledge: (entity) => labelToKnowledge(entity),
+      };
     case "release":
       return {
         path: "/ws/2/release",
@@ -648,6 +669,11 @@ function lookupConfigFor(entityKind: string): MusicBrainzLookupConfig | undefine
       return {
         apiKind: "recording",
         toKnowledge: (entity) => recordingToKnowledge(objectValue(entity)),
+      };
+    case "label":
+      return {
+        apiKind: "label",
+        toKnowledge: (entity) => labelToKnowledge(objectValue(entity)),
       };
     case "release":
       return {
@@ -754,6 +780,8 @@ function relationshipIncludesFor(entityKind: string): string[] {
       return ["artist-rels", "label-rels", "recording-level-rels", "release-group-level-rels", "url-rels", "work-level-rels"];
     case "release_group":
       return ["artist-rels", "release-rels", "url-rels", "work-rels"];
+    case "label":
+      return ["artist-rels", "release-rels", "url-rels"];
     case "work":
       return ["artist-rels", "recording-rels", "url-rels", "work-rels"];
     default:
@@ -875,6 +903,105 @@ function filterEntityRelationsForFocus(
     ...source,
     relations: relations.filter(isMemberOfBandRelation),
   };
+}
+
+function applyRootTagFilters(
+  items: StructuredKnowledge[],
+  filters: KnowledgeQuery["filters"],
+): StructuredKnowledge[] {
+  const tagFilters = filters?.tags;
+
+  if (tagFilters === undefined) {
+    return items;
+  }
+
+  const include = normalizeTagList(tagFilters.include);
+  const exclude = normalizeTagList(tagFilters.exclude);
+
+  if (include.length === 0 && exclude.length === 0) {
+    return items;
+  }
+
+  return items.filter((item) => {
+    const rootTags = rootTagSet(item);
+
+    if (include.some((tag) => !rootTags.has(tag))) {
+      return false;
+    }
+
+    if (exclude.some((tag) => rootTags.has(tag))) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function matchRootTags(item: StructuredKnowledge, queryTags: string[]): Record<string, unknown> {
+  const rootTags = rootTagSet(item);
+  const matchedTags = normalizeTagList(queryTags).filter((tag) => rootTags.has(tag));
+
+  return {
+    matchedTags,
+    matchedTagCount: matchedTags.length,
+  };
+}
+
+function rootTagSet(item: StructuredKnowledge): Set<string> {
+  const root = item.nodes.find((node) => node.id === item.rootNodeId);
+
+  if (root?.properties === undefined) {
+    return new Set();
+  }
+
+  return new Set([
+    ...tagNamesFromProperty(root.properties.tags),
+    ...tagNamesFromProperty(root.properties.genres),
+  ]);
+}
+
+function tagNamesFromProperty(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return normalizeTagList(
+    value.map((entry) => {
+      if (typeof entry === "string") {
+        return entry;
+      }
+
+      return typeof entry === "object" && entry !== null
+        ? stringValue((entry as { name?: unknown }).name)
+        : undefined;
+    }),
+  );
+}
+
+function normalizeTagList(values: Array<string | undefined> | undefined): string[] {
+  if (values === undefined) {
+    return [];
+  }
+
+  const normalized: string[] = [];
+
+  for (const value of values) {
+    if (value === undefined) {
+      continue;
+    }
+
+    const tag = normalizeTagName(value);
+
+    if (tag.length > 0 && !normalized.includes(tag)) {
+      normalized.push(tag);
+    }
+  }
+
+  return normalized;
+}
+
+function normalizeTagName(value: string): string {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function isMemberOfBandRelation(relation: unknown): boolean {
@@ -1069,6 +1196,36 @@ function workToKnowledge(work: MusicBrainzWork): StructuredKnowledge {
   };
 }
 
+function labelToKnowledge(label: MusicBrainzLabel): StructuredKnowledge {
+  const labelId = stringValue(label.id) ?? "unknown";
+  const rootNodeId = `label:${labelId}`;
+  const rootLabel = stringValue(label.name);
+  const retrievalScore = numberValue(label.score);
+  const nodes: KnowledgeNode[] = [
+    {
+      id: rootNodeId,
+      type: "label",
+      ...(rootLabel === undefined ? {} : { label: rootLabel }),
+      ref: musicBrainzRef("label", labelId, rootLabel),
+      properties: labelProperties(label),
+    },
+  ];
+  const relations: KnowledgeRelation[] = [];
+  appendRelations(nodes, relations, rootNodeId, label.relations);
+
+  return {
+    kind: "structured",
+    providerId: "musicbrainz",
+    source: {
+      ref: musicBrainzRef("label", labelId, rootLabel),
+    },
+    rootNodeId,
+    nodes,
+    relations,
+    ...(retrievalScore === undefined ? {} : { retrievalScore }),
+  };
+}
+
 function releaseProperties(release: MusicBrainzRelease): Record<string, unknown> {
   return removeUndefined({
     title: stringValue(release.title),
@@ -1138,6 +1295,20 @@ function workProperties(work: MusicBrainzWork): Record<string, unknown> {
     genres: countedNameArray(work.genres),
     tags: countedNameArray(work.tags),
     rating: ratingValue(work.rating),
+  });
+}
+
+function labelProperties(label: MusicBrainzLabel): Record<string, unknown> {
+  return removeUndefined({
+    name: stringValue(label.name),
+    disambiguation: stringValue(label.disambiguation),
+    type: stringValue(label.type),
+    country: stringValue(label.country),
+    area: areaName(label.area),
+    annotation: annotationText(label.annotation),
+    genres: countedNameArray(label.genres),
+    tags: countedNameArray(label.tags),
+    rating: ratingValue(label.rating),
   });
 }
 
@@ -1268,11 +1439,7 @@ function relationTargetProperties(targetType: string, target: Record<string, unk
     case "work":
       return workProperties(target);
     case "label":
-      return removeUndefined({
-        name: stringValue(target.name),
-        disambiguation: stringValue(target.disambiguation),
-        type: stringValue(target.type),
-      });
+      return labelProperties(target);
     case "url":
       return removeUndefined({
         resource: stringValue(target.resource),
@@ -1574,6 +1741,16 @@ function annotationText(value: unknown): string | undefined {
   const annotation = value as { text?: unknown; content?: unknown };
 
   return stringValue(annotation.text) ?? stringValue(annotation.content);
+}
+
+function areaName(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return typeof value === "object" && value !== null
+    ? stringValue((value as { name?: unknown }).name)
+    : undefined;
 }
 
 function stringArray(value: unknown): string[] | undefined {
