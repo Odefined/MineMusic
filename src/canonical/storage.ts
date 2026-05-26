@@ -54,7 +54,7 @@ export function createCanonicalStorage({
 }: CanonicalStorageOptions): CanonicalStorage {
   return {
     get(ref) {
-      return repository.get(ref);
+      return getFollowingRedirect(repository, ref);
     },
 
     async put(record, options = {}) {
@@ -239,6 +239,41 @@ function isSourceRefUniqueStorageError(error: StageError): boolean {
     error.code === "storage.unavailable" &&
     hasSourceRefUniqueConstraint(error.cause)
   );
+}
+
+async function getFollowingRedirect(
+  repository: CanonicalRecordRepository,
+  ref: Ref,
+  seen: Set<string> = new Set(),
+): Promise<Result<CanonicalRecord | null>> {
+  const record = await repository.get(ref);
+
+  if (!record.ok) {
+    return record;
+  }
+
+  if (record.value?.status !== "merged" || record.value.mergedIntoRef === undefined) {
+    return record;
+  }
+
+  const key = refKey(record.value.ref);
+
+  if (seen.has(key)) {
+    return fail({
+      code: "canonical.invariant_failed",
+      message: `Canonical redirect cycle detected at '${key}'.`,
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  seen.add(key);
+
+  return getFollowingRedirect(repository, record.value.mergedIntoRef, seen);
+}
+
+function refKey(ref: Ref): string {
+  return `${ref.namespace}:${ref.kind}:${ref.id}`;
 }
 
 function hasSourceRefUniqueConstraint(cause: unknown): boolean {

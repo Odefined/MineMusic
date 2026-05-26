@@ -283,11 +283,12 @@ export function createCanonicalMaintenance({
           return updateGate;
         }
 
-        return fail({
-          code: "canonical.review_invalid",
-          message: "canonical.review.apply update effects are not implemented in this slice.",
-          module: "canonical",
-          retryable: false,
+        return applyUpdateDecision({
+          storage,
+          events,
+          clock,
+          input,
+          inspection: commonGate.value.inspection,
         });
       }
 
@@ -513,6 +514,275 @@ function validateUpdateDecision(
   return ok(undefined);
 }
 
+async function applyUpdateDecision({
+  storage,
+  events,
+  clock,
+  input,
+  inspection,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  events: EventPort | undefined;
+  clock: () => string;
+  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
+  inspection: ProvisionalReviewInspection;
+}): Promise<Result<ProvisionalReviewApplyOutput>> {
+  const currentRecords = await storage.findCurrentRecordsBySourceRef({
+    sourceRef: input.selectedProviderRef,
+    excludeRef: input.subjectRef,
+    kind: "recording",
+  });
+
+  if (!currentRecords.ok) {
+    return currentRecords;
+  }
+
+  if (currentRecords.value.length > 1) {
+    return fail({
+      code: "canonical.invariant_failed",
+      message: "More than one current canonical recording carries the selected MusicBrainz recording ref.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (currentRecords.value.length === 0) {
+    return activateSubject({
+      storage,
+      events,
+      input,
+      inspection,
+    });
+  }
+
+  const target = currentRecords.value[0];
+
+  if (target === undefined) {
+    return fail({
+      code: "canonical.invariant_failed",
+      message: "Merge target lookup produced no target after invariant check.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  return mergeSubject({
+    storage,
+    events,
+    clock,
+    input,
+    inspection,
+    target,
+  });
+}
+
+async function activateSubject({
+  storage,
+  events,
+  input,
+  inspection,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  events: EventPort | undefined;
+  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
+  inspection: ProvisionalReviewInspection;
+}): Promise<Result<ProvisionalReviewApplyOutput>> {
+  const activatedLabel = selectedRecordingLabel(inspection, input.selectedProviderRef) ?? inspection.subject.label;
+  const activatedAliases = mergeAliases([
+    ...(inspection.subject.aliases ?? []),
+    ...sourceAliases(inspection),
+  ], activatedLabel);
+  const activated: CanonicalRecord = {
+    ...inspection.subject,
+    label: activatedLabel,
+    status: "active",
+    sourceRefs: uniqueRefs([
+      ...(inspection.subject.sourceRefs ?? []),
+      input.selectedProviderRef,
+    ]),
+    ...(activatedAliases === undefined ? {} : { aliases: activatedAliases }),
+  };
+  const stored = await storage.put(activated, {
+    sourceRefForConflict: input.selectedProviderRef,
+  });
+
+  if (!stored.ok) {
+    return stored;
+  }
+
+  await recordOptionalEvent(events, {
+    sessionId: input.sessionId,
+    actor: "stage",
+    type: "canonical.activated",
+    target: input.subjectRef,
+    payload: {
+      subjectRef: input.subjectRef,
+      inspectionId: input.inspectionId,
+      selectedProviderRef: input.selectedProviderRef,
+      reason: input.reason,
+    },
+  });
+
+  return ok({
+    subjectRef: input.subjectRef,
+    action: "update",
+    selectedProviderRef: input.selectedProviderRef,
+    appliedAction: "activate",
+  });
+}
+
+async function mergeSubject({
+  storage,
+  events,
+  clock,
+  input,
+  inspection,
+  target,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  events: EventPort | undefined;
+  clock: () => string;
+  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
+  inspection: ProvisionalReviewInspection;
+  target: CanonicalRecord;
+}): Promise<Result<ProvisionalReviewApplyOutput>> {
+  const movedSourceRefs = uniqueRefs([
+    ...(target.sourceRefs ?? []),
+    ...(inspection.subject.sourceRefs ?? []),
+    input.selectedProviderRef,
+  ]);
+  const conflict = await findMergeSourceRefConflict({
+    storage,
+    targetRef: target.ref,
+    subjectRef: input.subjectRef,
+    sourceRefs: movedSourceRefs,
+  });
+
+  if (!conflict.ok) {
+    return conflict;
+  }
+
+  if (conflict.value !== null) {
+    return fail({
+      code: "canonical.source_ref_conflict",
+      message: `Source ref '${refKey(conflict.value.sourceRef)}' is already attached to canonical record '${conflict.value.record.ref.id}'.`,
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const mergedSubject: CanonicalRecord = {
+    ...inspection.subject,
+    status: "merged",
+    sourceRefs: [],
+    mergedIntoRef: target.ref,
+  };
+  const storedSubject = await storage.put(mergedSubject);
+
+  if (!storedSubject.ok) {
+    return storedSubject;
+  }
+
+  const targetAliases = mergeAliases([
+    ...(target.aliases ?? []),
+    ...(inspection.subject.aliases ?? []),
+    inspection.subject.label,
+    ...sourceAliases(inspection),
+  ], target.label);
+  const survivingTarget: CanonicalRecord = {
+    ...target,
+    sourceRefs: movedSourceRefs,
+    ...(targetAliases === undefined ? {} : { aliases: targetAliases }),
+  };
+  const storedTarget = await storage.put(survivingTarget, {
+    sourceRefForConflict: input.selectedProviderRef,
+  });
+
+  if (!storedTarget.ok) {
+    return storedTarget;
+  }
+
+  for (const relation of inspection.outgoingRelations) {
+    const movedRelation: CanonicalRelation = {
+      ...relation,
+      id: `merged:${target.ref.id}:${relation.id}`,
+      subjectRef: target.ref,
+      updatedAt: clock(),
+    };
+    const storedRelation = await storage.putRelation(movedRelation);
+
+    if (!storedRelation.ok) {
+      return storedRelation;
+    }
+  }
+
+  await recordOptionalEvent(events, {
+    sessionId: input.sessionId,
+    actor: "stage",
+    type: "canonical.merged",
+    target: input.subjectRef,
+    payload: {
+      subjectRef: input.subjectRef,
+      targetRef: target.ref,
+      inspectionId: input.inspectionId,
+      selectedProviderRef: input.selectedProviderRef,
+      reason: input.reason,
+    },
+  });
+
+  return ok({
+    subjectRef: input.subjectRef,
+    action: "update",
+    selectedProviderRef: input.selectedProviderRef,
+    appliedAction: "merge",
+    targetRef: target.ref,
+  });
+}
+
+async function findMergeSourceRefConflict({
+  storage,
+  targetRef,
+  subjectRef,
+  sourceRefs,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  targetRef: Ref;
+  subjectRef: Ref;
+  sourceRefs: Ref[];
+}): Promise<Result<{ sourceRef: Ref; record: CanonicalRecord } | null>> {
+  const records = await storage.listRecords();
+
+  if (!records.ok) {
+    return records;
+  }
+
+  for (const sourceRef of sourceRefs) {
+    const conflict = records.value.find(
+      (record) =>
+        !sameRef(record.ref, targetRef) &&
+        !sameRef(record.ref, subjectRef) &&
+        (record.sourceRefs ?? []).some((candidateRef) => sameRef(candidateRef, sourceRef)),
+    );
+
+    if (conflict !== undefined) {
+      return ok({ sourceRef, record: conflict });
+    }
+  }
+
+  return ok(null);
+}
+
+async function recordOptionalEvent(
+  events: EventPort | undefined,
+  event: Parameters<EventPort["record"]>[0]["event"],
+): Promise<void> {
+  if (events === undefined) {
+    return;
+  }
+
+  await events.record({ event });
+}
+
 function validateCitations(
   input: ProvisionalReviewApplyInput,
   inspection: ProvisionalReviewInspection,
@@ -711,6 +981,61 @@ function knowledgeItemRefs(item: KnowledgeItem): Ref[] {
 
 function knowledgeItemContainsText(item: KnowledgeItem, text: string): boolean {
   return JSON.stringify(item).toLocaleLowerCase().includes(text);
+}
+
+function selectedRecordingLabel(
+  inspection: ProvisionalReviewInspection,
+  selectedProviderRef: Ref,
+): string | undefined {
+  for (const item of inspection.knowledgeItems) {
+    if (item.source.ref !== undefined && sameRef(item.source.ref, selectedProviderRef) && item.source.label !== undefined) {
+      return item.source.label;
+    }
+
+    if (item.kind === "structured") {
+      const node = item.nodes.find((candidate) =>
+        candidate.ref !== undefined && sameRef(candidate.ref, selectedProviderRef) && candidate.label !== undefined,
+      );
+
+      if (node?.label !== undefined) {
+        return node.label;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function sourceAliases(inspection: ProvisionalReviewInspection): string[] {
+  return inspection.provisionalHints.flatMap((hint) => [
+    hint.facts.title,
+    hint.sourceRef.label,
+  ]).filter((alias): alias is string => alias !== undefined && alias.trim().length > 0);
+}
+
+function mergeAliases(aliases: string[], primaryLabel: string): string[] | undefined {
+  const normalizedPrimary = normalizeAlias(primaryLabel);
+  const byKey = new Map<string, string>();
+
+  for (const alias of aliases) {
+    const normalized = normalizeAlias(alias);
+
+    if (normalized.length === 0 || normalized === normalizedPrimary) {
+      continue;
+    }
+
+    if (!byKey.has(normalized)) {
+      byKey.set(normalized, alias.trim());
+    }
+  }
+
+  const merged = [...byKey.values()];
+
+  return merged.length === 0 ? undefined : merged;
+}
+
+function normalizeAlias(alias: string): string {
+  return alias.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 }
 
 async function readNeighborRecords({

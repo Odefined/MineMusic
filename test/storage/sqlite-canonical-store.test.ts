@@ -502,6 +502,52 @@ async function persistsCanonicalProvisionalHintsAcrossRepositoryReopen(): Promis
   }
 }
 
+async function persistsMergedRedirectsAcrossRepositoryReopen(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-redirect-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const targetRef: Ref = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "redirect-target",
+  };
+  const subjectRef: Ref = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "redirect-subject",
+  };
+
+  try {
+    const repository = createSqliteCanonicalRecordRepository({ path: databasePath });
+
+    await assertOk(
+      repository.put({
+        ref: targetRef,
+        kind: "recording",
+        label: "Redirect Target",
+        status: "active",
+      }),
+    );
+    await assertOk(
+      repository.put({
+        ref: subjectRef,
+        kind: "recording",
+        label: "Redirect Subject",
+        status: "merged",
+        mergedIntoRef: targetRef,
+      }),
+    );
+
+    const reopenedStore = createCanonicalStore({
+      repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+    });
+    const redirected = await assertOk(reopenedStore.get({ ref: subjectRef }));
+
+    assert(redirected?.ref.id === targetRef.id, "ordinary canonical get should follow persisted redirects");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 await persistsCanonicalRecordsAcrossRepositoryReopen();
 await rejectsSourceRefConflictsAfterRepositoryReopen();
 await mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary();
@@ -509,6 +555,7 @@ await usesIndexedSourceRefLookupWithoutFullRepositoryList();
 await migratesLegacySourceRefTableToSourceRefs();
 await persistsCanonicalRelationsAcrossRepositoryReopen();
 await persistsCanonicalProvisionalHintsAcrossRepositoryReopen();
+await persistsMergedRedirectsAcrossRepositoryReopen();
 
 function assertUnreachable(): never {
   throw new Error("SQLite repository should expose indexed source-ref lookup");

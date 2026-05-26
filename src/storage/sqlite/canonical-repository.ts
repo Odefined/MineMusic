@@ -28,6 +28,7 @@ type CanonicalEntityRow = {
   kind: string;
   label: string;
   status: CanonicalRecord["status"];
+  merged_into_id: string | null;
 };
 
 type SourceRefRow = {
@@ -117,16 +118,18 @@ export function createSqliteCanonicalRecordRepository({
                 label,
                 normalized_label,
                 status,
+                merged_into_id,
                 created_at,
                 updated_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
                 namespace = excluded.namespace,
                 kind = excluded.kind,
                 label = excluded.label,
                 normalized_label = excluded.normalized_label,
                 status = excluded.status,
+                merged_into_id = excluded.merged_into_id,
                 updated_at = excluded.updated_at
             `)
             .run(
@@ -136,6 +139,7 @@ export function createSqliteCanonicalRecordRepository({
               record.label,
               normalizeLabel(record.label),
               record.status,
+              record.mergedIntoRef?.id ?? null,
               now,
               now,
             );
@@ -202,6 +206,7 @@ export function createSqliteCanonicalRecordRepository({
         const rows = database
           .prepare(`
             SELECT id, namespace, kind, label, status
+                 , merged_into_id
             FROM canonical_entities
             ORDER BY id
           `)
@@ -219,7 +224,8 @@ export function createSqliteCanonicalRecordRepository({
                    canonical_entities.namespace,
                    canonical_entities.kind,
                    canonical_entities.label,
-                   canonical_entities.status
+                   canonical_entities.status,
+                   canonical_entities.merged_into_id
             FROM canonical_entities
             INNER JOIN canonical_source_refs
               ON canonical_source_refs.canonical_id = canonical_entities.id
@@ -399,6 +405,7 @@ function getEntityRow(database: DatabaseSync, ref: Ref): CanonicalEntityRow | nu
   const row = database
     .prepare(`
       SELECT id, namespace, kind, label, status
+           , merged_into_id
       FROM canonical_entities
       WHERE namespace = ? AND kind = ? AND id = ?
     `)
@@ -440,6 +447,15 @@ function readCanonicalRecord(database: DatabaseSync, row: CanonicalEntityRow): C
 
   return {
     ...record,
+    ...(row.merged_into_id === null
+      ? {}
+      : {
+          mergedIntoRef: {
+            namespace: row.namespace,
+            kind: row.kind,
+            id: row.merged_into_id,
+          },
+        }),
     ...(refs.length === 0 ? {} : { sourceRefs: refs }),
     ...(aliasValues.length === 0 ? {} : { aliases: aliasValues }),
   };
