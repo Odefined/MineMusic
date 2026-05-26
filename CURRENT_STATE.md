@@ -344,10 +344,12 @@ host-facing and LLM-facing surface.
   filters, exclude-tag filters, and returns successful `Result<KnowledgeResult>`
   payloads. Follow-up hardening now keeps MusicBrainz's structured-only format
   capability strict, refills filtered-empty Tag Query provider pages before
-  exposing public chunks, prevents cursor continuation from repeating roots
-  already returned in earlier chunks without storing an unbounded root-id list
-  in provider cursors, and enforces `limit` as a global Knowledge response cap
-  across providers and MusicBrainz text-search root entity kinds. Public
+  exposing public chunks, uses simple provider-offset cursors with current-page
+  exact root de-duplication, and enforces `limit` as a global Knowledge response
+  cap across providers and MusicBrainz text-search root entity kinds. Cross-page
+  repeats may occur when MusicBrainz repeats a root at a later offset, but the
+  provider no longer uses approximate seen-root summaries that can skip unseen
+  roots. Public
   Knowledge query validation now also rejects unsupported
   `purpose`, `formats`, malformed `entityKinds`/`expand`, and non-integer or
   above-cap `limit` values before provider lookup.

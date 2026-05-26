@@ -362,14 +362,14 @@ async function searchMusicBrainzFields({
     }
   }
 
-  const pageItems = dedupeRootItems(items, cursorState.value)
+  const pageItems = dedupeRootItems(items)
     .slice(0, normalizedSearchLimit(query.limit));
   const result: { items: StructuredKnowledge[]; nextCursor?: string } = {
     items: pageItems,
   };
 
   if (nextCursor !== undefined) {
-    result.nextCursor = withSeenRootNodeIds(nextCursor, cursorState.value, pageItems);
+    result.nextCursor = nextCursor;
   }
 
   return ok(result);
@@ -462,7 +462,7 @@ async function searchMusicBrainzTags({
       }
 
       if (
-        tagPageItems(taggedItems, cursorState.value, requestLimit).length >= requestLimit ||
+        tagPageItems(taggedItems, requestLimit).length >= requestLimit ||
         candidateNextCursor === undefined
       ) {
         nextCursor = candidateNextCursor;
@@ -474,11 +474,11 @@ async function searchMusicBrainzTags({
     }
   }
 
-  const pageItems = tagPageItems(taggedItems, cursorState.value, requestLimit);
+  const pageItems = tagPageItems(taggedItems, requestLimit);
   const result: { items: StructuredKnowledge[]; nextCursor?: string } = { items: pageItems };
 
   if (nextCursor !== undefined) {
-    result.nextCursor = withSeenRootNodeIds(nextCursor, cursorState.value, pageItems);
+    result.nextCursor = nextCursor;
   }
 
   return ok(result);
@@ -608,12 +608,11 @@ async function searchMusicBrainzText({
 
   const pageItems = dedupeRootItems(
     applyRootTagFilters(items, query.filters),
-    cursorState.value,
   );
   const result: { items: StructuredKnowledge[]; nextCursor?: string } = { items: pageItems };
 
   if (nextCursor !== undefined) {
-    result.nextCursor = withSeenRootNodeIds(nextCursor, cursorState.value, pageItems);
+    result.nextCursor = nextCursor;
   }
 
   return ok(result);
@@ -1381,12 +1380,10 @@ function compareTaggedItems(
 
 function tagPageItems(
   taggedItems: TaggedKnowledgeItem[],
-  seenRoots: ProviderSearchCursorState,
   limit: number,
 ): StructuredKnowledge[] {
   return dedupeRootItems(
     [...taggedItems].sort(compareTaggedItems).map(({ item }) => item),
-    seenRoots,
   ).slice(0, limit);
 }
 
@@ -2238,9 +2235,8 @@ function allowsStructuredKnowledge(query: KnowledgeQuery): boolean {
 
 function dedupeRootItems<T extends StructuredKnowledge>(
   items: T[],
-  seenRoots: ProviderSearchCursorState,
 ): T[] {
-  const seenBloom = createSeenRootBloom(seenRoots);
+  const seen = new Set<string>();
   const deduped: T[] = [];
 
   for (const item of items) {
@@ -2251,115 +2247,25 @@ function dedupeRootItems<T extends StructuredKnowledge>(
       continue;
     }
 
-    if (seenRootBloomContains(seenBloom, rootNodeId)) {
+    if (seen.has(rootNodeId)) {
       continue;
     }
 
-    addSeenRootToBloom(seenBloom, rootNodeId);
+    seen.add(rootNodeId);
     deduped.push(item);
   }
 
   return deduped;
 }
 
-function withSeenRootNodeIds(
-  cursor: string,
-  seenRoots: ProviderSearchCursorState,
-  pageItems: StructuredKnowledge[],
-): string {
-  const pageRootNodeIds = pageItems.map((item) => item.rootNodeId).filter((nodeId): nodeId is string => nodeId !== undefined);
-
-  if (pageRootNodeIds.length === 0 && seenRoots.seenRootBloom === undefined && seenRoots.seenRootNodeIds.length === 0) {
-    return cursor;
-  }
-
-  const seenBloom = createSeenRootBloom(seenRoots);
-
-  for (const rootNodeId of pageRootNodeIds) {
-    addSeenRootToBloom(seenBloom, rootNodeId);
-  }
-
-  const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as ProviderSearchCursor;
-
-  return encodeProviderSearchCursor({
-    ...decoded,
-    seenRootBloom: encodeSeenRootBloom(seenBloom),
-  });
-}
-
 type ProviderSearchCursor = {
   planKey: string;
   offset: number;
-  seenRootNodeIds?: string[];
-  seenRootBloom?: string;
 };
 
 type ProviderSearchCursorState = {
   offset: number;
-  seenRootNodeIds: string[];
-  seenRootBloom?: string;
 };
-
-const seenRootBloomByteLength = 256;
-const seenRootBloomHashSeeds = [0x811c9dc5, 0x9e3779b1, 0x85ebca6b, 0xc2b2ae35] as const;
-
-function createSeenRootBloom(seenRoots: ProviderSearchCursorState): Uint8Array {
-  const bloom = decodeSeenRootBloom(seenRoots.seenRootBloom);
-
-  for (const rootNodeId of seenRoots.seenRootNodeIds) {
-    addSeenRootToBloom(bloom, rootNodeId);
-  }
-
-  return bloom;
-}
-
-function decodeSeenRootBloom(encoded: string | undefined): Uint8Array {
-  if (encoded === undefined) {
-    return new Uint8Array(seenRootBloomByteLength);
-  }
-
-  const bytes = Buffer.from(encoded, "base64url");
-
-  return bytes.length === seenRootBloomByteLength
-    ? new Uint8Array(bytes)
-    : new Uint8Array(seenRootBloomByteLength);
-}
-
-function encodeSeenRootBloom(bloom: Uint8Array): string {
-  return Buffer.from(bloom).toString("base64url");
-}
-
-function addSeenRootToBloom(bloom: Uint8Array, rootNodeId: string): void {
-  for (const bitIndex of seenRootBloomBitIndexes(rootNodeId)) {
-    const byteIndex = Math.floor(bitIndex / 8);
-    bloom[byteIndex] = (bloom[byteIndex] ?? 0) | (1 << (bitIndex % 8));
-  }
-}
-
-function seenRootBloomContains(bloom: Uint8Array, rootNodeId: string): boolean {
-  return seenRootBloomBitIndexes(rootNodeId).every((bitIndex) => {
-    const byteIndex = Math.floor(bitIndex / 8);
-
-    return ((bloom[byteIndex] ?? 0) & (1 << (bitIndex % 8))) !== 0;
-  });
-}
-
-function seenRootBloomBitIndexes(rootNodeId: string): number[] {
-  const bitLength = seenRootBloomByteLength * 8;
-
-  return seenRootBloomHashSeeds.map((seed) => fnv1a(rootNodeId, seed) % bitLength);
-}
-
-function fnv1a(value: string, seed: number): number {
-  let hash = seed >>> 0;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return hash >>> 0;
-}
 
 function providerSearchPlanKey(
   mode: "field" | "tag" | "text",
@@ -2378,7 +2284,7 @@ function readProviderSearchCursor(
   planKey: string,
 ): Result<ProviderSearchCursorState> {
   if (cursor === undefined) {
-    return ok({ offset: 0, seenRootNodeIds: [] });
+    return ok({ offset: 0 });
   }
 
   try {
@@ -2390,8 +2296,6 @@ function readProviderSearchCursor(
 
     return ok({
       offset: decoded.offset,
-      seenRootNodeIds: decoded.seenRootNodeIds ?? [],
-      ...(decoded.seenRootBloom === undefined ? {} : { seenRootBloom: decoded.seenRootBloom }),
     });
   } catch {
     return fail(invalidCursorError());
@@ -2443,18 +2347,7 @@ function isProviderSearchCursor(value: unknown): value is ProviderSearchCursor {
     typeof (value as { planKey?: unknown }).planKey === "string" &&
     typeof (value as { offset?: unknown }).offset === "number" &&
     Number.isInteger((value as { offset: number }).offset) &&
-    (value as { offset: number }).offset >= 0 &&
-    (
-      (value as { seenRootNodeIds?: unknown }).seenRootNodeIds === undefined ||
-      (
-        Array.isArray((value as { seenRootNodeIds?: unknown }).seenRootNodeIds) &&
-        (value as { seenRootNodeIds: unknown[] }).seenRootNodeIds.every((nodeId) => typeof nodeId === "string")
-      )
-    ) &&
-    (
-      (value as { seenRootBloom?: unknown }).seenRootBloom === undefined ||
-      typeof (value as { seenRootBloom?: unknown }).seenRootBloom === "string"
-    )
+    (value as { offset: number }).offset >= 0
   );
 }
 

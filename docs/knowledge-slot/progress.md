@@ -45,8 +45,8 @@
   artist, label, recording, release, release group, and work facts, supports
   Tag Query over provider-attributed tags, supports Field Query over mapped
   music-domain fields, supports provider-local cursor continuation for
-  search-backed text, tag, and field queries with cross-page root de-duplication
-  through a fixed-size seen-root summary and internal Tag Query refill for
+  search-backed text, tag, and field queries with simple provider offset
+  cursors, current-page root de-duplication, and internal Tag Query refill for
   filtered-empty provider pages, honors the
   provider's structured-only format capability, applies text-search `limit`
   across requested root `entityKinds`, supports
@@ -100,5 +100,7 @@
   - `tagQuery` plus `filters.tags.exclude`.
 - Fresh Codex-native MCP smoke after structured query hardening confirms
   `formats: ["text"]` returns no MusicBrainz structured items, multi-tag Tag
-  Query returns a non-empty first chunk, and cursor continuation does not repeat
-  root items from the prior chunk.
+  Query returns a non-empty first chunk, and cursor continuation works through
+  provider offsets. Cross-page repeats are allowed when the provider repeats a
+  root at a later offset; the cursor avoids approximate seen-root summaries so
+  it does not skip unseen roots because of false positives.

@@ -749,7 +749,75 @@ async function keepsCursorPayloadBoundedAcrossReturnedRoots(): Promise<void> {
   assert(secondPage.nextCursor.length < 1200, "continued provider cursor should remain bounded");
 }
 
-async function omitsAlreadyReturnedTagRootsAcrossCursorPages(): Promise<void> {
+async function doesNotSkipNewRootsFromCursorDedupeSummary(): Promise<void> {
+  const seenIdSuffix = "x".repeat(120);
+  const falsePositiveIdSuffix = "y".repeat(120);
+  const falsePositiveRecordingId = `candidate-2435-${falsePositiveIdSuffix}`;
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      const offset = request.query.offset ?? "0";
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: offset === "0"
+            ? {
+                count: 101,
+                recordings: Array.from({ length: 50 }, (_, index) => ({
+                  id: `seen-${index}-${seenIdSuffix}`,
+                  title: `Seen ${index}`,
+                  score: 100 - index,
+                })),
+              }
+            : {
+                count: 101,
+                recordings: [
+                  {
+                    id: falsePositiveRecordingId,
+                    title: "Should Not Be Skipped",
+                    score: 100,
+                  },
+                ],
+              },
+        },
+      };
+    },
+  });
+
+  const firstPage = await assertOk(
+    provider.query({
+      query: {
+        text: "cursor false positive",
+        entityKinds: ["recording"],
+        limit: 50,
+      },
+    }),
+  );
+
+  assert(firstPage.nextCursor !== undefined, "first page should expose a continuation cursor");
+
+  const secondPage = await assertOk(
+    provider.query({
+      query: {
+        text: "cursor false positive",
+        entityKinds: ["recording"],
+        limit: 50,
+        cursor: firstPage.nextCursor,
+      },
+    }),
+  );
+  const returnedRootIds = secondPage.items.map((item) =>
+    item.kind === "structured" ? item.rootNodeId : "text"
+  );
+
+  assert(
+    returnedRootIds.includes(`recording:${falsePositiveRecordingId}`),
+    "cursor continuation should not skip unseen roots because of an approximate dedupe summary",
+  );
+}
+
+async function allowsCrossPageRepeatsRatherThanSkippingNewRoots(): Promise<void> {
   const provider = createMusicBrainzKnowledgeProvider({
     requestJson: async (request) => {
       const offset = request.query.offset ?? "0";
@@ -862,12 +930,8 @@ async function omitsAlreadyReturnedTagRootsAcrossCursorPages(): Promise<void> {
   );
 
   assert(
-    !secondPageRootIds.includes("recording:duplicate-recording"),
-    "continued tag pages should not repeat roots returned by earlier pages",
-  );
-  assert(
-    !secondPageRootIds.includes("recording:new-recording"),
-    "continued tag pages should not repeat any root returned by earlier pages",
+    secondPageRootIds.includes("recording:duplicate-recording"),
+    "continued tag pages may repeat roots when the provider repeats them across offsets",
   );
   assert(
     secondPageRootIds.includes("recording:third-recording"),
@@ -1947,7 +2011,8 @@ await buildsFieldQueriesForRequestedEntityKinds();
 await fieldQueryLooksUpMissingTagsBeforeFiltering();
 await continuesSearchBackedQueriesWithProviderOffsets();
 await keepsCursorPayloadBoundedAcrossReturnedRoots();
-await omitsAlreadyReturnedTagRootsAcrossCursorPages();
+await doesNotSkipNewRootsFromCursorDedupeSummary();
+await allowsCrossPageRepeatsRatherThanSkippingNewRoots();
 await fillsTagQueryPageAfterProviderPagesWithNoMatches();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
 await appliesTextSearchLimitAcrossEntityKinds();
