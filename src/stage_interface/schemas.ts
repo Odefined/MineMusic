@@ -67,6 +67,16 @@ const libraryImportScopeSchema = z.enum([
   "saved_releases",
   "saved_artists",
 ]);
+const reviewSupportReasonKindSchema = z.enum([
+  "artist_credit",
+  "duration",
+  "isrc",
+  "release_appearance",
+  "source_ref_context",
+  "direct_relation_context",
+  "tracklist_context",
+  "active_neighbor_anchor",
+]);
 
 export type StageInterfaceToolInputSchema = z.ZodRawShape;
 
@@ -201,6 +211,24 @@ export const stageInterfaceToolInputSchemas = {
   },
   "library.import.summary": {
     batchId: z.string(),
+  },
+  "canonical.review.list": {
+    limit: z.number().int().positive().optional(),
+    cursor: z.string().optional(),
+  },
+  "canonical.review.inspect": {
+    subjectRef: refSchema,
+  },
+  "canonical.review.apply": {
+    inspectionId: z.string(),
+    subjectRef: refSchema,
+    action: z.enum(["update", "defer"]),
+    selectedProviderRef: refSchema.optional(),
+    supportingReasonKinds: z.array(reviewSupportReasonKindSchema).optional(),
+    reason: z.string(),
+    supportingRefs: z.array(refSchema).optional(),
+    supportingKnowledgeItemIds: z.array(z.string()).optional(),
+    supportingAnchorIds: z.array(z.string()).optional(),
   },
   "memory.propose": {
     proposal: z.object({}).passthrough(),

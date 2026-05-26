@@ -19,6 +19,8 @@ export const stageErrorCodes = [
   "stage_interface.tool_not_found",
   "canonical.not_found",
   "canonical.source_ref_conflict",
+  "canonical.review_invalid",
+  "canonical.invariant_failed",
   "collection.not_found",
   "collection.duplicate_label",
   "collection.system_collection_immutable",
@@ -149,6 +151,7 @@ export type HandbookToolEntry = {
 export type StageContext = {
   session: StageSession;
   memorySummaries: string[];
+  guidance?: string[];
 };
 
 export type CanonicalKind =
@@ -166,6 +169,7 @@ export type CanonicalRecord = {
   status: "active" | "provisional" | "merged" | "rejected";
   sourceRefs?: Ref[];
   aliases?: string[];
+  mergedIntoRef?: Ref;
 };
 
 export type CanonicalRelationStatus =
@@ -245,6 +249,119 @@ export type CanonicalProvisionalHintDraft = {
   kind: CanonicalProvisionalHintKind;
   facts: CanonicalProvisionalHintFacts;
 };
+
+export type ProvisionalReviewSupportReasonKind =
+  | "artist_credit"
+  | "duration"
+  | "isrc"
+  | "release_appearance"
+  | "source_ref_context"
+  | "direct_relation_context"
+  | "tracklist_context"
+  | "active_neighbor_anchor";
+
+export type ProvisionalReviewAnchor = {
+  id: string;
+  kind: "provider_ref" | "active_neighbor" | "source_relation" | (string & {});
+  role: "determining" | "supporting";
+  subjectRef: Ref;
+  providerRef?: Ref;
+  relatedCanonicalRefs: Ref[];
+  supportingRefs: Ref[];
+  supportingKnowledgeItemIds: string[];
+  notes?: string[];
+};
+
+export type ProvisionalRelationCandidate = {
+  id: string;
+  subjectRef: Ref;
+  predicate: CanonicalRelationPredicate;
+  objectKind: CanonicalRelationObjectKind;
+  objectRef?: Ref;
+  objectLabel?: string;
+  objectValue?: CanonicalRelationValue;
+  sourceRef?: Ref;
+  providerId?: string;
+  supportingKnowledgeItemIds: string[];
+  supportingAnchorIds: string[];
+};
+
+export type ProvisionalReviewListInput = {
+  sessionId: string;
+  limit?: number;
+  cursor?: string;
+};
+
+export type ProvisionalReviewListItem = {
+  subjectRef: Ref;
+  kind: "recording";
+  label: string;
+  sourceRefCount?: number;
+  relationCount?: number;
+};
+
+export type ProvisionalReviewListOutput = {
+  items: ProvisionalReviewListItem[];
+  nextCursor?: string;
+};
+
+export type ProvisionalReviewInspectInput = {
+  sessionId: string;
+  subjectRef: Ref;
+};
+
+export type ProvisionalReviewInspection = {
+  inspectionId: string;
+  subject: CanonicalRecord;
+  outgoingRelations: CanonicalRelation[];
+  incomingRelations: CanonicalRelation[];
+  provisionalHints: CanonicalProvisionalHint[];
+  neighborRecords: CanonicalRecord[];
+  relatedCurrentRecords: CanonicalRecord[];
+  knowledgeItems: KnowledgeItem[];
+  anchors: ProvisionalReviewAnchor[];
+  relationCandidates: ProvisionalRelationCandidate[];
+  warnings?: string[];
+  expiresAt: string;
+};
+
+export type ProvisionalReviewApplyInput =
+  | {
+      sessionId: string;
+      inspectionId: string;
+      subjectRef: Ref;
+      action: "update";
+      selectedProviderRef: Ref;
+      supportingReasonKinds: ProvisionalReviewSupportReasonKind[];
+      reason: string;
+      supportingRefs?: Ref[];
+      supportingKnowledgeItemIds?: string[];
+      supportingAnchorIds?: string[];
+    }
+  | {
+      sessionId: string;
+      inspectionId: string;
+      subjectRef: Ref;
+      action: "defer";
+      reason: string;
+      supportingRefs?: Ref[];
+      supportingKnowledgeItemIds?: string[];
+      supportingAnchorIds?: string[];
+    };
+
+export type ProvisionalReviewApplyOutput =
+  | {
+      subjectRef: Ref;
+      action: "update";
+      selectedProviderRef: Ref;
+      appliedAction: "activate" | "merge";
+      targetRef?: Ref;
+    }
+  | {
+      subjectRef: Ref;
+      action: "defer";
+      appliedAction: "defer";
+    };
 
 export type CollectionKind =
   | "recording"
@@ -818,6 +935,7 @@ export type KnowledgeResult = {
 export type KnowledgeItem = StructuredKnowledge | TextKnowledge;
 
 export type StructuredKnowledge = {
+  id?: string;
   kind: "structured";
   providerId: string;
   source: KnowledgeSource;
@@ -829,6 +947,7 @@ export type StructuredKnowledge = {
 };
 
 export type TextKnowledge = {
+  id?: string;
   kind: "text";
   providerId: string;
   source: KnowledgeSource;
@@ -973,6 +1092,9 @@ export type ToolName =
   | "library.update.start"
   | "library.import.status"
   | "library.import.summary"
+  | "canonical.review.list"
+  | "canonical.review.inspect"
+  | "canonical.review.apply"
   | "memory.propose";
 
 export type InstrumentDescriptor = {

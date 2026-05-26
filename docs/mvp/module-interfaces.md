@@ -261,6 +261,9 @@ export type ToolName =
   | "library.update.start"
   | "library.import.status"
   | "library.import.summary"
+  | "canonical.review.list"
+  | "canonical.review.inspect"
+  | "canonical.review.apply"
   | "memory.propose";
 
 export type InstrumentDescriptor = {
@@ -372,6 +375,14 @@ export interface CanonicalStorePort {
   }): Promise<Result<CanonicalProvisionalHint[]>>;
 
   listProvisionalHints(input: CanonicalProvisionalHintListInput): Promise<Result<CanonicalProvisionalHint[]>>;
+}
+
+export interface CanonicalMaintenancePort {
+  reviewList(input: ProvisionalReviewListInput): Promise<Result<ProvisionalReviewListOutput>>;
+
+  reviewInspect(input: ProvisionalReviewInspectInput): Promise<Result<ProvisionalReviewInspection>>;
+
+  reviewApply(input: ProvisionalReviewApplyInput): Promise<Result<ProvisionalReviewApplyOutput>>;
 }
 ```
 

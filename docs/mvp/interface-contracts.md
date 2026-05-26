@@ -265,6 +265,8 @@ Rules:
   extend `CanonicalRelation`.
 - Canonical Store does not decide playability.
 - Public methods for canonical behavior live in `CanonicalStorePort`.
+- Canonical Maintenance review methods live in a separate
+  `CanonicalMaintenancePort`, not on the ordinary `CanonicalStorePort`.
 
 ## Material Resolve And Source Grounding Types
 
@@ -635,6 +637,9 @@ export type ToolName =
   | "library.update.start"
   | "library.import.status"
   | "library.import.summary"
+  | "canonical.review.list"
+  | "canonical.review.inspect"
+  | "canonical.review.apply"
   | "memory.propose";
 
 export type InstrumentDescriptor = {

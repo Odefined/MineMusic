@@ -6,6 +6,13 @@ import type {
   CanonicalProvisionalHintFacts,
   CanonicalProvisionalHintKind,
   CanonicalRelation,
+  ProvisionalReviewAnchor,
+  ProvisionalReviewApplyInput,
+  ProvisionalReviewApplyOutput,
+  ProvisionalReviewInspection,
+  ProvisionalReviewListOutput,
+  ProvisionalReviewSupportReasonKind,
+  ProvisionalRelationCandidate,
   Collection,
   CollectionItem,
   CollectionKind,
@@ -84,6 +91,7 @@ import { stageErrorCodes } from "../../src/contracts/index.js";
 import type {
   CanonicalRecordRepository,
   CanonicalProvisionalHintListInput,
+  CanonicalMaintenancePort,
   CanonicalStorePort,
   CollectionPort,
   CollectionRepository,
@@ -159,7 +167,8 @@ type _collectionKindsMatchDesignedCanonicalKinds = Expect<
 >;
 
 type _canonicalRecordKindIncludesRelease = Expect<
-  Equal<Extract<CanonicalRecord["kind"], "release">, "release">
+  Equal<Extract<CanonicalRecord["kind"], "release">, "release"> &
+    Equal<CanonicalRecord["mergedIntoRef"], Ref | undefined>
 >;
 
 type _collectionRelationKindsMatchDesignedRelations = Expect<
@@ -218,6 +227,7 @@ type _knowledgeResultCarriesProviderAttributedItems = Expect<
 type _structuredKnowledgeContract = Expect<
   Equal<
     keyof StructuredKnowledge,
+    | "id"
     | "kind"
     | "providerId"
     | "source"
@@ -256,7 +266,7 @@ type _knowledgeRelationDirectionAllowsNoDirection = Expect<
 type _textKnowledgeContract = Expect<
   Equal<
     keyof TextKnowledge,
-    "kind" | "providerId" | "source" | "content" | "retrievalScore" | "metadata"
+    "id" | "kind" | "providerId" | "source" | "content" | "retrievalScore" | "metadata"
   > &
     Equal<TextKnowledge["kind"], "text"> &
     Equal<TextKnowledge["source"], KnowledgeSource> &
@@ -415,6 +425,114 @@ type _canonicalProvisionalHintKeys = Expect<
 
 type _canonicalProvisionalHintDraftKeys = Expect<
   Equal<keyof CanonicalProvisionalHintDraft, "kind" | "facts">
+>;
+
+type _provisionalReviewSupportReasonKinds = Expect<
+  Equal<
+    ProvisionalReviewSupportReasonKind,
+    | "artist_credit"
+    | "duration"
+    | "isrc"
+    | "release_appearance"
+    | "source_ref_context"
+    | "direct_relation_context"
+    | "tracklist_context"
+    | "active_neighbor_anchor"
+  >
+>;
+
+type _provisionalReviewAnchorKeys = Expect<
+  Equal<
+    keyof ProvisionalReviewAnchor,
+    | "id"
+    | "kind"
+    | "role"
+    | "subjectRef"
+    | "providerRef"
+    | "relatedCanonicalRefs"
+    | "supportingRefs"
+    | "supportingKnowledgeItemIds"
+    | "notes"
+  > &
+    Equal<ProvisionalReviewAnchor["role"], "determining" | "supporting"> &
+    Equal<ProvisionalReviewAnchor["providerRef"], Ref | undefined>
+>;
+
+type _provisionalRelationCandidateKeys = Expect<
+  Equal<
+    keyof ProvisionalRelationCandidate,
+    | "id"
+    | "subjectRef"
+    | "predicate"
+    | "objectKind"
+    | "objectRef"
+    | "objectLabel"
+    | "objectValue"
+    | "sourceRef"
+    | "providerId"
+    | "supportingKnowledgeItemIds"
+    | "supportingAnchorIds"
+  >
+>;
+
+type _provisionalReviewInspectionKeys = Expect<
+  Equal<
+    keyof ProvisionalReviewInspection,
+    | "inspectionId"
+    | "subject"
+    | "outgoingRelations"
+    | "incomingRelations"
+    | "provisionalHints"
+    | "neighborRecords"
+    | "relatedCurrentRecords"
+    | "knowledgeItems"
+    | "anchors"
+    | "relationCandidates"
+    | "warnings"
+    | "expiresAt"
+  > &
+    Equal<ProvisionalReviewInspection["subject"], CanonicalRecord> &
+    Equal<ProvisionalReviewInspection["anchors"], ProvisionalReviewAnchor[]>
+>;
+
+type _provisionalReviewListOutputShape = Expect<
+  Equal<keyof ProvisionalReviewListOutput, "items" | "nextCursor"> &
+    Equal<ProvisionalReviewListOutput["items"][number]["kind"], "recording">
+>;
+
+type _provisionalReviewApplyInputIsUpdateOrDefer = Expect<
+  Equal<ProvisionalReviewApplyInput["action"], "update" | "defer"> &
+    Equal<
+      Extract<ProvisionalReviewApplyInput, { action: "update" }>["selectedProviderRef"],
+      Ref
+    > &
+    Equal<
+      Extract<ProvisionalReviewApplyInput, { action: "update" }>["supportingReasonKinds"],
+      ProvisionalReviewSupportReasonKind[]
+    > &
+    Equal<
+      keyof Extract<ProvisionalReviewApplyInput, { action: "defer" }>,
+      | "sessionId"
+      | "inspectionId"
+      | "subjectRef"
+      | "action"
+      | "reason"
+      | "supportingRefs"
+      | "supportingKnowledgeItemIds"
+      | "supportingAnchorIds"
+    >
+>;
+
+type _provisionalReviewApplyOutputIsDerivedEffect = Expect<
+  Equal<ProvisionalReviewApplyOutput["action"], "update" | "defer"> &
+    Equal<
+      Extract<ProvisionalReviewApplyOutput, { action: "update" }>["appliedAction"],
+      "activate" | "merge"
+    > &
+    Equal<
+      Extract<ProvisionalReviewApplyOutput, { action: "defer" }>["appliedAction"],
+      "defer"
+    >
 >;
 
 type _libraryImportScopesMatchFirstSlice = Expect<
@@ -710,6 +828,16 @@ type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CanonicalStorePort, "listProvisionalHints">
 >;
 
+type _canonicalMaintenancePortMethods = Expect<
+  Equal<keyof CanonicalMaintenancePort, "reviewList" | "reviewInspect" | "reviewApply">
+>;
+
+type _canonicalMaintenancePortMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewList"> &
+    MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewInspect"> &
+    MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewApply">
+>;
+
 type _canonicalRecordRepositoryMethods = Expect<
   Equal<
     keyof CanonicalRecordRepository,
@@ -821,6 +949,8 @@ const requiredErrorCodes: StageErrorCode[] = [
   "stage_interface.tool_not_found",
   "canonical.not_found",
   "canonical.source_ref_conflict",
+  "canonical.review_invalid",
+  "canonical.invariant_failed",
   "collection.not_found",
   "collection.duplicate_label",
   "collection.system_collection_immutable",
@@ -1116,6 +1246,7 @@ const toolName: ToolName = "music.material.resolve";
 const collectionToolName: ToolName = "music.collection.save";
 const libraryImportToolName: ToolName = "library.import.preview";
 const libraryUpdateToolName: ToolName = "library.update.start";
+const canonicalReviewToolName: ToolName = "canonical.review.apply";
 const handbookToolEntry: HandbookToolEntry = {
   instrument: {
     id: "minemusic.music",
@@ -1165,6 +1296,62 @@ const canonicalStore: CanonicalStorePort = {
   listRelations: async () => ({ ok: true, value: [] }),
   recordProvisionalHints: async () => ({ ok: true, value: [canonicalProvisionalHint] }),
   listProvisionalHints: async () => ({ ok: true, value: [canonicalProvisionalHint] }),
+};
+
+const canonicalMaintenance: CanonicalMaintenancePort = {
+  reviewList: async () => ({
+    ok: true,
+    value: {
+      items: [
+        {
+          subjectRef: canonicalProvisionalHint.subjectRef,
+          kind: "recording",
+          label: "Fixture Recording",
+        },
+      ],
+    },
+  }),
+  reviewInspect: async () => ({
+    ok: true,
+    value: {
+      inspectionId: "inspection-1",
+      subject: {
+        ref: canonicalProvisionalHint.subjectRef,
+        kind: "recording",
+        label: "Fixture Recording",
+        status: "provisional",
+      },
+      outgoingRelations: [],
+      incomingRelations: [],
+      provisionalHints: [canonicalProvisionalHint],
+      neighborRecords: [],
+      relatedCurrentRecords: [],
+      knowledgeItems: [],
+      anchors: [],
+      relationCandidates: [],
+      expiresAt: "2026-05-27T00:05:00.000Z",
+    },
+  }),
+  reviewApply: async ({ action, subjectRef }) => (
+    action === "defer"
+      ? {
+          ok: true,
+          value: {
+            subjectRef,
+            action,
+            appliedAction: "defer",
+          },
+        }
+      : {
+          ok: true,
+          value: {
+            subjectRef,
+            action,
+            selectedProviderRef: { namespace: "musicbrainz", kind: "recording", id: "mb-recording" },
+            appliedAction: "activate",
+          },
+        }
+  ),
 };
 
 const collectionPort: CollectionPort = {
@@ -1319,9 +1506,11 @@ void [
   collectionToolName,
   libraryImportToolName,
   libraryUpdateToolName,
+  canonicalReviewToolName,
   handbookToolEntry,
   toolDispatch,
   canonicalStore,
+  canonicalMaintenance,
   collectionPort,
   materialResolve,
   sourceGrounding,

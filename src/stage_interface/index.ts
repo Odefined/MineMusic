@@ -1,5 +1,6 @@
 export {
   agentToolDescriptors,
+  canonicalReviewToolDescriptors,
   handbookToolDescriptors,
   libraryToolDescriptors,
   memoryToolDescriptors,

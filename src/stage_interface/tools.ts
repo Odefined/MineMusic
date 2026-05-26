@@ -30,6 +30,9 @@ export const stableToolNames = [
   "library.update.start",
   "library.import.status",
   "library.import.summary",
+  "canonical.review.list",
+  "canonical.review.inspect",
+  "canonical.review.apply",
   "memory.propose",
 ] as const satisfies readonly ToolName[];
 
@@ -229,6 +232,28 @@ export const libraryToolDescriptors: StableToolDescriptor[] = [
   },
 ];
 
+export const canonicalReviewToolDescriptors: StableToolDescriptor[] = [
+  {
+    name: "canonical.review.list",
+    description: "List current provisional recordings that can be reviewed by Canonical Maintenance v1.",
+    inputSchemaRef: "ProvisionalReviewListInput",
+    outputSchemaRef: "ProvisionalReviewListOutput",
+  },
+  {
+    name: "canonical.review.inspect",
+    description: "Inspect one provisional recording and return neutral facts for Canonical Maintenance review.",
+    inputSchemaRef: "ProvisionalReviewInspectInput",
+    outputSchemaRef: "ProvisionalReviewInspection",
+  },
+  {
+    name: "canonical.review.apply",
+    description: "Apply an inspected Canonical Maintenance review decision as update or defer.",
+    inputSchemaRef: "ProvisionalReviewApplyInput",
+    outputSchemaRef: "ProvisionalReviewApplyOutput",
+    effectKind: "canonical_maintenance",
+  },
+];
+
 export const memoryToolDescriptors: StableToolDescriptor[] = [
   {
     name: "memory.propose",
@@ -244,5 +269,6 @@ export const agentToolDescriptors: StableToolDescriptor[] = [
   ...knowledgeToolDescriptors,
   ...musicToolDescriptors,
   ...libraryToolDescriptors,
+  ...canonicalReviewToolDescriptors,
   ...memoryToolDescriptors,
 ];

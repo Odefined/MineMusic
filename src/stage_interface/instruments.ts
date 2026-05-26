@@ -6,6 +6,7 @@ import type {
 import type { InstrumentCatalogPort, PluginRegistryPort } from "../ports/index.js";
 import {
   handbookToolDescriptors,
+  canonicalReviewToolDescriptors,
   knowledgeToolDescriptors,
   libraryToolDescriptors,
   memoryToolDescriptors,
@@ -70,6 +71,11 @@ export function createInstrumentCatalog({
           label: "MineMusic Library",
           tools: libraryToolDescriptors,
           providers: platformLibraryProviders.value,
+        },
+        {
+          id: "minemusic.canonical_review",
+          label: "MineMusic Canonical Review",
+          tools: canonicalReviewToolDescriptors,
         },
         {
           id: "minemusic.memory",

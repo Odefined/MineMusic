@@ -8,6 +8,12 @@ import type {
   CanonicalRelationDraft,
   CanonicalRelationPredicate,
   CanonicalRelationStatus,
+  ProvisionalReviewApplyInput,
+  ProvisionalReviewApplyOutput,
+  ProvisionalReviewInspection,
+  ProvisionalReviewInspectInput,
+  ProvisionalReviewListInput,
+  ProvisionalReviewListOutput,
   CapabilitySlot,
   Collection,
   CollectionItem,
@@ -236,6 +242,14 @@ export interface CanonicalStorePort {
   }): Promise<Result<CanonicalProvisionalHint[]>>;
 
   listProvisionalHints(input: CanonicalProvisionalHintListInput): Promise<Result<CanonicalProvisionalHint[]>>;
+}
+
+export interface CanonicalMaintenancePort {
+  reviewList(input: ProvisionalReviewListInput): Promise<Result<ProvisionalReviewListOutput>>;
+
+  reviewInspect(input: ProvisionalReviewInspectInput): Promise<Result<ProvisionalReviewInspection>>;
+
+  reviewApply(input: ProvisionalReviewApplyInput): Promise<Result<ProvisionalReviewApplyOutput>>;
 }
 
 export interface CollectionPort {
