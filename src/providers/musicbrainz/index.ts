@@ -294,10 +294,19 @@ async function searchMusicBrainzFields({
 
   const entityKinds = query.entityKinds ?? ["recording"];
   const items: StructuredKnowledge[] = [];
+  const planKey = providerSearchPlanKey("field", query);
+  const cursorOffset = readProviderSearchCursor(query.cursor, planKey);
+
+  if (!cursorOffset.ok) {
+    return cursorOffset;
+  }
+
+  let nextCursor: string | undefined;
 
   for (const entityKind of entityKinds) {
     const search = searchConfigFor(entityKind);
     const searchQuery = fieldSearchQueryFor(entityKind, query.fieldQuery);
+    const requestLimit = fieldSearchRequestLimit(query);
 
     if (search === undefined || searchQuery === undefined) {
       continue;
@@ -313,13 +322,16 @@ async function searchMusicBrainzFields({
       path: search.path,
       query: {
         query: searchQuery,
-        limit: String(fieldSearchRequestLimit(query)),
+        limit: String(requestLimit),
+        ...(cursorOffset.value === 0 ? {} : { offset: String(cursorOffset.value) }),
       },
     });
 
     if (!response.ok) {
       return response;
     }
+
+    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorOffset.value, requestLimit, planKey);
 
     for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
       const item = search.toKnowledge(entity);
@@ -349,7 +361,15 @@ async function searchMusicBrainzFields({
     }
   }
 
-  return ok({ items: items.slice(0, normalizedSearchLimit(query.limit)) });
+  const result: { items: StructuredKnowledge[]; nextCursor?: string } = {
+    items: items.slice(0, normalizedSearchLimit(query.limit)),
+  };
+
+  if (nextCursor !== undefined) {
+    result.nextCursor = nextCursor;
+  }
+
+  return ok(result);
 }
 
 async function searchMusicBrainzTags({
@@ -375,6 +395,15 @@ async function searchMusicBrainzTags({
 
   const entityKinds = query.entityKinds ?? ["recording"];
   const taggedItems: Array<{ item: StructuredKnowledge; order: number }> = [];
+  const requestLimit = normalizedSearchLimit(query.limit);
+  const planKey = providerSearchPlanKey("tag", query);
+  const cursorOffset = readProviderSearchCursor(query.cursor, planKey);
+
+  if (!cursorOffset.ok) {
+    return cursorOffset;
+  }
+
+  let nextCursor: string | undefined;
   let order = 0;
 
   for (const entityKind of entityKinds) {
@@ -394,13 +423,16 @@ async function searchMusicBrainzTags({
       path: search.path,
       query: {
         query: tagSearchQuery(queryTags),
-        limit: String(normalizedSearchLimit(query.limit)),
+        limit: String(requestLimit),
+        ...(cursorOffset.value === 0 ? {} : { offset: String(cursorOffset.value) }),
       },
     });
 
     if (!response.ok) {
       return response;
     }
+
+    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorOffset.value, requestLimit, planKey);
 
     for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
       const item = search.toKnowledge(entity);
@@ -423,12 +455,18 @@ async function searchMusicBrainzTags({
     }
   }
 
-  return ok({
+  const result: { items: StructuredKnowledge[]; nextCursor?: string } = {
     items: taggedItems
       .sort(compareTaggedItems)
-      .slice(0, normalizedSearchLimit(query.limit))
+      .slice(0, requestLimit)
       .map(({ item }) => item),
-  });
+  };
+
+  if (nextCursor !== undefined) {
+    result.nextCursor = nextCursor;
+  }
+
+  return ok(result);
 }
 
 async function searchMusicBrainzCanonicalContext({
@@ -474,6 +512,15 @@ async function searchMusicBrainzText({
 }): Promise<Result<{ items: StructuredKnowledge[] }>> {
   const entityKinds = query.entityKinds ?? ["recording"];
   const items: StructuredKnowledge[] = [];
+  const requestLimit = normalizedSearchLimit(query.limit);
+  const planKey = providerSearchPlanKey("text", query);
+  const cursorOffset = readProviderSearchCursor(query.cursor, planKey);
+
+  if (!cursorOffset.ok) {
+    return cursorOffset;
+  }
+
+  let nextCursor: string | undefined;
 
   for (const entityKind of entityKinds) {
     const search = searchConfigFor(entityKind);
@@ -492,13 +539,16 @@ async function searchMusicBrainzText({
       path: search.path,
       query: {
         query: query.text,
-        limit: String(normalizedSearchLimit(query.limit)),
+        limit: String(requestLimit),
+        ...(cursorOffset.value === 0 ? {} : { offset: String(cursorOffset.value) }),
       },
     });
 
     if (!response.ok) {
       return response;
     }
+
+    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorOffset.value, requestLimit, planKey);
 
     for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
       const followUpRef = textSearchFollowUpRef(entityKind, entity, query);
@@ -527,7 +577,15 @@ async function searchMusicBrainzText({
     }
   }
 
-  return ok({ items: applyRootTagFilters(items, query.filters) });
+  const result: { items: StructuredKnowledge[]; nextCursor?: string } = {
+    items: applyRootTagFilters(items, query.filters),
+  };
+
+  if (nextCursor !== undefined) {
+    result.nextCursor = nextCursor;
+  }
+
+  return ok(result);
 }
 
 async function lookupMusicBrainzRef({
@@ -2126,6 +2184,112 @@ function normalizedSearchLimit(limit: number | undefined): number {
 
 function normalizedBrowseLimit(limit: number | undefined): number {
   return Math.min(Math.max(limit ?? 25, 1), 100);
+}
+
+type ProviderSearchCursor = {
+  planKey: string;
+  offset: number;
+};
+
+function providerSearchPlanKey(
+  mode: "field" | "tag" | "text",
+  query: KnowledgeQuery,
+): string {
+  const { cursor: _cursor, limit: _limit, ...queryShape } = query;
+
+  return stableStringify({
+    mode,
+    query: queryShape,
+  });
+}
+
+function readProviderSearchCursor(
+  cursor: string | undefined,
+  planKey: string,
+): Result<number> {
+  if (cursor === undefined) {
+    return ok(0);
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as unknown;
+
+    if (!isProviderSearchCursor(decoded) || decoded.planKey !== planKey) {
+      return fail(invalidCursorError());
+    }
+
+    return ok(decoded.offset);
+  } catch {
+    return fail(invalidCursorError());
+  }
+}
+
+function nextProviderSearchCursor(
+  response: unknown,
+  responseKey: string,
+  offset: number,
+  limit: number,
+  planKey: string,
+): string | undefined {
+  const total = searchResultCount(response, responseKey);
+
+  if (total === undefined || offset + limit >= total) {
+    return undefined;
+  }
+
+  return Buffer.from(JSON.stringify({
+    planKey,
+    offset: offset + limit,
+  } satisfies ProviderSearchCursor), "utf8").toString("base64url");
+}
+
+function searchResultCount(response: unknown, responseKey: string): number | undefined {
+  if (typeof response !== "object" || response === null) {
+    return undefined;
+  }
+
+  const responseObject = response as Record<string, unknown>;
+  const singularKey = responseKey.endsWith("ies")
+    ? `${responseKey.slice(0, -3)}y-count`
+    : responseKey.endsWith("s")
+      ? `${responseKey.slice(0, -1)}-count`
+      : `${responseKey}-count`;
+
+  return numberValue(responseObject.count) ?? numberValue(responseObject[singularKey]);
+}
+
+function isProviderSearchCursor(value: unknown): value is ProviderSearchCursor {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { planKey?: unknown }).planKey === "string" &&
+    typeof (value as { offset?: unknown }).offset === "number" &&
+    Number.isInteger((value as { offset: number }).offset) &&
+    (value as { offset: number }).offset >= 0
+  );
+}
+
+function invalidCursorError(): StageError {
+  return {
+    code: "knowledge.invalid_query",
+    message: "Knowledge cursor does not match this query.",
+    module: "knowledge",
+    retryable: false,
+  };
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`
+    ).join(",")}}`;
+  }
+
+  return JSON.stringify(value);
 }
 
 function buildUrl(baseUrl: string, path: string, query: Record<string, string>): string {

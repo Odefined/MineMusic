@@ -580,6 +580,65 @@ async function fieldQueryLooksUpMissingTagsBeforeFiltering(): Promise<void> {
   );
 }
 
+async function continuesSearchBackedQueriesWithProviderOffsets(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+      const offset = request.query.offset ?? "0";
+      const idSuffix = offset === "0" ? "first" : "second";
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            count: 3,
+            recordings: [
+              {
+                id: `${idSuffix}-recording`,
+                title: `${idSuffix} recording`,
+                score: offset === "0" ? 91 : 89,
+                genres: [{ name: "Ambient" }],
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const textFirstPage = await assertOk(provider.query({ query: { text: "cursor text", limit: 1 } }));
+  const textCursor = textFirstPage.nextCursor;
+  assert(textCursor !== undefined, "text search should return a provider-local cursor when more results exist");
+  const textSecondPage = await assertOk(
+    provider.query({ query: { text: "cursor text", limit: 1, cursor: textCursor } }),
+  );
+  const mismatchedTextCursor = await provider.query({
+    query: { text: "changed cursor text", limit: 1, cursor: textCursor },
+  });
+
+  const tagFirstPage = await assertOk(provider.query({ query: { tagQuery: ["ambient"], limit: 1 } }));
+  const tagCursor = tagFirstPage.nextCursor;
+  assert(tagCursor !== undefined, "tag search should return a provider-local cursor when more results exist");
+  await assertOk(provider.query({ query: { tagQuery: ["ambient"], limit: 1, cursor: tagCursor } }));
+
+  const fieldFirstPage = await assertOk(provider.query({ query: { fieldQuery: { artist: "cursor artist" }, limit: 1 } }));
+  const fieldCursor = fieldFirstPage.nextCursor;
+  assert(fieldCursor !== undefined, "field search should return a provider-local cursor when more results exist");
+  await assertOk(provider.query({ query: { fieldQuery: { artist: "cursor artist" }, limit: 1, cursor: fieldCursor } }));
+
+  assert(textSecondPage.items[0]?.kind === "structured", "text second page should return structured knowledge");
+  assert(requests[1]?.query.offset === "1", "text cursor should continue with the next MusicBrainz offset");
+  assert(!mismatchedTextCursor.ok, "changed text query should reject the old provider cursor");
+  assert(
+    !mismatchedTextCursor.ok && mismatchedTextCursor.error.code === "knowledge.invalid_query",
+    "provider cursor mismatch should be invalid query",
+  );
+  assert(requests[3]?.query.offset === "1", "tag cursor should continue with the next MusicBrainz offset");
+  assert(requests[5]?.query.offset === "1", "field cursor should continue with the next MusicBrainz offset");
+}
+
 async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<void> {
   const paths: string[] = [];
   const provider = createMusicBrainzKnowledgeProvider({
@@ -1510,6 +1569,7 @@ await searchesTagQueryAndRanksMatchesAcrossKinds();
 await appliesTagQueryFiltersToReturnedRootFacts();
 await buildsFieldQueriesForRequestedEntityKinds();
 await fieldQueryLooksUpMissingTagsBeforeFiltering();
+await continuesSearchBackedQueriesWithProviderOffsets();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
 await looksUpMusicBrainzRefFromCanonicalContext();
 await browsesReleasesForReleaseGroupExpansion();

@@ -49,6 +49,12 @@ export function createMusicKnowledgeService({
         });
       }
 
+      const continuation = readContinuationCursor(normalizedQuery.value, providerIds.value);
+
+      if (!continuation.ok) {
+        return continuation;
+      }
+
       const canonicalContextResult = await readCanonicalContext({
         query: normalizedQuery.value,
         canonicalStore,
@@ -60,8 +66,15 @@ export function createMusicKnowledgeService({
 
       const items: KnowledgeResult["items"] = [];
       const warnings: StageWarning[] = [];
+      const nextProviderCursors: Record<string, string> = {};
 
       for (const providerId of providerIds.value) {
+        const providerCursor = continuation.value?.providerCursors[providerId];
+
+        if (continuation.value !== undefined && providerCursor === undefined) {
+          continue;
+        }
+
         const providerResult = await pluginRegistry.getProvider({
           slot: "knowledge",
           providerId,
@@ -76,7 +89,7 @@ export function createMusicKnowledgeService({
         }
 
         const providerKnowledge = await providerResult.value.query({
-          query: normalizedQuery.value,
+          query: queryForProvider(normalizedQuery.value, providerCursor),
           ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
           ...(canonicalContextResult.value === undefined
             ? {}
@@ -89,14 +102,121 @@ export function createMusicKnowledgeService({
 
         items.push(...providerKnowledge.value.items);
 
+        if (providerKnowledge.value.nextCursor !== undefined) {
+          nextProviderCursors[providerId] = providerKnowledge.value.nextCursor;
+        }
+
         if (providerKnowledge.warnings !== undefined) {
           warnings.push(...providerKnowledge.warnings);
         }
       }
 
-      return ok({ items }, warnings);
+      const result: KnowledgeResult = { items };
+
+      if (Object.keys(nextProviderCursors).length > 0) {
+        result.nextCursor = encodeContinuationCursor({
+          queryKey: continuationQueryKey(normalizedQuery.value),
+          providerIds: providerIds.value,
+          providerCursors: nextProviderCursors,
+        });
+      }
+
+      return ok(result, warnings);
     },
   };
+}
+
+type KnowledgeContinuationCursor = {
+  queryKey: string;
+  providerIds: string[];
+  providerCursors: Record<string, string>;
+};
+
+function readContinuationCursor(
+  query: KnowledgeQuery,
+  providerIds: string[],
+): Result<KnowledgeContinuationCursor | undefined> {
+  if (query.cursor === undefined) {
+    return ok(undefined);
+  }
+
+  const decoded = decodeContinuationCursor(query.cursor);
+
+  if (!decoded.ok) {
+    return decoded;
+  }
+
+  if (
+    decoded.value.queryKey !== continuationQueryKey(query) ||
+    decoded.value.providerIds.join("\n") !== providerIds.join("\n")
+  ) {
+    return fail(invalidQueryError());
+  }
+
+  return decoded;
+}
+
+function queryForProvider(query: KnowledgeQuery, providerCursor: string | undefined): KnowledgeQuery {
+  const { cursor: _cursor, ...queryWithoutCursor } = query;
+
+  return providerCursor === undefined
+    ? queryWithoutCursor as KnowledgeQuery
+    : { ...queryWithoutCursor, cursor: providerCursor } as KnowledgeQuery;
+}
+
+function encodeContinuationCursor(cursor: KnowledgeContinuationCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodeContinuationCursor(cursor: string): Result<KnowledgeContinuationCursor> {
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as unknown;
+
+    if (!isKnowledgeContinuationCursor(decoded)) {
+      return fail(invalidQueryError());
+    }
+
+    return ok(decoded);
+  } catch {
+    return fail(invalidQueryError());
+  }
+}
+
+function isKnowledgeContinuationCursor(value: unknown): value is KnowledgeContinuationCursor {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as KnowledgeContinuationCursor;
+
+  return (
+    typeof candidate.queryKey === "string" &&
+    Array.isArray(candidate.providerIds) &&
+    candidate.providerIds.every((providerId) => typeof providerId === "string") &&
+    typeof candidate.providerCursors === "object" &&
+    candidate.providerCursors !== null &&
+    Object.values(candidate.providerCursors).every((providerCursor) => typeof providerCursor === "string")
+  );
+}
+
+function continuationQueryKey(query: KnowledgeQuery): string {
+  const { cursor: _cursor, limit: _limit, ...queryShape } = query;
+
+  return stableStringify(queryShape);
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`
+    ).join(",")}}`;
+  }
+
+  return JSON.stringify(value);
 }
 
 async function readCanonicalContext({

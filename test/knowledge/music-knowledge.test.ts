@@ -317,9 +317,55 @@ async function routesStructuredTagQueriesWithNormalizedTags(): Promise<void> {
   assert(query.filters?.tags?.exclude?.[0] === "new age", "excluded tags should be normalized");
 }
 
+async function wrapsProviderContinuationCursors(): Promise<void> {
+  const registry = createPluginRegistry();
+  const capturedCursors: Array<string | undefined> = [];
+  const provider: KnowledgeProvider = {
+    id: "fixture-knowledge",
+    query: async (input) => {
+      capturedCursors.push(input.query.cursor);
+
+      return {
+        ok: true,
+        value: {
+          items: [],
+          ...(input.query.cursor === undefined ? { nextCursor: "provider-page-2" } : {}),
+        },
+      };
+    },
+  };
+
+  await assertOk(
+    registry.registerProvider({
+      slot: "knowledge",
+      providerId: provider.id,
+      provider,
+    }),
+  );
+
+  const knowledge = createMusicKnowledgeService({ pluginRegistry: registry });
+  const firstPage = await assertOk(knowledge.query({ query: { text: "continuation", limit: 1 } }));
+  assert(firstPage.nextCursor !== undefined, "service should return a public continuation cursor");
+  assert(firstPage.nextCursor !== "provider-page-2", "service should not expose provider-local cursor directly");
+
+  await assertOk(knowledge.query({ query: { text: "continuation", limit: 5, cursor: firstPage.nextCursor } }));
+  const mismatchedQuery = await knowledge.query({
+    query: {
+      text: "different continuation",
+      cursor: firstPage.nextCursor,
+    },
+  });
+
+  assert(capturedCursors[0] === undefined, "first provider call should not receive a cursor");
+  assert(capturedCursors[1] === "provider-page-2", "service should route decoded provider cursor to provider");
+  assert(!mismatchedQuery.ok, "cursor with a changed query shape should fail");
+  assert(mismatchedQuery.error.code === "knowledge.invalid_query", "cursor mismatch should be invalid query");
+}
+
 await queriesKnowledgeProvidersAsProviderAttributedItems();
 await reportsMissingKnowledgeProvider();
 await preservesProviderWarnings();
 await rejectsInvalidKnowledgeQueryBeforeProviderLookup();
 await routesCanonicalContextToProviders();
 await routesStructuredTagQueriesWithNormalizedTags();
+await wrapsProviderContinuationCursors();

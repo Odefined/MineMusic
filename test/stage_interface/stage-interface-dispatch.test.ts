@@ -321,6 +321,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
             metadata: { queryText: "text" in query ? query.text : query.canonicalRef?.id ?? "structured-query" },
           },
         ],
+        nextCursor: "public-next-cursor",
       },
       };
     },
@@ -495,6 +496,10 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     Array.isArray((knowledgeResult as { items?: unknown[] }).items)
     && ((knowledgeResult as { items: Array<{ relations?: Array<{ type?: string }> }> }).items[0]?.relations?.[0]?.type === "member of band"),
     "knowledge.query should return provider relation objects unchanged",
+  );
+  assert(
+    (knowledgeResult as { nextCursor?: unknown }).nextCursor === "public-next-cursor",
+    "knowledge.query should return continuation cursors unchanged through Stage Interface dispatch",
   );
   assert(calls.includes("stage.events.record"), "stage.events.record should call EventPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
