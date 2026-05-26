@@ -16,6 +16,8 @@ import type {
 import { sameRef } from "./normalization.js";
 import { createCanonicalStorage } from "./storage.js";
 
+export { createCanonicalMaintenance } from "./maintenance.js";
+
 type CanonicalStoreOptions = {
   repository: CanonicalRecordRepository;
   idFactory?: () => string;

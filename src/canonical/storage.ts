@@ -30,8 +30,14 @@ type PutOptions = {
 export type CanonicalStorage = {
   get(ref: Ref): Promise<Result<CanonicalRecord | null>>;
   put(record: CanonicalRecord, options?: PutOptions): Promise<Result<CanonicalRecord>>;
+  listRecords(): Promise<Result<CanonicalRecord[]>>;
   findByLabel(input: { label: string; kind?: string }): Promise<Result<CanonicalRecord[]>>;
   findCurrentBySourceEvidence(evidence: Ref[]): Promise<Result<CanonicalRecord | null>>;
+  findCurrentRecordsBySourceRef(input: {
+    sourceRef: Ref;
+    excludeRef?: Ref;
+    kind?: string;
+  }): Promise<Result<CanonicalRecord[]>>;
   resolveSourceRef(ref: Ref): Promise<Result<CanonicalRecord | null>>;
   putRelation(relation: CanonicalRelation): Promise<Result<CanonicalRelation>>;
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
@@ -56,6 +62,10 @@ export function createCanonicalStorage({
         await repository.put(record),
         options.sourceRefForConflict,
       );
+    },
+
+    listRecords() {
+      return repository.list();
     },
 
     async findByLabel({ label, kind }) {
@@ -136,6 +146,26 @@ export function createCanonicalStorage({
             isCurrentCanonicalRecord(record) &&
             (record.sourceRefs ?? []).some((sourceRef) => sameRef(sourceRef, ref)),
         ) ?? null,
+      );
+    },
+
+    async findCurrentRecordsBySourceRef({ sourceRef, excludeRef, kind }) {
+      const records = await repository.list();
+
+      if (!records.ok) {
+        return records;
+      }
+
+      return ok(
+        records.value.filter(
+          (record) =>
+            isCurrentCanonicalRecord(record) &&
+            (kind === undefined || matchesCanonicalKind(record, kind)) &&
+            (excludeRef === undefined || !sameRef(record.ref, excludeRef)) &&
+            (record.sourceRefs ?? []).some((candidateRef) =>
+              sameRef(candidateRef, sourceRef),
+            ),
+        ),
       );
     },
 
