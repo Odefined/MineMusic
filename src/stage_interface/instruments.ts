@@ -72,11 +72,15 @@ export function createInstrumentCatalog({
           tools: libraryToolDescriptors,
           providers: platformLibraryProviders.value,
         },
-        {
-          id: "minemusic.canonical_review",
-          label: "MineMusic Canonical Review",
-          tools: canonicalReviewToolDescriptors,
-        },
+        ...(session.posture === "canonical_review"
+          ? [
+              {
+                id: "minemusic.canonical_review",
+                label: "MineMusic Canonical Review",
+                tools: canonicalReviewToolDescriptors,
+              },
+            ]
+          : []),
         {
           id: "minemusic.memory",
           label: "MineMusic Memory",

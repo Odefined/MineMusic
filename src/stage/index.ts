@@ -59,6 +59,9 @@ export function createSessionContext({
       const context: StageContext = {
         session,
         memorySummaries: memoryResult.value,
+        ...(session.posture === "canonical_review"
+          ? { guidance: canonicalReviewGuidance() }
+          : {}),
       };
 
       return ok(context);
@@ -91,6 +94,17 @@ export function createSessionContext({
     },
 
   };
+}
+
+function canonicalReviewGuidance(): string[] {
+  return [
+    "Provisional Review v1 only supports provisional recordings.",
+    "Call canonical.review.inspect before canonical.review.apply for a subject.",
+    "Choose update only with one selected MusicBrainz recording ref and at least two non-label support reasons from inspected facts.",
+    "Choose defer when inspected facts are incomplete, ambiguous, or contradictory.",
+    "Apply derives activate or merge from current Canonical Store state; the agent must not choose activate, merge, or a merge target.",
+    "Use only refs, Knowledge Item ids, and anchors returned by canonical.review.inspect.",
+  ];
 }
 
 export function createMaterialGate({

@@ -7,7 +7,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
-import { createCanonicalStore } from "../canonical/index.js";
+import { createCanonicalMaintenance, createCanonicalStore } from "../canonical/index.js";
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
@@ -19,6 +19,7 @@ import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
 import type {
   CanonicalRecordRepository,
+  CanonicalMaintenancePort,
   CanonicalStorePort,
   CollectionPort,
   CollectionRepository,
@@ -65,6 +66,7 @@ export type MineMusicStageCore = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
   canonical: CanonicalStorePort;
+  canonicalMaintenance: CanonicalMaintenancePort;
   collection: CollectionPort;
   materialResolve: MaterialResolvePort;
   source: SourceGroundingPort;
@@ -252,6 +254,12 @@ export function createMineMusicStageCoreWithSourceProvider({
     sessionContext,
     events,
   });
+  const canonicalMaintenance = createCanonicalMaintenance({
+    repository: canonicalRepository,
+    sessionContext,
+    knowledge,
+    events,
+  });
   const dispatch = createToolDispatch({
     sessionContext,
     materialGate,
@@ -263,6 +271,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     memory,
     effects,
     collection,
+    canonicalMaintenance,
     libraryImport,
   });
   const stageInterface = createMineMusicStageInterface({
@@ -289,6 +298,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     sessionContext,
     materialGate,
     canonical,
+    canonicalMaintenance,
     collection,
     materialResolve,
     source,

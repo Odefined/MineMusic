@@ -92,6 +92,30 @@ async function readsContextWithoutHandbookMaterial(): Promise<void> {
   assert(!("handbookRef" in context), "stage context should not point at a handbook file");
 }
 
+async function readsCanonicalReviewGuidanceInReviewPosture(): Promise<void> {
+  const { memory, events } = createDependencies();
+  const sessionContext = createSessionContext({
+    sessions: [
+      {
+        ...session,
+        posture: "canonical_review",
+      },
+    ],
+    memory,
+    events,
+  });
+  const context = await assertOk(sessionContext.readContext({ sessionId: session.id }));
+
+  assert(
+    context.guidance?.some((entry) => entry.includes("Provisional Review v1 only supports provisional recordings")),
+    "canonical review context should include compact review guidance",
+  );
+  assert(
+    context.guidance?.some((entry) => entry.includes("agent must not choose activate, merge, or a merge target")),
+    "canonical review guidance should keep apply effect selection in Canonical Store",
+  );
+}
+
 async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
   const eventsSeen: string[] = [];
   const { sessionContext } = createTestStageModules(eventsSeen);
@@ -191,6 +215,7 @@ async function supportsDetachedPublicPortMethods(): Promise<void> {
 }
 
 await readsContextWithoutHandbookMaterial();
+await readsCanonicalReviewGuidanceInReviewPosture();
 await updatesSessionWithoutOwningToolDispatch();
 await gatesMaterialStatesForRecommendationUse();
 await reportsMissingSessionAsResultError();

@@ -11,6 +11,9 @@ import type {
   MaterialResolveRequest,
   MemoryProposal,
   MusicMaterial,
+  ProvisionalReviewApplyInput,
+  ProvisionalReviewInspectInput,
+  ProvisionalReviewListInput,
   Ref,
   Result,
   StageError,
@@ -24,6 +27,7 @@ import {
 } from "../handbook/index.js";
 import type {
   CollectionPort,
+  CanonicalMaintenancePort,
   EffectBoundaryPort,
   EventPort,
   InstrumentCatalogPort,
@@ -99,6 +103,7 @@ type ToolDispatchOptions = {
   memory: MemoryPort;
   effects: EffectBoundaryPort;
   collection?: CollectionPort;
+  canonicalMaintenance?: CanonicalMaintenancePort;
   libraryImport?: LibraryImportPort;
 };
 
@@ -113,6 +118,7 @@ export function createToolDispatch({
   memory,
   effects,
   collection,
+  canonicalMaintenance,
   libraryImport,
 }: ToolDispatchOptions): ToolDispatchPort {
   const discoveryToolNames = new Set<ToolName>([
@@ -398,6 +404,47 @@ export function createToolDispatch({
           );
         }
 
+        case "canonical.review.list": {
+          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
+
+          if (!availableMaintenance.ok) {
+            return availableMaintenance;
+          }
+
+          return availableMaintenance.value.reviewList({
+            ...readPayload<Omit<ProvisionalReviewListInput, "sessionId">>(payload),
+            sessionId,
+          });
+        }
+
+        case "canonical.review.inspect": {
+          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
+
+          if (!availableMaintenance.ok) {
+            return availableMaintenance;
+          }
+
+          return availableMaintenance.value.reviewInspect({
+            ...readPayload<Omit<ProvisionalReviewInspectInput, "sessionId">>(payload),
+            sessionId,
+          });
+        }
+
+        case "canonical.review.apply": {
+          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
+
+          if (!availableMaintenance.ok) {
+            return availableMaintenance;
+          }
+
+          const input = readPayload<Omit<ProvisionalReviewApplyInput, "sessionId">>(payload);
+
+          return availableMaintenance.value.reviewApply({
+            ...input,
+            sessionId,
+          } as ProvisionalReviewApplyInput);
+        }
+
         case "stage.events.record":
           return events.record(readPayload<{ event: Omit<StageEvent, "id" | "time"> }>(payload));
 
@@ -485,6 +532,16 @@ function readKnowledge(knowledge: MusicKnowledgePort | undefined): Result<MusicK
   return ok(knowledge);
 }
 
+function readCanonicalMaintenance(
+  canonicalMaintenance: CanonicalMaintenancePort | undefined,
+): Result<CanonicalMaintenancePort> {
+  if (canonicalMaintenance === undefined) {
+    return canonicalMaintenanceUnavailable();
+  }
+
+  return ok(canonicalMaintenance);
+}
+
 function collectionUnavailable(): Result<never> {
   return fail({
     code: "stage_interface.tool_not_found",
@@ -507,6 +564,15 @@ function libraryImportUnavailable(): Result<never> {
   return fail({
     code: "stage_interface.tool_not_found",
     message: "Library Import tools are not available.",
+    module: "stage_interface",
+    retryable: false,
+  });
+}
+
+function canonicalMaintenanceUnavailable(): Result<never> {
+  return fail({
+    code: "stage_interface.tool_not_found",
+    message: "Canonical Maintenance tools are not available.",
     module: "stage_interface",
     retryable: false,
   });

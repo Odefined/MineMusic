@@ -15,6 +15,7 @@ import type {
 } from "../../src/contracts/index.js";
 import { buildInstrumentHandbook } from "../../src/handbook/index.js";
 import type {
+  CanonicalMaintenancePort,
   CollectionPort,
   EffectBoundaryPort,
   EventPort,
@@ -76,9 +77,11 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
   const catalog = createInstrumentCatalog();
   const descriptors = await assertOk(catalog.list({ session }));
   const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
+  const nonReviewStableToolNames = stableToolNames.filter((toolName) => !toolName.startsWith("canonical.review."));
 
   assert(descriptors.length === 6, "catalog should expose handbook plus stage, knowledge, music, library, and memory instruments");
-  assert(stableToolNames.every((toolName) => toolNames.includes(toolName)), "catalog should expose every stable tool");
+  assert(nonReviewStableToolNames.every((toolName) => toolNames.includes(toolName)), "catalog should expose every non-review stable tool");
+  assert(!toolNames.includes("canonical.review.list"), "catalog should hide review tools outside canonical review posture");
   assert(
     descriptors.every((descriptor) => !descriptor.label.includes("fixture") && !descriptor.label.includes("provider")),
     "instrument catalog should hide provider internals",
@@ -125,6 +128,34 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
   assert(toolNames.includes("music.collection.list"), "catalog should expose collection list tool");
   assert(toolNames.includes("library.import.preview"), "catalog should expose library import preview");
   assert(toolNames.includes("library.update.start"), "catalog should expose library update start");
+}
+
+async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
+  const catalog = createInstrumentCatalog();
+  const descriptors = await assertOk(
+    catalog.list({
+      session: {
+        ...session,
+        posture: "canonical_review",
+      },
+    }),
+  );
+  const reviewInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.canonical_review");
+  const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
+  const handbook = buildInstrumentHandbook(descriptors);
+
+  assert(reviewInstrument !== undefined, "canonical review posture should expose the review instrument");
+  assert(toolNames.includes("canonical.review.list"), "review posture should expose review list");
+  assert(toolNames.includes("canonical.review.inspect"), "review posture should expose review inspect");
+  assert(toolNames.includes("canonical.review.apply"), "review posture should expose review apply");
+  assert(
+    stableToolNames.every((toolName) => toolNames.includes(toolName)),
+    "canonical review posture should expose every stable tool",
+  );
+  assert(
+    handbook.content.includes("Sequence: enter `canonical_review` posture"),
+    "handbook should include compact canonical review workflow guidance",
+  );
 }
 
 async function filtersCatalogToExplicitActiveInstruments(): Promise<void> {
@@ -1072,6 +1103,119 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   assert(calls.includes("summary:import-batch-1"), "library import summary should route by batch id");
 }
 
+async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<void> {
+  const calls: string[] = [];
+  const reviewSession: StageSession = {
+    ...session,
+    posture: "canonical_review",
+  };
+  const canonicalMaintenance: CanonicalMaintenancePort = {
+    reviewList: async ({ sessionId, limit }) => {
+      calls.push(`list:${sessionId}:${limit ?? "none"}`);
+      return { ok: true, value: { items: [] } };
+    },
+    reviewInspect: async ({ sessionId, subjectRef }) => {
+      calls.push(`inspect:${sessionId}:${subjectRef.id}`);
+      return {
+        ok: true,
+        value: {
+          inspectionId: "inspection-1",
+          subject: {
+            ref: subjectRef,
+            kind: "recording",
+            label: "Review Subject",
+            status: "provisional",
+          },
+          outgoingRelations: [],
+          incomingRelations: [],
+          provisionalHints: [],
+          neighborRecords: [],
+          relatedCurrentRecords: [],
+          knowledgeItems: [],
+          anchors: [],
+          relationCandidates: [],
+          expiresAt: "2026-05-27T00:05:00.000Z",
+        },
+      };
+    },
+    reviewApply: async ({ sessionId, subjectRef, action }) => {
+      calls.push(`apply:${sessionId}:${subjectRef.id}:${action}`);
+      return {
+        ok: true,
+        value: {
+          subjectRef,
+          action: "defer",
+          appliedAction: "defer",
+        },
+      };
+    },
+  };
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: reviewSession }),
+      readContext: async () => ({ ok: true, value: { session: reviewSession, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...reviewSession, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "now" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-proposal-1" } }),
+      accept: async () => ({ ok: true, value: { id: "memory-1", text: "memory", kind: "contextual_preference" } }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+    canonicalMaintenance,
+  });
+
+  await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.list",
+      payload: { sessionId: "spoofed-session", limit: 2 },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.inspect",
+      payload: { sessionId: "spoofed-session", subjectRef: collectionRef },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.apply",
+      payload: {
+        sessionId: "spoofed-session",
+        inspectionId: "inspection-1",
+        subjectRef: collectionRef,
+        action: "defer",
+        reason: "Not enough facts.",
+      },
+    }),
+  );
+
+  assert(calls.includes(`list:${reviewSession.id}:2`), "review list should receive current dispatch session id");
+  assert(calls.includes(`inspect:${reviewSession.id}:${collectionRef.id}`), "review inspect should receive current dispatch session id");
+  assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:defer`), "review apply should receive current dispatch session id");
+}
+
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   const dispatch = createToolDispatch({
     sessionContext: {} as SessionContextPort,
@@ -1151,6 +1295,7 @@ function emptyImportCounts() {
 }
 
 await listsStableLlmVisibleToolsWithoutProviderDetails();
+await exposesCanonicalReviewToolsOnlyInReviewPosture();
 await filtersCatalogToExplicitActiveInstruments();
 await attachesProviderDescriptorsToOwningInstruments();
 await rendersKnowledgeProviderCapabilitiesInHandbook();
@@ -1159,4 +1304,5 @@ await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
 await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
 await dispatchesLibraryImportToolsWithDefaultOwnerScope();
+await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();

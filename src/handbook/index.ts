@@ -111,10 +111,22 @@ function renderInstrumentSection(instrument: InstrumentDescriptor): string {
   return [
     `### ${instrument.label} (\`${instrument.id}\`)`,
     "",
+    ...renderInstrumentGuidance(instrument),
     ...renderProviderSection(instrument),
     ...instrument.tools.flatMap((tool) => renderToolSection(tool).trimEnd().split("\n")),
     "",
   ].join("\n");
+}
+
+function renderInstrumentGuidance(instrument: InstrumentDescriptor): string[] {
+  if (instrument.id !== "minemusic.canonical_review") {
+    return [];
+  }
+
+  return [
+    "Sequence: enter `canonical_review` posture, read `stage.context.read`, list or inspect a provisional recording, then apply `update` or `defer`.",
+    "",
+  ];
 }
 
 function renderProviderSection(instrument: InstrumentDescriptor): string[] {
