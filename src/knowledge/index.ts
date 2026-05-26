@@ -150,7 +150,7 @@ function readContinuationCursor(
     decoded.value.queryKey !== continuationQueryKey(query) ||
     decoded.value.providerIds.join("\n") !== providerIds.join("\n")
   ) {
-    return fail(invalidQueryError());
+    return fail(invalidCursorError("Knowledge cursor does not match this query."));
   }
 
   return decoded;
@@ -173,12 +173,12 @@ function decodeContinuationCursor(cursor: string): Result<KnowledgeContinuationC
     const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as unknown;
 
     if (!isKnowledgeContinuationCursor(decoded)) {
-      return fail(invalidQueryError());
+      return fail(invalidCursorError("Knowledge cursor is invalid."));
     }
 
     return ok(decoded);
   } catch {
-    return fail(invalidQueryError());
+    return fail(invalidCursorError("Knowledge cursor is invalid."));
   }
 }
 
@@ -538,13 +538,17 @@ function isRef(value: unknown): value is Ref {
   );
 }
 
-function invalidQueryError(): StageError {
+function invalidQueryError(message = "Knowledge query must provide exactly one of text, canonicalRef, tagQuery, or fieldQuery."): StageError {
   return {
     code: "knowledge.invalid_query",
-    message: "Knowledge query must provide exactly one of text or canonicalRef.",
+    message,
     module: "knowledge",
     retryable: false,
   };
+}
+
+function invalidCursorError(message: string): StageError {
+  return invalidQueryError(message);
 }
 
 function isKnowledgeProvider(provider: unknown): provider is KnowledgeProvider {

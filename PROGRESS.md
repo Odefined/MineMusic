@@ -763,6 +763,14 @@
   ambient/post-rock Tag Query, artist Field Query plus include-tag filter,
   release Field Query plus include-tag filter, and Tag Query plus exclude-tag
   filter.
+- Hardened Knowledge structured query behavior after Codex-native subagent
+  smoke: MusicBrainz now honors structured-only format capability for text
+  searches, cursor errors report cursor-specific messages, provider cursors
+  carry returned root ids to avoid cross-page repeats, and Tag Query internally
+  refills filtered-empty provider pages before exposing a public chunk. Fresh
+  native MCP smoke confirmed `formats: ["text"]` yields empty MusicBrainz
+  results and multi-tag Tag Query pagination returns non-empty, non-repeating
+  chunks.
 
 ## Next
 

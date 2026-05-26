@@ -190,6 +190,7 @@ type TextMusicBrainzQuery = KnowledgeQuery & { text: string };
 type CanonicalMusicBrainzQuery = KnowledgeQuery & { canonicalRef: Ref };
 type TagMusicBrainzQuery = KnowledgeQuery & { tagQuery: string[] };
 type FieldMusicBrainzQuery = KnowledgeQuery & { fieldQuery: NonNullable<KnowledgeQuery["fieldQuery"]> };
+type TaggedKnowledgeItem = { item: StructuredKnowledge; order: number };
 type MusicBrainzRequestRuntime = {
   baseUrl: string;
   cache: ProviderHttpCacheRepository | undefined;
@@ -288,17 +289,17 @@ async function searchMusicBrainzFields({
 }: MusicBrainzRequestRuntime & {
   query: FieldMusicBrainzQuery;
 }): Promise<Result<{ items: StructuredKnowledge[] }>> {
-  if (query.formats !== undefined && !query.formats.includes("structured")) {
+  if (!allowsStructuredKnowledge(query)) {
     return ok({ items: [] });
   }
 
   const entityKinds = query.entityKinds ?? ["recording"];
   const items: StructuredKnowledge[] = [];
   const planKey = providerSearchPlanKey("field", query);
-  const cursorOffset = readProviderSearchCursor(query.cursor, planKey);
+  const cursorState = readProviderSearchCursor(query.cursor, planKey);
 
-  if (!cursorOffset.ok) {
-    return cursorOffset;
+  if (!cursorState.ok) {
+    return cursorState;
   }
 
   let nextCursor: string | undefined;
@@ -323,7 +324,7 @@ async function searchMusicBrainzFields({
       query: {
         query: searchQuery,
         limit: String(requestLimit),
-        ...(cursorOffset.value === 0 ? {} : { offset: String(cursorOffset.value) }),
+        ...(cursorState.value.offset === 0 ? {} : { offset: String(cursorState.value.offset) }),
       },
     });
 
@@ -331,7 +332,7 @@ async function searchMusicBrainzFields({
       return response;
     }
 
-    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorOffset.value, requestLimit, planKey);
+    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorState.value.offset, requestLimit, planKey);
 
     for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
       const item = search.toKnowledge(entity);
@@ -361,12 +362,14 @@ async function searchMusicBrainzFields({
     }
   }
 
+  const pageItems = dedupeRootItems(items, cursorState.value.seenRootNodeIds)
+    .slice(0, normalizedSearchLimit(query.limit));
   const result: { items: StructuredKnowledge[]; nextCursor?: string } = {
-    items: items.slice(0, normalizedSearchLimit(query.limit)),
+    items: pageItems,
   };
 
   if (nextCursor !== undefined) {
-    result.nextCursor = nextCursor;
+    result.nextCursor = withSeenRootNodeIds(nextCursor, cursorState.value.seenRootNodeIds, pageItems);
   }
 
   return ok(result);
@@ -383,7 +386,7 @@ async function searchMusicBrainzTags({
 }: MusicBrainzRequestRuntime & {
   query: TagMusicBrainzQuery;
 }): Promise<Result<{ items: StructuredKnowledge[] }>> {
-  if (query.formats !== undefined && !query.formats.includes("structured")) {
+  if (!allowsStructuredKnowledge(query)) {
     return ok({ items: [] });
   }
 
@@ -394,13 +397,14 @@ async function searchMusicBrainzTags({
   }
 
   const entityKinds = query.entityKinds ?? ["recording"];
-  const taggedItems: Array<{ item: StructuredKnowledge; order: number }> = [];
+  const taggedItems: TaggedKnowledgeItem[] = [];
   const requestLimit = normalizedSearchLimit(query.limit);
+  const maxInternalPages = entityKinds.length === 1 ? 5 : 1;
   const planKey = providerSearchPlanKey("tag", query);
-  const cursorOffset = readProviderSearchCursor(query.cursor, planKey);
+  const cursorState = readProviderSearchCursor(query.cursor, planKey);
 
-  if (!cursorOffset.ok) {
-    return cursorOffset;
+  if (!cursorState.ok) {
+    return cursorState;
   }
 
   let nextCursor: string | undefined;
@@ -413,57 +417,68 @@ async function searchMusicBrainzTags({
       continue;
     }
 
-    const response = await requestMusicBrainz({
-      baseUrl,
-      cache,
-      clock,
-      rateLimiter,
-      requestJson,
-      userAgent,
-      path: search.path,
-      query: {
-        query: tagSearchQuery(queryTags),
-        limit: String(requestLimit),
-        ...(cursorOffset.value === 0 ? {} : { offset: String(cursorOffset.value) }),
-      },
-    });
+    let offset = cursorState.value.offset;
 
-    if (!response.ok) {
-      return response;
-    }
+    for (let internalPage = 0; internalPage < maxInternalPages; internalPage += 1) {
+      const response = await requestMusicBrainz({
+        baseUrl,
+        cache,
+        clock,
+        rateLimiter,
+        requestJson,
+        userAgent,
+        path: search.path,
+        query: {
+          query: tagSearchQuery(queryTags),
+          limit: String(requestLimit),
+          ...(offset === 0 ? {} : { offset: String(offset) }),
+        },
+      });
 
-    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorOffset.value, requestLimit, planKey);
-
-    for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
-      const item = search.toKnowledge(entity);
-      const tagMetadata = matchRootTags(item, queryTags);
-
-      if (tagMetadata.matchedTagCount === 0) {
-        order += 1;
-        continue;
+      if (!response.ok) {
+        return response;
       }
 
-      const itemWithMetadata = withMetadata(item, tagMetadata);
+      const candidateNextCursor = nextProviderSearchCursor(response.value, search.responseKey, offset, requestLimit, planKey);
 
-      if (applyRootTagFilters([itemWithMetadata], query.filters).length === 0) {
+      for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
+        const item = search.toKnowledge(entity);
+        const tagMetadata = matchRootTags(item, queryTags);
+
+        if (tagMetadata.matchedTagCount === 0) {
+          order += 1;
+          continue;
+        }
+
+        const itemWithMetadata = withMetadata(item, tagMetadata);
+
+        if (applyRootTagFilters([itemWithMetadata], query.filters).length === 0) {
+          order += 1;
+          continue;
+        }
+
+        taggedItems.push({ item: itemWithMetadata, order });
         order += 1;
-        continue;
       }
 
-      taggedItems.push({ item: itemWithMetadata, order });
-      order += 1;
+      if (
+        tagPageItems(taggedItems, cursorState.value.seenRootNodeIds, requestLimit).length >= requestLimit ||
+        candidateNextCursor === undefined
+      ) {
+        nextCursor = candidateNextCursor;
+        break;
+      }
+
+      nextCursor = candidateNextCursor;
+      offset += requestLimit;
     }
   }
 
-  const result: { items: StructuredKnowledge[]; nextCursor?: string } = {
-    items: taggedItems
-      .sort(compareTaggedItems)
-      .slice(0, requestLimit)
-      .map(({ item }) => item),
-  };
+  const pageItems = tagPageItems(taggedItems, cursorState.value.seenRootNodeIds, requestLimit);
+  const result: { items: StructuredKnowledge[]; nextCursor?: string } = { items: pageItems };
 
   if (nextCursor !== undefined) {
-    result.nextCursor = nextCursor;
+    result.nextCursor = withSeenRootNodeIds(nextCursor, cursorState.value.seenRootNodeIds, pageItems);
   }
 
   return ok(result);
@@ -510,14 +525,18 @@ async function searchMusicBrainzText({
 }: MusicBrainzRequestRuntime & {
   query: TextMusicBrainzQuery;
 }): Promise<Result<{ items: StructuredKnowledge[] }>> {
+  if (!allowsStructuredKnowledge(query)) {
+    return ok({ items: [] });
+  }
+
   const entityKinds = query.entityKinds ?? ["recording"];
   const items: StructuredKnowledge[] = [];
   const requestLimit = normalizedSearchLimit(query.limit);
   const planKey = providerSearchPlanKey("text", query);
-  const cursorOffset = readProviderSearchCursor(query.cursor, planKey);
+  const cursorState = readProviderSearchCursor(query.cursor, planKey);
 
-  if (!cursorOffset.ok) {
-    return cursorOffset;
+  if (!cursorState.ok) {
+    return cursorState;
   }
 
   let nextCursor: string | undefined;
@@ -540,7 +559,7 @@ async function searchMusicBrainzText({
       query: {
         query: query.text,
         limit: String(requestLimit),
-        ...(cursorOffset.value === 0 ? {} : { offset: String(cursorOffset.value) }),
+        ...(cursorState.value.offset === 0 ? {} : { offset: String(cursorState.value.offset) }),
       },
     });
 
@@ -548,7 +567,7 @@ async function searchMusicBrainzText({
       return response;
     }
 
-    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorOffset.value, requestLimit, planKey);
+    nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorState.value.offset, requestLimit, planKey);
 
     for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
       const followUpRef = textSearchFollowUpRef(entityKind, entity, query);
@@ -577,12 +596,14 @@ async function searchMusicBrainzText({
     }
   }
 
-  const result: { items: StructuredKnowledge[]; nextCursor?: string } = {
-    items: applyRootTagFilters(items, query.filters),
-  };
+  const pageItems = dedupeRootItems(
+    applyRootTagFilters(items, query.filters),
+    cursorState.value.seenRootNodeIds,
+  );
+  const result: { items: StructuredKnowledge[]; nextCursor?: string } = { items: pageItems };
 
   if (nextCursor !== undefined) {
-    result.nextCursor = nextCursor;
+    result.nextCursor = withSeenRootNodeIds(nextCursor, cursorState.value.seenRootNodeIds, pageItems);
   }
 
   return ok(result);
@@ -601,6 +622,10 @@ async function lookupMusicBrainzRef({
   query: CanonicalMusicBrainzQuery;
   ref: Ref;
 }): Promise<Result<{ items: StructuredKnowledge[] }>> {
+  if (!allowsStructuredKnowledge(query)) {
+    return ok({ items: [] });
+  }
+
   const refKind = normalizedMusicBrainzKind(ref.kind);
   const lookup = lookupConfigFor(refKind);
 
@@ -1324,8 +1349,8 @@ function withMetadata(
 }
 
 function compareTaggedItems(
-  left: { item: StructuredKnowledge; order: number },
-  right: { item: StructuredKnowledge; order: number },
+  left: TaggedKnowledgeItem,
+  right: TaggedKnowledgeItem,
 ): number {
   const leftMatchedTagCount = numberValue(left.item.metadata?.matchedTagCount) ?? 0;
   const rightMatchedTagCount = numberValue(right.item.metadata?.matchedTagCount) ?? 0;
@@ -1342,6 +1367,17 @@ function compareTaggedItems(
   }
 
   return left.order - right.order;
+}
+
+function tagPageItems(
+  taggedItems: TaggedKnowledgeItem[],
+  alreadyReturnedRootNodeIds: string[],
+  limit: number,
+): StructuredKnowledge[] {
+  return dedupeRootItems(
+    [...taggedItems].sort(compareTaggedItems).map(({ item }) => item),
+    alreadyReturnedRootNodeIds,
+  ).slice(0, limit);
 }
 
 function tagSearchQuery(queryTags: string[]): string {
@@ -2186,9 +2222,67 @@ function normalizedBrowseLimit(limit: number | undefined): number {
   return Math.min(Math.max(limit ?? 25, 1), 100);
 }
 
+function allowsStructuredKnowledge(query: KnowledgeQuery): boolean {
+  return query.formats === undefined || query.formats.includes("structured");
+}
+
+function dedupeRootItems<T extends StructuredKnowledge>(
+  items: T[],
+  alreadyReturnedRootNodeIds: string[],
+): T[] {
+  const seen = new Set(alreadyReturnedRootNodeIds);
+  const deduped: T[] = [];
+
+  for (const item of items) {
+    const rootNodeId = item.rootNodeId;
+
+    if (rootNodeId === undefined) {
+      deduped.push(item);
+      continue;
+    }
+
+    if (seen.has(rootNodeId)) {
+      continue;
+    }
+
+    seen.add(rootNodeId);
+    deduped.push(item);
+  }
+
+  return deduped;
+}
+
+function withSeenRootNodeIds(
+  cursor: string,
+  alreadyReturnedRootNodeIds: string[],
+  pageItems: StructuredKnowledge[],
+): string {
+  const seenRootNodeIds = uniqueStrings([
+    ...alreadyReturnedRootNodeIds,
+    ...pageItems.map((item) => item.rootNodeId),
+  ]);
+
+  if (seenRootNodeIds.length === 0) {
+    return cursor;
+  }
+
+  const decoded = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as ProviderSearchCursor;
+
+  return encodeProviderSearchCursor({
+    ...decoded,
+    seenRootNodeIds,
+  });
+}
+
 type ProviderSearchCursor = {
   planKey: string;
   offset: number;
+  seenRootNodeIds?: string[];
+};
+
+type ProviderSearchCursorState = {
+  offset: number;
+  seenRootNodeIds: string[];
 };
 
 function providerSearchPlanKey(
@@ -2206,9 +2300,9 @@ function providerSearchPlanKey(
 function readProviderSearchCursor(
   cursor: string | undefined,
   planKey: string,
-): Result<number> {
+): Result<ProviderSearchCursorState> {
   if (cursor === undefined) {
-    return ok(0);
+    return ok({ offset: 0, seenRootNodeIds: [] });
   }
 
   try {
@@ -2218,7 +2312,10 @@ function readProviderSearchCursor(
       return fail(invalidCursorError());
     }
 
-    return ok(decoded.offset);
+    return ok({
+      offset: decoded.offset,
+      seenRootNodeIds: decoded.seenRootNodeIds ?? [],
+    });
   } catch {
     return fail(invalidCursorError());
   }
@@ -2237,10 +2334,14 @@ function nextProviderSearchCursor(
     return undefined;
   }
 
-  return Buffer.from(JSON.stringify({
+  return encodeProviderSearchCursor({
     planKey,
     offset: offset + limit,
-  } satisfies ProviderSearchCursor), "utf8").toString("base64url");
+  });
+}
+
+function encodeProviderSearchCursor(cursor: ProviderSearchCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
 function searchResultCount(response: unknown, responseKey: string): number | undefined {
@@ -2265,7 +2366,14 @@ function isProviderSearchCursor(value: unknown): value is ProviderSearchCursor {
     typeof (value as { planKey?: unknown }).planKey === "string" &&
     typeof (value as { offset?: unknown }).offset === "number" &&
     Number.isInteger((value as { offset: number }).offset) &&
-    (value as { offset: number }).offset >= 0
+    (value as { offset: number }).offset >= 0 &&
+    (
+      (value as { seenRootNodeIds?: unknown }).seenRootNodeIds === undefined ||
+      (
+        Array.isArray((value as { seenRootNodeIds?: unknown }).seenRootNodeIds) &&
+        (value as { seenRootNodeIds: unknown[] }).seenRootNodeIds.every((nodeId) => typeof nodeId === "string")
+      )
+    )
   );
 }
 

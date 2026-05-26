@@ -93,6 +93,39 @@ async function searchesRecordingsAsStructuredKnowledge(): Promise<void> {
   );
 }
 
+async function skipsTextSearchWhenStructuredFormatIsExcluded(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            recordings: [
+              {
+                id: "recording-mbid-1",
+                title: "Intro",
+                score: 98,
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: { text: "Intro The xx", formats: ["text"], limit: 1 },
+    }),
+  );
+
+  assert(result.items.length === 0, "MusicBrainz should not synthesize text knowledge");
+  assert(requests.length === 0, "format-excluded text searches should skip MusicBrainz requests");
+}
+
 async function searchesRequestedEntityKinds(): Promise<void> {
   const paths: string[] = [];
   const provider = createMusicBrainzKnowledgeProvider({
@@ -637,6 +670,206 @@ async function continuesSearchBackedQueriesWithProviderOffsets(): Promise<void> 
   );
   assert(requests[3]?.query.offset === "1", "tag cursor should continue with the next MusicBrainz offset");
   assert(requests[5]?.query.offset === "1", "field cursor should continue with the next MusicBrainz offset");
+}
+
+async function omitsAlreadyReturnedTagRootsAcrossCursorPages(): Promise<void> {
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      const offset = request.query.offset ?? "0";
+      let recordings: Array<Record<string, unknown>>;
+
+      if (offset === "0") {
+        recordings = [
+          {
+            id: "duplicate-recording",
+            title: "Duplicate Recording",
+            score: 100,
+            tags: [
+              { name: "ambient", count: 2 },
+              { name: "electronic", count: 1 },
+            ],
+          },
+          {
+            id: "filtered-recording",
+            title: "Filtered Recording",
+            score: 99,
+            tags: [{ name: "classical", count: 1 }],
+          },
+        ];
+      } else if (offset === "2") {
+        recordings = [
+          {
+            id: "duplicate-recording",
+            title: "Duplicate Recording",
+            score: 98,
+            tags: [
+              { name: "ambient", count: 2 },
+              { name: "electronic", count: 1 },
+            ],
+          },
+          {
+            id: "new-recording",
+            title: "New Recording",
+            score: 97,
+            tags: [
+              { name: "ambient", count: 3 },
+              { name: "electronic", count: 1 },
+            ],
+          },
+        ];
+      } else {
+        recordings = [
+          {
+            id: "duplicate-recording",
+            title: "Duplicate Recording",
+            score: 96,
+            tags: [
+              { name: "ambient", count: 2 },
+              { name: "electronic", count: 1 },
+            ],
+          },
+          {
+            id: "third-recording",
+            title: "Third Recording",
+            score: 95,
+            tags: [
+              { name: "ambient", count: 3 },
+              { name: "electronic", count: 1 },
+            ],
+          },
+        ];
+      }
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            count: 6,
+            recordings,
+          },
+        },
+      };
+    },
+  });
+
+  const firstPage = await assertOk(
+    provider.query({
+      query: {
+        tagQuery: ["ambient", "electronic"],
+        entityKinds: ["recording"],
+        limit: 2,
+      },
+    }),
+  );
+
+  assert(firstPage.items.length === 2, "first page fixture should fill the public tag chunk");
+  assert(firstPage.items[0]?.kind === "structured", "first page item should be structured");
+  assert(firstPage.items[0].rootNodeId === "recording:duplicate-recording", "first page should return the duplicate root");
+  assert(firstPage.items[1]?.kind === "structured", "second first-page item should be structured");
+  assert(firstPage.items[1].rootNodeId === "recording:new-recording", "first page should return the first new root");
+  assert(firstPage.nextCursor !== undefined, "first page should expose a continuation cursor");
+
+  const secondPage = await assertOk(
+    provider.query({
+      query: {
+        tagQuery: ["ambient", "electronic"],
+        entityKinds: ["recording"],
+        limit: 2,
+        cursor: firstPage.nextCursor,
+      },
+    }),
+  );
+  const secondPageRootIds = secondPage.items.map((item) =>
+    item.kind === "structured" ? item.rootNodeId : "text"
+  );
+
+  assert(
+    !secondPageRootIds.includes("recording:duplicate-recording"),
+    "continued tag pages should not repeat roots returned by earlier pages",
+  );
+  assert(
+    !secondPageRootIds.includes("recording:new-recording"),
+    "continued tag pages should not repeat any root returned by earlier pages",
+  );
+  assert(
+    secondPageRootIds.includes("recording:third-recording"),
+    "continued tag pages should still return newly discovered roots",
+  );
+}
+
+async function fillsTagQueryPageAfterProviderPagesWithNoMatches(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+      const offset = request.query.offset ?? "0";
+      const recordings = offset === "0"
+        ? [
+            {
+              id: "first-nonmatch",
+              title: "First Nonmatch",
+              score: 100,
+              tags: [{ name: "classical", count: 1 }],
+            },
+            {
+              id: "second-nonmatch",
+              title: "Second Nonmatch",
+              score: 99,
+              tags: [{ name: "new age", count: 1 }],
+            },
+          ]
+        : [
+            {
+              id: "first-match",
+              title: "First Match",
+              score: 98,
+              tags: [
+                { name: "ambient", count: 2 },
+                { name: "electronic", count: 1 },
+              ],
+            },
+            {
+              id: "second-match",
+              title: "Second Match",
+              score: 97,
+              tags: [
+                { name: "ambient", count: 2 },
+                { name: "electronic", count: 1 },
+              ],
+            },
+          ];
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            count: 4,
+            recordings,
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        tagQuery: ["ambient", "electronic"],
+        entityKinds: ["recording"],
+        limit: 2,
+      },
+    }),
+  );
+  const rootNodeIds = result.items.map((item) =>
+    item.kind === "structured" ? item.rootNodeId : "text"
+  );
+
+  assert(requests.length === 2, "tag query should fetch past empty provider pages when more candidates exist");
+  assert(requests[1]?.query.offset === "2", "second internal tag fetch should continue with the next offset");
+  assert(rootNodeIds.join(",") === "recording:first-match,recording:second-match", "tag query should return the first non-empty public chunk");
+  assert(result.nextCursor === undefined, "no cursor should remain when the provider source is exhausted");
 }
 
 async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<void> {
@@ -1562,6 +1795,7 @@ async function mapsRateLimitErrorWithoutCachingFailure(): Promise<void> {
 }
 
 await searchesRecordingsAsStructuredKnowledge();
+await skipsTextSearchWhenStructuredFormatIsExcluded();
 await searchesRequestedEntityKinds();
 await searchesLabelsAsStructuredKnowledge();
 await filtersRootItemsByReturnedTagsAndGenres();
@@ -1570,6 +1804,8 @@ await appliesTagQueryFiltersToReturnedRootFacts();
 await buildsFieldQueriesForRequestedEntityKinds();
 await fieldQueryLooksUpMissingTagsBeforeFiltering();
 await continuesSearchBackedQueriesWithProviderOffsets();
+await omitsAlreadyReturnedTagRootsAcrossCursorPages();
+await fillsTagQueryPageAfterProviderPagesWithNoMatches();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
 await looksUpMusicBrainzRefFromCanonicalContext();
 await browsesReleasesForReleaseGroupExpansion();

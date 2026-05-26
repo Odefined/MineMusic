@@ -43,7 +43,9 @@
   artist, label, recording, release, release group, and work facts, supports
   Tag Query over provider-attributed tags, supports Field Query over mapped
   music-domain fields, supports provider-local cursor continuation for
-  search-backed text, tag, and field queries, supports
+  search-backed text, tag, and field queries with cross-page root de-duplication
+  and internal Tag Query refill for filtered-empty provider pages, honors the
+  provider's structured-only format capability, supports
   MusicBrainz-ref lookup through Canonical context source refs, supports
   deterministic browse expansions for release-group releases and artist release
   groups, maps tracklists, labels, ratings, tags, genres, annotations, and
@@ -90,3 +92,7 @@
   - `fieldQuery.artist` plus `filters.tags.include`.
   - `fieldQuery.release` plus `filters.tags.include`.
   - `tagQuery` plus `filters.tags.exclude`.
+- Fresh Codex-native MCP smoke after structured query hardening confirms
+  `formats: ["text"]` returns no MusicBrainz structured items, multi-tag Tag
+  Query returns a non-empty first chunk, and cursor continuation does not repeat
+  root items from the prior chunk.

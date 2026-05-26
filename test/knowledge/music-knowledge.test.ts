@@ -179,6 +179,11 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
     resultWithBothInputs.error.code === "knowledge.invalid_query",
     "query with both text and canonicalRef should be rejected",
   );
+  assert(
+    resultWithBothInputs.error.message.includes("tagQuery") &&
+      resultWithBothInputs.error.message.includes("fieldQuery"),
+    "invalid query message should describe all supported query entries",
+  );
   assert(!resultWithUnsupportedRelationFocus.ok, "unsupported relation focus should fail explicitly");
   assert(
     resultWithUnsupportedRelationFocus.error.code === "knowledge.invalid_query",
@@ -360,6 +365,10 @@ async function wrapsProviderContinuationCursors(): Promise<void> {
   assert(capturedCursors[1] === "provider-page-2", "service should route decoded provider cursor to provider");
   assert(!mismatchedQuery.ok, "cursor with a changed query shape should fail");
   assert(mismatchedQuery.error.code === "knowledge.invalid_query", "cursor mismatch should be invalid query");
+  assert(
+    mismatchedQuery.error.message.includes("cursor"),
+    "cursor mismatch should report a cursor-specific message",
+  );
 }
 
 await queriesKnowledgeProvidersAsProviderAttributedItems();
