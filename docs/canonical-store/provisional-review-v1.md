@@ -70,6 +70,10 @@ V1 does not support:
 - durable review-case storage.
 - artist, release, release-group, or work activation.
 - label-only identity decisions.
+- cross-source recording merge without a shared MusicBrainz recording ref.
+- ISRC-only recording merge.
+- release-tracklist-scoped recording merge.
+- human/admin override merge.
 - multi-hop graph inference.
 - provider-specific review tools.
 
@@ -164,10 +168,11 @@ Guidance should say:
 ```text
 Review v1 only supports provisional recordings.
 Inspect returns facts, not an action recommendation.
-Choose activate when inspected facts support one MusicBrainz recording identity
-and no inspected current canonical record already represents that identity.
-Choose merge when inspected facts show the subject is the same identity as an
-existing current canonical recording.
+Choose activate when the decision can explain at least two non-label reasons
+from inspected facts for one MusicBrainz recording identity, and no inspected
+current canonical record already represents that identity.
+Choose merge only when the subject and an existing current canonical recording
+share the same inspected MusicBrainz recording ref.
 Never decide from label-only evidence.
 Use only refs, Knowledge Item ids, anchors, and relation candidates returned by
 canonical.review.inspect.
@@ -185,6 +190,10 @@ provider-attributed context.
 It may return derived facts, such as anchors and relation candidates, when they
 are constructed from Canonical Store and Knowledge facts. It must not return an
 action recommendation or a preselected merge target.
+
+Inspect should not try to prove semantic equivalence for translated titles,
+romanized artist names, alternate release spellings, aliases, or other fuzzy
+music metadata. It assembles facts for the agent to compare.
 
 ### Gate
 
@@ -296,9 +305,14 @@ relation object.
 
 `neighborRecords` are direct canonical records referenced by those relations.
 
-`relatedCurrentRecords` are current canonical records found through inspected
-facts, such as exact provider refs or direct relation context. These are still
-facts, not merge recommendations.
+`relatedCurrentRecords` are current canonical recordings found through an
+inspected same-kind MusicBrainz recording ref. These are still facts, not merge
+recommendations.
+
+V1 must not populate `relatedCurrentRecords` from label similarity, artist/title
+similarity, duration similarity, ISRC-only overlap, source-label similarity, or
+release-context similarity. Those may appear as anchors or supporting facts, but
+they are not enough to make a v1 merge target.
 
 V1 needs incoming relation lookup because Library Import already writes
 recording-to-artist and recording-to-release relations. Reviewing an endpoint
@@ -335,12 +349,13 @@ Example shape:
 type ProvisionalReviewAnchor = {
   id: string;
   kind: "provider_ref" | "active_neighbor" | "source_relation" | (string & {});
+  role: "determining" | "supporting";
   subjectRef: Ref;
   providerRef?: Ref;
   relatedCanonicalRefs: Ref[];
   supportingRefs: Ref[];
   supportingKnowledgeItemIds: string[];
-  signals: string[];
+  notes?: string[];
 };
 ```
 
@@ -408,6 +423,7 @@ Activate:
   subjectRef: Ref;
   action: "activate";
   selectedProviderRef: Ref;
+  supportingReasonKinds: ProvisionalReviewSupportReasonKind[];
   reason: string;
   supportingRefs?: Ref[];
   supportingKnowledgeItemIds?: string[];
@@ -424,12 +440,32 @@ Merge:
   action: "merge";
   targetRef: Ref;
   selectedProviderRef: Ref;
+  supportingReasonKinds?: ProvisionalReviewSupportReasonKind[];
   reason: string;
   supportingRefs?: Ref[];
   supportingKnowledgeItemIds?: string[];
   supportingAnchorIds?: string[];
 }
 ```
+
+Support reason kinds are lightweight agent declarations used by the Gate for
+shape checks. They do not ask the script to decide semantic equivalence.
+
+```ts
+type ProvisionalReviewSupportReasonKind =
+  | "artist_credit"
+  | "duration"
+  | "isrc"
+  | "release_appearance"
+  | "source_ref_context"
+  | "direct_relation_context"
+  | "tracklist_context"
+  | "active_neighbor_anchor";
+```
+
+`reason` is a human-readable audit explanation. The Gate may require it to be
+non-empty, but it must not parse the text to decide whether the identity claim is
+true.
 
 Unsupported actions fail in v1.
 
@@ -456,22 +492,36 @@ Common checks:
 - every cited Knowledge Item id appears in `knowledgeItems`.
 - every cited anchor id appears in `anchors`.
 - the decision is not based on label-only evidence.
+- every declared support reason kind is allowed for the selected action.
+- if the decision claims a determining anchor, that claim must match a stored
+  anchor whose `role` is `determining` and whose provider ref matches the
+  selected provider ref.
+
+The Gate does not prove semantic equivalence between metadata strings. It does
+not decide that a romanized name, translated release title, alias, spelling
+variant, or artist credit is equivalent. That judgment belongs to the agent's
+reasoned Provisional Review Decision.
 
 Activate checks:
 
 - no current canonical recording already carries `selectedProviderRef`.
-- inspected facts include non-label support for the selected provider ref, such
-  as artist credit, duration, release appearance, source-ref context, relation
-  context, or a valid anchor.
+- `supportingReasonKinds` contains at least two allowed non-label kinds.
+- the decision cites inspected refs, Knowledge Items, or anchors that ground
+  those declared reason kinds.
+- title equality, label similarity, MusicBrainz search score, retrieval score,
+  and LLM confidence are not enough.
+- valid non-label reasons may cite inspected artist-credit facts, duration
+  facts, ISRC facts, release appearance facts, source-ref context, direct
+  relation context, tracklist context, or an active-neighbor anchor.
 
 Merge checks:
 
 - `targetRef` appears in the stored inspection facts.
 - `targetRef` points to a current recording.
-- inspected facts support that subject and target are the same recording
-  identity.
-- if the target already carries a MusicBrainz recording ref, it must not
-  conflict with `selectedProviderRef`.
+- `targetRef` is in `relatedCurrentRecords`.
+- `targetRef` already carries `selectedProviderRef`.
+- `selectedProviderRef` is the inspected MusicBrainz recording ref that supports
+  the subject.
 - source refs moved from subject to target must not conflict with another
   current canonical record outside the merge target.
 
@@ -576,8 +626,9 @@ Minimum coverage:
 - `canonical.review.apply` rejects cited refs, Knowledge Item ids, anchors, or
   relation candidates that were not in the stored inspection.
 - `canonical.review.apply` rejects label-only activation and label-only merge.
-- activation succeeds for a provisional recording with inspected MusicBrainz
-  recording support.
+- activation succeeds for a provisional recording with an inspected MusicBrainz
+  recording ref and an agent decision that explains at least two non-label
+  identity-support reasons from inspected facts.
 - merge succeeds for a provisional recording into an inspected current recording
   when inspected facts support same identity.
 - after merge, ordinary Canonical Store reads and source-ref resolution land on
