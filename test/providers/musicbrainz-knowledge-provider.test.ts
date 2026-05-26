@@ -288,6 +288,154 @@ async function filtersRootItemsByReturnedTagsAndGenres(): Promise<void> {
   );
 }
 
+async function searchesTagQueryAndRanksMatchesAcrossKinds(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      if (request.path === "/ws/2/artist") {
+        return {
+          ok: true,
+          value: {
+            status: 200,
+            json: {
+              artists: [
+                {
+                  id: "artist-mbid-1",
+                  name: "Tag Artist",
+                  score: 40,
+                  genres: [{ name: "Ambient" }],
+                  tags: [{ name: "Post-Rock" }],
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            recordings: [
+              {
+                id: "recording-mbid-1",
+                title: "One Tag Recording",
+                score: 99,
+                tags: [{ name: "Ambient" }],
+              },
+              {
+                id: "recording-mbid-2",
+                title: "No Match Recording",
+                score: 100,
+                tags: [{ name: "New Age" }],
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        tagQuery: [" Ambient ", "post-rock"],
+        entityKinds: ["recording", "artist"],
+        limit: 2,
+      },
+    }),
+  );
+
+  const firstMetadata = result.items[0]?.kind === "structured" ? result.items[0].metadata : undefined;
+  const secondMetadata = result.items[1]?.kind === "structured" ? result.items[1].metadata : undefined;
+
+  assert(requests.map((request) => request.path).join(",") === "/ws/2/recording,/ws/2/artist", "tag query should search requested entity kinds");
+  assert(
+    requests.every((request) => request.query.query === 'tag:"ambient" OR tag:"post-rock"'),
+    "tag query should build MusicBrainz tag clauses without exposing them publicly",
+  );
+  assert(result.items.length === 2, "tag query should return matching roots up to the global limit");
+  assert(
+    result.items[0]?.kind === "structured"
+    && result.items[0].rootNodeId === "artist:artist-mbid-1",
+    "items with more matched tags should rank before higher-score one-tag matches",
+  );
+  assert((firstMetadata?.matchedTags as string[] | undefined)?.join(",") === "ambient,post-rock", "metadata should list matched query tags");
+  assert(firstMetadata?.matchedTagCount === 2, "metadata should count matched query tags");
+  assert(
+    result.items[1]?.kind === "structured"
+    && result.items[1].rootNodeId === "recording:recording-mbid-1",
+    "one-tag recording should remain after nonmatching roots are removed",
+  );
+  assert(secondMetadata?.matchedTagCount === 1, "one-tag match should keep its matched count");
+}
+
+async function appliesTagQueryFiltersToReturnedRootFacts(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            recordings: [
+              {
+                id: "matching-recording",
+                title: "Matching",
+                score: 70,
+                genres: [{ name: "Ambient" }],
+                tags: [{ name: "Shoegaze" }],
+              },
+              {
+                id: "excluded-recording",
+                title: "Excluded",
+                score: 99,
+                genres: [{ name: "Ambient" }],
+                tags: [{ name: "Shoegaze" }, { name: "New Age" }],
+              },
+              {
+                id: "missing-include-recording",
+                title: "Missing Include",
+                score: 90,
+                genres: [{ name: "Ambient" }],
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        tagQuery: ["ambient"],
+        filters: {
+          tags: {
+            include: ["shoegaze"],
+            exclude: ["new age"],
+          },
+        },
+        limit: 5,
+      },
+    }),
+  );
+
+  assert(requests[0]?.path === "/ws/2/recording", "tag query should default to recording search");
+  assert(result.items.length === 1, "tag query filters should narrow returned root facts");
+  assert(
+    result.items[0]?.kind === "structured"
+    && result.items[0].rootNodeId === "recording:matching-recording",
+    "include and exclude filters should be applied after provider facts are returned",
+  );
+}
+
 async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<void> {
   const paths: string[] = [];
   const provider = createMusicBrainzKnowledgeProvider({
@@ -1214,6 +1362,8 @@ await searchesRecordingsAsStructuredKnowledge();
 await searchesRequestedEntityKinds();
 await searchesLabelsAsStructuredKnowledge();
 await filtersRootItemsByReturnedTagsAndGenres();
+await searchesTagQueryAndRanksMatchesAcrossKinds();
+await appliesTagQueryFiltersToReturnedRootFacts();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
 await looksUpMusicBrainzRefFromCanonicalContext();
 await browsesReleasesForReleaseGroupExpansion();

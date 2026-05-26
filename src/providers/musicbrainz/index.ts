@@ -188,6 +188,7 @@ type MusicBrainzRelation = {
 
 type TextMusicBrainzQuery = KnowledgeQuery & { text: string };
 type CanonicalMusicBrainzQuery = KnowledgeQuery & { canonicalRef: Ref };
+type TagMusicBrainzQuery = KnowledgeQuery & { tagQuery: string[] };
 type MusicBrainzRequestRuntime = {
   baseUrl: string;
   cache: ProviderHttpCacheRepository | undefined;
@@ -252,6 +253,10 @@ export function createMusicBrainzKnowledgeProvider(options: MusicBrainzKnowledge
         return searchMusicBrainzText({ ...runtime, query });
       }
 
+      if (isTagQuery(query)) {
+        return searchMusicBrainzTags({ ...runtime, query });
+      }
+
       if (!isCanonicalQuery(query)) {
         return ok({ items: [] });
       }
@@ -265,6 +270,85 @@ export function createMusicBrainzKnowledgeProvider(options: MusicBrainzKnowledge
       return lookupMusicBrainzRef({ ...runtime, query, ref });
     },
   };
+}
+
+async function searchMusicBrainzTags({
+  baseUrl,
+  cache,
+  clock,
+  rateLimiter,
+  requestJson,
+  userAgent,
+  query,
+}: MusicBrainzRequestRuntime & {
+  query: TagMusicBrainzQuery;
+}): Promise<Result<{ items: StructuredKnowledge[] }>> {
+  if (query.formats !== undefined && !query.formats.includes("structured")) {
+    return ok({ items: [] });
+  }
+
+  const queryTags = normalizeTagList(query.tagQuery);
+
+  if (queryTags.length === 0) {
+    return ok({ items: [] });
+  }
+
+  const entityKinds = query.entityKinds ?? ["recording"];
+  const taggedItems: Array<{ item: StructuredKnowledge; order: number }> = [];
+  let order = 0;
+
+  for (const entityKind of entityKinds) {
+    const search = searchConfigFor(entityKind);
+
+    if (search === undefined) {
+      continue;
+    }
+
+    const response = await requestMusicBrainz({
+      baseUrl,
+      cache,
+      clock,
+      rateLimiter,
+      requestJson,
+      userAgent,
+      path: search.path,
+      query: {
+        query: tagSearchQuery(queryTags),
+        limit: String(normalizedSearchLimit(query.limit)),
+      },
+    });
+
+    if (!response.ok) {
+      return response;
+    }
+
+    for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
+      const item = search.toKnowledge(entity);
+      const tagMetadata = matchRootTags(item, queryTags);
+
+      if (tagMetadata.matchedTagCount === 0) {
+        order += 1;
+        continue;
+      }
+
+      const itemWithMetadata = withMetadata(item, tagMetadata);
+
+      if (applyRootTagFilters([itemWithMetadata], query.filters).length === 0) {
+        order += 1;
+        continue;
+      }
+
+      taggedItems.push({ item: itemWithMetadata, order });
+      order += 1;
+    }
+  }
+
+  return ok({
+    items: taggedItems
+      .sort(compareTaggedItems)
+      .slice(0, normalizedSearchLimit(query.limit))
+      .map(({ item }) => item),
+  });
 }
 
 async function searchMusicBrainzCanonicalContext({
@@ -467,6 +551,10 @@ function musicBrainzRefFromQuery(
 
 function isTextQuery(query: KnowledgeQuery): query is TextMusicBrainzQuery {
   return typeof (query as { text?: unknown }).text === "string";
+}
+
+function isTagQuery(query: KnowledgeQuery): query is TagMusicBrainzQuery {
+  return Array.isArray((query as { tagQuery?: unknown }).tagQuery);
 }
 
 function isCanonicalQuery(query: KnowledgeQuery): query is CanonicalMusicBrainzQuery {
@@ -937,7 +1025,10 @@ function applyRootTagFilters(
   });
 }
 
-function matchRootTags(item: StructuredKnowledge, queryTags: string[]): Record<string, unknown> {
+function matchRootTags(item: StructuredKnowledge, queryTags: string[]): {
+  matchedTags: string[];
+  matchedTagCount: number;
+} {
   const rootTags = rootTagSet(item);
   const matchedTags = normalizeTagList(queryTags).filter((tag) => rootTags.has(tag));
 
@@ -945,6 +1036,48 @@ function matchRootTags(item: StructuredKnowledge, queryTags: string[]): Record<s
     matchedTags,
     matchedTagCount: matchedTags.length,
   };
+}
+
+function withMetadata(
+  item: StructuredKnowledge,
+  metadata: Record<string, unknown>,
+): StructuredKnowledge {
+  return {
+    ...item,
+    metadata: {
+      ...(item.metadata ?? {}),
+      ...metadata,
+    },
+  };
+}
+
+function compareTaggedItems(
+  left: { item: StructuredKnowledge; order: number },
+  right: { item: StructuredKnowledge; order: number },
+): number {
+  const leftMatchedTagCount = numberValue(left.item.metadata?.matchedTagCount) ?? 0;
+  const rightMatchedTagCount = numberValue(right.item.metadata?.matchedTagCount) ?? 0;
+
+  if (leftMatchedTagCount !== rightMatchedTagCount) {
+    return rightMatchedTagCount - leftMatchedTagCount;
+  }
+
+  const leftScore = left.item.retrievalScore ?? 0;
+  const rightScore = right.item.retrievalScore ?? 0;
+
+  if (leftScore !== rightScore) {
+    return rightScore - leftScore;
+  }
+
+  return left.order - right.order;
+}
+
+function tagSearchQuery(queryTags: string[]): string {
+  return queryTags.map((tag) => `tag:${quoteMusicBrainzSearchValue(tag)}`).join(" OR ");
+}
+
+function quoteMusicBrainzSearchValue(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`;
 }
 
 function rootTagSet(item: StructuredKnowledge): Set<string> {

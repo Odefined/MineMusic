@@ -161,6 +161,16 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
       fieldQuery: { artist: "Stars of the Lid" },
     } as never,
   });
+  const excludedTagQueryOverlap = await knowledge.query({
+    query: {
+      tagQuery: [" Ambient "],
+      filters: {
+        tags: {
+          exclude: ["ambient"],
+        },
+      },
+    } as never,
+  });
 
   assert(!result.ok, "invalid knowledge query should fail explicitly");
   assert(result.error.code === "knowledge.invalid_query", "invalid query should be rejected before provider lookup");
@@ -194,6 +204,11 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
   assert(
     multipleStructuredEntries.error.code === "knowledge.invalid_query",
     "structured query entries should be mutually exclusive",
+  );
+  assert(!excludedTagQueryOverlap.ok, "tag query tags should not overlap excluded filters");
+  assert(
+    excludedTagQueryOverlap.error.code === "knowledge.invalid_query",
+    "overlapping tagQuery and exclude filters should be rejected",
   );
 }
 

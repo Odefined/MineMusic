@@ -187,6 +187,14 @@ function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
     return fail(invalidQueryError());
   }
 
+  if (
+    tagQuery.value !== undefined &&
+    filters.value?.tags?.exclude !== undefined &&
+    tagQuery.value.some((tag) => filters.value?.tags?.exclude?.includes(tag) === true)
+  ) {
+    return fail(invalidQueryError());
+  }
+
   const base = knowledgeQueryBase(queryShape, filters.value);
 
   if (hasText) {
