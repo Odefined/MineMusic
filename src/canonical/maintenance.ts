@@ -49,7 +49,7 @@ export function createCanonicalMaintenance({
   repository,
   sessionContext,
   knowledge,
-  events: _events,
+  events,
   idFactory = createDefaultIdFactory("inspection"),
   clock = () => new Date().toISOString(),
   inspectionTtlMs = defaultInspectionTtlMs,
@@ -220,11 +220,80 @@ export function createCanonicalMaintenance({
     },
 
     async reviewApply(input: ProvisionalReviewApplyInput): Promise<Result<ProvisionalReviewApplyOutput>> {
-      void input;
+      const commonGate = await validateApplyCommon({
+        sessionContext,
+        storage,
+        snapshots,
+        clock,
+        input,
+      });
+
+      if (!commonGate.ok) {
+        return commonGate;
+      }
+
+      if (input.action === "defer") {
+        const deferGate = validateDeferDecision(input, commonGate.value.inspection);
+
+        if (!deferGate.ok) {
+          return deferGate;
+        }
+
+        if (events === undefined) {
+          return fail({
+            code: "event.record_failed",
+            message: "EventPort is required to record provisional review defer decisions.",
+            module: "events",
+            retryable: false,
+          });
+        }
+
+        const recorded = await events.record({
+          event: {
+            sessionId: input.sessionId,
+            actor: "stage",
+            type: "provisional_review.deferred",
+            target: input.subjectRef,
+            payload: {
+              subjectRef: input.subjectRef,
+              inspectionId: input.inspectionId,
+              reason: input.reason,
+              supportingRefs: input.supportingRefs ?? [],
+              supportingKnowledgeItemIds: input.supportingKnowledgeItemIds ?? [],
+              supportingAnchorIds: input.supportingAnchorIds ?? [],
+            },
+          },
+        });
+
+        if (!recorded.ok) {
+          return recorded;
+        }
+
+        return ok({
+          subjectRef: input.subjectRef,
+          action: "defer",
+          appliedAction: "defer",
+        });
+      }
+
+      if (input.action === "update") {
+        const updateGate = validateUpdateDecision(input, commonGate.value.inspection);
+
+        if (!updateGate.ok) {
+          return updateGate;
+        }
+
+        return fail({
+          code: "canonical.review_invalid",
+          message: "canonical.review.apply update effects are not implemented in this slice.",
+          module: "canonical",
+          retryable: false,
+        });
+      }
 
       return fail({
         code: "canonical.review_invalid",
-        message: "canonical.review.apply is not implemented in this slice.",
+        message: `Unsupported Provisional Review action '${String((input as { action?: unknown }).action)}'.`,
         module: "canonical",
         retryable: false,
       });
@@ -289,6 +358,359 @@ async function readReviewSubject(
   }
 
   return ok(subject.value);
+}
+
+async function validateApplyCommon({
+  sessionContext,
+  storage,
+  snapshots,
+  clock,
+  input,
+}: {
+  sessionContext: SessionContextPort;
+  storage: ReturnType<typeof createCanonicalStorage>;
+  snapshots: Map<string, ReviewSnapshot>;
+  clock: () => string;
+  input: ProvisionalReviewApplyInput;
+}): Promise<Result<ReviewSnapshot>> {
+  const posture = await ensureReviewPosture(sessionContext, input.sessionId);
+
+  if (!posture.ok) {
+    return posture;
+  }
+
+  const snapshot = snapshots.get(snapshotKey(input.sessionId, input.subjectRef));
+
+  if (snapshot === undefined) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "No latest inspection snapshot exists for this session and subject.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (snapshot.inspection.inspectionId !== input.inspectionId) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Inspection id is stale for this session and subject.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (Date.parse(snapshot.inspection.expiresAt) <= Date.parse(clock())) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Inspection snapshot has expired.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (!sameRef(snapshot.subjectRef, input.subjectRef)) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Inspection snapshot subject does not match apply subject.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const subject = await readReviewSubject(storage, input.subjectRef);
+
+  if (!subject.ok) {
+    return subject;
+  }
+
+  const citations = validateCitations(input, snapshot.inspection);
+
+  if (!citations.ok) {
+    return citations;
+  }
+
+  return ok(snapshot);
+}
+
+function validateDeferDecision(
+  input: Extract<ProvisionalReviewApplyInput, { action: "defer" }>,
+  _inspection: ProvisionalReviewInspection,
+): Result<void> {
+  if (input.reason.trim().length === 0) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Defer decisions require a non-empty reason.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  return ok(undefined);
+}
+
+function validateUpdateDecision(
+  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>,
+  inspection: ProvisionalReviewInspection,
+): Result<void> {
+  if (input.reason.trim().length === 0) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Update decisions require a non-empty reason.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (!isMusicBrainzRecordingRef(input.selectedProviderRef)) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Update decisions must select a MusicBrainz recording ref.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (!inspectionContainsRef(inspection, input.selectedProviderRef)) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Selected provider ref was not returned by the latest inspection.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (!selectedProviderRefIsCited(input, inspection)) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Update decisions must cite inspected facts for the selected provider ref.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const uniqueReasonKinds = [...new Set(input.supportingReasonKinds)];
+
+  if (uniqueReasonKinds.length < 2) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Update decisions require at least two non-label support reason kinds.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  for (const reasonKind of uniqueReasonKinds) {
+    if (!supportReasonKindIsGrounded(reasonKind, inspection, input)) {
+      return fail({
+        code: "canonical.review_invalid",
+        message: `Support reason kind '${reasonKind}' is not grounded in inspected facts.`,
+        module: "canonical",
+        retryable: false,
+      });
+    }
+  }
+
+  return ok(undefined);
+}
+
+function validateCitations(
+  input: ProvisionalReviewApplyInput,
+  inspection: ProvisionalReviewInspection,
+): Result<void> {
+  const inspectedRefKeys = inspectedRefs(inspection);
+  const inspectedKnowledgeItemIds = new Set(
+    inspection.knowledgeItems.map((item, index) => item.id ?? knowledgeItemId(item, index)),
+  );
+  const inspectedAnchorIds = new Set(inspection.anchors.map((anchor) => anchor.id));
+
+  for (const ref of input.supportingRefs ?? []) {
+    if (!inspectedRefKeys.has(refKey(ref))) {
+      return fail({
+        code: "canonical.review_invalid",
+        message: `Supporting ref '${refKey(ref)}' was not returned by the latest inspection.`,
+        module: "canonical",
+        retryable: false,
+      });
+    }
+  }
+
+  for (const knowledgeItemId of input.supportingKnowledgeItemIds ?? []) {
+    if (!inspectedKnowledgeItemIds.has(knowledgeItemId)) {
+      return fail({
+        code: "canonical.review_invalid",
+        message: `Supporting Knowledge item '${knowledgeItemId}' was not returned by the latest inspection.`,
+        module: "canonical",
+        retryable: false,
+      });
+    }
+  }
+
+  for (const anchorId of input.supportingAnchorIds ?? []) {
+    if (!inspectedAnchorIds.has(anchorId)) {
+      return fail({
+        code: "canonical.review_invalid",
+        message: `Supporting anchor '${anchorId}' was not returned by the latest inspection.`,
+        module: "canonical",
+        retryable: false,
+      });
+    }
+  }
+
+  return ok(undefined);
+}
+
+function selectedProviderRefIsCited(
+  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>,
+  inspection: ProvisionalReviewInspection,
+): boolean {
+  if ((input.supportingRefs ?? []).some((ref) => sameRef(ref, input.selectedProviderRef))) {
+    return true;
+  }
+
+  const citedAnchorIds = new Set(input.supportingAnchorIds ?? []);
+
+  if (
+    inspection.anchors.some(
+      (anchor) =>
+        citedAnchorIds.has(anchor.id) &&
+        anchor.providerRef !== undefined &&
+        sameRef(anchor.providerRef, input.selectedProviderRef),
+    )
+  ) {
+    return true;
+  }
+
+  const citedKnowledgeItemIds = new Set(input.supportingKnowledgeItemIds ?? []);
+
+  return inspection.knowledgeItems.some((item, index) => {
+    const itemId = item.id ?? knowledgeItemId(item, index);
+
+    if (!citedKnowledgeItemIds.has(itemId)) {
+      return false;
+    }
+
+    return knowledgeItemRefs(item).some((ref) => sameRef(ref, input.selectedProviderRef));
+  });
+}
+
+function supportReasonKindIsGrounded(
+  reasonKind: string,
+  inspection: ProvisionalReviewInspection,
+  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>,
+): boolean {
+  const citedAnchorIds = new Set(input.supportingAnchorIds ?? []);
+  const citedKnowledgeItemIds = new Set(input.supportingKnowledgeItemIds ?? []);
+  const citedRefs = new Set((input.supportingRefs ?? []).map(refKey));
+  const citedAnchors = inspection.anchors.filter((anchor) => citedAnchorIds.has(anchor.id));
+  const citedKnowledgeItems = inspection.knowledgeItems.filter((item, index) =>
+    citedKnowledgeItemIds.has(item.id ?? knowledgeItemId(item, index)),
+  );
+
+  switch (reasonKind) {
+    case "artist_credit":
+      return (
+        inspection.outgoingRelations.some((relation) => relation.predicate === "performed_by") ||
+        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "artist"))
+      );
+    case "duration":
+      return (
+        inspection.outgoingRelations.some((relation) => relation.predicate === "has_duration_ms") ||
+        inspection.provisionalHints.some((hint) => hint.facts.durationMs !== undefined) ||
+        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "duration"))
+      );
+    case "isrc":
+      return citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "isrc"));
+    case "release_appearance":
+      return (
+        inspection.outgoingRelations.some((relation) => relation.predicate === "appears_on_release") ||
+        inspection.provisionalHints.some((hint) => hint.facts.releaseLabel !== undefined) ||
+        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "release"))
+      );
+    case "source_ref_context":
+      return inspection.provisionalHints.some((hint) => citedRefs.has(refKey(hint.sourceRef))) ||
+        citedAnchors.some((anchor) => anchor.id.startsWith("source-ref-context:"));
+    case "direct_relation_context":
+      return inspection.outgoingRelations.length > 0 || inspection.incomingRelations.length > 0;
+    case "tracklist_context":
+      return (
+        inspection.provisionalHints.some((hint) => hint.facts.trackPosition !== undefined) ||
+        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "track"))
+      );
+    case "active_neighbor_anchor":
+      return citedAnchors.some((anchor) => anchor.kind === "active_neighbor");
+    default:
+      return false;
+  }
+}
+
+function inspectedRefs(inspection: ProvisionalReviewInspection): Set<string> {
+  return new Set(
+    [
+      inspection.subject.ref,
+      ...(inspection.subject.sourceRefs ?? []),
+      ...inspection.outgoingRelations.flatMap(relationRefs),
+      ...inspection.incomingRelations.flatMap(relationRefs),
+      ...inspection.provisionalHints.flatMap((hint) => [
+        hint.subjectRef,
+        hint.sourceRef,
+        hint.facts.releaseSourceRef,
+      ]),
+      ...inspection.neighborRecords.flatMap(recordRefs),
+      ...inspection.relatedCurrentRecords.flatMap(recordRefs),
+      ...inspection.knowledgeItems.flatMap(knowledgeItemRefs),
+      ...inspection.anchors.flatMap(anchorRefs),
+      ...inspection.relationCandidates.flatMap(relationCandidateRefs),
+    ]
+      .filter((ref): ref is Ref => ref !== undefined)
+      .map(refKey),
+  );
+}
+
+function inspectionContainsRef(
+  inspection: ProvisionalReviewInspection,
+  ref: Ref,
+): boolean {
+  return inspectedRefs(inspection).has(refKey(ref));
+}
+
+function relationRefs(relation: CanonicalRelation): Array<Ref | undefined> {
+  return [
+    relation.subjectRef,
+    relation.objectRef,
+    relation.sourceRef,
+  ];
+}
+
+function relationCandidateRefs(candidate: ProvisionalRelationCandidate): Array<Ref | undefined> {
+  return [
+    candidate.subjectRef,
+    candidate.objectRef,
+    candidate.sourceRef,
+  ];
+}
+
+function recordRefs(record: CanonicalRecord): Ref[] {
+  return [record.ref, ...(record.sourceRefs ?? [])];
+}
+
+function anchorRefs(anchor: ProvisionalReviewAnchor): Array<Ref | undefined> {
+  return [
+    anchor.subjectRef,
+    anchor.providerRef,
+    ...anchor.relatedCanonicalRefs,
+    ...anchor.supportingRefs,
+  ];
+}
+
+function knowledgeItemRefs(item: KnowledgeItem): Ref[] {
+  return [
+    item.source.ref,
+    ...(item.kind === "structured" ? item.nodes.map((node) => node.ref) : []),
+  ].filter((ref): ref is Ref => ref !== undefined);
+}
+
+function knowledgeItemContainsText(item: KnowledgeItem, text: string): boolean {
+  return JSON.stringify(item).toLocaleLowerCase().includes(text);
 }
 
 async function readNeighborRecords({

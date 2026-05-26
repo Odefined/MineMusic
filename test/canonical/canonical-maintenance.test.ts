@@ -349,7 +349,336 @@ async function inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning(): Pro
   );
 }
 
+async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const eventRepository = createInMemoryEventRepository();
+  const events = createEventService({
+    repository: eventRepository,
+    clock: () => "2026-05-27T00:00:00.000Z",
+    idFactory: () => "defer-event",
+  });
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "defer-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Deferred Track",
+      evidence: [sourceRef],
+    }),
+  );
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    events,
+    idFactory: () => "defer-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const applied = await assertOk(
+    maintenance.reviewApply({
+      sessionId: reviewSession.id,
+      inspectionId: inspection.inspectionId,
+      subjectRef: subject.ref,
+      action: "defer",
+      reason: "Inspected MusicBrainz facts are ambiguous.",
+      supportingRefs: [sourceRef],
+    }),
+  );
+  const loaded = await assertOk(store.get({ ref: subject.ref }));
+  const recordedEvents = await assertOk(events.listBySession({ sessionId: reviewSession.id }));
+
+  assert(applied.appliedAction === "defer", "defer apply should report defer");
+  assert(loaded?.status === "provisional", "defer should leave canonical identity state unchanged");
+  assert(recordedEvents.length === 1, "defer should record exactly one event");
+  assert(recordedEvents[0]?.type === "provisional_review.deferred", "defer event type should be stable");
+  assert(recordedEvents[0]?.target?.id === subject.ref.id, "defer event should target the subject");
+}
+
+async function deferRejectsEmptyReasonAndUninspectedCitations(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const events = createEventService({ repository: createInMemoryEventRepository() });
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "invalid-defer-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Invalid Deferred Track",
+      evidence: [sourceRef],
+    }),
+  );
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    events,
+    idFactory: () => "invalid-defer-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const emptyReason = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: inspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "defer",
+    reason: " ",
+  });
+  const invalidCitation = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: inspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "defer",
+    reason: "Citation is not inspected.",
+    supportingRefs: [{ namespace: "source:netease", kind: "track", id: "not-inspected" }],
+  });
+
+  assert(!emptyReason.ok, "defer should reject empty reason");
+  assert(emptyReason.error.code === "canonical.review_invalid", "empty defer reason should use review error");
+  assert(!invalidCitation.ok, "defer should reject uninspected supporting refs");
+  assert(invalidCitation.error.code === "canonical.review_invalid", "invalid citations should use review error");
+}
+
+async function applyRejectsStaleAndExpiredInspections(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const events = createEventService({ repository: createInMemoryEventRepository() });
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "stale-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Stale Track",
+      evidence: [sourceRef],
+    }),
+  );
+  const ids = ["inspection-old", "inspection-new"];
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    events,
+    idFactory: () => ids.shift() ?? "unexpected",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const oldInspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const stale = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: oldInspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "defer",
+    reason: "Use old inspection.",
+  });
+
+  assert(!stale.ok, "apply should reject stale inspection ids");
+  assert(stale.error.message.includes("stale"), "stale inspection should explain the failure");
+
+  const expiryRepository = createInMemoryCanonicalRecordRepository();
+  const expiryStore = createCanonicalStore({
+    repository: expiryRepository,
+    idFactory: () => "expired-subject",
+  });
+  const expiredSubject = await assertOk(
+    expiryStore.createProvisional({
+      kind: "recording",
+      label: "Expired Track",
+      evidence: [sourceRef],
+    }),
+  );
+  const times = ["2026-05-27T00:00:00.000Z", "2026-05-27T00:00:02.000Z"];
+  const expiringMaintenance = createCanonicalMaintenance({
+    repository: expiryRepository,
+    sessionContext: createSessionContextFor(reviewSession),
+    events,
+    idFactory: () => "expired-inspection",
+    clock: () => times.shift() ?? "2026-05-27T00:00:02.000Z",
+    inspectionTtlMs: 1,
+  });
+  const expiredInspection = await assertOk(
+    expiringMaintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: expiredSubject.ref,
+    }),
+  );
+  const expired = await expiringMaintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: expiredInspection.inspectionId,
+    subjectRef: expiredSubject.ref,
+    action: "defer",
+    reason: "Expired inspection.",
+  });
+
+  assert(!expired.ok, "apply should reject expired inspections");
+  assert(expired.error.message.includes("expired"), "expired inspection should explain the failure");
+}
+
+async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const events = createEventService({ repository: createInMemoryEventRepository() });
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "update-gate-subject",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Update Gate Track",
+      evidence: [sourceRef],
+    }),
+  );
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Update Gate Track",
+            artistLabels: ["Update Artist"],
+            releaseLabel: "Update Release",
+            durationMs: 1000,
+            trackPosition: {
+              trackNumber: 1,
+            },
+          },
+        },
+      ],
+    }),
+  );
+  const knowledge: MusicKnowledgePort = {
+    query: async () => ({
+      ok: true,
+      value: {
+        items: [
+          {
+            id: "knowledge-recording",
+            kind: "structured",
+            providerId: "musicbrainz",
+            source: { ref: mbRecordingRef },
+            nodes: [
+              {
+                id: "recording",
+                type: "recording",
+                ref: mbRecordingRef,
+                properties: {
+                  duration: 1000,
+                  release: "Update Release",
+                  track: "1",
+                  isrc: "USFIXTURE1",
+                  artist: "Update Artist",
+                },
+              },
+            ],
+            relations: [],
+          },
+        ],
+      },
+    }),
+  };
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    events,
+    idFactory: () => "update-gate-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+
+  const unsupported = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: inspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "merge",
+    reason: "Agent must not choose merge.",
+  } as never);
+  const wrongKind = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: inspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "update",
+    selectedProviderRef: { namespace: "musicbrainz", kind: "release", id: "mb-release" },
+    supportingReasonKinds: ["duration", "release_appearance"],
+    reason: "Wrong provider ref kind.",
+  });
+  const absentRef = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: inspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "update",
+    selectedProviderRef: { namespace: "musicbrainz", kind: "recording", id: "absent" },
+    supportingReasonKinds: ["duration", "release_appearance"],
+    reason: "Absent provider ref.",
+  });
+  const labelOnly = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: inspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "update",
+    selectedProviderRef: mbRecordingRef,
+    supportingReasonKinds: ["duration"],
+    reason: "Only one reason kind.",
+    supportingRefs: [mbRecordingRef],
+  });
+  const acceptedByGate = await maintenance.reviewApply({
+    sessionId: reviewSession.id,
+    inspectionId: inspection.inspectionId,
+    subjectRef: subject.ref,
+    action: "update",
+    selectedProviderRef: mbRecordingRef,
+    supportingReasonKinds: ["duration", "release_appearance"],
+    reason: "Duration and release appearance support this MusicBrainz recording.",
+    supportingRefs: [mbRecordingRef],
+    supportingKnowledgeItemIds: ["knowledge-recording"],
+    supportingAnchorIds: ["provider-ref:1"],
+  });
+
+  assert(!unsupported.ok, "unsupported action strings should fail");
+  assert(unsupported.error.message.includes("Unsupported"), "unsupported action should be explicit");
+  assert(!wrongKind.ok, "update should reject non-recording MusicBrainz refs");
+  assert(!absentRef.ok, "update should reject refs absent from inspection");
+  assert(!labelOnly.ok, "update should reject label-only or single-reason decisions");
+  assert(!acceptedByGate.ok, "valid update gate should stop at the unimplemented effect boundary in this slice");
+  assert(
+    acceptedByGate.error.message.includes("update effects are not implemented"),
+    "valid update decision should reach the post-gate effect boundary",
+  );
+}
+
 await listsOnlyCurrentProvisionalRecordings();
 await requiresCanonicalReviewPosture();
 await inspectsNeutralFactsAndExactMusicBrainzNeighbors();
 await inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning();
+await deferRecordsEventAndLeavesIdentityUnchanged();
+await deferRejectsEmptyReasonAndUninspectedCitations();
+await applyRejectsStaleAndExpiredInspections();
+await updateGateRejectsUnsupportedOrUngroundedDecisions();
