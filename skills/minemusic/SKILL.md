@@ -14,6 +14,15 @@ MineMusic tools come from the external MineMusic server registered in global
 Codex MCP client config. This skill does not start the server, configure MCP,
 or own provider/database/cache/session runtime settings.
 
+## Tool Discovery
+
+Codex may expose MineMusic MCP tools through deferred tool discovery instead
+of listing the `mcp__minemusic__` namespace in the initial active tool list.
+When a MineMusic tool is not visible yet, first call `tool_search` with a
+query such as `minemusic knowledge query` or `minemusic handbook`, then use the
+loaded native `mcp__minemusic__.*` tools. Do not treat SDK, curl, or direct MCP
+client calls as a substitute for checking native Codex tool exposure.
+
 ## Required Flow
 
 1. Read `HANDBOOK.md` in this skill directory when you need the packaged
