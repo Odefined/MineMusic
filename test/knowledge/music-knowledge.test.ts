@@ -20,6 +20,26 @@ async function assertOk<T>(result: Promise<{ ok: true; value: T } | { ok: false 
   return awaited.value;
 }
 
+function structuredKnowledge(providerId: string, id: string) {
+  return {
+    kind: "structured" as const,
+    providerId,
+    source: {
+      ref: { namespace: "fixture", kind: "recording", id },
+    },
+    rootNodeId: `recording:${id}`,
+    nodes: [
+      {
+        id: `recording:${id}`,
+        type: "recording",
+        label: id,
+        ref: { namespace: "fixture", kind: "recording", id },
+      },
+    ],
+    relations: [],
+  };
+}
+
 async function queriesKnowledgeProvidersAsProviderAttributedItems(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: KnowledgeProvider = {
@@ -67,6 +87,68 @@ async function queriesKnowledgeProvidersAsProviderAttributedItems(): Promise<voi
   assert(result.items.length === 1, "knowledge service should return provider knowledge items");
   assert(result.items[0]?.kind === "structured", "knowledge output should keep structured items");
   assert(result.items[0]?.providerId === "fixture-knowledge", "knowledge output should keep provider attribution");
+}
+
+async function appliesGlobalLimitAcrossProviders(): Promise<void> {
+  const registry = createPluginRegistry();
+  const capturedLimits: Array<number | undefined> = [];
+  const firstProvider: KnowledgeProvider = {
+    id: "first-knowledge",
+    query: async (input) => {
+      capturedLimits.push(input.query.limit);
+
+      return {
+        ok: true,
+        value: {
+          items: [structuredKnowledge("first-knowledge", "first-1")],
+        },
+      };
+    },
+  };
+  const secondProvider: KnowledgeProvider = {
+    id: "second-knowledge",
+    query: async (input) => {
+      capturedLimits.push(input.query.limit);
+
+      return {
+        ok: true,
+        value: {
+          items: [
+            structuredKnowledge("second-knowledge", "second-1"),
+            structuredKnowledge("second-knowledge", "second-2"),
+          ],
+          nextCursor: "second-provider-page-2",
+        },
+      };
+    },
+  };
+
+  await assertOk(
+    registry.registerProvider({
+      slot: "knowledge",
+      providerId: firstProvider.id,
+      provider: firstProvider,
+    }),
+  );
+  await assertOk(
+    registry.registerProvider({
+      slot: "knowledge",
+      providerId: secondProvider.id,
+      provider: secondProvider,
+    }),
+  );
+
+  const knowledge = createMusicKnowledgeService({ pluginRegistry: registry });
+  const result = await assertOk(knowledge.query({ query: { text: "global limit", limit: 2 } }));
+
+  assert(result.items.length === 2, "knowledge service should apply limit to the whole response");
+  assert(
+    result.items.map((item) => item.providerId).join(",") === "first-knowledge,second-knowledge",
+    "knowledge service should fill remaining limit from later providers",
+  );
+  assert(capturedLimits.join(",") === "2,1", "later providers should receive only the remaining limit");
+  assert(result.nextCursor !== undefined, "service should keep a cursor when the capped provider has more results");
+  assert(result.nextCursor !== "second-provider-page-2", "service should keep provider cursors opaque");
 }
 
 async function reportsMissingKnowledgeProvider(): Promise<void> {
@@ -372,6 +454,7 @@ async function wrapsProviderContinuationCursors(): Promise<void> {
 }
 
 await queriesKnowledgeProvidersAsProviderAttributedItems();
+await appliesGlobalLimitAcrossProviders();
 await reportsMissingKnowledgeProvider();
 await preservesProviderWarnings();
 await rejectsInvalidKnowledgeQueryBeforeProviderLookup();

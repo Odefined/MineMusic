@@ -344,8 +344,10 @@ host-facing and LLM-facing surface.
   filters, exclude-tag filters, and returns successful `Result<KnowledgeResult>`
   payloads. Follow-up hardening now keeps MusicBrainz's structured-only format
   capability strict, refills filtered-empty Tag Query provider pages before
-  exposing public chunks, and prevents cursor continuation from repeating roots
-  already returned in earlier chunks.
+  exposing public chunks, prevents cursor continuation from repeating roots
+  already returned in earlier chunks, and enforces `limit` as a global
+  Knowledge response cap across providers and MusicBrainz text-search root
+  entity kinds.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity

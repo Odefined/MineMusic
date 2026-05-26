@@ -954,7 +954,7 @@ async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<
       query: {
         text: "xx The xx",
         entityKinds: ["release", "release_group"],
-        limit: 1,
+        limit: 2,
       },
     }),
   );
@@ -986,6 +986,50 @@ async function searchesReleasesAndReleaseGroupsAsStructuredKnowledge(): Promise<
   assert(releaseGroup?.kind === "structured", "release group hit should be structured");
   assert(releaseGroup.nodes[0]?.type === "release_group", "release group hit root should be release_group");
   assert(releaseGroup.nodes[0]?.properties?.primaryType === "Album", "release group primary type should be preserved");
+}
+
+async function appliesTextSearchLimitAcrossEntityKinds(): Promise<void> {
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async ({ path }) => ({
+      ok: true,
+      value: {
+        status: 200,
+        json: path === "/ws/2/release"
+          ? {
+              count: 1,
+              releases: [
+                {
+                  id: "release-mbid-1",
+                  title: "First",
+                  score: 96,
+                },
+              ],
+            }
+          : {
+              count: 1,
+              "release-groups": [
+                {
+                  id: "release-group-mbid-1",
+                  title: "Second",
+                  score: 95,
+                },
+              ],
+            },
+      },
+    }),
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        text: "limit across kinds",
+        entityKinds: ["release", "release_group"],
+        limit: 1,
+      },
+    }),
+  );
+
+  assert(result.items.length === 1, "text search limit should apply across all requested entityKinds");
 }
 
 async function looksUpMusicBrainzRefFromCanonicalContext(): Promise<void> {
@@ -1807,6 +1851,7 @@ await continuesSearchBackedQueriesWithProviderOffsets();
 await omitsAlreadyReturnedTagRootsAcrossCursorPages();
 await fillsTagQueryPageAfterProviderPagesWithNoMatches();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
+await appliesTextSearchLimitAcrossEntityKinds();
 await looksUpMusicBrainzRefFromCanonicalContext();
 await browsesReleasesForReleaseGroupExpansion();
 await browsesReleaseGroupsForArtistExpansion();

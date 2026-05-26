@@ -23,7 +23,8 @@
   `KnowledgeItem[]` from registered Knowledge providers, preserves provider
   warnings, passes Canonical Store context to providers for `canonicalRef`
   queries, and wraps provider-local continuation state into public opaque
-  cursors.
+  cursors. It now applies `limit` as a global response cap across providers and
+  passes only the remaining item budget to later providers.
 - Provider descriptors now carry Knowledge capability metadata for supported
   formats, entity kinds, expansions, relation focus values, and boundary notes,
   and Handbook rendering includes those fields on the dedicated Knowledge
@@ -45,7 +46,8 @@
   music-domain fields, supports provider-local cursor continuation for
   search-backed text, tag, and field queries with cross-page root de-duplication
   and internal Tag Query refill for filtered-empty provider pages, honors the
-  provider's structured-only format capability, supports
+  provider's structured-only format capability, applies text-search `limit`
+  across requested root `entityKinds`, supports
   MusicBrainz-ref lookup through Canonical context source refs, supports
   deterministic browse expansions for release-group releases and artist release
   groups, maps tracklists, labels, ratings, tags, genres, annotations, and

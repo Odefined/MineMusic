@@ -540,8 +540,13 @@ async function searchMusicBrainzText({
   }
 
   let nextCursor: string | undefined;
+  let rootCandidates = 0;
 
   for (const entityKind of entityKinds) {
+    if (rootCandidates >= requestLimit) {
+      break;
+    }
+
     const search = searchConfigFor(entityKind);
 
     if (search === undefined) {
@@ -570,6 +575,11 @@ async function searchMusicBrainzText({
     nextCursor ??= nextProviderSearchCursor(response.value, search.responseKey, cursorState.value.offset, requestLimit, planKey);
 
     for (const entity of entitiesFromSearch(response.value, search.responseKey)) {
+      if (rootCandidates >= requestLimit) {
+        break;
+      }
+
+      rootCandidates += 1;
       const followUpRef = textSearchFollowUpRef(entityKind, entity, query);
 
       if (followUpRef === undefined) {

@@ -67,12 +67,22 @@ export function createMusicKnowledgeService({
       const items: KnowledgeResult["items"] = [];
       const warnings: StageWarning[] = [];
       const nextProviderCursors: Record<string, string> = {};
+      let nextProviderIndex: number | undefined;
+      const requestLimit = normalizedKnowledgeLimit(normalizedQuery.value.limit);
+      const startProviderIndex = continuation.value?.providerIndex ?? 0;
 
-      for (const providerId of providerIds.value) {
-        const providerCursor = continuation.value?.providerCursors[providerId];
+      for (let providerIndex = startProviderIndex; providerIndex < providerIds.value.length; providerIndex += 1) {
+        const providerId = providerIds.value[providerIndex];
 
-        if (continuation.value !== undefined && providerCursor === undefined) {
+        if (providerId === undefined) {
           continue;
+        }
+
+        const providerCursor = continuation.value?.providerCursors[providerId];
+        const remainingLimit = requestLimit - items.length;
+
+        if (remainingLimit <= 0) {
+          break;
         }
 
         const providerResult = await pluginRegistry.getProvider({
@@ -89,7 +99,7 @@ export function createMusicKnowledgeService({
         }
 
         const providerKnowledge = await providerResult.value.query({
-          query: queryForProvider(normalizedQuery.value, providerCursor),
+          query: queryForProvider(normalizedQuery.value, providerCursor, remainingLimit),
           ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
           ...(canonicalContextResult.value === undefined
             ? {}
@@ -100,23 +110,34 @@ export function createMusicKnowledgeService({
           return providerKnowledge;
         }
 
-        items.push(...providerKnowledge.value.items);
+        items.push(...providerKnowledge.value.items.slice(0, remainingLimit));
 
         if (providerKnowledge.value.nextCursor !== undefined) {
           nextProviderCursors[providerId] = providerKnowledge.value.nextCursor;
+          nextProviderIndex = providerIndex;
         }
 
         if (providerKnowledge.warnings !== undefined) {
           warnings.push(...providerKnowledge.warnings);
         }
+
+        if (nextProviderIndex !== undefined) {
+          break;
+        }
+
+        if (items.length >= requestLimit && providerIndex + 1 < providerIds.value.length) {
+          nextProviderIndex = providerIndex + 1;
+          break;
+        }
       }
 
       const result: KnowledgeResult = { items };
 
-      if (Object.keys(nextProviderCursors).length > 0) {
+      if (nextProviderIndex !== undefined || Object.keys(nextProviderCursors).length > 0) {
         result.nextCursor = encodeContinuationCursor({
           queryKey: continuationQueryKey(normalizedQuery.value),
           providerIds: providerIds.value,
+          ...(nextProviderIndex === undefined ? {} : { providerIndex: nextProviderIndex }),
           providerCursors: nextProviderCursors,
         });
       }
@@ -129,6 +150,7 @@ export function createMusicKnowledgeService({
 type KnowledgeContinuationCursor = {
   queryKey: string;
   providerIds: string[];
+  providerIndex?: number;
   providerCursors: Record<string, string>;
 };
 
@@ -148,7 +170,9 @@ function readContinuationCursor(
 
   if (
     decoded.value.queryKey !== continuationQueryKey(query) ||
-    decoded.value.providerIds.join("\n") !== providerIds.join("\n")
+    decoded.value.providerIds.join("\n") !== providerIds.join("\n") ||
+    (decoded.value.providerIndex !== undefined &&
+      (decoded.value.providerIndex < 0 || decoded.value.providerIndex >= providerIds.length))
   ) {
     return fail(invalidCursorError("Knowledge cursor does not match this query."));
   }
@@ -156,12 +180,16 @@ function readContinuationCursor(
   return decoded;
 }
 
-function queryForProvider(query: KnowledgeQuery, providerCursor: string | undefined): KnowledgeQuery {
+function queryForProvider(
+  query: KnowledgeQuery,
+  providerCursor: string | undefined,
+  limit: number,
+): KnowledgeQuery {
   const { cursor: _cursor, ...queryWithoutCursor } = query;
 
   return providerCursor === undefined
-    ? queryWithoutCursor as KnowledgeQuery
-    : { ...queryWithoutCursor, cursor: providerCursor } as KnowledgeQuery;
+    ? { ...queryWithoutCursor, limit } as KnowledgeQuery
+    : { ...queryWithoutCursor, cursor: providerCursor, limit } as KnowledgeQuery;
 }
 
 function encodeContinuationCursor(cursor: KnowledgeContinuationCursor): string {
@@ -193,6 +221,8 @@ function isKnowledgeContinuationCursor(value: unknown): value is KnowledgeContin
     typeof candidate.queryKey === "string" &&
     Array.isArray(candidate.providerIds) &&
     candidate.providerIds.every((providerId) => typeof providerId === "string") &&
+    (candidate.providerIndex === undefined ||
+      (Number.isInteger(candidate.providerIndex) && candidate.providerIndex >= 0)) &&
     typeof candidate.providerCursors === "object" &&
     candidate.providerCursors !== null &&
     Object.values(candidate.providerCursors).every((providerCursor) => typeof providerCursor === "string")
@@ -217,6 +247,10 @@ function stableStringify(value: unknown): string {
   }
 
   return JSON.stringify(value);
+}
+
+function normalizedKnowledgeLimit(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? 5, 1), 50);
 }
 
 async function readCanonicalContext({

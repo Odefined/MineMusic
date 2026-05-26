@@ -776,6 +776,11 @@
   long-lived in the server runtime, so stale client `mcp-session-id` headers no
   longer break Codex/OpenClaw calls after a server restart. Added regression
   coverage for a client initialized with a stale session id.
+- Hardened Knowledge `limit` behavior after review. Music Knowledge Service now
+  treats `limit` as the global response cap across registered providers and
+  passes only remaining item budget to later providers; MusicBrainz text search
+  now applies the requested limit across root `entityKinds` while still allowing
+  requested expansions to return related facts for those limited roots.
 
 ## Next
 
