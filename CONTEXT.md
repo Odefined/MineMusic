@@ -256,24 +256,31 @@ Canonical Record, including canonical label, provider refs, aliases, and
 relationships.
 _Avoid_: activation, identity confirmation, Knowledge Fact.
 
+### Canonical Maintenance
+
+A Canonical Store-owned identity maintenance domain for inspecting and
+correcting canonical identity state.
+_Avoid_: standalone review subsystem, Stage Interface policy, repository
+maintenance, storage service.
+
 ### Provisional Review
 
-A transient MineMusic identity review process for deciding the fate of one
-Provisional Canonical Record.
-_Avoid_: Knowledge Item, durable review case, automatic identity confidence,
-script decision.
+An agent-facing Canonical Maintenance interaction for choosing a proposed
+outcome for one Provisional Canonical Record.
+_Avoid_: standalone review subsystem, Knowledge Item, durable review case,
+automatic identity confidence, script decision.
 
 ### Provisional Review Decision
 
-The outcome selected by a Provisional Review before any Canonical Store state
-change is applied.
+The outcome selected during Provisional Review before Canonical Maintenance
+applies any Canonical Store state change.
 _Avoid_: Canonical identity change, provider confidence, confidence score,
 human-only approval.
 
 ### Provisional Review Gate
 
-A validation boundary that passes or fails a Provisional Review Decision without
-choosing a different outcome.
+A Canonical Maintenance validation boundary that passes or fails a Provisional
+Review Decision without choosing a different outcome.
 _Avoid_: second adjudicator, action rewrite, script decision, human-review
 routing.
 

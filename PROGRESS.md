@@ -793,6 +793,17 @@
   provider offset, current-page root de-duplication remains exact, and
   cross-page repeats are preferred over approximate seen-root summaries that can
   skip unseen roots.
+- Added Canonical Maintenance vocabulary to `CONTEXT.md` and clarified that
+  Provisional Review is the agent-facing interaction under Canonical
+  Store-owned maintenance, not a standalone subsystem.
+- Added `docs/canonical-store/provisional-review-v1.md` as the narrowed
+  Provisional Review v1 design for provisional recording activate/merge. The
+  v1 design preserves `docs/canonical-store/provisional-review.md` as broader
+  reference material, keeps inspection as neutral facts plus derived anchors or
+  relation candidates, leaves activate/merge judgment to the agent, and keeps
+  Gate/Admin behavior under Canonical Maintenance.
+- Updated `INDEX.md` to point at both the broader Provisional Review reference
+  and the v1 Canonical Maintenance design.
 
 ## Next
 
