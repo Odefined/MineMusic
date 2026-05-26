@@ -13,6 +13,7 @@ Design intent belongs in:
 Task breakdown belongs in:
 
 - `docs/canonical-store/implementation-plan.md`
+- `docs/canonical-store/provisional-review-v1-implementation-plan.md`
 
 ## Current Snapshot
 
@@ -26,6 +27,7 @@ Task status:
 - Task 4: completed.
 - Task 5: completed.
 - Task 6: completed by this documentation pass.
+- Provisional Review v1 Tasks 1-10: completed for the first runtime slice.
 
 Implemented:
 
@@ -39,6 +41,9 @@ Implemented:
   `canonical_aliases`, `canonical_relations`, and
   `canonical_provisional_hints`.
 - Rehydration of public `CanonicalRecord` values from SQLite rows.
+- Rehydration of merged canonical redirects from SQLite `merged_into_id`, with
+  ordinary Canonical Store `get` following merged subjects to their surviving
+  target.
 - Persistence/reopen tests in `test/storage/sqlite-canonical-store.test.ts`
   for `get`, `resolveSourceRef`, and source-ref conflicts.
 - SQLite `canonical_source_refs` uniqueness failures are tagged by storage
@@ -83,6 +88,36 @@ Implemented:
   material remains `source_only_playable`.
 - Sequential runtime test loading in `test/run-stage-core-tests.ts` so
   handbook file writes do not race plugin packaging checks.
+- Canonical Maintenance is exposed through a separate
+  `CanonicalMaintenancePort`; ordinary product-path methods remain on
+  `CanonicalStorePort`.
+- `src/canonical/maintenance.ts` implements Provisional Review v1 for current
+  provisional recordings:
+  - `reviewList` returns maintainable provisional recordings.
+  - `reviewInspect` returns local facts, provisional hints, Knowledge facts,
+    anchors, relation candidates, and short-lived process-memory inspection
+    snapshots without recommending an action or merge target.
+  - `reviewApply` accepts `update` and `defer`; unsupported actions fail
+    explicitly.
+- `defer` records `provisional_review.deferred` and leaves canonical identity
+  state unchanged.
+- `update` validates the selected same-kind MusicBrainz recording ref and cited
+  inspected facts, then derives the effect from current Canonical Store state:
+  activate when no current recording carries the selected ref, merge when
+  exactly one current recording carries it, and fail on multiple current
+  matches.
+- Activation keeps the MineMusic ref, marks the subject `active`, attaches the
+  selected MusicBrainz recording ref once, and records `canonical.activated`
+  when Event Service is available.
+- Merge moves source refs and safe direct relations to the surviving target,
+  marks the subject `merged`, persists `mergedIntoRef`, and records
+  `canonical.merged` when Event Service is available.
+- Stage Interface exposes `canonical.review.list`,
+  `canonical.review.inspect`, and `canonical.review.apply` only in
+  `canonical_review` posture. Dispatch injects the current session id.
+- `stage.context.read` returns compact canonical review guidance in
+  `canonical_review` posture, and the Handbook includes the review tool
+  sequence.
 
 Implemented public methods:
 
@@ -96,6 +131,12 @@ Implemented public methods:
 - `recordProvisionalHints`
 - `listProvisionalHints`
 
+Implemented maintenance methods:
+
+- `reviewList`
+- `reviewInspect`
+- `reviewApply`
+
 Design-only public/admin methods:
 
 - `addAlias`
@@ -107,9 +148,9 @@ Design-only public/admin methods:
 Pending:
 
 - Public `addAlias` method.
-- Admin port for activate/reject/merge/list.
-- Merge redirect behavior.
-- Canonical domain-event publication.
+- Standalone admin port for broader activate/reject/merge/list workflows.
+- Future maintenance actions such as split, reject, durable review queues,
+  human-review queues, and provider-specific review tools.
 
 ## Timeline
 
@@ -173,6 +214,15 @@ Pending:
   deterministic in-memory/SQLite coverage.
 - Kept source track position out of `CanonicalRelation`; hints are stored as
   source-side review facts attached to provisional recording source refs.
+- Implemented Provisional Review v1 runtime tools and maintenance port:
+  `canonical.review.list`, `canonical.review.inspect`, and
+  `canonical.review.apply`.
+- Added process-memory inspection snapshots, defer events, update gate
+  validation, activation, merge, redirect-following ordinary `get`, and SQLite
+  redirect persistence coverage.
+- Wired the review tools through Stage Core, Stage Interface, MCP schema
+  exposure, review-posture instrument gating, Stage Context guidance, and
+  Handbook workflow guidance.
 
 ## Verification
 

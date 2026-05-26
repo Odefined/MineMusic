@@ -826,6 +826,18 @@
 - Updated Provisional Review v1/design docs so future inspect output can expose
   provisional hints as neutral facts used to rule out plausible MusicBrainz
   recording alternatives, not as identity proof.
+- Implemented Provisional Review v1 runtime support under Canonical
+  Maintenance with a separate `CanonicalMaintenancePort`, process-memory
+  inspection snapshots, `canonical.review.list`, `canonical.review.inspect`,
+  and `canonical.review.apply`.
+- Added review apply semantics for `defer` and `update`: defer records
+  `provisional_review.deferred` without identity mutation, while update
+  validates cited inspected facts and derives activate/merge from exact current
+  MusicBrainz recording refs in Canonical Store.
+- Added activation, merge, redirect-following ordinary Canonical Store `get`,
+  SQLite `merged_into_id` rehydration, Stage Interface review tool routing, MCP
+  schema exposure, review-posture instrument gating, Stage Context guidance,
+  and Handbook workflow guidance.
 
 ## Next
 

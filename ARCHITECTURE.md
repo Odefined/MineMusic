@@ -24,7 +24,9 @@ available. The current architecture also includes Collection Service
 foundations and first-slice Library Import service/runtime/tool composition. It
 also includes direct SQLite repository adapters for Canonical Store, Collection
 Service, and Library Import persistence, plus Stage Core runtime configuration
-for durable Canonical Store, Collection, and Library Import storage. MineMusic
+for durable Canonical Store, Collection, and Library Import storage. Canonical
+Store also includes the first Canonical Maintenance runtime slice for
+inspection-backed Provisional Review of provisional recordings. MineMusic
 runtime configuration belongs to the long-lived MineMusic server process, not
 to a particular host adapter such as the Codex skill. It does not prove
 playback control, autonomous DJ behavior, playlist editing, music intelligence,
@@ -140,7 +142,7 @@ needs.
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
 | Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
-| Canonical Store | MineMusic-owned identity anchors and source-ref identity evidence | current playability, user taste, source account state |
+| Canonical Store | MineMusic-owned identity anchors, source-ref identity evidence, and Canonical Maintenance review/apply policy | current playability, user taste, source account state |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
 | Library Import Service | external platform library import/update orchestration, import batches, item provenance, update baselines | provider API details, Collection storage schema, canonical admin policy, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution, `MaterialResolveResult` status, canonical evidence attachment | provider internals, playable-link refresh, final recommendation selection |
