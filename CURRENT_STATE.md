@@ -282,11 +282,14 @@ host-facing and LLM-facing surface.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a provider query
   service returning `KnowledgeResult`. The shared Knowledge contracts now expose
   `StructuredKnowledge`, `TextKnowledge`, graph nodes, endpoint-based
-  `KnowledgeRelation` objects, source
-  attribution, `canonicalRef` query input, `formats`, and `expand`. The service
-  validates text-vs-canonicalRef query shape, aggregates provider knowledge
-  items, preserves provider warnings, and passes Canonical Store context to
-  providers for `canonicalRef` queries. Knowledge provider descriptors can now
+  `KnowledgeRelation` objects, source attribution, `canonicalRef`, `tagQuery`,
+  `fieldQuery`, tag filters, formats, expansion controls, and opaque cursor
+  continuation. The service validates mutually exclusive query entries,
+  tag-filter normalization, supported `relationFocus` values, and cursor-query
+  compatibility; it aggregates provider knowledge items, preserves provider
+  warnings, passes Canonical Store context to providers for `canonicalRef`
+  queries, and wraps provider-local continuation state into public
+  `KnowledgeResult.nextCursor` tokens. Knowledge provider descriptors can now
   describe supported formats, entity kinds, expansions, and boundary notes, and
   Handbook rendering includes those capabilities on the dedicated Knowledge
   instrument.
@@ -301,12 +304,15 @@ host-facing and LLM-facing surface.
   runtime accepts an explicit cache path option. The first
   MusicBrainz Knowledge Provider implementation now exists as an explicit
   read-only provider factory. It supports structured text search across artist,
-  recording, release, release group, and work entities; lookup through
-  MusicBrainz source refs supplied by Canonical context; release-group release
-  browse and artist release-group browse expansions; release tracklist,
-  label/catalog, rating, tag, genre, annotation, and selected relationship
-  mapping; and successful-response caching through the generic Provider HTTP
-  Cache. Stage Core can now register explicit Knowledge provider instances and
+  label, recording, release, release group, and work entities; Tag Query over
+  provider-attributed MusicBrainz tags; Field Query over mapped music-domain
+  fields; provider-local cursor continuation for search-backed text, tag, and
+  field queries; lookup through MusicBrainz source refs supplied by Canonical
+  context; release-group release browse and artist release-group browse
+  expansions; release tracklist, label/catalog, rating, tag, genre, annotation,
+  and selected relationship mapping; and successful-response caching through
+  the generic Provider HTTP Cache. Stage Core can now register explicit
+  Knowledge provider instances and
   generic Knowledge provider factories; factories receive the Stage Core
   Provider HTTP Cache, and the service runtime forwards
   those explicit Knowledge provider options without adding a MusicBrainz-specific
@@ -329,6 +335,14 @@ host-facing and LLM-facing surface.
   queries return `relations` without `edges` and exclude the forward
   `black midi, New Road` relation from focused members, while broad relation
   queries still return broad relations.
+  The structured query slice also adds public Handbook guidance for `tagQuery`,
+  `fieldQuery`, `filters.tags.include`, `filters.tags.exclude`, and cursor
+  continuation while keeping MusicBrainz endpoints, offsets, and query syntax
+  internal to the provider. A fresh streamable HTTP MCP smoke against the
+  restarted local MineMusic server confirmed the installed
+  `minemusic.knowledge.query` tool accepts Tag Query, Field Query, include-tag
+  filters, exclude-tag filters, and returns successful `Result<KnowledgeResult>`
+  payloads.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity

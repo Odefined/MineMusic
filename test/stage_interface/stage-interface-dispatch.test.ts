@@ -206,7 +206,7 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
         operations: ["query"],
         knowledge: {
           formats: ["structured"],
-          entityKinds: ["artist", "recording", "release", "release_group", "work"],
+          entityKinds: ["artist", "label", "recording", "release", "release_group", "work"],
           expansions: ["credits", "relations", "release_labels", "tracklist"],
           relationFocuses: ["members"],
           boundaryNotes: ["No playable links.", "No identity confirmation."],
@@ -234,9 +234,12 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
   assert(handbook.content.includes("#### `knowledge.query`"), "handbook should render knowledge query under knowledge instrument");
   assert(handbook.content.includes("MusicBrainz"), "handbook should render knowledge provider label");
   assert(handbook.content.includes("Formats: `structured`"), "handbook should render supported knowledge formats");
-  assert(handbook.content.includes("Entity kinds: `artist`, `recording`, `release`, `release_group`, `work`"), "handbook should render entity kinds");
+  assert(handbook.content.includes("Entity kinds: `artist`, `label`, `recording`, `release`, `release_group`, `work`"), "handbook should render entity kinds");
   assert(handbook.content.includes("Expansions: `credits`, `relations`, `release_labels`, `tracklist`"), "handbook should render knowledge expansions");
   assert(handbook.content.includes("Relation focus: `members`"), "handbook should render relation focus values");
+  assert(handbook.content.includes("Query entries: `text`, `canonicalRef`, `tagQuery`, `fieldQuery`"), "handbook should render structured query entries");
+  assert(handbook.content.includes("Tag filters: `filters.tags.include`, `filters.tags.exclude`"), "handbook should render tag filter guidance");
+  assert(handbook.content.includes("Continuation: pass `cursor` from `KnowledgeResult.nextCursor`"), "handbook should render cursor guidance");
   assert(handbook.content.includes("Boundaries: No playable links. No identity confirmation."), "handbook should render boundary notes");
   assert(!handbook.content.includes("browse"), "handbook should not expose provider-internal API modes");
 }

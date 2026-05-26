@@ -315,23 +315,63 @@ export type KnowledgeQuery =
   | (KnowledgeQueryBase & {
       text: string;
       canonicalRef?: never;
+      tagQuery?: never;
+      fieldQuery?: never;
     })
   | (KnowledgeQueryBase & {
       text?: never;
       canonicalRef: Ref;
+      tagQuery?: never;
+      fieldQuery?: never;
+    })
+  | (KnowledgeQueryBase & {
+      text?: never;
+      canonicalRef?: never;
+      tagQuery: string[];
+      fieldQuery?: never;
+    })
+  | (KnowledgeQueryBase & {
+      text?: never;
+      canonicalRef?: never;
+      tagQuery?: never;
+      fieldQuery: KnowledgeFieldQuery;
     });
 
+export type KnowledgeFieldQuery = {
+  title?: string;
+  artist?: string;
+  release?: string;
+  label?: string;
+  date?: string;
+  country?: string;
+  barcode?: string;
+  catalogNumber?: string;
+  type?: string;
+};
+
+export type KnowledgeTagFilter = {
+  include?: string[];
+  exclude?: string[];
+};
+
+export type KnowledgeFilters = {
+  tags?: KnowledgeTagFilter;
+};
+
 export type KnowledgeQueryBase = {
+  filters?: KnowledgeFilters;
   purpose?: "lookup" | "explain" | "review" | "discover";
   formats?: Array<"structured" | "text">;
   entityKinds?: string[];
   expand?: string[];
   relationFocus?: Array<"members">;
   limit?: number;
+  cursor?: string;
 };
 
 export type KnowledgeResult = {
   items: KnowledgeItem[];
+  nextCursor?: string;
 };
 
 export type KnowledgeItem = StructuredKnowledge | TextKnowledge;
@@ -414,7 +454,16 @@ export interface KnowledgeProvider {
 Rules:
 
 - Knowledge providers return provider-attributed structured or text knowledge.
-- `KnowledgeQuery` accepts exactly one of `text` or `canonicalRef`.
+- `KnowledgeQuery` accepts exactly one query entry: `text`, `canonicalRef`,
+  `tagQuery`, or `fieldQuery`.
+- `filters.tags.include` and `filters.tags.exclude` narrow root items returned
+  by the query entry; filters are not standalone query entries.
+- `fieldQuery` is a provider search-condition query over common music-domain
+  fields, not a raw provider query language and not canonical identity proof.
+- `tagQuery` asks providers for entities carrying provider-attributed tags.
+- `KnowledgeResult.nextCursor` is an opaque continuation token; callers pass it
+  back as `KnowledgeQuery.cursor` with the same query shape, except `limit` may
+  change.
 - `relationFocus` currently accepts `members` to narrow broad relationship
   expansion to membership facts.
 - Music Knowledge Service passes `KnowledgeCanonicalContext` for `canonicalRef`

@@ -735,6 +735,34 @@
   `relations` without `edges` and no longer include the forward
   `black midi, New Road` relation as a band member; a broad relation query still
   returns broad MusicBrainz relations.
+- Implemented Knowledge Slot Task 16 query entry and filter contract.
+  `KnowledgeQuery` now supports mutually exclusive `text`, `canonicalRef`,
+  `tagQuery`, and `fieldQuery` entries, tag include/exclude filters, and
+  `cursor`; `KnowledgeResult` now supports `nextCursor`.
+- Implemented Knowledge Slot Task 17 MusicBrainz label root and shared tag
+  helpers. MusicBrainz structured knowledge now supports label roots and root
+  tag matching over both `tags` and `genres`.
+- Implemented Knowledge Slot Task 18 MusicBrainz Tag Query. The provider now
+  builds internal `tag:` searches, filters returned root facts, ranks by
+  matched tag count then retrieval score, and records `matchedTags` metadata.
+- Implemented Knowledge Slot Task 19 MusicBrainz Field Query. The provider now
+  maps common music-domain fields to MusicBrainz indexed search fields, keeps
+  `fieldQuery.release` as release-style search data for recording search, and
+  performs follow-up lookup before tag filtering when search hits lack
+  tag/genre facts.
+- Implemented Knowledge Slot Task 20 opaque cursor continuation. Music
+  Knowledge Service wraps provider-local continuation state into public cursor
+  tokens, validates query/provider-set compatibility, and MusicBrainz continues
+  search-backed text, tag, and field queries with provider-local offsets.
+- Implemented Knowledge Slot Task 21 documentation and Handbook sync. The
+  Knowledge Handbook now describes `tagQuery`, `fieldQuery`,
+  `filters.tags.include`, `filters.tags.exclude`, and cursor continuation
+  without exposing MusicBrainz endpoints, offsets, or provider query syntax.
+  After restarting the local launchd-managed MineMusic server, streamable HTTP
+  MCP smoke confirmed the installed `minemusic.knowledge.query` tool accepts
+  ambient/post-rock Tag Query, artist Field Query plus include-tag filter,
+  release Field Query plus include-tag filter, and Tag Query plus exclude-tag
+  filter.
 
 ## Next
 

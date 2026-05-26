@@ -8,17 +8,22 @@
   endpoint-based structured relations.
 - The public structured Knowledge output now uses `relations` for provider
   relationship facts and no longer returns legacy `edges`.
-- `KnowledgeQuery` now accepts exactly one of `text` or `canonicalRef`, plus
-  optional `purpose`, `formats`, `entityKinds`, `expand`, `relationFocus`, and
-  `limit`. The first supported relation focus is `members`.
+- `KnowledgeQuery` now accepts exactly one query entry: `text`,
+  `canonicalRef`, `tagQuery`, or `fieldQuery`, plus optional `filters`,
+  `purpose`, `formats`, `entityKinds`, `expand`, `relationFocus`, `limit`, and
+  `cursor`. The first supported relation focus is `members`.
+- `KnowledgeResult` now carries optional opaque `nextCursor` continuation.
 - `KnowledgeProvider.query` and `MusicKnowledgePort.query` now return
   `Result<KnowledgeResult>`.
 - Shared Knowledge error codes now include invalid-query and provider failure
   cases for the target Knowledge Slot implementation.
 - Music Knowledge Service now validates public query shape, including supported
-  `relationFocus` values, aggregates `KnowledgeItem[]` from registered
-  Knowledge providers, preserves provider warnings, and passes Canonical Store
-  context to providers for `canonicalRef` queries.
+  `relationFocus` values, Tag Query / Field Query mutual exclusion, tag-filter
+  normalization, and cursor-query compatibility. It aggregates
+  `KnowledgeItem[]` from registered Knowledge providers, preserves provider
+  warnings, passes Canonical Store context to providers for `canonicalRef`
+  queries, and wraps provider-local continuation state into public opaque
+  cursors.
 - Provider descriptors now carry Knowledge capability metadata for supported
   formats, entity kinds, expansions, relation focus values, and boundary notes,
   and Handbook rendering includes those fields on the dedicated Knowledge
@@ -35,7 +40,10 @@
   option.
 - MusicBrainz Knowledge Provider now exists as a read-only Knowledge provider.
   It exposes a Knowledge capability descriptor, supports text search for
-  artist, recording, release, release group, and work facts, supports
+  artist, label, recording, release, release group, and work facts, supports
+  Tag Query over provider-attributed tags, supports Field Query over mapped
+  music-domain fields, supports provider-local cursor continuation for
+  search-backed text, tag, and field queries, supports
   MusicBrainz-ref lookup through Canonical context source refs, supports
   deterministic browse expansions for release-group releases and artist release
   groups, maps tracklists, labels, ratings, tags, genres, annotations, and
@@ -61,14 +69,24 @@
 
 ## Remaining Work
 
-- Implement the target Tag Query and tag filter contract: `tagQuery`,
-  `filters.tags.include`, `filters.tags.exclude`, provider-local tag-match
-  ranking, match metadata, and opaque cursor-based continuation.
-- Implement the target Field Query contract: `fieldQuery`, music-domain field
-  mapping, conjunctive field search, and cursor continuation.
-- Extend MusicBrainz first-class Knowledge root support to `label`.
-- The first Tag Query implementation should target MusicBrainz. The shared
-  contract remains provider-general, but document-style Knowledge storage and
-  indexing are not part of that first implementation slice.
+- Document-style Knowledge storage and indexing are not part of the first Tag
+  Query implementation slice.
+- Field Query remains provider search-condition matching, not strict canonical
+  scoped search or exact identity proof.
+- `fieldQuery.release` remains release-style search data for recording queries,
+  not a strict release-group tracklist scope.
+- Field filters, tag weights, date ranges, raw provider query syntax, and
+  canonical scoped field search remain future work.
 - Common plugin configuration still needs to become the durable activation path
   for bundled and third-party Knowledge providers.
+
+## Verification Status
+
+- `npm test` passes after Tasks 16-21.
+- Streamable HTTP MCP smoke against the restarted local MineMusic server at
+  `http://127.0.0.1:37373/mcp` confirms the installed
+  `minemusic.knowledge.query` tool accepts:
+  - `tagQuery` for ambient/post-rock recordings.
+  - `fieldQuery.artist` plus `filters.tags.include`.
+  - `fieldQuery.release` plus `filters.tags.include`.
+  - `tagQuery` plus `filters.tags.exclude`.
