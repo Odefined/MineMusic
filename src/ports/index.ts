@@ -1,6 +1,9 @@
 import type {
   CanonicalRecord,
   CanonicalKind,
+  CanonicalProvisionalHint,
+  CanonicalProvisionalHintDraft,
+  CanonicalProvisionalHintKind,
   CanonicalRelation,
   CanonicalRelationDraft,
   CanonicalRelationPredicate,
@@ -139,6 +142,12 @@ export type CanonicalRelationListInput = {
   status?: CanonicalRelationStatus;
 };
 
+export type CanonicalProvisionalHintListInput = {
+  subjectRef?: Ref;
+  sourceRef?: Ref;
+  kind?: CanonicalProvisionalHintKind;
+};
+
 export type ProviderHttpCacheListInput = {
   providerId?: string;
   limit?: number;
@@ -217,6 +226,16 @@ export interface CanonicalStorePort {
   }): Promise<Result<CanonicalRelation[]>>;
 
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
+
+  recordProvisionalHints(input: {
+    subjectRef: Ref;
+    sourceRef: Ref;
+    providerId?: string;
+    batchId?: string;
+    hints: CanonicalProvisionalHintDraft[];
+  }): Promise<Result<CanonicalProvisionalHint[]>>;
+
+  listProvisionalHints(input: CanonicalProvisionalHintListInput): Promise<Result<CanonicalProvisionalHint[]>>;
 }
 
 export interface CollectionPort {
@@ -477,6 +496,14 @@ export interface CanonicalRecordRepository extends Repository<CanonicalRecord, R
   putRelation(input: { relation: CanonicalRelation }): Promise<Result<CanonicalRelation>>;
 
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
+
+  putProvisionalHint(input: {
+    hint: CanonicalProvisionalHint;
+  }): Promise<Result<CanonicalProvisionalHint>>;
+
+  listProvisionalHints(
+    input: CanonicalProvisionalHintListInput,
+  ): Promise<Result<CanonicalProvisionalHint[]>>;
 }
 export type EventRepository = Repository<StageEvent, string>;
 export type MemoryRepository = Repository<MemoryEntry, string>;

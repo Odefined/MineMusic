@@ -96,10 +96,13 @@ This index points agents to the current MVP documentation pack.
 
 25. `docs/canonical-store/provisional-review-v1.md`
     - Narrow Provisional Review v1 design for Canonical Store-owned maintenance
-      of provisional recordings through inspection-backed activate and merge.
+      of provisional recordings through inspection-backed update and defer.
     - `docs/canonical-store/provisional-hints-implementation-plan.md` is the
       handoff plan for adding source-side provisional recording hints without
       expanding canonical relations.
+    - `docs/canonical-store/provisional-review-v1-implementation-plan.md` is
+      the task-by-task plan for implementing `canonical.review.list`,
+      `canonical.review.inspect`, and `canonical.review.apply`.
 
 26. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom

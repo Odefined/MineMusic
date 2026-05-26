@@ -153,6 +153,60 @@ export type CanonicalRecord = {
   sourceRefs?: Ref[];
   aliases?: string[];
 };
+
+export type CanonicalRelationStatus =
+  | "provisional"
+  | "confirmed"
+  | "rejected";
+
+export type CanonicalRelationPredicate =
+  | "performed_by"
+  | "appears_on_release"
+  | "has_duration_ms"
+  | (string & {});
+
+export type CanonicalRelationObjectKind =
+  | CanonicalKind
+  | "duration_ms"
+  | (string & {});
+
+export type CanonicalRelationValue = string | number | boolean;
+
+export type SourceReleaseTrackPosition = {
+  discNumber?: string;
+  trackNumber?: number;
+  trackCount?: number;
+};
+
+export type CanonicalProvisionalHintKind =
+  | "source_recording_context"
+  | (string & {});
+
+export type CanonicalProvisionalHintFacts = {
+  title?: string;
+  artistLabels?: string[];
+  releaseLabel?: string;
+  releaseSourceRef?: Ref;
+  durationMs?: number;
+  trackPosition?: SourceReleaseTrackPosition;
+};
+
+export type CanonicalProvisionalHint = {
+  id: string;
+  subjectRef: Ref;
+  kind: CanonicalProvisionalHintKind;
+  sourceRef: Ref;
+  providerId?: string;
+  batchId?: string;
+  facts: CanonicalProvisionalHintFacts;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CanonicalProvisionalHintDraft = {
+  kind: CanonicalProvisionalHintKind;
+  facts: CanonicalProvisionalHintFacts;
+};
 ```
 
 ## Collection Types
@@ -206,6 +260,9 @@ Rules:
 
 - Canonical Store may accept evidence from source and knowledge providers.
 - Source refs do not become canonical authority by default.
+- Provisional hints are source-side review facts attached to provisional
+  canonical subjects and source refs. They are not identity proof and do not
+  extend `CanonicalRelation`.
 - Canonical Store does not decide playability.
 - Public methods for canonical behavior live in `CanonicalStorePort`.
 

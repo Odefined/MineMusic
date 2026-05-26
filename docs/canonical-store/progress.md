@@ -16,7 +16,7 @@ Task breakdown belongs in:
 
 ## Current Snapshot
 
-Date: 2026-05-25
+Date: 2026-05-27
 
 Task status:
 
@@ -36,7 +36,8 @@ Implemented:
   `src/storage/sqlite/canonical-repository.ts`.
 - SQLite public exports kept in `src/storage/sqlite/index.ts`.
 - Schema covers `canonical_entities`, `canonical_source_refs`,
-  `canonical_aliases`, and `canonical_relations`.
+  `canonical_aliases`, `canonical_relations`, and
+  `canonical_provisional_hints`.
 - Rehydration of public `CanonicalRecord` values from SQLite rows.
 - Persistence/reopen tests in `test/storage/sqlite-canonical-store.test.ts`
   for `get`, `resolveSourceRef`, and source-ref conflicts.
@@ -59,6 +60,11 @@ Implemented:
   now link `performed_by` and `appears_on_release` relations to canonical
   artist/release records resolved from stable provider hint source refs,
   creating provisional targets only when no binding exists.
+- Provisional hint recording/listing is implemented for source-bound review
+  facts attached to current provisional canonical records. The first supported
+  kind, `source_recording_context`, is restricted to provisional recordings and
+  can carry title, artist labels, release context, duration, and source track
+  position without extending `CanonicalRelation`.
 - Canonical label/ref/current-record normalization is isolated in
   `src/canonical/normalization.ts`.
 - Canonical Store storage mechanics are isolated in `src/canonical/storage.ts`,
@@ -85,6 +91,10 @@ Implemented public methods:
 - `resolveSourceRef`
 - `createProvisional`
 - `attachSourceRef`
+- `recordProvisionalRelations`
+- `listRelations`
+- `recordProvisionalHints`
+- `listProvisionalHints`
 
 Design-only public/admin methods:
 
@@ -154,22 +164,33 @@ Pending:
 - Added provisional canonical relation contracts, repository methods, SQLite
   persistence, and Library Import relation writes from provider hints.
 
+### 2026-05-27
+
+- Added shared platform-neutral `SourceReleaseTrackPosition` and Canonical
+  Store provisional hint contracts.
+- Added Canonical Store `recordProvisionalHints` and `listProvisionalHints`
+  behavior, in-memory storage, SQLite schema/repository persistence, and
+  deterministic in-memory/SQLite coverage.
+- Kept source track position out of `CanonicalRelation`; hints are stored as
+  source-side review facts attached to provisional recording source refs.
+
 ## Verification
 
 Latest checks for the current implementation slice:
 
 ```bash
+npm run build:test
+npm run typecheck
 npm test
-npm run smoke:netease
 git diff --check
 git diff --name-only
 ```
 
 Results:
 
+- `npm run build:test` passes.
+- `npm run typecheck` passes.
 - `npm test` passes.
-- `npm run smoke:netease` passes in default skip mode unless
-  `MINEMUSIC_LIVE_NETEASE=1` is set.
 - `git diff --check` passes.
 - `git diff --name-only` was run for the state-sync gate.
 

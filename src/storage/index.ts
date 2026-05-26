@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  CanonicalProvisionalHint,
   CanonicalRelation,
   Collection,
   CollectionItem,
@@ -80,6 +81,7 @@ export function createInMemoryRepository<TRecord, TKey>({
 export function createInMemoryCanonicalRecordRepository(): CanonicalRecordRepository {
   const records = new Map<string, CanonicalRecord>();
   const relations = new Map<string, CanonicalRelation>();
+  const provisionalHints = new Map<string, CanonicalProvisionalHint>();
 
   return {
     async get(ref) {
@@ -109,6 +111,28 @@ export function createInMemoryCanonicalRecordRepository(): CanonicalRecordReposi
         [...relations.values()]
           .filter((relation) => matchesCanonicalRelationQuery(relation, query))
           .map((relation) => cloneRecord(relation)),
+      );
+    },
+
+    async putProvisionalHint({ hint }) {
+      const existing = provisionalHints.get(hint.id);
+      const stored = existing === undefined
+        ? hint
+        : {
+            ...hint,
+            createdAt: existing.createdAt,
+          };
+
+      provisionalHints.set(hint.id, cloneRecord(stored));
+
+      return ok(cloneRecord(stored));
+    },
+
+    async listProvisionalHints(query) {
+      return ok(
+        [...provisionalHints.values()]
+          .filter((hint) => matchesCanonicalProvisionalHintQuery(hint, query))
+          .map((hint) => cloneRecord(hint)),
       );
     },
   };
@@ -430,6 +454,19 @@ function matchesCanonicalRelationQuery(
       refToStorageKey(relation.sourceRef) === refToStorageKey(query.sourceRef)) &&
     (query.predicate === undefined || relation.predicate === query.predicate) &&
     (query.status === undefined || relation.status === query.status)
+  );
+}
+
+function matchesCanonicalProvisionalHintQuery(
+  hint: CanonicalProvisionalHint,
+  query: Parameters<CanonicalRecordRepository["listProvisionalHints"]>[0],
+): boolean {
+  return (
+    (query.subjectRef === undefined ||
+      refToStorageKey(hint.subjectRef) === refToStorageKey(query.subjectRef)) &&
+    (query.sourceRef === undefined ||
+      refToStorageKey(hint.sourceRef) === refToStorageKey(query.sourceRef)) &&
+    (query.kind === undefined || hint.kind === query.kind)
   );
 }
 

@@ -112,6 +112,10 @@ findByLabel
 resolveSourceRef
 createProvisional
 attachSourceRef
+recordProvisionalRelations
+listRelations
+recordProvisionalHints
+listProvisionalHints
 ```
 
 The first implementation should keep this compatibility and add optional fields
@@ -128,6 +132,10 @@ Implemented methods:
 - `resolveSourceRef`
 - `createProvisional`
 - `attachSourceRef`
+- `recordProvisionalRelations`
+- `listRelations`
+- `recordProvisionalHints`
+- `listProvisionalHints`
 
 Implemented behavior:
 
@@ -145,6 +153,12 @@ Implemented behavior:
   artist or release records created from provider hint source refs.
 - `listRelations` returns stored relations filtered by subject, source,
   predicate, or status.
+- `recordProvisionalHints` records source-bound review facts for current
+  provisional canonical records; `source_recording_context` is restricted to
+  provisional recordings and may include title, artist labels, release source
+  context, duration, and source release track position.
+- `listProvisionalHints` returns stored hints filtered by subject, source, or
+  hint kind.
 - `attachSourceRef` is idempotent for refs already attached to the same
   canonical record.
 - SQLite source-ref uniqueness failures are mapped to
@@ -292,6 +306,45 @@ Consumers:
 - admin tools.
 - future user correction tools.
 
+### `recordProvisionalHints`
+
+Input:
+
+- provisional canonical subject ref.
+- provider source ref.
+- optional provider id and batch id.
+- hint drafts with kind and neutral facts.
+
+Behavior:
+
+- verifies the subject exists and is still `provisional`.
+- rejects `source_recording_context` for any subject kind other than
+  `recording`.
+- stores deterministic source-bound hint rows by subject, source, and hint
+  kind, updating repeated imports without creating duplicates.
+- does not expose hints through ordinary `CanonicalRecord` reads.
+- does not confirm identity or create `CanonicalRelation` rows.
+
+Consumers:
+
+- Library Import after resolving an imported provider item to a provisional
+  recording.
+- future Canonical Maintenance review inspection.
+
+### `listProvisionalHints`
+
+Input:
+
+- optional subject ref.
+- optional source ref.
+- optional hint kind.
+
+Behavior:
+
+- returns stored source-bound provisional hints.
+- supports future review inspection without requiring Library Import history
+  scans.
+
 ## Admin Port
 
 `CanonicalAdminPort` is for operations that change identity authority. It should
@@ -368,6 +421,8 @@ The durable repository should support:
 - source-ref reverse lookup.
 - indexed source-ref lookup for storage engines that can avoid full record
   scans.
+- provisional relation writes and filtered relation lookup.
+- provisional hint writes and filtered hint lookup.
 - transaction-scoped provisional creation.
 - transaction-scoped source-ref attachment.
 - status updates for admin operations.
@@ -388,6 +443,7 @@ It should enforce:
 | Memory Service | `CanonicalStorePort` | `get`, `resolveSourceRef`, `createProvisional` for explicit feedback | repository, provider refs as canonical authority |
 | Event Service | usually none; optional `CanonicalStorePort` validation | `get` only when validating caller-provided target | creating identity while recording events |
 | Music Knowledge | `CanonicalStorePort` | `resolveSourceRef`, `attachSourceRef`, `addAlias` | playability decisions, canonical merge authority |
+| Library Import | `CanonicalStorePort` | `resolveSourceRef`, `createProvisional`, `attachSourceRef`, `recordProvisionalRelations`, `recordProvisionalHints` for provisional recording imports | repository, admin merge/reject, track position as canonical relation |
 | Stage Interface | governed tools only | public port; admin port only through explicit admin tools | repository internals |
 | Source Provider | none | none | any canonical write |
 | Material Gate | none | none | identity lookup or mutation |
@@ -400,6 +456,7 @@ Existing stable errors:
 ```text
 canonical.not_found
 canonical.source_ref_conflict
+canonical.provisional_hint_invalid_subject
 ```
 
 Potential future errors:
@@ -412,6 +469,8 @@ canonical.alias_conflict
 ```
 
 Do not add new error codes until an implementation path and tests require them.
+The provisional hint subject error is included because the implemented port now
+validates that hints attach only to current provisional subjects.
 
 ## First Implementation Contract
 

@@ -342,6 +342,164 @@ async function recordsAndListsProvisionalRelations(): Promise<void> {
   assert(performedBy[0]?.status === "provisional", "new relations should be provisional");
 }
 
+async function recordsAndListsProvisionalHintsForRecordings(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "hint-track",
+  };
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "hint-canonical",
+    clock: (() => {
+      const times = [
+        "2026-05-25T00:00:00.000Z",
+        "2026-05-25T00:01:00.000Z",
+      ];
+
+      return () => times.shift() ?? "2026-05-25T00:02:00.000Z";
+    })(),
+  });
+  const created = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Hint Track",
+      evidence: [sourceRef],
+    }),
+  );
+
+  const hints = await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: created.ref,
+      sourceRef,
+      providerId: "fixture",
+      batchId: "batch-1",
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Hint Track",
+            artistLabels: ["Fixture Artist"],
+            releaseLabel: "Fixture Release",
+            durationMs: 123456,
+            trackPosition: {
+              discNumber: "1",
+              trackNumber: 2,
+              trackCount: 10,
+            },
+          },
+        },
+      ],
+    }),
+  );
+  const updated = await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: created.ref,
+      sourceRef,
+      providerId: "fixture",
+      batchId: "batch-2",
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Hint Track",
+            durationMs: 123456,
+            trackPosition: {
+              discNumber: "1",
+              trackNumber: 2,
+              trackCount: 12,
+            },
+          },
+        },
+      ],
+    }),
+  );
+  const listed = await assertOk(store.listProvisionalHints({ subjectRef: created.ref }));
+  const filtered = await assertOk(
+    store.listProvisionalHints({
+      sourceRef,
+      kind: "source_recording_context",
+    }),
+  );
+
+  assert(hints.length === 1, "provisional hint recording should return stored hints");
+  assert(listed.length === 1, "provisional hints should upsert by subject/source/kind");
+  assert(filtered[0]?.facts.trackPosition?.trackCount === 12, "updated hints should replace facts");
+  assert(updated[0]?.createdAt === "2026-05-25T00:00:00.000Z", "hint upserts should preserve createdAt");
+  assert(updated[0]?.updatedAt === "2026-05-25T00:01:00.000Z", "hint upserts should update updatedAt");
+}
+
+async function rejectsProvisionalHintsForMissingOrNonProvisionalSubjects(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "invalid-hint-track",
+  };
+  const activeRecord: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "active-hint-recording" },
+    kind: "recording",
+    label: "Active Hint Recording",
+    status: "active",
+    sourceRefs: [sourceRef],
+  };
+  const store = createCanonicalStore({ repository });
+
+  await assertOk(repository.put(activeRecord));
+
+  const missing = await store.recordProvisionalHints({
+    subjectRef: { namespace: "minemusic", kind: "recording", id: "missing-hint-recording" },
+    sourceRef,
+    hints: [{ kind: "source_recording_context", facts: { title: "Missing" } }],
+  });
+  const active = await store.recordProvisionalHints({
+    subjectRef: activeRecord.ref,
+    sourceRef,
+    hints: [{ kind: "source_recording_context", facts: { title: "Active" } }],
+  });
+
+  assert(!missing.ok, "missing hint subject should be rejected");
+  assert(missing.error.code === "canonical.not_found", "missing subjects should use canonical.not_found");
+  assert(!active.ok, "active records should not accept provisional hints");
+  assert(
+    active.error.code === "canonical.provisional_hint_invalid_subject",
+    "non-provisional hint subjects should use a stable canonical error code",
+  );
+}
+
+async function rejectsRecordingContextHintsForNonRecordingSubjects(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "artist",
+    id: "hint-artist",
+  };
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "hint-artist-canonical",
+  });
+  const created = await assertOk(
+    store.createProvisional({
+      kind: "artist",
+      label: "Hint Artist",
+      evidence: [sourceRef],
+    }),
+  );
+
+  const result = await store.recordProvisionalHints({
+    subjectRef: created.ref,
+    sourceRef,
+    hints: [{ kind: "source_recording_context", facts: { title: "Not A Recording" } }],
+  });
+
+  assert(!result.ok, "recording context hints should reject non-recording subjects");
+  assert(
+    result.error.code === "canonical.provisional_hint_invalid_subject",
+    "non-recording subjects should use a stable canonical error code",
+  );
+}
+
 await createsAndGetsProvisionalRecords();
 await resolvesAndAttachesSourceRefsWithoutChangingAuthority();
 await createProvisionalReusesExistingEvidence();
@@ -352,3 +510,6 @@ await resolveSourceRefIgnoresHistoricalRecords();
 await rejectsSourceRefConflicts();
 await attachesSameSourceRefIdempotently();
 await recordsAndListsProvisionalRelations();
+await recordsAndListsProvisionalHintsForRecordings();
+await rejectsProvisionalHintsForMissingOrNonProvisionalSubjects();
+await rejectsRecordingContextHintsForNonRecordingSubjects();

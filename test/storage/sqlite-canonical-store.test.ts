@@ -144,6 +144,8 @@ async function mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary(): Promis
       put: (record) => sqliteRepository.put(record),
       putRelation: (input) => sqliteRepository.putRelation(input),
       listRelations: (input) => sqliteRepository.listRelations(input),
+      putProvisionalHint: (input) => sqliteRepository.putProvisionalHint(input),
+      listProvisionalHints: (input) => sqliteRepository.listProvisionalHints(input),
       async list(query) {
         const records = await sqliteRepository.list(query);
 
@@ -215,6 +217,8 @@ async function usesIndexedSourceRefLookupWithoutFullRepositoryList(): Promise<vo
       findBySourceRef: (input) => sqliteRepository.findBySourceRef?.(input) ?? assertUnreachable(),
       putRelation: (input) => sqliteRepository.putRelation(input),
       listRelations: (input) => sqliteRepository.listRelations(input),
+      putProvisionalHint: (input) => sqliteRepository.putProvisionalHint(input),
+      listProvisionalHints: (input) => sqliteRepository.listProvisionalHints(input),
       async list() {
         throw new Error("source-ref lookups should use the SQLite source-ref index");
       },
@@ -417,12 +421,94 @@ async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void>
   }
 }
 
+async function persistsCanonicalProvisionalHintsAcrossRepositoryReopen(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-hints-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const sourceRef: Ref = {
+    namespace: "source:netease",
+    kind: "track",
+    id: "hint-track",
+    label: "Hint Track - Fixture Artist",
+  };
+
+  try {
+    const firstStore = createCanonicalStore({
+      repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+      idFactory: () => "canonical-hint-track",
+      clock: () => "2026-05-25T00:00:00.000Z",
+    });
+    const created = await assertOk(
+      firstStore.createProvisional({
+        kind: "recording",
+        label: "Hint Track - Fixture Artist",
+        evidence: [sourceRef],
+      }),
+    );
+
+    await assertOk(
+      firstStore.recordProvisionalHints({
+        subjectRef: created.ref,
+        sourceRef,
+        providerId: "netease",
+        batchId: "batch-1",
+        hints: [
+          {
+            kind: "source_recording_context",
+            facts: {
+              title: "Hint Track",
+              artistLabels: ["Fixture Artist"],
+              releaseLabel: "Fixture Release",
+              releaseSourceRef: {
+                namespace: "source:netease",
+                kind: "album",
+                id: "hint-album",
+              },
+              durationMs: 123456,
+              trackPosition: {
+                discNumber: "1",
+                trackNumber: 5,
+                trackCount: 12,
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    const reopenedStore = createCanonicalStore({
+      repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
+    });
+    const bySubject = await assertOk(
+      reopenedStore.listProvisionalHints({
+        subjectRef: created.ref,
+      }),
+    );
+    const bySource = await assertOk(
+      reopenedStore.listProvisionalHints({
+        sourceRef,
+        kind: "source_recording_context",
+      }),
+    );
+
+    assert(bySubject.length === 1, "reopened canonical repository should load provisional hints");
+    assert(bySource.length === 1, "reopened hints should be filterable by source ref and kind");
+    assert(
+      bySubject[0]?.facts.trackPosition?.trackNumber === 5,
+      "reopened hints should keep source-side track position facts",
+    );
+    assert(bySubject[0]?.providerId === "netease", "reopened hints should keep provider id");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 await persistsCanonicalRecordsAcrossRepositoryReopen();
 await rejectsSourceRefConflictsAfterRepositoryReopen();
 await mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary();
 await usesIndexedSourceRefLookupWithoutFullRepositoryList();
 await migratesLegacySourceRefTableToSourceRefs();
 await persistsCanonicalRelationsAcrossRepositoryReopen();
+await persistsCanonicalProvisionalHintsAcrossRepositoryReopen();
 
 function assertUnreachable(): never {
   throw new Error("SQLite repository should expose indexed source-ref lookup");

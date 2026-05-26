@@ -90,6 +90,29 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS canonical_relations_predicate_idx
       ON canonical_relations(predicate, status);
+
+    CREATE TABLE IF NOT EXISTS canonical_provisional_hints (
+      id TEXT PRIMARY KEY,
+      subject_namespace TEXT NOT NULL,
+      subject_kind TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      source_namespace TEXT NOT NULL,
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      source_ref_json TEXT NOT NULL,
+      provider_id TEXT,
+      batch_id TEXT,
+      facts_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS canonical_provisional_hints_subject_idx
+      ON canonical_provisional_hints(subject_namespace, subject_kind, subject_id, kind);
+
+    CREATE INDEX IF NOT EXISTS canonical_provisional_hints_source_idx
+      ON canonical_provisional_hints(source_namespace, source_kind, source_id);
   `);
 }
 

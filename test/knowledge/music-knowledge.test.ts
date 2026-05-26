@@ -414,6 +414,8 @@ async function routesCanonicalContextToProviders(): Promise<void> {
     attachSourceRef: async () => ({ ok: true, value: canonicalRecord }),
     recordProvisionalRelations: async () => ({ ok: true, value: [] }),
     listRelations: async () => ({ ok: true, value: [relation] }),
+    recordProvisionalHints: async () => ({ ok: true, value: [] }),
+    listProvisionalHints: async () => ({ ok: true, value: [] }),
   };
 
   await assertOk(

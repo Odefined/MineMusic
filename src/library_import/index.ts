@@ -1,6 +1,7 @@
 import type {
   CanonicalKind,
   CanonicalRecord,
+  CanonicalProvisionalHintDraft,
   CanonicalRelationDraft,
   CollectionItem,
   LibraryImportAreaSnapshot,
@@ -1106,6 +1107,25 @@ async function importProviderItem({
     }
   }
 
+  const provisionalHints = provisionalHintsForItem(item);
+
+  if (
+    canonicalResult.value.record.status === "provisional" &&
+    provisionalHints.length > 0
+  ) {
+    const hintResult = await canonicalStore.recordProvisionalHints({
+      subjectRef: canonicalResult.value.record.ref,
+      sourceRef: item.sourceRef,
+      providerId,
+      batchId,
+      hints: provisionalHints,
+    });
+
+    if (!hintResult.ok) {
+      return hintResult;
+    }
+  }
+
   const alreadyPresent = await isSavedCollectionItemPresent({
     collection,
     ownerScope,
@@ -1283,6 +1303,37 @@ async function provisionalRelationDraftsForItem({
   }
 
   return ok(relations);
+}
+
+function provisionalHintsForItem(item: PlatformLibraryItem): CanonicalProvisionalHintDraft[] {
+  const hints = item.canonicalHints;
+
+  if (item.targetKind !== "recording" || hints === undefined) {
+    return [];
+  }
+
+  const title = nonEmptyValue(hints.label);
+  const facts: CanonicalProvisionalHintDraft["facts"] = {
+    ...(title === undefined ? {} : { title }),
+    ...(hints.artistLabels === undefined || hints.artistLabels.length === 0
+      ? {}
+      : { artistLabels: hints.artistLabels }),
+    ...(hints.releaseLabel === undefined ? {} : { releaseLabel: hints.releaseLabel }),
+    ...(hints.releaseSourceRef === undefined ? {} : { releaseSourceRef: hints.releaseSourceRef }),
+    ...(hints.durationMs === undefined ? {} : { durationMs: hints.durationMs }),
+    ...(hints.trackPosition === undefined ? {} : { trackPosition: hints.trackPosition }),
+  };
+
+  if (Object.keys(facts).length === 0) {
+    return [];
+  }
+
+  return [
+    {
+      kind: "source_recording_context",
+      facts,
+    },
+  ];
 }
 
 type LinkedCanonicalHint = {

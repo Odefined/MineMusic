@@ -239,6 +239,16 @@ Checking or repairing provenance after later canonical rebinding belongs to
 repository consistency or Canonical Store review workflows, not ordinary Library
 Import or Library Update.
 
+Provider `canonicalHints` are preserved in item provenance as the audit copy of
+source facts, including platform-neutral `trackPosition` when a provider can
+derive it from source release context. For provisional recording records,
+Library Import also projects review-useful source facts into Canonical Store as
+a `source_recording_context` provisional hint attached to the provisional
+recording and provider `sourceRef`. It does not record these hints for active
+reused records. Existing provisional relations remain limited to catalog
+context such as `performed_by`, `appears_on_release`, and `has_duration_ms`;
+track position is not a canonical relation.
+
 Platform saved, liked, collected, or followed library facts should map to the
 owner's matching `saved` system Collection. They do not imply MineMusic
 `favorite`; `favorite` is reserved for a stronger MineMusic-side user signal.

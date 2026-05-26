@@ -78,9 +78,13 @@ This file tracks Library Import implementation progress.
   canonical relations from provider hints for imported recordings, including
   performer, release, and duration context; artist/release source-ref hints
   resolve linked canonical records, create provisional records only when no
-  existing binding is found, and become relation `objectRef`s. Import batches
-  cache saved Collection membership per target kind, avoiding a full saved-item
-  list read for every imported item.
+  existing binding is found, and become relation `objectRef`s. Library Import
+  also records Canonical Store `source_recording_context` provisional hints
+  from provider `canonicalHints` only for provisional recording records,
+  preserving source title, artist labels, release context, duration, and source
+  track position without introducing a track-position `CanonicalRelation`.
+  Import batches cache saved Collection membership per target kind, avoiding a
+  full saved-item list read for every imported item.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports
@@ -93,7 +97,10 @@ This file tracks Library Import implementation progress.
   required cases. Deterministic coverage also verifies NetEase provider
   registration through the `platform_library` slot, and the NetEase source docs
   now record that the adapter exposes both `source` and `platform_library` slot
-  providers. Real validation against the local Docker API currently proves the
+  providers. Saved-recording reads best-effort fetch NetEase album tracklists
+  once per album id to populate platform-neutral `canonicalHints.trackPosition`;
+  album-context failures leave the saved-recording read successful without that
+  hint. Real validation against the local Docker API currently proves the
   configured account and reads 1372 saved recordings, 466 saved releases, and
   179 saved artists.
 - In-memory Library Import storage is implemented for import/update batch
@@ -179,6 +186,10 @@ This file tracks Library Import implementation progress.
 - `npm run build:test && node .tmp-test/test/storage/sqlite-canonical-store.test.js && node .tmp-test/test/library_import/library-import-service.test.js && node .tmp-test/test/integration/library-import-runtime.test.js && node .tmp-test/test/integration/canonical-persistence.test.js`
   passes after adding indexed canonical source-ref lookup and per-batch saved
   membership caching.
+- `npm run build:test && node .tmp-test/test/canonical/canonical-store.test.js && node .tmp-test/test/storage/sqlite-canonical-store.test.js && node .tmp-test/test/library_import/library-import-service.test.js && node .tmp-test/test/providers/netease-platform-library-provider.test.js && node .tmp-test/test/contracts/wave1-contracts.test.js`
+  passes after adding provisional recording hints, NetEase album track-position
+  enrichment, and Library Import hint projection.
+- `npm run typecheck` and `npm test` pass after the provisional hint slice.
 - A follow-up live durable MCP import after that performance pass completed in
   13 seconds for `saved_recordings`, `saved_releases`, and `saved_artists`.
   It produced 2017 imported item reports and persisted 3 complete area

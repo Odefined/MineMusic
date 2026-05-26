@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  CanonicalProvisionalHint,
   CanonicalRelation,
   Ref,
   Result,
@@ -7,6 +8,7 @@ import type {
 } from "../contracts/index.js";
 import type {
   CanonicalRecordRepository,
+  CanonicalProvisionalHintListInput,
   CanonicalRelationListInput,
 } from "../ports/index.js";
 import {
@@ -33,6 +35,8 @@ export type CanonicalStorage = {
   resolveSourceRef(ref: Ref): Promise<Result<CanonicalRecord | null>>;
   putRelation(relation: CanonicalRelation): Promise<Result<CanonicalRelation>>;
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
+  putProvisionalHint(hint: CanonicalProvisionalHint): Promise<Result<CanonicalProvisionalHint>>;
+  listProvisionalHints(input: CanonicalProvisionalHintListInput): Promise<Result<CanonicalProvisionalHint[]>>;
   findSourceRefConflict(input: {
     canonicalRef: Ref;
     sourceRef: Ref;
@@ -169,6 +173,14 @@ export function createCanonicalStorage({
 
     async listRelations(input) {
       return repository.listRelations(input);
+    },
+
+    async putProvisionalHint(hint) {
+      return repository.putProvisionalHint({ hint });
+    },
+
+    async listProvisionalHints(input) {
+      return repository.listProvisionalHints(input);
     },
   };
 }

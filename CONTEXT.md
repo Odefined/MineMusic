@@ -277,6 +277,13 @@ applies any Canonical Store state change.
 _Avoid_: Canonical identity change, provider confidence, confidence score,
 human-only approval.
 
+### Provisional Review Defer
+
+A Provisional Review Decision that records inspected facts are currently
+insufficient for a safe Canonical Maintenance update and leaves canonical
+identity state unchanged.
+_Avoid_: rejection, human-review queue, Canonical Identity Change.
+
 ### Provisional Review Gate
 
 A Canonical Maintenance validation boundary that passes or fails a Provisional

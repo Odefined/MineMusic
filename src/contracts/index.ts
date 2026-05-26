@@ -210,6 +210,42 @@ export type CanonicalRelationDraft = {
   objectValue?: CanonicalRelationValue;
 };
 
+export type SourceReleaseTrackPosition = {
+  discNumber?: string;
+  trackNumber?: number;
+  trackCount?: number;
+};
+
+export type CanonicalProvisionalHintKind =
+  | "source_recording_context"
+  | (string & {});
+
+export type CanonicalProvisionalHintFacts = {
+  title?: string;
+  artistLabels?: string[];
+  releaseLabel?: string;
+  releaseSourceRef?: Ref;
+  durationMs?: number;
+  trackPosition?: SourceReleaseTrackPosition;
+};
+
+export type CanonicalProvisionalHint = {
+  id: string;
+  subjectRef: Ref;
+  kind: CanonicalProvisionalHintKind;
+  sourceRef: Ref;
+  providerId?: string;
+  batchId?: string;
+  facts: CanonicalProvisionalHintFacts;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CanonicalProvisionalHintDraft = {
+  kind: CanonicalProvisionalHintKind;
+  facts: CanonicalProvisionalHintFacts;
+};
+
 export type CollectionKind =
   | "recording"
   | "work"
@@ -391,6 +427,7 @@ export type PlatformLibraryCanonicalHints = {
   releaseLabel?: string;
   releaseSourceRef?: Ref;
   durationMs?: number;
+  trackPosition?: SourceReleaseTrackPosition;
 };
 
 export type PlatformLibraryItem = {

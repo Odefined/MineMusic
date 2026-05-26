@@ -7,7 +7,7 @@ Design draft for the first useful Canonical Maintenance slice.
 This document narrows the broader ideas in
 `docs/canonical-store/provisional-review.md` into a v1 implementation shape. The
 older document remains useful reference material for later maintenance actions
-such as split, reject, defer, and broader active-neighbor review.
+such as split, reject, and broader active-neighbor review.
 
 Implementation progress belongs in `docs/canonical-store/progress.md` or a
 future maintenance-specific progress file.
@@ -21,18 +21,36 @@ paths.
 It answers:
 
 ```text
-What should happen to this provisional recording?
+Which MusicBrainz recording identity does this provisional recording represent?
 ```
 
-V1 supports two outcomes:
+V1 supports two agent decisions:
 
 ```text
-activate the provisional recording
-merge the provisional recording into an existing current recording
+update the provisional recording to one selected MusicBrainz recording ref
+
+defer the provisional recording because inspected facts do not support a safe
+update yet
 ```
 
-This is deliberately smaller than the full Provisional Review idea. It keeps the
-first slice useful without turning it into a durable review-case system.
+For `update`, apply chooses one of two Canonical Admin effects from current
+Canonical Store state:
+
+```text
+activate the provisional recording when no current canonical recording already
+represents the selected MusicBrainz recording ref
+
+merge the provisional recording when exactly one current canonical recording
+already represents the selected MusicBrainz recording ref
+```
+
+For `defer`, apply records a `provisional_review.deferred` event without a
+Canonical Admin identity change. The provisional recording remains available for
+later review.
+
+This keeps the agent focused on recording identity, lets uncertainty be explicit,
+and keeps duplicate handling inside Canonical Store, where the current state can
+be checked at apply time.
 
 ## Terms
 
@@ -42,9 +60,12 @@ This document uses those terms as follows:
 
 - `Canonical Maintenance` is owned by Canonical Store.
 - `Provisional Review` is the agent-facing Canonical Maintenance interaction.
-- `Provisional Review Decision` is what the agent chooses before state changes.
-- `Provisional Review Gate` validates the decision without choosing a different
-  outcome.
+- `Provisional Review Decision` is either the agent's selected MusicBrainz
+  recording identity plus supporting reasons, or a defer reason.
+- `Provisional Review Defer` is the no-update review decision for insufficient
+  inspected facts.
+- `Provisional Review Gate` validates the decision payload against inspected
+  facts and the current Canonical Store preconditions for any apply effect.
 - `Canonical Activation`, `Canonical Update`, and `Canonical Redirect` are
   Canonical Store identity changes or identity resolution behavior.
 
@@ -53,11 +74,14 @@ This document uses those terms as follows:
 V1 is limited to:
 
 - provisional `recording` canonical records.
-- `activate`.
-- `merge`.
+- updating one provisional recording to one MusicBrainz recording ref.
+- deferring one provisional recording when inspected facts do not support a safe
+  update.
+- automatic activation or merge effect selection during apply.
 - same-kind provider refs where the required provider identity anchor is a
   MusicBrainz `recording` ref.
 - inspection-backed decisions.
+- event-only defer trace through `provisional_review.deferred`.
 - process-memory inspection snapshots.
 - Canonical Store redirect behavior after merge.
 
@@ -65,7 +89,6 @@ V1 does not support:
 
 - `split`.
 - `reject`.
-- `defer`.
 - `needs_human_review`.
 - durable review-case storage.
 - artist, release, release-group, or work activation.
@@ -74,6 +97,7 @@ V1 does not support:
 - ISRC-only recording merge.
 - release-tracklist-scoped recording merge.
 - human/admin override merge.
+- agent-selected activation or merge targets.
 - multi-hop graph inference.
 - provider-specific review tools.
 
@@ -90,8 +114,13 @@ Canonical Maintenance owns:
 - listing provisional records that are maintainable in the current slice.
 - inspecting one provisional record.
 - storing the latest short-lived inspection snapshot for a session and subject.
-- validating a Provisional Review Decision through the Gate.
-- applying accepted maintenance decisions through Canonical Admin behavior.
+- validating a Provisional Review Decision through the Gate against inspected
+  facts.
+- selecting activation or merge from current Canonical Store state at apply
+  time for update decisions.
+- recording defer decisions as review-decision events without a Canonical Admin
+  mutation.
+- applying accepted update decisions through Canonical Admin behavior.
 
 Canonical Maintenance may use public ports from other core capabilities, such as
 Music Knowledge, but it must not import provider or repository internals outside
@@ -102,12 +131,15 @@ its own Canonical Store storage boundary.
 Canonical Admin is the restricted Canonical Store layer that performs identity
 state changes.
 
-For v1, it owns:
+For v1, it owns the effects selected by Canonical Maintenance:
 
 - activate a provisional recording.
 - merge a provisional recording into a current recording.
 - persist redirect behavior for merged canonical refs.
 - enforce source-ref uniqueness and current-record invariants while mutating.
+
+Defer is handled by Canonical Maintenance as a review result. It has no
+Canonical Admin effect.
 
 Canonical Admin does not query Knowledge and does not ask the agent for a
 decision.
@@ -126,8 +158,8 @@ Music Knowledge returns provider-attributed `KnowledgeItem`s only.
 
 Knowledge may provide structured MusicBrainz facts, refs, labels, durations,
 artist credits, release appearances, tracklists, and relationships. It must not
-emit MineMusic identity confidence, choose activate/merge, or write Canonical
-Store state.
+emit MineMusic identity confidence, choose the selected recording identity,
+choose the activation or merge effect, or write Canonical Store state.
 
 ### Library Import
 
@@ -151,8 +183,10 @@ The Handbook is the tool index and entry guide. It should explain the sequence:
 2. read stage.context.read once for current review guidance
 3. call canonical.review.list, or use canonical refs from an import report
 4. call canonical.review.inspect for one provisional recording
-5. decide activate or merge using only inspected facts
-6. call canonical.review.apply with the decision
+5. choose update with one MusicBrainz recording ref, or choose defer
+6. call canonical.review.apply with action update or defer
+7. read the apply result to see whether Canonical Store activated, merged, or
+   deferred
 ```
 
 The Handbook may say that review tools require canonical review posture. It
@@ -167,16 +201,26 @@ Guidance should say:
 
 ```text
 Review v1 only supports provisional recordings.
-Inspect returns facts, not an action recommendation.
-Choose activate when the decision can explain at least two non-label reasons
-from inspected facts for one MusicBrainz recording identity, and no inspected
-current canonical record already represents that identity.
-Choose merge only when the subject and an existing current canonical recording
-share the same inspected MusicBrainz recording ref.
-Never decide from label-only evidence.
+Inspect returns comparison facts.
+Choose update with one MusicBrainz recording ref when the decision can explain
+at least two non-label reasons from inspected facts for that recording identity.
+Those reason kinds are the minimum Gate shape. Identity resolution also
+requires comparing inspected candidates and choosing only when one candidate
+explains the source facts better than plausible alternatives.
+Choose defer when inspected facts are incomplete, ambiguous, or contradictory
+for update.
+Apply chooses the effect from current Canonical Store state. If no current
+canonical recording has the selected MusicBrainz recording ref, apply activates
+the subject. If exactly one current canonical recording has that ref, apply
+merges the subject into it.
+Use label facts for retrieval and comparison context; ground the decision in
+non-label support.
+Use source recording context hints as comparison facts. Duration, source
+album/release context, source track position, ISRC when available, and version
+text can help distinguish plausible MusicBrainz alternatives.
 Use only refs, Knowledge Item ids, anchors, and relation candidates returned by
 canonical.review.inspect.
-If uncertain, do not apply.
+Use defer when uncertainty remains after comparison.
 ```
 
 Stage Context supplies workflow guidance. It does not let the agent override
@@ -198,10 +242,13 @@ music metadata. It assembles facts for the agent to compare.
 ### Gate
 
 The Gate is the enforcement layer. It checks that the Provisional Review
-Decision stays within v1 scope and only cites inspected facts.
+Decision stays within v1 scope and only cites inspected facts for the selected
+identity.
 
-The Gate passes or fails the decision. It must not choose a different action,
-rewrite the payload, or turn an uncertain case into a different outcome.
+After identity validation, apply rechecks current Canonical Store state to
+choose the activation or merge effect. The Gate must not choose a different
+MusicBrainz recording ref, rewrite the payload, or turn an uncertain identity
+case into an applied outcome.
 
 ## Tools
 
@@ -272,6 +319,7 @@ Output:
   subject: CanonicalRecord;
   outgoingRelations: CanonicalRelation[];
   incomingRelations: CanonicalRelation[];
+  provisionalHints: CanonicalProvisionalHint[];
   neighborRecords: CanonicalRecord[];
   relatedCurrentRecords: CanonicalRecord[];
   knowledgeItems: KnowledgeItem[];
@@ -305,19 +353,82 @@ relation object.
 
 `neighborRecords` are direct canonical records referenced by those relations.
 
-`relatedCurrentRecords` are current canonical recordings found through an
-inspected same-kind MusicBrainz recording ref. These are still facts, not merge
-recommendations.
+`relatedCurrentRecords` are current canonical recordings found through inspected
+same-kind MusicBrainz recording refs. They give the agent current-store context
+for the selected recording identity.
 
-V1 must not populate `relatedCurrentRecords` from label similarity, artist/title
-similarity, duration similarity, ISRC-only overlap, source-label similarity, or
-release-context similarity. Those may appear as anchors or supporting facts, but
-they are not enough to make a v1 merge target.
+Apply performs the final current-state check, because Canonical Store state may
+change after inspection. It chooses activation or merge from the current set of
+canonical recordings that carry the selected MusicBrainz recording ref.
+
+V1 populates `relatedCurrentRecords` from inspected same-kind MusicBrainz
+recording refs. Label similarity, artist/title similarity, duration similarity,
+ISRC-only overlap, source-label similarity, and release-context similarity may
+appear as anchors or supporting facts for identity resolution.
 
 V1 needs incoming relation lookup because Library Import already writes
 recording-to-artist and recording-to-release relations. Reviewing an endpoint
 requires seeing relations that point at it, even when v1 only applies recording
 maintenance.
+
+#### Provisional Hints
+
+`provisionalHints` are Canonical Store-owned source-side facts attached to the
+provisional subject and provider source refs. For imported recordings, the
+useful v1 kind is `source_recording_context`.
+
+Useful facts include:
+
+- source title.
+- source artist labels.
+- source release label and source release ref.
+- source duration.
+- source release track position.
+- future provider facts such as ISRC or version text when a provider supplies
+  them.
+
+Hints are neutral comparison facts. The agent may use them to distinguish
+plausible live, edit, remix, video, session, or alternate MusicBrainz recording
+candidates. When the available facts leave multiple plausible recordings, the
+agent should defer.
+
+Source track position belongs under `source_ref_context`. MusicBrainz release
+track rows belong under
+`tracklist_context`. The useful comparison is whether the source release context
+and source track position align with a MusicBrainz release and track row that
+points at the selected MusicBrainz recording.
+
+Release title and track row position work as part of a release-alignment
+comparison. The agent should also consider release version text, release group
+context, track count, disc number, track length, and candidate version or
+disambiguation text when those facts are inspected. Track count differences
+weaken release alignment unless the agent can explain a compatible edition,
+bonus-track, multi-disc, or release family difference.
+
+When a MusicBrainz recording appears on multiple releases, the decision should
+cite the inspected release or track row that best aligns with the source release
+context. Multiple release appearances provide context rather than selection by
+themselves.
+
+A large duration conflict takes precedence over source track position or
+MusicBrainz tracklist context. If the duration mismatch looks like a different
+live, edit, remix, video, session, TV size, remaster, or alternate recording,
+the agent needs stronger inspected facts that explain the conflict before
+resolving the identity.
+
+When no source track position or usable MusicBrainz track row is available,
+identity resolution is still possible in low-ambiguity cases. The selected
+candidate should have compatible artist, close duration, and compatible release
+context, and inspected alternatives should be clearly worse because of duration,
+version/disambiguation, title variant, release context, or missing comparable
+support. If another inspected candidate can explain the sparse source facts just
+as well, the agent should defer.
+
+Finding only one inspected MusicBrainz candidate is still a source-fact
+comparison. The selected candidate must explain the source facts. A single
+candidate with only title and artist, missing duration or release context, or
+conflicting version/disambiguation text should defer until stronger facts are
+inspected.
 
 #### Knowledge Items
 
@@ -392,8 +503,9 @@ The agent does not author relation candidates. Inspect constructs them from
 Canonical Store and Knowledge facts.
 
 V1 apply may write or confirm relation candidates only when the selected
-identity action makes those direct one-hop relations currently certain. Relation
-candidates must not encode arbitrary relation rewrites or multi-hop inference.
+identity and chosen apply effect make those direct one-hop relations currently
+certain. Relation candidates must not encode arbitrary relation rewrites or
+multi-hop inference.
 
 #### Inspection Snapshot
 
@@ -413,43 +525,72 @@ Rules:
 
 Applies one Provisional Review Decision against the latest stored inspection.
 
-Input is a discriminated union.
-
-Activate:
+Input:
 
 ```ts
-{
-  inspectionId: string;
-  subjectRef: Ref;
-  action: "activate";
-  selectedProviderRef: Ref;
-  supportingReasonKinds: ProvisionalReviewSupportReasonKind[];
-  reason: string;
-  supportingRefs?: Ref[];
-  supportingKnowledgeItemIds?: string[];
-  supportingAnchorIds?: string[];
-}
+type ProvisionalReviewApplyInput =
+  | {
+      inspectionId: string;
+      subjectRef: Ref;
+      action: "update";
+      selectedProviderRef: Ref;
+      supportingReasonKinds: ProvisionalReviewSupportReasonKind[];
+      reason: string;
+      supportingRefs?: Ref[];
+      supportingKnowledgeItemIds?: string[];
+      supportingAnchorIds?: string[];
+    }
+  | {
+      inspectionId: string;
+      subjectRef: Ref;
+      action: "defer";
+      reason: string;
+      supportingRefs?: Ref[];
+      supportingKnowledgeItemIds?: string[];
+      supportingAnchorIds?: string[];
+    };
 ```
 
-Merge:
+`action: "update"` means "update this provisional recording's canonical
+identity to the selected MusicBrainz recording ref." It is an agent-facing
+Canonical Maintenance update request. Apply derives the concrete Canonical
+Update fields and the activation or merge effect from the stored inspection and
+current Canonical Store state.
+
+Output:
 
 ```ts
-{
-  inspectionId: string;
-  subjectRef: Ref;
-  action: "merge";
-  targetRef: Ref;
-  selectedProviderRef: Ref;
-  supportingReasonKinds?: ProvisionalReviewSupportReasonKind[];
-  reason: string;
-  supportingRefs?: Ref[];
-  supportingKnowledgeItemIds?: string[];
-  supportingAnchorIds?: string[];
-}
+type ProvisionalReviewApplyOutput =
+  | {
+      subjectRef: Ref;
+      action: "update";
+      selectedProviderRef: Ref;
+      appliedAction: "activate" | "merge";
+      targetRef?: Ref;
+    }
+  | {
+      subjectRef: Ref;
+      action: "defer";
+      appliedAction: "defer";
+    };
 ```
+
+An update decision contains the selected identity and supporting reasons. Apply
+validates that identity, then checks current Canonical Store state for current
+canonical recordings that already carry `selectedProviderRef`:
+
+- zero matches: apply activates the subject.
+- one match: apply merges the subject into that current canonical target.
+- more than one match: apply fails because the current canonical store violates
+  the one-current-record-per-MusicBrainz-recording invariant.
+
+A defer decision contains a reason and optional inspected facts to cite. Apply
+validates the inspection boundary, records a `provisional_review.deferred`
+event, and leaves canonical identity state unchanged. It is the v1 result for
+incomplete, ambiguous, or contradictory inspected facts.
 
 Support reason kinds are lightweight agent declarations used by the Gate for
-shape checks. They do not ask the script to decide semantic equivalence.
+shape checks rather than semantic equivalence checks.
 
 ```ts
 type ProvisionalReviewSupportReasonKind =
@@ -463,20 +604,31 @@ type ProvisionalReviewSupportReasonKind =
   | "active_neighbor_anchor";
 ```
 
-`reason` is a human-readable audit explanation. The Gate may require it to be
-non-empty, but it must not parse the text to decide whether the identity claim is
-true.
+`reason` is a human-readable audit explanation. For update, the Gate may
+require it to be non-empty; for defer, the Gate requires it. The agent owns the
+identity claim or defer explanation in that text.
 
-Unsupported actions fail in v1.
+Version and disambiguation text, such as live, remix, edit, TV size, video,
+session, album mix, single version, remaster, or alternate take, stays in
+`reason` rather than becoming a separate support reason kind in v1.
 
-The agent chooses the action. Apply does not accept copied inspection facts,
-hand-written provider facts, hand-written relation drafts, or low-level
-Canonical Update fields.
+ISRC remains a support reason kind for providers or inspections that can ground
+it. For NetEase saved-recording imports, the source side currently provides no
+ISRC, so ISRC is MusicBrainz-side candidate distinction rather than a
+NetEase-to-MusicBrainz source match.
+
+Unsupported review actions fail in v1.
+
+For update, the agent chooses the MusicBrainz recording identity. Apply accepts
+that identity decision and rejects copied inspection facts, hand-written
+provider facts, hand-written relation drafts, merge targets, effect choices, or
+low-level Canonical Update fields. For defer, the agent chooses the no-update
+review decision and supplies the reason.
 
 ## Gate Rules
 
 The Gate validates the Provisional Review Decision against the stored
-inspection. It does not replace the agent's identity judgment.
+inspection. The agent remains responsible for the identity judgment.
 
 Common checks:
 
@@ -485,52 +637,74 @@ Common checks:
 - the inspection exists and is not expired.
 - `subjectRef` matches the stored inspection subject.
 - the subject still exists and is still a current provisional `recording`.
-- `selectedProviderRef` appears in the stored inspection facts.
-- `selectedProviderRef.namespace === "musicbrainz"`.
-- `selectedProviderRef.kind === "recording"`.
 - every cited Ref appears in the stored inspection facts.
 - every cited Knowledge Item id appears in `knowledgeItems`.
 - every cited anchor id appears in `anchors`.
-- the decision is not based on label-only evidence.
-- every declared support reason kind is allowed for the selected action.
-- if the decision claims a determining anchor, that claim must match a stored
-  anchor whose `role` is `determining` and whose provider ref matches the
-  selected provider ref.
 
-The Gate does not prove semantic equivalence between metadata strings. It does
-not decide that a romanized name, translated release title, alias, spelling
-variant, or artist credit is equivalent. That judgment belongs to the agent's
-reasoned Provisional Review Decision.
+The agent handles semantic equivalence between metadata strings in the reason,
+including romanized names, translated release titles, aliases, spelling
+variants, and artist credits. The Gate validates cited inspected facts and
+payload shape.
 
-Activate checks:
+Update decision checks:
 
-- no current canonical recording already carries `selectedProviderRef`.
+- `selectedProviderRef` appears in the stored inspection facts.
+- `selectedProviderRef.namespace === "musicbrainz"`.
+- `selectedProviderRef.kind === "recording"`.
 - `supportingReasonKinds` contains at least two allowed non-label kinds.
 - the decision cites inspected refs, Knowledge Items, or anchors that ground
   those declared reason kinds.
+- the decision is not based on label-only evidence.
+- every declared support reason kind is allowed for the identity decision.
+- if the decision claims a determining anchor, that claim must match a stored
+  anchor whose `role` is `determining` and whose provider ref matches the
+  selected provider ref.
+- the two-reason requirement is necessary but not sufficient; the agent's
+  decision must still explain why the selected MusicBrainz recording is better
+  supported than inspected plausible alternatives.
 - title equality, label similarity, MusicBrainz search score, retrieval score,
-  and LLM confidence are not enough.
+  and LLM confidence are retrieval context rather than support reasons.
+- duration is a tolerance judgment rather than a Gate threshold. The Gate avoids
+  hard millisecond cutoffs for semantic equivalence.
 - valid non-label reasons may cite inspected artist-credit facts, duration
   facts, ISRC facts, release appearance facts, source-ref context, direct
   relation context, tracklist context, or an active-neighbor anchor.
 
-Merge checks:
+Defer decision checks:
 
-- `targetRef` appears in the stored inspection facts.
-- `targetRef` points to a current recording.
-- `targetRef` is in `relatedCurrentRecords`.
-- `targetRef` already carries `selectedProviderRef`.
-- `selectedProviderRef` is the inspected MusicBrainz recording ref that supports
-  the subject.
-- source refs moved from subject to target must not conflict with another
-  current canonical record outside the merge target.
+- `reason` is non-empty and explains what inspected facts are missing,
+  ambiguous, or contradictory.
+- cited refs, Knowledge Items, and anchors pass the common inspection-boundary
+  checks.
+- the apply result leaves the subject as a current provisional recording.
+
+Apply effect checks for update:
+
+- apply rechecks current Canonical Store state for current recordings carrying
+  `selectedProviderRef`.
+- if no current canonical recording carries `selectedProviderRef`, apply uses
+  the activation effect.
+- if exactly one current canonical recording carries `selectedProviderRef`,
+  apply uses the merge effect with that record as target.
+- if more than one current canonical recording carries `selectedProviderRef`,
+  apply fails with a canonical invariant error rather than asking the agent to
+  choose a target.
+- for merge effects, source refs moved from subject to target must remain
+  conflict-free against current canonical records outside the merge target.
 
 Unsupported action check:
 
-- `split`, `reject`, `defer`, and `needs_human_review` return an explicit
-  unsupported-action error in v1.
+- accepted actions are `update` and `defer`.
+- `activate`, `merge`, `split`, `reject`, and `needs_human_review` return an
+  explicit unsupported-action error in v1.
 
 ## Canonical Admin Effects
+
+For update decisions, apply selects exactly one Canonical Admin effect after the
+identity decision is validated.
+
+Defer decisions stop at Canonical Maintenance. They do not enter Canonical
+Admin because they do not change canonical identity state.
 
 ### Activate
 
@@ -547,7 +721,13 @@ Canonical Admin should:
   certain.
 - record `canonical.activated` when canonical events are available.
 
-Activation must not write facts absent from the stored inspection.
+Activation writes only facts present in the stored inspection.
+
+Source recording context hints remain review/source context during activation.
+In particular, source release track position stays out of durable recording
+relations and recording fields. It may remain review/source context and
+provenance, because the same recording can appear at different positions on
+different releases.
 
 ### Merge
 
@@ -589,7 +769,8 @@ rely on Canonical Store reads that honor redirects in ordinary product flows.
 
 ## Events
 
-V1 should not require a durable review-case table.
+V1 records defer through events rather than adding durable review-case storage,
+a deferred canonical status, a cooldown field, or a human-review queue.
 
 Canonical mutation events are useful when the canonical event boundary exists:
 
@@ -598,15 +779,25 @@ canonical.activated
 canonical.merged
 ```
 
-Review-decision events are optional in v1:
+The v1 defer event is:
+
+```text
+provisional_review.deferred
+```
+
+It records the subject, inspection id, reason, and any cited inspected refs,
+Knowledge Item ids, or anchors. Canonical identity state stays unchanged.
+
+Additional review-decision events may be added later:
 
 ```text
 provisional_review.decided
 provisional_review.failed
 ```
 
-If added, decision events record what the agent attempted. Canonical events
-record what Canonical Admin actually changed. These are separate facts.
+Canonical events record what Canonical Admin actually changed, including whether
+apply activated or merged. Review-decision events record what the review
+concluded. These are separate facts.
 
 ## Testing
 
@@ -625,15 +816,26 @@ Minimum coverage:
   wrong-subject inspections.
 - `canonical.review.apply` rejects cited refs, Knowledge Item ids, anchors, or
   relation candidates that were not in the stored inspection.
-- `canonical.review.apply` rejects label-only activation and label-only merge.
-- activation succeeds for a provisional recording with an inspected MusicBrainz
-  recording ref and an agent decision that explains at least two non-label
-  identity-support reasons from inspected facts.
-- merge succeeds for a provisional recording into an inspected current recording
-  when inspected facts support same identity.
+- `canonical.review.apply` rejects label-only identity resolution.
+- `canonical.review.apply` accepts defer with a valid inspection and non-empty
+  reason, records `provisional_review.deferred`, and leaves the subject as a
+  current provisional recording.
+- defer does not create a durable review-case row, a deferred canonical status,
+  a cooldown field, or a human-review queue entry.
+- identity resolution succeeds for a provisional recording with an inspected
+  MusicBrainz recording ref and an agent decision that explains at least two
+  non-label identity-support reasons from inspected facts.
+- apply activates when no current canonical recording carries the selected
+  MusicBrainz recording ref at apply time.
+- apply merges when exactly one current canonical recording carries the
+  selected MusicBrainz recording ref at apply time.
+- apply fails when more than one current canonical recording carries the
+  selected MusicBrainz recording ref.
 - after merge, ordinary Canonical Store reads and source-ref resolution land on
   the survivor.
-- unsupported actions fail clearly in v1.
+- unsupported effect-choice actions such as `activate` and `merge` fail clearly
+  in v1.
+- unsupported routing actions such as `needs_human_review` fail clearly in v1.
 
 Knowledge responses can be deterministic MusicBrainz-shaped fixtures. The
 maintenance path should start from canonical records, source refs, provisional

@@ -4,6 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   CanonicalRecord,
+  CanonicalProvisionalHint,
+  CanonicalProvisionalHintFacts,
   CanonicalRelation,
   CanonicalRelationValue,
   Ref,
@@ -54,6 +56,20 @@ type RelationRow = {
   provider_id: string | null;
   batch_id: string | null;
   status: CanonicalRelation["status"];
+  created_at: string;
+  updated_at: string;
+};
+
+type ProvisionalHintRow = {
+  id: string;
+  subject_namespace: string;
+  subject_kind: string;
+  subject_id: string;
+  kind: CanonicalProvisionalHint["kind"];
+  source_ref_json: string;
+  provider_id: string | null;
+  batch_id: string | null;
+  facts_json: string;
   created_at: string;
   updated_at: string;
 };
@@ -303,6 +319,79 @@ export function createSqliteCanonicalRecordRepository({
           .map((relation) => structuredClone(relation));
       });
     },
+
+    async putProvisionalHint({ hint }) {
+      return readResult(() => {
+        database
+          .prepare(`
+            INSERT INTO canonical_provisional_hints (
+              id,
+              subject_namespace,
+              subject_kind,
+              subject_id,
+              kind,
+              source_namespace,
+              source_kind,
+              source_id,
+              source_ref_json,
+              provider_id,
+              batch_id,
+              facts_json,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              subject_namespace = excluded.subject_namespace,
+              subject_kind = excluded.subject_kind,
+              subject_id = excluded.subject_id,
+              kind = excluded.kind,
+              source_namespace = excluded.source_namespace,
+              source_kind = excluded.source_kind,
+              source_id = excluded.source_id,
+              source_ref_json = excluded.source_ref_json,
+              provider_id = excluded.provider_id,
+              batch_id = excluded.batch_id,
+              facts_json = excluded.facts_json,
+              updated_at = excluded.updated_at
+          `)
+          .run(
+            hint.id,
+            hint.subjectRef.namespace,
+            hint.subjectRef.kind,
+            hint.subjectRef.id,
+            hint.kind,
+            hint.sourceRef.namespace,
+            hint.sourceRef.kind,
+            hint.sourceRef.id,
+            toJson(hint.sourceRef),
+            hint.providerId ?? null,
+            hint.batchId ?? null,
+            toJson(hint.facts),
+            hint.createdAt,
+            hint.updatedAt,
+          );
+
+        return readProvisionalHintById(database, hint.id) ?? structuredClone(hint);
+      });
+    },
+
+    async listProvisionalHints(query) {
+      return readResult(() => {
+        const rows = database
+          .prepare(`
+            SELECT *
+            FROM canonical_provisional_hints
+            ORDER BY created_at, id
+          `)
+          .all() as ProvisionalHintRow[];
+
+        return rows
+          .map(toCanonicalProvisionalHint)
+          .filter((hint) => matchesProvisionalHintQuery(hint, query))
+          .map((hint) => structuredClone(hint));
+      });
+    },
   };
 }
 
@@ -409,6 +498,47 @@ function toCanonicalRelation(row: RelationRow): CanonicalRelation {
   return relation;
 }
 
+function readProvisionalHintById(
+  database: DatabaseSync,
+  id: string,
+): CanonicalProvisionalHint | null {
+  const row = database
+    .prepare(`
+      SELECT *
+      FROM canonical_provisional_hints
+      WHERE id = ?
+    `)
+    .get(id) as ProvisionalHintRow | undefined;
+
+  return row === undefined ? null : toCanonicalProvisionalHint(row);
+}
+
+function toCanonicalProvisionalHint(row: ProvisionalHintRow): CanonicalProvisionalHint {
+  const hint: CanonicalProvisionalHint = {
+    id: row.id,
+    subjectRef: {
+      namespace: row.subject_namespace,
+      kind: row.subject_kind,
+      id: row.subject_id,
+    },
+    kind: row.kind,
+    sourceRef: fromJson<Ref>(row.source_ref_json),
+    facts: fromJson<CanonicalProvisionalHintFacts>(row.facts_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+
+  if (row.provider_id !== null) {
+    hint.providerId = row.provider_id;
+  }
+
+  if (row.batch_id !== null) {
+    hint.batchId = row.batch_id;
+  }
+
+  return hint;
+}
+
 function matchesRelationQuery(
   relation: CanonicalRelation,
   query: Parameters<CanonicalRecordRepository["listRelations"]>[0],
@@ -418,6 +548,17 @@ function matchesRelationQuery(
     (query.sourceRef === undefined || sameRef(relation.sourceRef, query.sourceRef)) &&
     (query.predicate === undefined || relation.predicate === query.predicate) &&
     (query.status === undefined || relation.status === query.status)
+  );
+}
+
+function matchesProvisionalHintQuery(
+  hint: CanonicalProvisionalHint,
+  query: Parameters<CanonicalRecordRepository["listProvisionalHints"]>[0],
+): boolean {
+  return (
+    (query.subjectRef === undefined || sameRef(hint.subjectRef, query.subjectRef)) &&
+    (query.sourceRef === undefined || sameRef(hint.sourceRef, query.sourceRef)) &&
+    (query.kind === undefined || hint.kind === query.kind)
   );
 }
 

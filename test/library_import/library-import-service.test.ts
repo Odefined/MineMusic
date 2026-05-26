@@ -474,6 +474,11 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
                   releaseLabel: "Fixture Release",
                   releaseSourceRef: releaseSourceRef("fixture-release", "Fixture Release"),
                   durationMs: 123456,
+                  trackPosition: {
+                    discNumber: "1",
+                    trackNumber: 5,
+                    trackCount: 12,
+                  },
                 }),
                 providerItem("unresolved-track", ""),
               ],
@@ -552,6 +557,11 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
       },
     }),
   );
+  const provisionalHints = await assertOk(
+    environment.canonicalStore.listProvisionalHints({
+      kind: "source_recording_context",
+    }),
+  );
   const fixtureArtist = await assertOk(
     environment.canonicalStore.resolveSourceRef({
       ref: artistSourceRef("fixture-artist", "Fixture Artist"),
@@ -621,6 +631,31 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   assert(
     newTrackRelations.some((relation) => relation.predicate === "has_duration_ms" && relation.objectValue === 123456),
     "import should record provisional duration relations from provider hints",
+  );
+  assert(
+    newTrackRelations.every((relation) => relation.predicate !== "track_position"),
+    "import should not store track position as a canonical relation",
+  );
+  assert(provisionalHints.length === 1, "import should store one source recording context hint");
+  assert(
+    provisionalHints[0]?.subjectRef.id === "canonical-1",
+    "source recording context hints should attach to the provisional recording",
+  );
+  assert(
+    provisionalHints[0]?.sourceRef.id === "new-track",
+    "source recording context hints should attach to the provider source ref",
+  );
+  assert(
+    provisionalHints[0]?.facts.trackPosition?.trackNumber === 5,
+    "source recording context hints should keep provider track position facts",
+  );
+  assert(
+    provisionalHints[0]?.facts.durationMs === 123456,
+    "source recording context hints should keep duration facts",
+  );
+  assert(
+    provenance.find((item) => item.sourceRef.id === "new-track")?.canonicalHints?.trackPosition?.trackCount === 12,
+    "item provenance should preserve provider canonicalHints unchanged",
   );
   assert(provenance.length === 3, "import should store item provenance for every observed provider item");
   assert(snapshots.length === 1, "import should store a complete area snapshot");

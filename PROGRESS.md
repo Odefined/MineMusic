@@ -805,6 +805,28 @@
 - Updated `INDEX.md` to point at both the broader Provisional Review reference
   and the v1 Canonical Maintenance design.
 
+## 2026-05-27
+
+- Implemented platform-neutral provisional canonical hints for source-side
+  recording context without adding a track-position `CanonicalRelation`.
+- Added shared `SourceReleaseTrackPosition` and Canonical Store provisional hint
+  contracts, plus Canonical Store public/repository methods for recording and
+  listing hints.
+- Added in-memory and SQLite persistence for `source_recording_context` hints
+  attached to provisional recording source refs, with deterministic upsert
+  behavior and reopen coverage.
+- Updated Library Import to preserve provider `canonicalHints` in provenance
+  and also project title, artist labels, release context, duration, and source
+  track position into Canonical Store hints only for provisional imported
+  recordings.
+- Updated NetEase saved-recording reads to best-effort fetch
+  `/album?id=<albumId>` once per album id and populate
+  `canonicalHints.trackPosition` when the album tracklist exposes disc/track
+  context; album failures leave the importable item intact without the hint.
+- Updated Provisional Review v1/design docs so future inspect output can expose
+  provisional hints as neutral facts used to rule out plausible MusicBrainz
+  recording alternatives, not as identity proof.
+
 ## Next
 
 - Add CLI or Web UI peer transports when there is a concrete product workflow.

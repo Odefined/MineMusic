@@ -213,6 +213,13 @@ queries navigate from a recording to its artist and release when source-ref
 hints are present. They help later review, dedupe, and merge work, but they
 are not automatic identity proof.
 
+Provisional records may also have separate source-side provisional hints. For
+recording review, `source_recording_context` stores facts such as source title,
+artist labels, release context, duration, and source release track position.
+These hints are attached to the provisional recording and provider source ref.
+They are review evidence for ruling out plausible alternatives, not canonical
+relations and not identity proof.
+
 ## Source-Ref Evidence
 
 Source refs are evidence rows, not canonical authority.
@@ -309,6 +316,8 @@ existing `CanonicalStorePort` methods:
   kept as candidate discovery rather than automatic identity merging.
 - provisional relation recording/listing for provider-hint context, including
   optional linked artist/release `objectRef`s.
+- provisional hint recording/listing for source-side review context, kept
+  separate from `CanonicalRelation`.
 - active/provisional filtering for ordinary lookup.
 - idempotent same-record source-ref attachment.
 - Stage Core repository injection with in-memory storage as the default.

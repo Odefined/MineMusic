@@ -1,5 +1,7 @@
 import type {
   CanonicalRecord,
+  CanonicalProvisionalHint,
+  CanonicalProvisionalHintDraft,
   CanonicalRelation,
   CanonicalRelationDraft,
   CanonicalRelationValue,
@@ -179,6 +181,71 @@ export function createCanonicalStore({
     async listRelations(input) {
       return storage.listRelations(input);
     },
+
+    async recordProvisionalHints({ subjectRef, sourceRef, providerId, batchId, hints }) {
+      const subject = await storage.get(subjectRef);
+
+      if (!subject.ok) {
+        return fail(subject.error);
+      }
+
+      if (subject.value === null) {
+        return fail({
+          code: "canonical.not_found",
+          message: `Canonical record '${subjectRef.id}' was not found.`,
+          module: "canonical",
+          retryable: false,
+        });
+      }
+
+      if (subject.value.status !== "provisional") {
+        return fail({
+          code: "canonical.provisional_hint_invalid_subject",
+          message: `Canonical record '${subjectRef.id}' is not provisional.`,
+          module: "canonical",
+          retryable: false,
+        });
+      }
+
+      const storedHints: CanonicalProvisionalHint[] = [];
+
+      for (const hint of hints) {
+        if (hint.kind === "source_recording_context" && subject.value.kind !== "recording") {
+          return fail({
+            code: "canonical.provisional_hint_invalid_subject",
+            message: "source_recording_context hints can only be recorded for provisional recordings.",
+            module: "canonical",
+            retryable: false,
+          });
+        }
+
+        const now = clock();
+        const provisionalHint: CanonicalProvisionalHint = {
+          id: canonicalProvisionalHintId({ subjectRef, sourceRef, hint }),
+          subjectRef,
+          kind: hint.kind,
+          sourceRef,
+          ...(providerId === undefined ? {} : { providerId }),
+          ...(batchId === undefined ? {} : { batchId }),
+          facts: hint.facts,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const stored = await storage.putProvisionalHint(provisionalHint);
+
+        if (!stored.ok) {
+          return stored;
+        }
+
+        storedHints.push(stored.value);
+      }
+
+      return ok(storedHints);
+    },
+
+    async listProvisionalHints(input) {
+      return storage.listProvisionalHints(input);
+    },
   };
 }
 
@@ -205,6 +272,22 @@ function canonicalRelationId({
     relation.objectLabel ?? null,
     relation.objectValue === undefined ? null : relationValueKey(relation.objectValue),
     refKey(sourceRef),
+  ]);
+}
+
+function canonicalProvisionalHintId({
+  subjectRef,
+  sourceRef,
+  hint,
+}: {
+  subjectRef: Ref;
+  sourceRef: Ref;
+  hint: CanonicalProvisionalHintDraft;
+}): string {
+  return JSON.stringify([
+    refKey(subjectRef),
+    refKey(sourceRef),
+    hint.kind,
   ]);
 }
 

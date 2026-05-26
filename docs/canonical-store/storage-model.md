@@ -241,6 +241,49 @@ CREATE TABLE canonical_relations (
 Relation rows are source-bound provisional context. They do not confirm that two
 source refs identify the same or different real-world recording.
 
+### `canonical_provisional_hints`
+
+Stores source-side review facts attached to a provisional canonical subject and
+provider source ref. This is separate from `canonical_relations` because facts
+such as a source album track position are useful review context, but are not
+durable canonical music relationships.
+
+Imported recording context can include title, artist labels, release label,
+release source ref, duration, and platform-neutral track position.
+
+```sql
+CREATE TABLE canonical_provisional_hints (
+  id TEXT PRIMARY KEY,
+  subject_namespace TEXT NOT NULL,
+  subject_kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  source_namespace TEXT NOT NULL,
+  source_kind TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  source_ref_json TEXT NOT NULL,
+  provider_id TEXT,
+  batch_id TEXT,
+  facts_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+```
+
+Indexes:
+
+```sql
+CREATE INDEX canonical_provisional_hints_subject_idx
+  ON canonical_provisional_hints(subject_namespace, subject_kind, subject_id, kind);
+
+CREATE INDEX canonical_provisional_hints_source_idx
+  ON canonical_provisional_hints(source_namespace, source_kind, source_id);
+```
+
+Rows use deterministic ids from subject ref, source ref, and hint kind so
+repeated imports update the same review hint. `source_recording_context` rows
+are valid only for current provisional recordings.
+
 ### `canonical_redirects`
 
 Optional for the first implementation, but required before real merge behavior.

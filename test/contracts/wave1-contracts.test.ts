@@ -1,6 +1,10 @@
 import type {
   CapabilitySlot,
   CanonicalRecord,
+  CanonicalProvisionalHint,
+  CanonicalProvisionalHintDraft,
+  CanonicalProvisionalHintFacts,
+  CanonicalProvisionalHintKind,
   CanonicalRelation,
   Collection,
   CollectionItem,
@@ -51,6 +55,7 @@ import type {
   PlatformLibraryAvailability,
   PlatformLibraryAbsence,
   PlatformLibraryCount,
+  PlatformLibraryCanonicalHints,
   PlatformLibraryIssueCode,
   PlatformLibraryItem,
   PlatformLibraryItemKind,
@@ -65,6 +70,7 @@ import type {
   Ref,
   Result,
   SourceProvider,
+  SourceReleaseTrackPosition,
   StageError,
   StageErrorCode,
   StageEvent,
@@ -77,6 +83,7 @@ import type {
 import { stageErrorCodes } from "../../src/contracts/index.js";
 import type {
   CanonicalRecordRepository,
+  CanonicalProvisionalHintListInput,
   CanonicalStorePort,
   CollectionPort,
   CollectionRepository,
@@ -322,6 +329,27 @@ type _platformLibraryReadStatuses = Expect<
   Equal<PlatformLibraryReadStatus, "complete" | "partial" | "failed" | "unavailable">
 >;
 
+type _sourceReleaseTrackPositionKeys = Expect<
+  Equal<keyof SourceReleaseTrackPosition, "discNumber" | "trackNumber" | "trackCount"> &
+    Equal<SourceReleaseTrackPosition["discNumber"], string | undefined> &
+    Equal<SourceReleaseTrackPosition["trackNumber"], number | undefined> &
+    Equal<SourceReleaseTrackPosition["trackCount"], number | undefined>
+>;
+
+type _platformLibraryCanonicalHintsKeys = Expect<
+  Equal<
+    keyof PlatformLibraryCanonicalHints,
+    | "label"
+    | "artistLabels"
+    | "artistSourceRefs"
+    | "releaseLabel"
+    | "releaseSourceRef"
+    | "durationMs"
+    | "trackPosition"
+  > &
+    Equal<PlatformLibraryCanonicalHints["trackPosition"], SourceReleaseTrackPosition | undefined>
+>;
+
 type _platformLibraryIssueCodes = Expect<
   Equal<
     PlatformLibraryIssueCode,
@@ -356,6 +384,37 @@ type _platformLibraryUnknownCountHasNoValue = Expect<
 type _platformLibraryProviderMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<PlatformLibraryProvider, "preview"> &
     MethodAcceptsSingleObject<PlatformLibraryProvider, "readItems">
+>;
+
+type _canonicalProvisionalHintKindAllowsSourceRecordingContext = Expect<
+  Equal<Extract<CanonicalProvisionalHintKind, "source_recording_context">, "source_recording_context">
+>;
+
+type _canonicalProvisionalHintFactsKeys = Expect<
+  Equal<
+    keyof CanonicalProvisionalHintFacts,
+    "title" | "artistLabels" | "releaseLabel" | "releaseSourceRef" | "durationMs" | "trackPosition"
+  > &
+    Equal<CanonicalProvisionalHintFacts["trackPosition"], SourceReleaseTrackPosition | undefined>
+>;
+
+type _canonicalProvisionalHintKeys = Expect<
+  Equal<
+    keyof CanonicalProvisionalHint,
+    | "id"
+    | "subjectRef"
+    | "kind"
+    | "sourceRef"
+    | "providerId"
+    | "batchId"
+    | "facts"
+    | "createdAt"
+    | "updatedAt"
+  >
+>;
+
+type _canonicalProvisionalHintDraftKeys = Expect<
+  Equal<keyof CanonicalProvisionalHintDraft, "kind" | "facts">
 >;
 
 type _libraryImportScopesMatchFirstSlice = Expect<
@@ -620,6 +679,56 @@ type _libraryImportRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<LibraryImportRepository, "listAbsences">
 >;
 
+type _canonicalProvisionalHintListInputKeys = Expect<
+  Equal<keyof CanonicalProvisionalHintListInput, "subjectRef" | "sourceRef" | "kind">
+>;
+
+type _canonicalStorePortMethods = Expect<
+  Equal<
+    keyof CanonicalStorePort,
+    | "get"
+    | "findByLabel"
+    | "resolveSourceRef"
+    | "createProvisional"
+    | "attachSourceRef"
+    | "recordProvisionalRelations"
+    | "listRelations"
+    | "recordProvisionalHints"
+    | "listProvisionalHints"
+  >
+>;
+
+type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<CanonicalStorePort, "get"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "findByLabel"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "resolveSourceRef"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "createProvisional"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "attachSourceRef"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "recordProvisionalRelations"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "listRelations"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "recordProvisionalHints"> &
+    MethodAcceptsSingleObject<CanonicalStorePort, "listProvisionalHints">
+>;
+
+type _canonicalRecordRepositoryMethods = Expect<
+  Equal<
+    keyof CanonicalRecordRepository,
+    | keyof Repository<CanonicalRecord, Ref>
+    | "findBySourceRef"
+    | "putRelation"
+    | "listRelations"
+    | "putProvisionalHint"
+    | "listProvisionalHints"
+  >
+>;
+
+type _canonicalRecordRepositoryMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<CanonicalRecordRepository, "putRelation"> &
+    MethodAcceptsSingleObject<CanonicalRecordRepository, "listRelations"> &
+    MethodAcceptsSingleObject<CanonicalRecordRepository, "putProvisionalHint"> &
+    MethodAcceptsSingleObject<CanonicalRecordRepository, "listProvisionalHints">
+>;
+
 type _collectionRepositoryMethods = Expect<
   Equal<
     keyof CollectionRepository,
@@ -872,7 +981,35 @@ const platformLibraryItem: PlatformLibraryItem = {
     artistSourceRefs: [{ namespace: "source:fixture-library", kind: "artist", id: "artist-1" }],
     releaseLabel: "Fixture Release",
     releaseSourceRef: { namespace: "source:fixture-library", kind: "album", id: "release-1" },
+    trackPosition: {
+      discNumber: "1",
+      trackNumber: 3,
+      trackCount: 10,
+    },
   },
+};
+
+const canonicalProvisionalHint: CanonicalProvisionalHint = {
+  id: "hint-1",
+  subjectRef: ref,
+  kind: "source_recording_context",
+  sourceRef: platformLibraryItem.sourceRef,
+  providerId: platformLibraryItem.providerId,
+  batchId: "batch-1",
+  facts: {
+    title: "Fixture Release",
+    artistLabels: ["Fixture Artist"],
+    releaseLabel: "Fixture Release",
+    releaseSourceRef: { namespace: "source:fixture-library", kind: "album", id: "release-1" },
+    durationMs: 123456,
+    trackPosition: {
+      discNumber: "1",
+      trackNumber: 3,
+      trackCount: 10,
+    },
+  },
+  createdAt: "2026-05-17T00:00:00.000Z",
+  updatedAt: "2026-05-17T00:00:00.000Z",
 };
 
 const platformLibrarySample: PlatformLibrarySample = {
@@ -1026,6 +1163,8 @@ const canonicalStore: CanonicalStorePort = {
   }),
   recordProvisionalRelations: async () => ({ ok: true, value: [] }),
   listRelations: async () => ({ ok: true, value: [] }),
+  recordProvisionalHints: async () => ({ ok: true, value: [canonicalProvisionalHint] }),
+  listProvisionalHints: async () => ({ ok: true, value: [canonicalProvisionalHint] }),
 };
 
 const collectionPort: CollectionPort = {
@@ -1113,6 +1252,8 @@ const canonicalRecords: CanonicalRecordRepository = {
   list: async () => ({ ok: true, value: [] }),
   putRelation: async ({ relation }) => ({ ok: true, value: relation }),
   listRelations: async () => ({ ok: true, value: [] }),
+  putProvisionalHint: async ({ hint }) => ({ ok: true, value: hint }),
+  listProvisionalHints: async () => ({ ok: true, value: [canonicalProvisionalHint] }),
 };
 
 const collectionRepository: CollectionRepository = {
@@ -1166,6 +1307,7 @@ void [
   handbook,
   sourceProvider,
   platformLibraryItem,
+  canonicalProvisionalHint,
   platformLibrarySample,
   platformLibraryPreview,
   platformLibraryReadResult,

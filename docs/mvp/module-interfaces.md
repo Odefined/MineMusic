@@ -324,6 +324,12 @@ Purpose:
 Public port:
 
 ```ts
+export type CanonicalProvisionalHintListInput = {
+  subjectRef?: Ref;
+  sourceRef?: Ref;
+  kind?: CanonicalProvisionalHintKind;
+};
+
 export interface CanonicalStorePort {
   get(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;
 
@@ -346,6 +352,26 @@ export interface CanonicalStorePort {
     canonicalRef: Ref;
     sourceRef: Ref;
   }): Promise<Result<CanonicalRecord>>;
+
+  recordProvisionalRelations(input: {
+    subjectRef: Ref;
+    sourceRef: Ref;
+    providerId?: string;
+    batchId?: string;
+    relations: CanonicalRelationDraft[];
+  }): Promise<Result<CanonicalRelation[]>>;
+
+  listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
+
+  recordProvisionalHints(input: {
+    subjectRef: Ref;
+    sourceRef: Ref;
+    providerId?: string;
+    batchId?: string;
+    hints: CanonicalProvisionalHintDraft[];
+  }): Promise<Result<CanonicalProvisionalHint[]>>;
+
+  listProvisionalHints(input: CanonicalProvisionalHintListInput): Promise<Result<CanonicalProvisionalHint[]>>;
 }
 ```
 
@@ -363,6 +389,16 @@ Must not expose:
 - playability.
 - source account state.
 - preference or memory decisions.
+- source-side track position as a `CanonicalRelation`.
+
+Notes:
+
+- `recordProvisionalHints` stores neutral source-side facts for provisional
+  review. It requires a current provisional subject, and
+  `source_recording_context` is limited to provisional recordings.
+- Hints are separate from provisional relations because fields such as source
+  album track position are release-context evidence, not durable canonical
+  music relationships.
 
 ## Collection Service Port
 

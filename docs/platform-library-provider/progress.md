@@ -52,6 +52,10 @@ slot and concrete platform-library providers.
   module is wired into `test/run-stage-core-tests.ts`, and
   `docs/source-providers/netease.md` now documents that the NetEase adapter
   exposes both `source` and `platform_library` slot providers.
+- NetEase saved-recording reads now best-effort fetch `/album` once per album
+  id during `readItems` to enrich generic `canonicalHints.trackPosition` from
+  source album tracklist context. Album enrichment failures do not fail the
+  saved-recording read, and preview samples remain lightweight.
 - Real validation against the updated local Docker API found and fixed two read
   completeness gaps: `song/detail` requests are now batched below the API's
   1000-song limit, and saved album / followed artist reads now paginate
@@ -74,6 +78,8 @@ slot and concrete platform-library providers.
 - `npm run build:test`
 - `node .tmp-test/test/providers/netease-source-provider.test.js`
 - `node .tmp-test/test/providers/netease-platform-library-provider.test.js`
+- `npm run build:test && node .tmp-test/test/providers/netease-platform-library-provider.test.js`
+  passes after adding NetEase saved-recording album track-position enrichment.
 - `npm test`
 - Live `preview({ discovery: true, sampleLimitPerArea: 3 })` and
   `readItems({ areas: ["saved_recordings", "saved_releases", "saved_artists", "playlists"] })`

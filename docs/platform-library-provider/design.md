@@ -183,6 +183,12 @@ export interface PlatformLibraryProvider {
 Provider item:
 
 ```ts
+export type SourceReleaseTrackPosition = {
+  discNumber?: string;
+  trackNumber?: number;
+  trackCount?: number;
+};
+
 export type PlatformLibraryItem = {
   providerId: string;
   sourceRef: Ref;
@@ -197,6 +203,7 @@ export type PlatformLibraryItem = {
     releaseLabel?: string;
     releaseSourceRef?: Ref;
     durationMs?: number;
+    trackPosition?: SourceReleaseTrackPosition;
   };
 };
 
@@ -251,6 +258,11 @@ export type PlatformLibraryReadResult = {
 
 The provider item is a platform-library fact. It is not a Collection item and
 not a Canonical record.
+
+`canonicalHints.trackPosition` is source release context, such as disc and
+track number from a provider album tracklist. It is platform-neutral source
+evidence for later review, not a Canonical Store relation and not recording
+identity proof by itself.
 
 Readable provider items must include a stable platform object `sourceRef`.
 Stable means the same platform object in the same provider namespace should

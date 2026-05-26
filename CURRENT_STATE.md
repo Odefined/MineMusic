@@ -108,7 +108,11 @@ host-facing and LLM-facing surface.
   artist/release records, creates provisional records only when no existing
   canonical binding is found, and stores relation `objectRef`s. These relations
   are context for catalog navigation, review, and later merge, not automatic
-  identity proof.
+  identity proof. Canonical Store also records separate provisional hints for
+  source-side review facts. The first implemented hint kind,
+  `source_recording_context`, attaches title, artist labels, release context,
+  duration, and source track position to a provisional recording and provider
+  source ref without treating track position as a canonical relation.
 - The shared Canonical Store contract exports `CanonicalKind`, including
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
@@ -127,10 +131,11 @@ host-facing and LLM-facing surface.
   initialization lives in `src/storage/sqlite/canonical-schema.ts`; repository
   behavior lives in `src/storage/sqlite/canonical-repository.ts`; public exports
   live in `src/storage/sqlite/index.ts`. It persists canonical entities,
-  source refs, aliases, and provisional relations. Tests prove `get`,
-  `resolveSourceRef`, provisional relation list/reopen behavior, source-ref
-  conflicts across repository reopen, and SQLite uniqueness failures mapped to
-  `canonical.source_ref_conflict` at the Canonical Store boundary. Stage Core
+  source refs, aliases, provisional relations, and provisional hints. Tests
+  prove `get`, `resolveSourceRef`, provisional relation and provisional hint
+  list/reopen behavior, source-ref conflicts across repository reopen, and
+  SQLite uniqueness failures mapped to `canonical.source_ref_conflict` at the
+  Canonical Store boundary. Stage Core
   still defaults to in-memory canonical storage, and its factories now accept
   optional `canonicalRepository` injection or
   `canonicalDatabasePath` configuration for host surfaces or tests that need
@@ -199,10 +204,12 @@ host-facing and LLM-facing surface.
   Collection outcomes. Initial import start now creates running/completed
   batches, records import events, reuses exact canonical bindings, creates and
   binds provisional canonical records for strong provider facts, writes saved
-  Collection items, stores item provenance, and stores complete area snapshots
-  only for complete provider reads, persists completed summary reports, and
-  marks started batches failed when provider reads or downstream import steps
-  fail. Library update preview/start now compares current provider reads with
+  Collection items, stores item provenance, records
+  `source_recording_context` provisional hints for provisional imported
+  recordings, and stores complete area snapshots only for complete provider
+  reads, persists completed summary reports, and marks started batches failed
+  when provider reads or downstream import steps fail. Library update
+  preview/start now compares current provider reads with
   the latest eligible complete baseline for the same provider account stability,
   reports newly observed, already-present, and no-longer-returned categories
   from baseline source refs, stores Platform Library Absence records with
@@ -262,7 +269,10 @@ host-facing and LLM-facing surface.
   `saved_releases`, and `saved_artists` into generic provider item facts with
   stable NetEase source refs and canonical hints, including artist/release
   source refs for saved recordings, batched `song/detail` reads, and paginated
-  saved album / followed artist reads.
+  saved album / followed artist reads. Saved-recording reads now best-effort
+  fetch `/album?id=<albumId>` once per distinct album id to populate
+  platform-neutral `canonicalHints.trackPosition`; failed album enrichment does
+  not fail the saved-recording read.
   `preview` reports readable availability, counts, bounded lightweight samples,
   and unsupported discovery areas. `readItems` now reports complete, failed,
   partial, and unavailable per-area statuses so one area failure does not erase

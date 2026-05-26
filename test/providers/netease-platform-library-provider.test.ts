@@ -555,6 +555,30 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
         };
       }
 
+      if (path === "/album") {
+        assert(query.id === "2424", "saved recordings should fetch album context by album id");
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            songs: [
+              {
+                id: 11111,
+                name: "Earlier Track",
+                cd: "1",
+                no: 1,
+              },
+              {
+                id: 98765,
+                name: "Kept Track",
+                cd: "1",
+                no: 2,
+              },
+            ],
+          },
+        };
+      }
+
       throw new Error(`unexpected request path: ${path}`);
     },
   });
@@ -563,7 +587,7 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
   const area = read.areas[0];
   const item = area?.items[0];
 
-  assert(paths.join(",") === "/login/status,/likelist,/song/detail", "saved recordings should use expected endpoints");
+  assert(paths.join(",") === "/login/status,/likelist,/song/detail,/album", "saved recordings should use expected endpoints");
   assert(area?.area === "saved_recordings", "read result should include saved_recordings area");
   assert(area.status === "complete", "successful saved recordings read should be complete");
   assert(item?.providerId === "netease", "item should identify provider");
@@ -581,7 +605,146 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
   assert(item.canonicalHints.releaseSourceRef?.kind === "album", "canonical hints should include release source refs");
   assert(item.canonicalHints.releaseSourceRef?.id === "2424", "release source refs should use NetEase album ids");
   assert(item.canonicalHints.durationMs === 246000, "canonical hints should include duration when available");
+  assert(item.canonicalHints.trackPosition?.discNumber === "1", "canonical hints should include album disc number");
+  assert(item.canonicalHints.trackPosition?.trackNumber === 2, "canonical hints should include album track number");
+  assert(item.canonicalHints.trackPosition?.trackCount === 2, "canonical hints should include album track count");
   assert(!("raw" in item), "provider item should not expose raw provider payload");
+}
+
+async function readItemsKeepsSavedRecordingsWhenAlbumContextFails(): Promise<void> {
+  const paths: string[] = [];
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path }) => {
+      paths.push(path);
+
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 1011,
+                nickname: "Album Failure Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/likelist") {
+        return { ok: true, value: { code: 200, ids: [22222] } };
+      }
+
+      if (path === "/song/detail") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            songs: [
+              {
+                id: 22222,
+                name: "Still Imported",
+                al: { id: 33333, name: "Unavailable Album" },
+              },
+            ],
+          },
+        };
+      }
+
+      if (path === "/album") {
+        return {
+          ok: false,
+          error: {
+            code: "source.provider_unavailable",
+            message: "Album context failed.",
+            module: "source",
+            retryable: true,
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path}`);
+    },
+  });
+
+  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const item = read.areas[0]?.items[0];
+
+  assert(read.areas[0]?.status === "complete", "album-context failure should not fail saved recordings");
+  assert(item?.sourceRef.id === "22222", "saved recording should still be returned");
+  assert(item.canonicalHints?.releaseSourceRef?.id === "33333", "album source ref should still come from song detail");
+  assert(item.canonicalHints.trackPosition === undefined, "failed album context should omit track position");
+  assert(paths.join(",") === "/login/status,/likelist,/song/detail,/album", "album context should be attempted once");
+}
+
+async function readItemsFetchesEachSavedRecordingAlbumOnce(): Promise<void> {
+  let albumRequests = 0;
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path }) => {
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 1012,
+                nickname: "Shared Album Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/likelist") {
+        return { ok: true, value: { code: 200, ids: [1, 2] } };
+      }
+
+      if (path === "/song/detail") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            songs: [
+              {
+                id: 1,
+                name: "First Shared Track",
+                al: { id: 999, name: "Shared Album" },
+              },
+              {
+                id: 2,
+                name: "Second Shared Track",
+                al: { id: 999, name: "Shared Album" },
+              },
+            ],
+          },
+        };
+      }
+
+      if (path === "/album") {
+        albumRequests += 1;
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            songs: [
+              { id: 1, name: "First Shared Track", cd: "1", no: 1 },
+              { id: 2, name: "Second Shared Track", cd: "1", no: 2 },
+            ],
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path}`);
+    },
+  });
+
+  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const items = read.areas[0]?.items ?? [];
+
+  assert(albumRequests === 1, "same album id should be fetched once per saved-recording read");
+  assert(items.length === 2, "both saved recordings should be returned");
+  assert(items[0]?.canonicalHints?.trackPosition?.trackNumber === 1, "first track should use album track position");
+  assert(items[1]?.canonicalHints?.trackPosition?.trackNumber === 2, "second track should use album track position");
 }
 
 async function readItemsBatchesSavedRecordingDetails(): Promise<void> {
@@ -1185,6 +1348,8 @@ await previewReturnsBoundedLightweightSamples();
 await previewReturnsReleaseAndArtistSamples();
 await previewMapsRequesterTimeoutToUnavailableIssue();
 await readItemsMapsSavedRecordingsToGenericItems();
+await readItemsKeepsSavedRecordingsWhenAlbumContextFails();
+await readItemsFetchesEachSavedRecordingAlbumOnce();
 await readItemsBatchesSavedRecordingDetails();
 await readItemsMapsSavedReleasesToGenericItems();
 await readItemsPaginatesSavedReleases();
