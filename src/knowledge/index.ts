@@ -6,10 +6,12 @@ import type {
   KnowledgeCanonicalContext,
   KnowledgeFieldQuery,
   KnowledgeFilters,
+  KnowledgeItemFormat,
   Ref,
   Result,
   StageError,
   StageWarning,
+  KnowledgeQueryPurpose,
 } from "../contracts/index.js";
 import type {
   CanonicalStorePort,
@@ -68,7 +70,7 @@ export function createMusicKnowledgeService({
       const warnings: StageWarning[] = [];
       const nextProviderCursors: Record<string, string> = {};
       let nextProviderIndex: number | undefined;
-      const requestLimit = normalizedKnowledgeLimit(normalizedQuery.value.limit);
+      const requestLimit = normalizedQuery.value.limit ?? defaultKnowledgeLimit;
       const startProviderIndex = continuation.value?.providerIndex ?? 0;
 
       for (let providerIndex = startProviderIndex; providerIndex < providerIds.value.length; providerIndex += 1) {
@@ -249,10 +251,6 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function normalizedKnowledgeLimit(limit: number | undefined): number {
-  return Math.min(Math.max(limit ?? 5, 1), 50);
-}
-
 async function readCanonicalContext({
   query,
   canonicalStore,
@@ -313,6 +311,7 @@ function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
   const tagQuery = normalizeOptionalTagArray(queryShape.tagQuery);
   const fieldQuery = normalizeFieldQuery(queryShape.fieldQuery);
   const filters = normalizeFilters(queryShape.filters);
+  const base = normalizeKnowledgeQueryBase(queryShape, filters.ok ? filters.value : undefined);
 
   if (!tagQuery.ok) {
     return tagQuery;
@@ -324,6 +323,10 @@ function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
 
   if (!filters.ok) {
     return filters;
+  }
+
+  if (!base.ok) {
+    return base;
   }
 
   if (!isValidRelationFocus(queryShape.relationFocus) || !isValidCursor(queryShape.cursor)) {
@@ -349,74 +352,184 @@ function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
     return fail(invalidQueryError());
   }
 
-  const base = knowledgeQueryBase(queryShape, filters.value);
-
   if (hasText) {
     return ok({
-      ...base,
+      ...base.value,
       text: queryShape.text as string,
     });
   }
 
   if (hasCanonicalRef) {
     return ok({
-      ...base,
+      ...base.value,
       canonicalRef: queryShape.canonicalRef as Ref,
     });
   }
 
   if (tagQuery.value !== undefined) {
     return ok({
-      ...base,
+      ...base.value,
       tagQuery: tagQuery.value,
     });
   }
 
   return ok({
-    ...base,
+    ...base.value,
     fieldQuery: fieldQuery.value as KnowledgeFieldQuery,
   });
 }
 
-function knowledgeQueryBase(
+const defaultKnowledgeLimit = 5;
+const maxKnowledgeLimit = 50;
+const knowledgeQueryPurposes = new Set<KnowledgeQueryPurpose>([
+  "lookup",
+  "explain",
+  "review",
+  "discover",
+]);
+const knowledgeItemFormats = new Set<KnowledgeItemFormat>(["structured", "text"]);
+
+function normalizeKnowledgeQueryBase(
   queryShape: Record<string, unknown>,
   filters: KnowledgeFilters | undefined,
-): KnowledgeQueryBase {
+): Result<KnowledgeQueryBase> {
   const base: KnowledgeQueryBase = {};
+  const purpose = normalizeKnowledgePurpose(queryShape.purpose);
+  const formats = normalizeKnowledgeFormats(queryShape.formats);
+  const entityKinds = normalizeStringArray(queryShape.entityKinds);
+  const expand = normalizeStringArray(queryShape.expand);
+  const limit = normalizeKnowledgeLimit(queryShape.limit);
 
   if (filters !== undefined) {
     base.filters = filters;
   }
 
-  if (queryShape.purpose !== undefined) {
-    base.purpose = queryShape.purpose as NonNullable<KnowledgeQueryBase["purpose"]>;
+  if (!purpose.ok) {
+    return purpose;
   }
 
-  if (queryShape.formats !== undefined) {
-    base.formats = queryShape.formats as NonNullable<KnowledgeQueryBase["formats"]>;
+  if (!formats.ok) {
+    return formats;
   }
 
-  if (queryShape.entityKinds !== undefined) {
-    base.entityKinds = queryShape.entityKinds as string[];
+  if (!entityKinds.ok) {
+    return entityKinds;
   }
 
-  if (queryShape.expand !== undefined) {
-    base.expand = queryShape.expand as string[];
+  if (!expand.ok) {
+    return expand;
+  }
+
+  if (!limit.ok) {
+    return limit;
+  }
+
+  if (purpose.value !== undefined) {
+    base.purpose = purpose.value;
+  }
+
+  if (formats.value !== undefined) {
+    base.formats = formats.value;
+  }
+
+  if (entityKinds.value !== undefined) {
+    base.entityKinds = entityKinds.value;
+  }
+
+  if (expand.value !== undefined) {
+    base.expand = expand.value;
   }
 
   if (queryShape.relationFocus !== undefined) {
     base.relationFocus = queryShape.relationFocus as NonNullable<KnowledgeQueryBase["relationFocus"]>;
   }
 
-  if (queryShape.limit !== undefined) {
-    base.limit = queryShape.limit as number;
+  if (limit.value !== undefined) {
+    base.limit = limit.value;
   }
 
   if (queryShape.cursor !== undefined) {
     base.cursor = queryShape.cursor as string;
   }
 
-  return base;
+  return ok(base);
+}
+
+function normalizeKnowledgePurpose(value: unknown): Result<KnowledgeQueryPurpose | undefined> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+
+  return typeof value === "string" && knowledgeQueryPurposes.has(value as KnowledgeQueryPurpose)
+    ? ok(value as KnowledgeQueryPurpose)
+    : fail(invalidQueryError());
+}
+
+function normalizeKnowledgeFormats(value: unknown): Result<KnowledgeItemFormat[] | undefined> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+
+  if (!Array.isArray(value) || value.length === 0) {
+    return fail(invalidQueryError());
+  }
+
+  const formats: KnowledgeItemFormat[] = [];
+
+  for (const entry of value) {
+    if (typeof entry !== "string" || !knowledgeItemFormats.has(entry as KnowledgeItemFormat)) {
+      return fail(invalidQueryError());
+    }
+
+    if (!formats.includes(entry as KnowledgeItemFormat)) {
+      formats.push(entry as KnowledgeItemFormat);
+    }
+  }
+
+  return ok(formats);
+}
+
+function normalizeStringArray(value: unknown): Result<string[] | undefined> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+
+  if (!Array.isArray(value) || value.length === 0) {
+    return fail(invalidQueryError());
+  }
+
+  const entries: string[] = [];
+
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      return fail(invalidQueryError());
+    }
+
+    const normalized = entry.trim();
+
+    if (normalized.length === 0) {
+      return fail(invalidQueryError());
+    }
+
+    if (!entries.includes(normalized)) {
+      entries.push(normalized);
+    }
+  }
+
+  return ok(entries);
+}
+
+function normalizeKnowledgeLimit(value: unknown): Result<number | undefined> {
+  if (value === undefined) {
+    return ok(undefined);
+  }
+
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= maxKnowledgeLimit
+    ? ok(value)
+    : fail(invalidQueryError());
 }
 
 function normalizeOptionalTagArray(value: unknown): Result<string[] | undefined> {

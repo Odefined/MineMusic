@@ -19,7 +19,8 @@
   cases for the target Knowledge Slot implementation.
 - Music Knowledge Service now validates public query shape, including supported
   `relationFocus` values, Tag Query / Field Query mutual exclusion, tag-filter
-  normalization, and cursor-query compatibility. It aggregates
+  normalization, `purpose`, `formats`, `entityKinds`, `expand`, first-version
+  `limit` bounds, and cursor-query compatibility. It aggregates
   `KnowledgeItem[]` from registered Knowledge providers, preserves provider
   warnings, passes Canonical Store context to providers for `canonicalRef`
   queries, and wraps provider-local continuation state into public opaque

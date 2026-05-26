@@ -781,6 +781,10 @@
   passes only remaining item budget to later providers; MusicBrainz text search
   now applies the requested limit across root `entityKinds` while still allowing
   requested expansions to return related facts for those limited roots.
+- Hardened Knowledge runtime validation after review. Direct service calls now
+  reject invalid `purpose`, `formats`, `entityKinds`, `expand`, and `limit`
+  values before provider lookup, and the Stage Interface MCP schema mirrors the
+  first-version Knowledge limit cap.
 
 ## Next
 

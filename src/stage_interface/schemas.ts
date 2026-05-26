@@ -46,7 +46,7 @@ const knowledgeQuerySchema = {
   entityKinds: z.array(z.string()).optional(),
   expand: z.array(z.string()).optional(),
   relationFocus: z.array(z.enum(["members"])).optional(),
-  limit: z.number().int().positive().optional(),
+  limit: z.number().int().positive().max(50).optional(),
   cursor: z.string().optional(),
 };
 const musicCandidateSchema = z.object({

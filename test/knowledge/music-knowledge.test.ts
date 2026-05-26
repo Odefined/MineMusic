@@ -253,6 +253,60 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
       },
     } as never,
   });
+  const invalidPurpose = await knowledge.query({
+    query: {
+      text: "anything",
+      purpose: "listen",
+    } as never,
+  });
+  const invalidFormats = await knowledge.query({
+    query: {
+      text: "anything",
+      formats: ["json"],
+    } as never,
+  });
+  const emptyFormats = await knowledge.query({
+    query: {
+      text: "anything",
+      formats: [],
+    } as never,
+  });
+  const invalidEntityKinds = await knowledge.query({
+    query: {
+      text: "anything",
+      entityKinds: ["recording", 3],
+    } as never,
+  });
+  const emptyExpand = await knowledge.query({
+    query: {
+      text: "anything",
+      expand: [],
+    } as never,
+  });
+  const blankExpand = await knowledge.query({
+    query: {
+      text: "anything",
+      expand: ["   "],
+    } as never,
+  });
+  const nonIntegerLimit = await knowledge.query({
+    query: {
+      text: "anything",
+      limit: 1.5,
+    } as never,
+  });
+  const stringLimit = await knowledge.query({
+    query: {
+      text: "anything",
+      limit: "2",
+    } as never,
+  });
+  const tooLargeLimit = await knowledge.query({
+    query: {
+      text: "anything",
+      limit: 51,
+    } as never,
+  });
 
   assert(!result.ok, "invalid knowledge query should fail explicitly");
   assert(result.error.code === "knowledge.invalid_query", "invalid query should be rejected before provider lookup");
@@ -297,6 +351,24 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
     excludedTagQueryOverlap.error.code === "knowledge.invalid_query",
     "overlapping tagQuery and exclude filters should be rejected",
   );
+  assert(!invalidPurpose.ok, "unsupported purpose should fail explicitly");
+  assert(invalidPurpose.error.code === "knowledge.invalid_query", "unsupported purpose should be rejected");
+  assert(!invalidFormats.ok, "unsupported formats should fail explicitly");
+  assert(invalidFormats.error.code === "knowledge.invalid_query", "unsupported formats should be rejected");
+  assert(!emptyFormats.ok, "empty formats should fail explicitly");
+  assert(emptyFormats.error.code === "knowledge.invalid_query", "empty formats should be rejected");
+  assert(!invalidEntityKinds.ok, "entityKinds with non-string values should fail explicitly");
+  assert(invalidEntityKinds.error.code === "knowledge.invalid_query", "invalid entityKinds should be rejected");
+  assert(!emptyExpand.ok, "empty expand arrays should fail explicitly");
+  assert(emptyExpand.error.code === "knowledge.invalid_query", "empty expand arrays should be rejected");
+  assert(!blankExpand.ok, "blank expand values should fail explicitly");
+  assert(blankExpand.error.code === "knowledge.invalid_query", "blank expand values should be rejected");
+  assert(!nonIntegerLimit.ok, "non-integer limits should fail explicitly");
+  assert(nonIntegerLimit.error.code === "knowledge.invalid_query", "non-integer limits should be rejected");
+  assert(!stringLimit.ok, "string limits should fail explicitly");
+  assert(stringLimit.error.code === "knowledge.invalid_query", "string limits should be rejected");
+  assert(!tooLargeLimit.ok, "limits above the first-version cap should fail explicitly");
+  assert(tooLargeLimit.error.code === "knowledge.invalid_query", "too-large limits should be rejected");
 }
 
 async function routesCanonicalContextToProviders(): Promise<void> {

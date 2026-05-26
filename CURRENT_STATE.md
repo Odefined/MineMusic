@@ -347,7 +347,9 @@ host-facing and LLM-facing surface.
   exposing public chunks, prevents cursor continuation from repeating roots
   already returned in earlier chunks, and enforces `limit` as a global
   Knowledge response cap across providers and MusicBrainz text-search root
-  entity kinds.
+  entity kinds. Public Knowledge query validation now also rejects unsupported
+  `purpose`, `formats`, malformed `entityKinds`/`expand`, and non-integer or
+  above-cap `limit` values before provider lookup.
   A target Knowledge Slot design draft now exists in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
