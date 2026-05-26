@@ -788,6 +788,9 @@
 - Hardened MusicBrainz HTTP error mapping after review. The default requester
   now preserves HTTP status for non-JSON error bodies, so plain-text 429
   responses still surface as retryable `knowledge.rate_limited` errors.
+- Hardened MusicBrainz provider cursor size after review. Provider-local search
+  cursors now carry a fixed-size seen-root summary instead of a linear list of
+  returned root ids, with regression coverage for long-id 50-item pages.
 
 ## Next
 

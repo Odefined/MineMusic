@@ -698,6 +698,57 @@ async function continuesSearchBackedQueriesWithProviderOffsets(): Promise<void> 
   assert(requests[5]?.query.offset === "1", "field cursor should continue with the next MusicBrainz offset");
 }
 
+async function keepsCursorPayloadBoundedAcrossReturnedRoots(): Promise<void> {
+  const longIdSuffix = "x".repeat(120);
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      const offset = Number.parseInt(request.query.offset ?? "0", 10);
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            count: 200,
+            recordings: Array.from({ length: 50 }, (_, index) => ({
+              id: `recording-${offset + index}-${longIdSuffix}`,
+              title: `Recording ${offset + index}`,
+              score: 90 - index,
+            })),
+          },
+        },
+      };
+    },
+  });
+
+  const firstPage = await assertOk(
+    provider.query({
+      query: {
+        text: "cursor payload",
+        entityKinds: ["recording"],
+        limit: 50,
+      },
+    }),
+  );
+
+  assert(firstPage.nextCursor !== undefined, "large first page should expose a provider cursor");
+  assert(firstPage.nextCursor.length < 1200, "provider cursor should not store every returned long root id");
+
+  const secondPage = await assertOk(
+    provider.query({
+      query: {
+        text: "cursor payload",
+        entityKinds: ["recording"],
+        limit: 50,
+        cursor: firstPage.nextCursor,
+      },
+    }),
+  );
+
+  assert(secondPage.nextCursor !== undefined, "large second page should expose a provider cursor");
+  assert(secondPage.nextCursor.length < 1200, "continued provider cursor should remain bounded");
+}
+
 async function omitsAlreadyReturnedTagRootsAcrossCursorPages(): Promise<void> {
   const provider = createMusicBrainzKnowledgeProvider({
     requestJson: async (request) => {
@@ -1895,6 +1946,7 @@ await appliesTagQueryFiltersToReturnedRootFacts();
 await buildsFieldQueriesForRequestedEntityKinds();
 await fieldQueryLooksUpMissingTagsBeforeFiltering();
 await continuesSearchBackedQueriesWithProviderOffsets();
+await keepsCursorPayloadBoundedAcrossReturnedRoots();
 await omitsAlreadyReturnedTagRootsAcrossCursorPages();
 await fillsTagQueryPageAfterProviderPagesWithNoMatches();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();

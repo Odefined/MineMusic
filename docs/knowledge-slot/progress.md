@@ -46,7 +46,8 @@
   Tag Query over provider-attributed tags, supports Field Query over mapped
   music-domain fields, supports provider-local cursor continuation for
   search-backed text, tag, and field queries with cross-page root de-duplication
-  and internal Tag Query refill for filtered-empty provider pages, honors the
+  through a fixed-size seen-root summary and internal Tag Query refill for
+  filtered-empty provider pages, honors the
   provider's structured-only format capability, applies text-search `limit`
   across requested root `entityKinds`, supports
   MusicBrainz-ref lookup through Canonical context source refs, supports
