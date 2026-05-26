@@ -237,6 +237,64 @@ Provisional Canonical Records are appropriate during library import when a
 platform gives enough metadata to create a usable MineMusic-owned anchor for a
 saved or followed asset.
 
+### Active Canonical Record
+
+A Canonical Store record whose MineMusic identity has a MusicBrainz provider
+ref, required canonical relationships, and canonical naming.
+_Avoid_: status-only promotion, provider-owned identity.
+
+### Canonical Activation
+
+A Canonical Identity Change that makes a Provisional Canonical Record active,
+with optional Canonical Update.
+_Avoid_: complete metadata, status-only promotion.
+
+### Canonical Update
+
+The correction or addition of currently certain identity-bearing details on a
+Canonical Record, including canonical label, provider refs, aliases, and
+relationships.
+_Avoid_: activation, identity confirmation, Knowledge Fact.
+
+### Provisional Review
+
+A transient MineMusic identity review process for deciding the fate of one
+Provisional Canonical Record.
+_Avoid_: Knowledge Item, durable review case, automatic identity confidence,
+script decision.
+
+### Provisional Review Decision
+
+The outcome selected by a Provisional Review before any Canonical Store state
+change is applied.
+_Avoid_: Canonical identity change, provider confidence, confidence score,
+human-only approval.
+
+### Provisional Review Gate
+
+A validation boundary that passes or fails a Provisional Review Decision without
+choosing a different outcome.
+_Avoid_: second adjudicator, action rewrite, script decision, human-review
+routing.
+
+### Canonical Identity Change
+
+A Canonical Store state transition that changes the status, identity mapping, or
+identity-bearing details of a canonical music object.
+_Avoid_: Provisional Review Decision, Knowledge Fact.
+
+### Canonical Split
+
+A Canonical Identity Change that reassigns identity-bearing references from one
+mixed canonical identity to the correct surviving canonical identities.
+_Avoid_: default original-ref retention, default original-ref deletion.
+
+### Canonical Redirect
+
+A Canonical Store resolution rule that maps a merged canonical ref to its
+current surviving canonical identity.
+_Avoid_: downstream merge logic, repository-only behavior, event rewrite.
+
 ### Plugin Slots
 
 Stable seams for replaceable external capabilities.
