@@ -654,6 +654,7 @@ export type PlatformLibraryReadAreaResult = {
 export type PlatformLibraryReadInput = {
   providerAccountId?: string;
   areas: PlatformLibraryArea[];
+  sampleLimitPerArea?: number;
 };
 
 export type PlatformLibraryReadResult = {

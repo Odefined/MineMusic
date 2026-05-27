@@ -56,6 +56,10 @@ slot and concrete platform-library providers.
   id during `readItems` to enrich generic `canonicalHints.trackPosition` from
   source album tracklist context. Album enrichment failures do not fail the
   saved-recording read, and preview samples remain lightweight.
+- `PlatformLibraryReadInput.sampleLimitPerArea` is now part of the shared
+  provider read contract. NetEase saved-recording reads preserve full-read
+  behavior by default and bound the liked-track detail read when a caller passes
+  an explicit sample limit.
 - Real validation against the updated local Docker API found and fixed two read
   completeness gaps: `song/detail` requests are now batched below the API's
   1000-song limit, and saved album / followed artist reads now paginate

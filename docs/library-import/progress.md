@@ -85,6 +85,9 @@ This file tracks Library Import implementation progress.
   track position without introducing a track-position `CanonicalRelation`.
   Import batches cache saved Collection membership per target kind, avoiding a
   full saved-item list read for every imported item.
+- Library Import `start` now forwards `sampleLimitPerArea` into provider
+  `readItems`, allowing bounded real imports through the same public start
+  tools while leaving default imports full-sized.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved recordings, saved releases,
   and saved artists into generic provider items. Provider preview now reports

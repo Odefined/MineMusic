@@ -739,6 +739,7 @@ async function startLibraryImport({
   const read = await provider.value.readItems({
     ...(input.providerAccountId === undefined ? {} : { providerAccountId: input.providerAccountId }),
     areas: scopesToProviderAreas(scopes),
+    ...(input.sampleLimitPerArea === undefined ? {} : { sampleLimitPerArea: input.sampleLimitPerArea }),
   });
 
   if (!read.ok) {

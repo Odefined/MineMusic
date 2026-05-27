@@ -246,9 +246,10 @@ export function createNetEasePlatformLibraryProvider({
     async readItems(input) {
       const account = await resolveNetEaseAccount(requestJson, input.providerAccountId);
       const issues = account.kind === "unresolved" ? [account.issue] : [];
+      const sampleLimit = normalizedReadSampleLimit(input.sampleLimitPerArea);
       const areas =
         account.kind === "resolved"
-          ? await readPlatformLibraryAreas(requestJson, account.account.providerAccountId, input.areas)
+          ? await readPlatformLibraryAreas(requestJson, account.account.providerAccountId, input.areas, sampleLimit)
           : [];
 
       return ok({
@@ -519,6 +520,18 @@ function normalizedSampleLimit(sampleLimitPerArea: number | undefined): number {
   return Math.floor(sampleLimitPerArea);
 }
 
+function normalizedReadSampleLimit(sampleLimitPerArea: number | undefined): number | undefined {
+  if (sampleLimitPerArea === undefined) {
+    return undefined;
+  }
+
+  if (!Number.isFinite(sampleLimitPerArea) || sampleLimitPerArea <= 0) {
+    return 0;
+  }
+
+  return Math.floor(sampleLimitPerArea);
+}
+
 async function previewSavedRecordings(
   requestJson: NetEaseRequester,
   providerAccountId: string,
@@ -635,6 +648,7 @@ async function readPlatformLibraryAreas(
   requestJson: NetEaseRequester,
   providerAccountId: string,
   areas: PlatformLibraryArea[],
+  sampleLimit: number | undefined,
 ): Promise<PlatformLibraryReadAreaResult[]> {
   const results: PlatformLibraryReadAreaResult[] = [];
 
@@ -642,7 +656,7 @@ async function readPlatformLibraryAreas(
     if (area === "saved_recordings") {
       results.push({
         area,
-        ...(await readSavedRecordings(requestJson, providerAccountId)),
+        ...(await readSavedRecordings(requestJson, providerAccountId, sampleLimit)),
       });
     }
 
@@ -676,6 +690,7 @@ async function readPlatformLibraryAreas(
 async function readSavedRecordings(
   requestJson: NetEaseRequester,
   providerAccountId: string,
+  sampleLimit: number | undefined,
 ): Promise<NetEaseReadAreaOutcome> {
   const liked = await requestJson({
     path: "/likelist",
@@ -692,14 +707,18 @@ async function readSavedRecordings(
     return failedReadArea("saved_recordings", ids.issue);
   }
 
-  if (ids.value.length === 0) {
+  const idsToRead = sampleLimit === undefined
+    ? ids.value
+    : ids.value.slice(0, sampleLimit);
+
+  if (idsToRead.length === 0) {
     return completeReadArea([]);
   }
 
   const items: PlatformLibraryItem[] = [];
   const albumContexts = new Map<string, NetEaseAlbumTrackContext | null>();
 
-  for (const batch of chunks(ids.value, netEaseSongDetailBatchSize)) {
+  for (const batch of chunks(idsToRead, netEaseSongDetailBatchSize)) {
     const details = await requestJson({
       path: "/song/detail",
       query: { ids: batch.join(",") },

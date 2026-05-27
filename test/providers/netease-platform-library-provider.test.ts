@@ -793,6 +793,49 @@ async function readItemsBatchesSavedRecordingDetails(): Promise<void> {
   assert(detailRequests[1] === "1001", "remaining saved recordings should be fetched in a final batch");
 }
 
+async function readItemsRespectsSavedRecordingSampleLimit(): Promise<void> {
+  const detailRequests: string[] = [];
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path, query }) => {
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 1111,
+                nickname: "Limited Recording Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/likelist") {
+        return { ok: true, value: { code: 200, ids: [1, 2, 3] } };
+      }
+
+      if (path === "/song/detail") {
+        assert(query.ids !== undefined, "limited song detail request should include ids");
+        detailRequests.push(query.ids);
+        const songs = query.ids.split(",").map((id) => ({
+          id,
+          name: `Track ${id}`,
+        }));
+
+        return { ok: true, value: { code: 200, songs } };
+      }
+
+      throw new Error(`unexpected request path: ${path}`);
+    },
+  });
+
+  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"], sampleLimitPerArea: 2 }));
+
+  assert(read.areas[0]?.items.length === 2, "saved recordings read should return only the requested sample size");
+  assert(detailRequests.join(";") === "1,2", "saved recordings read should request details only for sampled ids");
+}
+
 async function readItemsMapsSavedReleasesToGenericItems(): Promise<void> {
   const provider = createNetEasePlatformLibraryProvider({
     requestJson: async ({ path }) => {
@@ -1351,6 +1394,7 @@ await readItemsMapsSavedRecordingsToGenericItems();
 await readItemsKeepsSavedRecordingsWhenAlbumContextFails();
 await readItemsFetchesEachSavedRecordingAlbumOnce();
 await readItemsBatchesSavedRecordingDetails();
+await readItemsRespectsSavedRecordingSampleLimit();
 await readItemsMapsSavedReleasesToGenericItems();
 await readItemsPaginatesSavedReleases();
 await readItemsMapsSavedArtistsToGenericItems();

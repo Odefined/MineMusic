@@ -192,6 +192,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
       providerAccountId: "fixture-account",
       ownerScope: "local_profile:work",
       scopes: ["saved_recordings"],
+      sampleLimitPerArea: 200,
     }),
   );
   const status = await assertOk(libraryImport.getStatus({ batchId: report.batchId }));
@@ -205,6 +206,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
   assert(report.areas[0]?.scope === "saved_recordings", "start should map read areas back to import scopes");
   assert(readInputs[0]?.areas.join(",") === "saved_recordings", "start should pass provider read areas");
   assert(readInputs[0]?.providerAccountId === "fixture-account", "start should pass provider account id");
+  assert(readInputs[0]?.sampleLimitPerArea === 200, "start should pass sample limit to provider reads");
   assert(status.batchId === report.batchId, "status should read back the stored batch");
   assert(status.status === "completed", "status should expose stored batch status");
 }
