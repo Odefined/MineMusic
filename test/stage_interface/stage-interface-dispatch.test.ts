@@ -1223,6 +1223,9 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
           ],
           anchors: [],
           relationCandidates: [],
+          warnings: [
+            "broad_title_fragment_results: Broad title-fragment MusicBrainz results are included; compare them cautiously.",
+          ],
           refTokens: [
             {
               token: { kind: "recording", id: "mbrec-1" },
@@ -1400,6 +1403,10 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         }
       ).knowledgeFacts?.[0]?.facts?.releases?.[0]?.date === "2009-01-07",
     "review inspect should expose compact release summaries in Knowledge facts",
+  );
+  assert(
+    (inspected as { warnings?: Array<{ code?: string }> }).warnings?.[0]?.code === "broad_title_fragment_results",
+    "review inspect should compact broad title fragment warnings",
   );
   assert(
     (applied as { subjectId?: string; appliedAction?: string }).subjectId === collectionRef.id &&

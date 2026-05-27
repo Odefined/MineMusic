@@ -654,6 +654,108 @@ async function summaryInspectFallsBackToStrongTitleSegments(): Promise<void> {
   );
 }
 
+async function summaryInspectCapsBroadShortSegmentResults(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "fallback-broad-segment-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Concerto in D Minor after Marcello, BWV 974:II. Adagio - Glenn Gould",
+      evidence: [sourceRef],
+    }),
+  );
+  const queries: KnowledgeQuery[] = [];
+  const broadAdagioItems = Array.from({ length: 5 }, (_, index) =>
+    musicBrainzRecordingKnowledgeItem({
+      id: `mb-broad-adagio-${index + 1}`,
+      title: `${index + 1}. Adagio`,
+      artistCreditText: "Glenn Gould",
+    })
+  );
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      queries.push(query);
+
+      if ("providerRef" in query) {
+        return { ok: true, value: { items: [] } };
+      }
+
+      if (
+        "fieldQuery" in query &&
+        query.fieldQuery.title === "Adagio" &&
+        query.fieldQuery.artist === "Glenn Gould" &&
+        query.fieldQuery.release === undefined
+      ) {
+        return {
+          ok: true,
+          value: { items: broadAdagioItems },
+        };
+      }
+
+      return { ok: true, value: { items: [] } };
+    },
+  };
+
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Concerto in D Minor after Marcello, BWV 974:II. Adagio",
+            artistLabels: ["Glenn Gould"],
+            releaseLabel: "Bach: Italian Concerto",
+            durationMs: 287000,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    idFactory: () => "fallback-broad-segment-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const fieldQueries = queries.filter((query): query is KnowledgeQuery & { fieldQuery: NonNullable<KnowledgeQuery["fieldQuery"]> } =>
+    "fieldQuery" in query
+  );
+  const combinedIndex = fieldQueries.findIndex((query) =>
+    query.fieldQuery.title === "Concerto in D Minor after Marcello, BWV 974 Adagio" &&
+      query.fieldQuery.artist === "Glenn Gould"
+  );
+  const shortIndex = fieldQueries.findIndex((query) =>
+    query.fieldQuery.title === "Adagio" &&
+      query.fieldQuery.artist === "Glenn Gould" &&
+      query.fieldQuery.release === undefined
+  );
+
+  assert(combinedIndex >= 0, "fallback inspect should try combined title segments");
+  assert(shortIndex >= 0, "fallback inspect should eventually try broad right-side title segments");
+  assert(combinedIndex < shortIndex, "combined title segment queries should run before broad short-segment queries");
+  assert(
+    inspection.refTokens?.filter((binding) => binding.token.kind === "recording").length === 3,
+    "short-segment fallback should cap broad recording facts",
+  );
+  assert(
+    inspection.warnings?.some((warning) => warning.startsWith("broad_title_fragment_results:")) === true,
+    "short-segment fallback should warn that broad title-fragment facts are present",
+  );
+}
+
 async function summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const store = createCanonicalStore({
@@ -2021,6 +2123,7 @@ await inspectsNeutralFactsAndExactMusicBrainzNeighbors();
 await inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning();
 await summaryInspectFallsBackToCleanedTitleSingleArtistAndRelease();
 await summaryInspectFallsBackToStrongTitleSegments();
+await summaryInspectCapsBroadShortSegmentResults();
 await summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot();
 await detailInspectReusesSnapshotAndReturnsReleaseContexts();
 await deferRecordsEventAndLeavesIdentityUnchanged();

@@ -353,6 +353,13 @@ fallback search plan.
 Fallback search is retrieval-only. It must not mark a candidate as preferred,
 matched, recommended, or safe to update.
 
+Fallback results should be ordered internally by retrieval precision before
+being exposed as neutral `knowledgeFacts`: release-scoped strict results first,
+then strict title-plus-artist results, cleaned-title results, combined segment
+results, and broad short-segment results last. Source release overlap may help
+early stopping, tracklist lookup, and ordering, but it must not be a hard
+visibility gate for `knowledgeFacts`.
+
 Allowed fallback transformations are intentionally mechanical:
 
 - remove source-side `feat.` / `featuring` suffixes from title text.
@@ -367,10 +374,16 @@ parser, infer composer/work/catalog structure, or broaden into unbounded keyword
 search. Duration, release, track-position, ISRC, and version text remain facts
 for the reviewing agent to compare; they are not automatic merge or update
 proof.
-- do not request broad `relations` unless a specific compact field consumes the
-  resulting relationship facts. Broad relations are not a substitute for
-  `releases`, and v2 summary must not fetch relationship data that it neither
-  exposes nor uses.
+
+Broad short-segment results are allowed as last-resort retrieval context but
+must be capped. If summary includes facts found only through broad short-segment
+queries, include a compact warning such as `broad_title_fragment_results` so the
+reviewing agent knows to compare those facts cautiously.
+
+Canonical Maintenance must not request broad `relations` unless a specific
+compact field consumes the resulting relationship facts. Broad relations are not
+a substitute for `releases`, and v2 summary must not fetch relationship data
+that it neither exposes nor uses.
 
 Provider defaults may still include low-cost recording identity basics such as
 artist credits, aliases, duration, and ISRCs. Those defaults are provider

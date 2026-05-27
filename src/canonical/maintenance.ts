@@ -1455,12 +1455,13 @@ async function readReviewKnowledge({
 
   const recordingQueries = buildReviewRecordingKnowledgeQueries({ subject, outgoingRelations, provisionalHints });
   const items: KnowledgeItem[] = [];
-  const recordingItems: KnowledgeItem[] = [];
+  const recordingItems: ReviewRecordingKnowledgeItem[] = [];
   const seenRecordingItemKeys = new Set<string>();
   const warnings: StageWarning[] = [];
+  let shortSegmentRecordingCount = 0;
 
-  for (const query of recordingQueries) {
-    const result = await knowledge.query({ query, sessionId });
+  for (const plannedQuery of recordingQueries) {
+    const result = await knowledge.query({ query: plannedQuery.query, sessionId });
 
     if (!result.ok) {
       warnings.push({
@@ -1474,6 +1475,13 @@ async function readReviewKnowledge({
     warnings.push(...(result.warnings ?? []));
 
     for (const item of result.value.items) {
+      if (
+        plannedQuery.precision === "short_segment" &&
+        shortSegmentRecordingCount >= maxShortSegmentReviewRecordings
+      ) {
+        continue;
+      }
+
       const itemKey = reviewRecordingKnowledgeItemKey(item);
 
       if (itemKey !== undefined && seenRecordingItemKeys.has(itemKey)) {
@@ -1484,20 +1492,38 @@ async function readReviewKnowledge({
         seenRecordingItemKeys.add(itemKey);
       }
 
-      recordingItems.push(item);
-      items.push(item);
+      if (plannedQuery.precision === "short_segment") {
+        shortSegmentRecordingCount += 1;
+      }
+
+      recordingItems.push({
+        item,
+        precision: plannedQuery.precision,
+        order: recordingItems.length,
+      });
     }
 
     if (reviewRecordingSearchHasEnoughFacts({
-      knowledgeItems: recordingItems,
+      knowledgeItems: recordingItems.map(({ item }) => item),
       provisionalHints,
     })) {
       break;
     }
   }
 
+  const sortedRecordingItems = sortReviewRecordingItems(recordingItems);
+  items.push(...sortedRecordingItems.map(({ item }) => item));
+
+  if (sortedRecordingItems.some((entry) => entry.precision === "short_segment")) {
+    warnings.push({
+      code: "canonical.review_broad_title_fragment_results",
+      message: "broad_title_fragment_results: Broad title-fragment MusicBrainz results are included; compare them cautiously.",
+      module: "canonical",
+    });
+  }
+
   const releaseTracklistRefs = reviewReleaseTracklistRefs({
-    knowledgeItems: recordingItems,
+    knowledgeItems: sortedRecordingItems.map(({ item }) => item),
     provisionalHints,
   });
 
@@ -1583,6 +1609,28 @@ function buildReleaseTracklistKnowledgeQuery(releaseRef: Ref): KnowledgeQuery {
   };
 }
 
+type ReviewRecordingSearchPrecision =
+  | "release_strict"
+  | "strict"
+  | "cleaned_release"
+  | "cleaned"
+  | "combined_segment"
+  | "short_segment";
+
+type ReviewRecordingKnowledgeQuery = {
+  query: KnowledgeQuery;
+  precision: ReviewRecordingSearchPrecision;
+};
+
+type ReviewRecordingKnowledgeItem = {
+  item: KnowledgeItem;
+  precision: ReviewRecordingSearchPrecision;
+  order: number;
+};
+
+const maxShortSegmentReviewRecordings = 3;
+const maxReviewRecordingQueries = 10;
+
 function buildReviewRecordingKnowledgeQueries({
   subject,
   outgoingRelations,
@@ -1591,9 +1639,9 @@ function buildReviewRecordingKnowledgeQueries({
   subject: CanonicalRecord;
   outgoingRelations: CanonicalRelation[];
   provisionalHints: ProvisionalReviewInspection["provisionalHints"];
-}): KnowledgeQuery[] {
+}): ReviewRecordingKnowledgeQuery[] {
   const source = reviewSearchSource({ subject, outgoingRelations, provisionalHints });
-  const queries: KnowledgeQuery[] = [];
+  const queries: ReviewRecordingKnowledgeQuery[] = [];
   const seen = new Set<string>();
 
   if (source.release !== undefined) {
@@ -1601,19 +1649,19 @@ function buildReviewRecordingKnowledgeQueries({
       title: source.title,
       ...(source.artists.length === 0 ? {} : { artist: source.artists.join(" ") }),
       release: source.release,
-    }));
+    }), "release_strict");
   }
 
   pushReviewRecordingQuery(queries, seen, buildReviewRecordingFieldQuery({
     title: source.title,
     ...(source.artists.length === 0 ? {} : { artist: source.artists.join(" ") }),
-  }));
+  }), "strict");
 
-  for (const query of buildReviewRecordingFallbackQueries(source)) {
-    pushReviewRecordingQuery(queries, seen, query);
+  for (const plannedQuery of buildReviewRecordingFallbackQueries(source)) {
+    pushReviewRecordingQuery(queries, seen, plannedQuery.query, plannedQuery.precision);
   }
 
-  return queries;
+  return queries.slice(0, maxReviewRecordingQueries);
 }
 
 function reviewSearchSource({
@@ -1652,8 +1700,8 @@ function buildReviewRecordingFallbackQueries(source: {
   title: string;
   artists: string[];
   release?: string;
-}): KnowledgeQuery[] {
-  const queries: KnowledgeQuery[] = [];
+}): ReviewRecordingKnowledgeQuery[] {
+  const queries: ReviewRecordingKnowledgeQuery[] = [];
   const titleFragments = reviewSearchTitleFragments(source.title);
   const primaryArtist = source.artists[0];
   const secondaryArtist = source.artists[1];
@@ -1664,35 +1712,41 @@ function buildReviewRecordingFallbackQueries(source: {
   );
 
   if (source.release !== undefined) {
-    pushDefinedReviewQuery(queries, cleanedTitle, primaryArtist, source.release);
-    pushDefinedReviewQuery(queries, cleanedTitle, secondaryArtist, source.release);
-    pushDefinedReviewQuery(queries, cleanedTitle, undefined, source.release);
-    pushDefinedReviewQuery(queries, rightSegment, primaryArtist, source.release);
-    pushDefinedReviewQuery(queries, rightSegment, undefined, source.release);
+    pushDefinedReviewQuery(queries, cleanedTitle, primaryArtist, source.release, "cleaned_release");
+    pushDefinedReviewQuery(queries, cleanedTitle, secondaryArtist, source.release, "cleaned_release");
+    pushDefinedReviewQuery(queries, cleanedTitle, undefined, source.release, "cleaned_release");
   }
 
-  pushDefinedReviewQuery(queries, rightSegment, primaryArtist, undefined);
-  pushDefinedReviewQuery(queries, combinedSegment, primaryArtist, undefined);
-  pushDefinedReviewQuery(queries, cleanedTitle, primaryArtist, undefined);
+  pushDefinedReviewQuery(queries, cleanedTitle, primaryArtist, undefined, "cleaned");
+  pushDefinedReviewQuery(queries, combinedSegment, primaryArtist, source.release, "combined_segment");
+  pushDefinedReviewQuery(queries, combinedSegment, undefined, source.release, "combined_segment");
+  pushDefinedReviewQuery(queries, combinedSegment, primaryArtist, undefined, "combined_segment");
+  pushDefinedReviewQuery(queries, rightSegment, primaryArtist, source.release, "short_segment");
+  pushDefinedReviewQuery(queries, rightSegment, undefined, source.release, "short_segment");
+  pushDefinedReviewQuery(queries, rightSegment, primaryArtist, undefined, "short_segment");
 
-  return queries.slice(0, 6);
+  return queries;
 }
 
 function pushDefinedReviewQuery(
-  queries: KnowledgeQuery[],
+  queries: ReviewRecordingKnowledgeQuery[],
   title: string | undefined,
   artist: string | undefined,
   release: string | undefined,
+  precision: ReviewRecordingSearchPrecision,
 ): void {
   if (title === undefined || title.length === 0) {
     return;
   }
 
-  queries.push(buildReviewRecordingFieldQuery({
-    title,
-    ...(artist === undefined ? {} : { artist }),
-    ...(release === undefined ? {} : { release }),
-  }));
+  queries.push({
+    query: buildReviewRecordingFieldQuery({
+      title,
+      ...(artist === undefined ? {} : { artist }),
+      ...(release === undefined ? {} : { release }),
+    }),
+    precision,
+  });
 }
 
 function buildReviewRecordingFieldQuery({
@@ -1721,9 +1775,10 @@ function buildReviewRecordingFieldQuery({
 }
 
 function pushReviewRecordingQuery(
-  queries: KnowledgeQuery[],
+  queries: ReviewRecordingKnowledgeQuery[],
   seen: Set<string>,
   query: KnowledgeQuery,
+  precision: ReviewRecordingSearchPrecision,
 ): void {
   const key = reviewKnowledgeQueryKey(query);
 
@@ -1732,7 +1787,7 @@ function pushReviewRecordingQuery(
   }
 
   seen.add(key);
-  queries.push(query);
+  queries.push({ query, precision });
 }
 
 function reviewKnowledgeQueryKey(query: KnowledgeQuery): string {
@@ -1755,6 +1810,34 @@ function reviewKnowledgeQueryKey(query: KnowledgeQuery): string {
   }
 
   return JSON.stringify(query);
+}
+
+function sortReviewRecordingItems(
+  items: ReviewRecordingKnowledgeItem[],
+): ReviewRecordingKnowledgeItem[] {
+  return [...items].sort((left, right) => {
+    const precisionDelta = reviewRecordingPrecisionRank(left.precision) -
+      reviewRecordingPrecisionRank(right.precision);
+
+    return precisionDelta === 0 ? left.order - right.order : precisionDelta;
+  });
+}
+
+function reviewRecordingPrecisionRank(precision: ReviewRecordingSearchPrecision): number {
+  switch (precision) {
+    case "release_strict":
+      return 0;
+    case "strict":
+      return 1;
+    case "cleaned_release":
+      return 2;
+    case "cleaned":
+      return 3;
+    case "combined_segment":
+      return 4;
+    case "short_segment":
+      return 5;
+  }
 }
 
 function reviewRecordingSearchHasEnoughFacts({

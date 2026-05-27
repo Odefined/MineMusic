@@ -183,6 +183,10 @@ Implemented:
   fallback can try cleaned titles, individual source artists, source release
   labels, and strong title-separator fragments, but it still returns only
   neutral recording facts.
+- Provisional Review v2.1 fallback recording facts are ordered by internal
+  retrieval precision, combined title segments are tried before broad
+  short-segment queries, and broad short-segment facts are capped with a compact
+  `broad_title_fragment_results` warning.
 - Provisional Review v2.1 summary inspect now fetches tracklists for
   MusicBrainz release appearances whose release title exactly matches the
   source release label, stores those facts in the same inspection snapshot, and

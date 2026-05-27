@@ -51,10 +51,7 @@ export function compactReviewInspect(inspection: ProvisionalReviewInspection): u
     ...(inspection.warnings === undefined
       ? {}
       : {
-          warnings: inspection.warnings.map((message) => ({
-            code: "canonical.review_warning",
-            message,
-          })),
+          warnings: inspection.warnings.map(compactReviewWarning),
         }),
   };
 }
@@ -100,6 +97,20 @@ function compactReviewInspectDetail(inspection: ProvisionalReviewInspection): un
             message,
           })),
         }),
+  };
+}
+
+function compactReviewWarning(message: string): { code: string; message: string } {
+  if (message.startsWith("broad_title_fragment_results:")) {
+    return {
+      code: "broad_title_fragment_results",
+      message: message.slice("broad_title_fragment_results:".length).trim(),
+    };
+  }
+
+  return {
+    code: "canonical.review_warning",
+    message,
   };
 }
 
