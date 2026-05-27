@@ -247,6 +247,8 @@ Pending:
 
 - Public `addAlias` method.
 - Standalone admin port for broader activate/reject/merge/list workflows.
+- Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
+  smoke has passed first.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
 
@@ -321,6 +323,10 @@ Pending:
 - Wired the review tools through Stage Core, Stage Interface, MCP schema
   exposure, review-posture instrument gating, Stage Context guidance, and
   Handbook workflow guidance.
+- Added Provisional Review v2.1 corrections from real agent feedback:
+  `providerRef` for direct provider lookup, release-aware but not
+  release-filtered summary recording search, summary-time tracklist snapshots
+  for exact source release-title matches, and snapshot-only detail projection.
 
 ## Verification
 
@@ -341,6 +347,26 @@ Results:
 - `npm test` passes.
 - `git diff --check` passes.
 - `git diff --name-only` was run for the state-sync gate.
+- Real MCP 20-record smoke passed against a temporary runtime at
+  `/tmp/minemusic-v21-regression.WH3vCh`:
+  - server endpoint: `http://127.0.0.1:37373/mcp`.
+  - temporary databases: `canonical.sqlite`, `collection.sqlite`,
+    `library-import.sqlite`, and `provider-cache.sqlite` under that directory.
+  - import command path: `library.import.start` with NetEase
+    `saved_recordings`, `ownerScope: local_profile:regression-v21`, and
+    `sampleLimitPerArea: 20`.
+  - imported count: 20; created provisional canonical recordings: 20; skipped
+    and failed import items: 0.
+  - independent subagent reviewed 20 records using only MCP tools plus
+    Handbook/Stage Context; it reported 11 updates, 9 defers, 0 errors, and 2
+    detail inspect calls covering 1 subject.
+  - default `canonical.review.list` returned no remaining items after the
+    smoke, confirming reviewed-subject suppression for the session.
+  - release/date facts appeared in summary output; `Baboon - This Town Needs
+    Guns` detail returned `Animals` track-position evidence.
+  - residual ergonomics issue: summary is compact enough for this 20-record
+    smoke, but some records still return larger candidate sets, especially
+    `Baboon` and Carissa's Wierd examples.
 
 Evidence boundary:
 
