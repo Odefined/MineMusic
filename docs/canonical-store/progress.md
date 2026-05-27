@@ -46,6 +46,7 @@ Task status:
 - Provisional Review v2.1 Task 6: pending.
 - Provisional Review v3 Task 1: completed for contract and port shape only.
 - Provisional Review v3 Task 2: completed.
+- Provisional Review v3 Task 3: completed.
 
 Implemented:
 
@@ -237,6 +238,14 @@ Implemented:
 - MusicBrainz artist-credit artist aliases are preserved on artist nodes as
   `properties.aliases` when they are already present in recording lookup/search
   payloads. This adds no extra artist lookup.
+- Provisional Review v3 internal recording qualification is implemented as a
+  pure Canonical Maintenance helper. It extracts source recording context from
+  provisional hints, keeps conflicting source hard facts from qualifying,
+  compares MusicBrainz identity recording facts without promoting release
+  tracklist-only recording nodes, and supports title aliases, explicit artist
+  aliases, same-release title/date compatibility, precision-aware dates,
+  one-percent duration checks, optional same-release track-position checks, and
+  multiple-qualified-recording stop reasons.
 
 Implemented public methods:
 
@@ -270,7 +279,7 @@ Pending:
 - Standalone admin port for broader activate/reject/merge/list workflows.
 - Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
   smoke has passed first.
-- Provisional Review v3 Tasks 3-10 from
+- Provisional Review v3 Tasks 4-10 from
   `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
@@ -360,6 +369,10 @@ Pending:
 - Completed Provisional Review v3 Task 2 by preserving MusicBrainz
   artist-credit artist aliases on structured artist nodes without an additional
   artist lookup.
+- Completed Provisional Review v3 Task 3 by adding the internal pure recording
+  qualification helper and behavior coverage for source conflicts, aliases,
+  release/date pairing, date precision, duration, track position, tracklist-only
+  recording nodes, and multiple qualified recordings.
 
 ## Verification
 
