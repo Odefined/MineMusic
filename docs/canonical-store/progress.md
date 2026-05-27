@@ -38,6 +38,7 @@ Task status:
 - Provisional Review v2 Task 6: completed.
 - Provisional Review v2 Task 7: completed.
 - Provisional Review v2.1 Task 1: completed.
+- Provisional Review v2.1 Task 2: completed.
 
 Implemented:
 
@@ -158,8 +159,15 @@ Implemented:
     refreshing expiry or creating a new inspection id.
   - release appearance detail returns compact release tokens and selected
     release facts.
+  - when release appearances are missing from the current snapshot, detail can
+    enrich that same snapshot by querying the selected MusicBrainz recording
+    with `releases`.
   - release track-position detail returns only the selected recording positions
     on requested release tokens, with compact warnings when unavailable.
+  - when requested release track positions are missing from the current
+    snapshot, detail can enrich that same snapshot by querying selected
+    MusicBrainz releases with `tracklist`; apply still uses stored inspection
+    facts and does not fetch Knowledge at write time.
   - Stage Interface maps detail output without exposing full refs or raw
     Knowledge payloads.
 - MusicBrainz Knowledge extraction now preserves recording aliases and
@@ -335,6 +343,6 @@ Evidence boundary:
 
 ## Next Slice
 
-1. Continue Provisional Review v2.1 Task 2 from
+1. Continue Provisional Review v2.1 Task 3 from
    `docs/canonical-store/provisional-review-v2.1-implementation-plan.md`,
-   adding detail release/track enrichment while keeping apply snapshot-only.
+   adding reviewed-subject suppression for long batch review lists.
