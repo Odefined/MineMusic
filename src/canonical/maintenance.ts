@@ -16,7 +16,6 @@ import type {
   Ref,
   Result,
   StageError,
-  StageEvent,
   StageWarning,
 } from "../contracts/index.js";
 import type {
@@ -74,7 +73,7 @@ export function createCanonicalMaintenance({
   const snapshots = new Map<string, ReviewSnapshot>();
 
   return {
-    async reviewList({ sessionId, limit, cursor, excludeReviewed = true }) {
+    async reviewList({ sessionId, limit, cursor, includeCannotConfirm = false }) {
       const posture = await ensureReviewPosture(sessionContext, sessionId);
 
       if (!posture.ok) {
@@ -93,17 +92,17 @@ export function createCanonicalMaintenance({
         return start;
       }
 
-      const reviewedSubjects = excludeReviewed
-        ? await reviewedSubjectRefKeys({ events, sessionId })
-        : ok(new Set<string>());
+      const hiddenCannotConfirmSubjects = includeCannotConfirm
+        ? ok(new Set<string>())
+        : await reviewStateSubjectRefKeys({ storage, outcome: "cannot_confirm" });
 
-      if (!reviewedSubjects.ok) {
-        return reviewedSubjects;
+      if (!hiddenCannotConfirmSubjects.ok) {
+        return hiddenCannotConfirmSubjects;
       }
 
       const matched = records.value
         .filter((record) => record.kind === "recording" && record.status === "provisional")
-        .filter((record) => !reviewedSubjects.value.has(refKey(record.ref)))
+        .filter((record) => !hiddenCannotConfirmSubjects.value.has(refKey(record.ref)))
         .sort((left, right) => refKey(left.ref).localeCompare(refKey(right.ref)));
       const requestedLimit = normalizeLimit(limit);
       const page = matched.slice(start.value, start.value + requestedLimit);
@@ -268,17 +267,17 @@ export function createCanonicalMaintenance({
         return commonGate;
       }
 
-      if (input.action === "defer") {
-        const deferGate = validateDeferDecision(input, commonGate.value.inspection);
+      if (input.action === "cannot_confirm") {
+        const cannotConfirmGate = validateCannotConfirmDecision(input, commonGate.value.inspection);
 
-        if (!deferGate.ok) {
-          return deferGate;
+        if (!cannotConfirmGate.ok) {
+          return cannotConfirmGate;
         }
 
         if (events === undefined) {
           return fail({
             code: "event.record_failed",
-            message: "EventPort is required to record provisional review defer decisions.",
+            message: "EventPort is required to record cannot-confirm identity review decisions.",
             module: "events",
             retryable: false,
           });
@@ -288,7 +287,7 @@ export function createCanonicalMaintenance({
           event: {
             sessionId: input.sessionId,
             actor: "stage",
-            type: "provisional_review.deferred",
+            type: "provisional_review.cannot_confirm_identity",
             target: input.subjectRef,
             payload: {
               subjectRef: input.subjectRef,
@@ -302,10 +301,25 @@ export function createCanonicalMaintenance({
           return recorded;
         }
 
+        const reviewedAt = clock();
+        const reviewState = await storage.putReviewState({
+          subjectRef: input.subjectRef,
+          outcome: "cannot_confirm",
+          reason: input.reason,
+          lastInspectionId: input.inspectionId,
+          lastSessionId: input.sessionId,
+          createdAt: reviewedAt,
+          updatedAt: reviewedAt,
+        });
+
+        if (!reviewState.ok) {
+          return reviewState;
+        }
+
         return ok({
           subjectRef: input.subjectRef,
-          action: "defer",
-          appliedAction: "defer",
+          action: "cannot_confirm",
+          appliedAction: "cannot_confirm",
         });
       }
 
@@ -331,6 +345,10 @@ export function createCanonicalMaintenance({
         module: "canonical",
         retryable: false,
       });
+    },
+
+    async clearReviewState({ subjectRef }) {
+      return storage.deleteReviewState({ subjectRef });
     },
   };
 }
@@ -363,36 +381,20 @@ async function ensureReviewPosture(
   return ok(undefined);
 }
 
-async function reviewedSubjectRefKeys({
-  events,
-  sessionId,
+async function reviewStateSubjectRefKeys({
+  storage,
+  outcome,
 }: {
-  events: EventPort | undefined;
-  sessionId: string;
+  storage: ReturnType<typeof createCanonicalStorage>;
+  outcome: "cannot_confirm";
 }): Promise<Result<Set<string>>> {
-  if (events === undefined) {
-    return ok(new Set());
+  const states = await storage.listReviewStates({ outcome });
+
+  if (!states.ok) {
+    return states;
   }
 
-  const listed = await events.listBySession({ sessionId });
-
-  if (!listed.ok) {
-    return listed;
-  }
-
-  return ok(new Set(
-    listed.value
-      .filter(isReviewProgressEvent)
-      .map((event) => event.target)
-      .filter((ref): ref is Ref => ref !== undefined)
-      .map(refKey),
-  ));
-}
-
-function isReviewProgressEvent(event: StageEvent): boolean {
-  return event.type === "provisional_review.deferred" ||
-    event.type === "canonical.activated" ||
-    event.type === "canonical.merged";
+  return ok(new Set(states.value.map((state) => refKey(state.subjectRef))));
 }
 
 function reviewInspectDetail({
@@ -619,14 +621,14 @@ async function validateApplyCommon({
   return ok(snapshot);
 }
 
-function validateDeferDecision(
-  input: Extract<ProvisionalReviewApplyInput, { action: "defer" }>,
+function validateCannotConfirmDecision(
+  input: Extract<ProvisionalReviewApplyInput, { action: "cannot_confirm" }>,
   _inspection: ProvisionalReviewInspection,
 ): Result<void> {
   if (input.reason.trim().length === 0) {
     return fail({
       code: "canonical.review_invalid",
-      message: "Defer decisions require a non-empty reason.",
+      message: "Cannot-confirm decisions require a non-empty reason.",
       module: "canonical",
       retryable: false,
     });

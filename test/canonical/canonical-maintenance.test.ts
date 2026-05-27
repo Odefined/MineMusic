@@ -1292,22 +1292,22 @@ async function detailInspectReusesSnapshotAndReturnsReleaseContexts(): Promise<v
   );
 }
 
-async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
+async function cannotConfirmRecordsEventStateAndLeavesIdentityUnchanged(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
   const events = createEventService({
     repository: eventRepository,
     clock: () => "2026-05-27T00:00:00.000Z",
-    idFactory: () => "defer-event",
+    idFactory: () => "cannot-confirm-event",
   });
   const store = createCanonicalStore({
     repository,
-    idFactory: () => "defer-subject",
+    idFactory: () => "cannot-confirm-subject",
   });
   const subject = await assertOk(
     store.createProvisional({
       kind: "recording",
-      label: "Deferred Track",
+      label: "Cannot Confirm Track",
       evidence: [sourceRef],
     }),
   );
@@ -1315,7 +1315,7 @@ async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
     repository,
     sessionContext: createSessionContextFor(reviewSession),
     events,
-    idFactory: () => "defer-inspection",
+    idFactory: () => "cannot-confirm-inspection",
     clock: () => "2026-05-27T00:00:00.000Z",
   });
   const inspection = await assertOk(
@@ -1329,21 +1329,23 @@ async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
       sessionId: reviewSession.id,
       inspectionId: inspection.inspectionId,
       subjectRef: subject.ref,
-      action: "defer",
+      action: "cannot_confirm",
       reason: "Inspected MusicBrainz facts are ambiguous.",
     }),
   );
   const loaded = await assertOk(store.get({ ref: subject.ref }));
   const recordedEvents = await assertOk(events.listBySession({ sessionId: reviewSession.id }));
+  const reviewStates = await assertOk(repository.listReviewStates({ subjectRef: subject.ref }));
 
-  assert(applied.appliedAction === "defer", "defer apply should report defer");
-  assert(loaded?.status === "provisional", "defer should leave canonical identity state unchanged");
-  assert(recordedEvents.length === 1, "defer should record exactly one event");
-  assert(recordedEvents[0]?.type === "provisional_review.deferred", "defer event type should be stable");
-  assert(recordedEvents[0]?.target?.id === subject.ref.id, "defer event should target the subject");
+  assert(applied.appliedAction === "cannot_confirm", "cannot_confirm apply should report cannot_confirm");
+  assert(loaded?.status === "provisional", "cannot_confirm should leave canonical identity state unchanged");
+  assert(recordedEvents.length === 1, "cannot_confirm should record exactly one event");
+  assert(recordedEvents[0]?.type === "provisional_review.cannot_confirm_identity", "cannot_confirm event type should be stable");
+  assert(recordedEvents[0]?.target?.id === subject.ref.id, "cannot_confirm event should target the subject");
+  assert(reviewStates[0]?.outcome === "cannot_confirm", "cannot_confirm should write review state");
 }
 
-async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
+async function reviewListSuppressesCannotConfirmSubjectsAcrossSessions(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
   const events = createEventService({
@@ -1357,14 +1359,14 @@ async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
   const store = createCanonicalStore({
     repository,
     idFactory: (() => {
-      const ids = ["batch-reviewed", "batch-fresh"];
+      const ids = ["batch-cannot-confirm", "batch-fresh"];
       return () => ids.shift() ?? "unexpected";
     })(),
   });
-  const reviewed = await assertOk(
+  const cannotConfirm = await assertOk(
     store.createProvisional({
       kind: "recording",
-      label: "Already Reviewed Track",
+      label: "Cannot Confirm Track",
       evidence: [sourceRef],
     }),
   );
@@ -1388,7 +1390,7 @@ async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
   const inspection = await assertOk(
     maintenance.reviewInspect({
       sessionId: reviewSession.id,
-      subjectRef: reviewed.ref,
+      subjectRef: cannotConfirm.ref,
     }),
   );
 
@@ -1396,8 +1398,8 @@ async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
     maintenance.reviewApply({
       sessionId: reviewSession.id,
       inspectionId: inspection.inspectionId,
-      subjectRef: reviewed.ref,
-      action: "defer",
+      subjectRef: cannotConfirm.ref,
+      action: "cannot_confirm",
       reason: "Needs more release evidence.",
     }),
   );
@@ -1410,14 +1412,14 @@ async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
   const optOutList = await assertOk(
     maintenance.reviewList({
       sessionId: reviewSession.id,
-      excludeReviewed: false,
+      includeCannotConfirm: true,
     }),
   );
   const optOutFirstPage = await assertOk(
     maintenance.reviewList({
       sessionId: reviewSession.id,
       limit: 1,
-      excludeReviewed: false,
+      includeCannotConfirm: true,
     }),
   );
   assert(optOutFirstPage.nextCursor !== undefined, "first opt-out page should return a cursor");
@@ -1426,7 +1428,7 @@ async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
       sessionId: reviewSession.id,
       limit: 1,
       cursor: optOutFirstPage.nextCursor,
-      excludeReviewed: false,
+      includeCannotConfirm: true,
     }),
   );
   const otherSessionMaintenance = createCanonicalMaintenance({
@@ -1439,16 +1441,16 @@ async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
       sessionId: otherSession.id,
     }),
   );
-  const loadedReviewed = await assertOk(store.get({ ref: reviewed.ref }));
+  const loadedCannotConfirm = await assertOk(store.get({ ref: cannotConfirm.ref }));
 
   assert(
     defaultList.items.length === 1 && defaultList.items[0]?.subjectRef.id === fresh.ref.id,
-    "default review list should suppress subjects already reviewed in the same session",
+    "default review list should suppress cannot-confirm subjects",
   );
   assert(
-    optOutList.items.some((item) => item.subjectRef.id === reviewed.ref.id) &&
+    optOutList.items.some((item) => item.subjectRef.id === cannotConfirm.ref.id) &&
       optOutList.items.some((item) => item.subjectRef.id === fresh.ref.id),
-    "callers should be able to opt out of reviewed-subject suppression",
+    "callers should be able to opt in to cannot-confirm subjects",
   );
   assert(
     optOutFirstPage.items.length === 1 &&
@@ -1457,23 +1459,39 @@ async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
     "cursor pagination should remain valid when callers opt out of reviewed-subject suppression",
   );
   assert(
-    otherSessionList.items.some((item) => item.subjectRef.id === reviewed.ref.id),
-    "review suppression should not hide deferred subjects from a different session",
+    !otherSessionList.items.some((item) => item.subjectRef.id === cannotConfirm.ref.id),
+    "review suppression should hide cannot-confirm subjects across sessions by default",
   );
-  assert(loadedReviewed?.status === "provisional", "deferred subjects should remain provisional");
+  assert(loadedCannotConfirm?.status === "provisional", "cannot-confirm subjects should remain provisional");
+
+  await assertOk(maintenance.clearReviewState({
+    subjectRef: cannotConfirm.ref,
+    reason: "Source evidence changed.",
+  }));
+
+  const reopenedList = await assertOk(
+    otherSessionMaintenance.reviewList({
+      sessionId: otherSession.id,
+    }),
+  );
+
+  assert(
+    reopenedList.items.some((item) => item.subjectRef.id === cannotConfirm.ref.id),
+    "clearing review state should make cannot-confirm subjects reviewable again",
+  );
 }
 
-async function deferRejectsEmptyReason(): Promise<void> {
+async function cannotConfirmRejectsEmptyReason(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const events = createEventService({ repository: createInMemoryEventRepository() });
   const store = createCanonicalStore({
     repository,
-    idFactory: () => "invalid-defer-subject",
+    idFactory: () => "invalid-cannot-confirm-subject",
   });
   const subject = await assertOk(
     store.createProvisional({
       kind: "recording",
-      label: "Invalid Deferred Track",
+      label: "Invalid Cannot Confirm Track",
       evidence: [sourceRef],
     }),
   );
@@ -1481,7 +1499,7 @@ async function deferRejectsEmptyReason(): Promise<void> {
     repository,
     sessionContext: createSessionContextFor(reviewSession),
     events,
-    idFactory: () => "invalid-defer-inspection",
+    idFactory: () => "invalid-cannot-confirm-inspection",
     clock: () => "2026-05-27T00:00:00.000Z",
   });
   const inspection = await assertOk(
@@ -1494,12 +1512,12 @@ async function deferRejectsEmptyReason(): Promise<void> {
     sessionId: reviewSession.id,
     inspectionId: inspection.inspectionId,
     subjectRef: subject.ref,
-    action: "defer",
+    action: "cannot_confirm",
     reason: " ",
   });
 
-  assert(!emptyReason.ok, "defer should reject empty reason");
-  assert(emptyReason.error.code === "canonical.review_invalid", "empty defer reason should use review error");
+  assert(!emptyReason.ok, "cannot_confirm should reject empty reason");
+  assert(emptyReason.error.code === "canonical.review_invalid", "empty cannot_confirm reason should use review error");
 }
 
 async function applyRejectsStaleAndExpiredInspections(): Promise<void> {
@@ -1540,7 +1558,7 @@ async function applyRejectsStaleAndExpiredInspections(): Promise<void> {
     sessionId: reviewSession.id,
     inspectionId: oldInspection.inspectionId,
     subjectRef: subject.ref,
-    action: "defer",
+    action: "cannot_confirm",
     reason: "Use old inspection.",
   });
 
@@ -1578,7 +1596,7 @@ async function applyRejectsStaleAndExpiredInspections(): Promise<void> {
     sessionId: reviewSession.id,
     inspectionId: expiredInspection.inspectionId,
     subjectRef: expiredSubject.ref,
-    action: "defer",
+    action: "cannot_confirm",
     reason: "Expired inspection.",
   });
 
@@ -2126,9 +2144,9 @@ await summaryInspectFallsBackToStrongTitleSegments();
 await summaryInspectCapsBroadShortSegmentResults();
 await summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot();
 await detailInspectReusesSnapshotAndReturnsReleaseContexts();
-await deferRecordsEventAndLeavesIdentityUnchanged();
-await reviewListSuppressesReviewedSubjectsPerSession();
-await deferRejectsEmptyReason();
+await cannotConfirmRecordsEventStateAndLeavesIdentityUnchanged();
+await reviewListSuppressesCannotConfirmSubjectsAcrossSessions();
+await cannotConfirmRejectsEmptyReason();
 await applyRejectsStaleAndExpiredInspections();
 await updateGateRejectsUnsupportedOrUngroundedDecisions();
 await updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef();

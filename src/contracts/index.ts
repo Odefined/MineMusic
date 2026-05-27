@@ -298,7 +298,7 @@ export type ProvisionalReviewListInput = {
   sessionId: string;
   limit?: number;
   cursor?: string;
-  excludeReviewed?: boolean;
+  includeCannotConfirm?: boolean;
 };
 
 export type ProvisionalReviewListItem = {
@@ -403,7 +403,7 @@ export type ProvisionalReviewApplyInput =
       sessionId: string;
       inspectionId: string;
       subjectRef: Ref;
-      action: "defer";
+      action: "cannot_confirm";
       reason: string;
     };
 
@@ -418,9 +418,23 @@ export type ProvisionalReviewApplyOutput =
     }
   | {
       subjectRef: Ref;
-      action: "defer";
-      appliedAction: "defer";
+      action: "cannot_confirm";
+      appliedAction: "cannot_confirm";
     };
+
+export type CanonicalReviewStateOutcome =
+  | "cannot_confirm"
+  | "updated";
+
+export type CanonicalReviewState = {
+  subjectRef: Ref;
+  outcome: CanonicalReviewStateOutcome;
+  reason: string;
+  lastInspectionId?: string;
+  lastSessionId: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type CollectionKind =
   | "recording"

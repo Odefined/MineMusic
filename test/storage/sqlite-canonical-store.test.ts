@@ -146,6 +146,9 @@ async function mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary(): Promis
       listRelations: (input) => sqliteRepository.listRelations(input),
       putProvisionalHint: (input) => sqliteRepository.putProvisionalHint(input),
       listProvisionalHints: (input) => sqliteRepository.listProvisionalHints(input),
+      putReviewState: (input) => sqliteRepository.putReviewState(input),
+      listReviewStates: (input) => sqliteRepository.listReviewStates(input),
+      deleteReviewState: (input) => sqliteRepository.deleteReviewState(input),
       async list(query) {
         const records = await sqliteRepository.list(query);
 
@@ -219,6 +222,9 @@ async function usesIndexedSourceRefLookupWithoutFullRepositoryList(): Promise<vo
       listRelations: (input) => sqliteRepository.listRelations(input),
       putProvisionalHint: (input) => sqliteRepository.putProvisionalHint(input),
       listProvisionalHints: (input) => sqliteRepository.listProvisionalHints(input),
+      putReviewState: (input) => sqliteRepository.putReviewState(input),
+      listReviewStates: (input) => sqliteRepository.listReviewStates(input),
+      deleteReviewState: (input) => sqliteRepository.deleteReviewState(input),
       async list() {
         throw new Error("source-ref lookups should use the SQLite source-ref index");
       },
@@ -626,6 +632,47 @@ async function persistsCanonicalProvisionalHintsAcrossRepositoryReopen(): Promis
   }
 }
 
+async function persistsCanonicalReviewStateAcrossRepositoryReopen(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-review-state-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const subjectRef: Ref = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "review-state-subject",
+  };
+
+  try {
+    const repository = createSqliteCanonicalRecordRepository({ path: databasePath });
+    await assertOk(
+      repository.putReviewState({
+        state: {
+          subjectRef,
+          outcome: "cannot_confirm",
+          reason: "Inspected facts are ambiguous.",
+          lastInspectionId: "inspection-1",
+          lastSessionId: "session-1",
+          createdAt: "2026-05-28T00:00:00.000Z",
+          updatedAt: "2026-05-28T00:00:00.000Z",
+        },
+      }),
+    );
+
+    const reopened = createSqliteCanonicalRecordRepository({ path: databasePath });
+    const states = await assertOk(reopened.listReviewStates({ outcome: "cannot_confirm" }));
+
+    assert(states.length === 1, "reopened canonical repository should load review state");
+    assert(states[0]?.subjectRef.id === subjectRef.id, "review state should keep subject identity");
+    assert(states[0]?.lastInspectionId === "inspection-1", "review state should keep inspection id");
+
+    await assertOk(reopened.deleteReviewState({ subjectRef }));
+    const cleared = await assertOk(reopened.listReviewStates({ subjectRef }));
+
+    assert(cleared.length === 0, "review state should be deletable by subject");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function persistsMergedRedirectsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-redirect-"));
   const databasePath = join(directory, "canonical.sqlite");
@@ -681,6 +728,7 @@ await persistsCanonicalRelationsAcrossRepositoryReopen();
 await persistsFactsAndProviderIdentitiesAcrossRepositoryReopen();
 await changesetDeletesOnlyRequestedRelations();
 await persistsCanonicalProvisionalHintsAcrossRepositoryReopen();
+await persistsCanonicalReviewStateAcrossRepositoryReopen();
 await persistsMergedRedirectsAcrossRepositoryReopen();
 
 function assertUnreachable(message = "SQLite repository should expose indexed source-ref lookup"): never {

@@ -117,7 +117,7 @@ async function readsCanonicalReviewGuidanceInReviewPosture(): Promise<void> {
   );
   assert(
     guidanceText.includes("small pages") &&
-      guidanceText.includes("excludeReviewed") &&
+      guidanceText.includes("includeCannotConfirm") &&
       guidanceText.includes("latest inspectionId") &&
       guidanceText.includes("recordingRefToken") &&
       guidanceText.includes("releaseRefTokens"),

@@ -2,6 +2,7 @@ import type {
   CanonicalRecord,
   CanonicalProvisionalHint,
   CanonicalRelation,
+  CanonicalReviewState,
   Ref,
   Result,
   StageError,
@@ -13,6 +14,7 @@ import type {
   CanonicalRecordRepositoryFindByProviderIdentityInput,
   CanonicalProvisionalHintListInput,
   CanonicalRelationListInput,
+  CanonicalReviewStateListInput,
 } from "../ports/index.js";
 import {
   isCurrentCanonicalRecord,
@@ -51,6 +53,9 @@ export type CanonicalStorage = {
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
   putProvisionalHint(hint: CanonicalProvisionalHint): Promise<Result<CanonicalProvisionalHint>>;
   listProvisionalHints(input: CanonicalProvisionalHintListInput): Promise<Result<CanonicalProvisionalHint[]>>;
+  putReviewState(state: CanonicalReviewState): Promise<Result<CanonicalReviewState>>;
+  listReviewStates(input: CanonicalReviewStateListInput): Promise<Result<CanonicalReviewState[]>>;
+  deleteReviewState(input: { subjectRef: Ref }): Promise<Result<void>>;
   findSourceRefConflict(input: {
     canonicalRef: Ref;
     sourceRef: Ref;
@@ -256,6 +261,18 @@ export function createCanonicalStorage({
 
     async listProvisionalHints(input) {
       return repository.listProvisionalHints(input);
+    },
+
+    async putReviewState(state) {
+      return repository.putReviewState({ state });
+    },
+
+    async listReviewStates(input) {
+      return repository.listReviewStates(input);
+    },
+
+    async deleteReviewState(input) {
+      return repository.deleteReviewState(input);
     },
   };
 }

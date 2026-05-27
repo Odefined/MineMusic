@@ -162,7 +162,7 @@ async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
   );
   assert(
     handbook.content.includes("small pages") &&
-      handbook.content.includes("excludeReviewed") &&
+      handbook.content.includes("includeCannotConfirm") &&
       handbook.content.includes("latest `inspectionId`") &&
       handbook.content.includes("recordingRefToken") &&
       handbook.content.includes("releaseRefTokens"),
@@ -1124,8 +1124,8 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     posture: "canonical_review",
   };
   const canonicalMaintenance: CanonicalMaintenancePort = {
-    reviewList: async ({ sessionId, limit, excludeReviewed }) => {
-      calls.push(`list:${sessionId}:${limit ?? "none"}:${String(excludeReviewed)}`);
+    reviewList: async ({ sessionId, limit, includeCannotConfirm }) => {
+      calls.push(`list:${sessionId}:${limit ?? "none"}:${String(includeCannotConfirm)}`);
       return {
         ok: true,
         value: {
@@ -1275,11 +1275,12 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         ok: true,
         value: {
           subjectRef,
-          action: "defer",
-          appliedAction: "defer",
+          action: "cannot_confirm",
+          appliedAction: "cannot_confirm",
         },
       };
     },
+    clearReviewState: async () => ({ ok: true, value: undefined }),
   };
   const dispatch = createToolDispatch({
     sessionContext: {
@@ -1318,7 +1319,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     dispatch.call({
       sessionId: reviewSession.id,
       toolName: "canonical.review.list",
-      payload: { sessionId: "spoofed-session", limit: 2, excludeReviewed: false },
+      payload: { sessionId: "spoofed-session", limit: 2, includeCannotConfirm: true },
     }),
   );
   const inspected = await assertOk(
@@ -1350,7 +1351,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         sessionId: "spoofed-session",
         inspectionId: "inspection-1",
         subjectId: collectionRef.id,
-        action: "defer",
+        action: "cannot_confirm",
         reason: "Not enough facts.",
       },
     }),
@@ -1410,7 +1411,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
   );
   assert(
     (applied as { subjectId?: string; appliedAction?: string }).subjectId === collectionRef.id &&
-      (applied as { appliedAction?: string }).appliedAction === "defer",
+      (applied as { appliedAction?: string }).appliedAction === "cannot_confirm",
     "review apply should return compact apply output",
   );
   assert(
@@ -1435,9 +1436,9 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     "detail inspect should not expose full release refs",
   );
 
-  assert(calls.includes(`list:${reviewSession.id}:2:false`), "review list should receive current dispatch session id and list progress option");
+  assert(calls.includes(`list:${reviewSession.id}:2:true`), "review list should receive current dispatch session id and list progress option");
   assert(calls.includes(`inspect:${reviewSession.id}:${collectionRef.id}`), "review inspect should receive current dispatch session id");
-  assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:defer`), "review apply should receive current dispatch session id");
+  assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:cannot_confirm`), "review apply should receive current dispatch session id");
   assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:update`), "review update apply should receive current dispatch session id");
 }
 

@@ -7,6 +7,8 @@ import type {
   CanonicalProvisionalHintFacts,
   CanonicalProvisionalHintKind,
   CanonicalRelation,
+  CanonicalReviewState,
+  CanonicalReviewStateOutcome,
   ProvisionalReviewAnchor,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
@@ -100,6 +102,7 @@ import type {
   CanonicalRecordRepositoryCommitChangesOutput,
   CanonicalRecordRepositoryFindByProviderIdentityInput,
   CanonicalProvisionalHintListInput,
+  CanonicalReviewStateListInput,
   CanonicalMaintenancePort,
   CanonicalStorePort,
   CollectionPort,
@@ -596,8 +599,8 @@ type _provisionalReviewListOutputShape = Expect<
     Equal<ProvisionalReviewListOutput["items"][number]["kind"], "recording">
 >;
 
-type _provisionalReviewApplyInputIsUpdateOrDefer = Expect<
-  Equal<ProvisionalReviewApplyInput["action"], "update" | "defer"> &
+type _provisionalReviewApplyInputIsUpdateOrCannotConfirm = Expect<
+  Equal<ProvisionalReviewApplyInput["action"], "update" | "cannot_confirm"> &
     Equal<
       keyof Extract<ProvisionalReviewApplyInput, { action: "update" }>,
       | "sessionId"
@@ -612,7 +615,7 @@ type _provisionalReviewApplyInputIsUpdateOrDefer = Expect<
       ProvisionalReviewRefToken
     > &
     Equal<
-      keyof Extract<ProvisionalReviewApplyInput, { action: "defer" }>,
+      keyof Extract<ProvisionalReviewApplyInput, { action: "cannot_confirm" }>,
       | "sessionId"
       | "inspectionId"
       | "subjectRef"
@@ -622,7 +625,7 @@ type _provisionalReviewApplyInputIsUpdateOrDefer = Expect<
 >;
 
 type _provisionalReviewApplyOutputIsDerivedEffect = Expect<
-  Equal<ProvisionalReviewApplyOutput["action"], "update" | "defer"> &
+  Equal<ProvisionalReviewApplyOutput["action"], "update" | "cannot_confirm"> &
     Equal<
       Extract<ProvisionalReviewApplyOutput, { action: "update" }>["appliedAction"],
       "activate" | "merge"
@@ -636,9 +639,24 @@ type _provisionalReviewApplyOutputIsDerivedEffect = Expect<
       Ref
     > &
     Equal<
-      Extract<ProvisionalReviewApplyOutput, { action: "defer" }>["appliedAction"],
-      "defer"
+      Extract<ProvisionalReviewApplyOutput, { action: "cannot_confirm" }>["appliedAction"],
+      "cannot_confirm"
     >
+>;
+
+type _canonicalReviewStateShape = Expect<
+  Equal<CanonicalReviewStateOutcome, "cannot_confirm" | "updated"> &
+    Equal<
+      keyof CanonicalReviewState,
+      | "subjectRef"
+      | "outcome"
+      | "reason"
+      | "lastInspectionId"
+      | "lastSessionId"
+      | "createdAt"
+      | "updatedAt"
+    > &
+    Equal<CanonicalReviewStateListInput["outcome"], CanonicalReviewStateOutcome | undefined>
 >;
 
 type _libraryImportScopesMatchFirstSlice = Expect<
@@ -935,13 +953,14 @@ type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
 >;
 
 type _canonicalMaintenancePortMethods = Expect<
-  Equal<keyof CanonicalMaintenancePort, "reviewList" | "reviewInspect" | "reviewApply">
+  Equal<keyof CanonicalMaintenancePort, "reviewList" | "reviewInspect" | "reviewApply" | "clearReviewState">
 >;
 
 type _canonicalMaintenancePortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewList"> &
     MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewInspect"> &
-    MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewApply">
+    MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewApply"> &
+    MethodAcceptsSingleObject<CanonicalMaintenancePort, "clearReviewState">
 >;
 
 type _canonicalRecordRepositoryMethods = Expect<
@@ -955,6 +974,9 @@ type _canonicalRecordRepositoryMethods = Expect<
     | "listRelations"
     | "putProvisionalHint"
     | "listProvisionalHints"
+    | "putReviewState"
+    | "listReviewStates"
+    | "deleteReviewState"
   >
 >;
 
@@ -964,7 +986,10 @@ type _canonicalRecordRepositoryMethodsUseSingleObjectInputs = Expect<
     OptionalMethodAcceptsSingleObject<CanonicalRecordRepository, "commitChanges"> &
     MethodAcceptsSingleObject<CanonicalRecordRepository, "listRelations"> &
     MethodAcceptsSingleObject<CanonicalRecordRepository, "putProvisionalHint"> &
-    MethodAcceptsSingleObject<CanonicalRecordRepository, "listProvisionalHints">
+    MethodAcceptsSingleObject<CanonicalRecordRepository, "listProvisionalHints"> &
+    MethodAcceptsSingleObject<CanonicalRecordRepository, "putReviewState"> &
+    MethodAcceptsSingleObject<CanonicalRecordRepository, "listReviewStates"> &
+    MethodAcceptsSingleObject<CanonicalRecordRepository, "deleteReviewState">
 >;
 
 type _collectionRepositoryMethods = Expect<
@@ -1443,13 +1468,13 @@ const canonicalMaintenance: CanonicalMaintenancePort = {
     },
   }),
   reviewApply: async ({ action, subjectRef }) => (
-    action === "defer"
+    action === "cannot_confirm"
       ? {
           ok: true,
           value: {
             subjectRef,
             action,
-            appliedAction: "defer",
+            appliedAction: "cannot_confirm",
           },
         }
       : {
@@ -1463,6 +1488,7 @@ const canonicalMaintenance: CanonicalMaintenancePort = {
           },
         }
   ),
+  clearReviewState: async () => ({ ok: true, value: undefined }),
 };
 
 const collectionPort: CollectionPort = {
@@ -1552,6 +1578,9 @@ const canonicalRecords: CanonicalRecordRepository = {
   listRelations: async () => ({ ok: true, value: [] }),
   putProvisionalHint: async ({ hint }) => ({ ok: true, value: hint }),
   listProvisionalHints: async () => ({ ok: true, value: [canonicalProvisionalHint] }),
+  putReviewState: async ({ state }) => ({ ok: true, value: state }),
+  listReviewStates: async () => ({ ok: true, value: [] }),
+  deleteReviewState: async () => ({ ok: true, value: undefined }),
 };
 
 const collectionRepository: CollectionRepository = {

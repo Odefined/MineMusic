@@ -9,6 +9,8 @@ import type {
   CanonicalRelationDraft,
   CanonicalRelationPredicate,
   CanonicalRelationStatus,
+  CanonicalReviewState,
+  CanonicalReviewStateOutcome,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
   ProvisionalReviewInspection,
@@ -155,6 +157,11 @@ export type CanonicalProvisionalHintListInput = {
   kind?: CanonicalProvisionalHintKind;
 };
 
+export type CanonicalReviewStateListInput = {
+  subjectRef?: Ref;
+  outcome?: CanonicalReviewStateOutcome;
+};
+
 export type ProviderHttpCacheListInput = {
   providerId?: string;
   limit?: number;
@@ -269,6 +276,8 @@ export interface CanonicalMaintenancePort {
   reviewInspect(input: ProvisionalReviewInspectInput): Promise<Result<ProvisionalReviewInspection>>;
 
   reviewApply(input: ProvisionalReviewApplyInput): Promise<Result<ProvisionalReviewApplyOutput>>;
+
+  clearReviewState(input: { subjectRef: Ref; reason: string }): Promise<Result<void>>;
 }
 
 export interface CollectionPort {
@@ -545,6 +554,12 @@ export interface CanonicalRecordRepository extends Repository<CanonicalRecord, R
   listProvisionalHints(
     input: CanonicalProvisionalHintListInput,
   ): Promise<Result<CanonicalProvisionalHint[]>>;
+
+  putReviewState(input: { state: CanonicalReviewState }): Promise<Result<CanonicalReviewState>>;
+
+  listReviewStates(input: CanonicalReviewStateListInput): Promise<Result<CanonicalReviewState[]>>;
+
+  deleteReviewState(input: { subjectRef: Ref }): Promise<Result<void>>;
 }
 export type EventRepository = Repository<StageEvent, string>;
 export type MemoryRepository = Repository<MemoryEntry, string>;

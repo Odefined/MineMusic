@@ -220,7 +220,7 @@ export const stageInterfaceToolInputSchemas = {
   "canonical.review.list": {
     limit: z.number().int().positive().optional(),
     cursor: z.string().optional(),
-    excludeReviewed: z.boolean().optional(),
+    includeCannotConfirm: z.boolean().optional(),
   },
   "canonical.review.inspect": {
     subjectId: z.string(),
@@ -233,7 +233,7 @@ export const stageInterfaceToolInputSchemas = {
   "canonical.review.apply": {
     inspectionId: z.string(),
     subjectId: z.string(),
-    action: z.enum(["update", "defer"]),
+    action: z.enum(["update", "cannot_confirm"]),
     selectedProviderRefToken: reviewRefTokenSchema.optional(),
     reason: z.string(),
   },

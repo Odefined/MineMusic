@@ -200,6 +200,37 @@ async function canonicalRepositoryCommitsProviderIdentityChangesets(): Promise<v
   assert(relations.length === 0, "changeset should delete requested relation ids");
 }
 
+async function canonicalRepositoryStoresReviewState(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const subjectRef: Ref = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "review-state-subject",
+  };
+
+  await assertOk(
+    repository.putReviewState({
+      state: {
+        subjectRef,
+        outcome: "cannot_confirm",
+        reason: "Inspected facts are ambiguous.",
+        lastInspectionId: "inspection-1",
+        lastSessionId: "session-1",
+        createdAt: "2026-05-28T00:00:00.000Z",
+        updatedAt: "2026-05-28T00:00:00.000Z",
+      },
+    }),
+  );
+
+  const states = await assertOk(repository.listReviewStates({ outcome: "cannot_confirm" }));
+  assert(states.length === 1 && states[0]?.subjectRef.id === subjectRef.id, "review state should be queryable by outcome");
+
+  await assertOk(repository.deleteReviewState({ subjectRef }));
+  const cleared = await assertOk(repository.listReviewStates({ subjectRef }));
+
+  assert(cleared.length === 0, "review state should be deletable by subject");
+}
+
 async function collectionRepositoryStoresCollectionsByIdAndReturnsCopies(): Promise<void> {
   const collection: Collection = {
     id: "collection-1",
@@ -475,6 +506,7 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
 await storesEachRepositoryType();
 await repositoriesAreInstanceIsolatedAndReturnCopies();
 await canonicalRepositoryCommitsProviderIdentityChangesets();
+await canonicalRepositoryStoresReviewState();
 await collectionRepositoryStoresCollectionsByIdAndReturnsCopies();
 await collectionRepositoryQueriesCollectionsAndActiveLabels();
 await collectionRepositoryRejectsDuplicateActiveLabelsWithinOwnerScope();

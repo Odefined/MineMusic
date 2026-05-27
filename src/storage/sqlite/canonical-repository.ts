@@ -9,6 +9,7 @@ import type {
   CanonicalProvisionalHintFacts,
   CanonicalRelation,
   CanonicalRelationValue,
+  CanonicalReviewState,
   Ref,
   Result,
   StageError,
@@ -73,6 +74,18 @@ type ProvisionalHintRow = {
   provider_id: string | null;
   batch_id: string | null;
   facts_json: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type ReviewStateRow = {
+  subject_namespace: string;
+  subject_kind: string;
+  subject_id: string;
+  outcome: CanonicalReviewState["outcome"];
+  reason: string;
+  last_inspection_id: string | null;
+  last_session_id: string;
   created_at: string;
   updated_at: string;
 };
@@ -382,6 +395,75 @@ export function createSqliteCanonicalRecordRepository({
           .map((hint) => structuredClone(hint));
       });
     },
+
+    async putReviewState({ state }) {
+      return readResult(() => {
+        database
+          .prepare(`
+            INSERT INTO canonical_recording_identity_review_state (
+              subject_namespace,
+              subject_kind,
+              subject_id,
+              outcome,
+              reason,
+              last_inspection_id,
+              last_session_id,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(subject_namespace, subject_kind, subject_id) DO UPDATE SET
+              outcome = excluded.outcome,
+              reason = excluded.reason,
+              last_inspection_id = excluded.last_inspection_id,
+              last_session_id = excluded.last_session_id,
+              updated_at = excluded.updated_at
+          `)
+          .run(
+            state.subjectRef.namespace,
+            state.subjectRef.kind,
+            state.subjectRef.id,
+            state.outcome,
+            state.reason,
+            state.lastInspectionId ?? null,
+            state.lastSessionId,
+            state.createdAt,
+            state.updatedAt,
+          );
+
+        return readReviewState(database, state.subjectRef) ?? structuredClone(state);
+      });
+    },
+
+    async listReviewStates(query) {
+      return readResult(() => {
+        const rows = database
+          .prepare(`
+            SELECT *
+            FROM canonical_recording_identity_review_state
+            ORDER BY updated_at, subject_namespace, subject_kind, subject_id
+          `)
+          .all() as ReviewStateRow[];
+
+        return rows
+          .map(toCanonicalReviewState)
+          .filter((state) => matchesReviewStateQuery(state, query))
+          .map((state) => structuredClone(state));
+      });
+    },
+
+    async deleteReviewState({ subjectRef }) {
+      return readResult(() => {
+        database
+          .prepare(`
+            DELETE FROM canonical_recording_identity_review_state
+            WHERE subject_namespace = ? AND subject_kind = ? AND subject_id = ?
+          `)
+          .run(subjectRef.namespace, subjectRef.kind, subjectRef.id);
+
+        return undefined;
+      });
+    },
   };
 }
 
@@ -658,6 +740,37 @@ function toCanonicalProvisionalHint(row: ProvisionalHintRow): CanonicalProvision
   return hint;
 }
 
+function readReviewState(
+  database: DatabaseSync,
+  subjectRef: Ref,
+): CanonicalReviewState | null {
+  const row = database
+    .prepare(`
+      SELECT *
+      FROM canonical_recording_identity_review_state
+      WHERE subject_namespace = ? AND subject_kind = ? AND subject_id = ?
+    `)
+    .get(subjectRef.namespace, subjectRef.kind, subjectRef.id) as ReviewStateRow | undefined;
+
+  return row === undefined ? null : toCanonicalReviewState(row);
+}
+
+function toCanonicalReviewState(row: ReviewStateRow): CanonicalReviewState {
+  return {
+    subjectRef: {
+      namespace: row.subject_namespace,
+      kind: row.subject_kind,
+      id: row.subject_id,
+    },
+    outcome: row.outcome,
+    reason: row.reason,
+    ...(row.last_inspection_id === null ? {} : { lastInspectionId: row.last_inspection_id }),
+    lastSessionId: row.last_session_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function matchesRelationQuery(
   relation: CanonicalRelation,
   query: Parameters<CanonicalRecordRepository["listRelations"]>[0],
@@ -678,6 +791,16 @@ function matchesProvisionalHintQuery(
     (query.subjectRef === undefined || sameRef(hint.subjectRef, query.subjectRef)) &&
     (query.sourceRef === undefined || sameRef(hint.sourceRef, query.sourceRef)) &&
     (query.kind === undefined || hint.kind === query.kind)
+  );
+}
+
+function matchesReviewStateQuery(
+  state: CanonicalReviewState,
+  query: Parameters<CanonicalRecordRepository["listReviewStates"]>[0],
+): boolean {
+  return (
+    (query.subjectRef === undefined || sameRef(state.subjectRef, query.subjectRef)) &&
+    (query.outcome === undefined || state.outcome === query.outcome)
   );
 }
 

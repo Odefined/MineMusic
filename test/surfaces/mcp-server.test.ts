@@ -188,8 +188,8 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "library import status schema should declare batch id input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.canonical.review.list"), "excludeReviewed"),
-    "canonical review list schema should declare reviewed-subject suppression input",
+    hasSchemaKey(schemasByName.get("minemusic.canonical.review.list"), "includeCannotConfirm"),
+    "canonical review list schema should declare cannot-confirm opt-in input",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "subjectId"),

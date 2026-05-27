@@ -99,12 +99,12 @@ export function createSessionContext({
 function canonicalReviewGuidance(): string[] {
   return [
     "Provisional Review v2 supports provisional recordings.",
-    "For batch review, call canonical.review.list with small pages and no cursor until no items remain; the default excludes subjects already reviewed in this session, and excludeReviewed false opts out.",
+    "For batch review, call canonical.review.list with small pages and no cursor until no items remain; the default excludes cannot-confirm review-state subjects, and includeCannotConfirm true opts in.",
     "Use summary inspect by default; detail requires the latest inspectionId plus a recordingRefToken from summary.",
     "Use releaseAppearances detail to get release tokens, then request releaseTrackPositions with releaseRefTokens only for relevant releases.",
     "Inspect returns compact facts for judgment, not action recommendations or merge targets.",
-    "Apply update with one selectedProviderRefToken and a short reason, or apply defer with a short reason.",
-    "Choose defer when inspected facts are incomplete, ambiguous, or contradictory.",
+    "Apply update with one selectedProviderRefToken and a short reason, or apply cannot_confirm with a short reason.",
+    "Choose cannot_confirm when inspected facts are incomplete, ambiguous, or contradictory.",
     "Apply derives activate or merge from current Canonical Store state; the agent must not choose activate, merge, or a merge target.",
     "Do not ask for raw/full inspection output; use detail views only when compact summary facts are insufficient.",
   ];

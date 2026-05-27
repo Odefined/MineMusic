@@ -124,8 +124,8 @@ function renderInstrumentGuidance(instrument: InstrumentDescriptor): string[] {
   }
 
   return [
-    "Sequence: enter `canonical_review` posture, read `stage.context.read`, list provisional recordings with small pages and no cursor until no items remain, use summary inspect by default, request detail only for release appearances or selected release track positions, then apply `update` with `selectedProviderRefToken` and a short reason or `defer` with a short reason.",
-    "List defaults to reviewed-subject suppression for the current session; pass `excludeReviewed: false` only when you need explicit cursor pagination over all provisional recordings.",
+    "Sequence: enter `canonical_review` posture, read `stage.context.read`, list provisional recordings with small pages and no cursor until no items remain, use summary inspect by default, request detail only for release appearances or selected release track positions, then apply `update` with `selectedProviderRefToken` and a short reason or `cannot_confirm` with a short reason.",
+    "List defaults to hiding cannot-confirm review-state subjects; pass `includeCannotConfirm: true` only when you need to inspect those records explicitly.",
     "Detail requires the latest `inspectionId` plus a selected `recordingRefToken`. `releaseAppearances` returns release tokens; `releaseTrackPositions` requires `releaseRefTokens` from that current inspection.",
     "Inspect returns compact facts, not recommendations. Do not request raw/full inspection output.",
     "",

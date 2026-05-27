@@ -128,6 +128,23 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
 
     CREATE INDEX IF NOT EXISTS canonical_provisional_hints_source_idx
       ON canonical_provisional_hints(source_namespace, source_kind, source_id);
+
+    CREATE TABLE IF NOT EXISTS canonical_recording_identity_review_state (
+      subject_namespace TEXT NOT NULL,
+      subject_kind TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      last_inspection_id TEXT,
+      last_session_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (subject_namespace, subject_kind, subject_id),
+      CHECK (outcome IN ('cannot_confirm', 'updated'))
+    );
+
+    CREATE INDEX IF NOT EXISTS canonical_recording_identity_review_state_outcome_idx
+      ON canonical_recording_identity_review_state(outcome, updated_at);
   `);
 }
 

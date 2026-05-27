@@ -3,6 +3,7 @@ import type {
   CanonicalProviderIdentity,
   CanonicalProvisionalHint,
   CanonicalRelation,
+  CanonicalReviewState,
   Collection,
   CollectionItem,
   EffectProposal,
@@ -84,6 +85,7 @@ export function createInMemoryCanonicalRecordRepository(): CanonicalRecordReposi
   const providerIdentities = new Map<string, CanonicalProviderIdentity>();
   const relations = new Map<string, CanonicalRelation>();
   const provisionalHints = new Map<string, CanonicalProvisionalHint>();
+  const reviewStates = new Map<string, CanonicalReviewState>();
 
   return {
     async get(ref) {
@@ -193,6 +195,35 @@ export function createInMemoryCanonicalRecordRepository(): CanonicalRecordReposi
           .filter((hint) => matchesCanonicalProvisionalHintQuery(hint, query))
           .map((hint) => cloneRecord(hint)),
       );
+    },
+
+    async putReviewState({ state }) {
+      const key = refToStorageKey(state.subjectRef);
+      const existing = reviewStates.get(key);
+      const stored = existing === undefined
+        ? state
+        : {
+            ...state,
+            createdAt: existing.createdAt,
+          };
+
+      reviewStates.set(key, cloneRecord(stored));
+
+      return ok(cloneRecord(stored));
+    },
+
+    async listReviewStates(query) {
+      return ok(
+        [...reviewStates.values()]
+          .filter((state) => matchesCanonicalReviewStateQuery(state, query))
+          .map((state) => cloneRecord(state)),
+      );
+    },
+
+    async deleteReviewState({ subjectRef }) {
+      reviewStates.delete(refToStorageKey(subjectRef));
+
+      return ok(undefined);
     },
   };
 }
@@ -526,6 +557,17 @@ function matchesCanonicalProvisionalHintQuery(
     (query.sourceRef === undefined ||
       refToStorageKey(hint.sourceRef) === refToStorageKey(query.sourceRef)) &&
     (query.kind === undefined || hint.kind === query.kind)
+  );
+}
+
+function matchesCanonicalReviewStateQuery(
+  state: CanonicalReviewState,
+  query: Parameters<CanonicalRecordRepository["listReviewStates"]>[0],
+): boolean {
+  return (
+    (query.subjectRef === undefined ||
+      refToStorageKey(state.subjectRef) === refToStorageKey(query.subjectRef)) &&
+    (query.outcome === undefined || state.outcome === query.outcome)
   );
 }
 
