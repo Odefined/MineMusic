@@ -178,6 +178,11 @@ Implemented:
 - Provisional Review v2.1 summary inspect now uses source release labels as
   returned evidence only; it does not hard-filter the first MusicBrainz
   recording field search by release.
+- Provisional Review v2.1 summary inspect now has a bounded MusicBrainz
+  recording fallback search plan after strict title-plus-artist lookup. The
+  fallback can try cleaned titles, individual source artists, source release
+  labels, and strong title-separator fragments, but it still returns only
+  neutral recording facts.
 - Provisional Review v2.1 summary inspect now fetches tracklists for
   MusicBrainz release appearances whose release title exactly matches the
   source release label, stores those facts in the same inspection snapshot, and

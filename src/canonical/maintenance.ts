@@ -1453,26 +1453,51 @@ async function readReviewKnowledge({
     };
   }
 
-  const query = buildKnowledgeQuery({ subject, outgoingRelations, provisionalHints });
-  const result = await knowledge.query({ query, sessionId });
+  const recordingQueries = buildReviewRecordingKnowledgeQueries({ subject, outgoingRelations, provisionalHints });
+  const items: KnowledgeItem[] = [];
+  const recordingItems: KnowledgeItem[] = [];
+  const seenRecordingItemKeys = new Set<string>();
+  const warnings: StageWarning[] = [];
 
-  if (!result.ok) {
-    return {
-      items: [],
-      warnings: [
-        {
-          code: String(result.error.code),
-          message: result.error.message,
-          module: "canonical",
-        },
-      ],
-    };
+  for (const query of recordingQueries) {
+    const result = await knowledge.query({ query, sessionId });
+
+    if (!result.ok) {
+      warnings.push({
+        code: String(result.error.code),
+        message: result.error.message,
+        module: "canonical",
+      });
+      continue;
+    }
+
+    warnings.push(...(result.warnings ?? []));
+
+    for (const item of result.value.items) {
+      const itemKey = reviewRecordingKnowledgeItemKey(item);
+
+      if (itemKey !== undefined && seenRecordingItemKeys.has(itemKey)) {
+        continue;
+      }
+
+      if (itemKey !== undefined) {
+        seenRecordingItemKeys.add(itemKey);
+      }
+
+      recordingItems.push(item);
+      items.push(item);
+    }
+
+    if (reviewRecordingSearchHasEnoughFacts({
+      knowledgeItems: recordingItems,
+      provisionalHints,
+    })) {
+      break;
+    }
   }
 
-  const items = [...result.value.items];
-  const warnings = [...(result.warnings ?? [])];
   const releaseTracklistRefs = reviewReleaseTracklistRefs({
-    knowledgeItems: items,
+    knowledgeItems: recordingItems,
     provisionalHints,
   });
 
@@ -1558,7 +1583,7 @@ function buildReleaseTracklistKnowledgeQuery(releaseRef: Ref): KnowledgeQuery {
   };
 }
 
-function buildKnowledgeQuery({
+function buildReviewRecordingKnowledgeQueries({
   subject,
   outgoingRelations,
   provisionalHints,
@@ -1566,18 +1591,115 @@ function buildKnowledgeQuery({
   subject: CanonicalRecord;
   outgoingRelations: CanonicalRelation[];
   provisionalHints: ProvisionalReviewInspection["provisionalHints"];
-}): KnowledgeQuery {
+}): KnowledgeQuery[] {
+  const source = reviewSearchSource({ subject, outgoingRelations, provisionalHints });
+  const queries: KnowledgeQuery[] = [];
+  const seen = new Set<string>();
+
+  pushReviewRecordingQuery(queries, seen, buildReviewRecordingFieldQuery({
+    title: source.title,
+    ...(source.artists.length === 0 ? {} : { artist: source.artists.join(" ") }),
+  }));
+
+  for (const query of buildReviewRecordingFallbackQueries(source)) {
+    pushReviewRecordingQuery(queries, seen, query);
+  }
+
+  return queries;
+}
+
+function reviewSearchSource({
+  subject,
+  outgoingRelations,
+  provisionalHints,
+}: {
+  subject: CanonicalRecord;
+  outgoingRelations: CanonicalRelation[];
+  provisionalHints: ProvisionalReviewInspection["provisionalHints"];
+}): {
+  title: string;
+  artists: string[];
+  release?: string;
+} {
   const firstRecordingHint = provisionalHints.find((hint) => hint.kind === "source_recording_context");
   const title = firstRecordingHint?.facts.title ?? subject.label;
-  const artist = firstRecordingHint?.facts.artistLabels?.join(" ") ??
+  const artists = firstRecordingHint?.facts.artistLabels ??
     outgoingRelations
       .filter((relation) => relation.predicate === "performed_by")
       .map((relation) => relation.objectLabel)
-      .filter((label): label is string => label !== undefined)
-      .join(" ");
+      .filter((label): label is string => label !== undefined);
+  const release = firstRecordingHint?.facts.releaseLabel ??
+    outgoingRelations
+      .find((relation) => relation.predicate === "appears_on_release" && relation.objectLabel !== undefined)
+      ?.objectLabel;
+
+  return {
+    title,
+    artists: uniqueStrings(artists),
+    ...(release === undefined ? {} : { release }),
+  };
+}
+
+function buildReviewRecordingFallbackQueries(source: {
+  title: string;
+  artists: string[];
+  release?: string;
+}): KnowledgeQuery[] {
+  const queries: KnowledgeQuery[] = [];
+  const titleFragments = reviewSearchTitleFragments(source.title);
+  const primaryArtist = source.artists[0];
+  const secondaryArtist = source.artists[1];
+  const cleanedTitle = titleFragments[0] ?? cleanReviewSearchTitle(source.title);
+  const rightSegment = titleFragments.find((fragment) => fragment !== cleanedTitle);
+  const combinedSegment = titleFragments.find((fragment) =>
+    fragment !== cleanedTitle && fragment !== rightSegment
+  );
+
+  if (source.release !== undefined) {
+    pushDefinedReviewQuery(queries, cleanedTitle, primaryArtist, source.release);
+    pushDefinedReviewQuery(queries, cleanedTitle, secondaryArtist, source.release);
+    pushDefinedReviewQuery(queries, cleanedTitle, undefined, source.release);
+    pushDefinedReviewQuery(queries, rightSegment, primaryArtist, source.release);
+    pushDefinedReviewQuery(queries, rightSegment, undefined, source.release);
+  }
+
+  pushDefinedReviewQuery(queries, rightSegment, primaryArtist, undefined);
+  pushDefinedReviewQuery(queries, combinedSegment, primaryArtist, undefined);
+  pushDefinedReviewQuery(queries, cleanedTitle, primaryArtist, undefined);
+
+  return queries.slice(0, 6);
+}
+
+function pushDefinedReviewQuery(
+  queries: KnowledgeQuery[],
+  title: string | undefined,
+  artist: string | undefined,
+  release: string | undefined,
+): void {
+  if (title === undefined || title.length === 0) {
+    return;
+  }
+
+  queries.push(buildReviewRecordingFieldQuery({
+    title,
+    ...(artist === undefined ? {} : { artist }),
+    ...(release === undefined ? {} : { release }),
+  }));
+}
+
+function buildReviewRecordingFieldQuery({
+  title,
+  artist,
+  release,
+}: {
+  title: string;
+  artist?: string;
+  release?: string;
+}): KnowledgeQuery {
   const fieldQuery = {
     title,
-    ...(artist.length === 0 ? {} : { artist }),
+    ...(artist === undefined || artist.length === 0 ? {} : { artist }),
+    ...(release === undefined || release.length === 0 ? {} : { release }),
   };
 
   return {
@@ -1588,6 +1710,159 @@ function buildKnowledgeQuery({
     expand: ["releases"],
     limit: 10,
   };
+}
+
+function pushReviewRecordingQuery(
+  queries: KnowledgeQuery[],
+  seen: Set<string>,
+  query: KnowledgeQuery,
+): void {
+  const key = reviewKnowledgeQueryKey(query);
+
+  if (seen.has(key)) {
+    return;
+  }
+
+  seen.add(key);
+  queries.push(query);
+}
+
+function reviewKnowledgeQueryKey(query: KnowledgeQuery): string {
+  if ("fieldQuery" in query) {
+    return JSON.stringify({
+      fieldQuery: query.fieldQuery,
+      entityKinds: query.entityKinds,
+      expand: query.expand,
+      limit: query.limit,
+    });
+  }
+
+  if ("text" in query) {
+    return JSON.stringify({
+      text: query.text,
+      entityKinds: query.entityKinds,
+      expand: query.expand,
+      limit: query.limit,
+    });
+  }
+
+  return JSON.stringify(query);
+}
+
+function reviewRecordingSearchHasEnoughFacts({
+  knowledgeItems,
+  provisionalHints,
+}: {
+  knowledgeItems: KnowledgeItem[];
+  provisionalHints: ProvisionalReviewInspection["provisionalHints"];
+}): boolean {
+  if (knowledgeItems.length === 0) {
+    return false;
+  }
+
+  if (!provisionalHints.some((hint) => hint.facts.releaseLabel !== undefined)) {
+    return true;
+  }
+
+  return reviewReleaseTracklistRefs({ knowledgeItems, provisionalHints }).length > 0;
+}
+
+function reviewRecordingKnowledgeItemKey(item: KnowledgeItem): string | undefined {
+  const refs = reviewIdentityRecordingRefs(item).map(refKey).sort();
+
+  if (refs.length > 0) {
+    return refs.join("|");
+  }
+
+  if (item.id !== undefined) {
+    return item.id;
+  }
+
+  return item.source.ref === undefined ? undefined : refKey(item.source.ref);
+}
+
+function reviewSearchTitleFragments(title: string): string[] {
+  const cleaned = cleanReviewSearchTitle(title);
+  const rawSegments = cleaned
+    .split(/\s*(?:[:：]|[–—]|\/|／)\s*/u)
+    .map(cleanReviewSearchTitle)
+    .filter((segment) => segment.length > 0);
+  const strippedSegments = rawSegments
+    .map(stripReviewSegmentNumbering)
+    .filter(isMeaningfulReviewTitleFragment);
+  const fragments = [cleaned];
+  const rightSegment = strippedSegments.at(-1);
+  const previousSegment = strippedSegments.at(-2);
+
+  if (rightSegment !== undefined) {
+    fragments.push(rightSegment);
+  } else if (rawSegments.length > 1) {
+    fragments.push(stripReviewSegmentNumbering(rawSegments[rawSegments.length - 2] ?? ""));
+  }
+
+  if (previousSegment !== undefined && rightSegment !== undefined) {
+    fragments.push(`${previousSegment} ${rightSegment}`);
+  }
+
+  return uniqueStrings(fragments.map(cleanReviewSearchTitle).filter(isMeaningfulReviewTitleFragment)).slice(0, 3);
+}
+
+function cleanReviewSearchTitle(title: string): string {
+  return title
+    .replace(/\([^)]*\b(?:feat\.?|featuring|ft\.?)\b[^)]*\)/giu, " ")
+    .replace(/\[[^\]]*\b(?:feat\.?|featuring|ft\.?)\b[^\]]*\]/giu, " ")
+    .replace(/\s+\b(?:feat\.?|featuring|ft\.?)\b.+$/iu, " ")
+    .replace(/\[[^\]]+\]/g, " ")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[“”]/g, "\"")
+    .replace(/[‘’]/g, "'")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,.;:：\-–—/／]+|[\s,.;:：\-–—/／]+$/g, "")
+    .trim();
+}
+
+function stripReviewSegmentNumbering(segment: string): string {
+  return cleanReviewSearchTitle(
+    segment.replace(/^\s*(?:(?:[IVXLCDM]+|\d+)\s*[.)．:：-]\s*|(?:[IVXLCDM]+|\d+)\s+)/iu, ""),
+  );
+}
+
+function isMeaningfulReviewTitleFragment(fragment: string): boolean {
+  const normalized = normalizeAlias(fragment);
+
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  if (/^(?:no\.?\s*)?\d+$/iu.test(normalized)) {
+    return false;
+  }
+
+  if (/^(?:disc|track|part|suite)$/iu.test(normalized)) {
+    return false;
+  }
+
+  return hasCjkText(fragment) || normalized.length >= 3;
+}
+
+function hasCjkText(value: string): boolean {
+  return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/u.test(value);
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const byKey = new Map<string, string>();
+
+  for (const value of values) {
+    const normalized = normalizeAlias(value);
+
+    if (normalized.length === 0 || byKey.has(normalized)) {
+      continue;
+    }
+
+    byKey.set(normalized, value);
+  }
+
+  return [...byKey.values()];
 }
 
 function withKnowledgeItemId(item: KnowledgeItem, index: number): KnowledgeItem {

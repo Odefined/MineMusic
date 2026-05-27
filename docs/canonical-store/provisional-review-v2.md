@@ -338,6 +338,32 @@ For MusicBrainz recording candidates:
 - do not request `release_labels` in summary recording queries. Release labels
   are release-level detail and are not part of the v2 recording identity
   summary.
+
+### Recording Search Policy
+
+Summary recording review should start with the strict source title plus joined
+source artist labels. If that does not return useful MusicBrainz recording
+facts, or if returned recording facts do not include source-release context when
+source release context is available, Canonical Maintenance may run a small,
+bounded fallback search plan.
+
+Fallback search is retrieval-only. It must not mark a candidate as preferred,
+matched, recommended, or safe to update.
+
+Allowed fallback transformations are intentionally mechanical:
+
+- remove source-side `feat.` / `featuring` suffixes from title text.
+- generate a bracketless title variant by removing `[...]` and `(...)` text.
+- try individual source artist labels instead of only the joined artist string.
+- include the source release label as a search constraint when available.
+- split title text only on strong title separators such as `:`, `：`, `–`, `—`,
+  `/`, and `／`; trim leading movement or track numbering from those segments.
+
+Fallback search must stay bounded. It must not implement a classical-music
+parser, infer composer/work/catalog structure, or broaden into unbounded keyword
+search. Duration, release, track-position, ISRC, and version text remain facts
+for the reviewing agent to compare; they are not automatic merge or update
+proof.
 - do not request broad `relations` unless a specific compact field consumes the
   resulting relationship facts. Broad relations are not a substitute for
   `releases`, and v2 summary must not fetch relationship data that it neither

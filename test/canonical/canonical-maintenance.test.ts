@@ -2,6 +2,7 @@ import { createCanonicalMaintenance, createCanonicalStore } from "../../src/cano
 import type {
   CanonicalRecord,
   KnowledgeItem,
+  KnowledgeNode,
   KnowledgeQuery,
   Ref,
   Result,
@@ -49,6 +50,78 @@ const mbRecordingRef: Ref = {
   kind: "recording",
   id: "mb-recording-1",
 };
+
+function musicBrainzRecordingKnowledgeItem({
+  id,
+  title,
+  artistCreditText,
+  durationMs,
+  releaseTitle,
+}: {
+  id: string;
+  title: string;
+  artistCreditText?: string;
+  durationMs?: number;
+  releaseTitle?: string;
+}): KnowledgeItem {
+  const recordingRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "recording",
+    id,
+    label: title,
+  };
+  const releaseRef: Ref | undefined = releaseTitle === undefined
+    ? undefined
+    : {
+        namespace: "musicbrainz",
+        kind: "release",
+        id: `${id}-release`,
+        label: releaseTitle,
+      };
+  const nodes: KnowledgeNode[] = [
+    {
+      id: `recording:${id}`,
+      type: "recording",
+      ref: recordingRef,
+      label: title,
+      properties: {
+        title,
+        ...(artistCreditText === undefined ? {} : { artistCreditText }),
+        ...(durationMs === undefined ? {} : { durationMs }),
+      },
+    },
+  ];
+
+  if (releaseRef !== undefined && releaseTitle !== undefined) {
+    nodes.push({
+      id: `release:${releaseRef.id}`,
+      type: "release",
+      ref: releaseRef,
+      label: releaseTitle,
+      properties: { title: releaseTitle },
+    });
+  }
+
+  return {
+    id: `knowledge-${id}`,
+    kind: "structured",
+    providerId: "musicbrainz",
+    source: { ref: recordingRef },
+    rootNodeId: `recording:${id}`,
+    nodes,
+    relations: releaseRef === undefined
+      ? []
+      : [
+          {
+            type: "release_appearance",
+            endpoints: [
+              { nodeId: `recording:${id}`, role: "recording" },
+              { nodeId: `release:${releaseRef.id}`, role: "release" },
+            ],
+          },
+        ],
+  };
+}
 
 function createSessionContextFor(session: StageSession): SessionContextPort {
   const memory: MemoryPort = {
@@ -375,6 +448,205 @@ async function inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning(): Pro
   assert(
     inspection.warnings?.some((warning) => warning.includes("No Music Knowledge provider")),
     "local inspect should explain missing Knowledge provider as a warning",
+  );
+}
+
+async function summaryInspectFallsBackToCleanedTitleSingleArtistAndRelease(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "fallback-feat-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "月 feat. ヰ世界情緒 - Guiano, ヰ世界情緒",
+      evidence: [sourceRef],
+    }),
+  );
+  const queries: KnowledgeQuery[] = [];
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      queries.push(query);
+
+      if ("providerRef" in query) {
+        return { ok: true, value: { items: [] } };
+      }
+
+      if (
+        "fieldQuery" in query &&
+        query.fieldQuery.title === "月" &&
+        query.fieldQuery.artist === "ヰ世界情緒" &&
+        query.fieldQuery.release === "花鳥風月"
+      ) {
+        return {
+          ok: true,
+          value: {
+            items: [
+              musicBrainzRecordingKnowledgeItem({
+                id: "mb-collab-recording",
+                title: "月",
+                artistCreditText: "Guianoヰ世界情緒",
+                durationMs: 214360,
+                releaseTitle: "花鳥風月",
+              }),
+            ],
+          },
+        };
+      }
+
+      return { ok: true, value: { items: [] } };
+    },
+  };
+
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "月 feat. ヰ世界情緒",
+            artistLabels: ["Guiano", "ヰ世界情緒"],
+            releaseLabel: "花鳥風月",
+            durationMs: 214360,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    idFactory: () => "fallback-feat-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const fieldQueries = queries.filter((query): query is KnowledgeQuery & { fieldQuery: NonNullable<KnowledgeQuery["fieldQuery"]> } =>
+    "fieldQuery" in query
+  );
+
+  assert(
+    fieldQueries[0]?.fieldQuery.title === "月 feat. ヰ世界情緒" &&
+      fieldQueries[0]?.fieldQuery.artist === "Guiano ヰ世界情緒",
+    "fallback inspect should start with the strict source title and joined artist query",
+  );
+  assert(
+    fieldQueries.some((query) =>
+      query.fieldQuery.title === "月" &&
+        query.fieldQuery.artist === "ヰ世界情緒" &&
+        query.fieldQuery.release === "花鳥風月"
+    ),
+    "fallback inspect should try cleaned title with individual source artists and release",
+  );
+  assert(
+    inspection.refTokens?.some((binding) => binding.ref.id === "mb-collab-recording") === true,
+    "fallback inspect should expose the MusicBrainz recording found by cleaned title fallback",
+  );
+}
+
+async function summaryInspectFallsBackToStrongTitleSegments(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "fallback-segment-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Sonatas and Partitas, for Solo Violin,BWV 1004 – Partita No. 2 in D minor:Chaconne - Aaron Rosand",
+      evidence: [sourceRef],
+    }),
+  );
+  const queries: KnowledgeQuery[] = [];
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      queries.push(query);
+
+      if ("providerRef" in query) {
+        return { ok: true, value: { items: [] } };
+      }
+
+      if (
+        "fieldQuery" in query &&
+        query.fieldQuery.title === "Chaconne" &&
+        query.fieldQuery.artist === "Aaron Rosand" &&
+        query.fieldQuery.release === "Unaccompanied Violin"
+      ) {
+        return {
+          ok: true,
+          value: {
+            items: [
+              musicBrainzRecordingKnowledgeItem({
+                id: "mb-chaconne-recording",
+                title: "Partita no. 2 in D minor: V. Chaconne",
+                artistCreditText: "Aaron Rosand",
+                durationMs: 837613,
+                releaseTitle: "Unaccompanied Violin",
+              }),
+            ],
+          },
+        };
+      }
+
+      return { ok: true, value: { items: [] } };
+    },
+  };
+
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Sonatas and Partitas, for Solo Violin,BWV 1004 – Partita No. 2 in D minor:Chaconne",
+            artistLabels: ["Aaron Rosand"],
+            releaseLabel: "Unaccompanied Violin",
+            durationMs: 839000,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    idFactory: () => "fallback-segment-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const fieldQueries = queries.filter((query): query is KnowledgeQuery & { fieldQuery: NonNullable<KnowledgeQuery["fieldQuery"]> } =>
+    "fieldQuery" in query
+  );
+
+  assert(
+    fieldQueries.some((query) =>
+      query.fieldQuery.title === "Chaconne" &&
+        query.fieldQuery.artist === "Aaron Rosand" &&
+        query.fieldQuery.release === "Unaccompanied Violin"
+    ),
+    "fallback inspect should try right-side title segments from strong separators",
+  );
+  assert(
+    inspection.refTokens?.some((binding) => binding.ref.id === "mb-chaconne-recording") === true,
+    "fallback inspect should expose the MusicBrainz recording found by title segment fallback",
   );
 }
 
@@ -1312,6 +1584,7 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
       subjectRef: subject.ref,
     }),
   );
+  const knowledgeQueriesAfterInspect = knowledgeQueries;
 
   const unsupported = await maintenance.reviewApply({
     sessionId: reviewSession.id,
@@ -1388,7 +1661,10 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
   assert(remainingRelations.length === 0, "activation should delete source-derived provisional relations");
   assert(remainingHints.length === 1, "activation should keep provisional hints as review context");
   assert(recordedEvents.some((event) => event.type === "canonical.activated"), "activation should record an update audit event");
-  assert(knowledgeQueries === 1, "apply should use the stored inspection snapshot without fetching new Knowledge facts");
+  assert(
+    knowledgeQueries === knowledgeQueriesAfterInspect,
+    "apply should use the stored inspection snapshot without fetching new Knowledge facts",
+  );
 }
 
 async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(): Promise<void> {
@@ -1739,6 +2015,8 @@ await listsOnlyCurrentProvisionalRecordings();
 await requiresCanonicalReviewPosture();
 await inspectsNeutralFactsAndExactMusicBrainzNeighbors();
 await inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning();
+await summaryInspectFallsBackToCleanedTitleSingleArtistAndRelease();
+await summaryInspectFallsBackToStrongTitleSegments();
 await summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot();
 await detailInspectReusesSnapshotAndReturnsReleaseContexts();
 await deferRecordsEventAndLeavesIdentityUnchanged();
