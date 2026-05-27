@@ -100,13 +100,14 @@ They should not decide whether the provider is enabled.
 
 ## Deterministic API Plan
 
-Music Knowledge Service routes text queries, Tag Queries, Field Queries, or
-provider-ref follow-up queries to the MusicBrainz provider. The provider derives a
+Music Knowledge Service routes text queries, Canonical Store context queries,
+direct `providerRef` lookups, Tag Queries, Field Queries, and provider-internal
+follow-up lookups to the MusicBrainz provider. The provider derives a
 MusicBrainz API plan from that routed request.
 
 The public `KnowledgeQuery` must provide exactly one query entry: `text`,
-`canonicalRef`, a Tag Query represented by non-empty `tagQuery`, or a Field
-Query represented by non-empty `fieldQuery`.
+`canonicalRef`, `providerRef`, a Tag Query represented by non-empty
+`tagQuery`, or a Field Query represented by non-empty `fieldQuery`.
 Invalid public query shape should be rejected by Music Knowledge Service before
 routing to providers.
 
@@ -136,6 +137,10 @@ responsible for reading the canonical record and finding attached MusicBrainz
 provider refs and canonical context. Canonical context can include kind, label,
 aliases, source refs, and provisional relations. The MusicBrainz provider must
 not call Canonical Store directly.
+
+When the query uses `providerRef`, the MusicBrainz provider treats it as the
+direct MusicBrainz lookup ref. `canonicalRef` is never interpreted as a
+MusicBrainz MBID; it only identifies a MineMusic Canonical Store record.
 
 ### Text Search
 

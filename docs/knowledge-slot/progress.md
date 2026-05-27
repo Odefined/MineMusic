@@ -9,9 +9,9 @@
 - The public structured Knowledge output now uses `relations` for provider
   relationship facts and no longer returns legacy `edges`.
 - `KnowledgeQuery` now accepts exactly one query entry: `text`,
-  `canonicalRef`, `tagQuery`, or `fieldQuery`, plus optional `filters`,
-  `purpose`, `formats`, `entityKinds`, `expand`, `relationFocus`, `limit`, and
-  `cursor`. The first supported relation focus is `members`.
+  `canonicalRef`, `providerRef`, `tagQuery`, or `fieldQuery`, plus optional
+  `filters`, `purpose`, `formats`, `entityKinds`, `expand`, `relationFocus`,
+  `limit`, and `cursor`. The first supported relation focus is `members`.
 - `KnowledgeResult` now carries optional opaque `nextCursor` continuation.
 - `KnowledgeProvider.query` and `MusicKnowledgePort.query` now return
   `Result<KnowledgeResult>`.
@@ -23,9 +23,10 @@
   `limit` bounds, and cursor-query compatibility. It aggregates
   `KnowledgeItem[]` from registered Knowledge providers, preserves provider
   warnings, passes Canonical Store context to providers for `canonicalRef`
-  queries, and wraps provider-local continuation state into public opaque
-  cursors. It now applies `limit` as a global response cap across providers and
-  passes only the remaining item budget to later providers.
+  queries, routes direct provider refs without Canonical Store context, and
+  wraps provider-local continuation state into public opaque cursors. It now
+  applies `limit` as a global response cap across providers and passes only the
+  remaining item budget to later providers.
 - Provider descriptors now carry Knowledge capability metadata for supported
   formats, entity kinds, expansions, relation focus values, and boundary notes,
   and Handbook rendering includes those fields on the dedicated Knowledge

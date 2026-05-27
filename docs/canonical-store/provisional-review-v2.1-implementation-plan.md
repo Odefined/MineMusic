@@ -29,6 +29,8 @@ V2.1 fixes three concrete issues found by real MCP agent use:
   recording track positions, not fixture-only data.
 - batch review list semantics need to avoid repeatedly returning subjects that
   were already deferred in the same review session.
+- direct provider lookup must not overload `canonicalRef`; Canonical refs are
+  MineMusic Canonical Store refs, while provider-owned refs use `providerRef`.
 
 ## Non-Goals
 
@@ -52,6 +54,7 @@ V2.1 fixes three concrete issues found by real MCP agent use:
 | Deferred subjects repeat in list | `defer` intentionally records only `provisional_review.deferred`; since canonical state is unchanged, `reviewList` returns the same subject again. |
 | Detail contract is hard to discover | Detail requires `inspectionId` and `recordingRefToken`; Handbook and MCP schema/tool docs do not make that workflow explicit enough for an independent agent. |
 | MCP schema drift can mislead agents | Real tool discovery showed stale-looking apply fields while the server accepted v2 token payloads. Schema exposure and cache-refresh behavior need verification. |
+| Direct provider lookup overloaded `canonicalRef` | `canonicalRef` means a MineMusic Canonical Store ref. Direct MusicBrainz lookup needs a separate `KnowledgeQuery.providerRef` entry so providers never treat a MusicBrainz MBID as a canonical record ref. |
 
 ## Architecture Decisions
 
@@ -61,14 +64,26 @@ Canonical Maintenance may keep rich snapshots and fetch additional Knowledge
 facts during inspection. Stage Interface remains the only agent-facing
 compression boundary.
 
-### Detail May Enrich The Existing Inspection Snapshot
+### Detail Is Snapshot-Only
 
-V2 said detail reads from the existing snapshot. V2.1 keeps snapshot scoping but
-allows detail inspection to fetch missing Knowledge facts and attach the compact
-result to the same inspection snapshot.
+Detail reads from the existing inspection snapshot. It must not perform a
+second Knowledge lookup, refresh the inspection, or attach new Knowledge facts
+after summary inspection.
 
-This is still inspection-time behavior. Apply must continue to use only the
-stored inspection snapshot and must not fetch new MusicBrainz facts.
+Summary inspection must gather the MusicBrainz release and selected tracklist
+facts needed by detail. Apply must continue to use only the stored inspection
+snapshot and must not fetch new MusicBrainz facts.
+
+### Direct Provider Lookup Uses `providerRef`
+
+`KnowledgeQuery.canonicalRef` is reserved for MineMusic Canonical Store refs.
+The Knowledge service may load Canonical Store context for those queries and
+route attached provider identities or source refs to providers.
+
+Direct MusicBrainz lookup uses `KnowledgeQuery.providerRef`. This is the path
+for provider-owned refs returned by Knowledge results or review snapshots. The
+MusicBrainz provider must not treat `canonicalRef.namespace === "musicbrainz"`
+as direct lookup input.
 
 ### Preserve Event-Only Defer
 
@@ -142,7 +157,60 @@ node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
 node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
 ```
 
-### Task 2: Summary Snapshot Release And Track Positions
+### Task 2: Knowledge Provider Ref Boundary
+
+**Files**
+
+- `src/contracts/index.ts`
+- `src/knowledge/index.ts`
+- `src/providers/musicbrainz/index.ts`
+- `src/stage_interface/schemas.ts`
+- `src/handbook/index.ts`
+- `test/contracts/wave1-contracts.test.ts`
+- `test/knowledge/music-knowledge.test.ts`
+- `test/providers/musicbrainz-knowledge-provider.test.ts`
+- `test/stage_interface/stage-interface-dispatch.test.ts`
+- `test/surfaces/mcp-server.test.ts`
+
+**Description**
+
+Add a first-class provider-ref query entry and stop using `canonicalRef` for
+direct MusicBrainz lookup.
+
+**Details**
+
+- Add `KnowledgeQuery.providerRef` as a mutually exclusive query entry.
+- Keep `canonicalRef` restricted to MineMusic Canonical Store records.
+- Music Knowledge Service validates `providerRef` shape and routes it to
+  providers without loading Canonical Store context.
+- MusicBrainz provider direct lookup uses `providerRef`.
+- MusicBrainz text/field follow-up lookups create internal `providerRef`
+  queries.
+- Remove support for interpreting `canonicalRef.namespace === "musicbrainz"` as
+  direct provider lookup.
+- Stage Interface schema and Handbook expose `providerRef`.
+
+**Tests**
+
+- Contract test proves `providerRef` is mutually exclusive with other query
+  entries.
+- Knowledge service test proves `providerRef` reaches providers without
+  Canonical Store context.
+- MusicBrainz provider lookup tests use `providerRef` for direct MBID lookup.
+- MCP schema and Handbook tests expose the new query entry.
+
+**Verification**
+
+```bash
+npm run build:test
+node .tmp-test/test/contracts/wave1-contracts.test.js
+node .tmp-test/test/knowledge/music-knowledge.test.js
+node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
+node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
+node .tmp-test/test/surfaces/mcp-server.test.js
+```
+
+### Task 3: Summary Snapshot Release And Track Positions
 
 **Files**
 
@@ -194,7 +262,7 @@ node .tmp-test/test/canonical/canonical-maintenance.test.js
 node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
 ```
 
-### Task 3: Batch Review List Progress
+### Task 4: Batch Review List Progress
 
 **Files**
 
@@ -244,7 +312,7 @@ node .tmp-test/test/canonical/canonical-maintenance.test.js
 node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
 ```
 
-### Task 4: Tool Schema And Handbook Sync
+### Task 5: Tool Schema And Handbook Sync
 
 **Files**
 
@@ -298,7 +366,7 @@ node .tmp-test/test/surfaces/mcp-server.test.js
 node .tmp-test/test/stage/stage-modules.test.js
 ```
 
-### Task 5: Real MCP Agent Regression
+### Task 6: Real MCP Agent Regression
 
 **Files**
 

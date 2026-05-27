@@ -182,7 +182,7 @@ function renderProviderSection(instrument: InstrumentDescriptor): string[] {
         lines.push(`  Relation focus: ${relationFocuses.map((focus) => `\`${focus}\``).join(", ")}`);
       }
 
-      lines.push("  Query entries: `text`, `canonicalRef`, `tagQuery`, `fieldQuery`");
+      lines.push("  Query entries: `text`, `canonicalRef`, `providerRef`, `tagQuery`, `fieldQuery`");
       lines.push("  Tag filters: `filters.tags.include`, `filters.tags.exclude`");
       lines.push("  Continuation: pass `cursor` from `KnowledgeResult.nextCursor`");
 

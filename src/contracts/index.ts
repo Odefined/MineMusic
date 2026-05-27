@@ -965,24 +965,35 @@ export type KnowledgeQuery =
   | (KnowledgeQueryBase & {
       text: string;
       canonicalRef?: never;
+      providerRef?: never;
       tagQuery?: never;
       fieldQuery?: never;
     })
   | (KnowledgeQueryBase & {
       text?: never;
       canonicalRef: Ref;
+      providerRef?: never;
       tagQuery?: never;
       fieldQuery?: never;
     })
   | (KnowledgeQueryBase & {
       text?: never;
       canonicalRef?: never;
+      providerRef: Ref;
+      tagQuery?: never;
+      fieldQuery?: never;
+    })
+  | (KnowledgeQueryBase & {
+      text?: never;
+      canonicalRef?: never;
+      providerRef?: never;
       tagQuery: string[];
       fieldQuery?: never;
     })
   | (KnowledgeQueryBase & {
       text?: never;
       canonicalRef?: never;
+      providerRef?: never;
       tagQuery?: never;
       fieldQuery: KnowledgeFieldQuery;
     });

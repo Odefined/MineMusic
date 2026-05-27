@@ -308,6 +308,7 @@ function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
   const queryShape = query as Record<string, unknown>;
   const hasText = typeof queryShape.text === "string";
   const hasCanonicalRef = isRef(queryShape.canonicalRef);
+  const hasProviderRef = isRef(queryShape.providerRef);
   const tagQuery = normalizeOptionalTagArray(queryShape.tagQuery);
   const fieldQuery = normalizeFieldQuery(queryShape.fieldQuery);
   const filters = normalizeFilters(queryShape.filters);
@@ -336,6 +337,7 @@ function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
   const queryEntryCount = [
     hasText,
     hasCanonicalRef,
+    hasProviderRef,
     tagQuery.value !== undefined,
     fieldQuery.value !== undefined,
   ].filter(Boolean).length;
@@ -363,6 +365,13 @@ function normalizeKnowledgeQuery(query: unknown): Result<KnowledgeQuery> {
     return ok({
       ...base.value,
       canonicalRef: queryShape.canonicalRef as Ref,
+    });
+  }
+
+  if (hasProviderRef) {
+    return ok({
+      ...base.value,
+      providerRef: queryShape.providerRef as Ref,
     });
   }
 
@@ -685,7 +694,7 @@ function isRef(value: unknown): value is Ref {
   );
 }
 
-function invalidQueryError(message = "Knowledge query must provide exactly one of text, canonicalRef, tagQuery, or fieldQuery."): StageError {
+function invalidQueryError(message = "Knowledge query must provide exactly one of text, canonicalRef, providerRef, tagQuery, or fieldQuery."): StageError {
   return {
     code: "knowledge.invalid_query",
     message,

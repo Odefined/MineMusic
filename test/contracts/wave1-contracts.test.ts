@@ -236,6 +236,7 @@ type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
     keyof KnowledgeQuery,
     | "text"
     | "canonicalRef"
+    | "providerRef"
     | "tagQuery"
     | "fieldQuery"
     | "filters"
@@ -250,7 +251,11 @@ type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
     Equal<KnowledgeRelationFocus, "members"> &
     Equal<KnowledgeQuery["relationFocus"], KnowledgeRelationFocus[] | undefined> &
     Equal<Extract<KnowledgeQuery, { text: string }>["canonicalRef"], undefined> &
+    Equal<Extract<KnowledgeQuery, { text: string }>["providerRef"], undefined> &
     Equal<Extract<KnowledgeQuery, { canonicalRef: Ref }>["text"], undefined> &
+    Equal<Extract<KnowledgeQuery, { canonicalRef: Ref }>["providerRef"], undefined> &
+    Equal<Extract<KnowledgeQuery, { providerRef: Ref }>["text"], undefined> &
+    Equal<Extract<KnowledgeQuery, { providerRef: Ref }>["canonicalRef"], undefined> &
     Equal<Extract<KnowledgeQuery, { tagQuery: string[] }>["text"], undefined> &
     Equal<Extract<KnowledgeQuery, { fieldQuery: KnowledgeFieldQuery }>["canonicalRef"], undefined> &
     Equal<KnowledgeQuery["filters"], KnowledgeFilters | undefined> &

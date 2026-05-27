@@ -302,13 +302,15 @@ host-facing and LLM-facing surface.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a provider query
   service returning `KnowledgeResult`. The shared Knowledge contracts now expose
   `StructuredKnowledge`, `TextKnowledge`, graph nodes, endpoint-based
-  `KnowledgeRelation` objects, source attribution, `canonicalRef`, `tagQuery`,
-  `fieldQuery`, tag filters, formats, expansion controls, and opaque cursor
-  continuation. The service validates mutually exclusive query entries,
+  `KnowledgeRelation` objects, source attribution, `canonicalRef`,
+  `providerRef`, `tagQuery`, `fieldQuery`, tag filters, formats, expansion
+  controls, and opaque cursor continuation. The service validates mutually
+  exclusive query entries,
   tag-filter normalization, supported `relationFocus` values, and cursor-query
   compatibility; it aggregates provider knowledge items, preserves provider
   warnings, passes Canonical Store context to providers for `canonicalRef`
-  queries, and wraps provider-local continuation state into public
+  queries, routes direct provider refs without Canonical Store context, and
+  wraps provider-local continuation state into public
   `KnowledgeResult.nextCursor` tokens. Knowledge provider descriptors can now
   describe supported formats, entity kinds, expansions, and boundary notes, and
   Handbook rendering includes those capabilities on the dedicated Knowledge

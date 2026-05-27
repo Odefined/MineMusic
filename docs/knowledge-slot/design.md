@@ -265,6 +265,7 @@ Proposed target shape:
 export type KnowledgeQuery = {
   text?: string;
   canonicalRef?: Ref;
+  providerRef?: Ref;
   tagQuery?: string[];
   fieldQuery?: KnowledgeFieldQuery;
   filters?: KnowledgeFilters;
@@ -364,21 +365,23 @@ available mix from registered providers.
 
 `text` is for open knowledge lookup when no MineMusic identity is known.
 `canonicalRef` is for knowledge lookup around a MineMusic canonical identity.
-Agents should not pass provider refs such as MusicBrainz MBIDs as ordinary query
-input.
+`providerRef` is for direct lookup of a provider-native ref when the caller
+already has one from a previous Knowledge result or another trusted provider
+path. It is not a Canonical Store ref.
 
 Target `KnowledgeQuery` must provide exactly one query entry:
 
 - `text`.
 - `canonicalRef`.
+- `providerRef`.
 - a Tag Query, represented by non-empty `tagQuery`.
 - a Field Query, represented by non-empty `fieldQuery`.
 
 These entries are mutually exclusive. For example, `text` must not be mixed with
 `tagQuery`, `fieldQuery` must not be mixed with `tagQuery`, and `canonicalRef`
-must not be mixed with another query entry. If a future flow needs text as a
-hint for another lookup mode, it should introduce a separate hint field rather
-than overloading `text`.
+or `providerRef` must not be mixed with another query entry. If a future flow
+needs text as a hint for another lookup mode, it should introduce a separate
+hint field rather than overloading `text`.
 
 `filters` is not a query entry and does not participate in query-entry
 mutual exclusion. It narrows or orders items found by the query entry.
@@ -648,6 +651,10 @@ provider ref. Providers that require a provider ref may return no items with a
 warning when no usable ref exists. Providers that can use general canonical
 context, such as label or aliases, may still return knowledge. No provider may
 treat label-based retrieval as identity confirmation.
+
+When `providerRef` is supplied, Music Knowledge Service routes it directly to
+providers and does not read Canonical Store context. A provider may ignore refs
+outside its namespace or unsupported kinds.
 
 ## Stage Interface Exposure
 

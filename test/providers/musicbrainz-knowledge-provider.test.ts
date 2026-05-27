@@ -1233,6 +1233,34 @@ async function looksUpMusicBrainzRefFromCanonicalContext(): Promise<void> {
   assert(root?.properties?.barcode === "634904031923", "lookup should map release details");
 }
 
+async function ignoresProviderRefsOutsideMusicBrainz(): Promise<void> {
+  let requestCount = 0;
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async () => {
+      requestCount += 1;
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {},
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        providerRef: { namespace: "fixture", kind: "recording", id: "recording-1" },
+      },
+    }),
+  );
+
+  assert(requestCount === 0, "non-MusicBrainz provider refs should not call MusicBrainz");
+  assert(result.items.length === 0, "non-MusicBrainz provider refs should return no MusicBrainz facts");
+}
+
 async function browsesReleasesForReleaseGroupExpansion(): Promise<void> {
   const paths: string[] = [];
   const provider = createMusicBrainzKnowledgeProvider({
@@ -1349,7 +1377,7 @@ async function browsesReleaseGroupsForArtistExpansion(): Promise<void> {
   const result = await assertOk(
     provider.query({
       query: {
-        canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "artist-mbid-1" },
+        providerRef: { namespace: "musicbrainz", kind: "artist", id: "artist-mbid-1" },
         expand: ["release_groups"],
         limit: 1,
       },
@@ -1406,7 +1434,7 @@ async function mapsReleaseTracklistExpansion(): Promise<void> {
   const result = await assertOk(
     provider.query({
       query: {
-        canonicalRef: { namespace: "musicbrainz", kind: "release", id: "release-mbid-1" },
+        providerRef: { namespace: "musicbrainz", kind: "release", id: "release-mbid-1" },
         expand: ["tracklist"],
       },
     }),
@@ -1464,7 +1492,7 @@ async function mapsMusicBrainzRelations(): Promise<void> {
   const result = await assertOk(
     provider.query({
       query: {
-        canonicalRef: { namespace: "musicbrainz", kind: "recording", id: "recording-mbid-1" },
+        providerRef: { namespace: "musicbrainz", kind: "recording", id: "recording-mbid-1" },
         expand: ["relations", "works"],
       },
     }),
@@ -1941,7 +1969,7 @@ async function mapsAnnotationWhenReturned(): Promise<void> {
   const result = await assertOk(
     provider.query({
       query: {
-        canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "artist-mbid-1" },
+        providerRef: { namespace: "musicbrainz", kind: "artist", id: "artist-mbid-1" },
         expand: ["annotation"],
       },
     }),
@@ -1988,7 +2016,7 @@ async function mapsRecordingAliasesAndReleaseAppearances(): Promise<void> {
   const result = await assertOk(
     provider.query({
       query: {
-        canonicalRef: {
+        providerRef: {
           namespace: "musicbrainz",
           kind: "recording",
           id: "recording-mbid-1",
@@ -2082,6 +2110,7 @@ await fillsTagQueryPageAfterProviderPagesWithNoMatches();
 await searchesReleasesAndReleaseGroupsAsStructuredKnowledge();
 await appliesTextSearchLimitAcrossEntityKinds();
 await looksUpMusicBrainzRefFromCanonicalContext();
+await ignoresProviderRefsOutsideMusicBrainz();
 await browsesReleasesForReleaseGroupExpansion();
 await browsesReleaseGroupsForArtistExpansion();
 await mapsReleaseTracklistExpansion();

@@ -123,6 +123,17 @@ Core results may include facts and refs that never appear in agent-facing tool
 output. That internal richness is for Gate validation, write decisions, tests,
 and non-agent/admin surfaces.
 
+## Knowledge Query Boundary
+
+When Canonical Maintenance needs direct MusicBrainz lookup for a provider-owned
+ref, it uses `KnowledgeQuery.providerRef`. `KnowledgeQuery.canonicalRef` remains
+reserved for MineMusic Canonical Store refs and may cause Music Knowledge
+Service to load Canonical Store context.
+
+Agent-facing review output still exposes compact review tokens, not
+`providerRef` values. Canonical Maintenance resolves those tokens inside the
+inspection snapshot before calling Knowledge or applying an update.
+
 ## List Output
 
 `canonical.review.list` should return only the information needed to choose a

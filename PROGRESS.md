@@ -838,6 +838,9 @@
   SQLite `merged_into_id` rehydration, Stage Interface review tool routing, MCP
   schema exposure, review-posture instrument gating, Stage Context guidance,
   and Handbook workflow guidance.
+- Added `KnowledgeQuery.providerRef` for direct provider-owned ref lookup.
+  `canonicalRef` remains Canonical Store context only; MusicBrainz direct MBID
+  lookup and provider-internal follow-up lookups now use `providerRef`.
 
 ## Next
 

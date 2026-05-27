@@ -195,8 +195,10 @@ type MusicBrainzRelation = {
 
 type TextMusicBrainzQuery = KnowledgeQuery & { text: string };
 type CanonicalMusicBrainzQuery = KnowledgeQuery & { canonicalRef: Ref };
+type ProviderRefMusicBrainzQuery = KnowledgeQuery & { providerRef: Ref };
 type TagMusicBrainzQuery = KnowledgeQuery & { tagQuery: string[] };
 type FieldMusicBrainzQuery = KnowledgeQuery & { fieldQuery: NonNullable<KnowledgeQuery["fieldQuery"]> };
+type LookupMusicBrainzQuery = CanonicalMusicBrainzQuery | ProviderRefMusicBrainzQuery;
 type TaggedKnowledgeItem = { item: StructuredKnowledge; order: number };
 type MusicBrainzRequestRuntime = {
   baseUrl: string;
@@ -270,11 +272,19 @@ export function createMusicBrainzKnowledgeProvider(options: MusicBrainzKnowledge
         return searchMusicBrainzFields({ ...runtime, query });
       }
 
+      if (isProviderRefQuery(query)) {
+        if (query.providerRef.namespace !== "musicbrainz") {
+          return ok({ items: [] });
+        }
+
+        return lookupMusicBrainzRef({ ...runtime, query, ref: query.providerRef });
+      }
+
       if (!isCanonicalQuery(query)) {
         return ok({ items: [] });
       }
 
-      const ref = musicBrainzRefFromQuery(query, canonicalContext);
+      const ref = musicBrainzRefFromCanonicalContext(canonicalContext);
 
       if (ref === undefined) {
         return searchMusicBrainzCanonicalContext({ ...runtime, query, canonicalContext });
@@ -635,7 +645,7 @@ async function lookupMusicBrainzRef({
   query,
   ref,
 }: MusicBrainzRequestRuntime & {
-  query: CanonicalMusicBrainzQuery;
+  query: LookupMusicBrainzQuery;
   ref: Ref;
 }): Promise<Result<{ items: StructuredKnowledge[] }>> {
   if (!allowsStructuredKnowledge(query)) {
@@ -717,14 +727,9 @@ async function lookupMusicBrainzRef({
   return ok({ items: applyRootTagFilters(items, query.filters) });
 }
 
-function musicBrainzRefFromQuery(
-  query: CanonicalMusicBrainzQuery,
+function musicBrainzRefFromCanonicalContext(
   canonicalContext: KnowledgeCanonicalContext | undefined,
 ): Ref | undefined {
-  if (query.canonicalRef.namespace === "musicbrainz") {
-    return query.canonicalRef;
-  }
-
   return canonicalContext?.record.sourceRefs?.find((sourceRef) => sourceRef.namespace === "musicbrainz");
 }
 
@@ -745,6 +750,11 @@ function isFieldQuery(query: KnowledgeQuery): query is FieldMusicBrainzQuery {
 function isCanonicalQuery(query: KnowledgeQuery): query is CanonicalMusicBrainzQuery {
   return typeof (query as { canonicalRef?: unknown }).canonicalRef === "object"
     && (query as { canonicalRef?: unknown }).canonicalRef !== null;
+}
+
+function isProviderRefQuery(query: KnowledgeQuery): query is ProviderRefMusicBrainzQuery {
+  return typeof (query as { providerRef?: unknown }).providerRef === "object"
+    && (query as { providerRef?: unknown }).providerRef !== null;
 }
 
 function textQueryFromCanonicalContext(
@@ -853,9 +863,9 @@ function textSearchRequiresFollowUp(entityKind: string, expand: string[] | undef
   return false;
 }
 
-function lookupQueryFromTextQuery(query: TextMusicBrainzQuery, ref: Ref): CanonicalMusicBrainzQuery {
+function lookupQueryFromTextQuery(query: TextMusicBrainzQuery, ref: Ref): ProviderRefMusicBrainzQuery {
   return {
-    canonicalRef: ref,
+    providerRef: ref,
     ...(query.purpose === undefined ? {} : { purpose: query.purpose }),
     ...(query.formats === undefined ? {} : { formats: query.formats }),
     ...(query.entityKinds === undefined ? {} : { entityKinds: query.entityKinds }),
@@ -865,9 +875,9 @@ function lookupQueryFromTextQuery(query: TextMusicBrainzQuery, ref: Ref): Canoni
   };
 }
 
-function lookupQueryFromFieldQuery(query: FieldMusicBrainzQuery, ref: Ref): CanonicalMusicBrainzQuery {
+function lookupQueryFromFieldQuery(query: FieldMusicBrainzQuery, ref: Ref): ProviderRefMusicBrainzQuery {
   return {
-    canonicalRef: ref,
+    providerRef: ref,
     ...(query.filters === undefined ? {} : { filters: query.filters }),
     ...(query.purpose === undefined ? {} : { purpose: query.purpose }),
     ...(query.formats === undefined ? {} : { formats: query.formats }),

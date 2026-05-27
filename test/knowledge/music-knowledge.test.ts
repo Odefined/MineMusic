@@ -200,6 +200,12 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
       canonicalRef: { namespace: "minemusic", kind: "recording", id: "canonical-1" },
     } as never,
   });
+  const resultWithTextAndProviderRef = await knowledge.query({
+    query: {
+      text: "anything",
+      providerRef: { namespace: "musicbrainz", kind: "recording", id: "recording-mbid-1" },
+    } as never,
+  });
   const resultWithUnsupportedRelationFocus = await knowledge.query({
     query: {
       text: "anything",
@@ -317,8 +323,14 @@ async function rejectsInvalidKnowledgeQueryBeforeProviderLookup(): Promise<void>
   );
   assert(
     resultWithBothInputs.error.message.includes("tagQuery") &&
+      resultWithBothInputs.error.message.includes("providerRef") &&
       resultWithBothInputs.error.message.includes("fieldQuery"),
     "invalid query message should describe all supported query entries",
+  );
+  assert(!resultWithTextAndProviderRef.ok, "knowledge query with text and providerRef should fail explicitly");
+  assert(
+    resultWithTextAndProviderRef.error.code === "knowledge.invalid_query",
+    "query with both text and providerRef should be rejected",
   );
   assert(!resultWithUnsupportedRelationFocus.ok, "unsupported relation focus should fail explicitly");
   assert(
@@ -433,6 +445,44 @@ async function routesCanonicalContextToProviders(): Promise<void> {
   assert(capturedContext?.relations?.[0]?.objectLabel === "Canonical Artist", "provider should receive relation context");
 }
 
+async function routesProviderRefDirectlyToProviders(): Promise<void> {
+  const registry = createPluginRegistry();
+  let capturedQuery: unknown;
+  let capturedContext: unknown = "unset";
+  const provider: KnowledgeProvider = {
+    id: "fixture-knowledge",
+    query: async (input) => {
+      capturedQuery = input.query;
+      capturedContext = input.canonicalContext;
+      return { ok: true, value: { items: [] } };
+    },
+  };
+
+  await assertOk(
+    registry.registerProvider({
+      slot: "knowledge",
+      providerId: provider.id,
+      provider,
+    }),
+  );
+
+  const knowledge = createMusicKnowledgeService({ pluginRegistry: registry });
+  await assertOk(
+    knowledge.query({
+      query: {
+        providerRef: { namespace: "musicbrainz", kind: "release", id: "release-mbid-1" },
+        expand: ["tracklist"],
+      },
+    }),
+  );
+
+  const query = capturedQuery as { providerRef?: Ref; expand?: string[] };
+
+  assert(query.providerRef?.id === "release-mbid-1", "providerRef should be routed to providers");
+  assert(query.expand?.[0] === "tracklist", "providerRef queries should preserve expansions");
+  assert(capturedContext === undefined, "providerRef queries should not load Canonical Store context");
+}
+
 async function routesStructuredTagQueriesWithNormalizedTags(): Promise<void> {
   const registry = createPluginRegistry();
   let capturedQuery: unknown;
@@ -533,5 +583,6 @@ await reportsMissingKnowledgeProvider();
 await preservesProviderWarnings();
 await rejectsInvalidKnowledgeQueryBeforeProviderLookup();
 await routesCanonicalContextToProviders();
+await routesProviderRefDirectlyToProviders();
 await routesStructuredTagQueriesWithNormalizedTags();
 await wrapsProviderContinuationCursors();

@@ -23,6 +23,7 @@ const sourceQuerySchema = z.object({
 const knowledgeQuerySchema = {
   text: z.string().optional(),
   canonicalRef: refSchema.optional(),
+  providerRef: refSchema.optional(),
   tagQuery: z.array(z.string()).optional(),
   fieldQuery: z.object({
     title: z.string().optional(),

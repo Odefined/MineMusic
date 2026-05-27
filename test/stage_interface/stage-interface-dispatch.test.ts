@@ -282,7 +282,7 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
   assert(handbook.content.includes("Entity kinds: `artist`, `label`, `recording`, `release`, `release_group`, `work`"), "handbook should render entity kinds");
   assert(handbook.content.includes("Expansions: `credits`, `relations`, `release_labels`, `tracklist`"), "handbook should render knowledge expansions");
   assert(handbook.content.includes("Relation focus: `members`"), "handbook should render relation focus values");
-  assert(handbook.content.includes("Query entries: `text`, `canonicalRef`, `tagQuery`, `fieldQuery`"), "handbook should render structured query entries");
+  assert(handbook.content.includes("Query entries: `text`, `canonicalRef`, `providerRef`, `tagQuery`, `fieldQuery`"), "handbook should render structured query entries");
   assert(handbook.content.includes("Tag filters: `filters.tags.include`, `filters.tags.exclude`"), "handbook should render tag filter guidance");
   assert(handbook.content.includes("Continuation: pass `cursor` from `KnowledgeResult.nextCursor`"), "handbook should render cursor guidance");
   assert(handbook.content.includes("Boundaries: No playable links. No identity confirmation."), "handbook should render boundary notes");
