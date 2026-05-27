@@ -207,10 +207,10 @@ Implemented:
     changesets, while `sourceRefs` remain source/provenance refs.
   - activation and merge write MusicBrainz-authoritative recording label,
     aliases, and recording facts.
-  - successful update deletes source-derived provisional relations and keeps
-    Provisional Hints as review context.
+  - successful update keeps source-derived provisional relations and
+    Provisional Hints as source review context.
   - merge redirects the subject to the surviving target without copying
-    source-derived provisional relations.
+    source-derived provisional relations to the target.
   - update audit-event failures return compact warnings after the canonical
     changeset commits.
 - Stage Context and Handbook canonical-review guidance now describe the v2

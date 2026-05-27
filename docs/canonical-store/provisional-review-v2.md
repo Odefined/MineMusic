@@ -643,8 +643,8 @@ For activation, update should write these recording fields:
 - write inspected MusicBrainz recording disambiguation as a durable
   recording-level fact when available. Do not concatenate it into the canonical
   recording label.
-- delete old source-derived provisional relations for the subject after the
-  MusicBrainz-authoritative update succeeds.
+- keep existing source-derived provisional relations as source review context.
+  They remain provisional and are not promoted to canonical facts.
 - keep source refs and Provisional Hints as provenance/review context.
 
 For merge, update should write these recording fields:
@@ -669,8 +669,8 @@ For merge, update should write these recording fields:
   MusicBrainz ISRCs when available.
 - write or update the target's durable recording disambiguation from inspected
   MusicBrainz disambiguation when available.
-- delete old source-derived provisional relations for the subject after the
-  merge succeeds.
+- leave source-derived provisional relations on the merged subject as source
+  review context.
 - not copy source-derived provisional relations from the subject to the target.
 
 Merge should also use the selected inspection's MusicBrainz recording facts to
@@ -754,12 +754,13 @@ business decisions. A minimal v2 changeset needs these reusable operations:
 
 - put one or more Canonical Records.
 - put or replace provider identity rows for Canonical Records.
-- delete Canonical Relations by id.
+- delete Canonical Relations by id, when a caller explicitly needs relation
+  cleanup outside the Provisional Review update path.
 
 Canonical Maintenance remains responsible for deciding whether an update is an
-activation or merge, selecting which records to write, and selecting which
-source-derived provisional relation ids to delete. The repository only commits
-the resulting canonical changes atomically.
+activation or merge and selecting which records to write. Provisional Review
+update does not delete source-derived provisional relations. The repository
+only commits the resulting canonical changes atomically.
 
 Stage Interface is not part of this write boundary. It maps compact inputs and
 outputs at the tool boundary and calls Canonical Maintenance. Canonical
@@ -804,9 +805,10 @@ hidden fingerprint heuristics.
 Source-derived provisional relations include import-time relations such as
 `performed_by`, `appears_on_release`, and `has_duration_ms` when they came from
 platform source facts rather than MusicBrainz canonical facts. They are
-transitional review inputs and should not survive a successful v2 update.
-They should be physically deleted after a successful update, not retained with
-`rejected` or `superseded` status.
+source review inputs, not canonical identity facts. A successful v2 update does
+not promote, copy, reject, or delete them. Activation leaves them on the
+activated subject; merge leaves them on the merged subject and does not copy
+them to the surviving target.
 
 Provisional Hints are retained after update as source provenance and review
 context. They are not promoted to canonical facts, and v2 does not migrate them

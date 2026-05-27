@@ -1782,7 +1782,8 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
   assert(loaded?.aliases?.[0] === "Update Gate Alias", "MusicBrainz aliases should be ordered before source aliases");
   assert(loaded?.aliases?.includes("Source Label - Update Artist") === true, "activation should keep old source label as alias");
   assert(loaded?.aliases?.includes("Source Title") === true, "activation should keep source title as alias");
-  assert(remainingRelations.length === 0, "activation should delete source-derived provisional relations");
+  assert(remainingRelations.length === 1, "activation should keep source-derived provisional relations");
+  assert(remainingRelations[0]?.status === "provisional", "activation should not rewrite provisional relation status");
   assert(remainingHints.length === 1, "activation should keep provisional hints as review context");
   assert(recordedEvents.some((event) => event.type === "canonical.activated"), "activation should record an update audit event");
   assert(
@@ -1944,7 +1945,8 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
   assert(rawTarget?.facts?.artistCreditText === "Merge Artist", "merge should rewrite target facts from MusicBrainz facts");
   assert(rawTarget?.aliases?.[0] === "Merge Alias", "merge should place MusicBrainz aliases before source aliases");
   assert(targetRelations.length === 0, "source-derived subject relations should not be copied to target");
-  assert(subjectRelations.length === 0, "source-derived subject relations should be deleted");
+  assert(subjectRelations.length === 1, "source-derived subject relations should stay on the merged subject");
+  assert(subjectRelations[0]?.status === "provisional", "merge should not rewrite provisional relation status");
   assert(recordedEvents.some((event) => event.type === "canonical.merged"), "merge should record a canonical.merged event");
 }
 

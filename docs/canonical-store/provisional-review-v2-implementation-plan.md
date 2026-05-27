@@ -50,8 +50,9 @@ Each task below should be implemented and committed separately.
   held by exactly one current canonical recording.
 - `update` writes only recording self state in v2. It does not force-update
   artist, work, release, or release group records.
-- Source-derived provisional relations are deleted after successful update;
-  they are not copied to the target and not marked rejected.
+- Source-derived provisional relations are kept after successful update. They
+  remain provisional source review context and are not copied to the merge
+  target.
 - `defer` remains event-only and leaves canonical identity state unchanged.
 - Apply must not fetch new MusicBrainz facts at write time.
 - Events are not part of the same transaction as Canonical Store writes under
@@ -407,7 +408,7 @@ Replace v1 update writes with v2 MusicBrainz-authoritative recording writes.
   - target source refs merged from subject and target.
   - target label/facts/aliases/provider identity from selected MusicBrainz
     recording.
-- Delete source-derived provisional relation ids for the subject.
+- Keep source-derived provisional relations on the subject.
 - Do not copy source-derived provisional relations to the target.
 - Commit canonical changes through the generic changeset operation.
 - Record update event after canonical changes commit.
@@ -427,7 +428,7 @@ Tasks 1, 2, 3, and 4.
   provider identity.
 - Activation does not put MusicBrainz recording ref in `sourceRefs`.
 - Merge does not copy source-derived provisional relations.
-- Source-derived provisional relations are physically deleted.
+- Source-derived provisional relations remain on the subject.
 - Provisional Hints remain after update.
 - Event failure after update produces `audit_event_failed` warning.
 - Defer event failure still fails defer.
@@ -553,6 +554,7 @@ Critical regressions:
 - update applying against a token from a different inspection.
 - merge based on label/artist/release/work instead of exact provider identity.
 - copied source-derived provisional relations after merge.
+- deleted source-derived provisional relations after update.
 - fake/scripted review flow being mistaken for real agent verification.
 
 ## Integration Points

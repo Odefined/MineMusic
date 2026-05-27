@@ -780,7 +780,6 @@ async function activateSubject({
   const committed = await storage.commitChanges({
     putRecords: [activated],
     putProviderIdentities: [providerIdentityForRecording(activated.ref, selectedProviderRef)],
-    deleteRelationIds: sourceDerivedRelationIds(inspection),
   });
 
   if (!committed.ok) {
@@ -877,7 +876,6 @@ async function mergeSubject({
   const committed = await storage.commitChanges({
     putRecords: [mergedSubject, survivingTarget],
     putProviderIdentities: [providerIdentityForRecording(target.ref, selectedProviderRef)],
-    deleteRelationIds: sourceDerivedRelationIds(inspection),
   });
 
   if (!committed.ok) {
@@ -970,12 +968,6 @@ function providerIdentityForRecording(canonicalRef: Ref, selectedProviderRef: Re
     entityKind: selectedProviderRef.kind,
     providerEntityId: selectedProviderRef.id,
   };
-}
-
-function sourceDerivedRelationIds(inspection: ProvisionalReviewInspection): string[] {
-  return inspection.outgoingRelations
-    .filter((relation) => relation.status === "provisional")
-    .map((relation) => relation.id);
 }
 
 function selectedRecordingWriteFacts(
