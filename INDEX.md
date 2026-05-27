@@ -114,6 +114,9 @@ This index points agents to the current MVP documentation pack.
       the follow-up plan from real MCP agent review feedback, covering
       MusicBrainz release/track evidence, batch list progress, and v2.1 schema
       discoverability.
+    - `docs/canonical-store/provisional-review-v3.md` is the design draft for
+      deterministic review qualification, automatic update, and
+      qualification-based ordering of neutral `knowledgeFacts`.
 
 26. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom
