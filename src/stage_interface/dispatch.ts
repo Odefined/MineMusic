@@ -12,6 +12,7 @@ import type {
   MemoryProposal,
   MusicMaterial,
   ProvisionalReviewApplyInput,
+  ProvisionalReviewAutoUpdateInput,
   ProvisionalReviewInspectInput,
   ProvisionalReviewListInput,
   Ref,
@@ -495,6 +496,32 @@ export function createToolDispatch({
           } as ProvisionalReviewApplyInput);
 
           return result.ok ? ok(compactReviewApply(result.value)) : result;
+        }
+
+        case "canonical.review.auto_update": {
+          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
+
+          if (!availableMaintenance.ok) {
+            return availableMaintenance;
+          }
+
+          const input = readPayload<
+            Omit<ProvisionalReviewAutoUpdateInput, "sessionId" | "subjectRef"> & {
+              subjectId?: string;
+              subjectRef?: Ref;
+            }
+          >(payload);
+          const { subjectId, subjectRef: inputSubjectRef, ...autoUpdateInput } = input;
+          const subjectRef = subjectId === undefined
+            ? inputSubjectRef
+            : reviewSubjectRef(subjectId);
+          const result = await availableMaintenance.value.reviewAutoUpdate({
+            ...autoUpdateInput,
+            ...(subjectRef === undefined ? {} : { subjectRef }),
+            sessionId,
+          } as ProvisionalReviewAutoUpdateInput);
+
+          return result;
         }
 
         case "stage.events.record":

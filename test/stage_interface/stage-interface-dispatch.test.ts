@@ -137,7 +137,7 @@ async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
       session: {
         ...session,
         posture: "canonical_review",
-      },
+    },
     }),
   );
   const reviewInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.canonical_review");
@@ -1281,6 +1281,19 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         },
       };
     },
+    reviewAutoUpdate: async () => ({
+      ok: true,
+      value: {
+        mode: "batch",
+        runId: "auto-review-run-1",
+        limitUsed: 10,
+        updatedCount: 0,
+        notQualifiedCount: 0,
+        errorCount: 0,
+        items: [],
+        hasMore: false,
+      },
+    }),
     clearReviewState: async () => ({ ok: true, value: undefined }),
   };
   const dispatch = createToolDispatch({

@@ -347,6 +347,15 @@ export function createCanonicalMaintenance({
       });
     },
 
+    async reviewAutoUpdate() {
+      return fail({
+        code: "canonical.review_invalid",
+        message: "Provisional Review auto update is not implemented yet.",
+        module: "canonical",
+        retryable: false,
+      });
+    },
+
     async clearReviewState({ subjectRef }) {
       return storage.deleteReviewState({ subjectRef });
     },

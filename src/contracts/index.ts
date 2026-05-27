@@ -423,6 +423,79 @@ export type ProvisionalReviewApplyOutput =
       appliedAction: "cannot_confirm";
     };
 
+export type ProvisionalReviewDecisionOrigin = "agent" | "automatic";
+
+export type ProvisionalReviewAutoUpdateReasonCode =
+  | "cannot_confirm_hidden"
+  | "conflicting_source_hints"
+  | "no_musicbrainz_recording_facts"
+  | "missing_source_title"
+  | "missing_source_artist"
+  | "missing_source_release"
+  | "missing_source_release_date"
+  | "missing_source_duration"
+  | "no_title_match"
+  | "no_recording_artist_match"
+  | "no_release_title_match"
+  | "no_release_date_match"
+  | "duration_missing"
+  | "duration_outside_one_percent"
+  | "track_position_unavailable"
+  | "track_position_not_found"
+  | "track_position_mismatch"
+  | "track_position_ambiguous"
+  | "multiple_qualified_recordings"
+  | "run_not_found"
+  | (string & {});
+
+export type ProvisionalReviewAutoUpdateInput =
+  | {
+      sessionId: string;
+      subjectRef: Ref;
+      includeCannotConfirm?: boolean;
+    }
+  | {
+      sessionId: string;
+      limit?: number;
+      runId?: string;
+      includeCannotConfirm?: boolean;
+    };
+
+export type ProvisionalReviewAutoUpdateItem =
+  | {
+      subjectRef: Ref;
+      outcome: "updated";
+      effect: "activated" | "merged";
+      warnings?: string[];
+    }
+  | {
+      subjectRef: Ref;
+      outcome: "not_qualified";
+      reasonCodes: ProvisionalReviewAutoUpdateReasonCode[];
+    }
+  | {
+      subjectRef?: Ref;
+      outcome: "error";
+      errorCode: string;
+      message?: string;
+    };
+
+export type ProvisionalReviewAutoUpdateOutput =
+  | {
+      mode: "single";
+      item: ProvisionalReviewAutoUpdateItem;
+    }
+  | {
+      mode: "batch";
+      runId: string;
+      limitUsed: number;
+      updatedCount: number;
+      notQualifiedCount: number;
+      errorCount: number;
+      items: ProvisionalReviewAutoUpdateItem[];
+      hasMore: boolean;
+    };
+
 export type CanonicalReviewStateOutcome =
   | "cannot_confirm"
   | "updated";
@@ -1182,6 +1255,7 @@ export type ToolName =
   | "canonical.review.list"
   | "canonical.review.inspect"
   | "canonical.review.apply"
+  | "canonical.review.auto_update"
   | "memory.propose";
 
 export type InstrumentDescriptor = {

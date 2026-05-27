@@ -12,6 +12,9 @@ import type {
   ProvisionalReviewAnchor,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
+  ProvisionalReviewAutoUpdateInput,
+  ProvisionalReviewAutoUpdateOutput,
+  ProvisionalReviewDecisionOrigin,
   ProvisionalReviewInspection,
   ProvisionalReviewInspectionDetail,
   ProvisionalReviewInspectDetailInclude,
@@ -956,14 +959,27 @@ type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
 >;
 
 type _canonicalMaintenancePortMethods = Expect<
-  Equal<keyof CanonicalMaintenancePort, "reviewList" | "reviewInspect" | "reviewApply" | "clearReviewState">
+  Equal<keyof CanonicalMaintenancePort, "reviewList" | "reviewInspect" | "reviewApply" | "reviewAutoUpdate" | "clearReviewState">
 >;
 
 type _canonicalMaintenancePortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewList"> &
     MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewInspect"> &
     MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewApply"> &
+    MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewAutoUpdate"> &
     MethodAcceptsSingleObject<CanonicalMaintenancePort, "clearReviewState">
+>;
+
+type _provisionalReviewDecisionOrigins = Expect<
+  Equal<ProvisionalReviewDecisionOrigin, "agent" | "automatic">
+>;
+
+type _provisionalReviewAutoUpdateInputDoesNotExposeInspectionId = Expect<
+  Equal<Extract<keyof ProvisionalReviewAutoUpdateInput, "inspectionId">, never>
+>;
+
+type _provisionalReviewAutoUpdateOutputModes = Expect<
+  Equal<ProvisionalReviewAutoUpdateOutput["mode"], "single" | "batch">
 >;
 
 type _canonicalRecordRepositoryMethods = Expect<
@@ -1385,6 +1401,7 @@ const collectionToolName: ToolName = "music.collection.save";
 const libraryImportToolName: ToolName = "library.import.preview";
 const libraryUpdateToolName: ToolName = "library.update.start";
 const canonicalReviewToolName: ToolName = "canonical.review.apply";
+const canonicalReviewAutoUpdateToolName: ToolName = "canonical.review.auto_update";
 const handbookToolEntry: HandbookToolEntry = {
   instrument: {
     id: "minemusic.music",
@@ -1491,6 +1508,19 @@ const canonicalMaintenance: CanonicalMaintenancePort = {
           },
         }
   ),
+  reviewAutoUpdate: async () => ({
+    ok: true,
+    value: {
+      mode: "batch",
+      runId: "auto-review-run-1",
+      limitUsed: 10,
+      updatedCount: 0,
+      notQualifiedCount: 0,
+      errorCount: 0,
+      items: [],
+      hasMore: false,
+    },
+  }),
   clearReviewState: async () => ({ ok: true, value: undefined }),
 };
 
@@ -1650,6 +1680,7 @@ void [
   libraryImportToolName,
   libraryUpdateToolName,
   canonicalReviewToolName,
+  canonicalReviewAutoUpdateToolName,
   handbookToolEntry,
   toolDispatch,
   canonicalStore,

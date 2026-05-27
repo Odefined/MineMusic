@@ -33,6 +33,7 @@ export const stableToolNames = [
   "canonical.review.list",
   "canonical.review.inspect",
   "canonical.review.apply",
+  "canonical.review.auto_update",
   "memory.propose",
 ] as const satisfies readonly ToolName[];
 
@@ -250,6 +251,13 @@ export const canonicalReviewToolDescriptors: StableToolDescriptor[] = [
     description: "Apply an inspected Canonical Maintenance decision as update with selectedProviderRefToken or cannot_confirm with a short reason; do not pass v1 refs or citation fields.",
     inputSchemaRef: "ProvisionalReviewApplyInput",
     outputSchemaRef: "ProvisionalReviewApplyOutput",
+    effectKind: "canonical_maintenance",
+  },
+  {
+    name: "canonical.review.auto_update",
+    description: "Automatically update only when Canonical Maintenance can strictly qualify exactly one inspected MusicBrainz recording identity.",
+    inputSchemaRef: "ProvisionalReviewAutoUpdateInput",
+    outputSchemaRef: "ProvisionalReviewAutoUpdateOutput",
     effectKind: "canonical_maintenance",
   },
 ];

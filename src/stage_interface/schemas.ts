@@ -237,6 +237,12 @@ export const stageInterfaceToolInputSchemas = {
     selectedProviderRefToken: reviewRefTokenSchema.optional(),
     reason: z.string(),
   },
+  "canonical.review.auto_update": {
+    subjectId: z.string().optional(),
+    limit: z.number().int().positive().optional(),
+    runId: z.string().optional(),
+    includeCannotConfirm: z.boolean().optional(),
+  },
   "memory.propose": {
     proposal: z.object({}).passthrough(),
   },

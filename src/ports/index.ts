@@ -13,6 +13,8 @@ import type {
   CanonicalReviewStateOutcome,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
+  ProvisionalReviewAutoUpdateInput,
+  ProvisionalReviewAutoUpdateOutput,
   ProvisionalReviewInspection,
   ProvisionalReviewInspectInput,
   ProvisionalReviewListInput,
@@ -276,6 +278,8 @@ export interface CanonicalMaintenancePort {
   reviewInspect(input: ProvisionalReviewInspectInput): Promise<Result<ProvisionalReviewInspection>>;
 
   reviewApply(input: ProvisionalReviewApplyInput): Promise<Result<ProvisionalReviewApplyOutput>>;
+
+  reviewAutoUpdate(input: ProvisionalReviewAutoUpdateInput): Promise<Result<ProvisionalReviewAutoUpdateOutput>>;
 
   clearReviewState(input: { subjectRef: Ref; reason: string }): Promise<Result<void>>;
 }
