@@ -186,7 +186,7 @@ async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
   assert(!handbook.content.includes("anchors"), "handbook should not describe v1 anchors");
 }
 
-async function filtersCatalogToExplicitActiveInstruments(): Promise<void> {
+async function treatsActiveInstrumentsAsSessionMetadataOnly(): Promise<void> {
   const catalog = createInstrumentCatalog();
   const descriptors = await assertOk(
     catalog.list({
@@ -200,12 +200,12 @@ async function filtersCatalogToExplicitActiveInstruments(): Promise<void> {
   const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
 
   assert(
-    instrumentIds.join(",") === "minemusic.handbook,minemusic.library",
-    "catalog should expose handbook plus the explicitly active instrument",
+    instrumentIds.join(",") === "minemusic.handbook,minemusic.stage,minemusic.knowledge,minemusic.music,minemusic.library,minemusic.memory",
+    "activeInstruments should not filter the instrument catalog",
   );
-  assert(toolNames.includes("library.import.preview"), "active library instrument should expose library tools");
-  assert(!toolNames.includes("music.material.resolve"), "inactive music instrument should not expose music tools");
-  assert(!toolNames.includes("stage.events.record"), "inactive stage instrument should not expose stage tools");
+  assert(toolNames.includes("library.import.preview"), "catalog should still expose library tools");
+  assert(toolNames.includes("music.material.resolve"), "catalog should still expose music tools");
+  assert(toolNames.includes("stage.events.record"), "catalog should still expose stage tools");
 }
 
 async function attachesProviderDescriptorsToOwningInstruments(): Promise<void> {
@@ -569,7 +569,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("sessionContext.updateSession"), "stage.session.update should call SessionContextPort");
 }
 
-async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promise<void> {
+async function dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints(): Promise<void> {
   const restrictedSession: StageSession = {
     ...session,
     activeInstruments: ["other.instrument"],
@@ -643,8 +643,7 @@ async function rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem(): Promis
     toolName: "music.material.resolve",
     payload: { kind: "single", candidate: { id: "quiet", label: "Quiet", query: { text: "quiet" } } },
   });
-  assert(!result.ok, "instrument tools should fail when no active instrument exposes them");
-  assert(result.error.code === "stage_interface.tool_not_found", "instrument gating should use stable tool error");
+  assert(result.ok, "activeInstruments should not gate stable tool dispatch");
 }
 
 async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<void> {
@@ -946,6 +945,11 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
 
 async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void> {
   const calls: string[] = [];
+  const importSession: StageSession = {
+    ...session,
+    posture: "canonical_review",
+    activeInstruments: ["minemusic.canonical_review"],
+  };
   const libraryImport: LibraryImportPort = {
     previewImport: async ({ providerId, ownerScope, scopes }) => {
       calls.push(`previewImport:${providerId}:${ownerScope}:${scopes.join("+")}`);
@@ -1020,9 +1024,9 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   };
   const dispatch = createToolDispatch({
     sessionContext: {
-      getSession: async () => ({ ok: true, value: session }),
-      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
-      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+      getSession: async () => ({ ok: true, value: importSession }),
+      readContext: async () => ({ ok: true, value: { session: importSession, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...importSession, ...patch } }),
     },
     materialGate: {
       prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
@@ -1668,11 +1672,11 @@ function emptyImportCounts() {
 
 await listsStableLlmVisibleToolsWithoutProviderDetails();
 await exposesCanonicalReviewToolsOnlyInReviewPosture();
-await filtersCatalogToExplicitActiveInstruments();
+await treatsActiveInstrumentsAsSessionMetadataOnly();
 await attachesProviderDescriptorsToOwningInstruments();
 await rendersKnowledgeProviderCapabilitiesInHandbook();
 await dispatchesStableToolNamesThroughInjectedPorts();
-await rejectsInstrumentToolsWhenNoActiveInstrumentExposesThem();
+await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
 await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
 await dispatchesLibraryImportToolsWithDefaultOwnerScope();

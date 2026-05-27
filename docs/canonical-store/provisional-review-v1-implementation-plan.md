@@ -520,7 +520,7 @@ validate session posture and snapshot ownership.
 
 - Tool catalog exposes review tools under the canonical review instrument.
 - Dispatch routes each tool to the maintenance port.
-- Tool availability respects active instrument/posture gating.
+- Tool availability respects review posture gating.
 - MCP schema exposure includes the three review tools.
 
 ### Task 9: Stage Context And Handbook Guidance
@@ -615,4 +615,3 @@ Minimum scenario coverage:
 - update fails when more than one current recording has the selected MB ref.
 - ordinary reads/source-ref resolution honor redirects after merge.
 - unsupported actions fail clearly.
-

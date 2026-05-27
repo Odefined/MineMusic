@@ -644,9 +644,8 @@
   `minemusic.stage`, `minemusic.knowledge`, `minemusic.music`,
   `minemusic.library`, and
   `minemusic.memory` descriptors. Stage-owned tool ids now live under
-  `stage.*`, Library Import tool ids now live under `library.*`, and the default
-  Codex MCP session uses empty `activeInstruments` to expose all current
-  MineMusic instruments.
+  `stage.*`, Library Import tool ids now live under `library.*`, and
+  `activeInstruments` no longer filters tool availability.
 - Added agent-facing provider descriptors to the Instrument Catalog and
   Handbook. NetEase now contributes source capability metadata to
   `minemusic.music`, MusicBrainz-style Knowledge providers contribute
@@ -837,7 +836,7 @@
   MusicBrainz recording refs in Canonical Store.
 - Added activation, merge, redirect-following ordinary Canonical Store `get`,
   SQLite `merged_into_id` rehydration, Stage Interface review tool routing, MCP
-  schema exposure, review-posture instrument gating, Stage Context guidance,
+  schema exposure, review-posture tool exposure, Stage Context guidance,
   and Handbook workflow guidance.
 - Added `KnowledgeQuery.providerRef` for direct provider-owned ref lookup.
   `canonicalRef` remains Canonical Store context only; MusicBrainz direct MBID

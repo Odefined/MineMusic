@@ -140,7 +140,7 @@ needs.
 | MCP Surface | MCP tool-name prefixing, schema exposure, result formatting | music policy, provider behavior, storage, tool truth, runtime composition, provider/database/cache/session configuration, core capability calls |
 | Stage Core | runtime graph assembly, provider registration, initialization, `runtime.ready`, runtime lifecycle | domain logic inside core capabilities, host protocol, final recommendation judgment |
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
-| Session Context | session identity, session state, `StageVibe`, active instruments, dynamic context | source matching, memory persistence, effect execution |
+| Session Context | session identity, session state, `StageVibe`, dynamic context | source matching, memory persistence, effect execution, tool availability policy |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
 | Canonical Store | MineMusic-owned identity anchors, source-ref identity evidence, and Canonical Maintenance review/apply policy | current playability, user taste, source account state |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
@@ -357,8 +357,8 @@ platform-library facts stay attached to `minemusic.library`. These provider
 descriptors are static registration metadata; live library counts and samples
 still come from Library Import preview tools.
 
-Tool availability is checked through `InstrumentCatalogPort`, not by compiling
-or reading a Handbook as a side effect.
+Tool availability is checked through `InstrumentCatalogPort` and session
+posture, not by compiling or reading a Handbook as a side effect.
 
 Codex-visible tools are derived from MineMusic instrument descriptors. The
 host-facing MCP names are prefixed, for example
@@ -366,6 +366,5 @@ host-facing MCP names are prefixed, for example
 `minemusic.stage.materials.prepare`, while the internal public tool names remain
 the stable `ToolName` union. The catalog exposes focused `minemusic.stage`,
 `minemusic.knowledge`, `minemusic.music`, `minemusic.library`, and
-`minemusic.memory` instruments instead of a single aggregate MVP instrument; an
-empty `activeInstruments` list means all current MineMusic instruments are
-available.
+`minemusic.memory` instruments instead of a single aggregate MVP instrument.
+`activeInstruments` is not a tool-availability gate.

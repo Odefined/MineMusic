@@ -87,12 +87,7 @@ export function createInstrumentCatalog({
           tools: memoryToolDescriptors,
         },
       ];
-      const activeDomainInstruments =
-        session.activeInstruments.length === 0
-          ? domainInstruments
-          : domainInstruments.filter((instrument) => session.activeInstruments.includes(instrument.id));
-
-      instruments.push(...activeDomainInstruments);
+      instruments.push(...domainInstruments);
 
       return ok(instruments);
     },

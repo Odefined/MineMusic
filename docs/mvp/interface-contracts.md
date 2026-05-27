@@ -98,6 +98,7 @@ export type StageSession = {
   posture: "conversation" | "recommendation" | "dj_stub" | "research" | string;
   notes?: string;
   vibe?: StageVibe;
+  // Session metadata only; not a tool availability gate.
   activeInstruments: string[];
   autonomy?: "manual" | "copilot" | "supervised";
   state?: Record<string, unknown>;

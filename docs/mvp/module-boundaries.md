@@ -108,7 +108,6 @@ Own:
 - session lookup.
 - session update.
 - `StageVibe` propagation through session state.
-- active instrument state.
 - dynamic context returned to the LLM.
 - memory summaries included in dynamic context.
 

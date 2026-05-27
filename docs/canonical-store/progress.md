@@ -393,7 +393,7 @@ Pending:
   validation, activation, merge, redirect-following ordinary `get`, and SQLite
   redirect persistence coverage.
 - Wired the review tools through Stage Core, Stage Interface, MCP schema
-  exposure, review-posture instrument gating, Stage Context guidance, and
+  exposure, review-posture tool exposure, Stage Context guidance, and
   Handbook workflow guidance.
 - Added Provisional Review v2.1 corrections from real agent feedback:
   `providerRef` for direct provider lookup, release-aware but not
@@ -433,6 +433,10 @@ Pending:
 - Completed Provisional Review v3 Task 9 by updating Stage Context, Handbook,
   and apply tool metadata so independent agents can discover the auto-update
   first workflow and the manual review standard.
+- Corrected Stage Interface instrument handling so `activeInstruments` no
+  longer filters tool availability. Posture still controls posture-specific
+  review tool exposure, while setup tools such as Library Import remain
+  callable during review validation sessions.
 
 ## Verification
 
