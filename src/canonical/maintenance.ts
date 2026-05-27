@@ -9,6 +9,9 @@ import type {
   ProvisionalReviewAnchor,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
+  ProvisionalReviewAutoUpdateItem,
+  ProvisionalReviewAutoUpdateOutput,
+  ProvisionalReviewAutoUpdateReasonCode,
   ProvisionalReviewInspection,
   ProvisionalReviewInspectInput,
   ProvisionalReviewRefToken,
@@ -151,100 +154,21 @@ export function createCanonicalMaintenance({
         });
       }
 
-      const subjectResult = await readReviewSubject(storage, subjectRef);
-
-      if (!subjectResult.ok) {
-        return subjectResult;
-      }
-
-      const subject = subjectResult.value;
-      const outgoingRelations = await storage.listRelations({ subjectRef });
-
-      if (!outgoingRelations.ok) {
-        return outgoingRelations;
-      }
-
-      const allRelations = await storage.listRelations({});
-
-      if (!allRelations.ok) {
-        return allRelations;
-      }
-
-      const incomingRelations = allRelations.value.filter((relation) =>
-        relation.objectRef !== undefined && sameRef(relation.objectRef, subjectRef),
-      );
-      const provisionalHints = await storage.listProvisionalHints({ subjectRef });
-
-      if (!provisionalHints.ok) {
-        return provisionalHints;
-      }
-
-      const neighborRecords = await readNeighborRecords({
+      const inspectionResult = await readSummaryReviewInspection({
         storage,
-        outgoingRelations: outgoingRelations.value,
-        incomingRelations,
-      });
-
-      if (!neighborRecords.ok) {
-        return neighborRecords;
-      }
-
-      const knowledgeResult = await readReviewKnowledge({
         knowledge,
         sessionId,
-        subject,
-        outgoingRelations: outgoingRelations.value,
-        provisionalHints: provisionalHints.value,
-      });
-      const knowledgeItems = knowledgeResult.items;
-      const warnings = knowledgeResult.warnings.map((warning) => warning.message);
-      const anchors = buildAnchors({
         subjectRef,
-        knowledgeItems,
-        outgoingRelations: outgoingRelations.value,
-        provisionalHints: provisionalHints.value,
-      });
-      const providerRefs = anchors
-        .map((anchor) => anchor.providerRef)
-        .filter((ref): ref is Ref => ref !== undefined && isMusicBrainzRecordingRef(ref));
-      const refTokens = buildRefTokenBindings(providerRefs);
-      const relatedCurrentRecords = await readRelatedCurrentRecords({
-        storage,
-        subjectRef,
-        providerRefs,
+        idFactory,
+        clock,
+        inspectionTtlMs,
       });
 
-      if (!relatedCurrentRecords.ok) {
-        return relatedCurrentRecords;
+      if (!inspectionResult.ok) {
+        return inspectionResult;
       }
 
-      const inspection: ProvisionalReviewInspection = {
-        inspectionId: idFactory(),
-        subject,
-        outgoingRelations: outgoingRelations.value,
-        incomingRelations,
-        provisionalHints: provisionalHints.value,
-        neighborRecords: neighborRecords.value,
-        relatedCurrentRecords: relatedCurrentRecords.value,
-        knowledgeItems,
-        anchors: [
-          ...anchors,
-          ...relatedCurrentRecords.value.map((record, index) =>
-            activeNeighborAnchor({
-              subjectRef,
-              record,
-              index,
-            }),
-          ),
-        ],
-        relationCandidates: buildRelationCandidates({
-          subjectRef,
-          outgoingRelations: outgoingRelations.value,
-        }),
-        ...(refTokens.length === 0 ? {} : { refTokens }),
-        ...(warnings.length === 0 ? {} : { warnings }),
-        expiresAt: new Date(Date.parse(clock()) + inspectionTtlMs).toISOString(),
-      };
+      const inspection = inspectionResult.value;
 
       snapshots.set(snapshotKey(sessionId, subjectRef), {
         sessionId,
@@ -348,12 +272,33 @@ export function createCanonicalMaintenance({
       });
     },
 
-    async reviewAutoUpdate() {
-      return fail({
-        code: "canonical.review_invalid",
-        message: "Provisional Review auto update is not implemented yet.",
-        module: "canonical",
-        retryable: false,
+    async reviewAutoUpdate(input) {
+      const posture = await ensureReviewPosture(sessionContext, input.sessionId);
+
+      if (!posture.ok) {
+        return posture;
+      }
+
+      if (!("subjectRef" in input) || input.subjectRef === undefined) {
+        return fail({
+          code: "canonical.review_invalid",
+          message: "Batch Provisional Review auto update is not implemented yet.",
+          module: "canonical",
+          retryable: false,
+        });
+      }
+
+      return reviewAutoUpdateSingleSubject({
+        storage,
+        knowledge,
+        events,
+        snapshots,
+        sessionId: input.sessionId,
+        subjectRef: input.subjectRef,
+        includeCannotConfirm: input.includeCannotConfirm,
+        idFactory,
+        clock,
+        inspectionTtlMs,
       });
     },
 
@@ -405,6 +350,282 @@ async function reviewStateSubjectRefKeys({
   }
 
   return ok(new Set(states.value.map((state) => refKey(state.subjectRef))));
+}
+
+async function readSummaryReviewInspection({
+  storage,
+  knowledge,
+  sessionId,
+  subjectRef,
+  idFactory,
+  clock,
+  inspectionTtlMs,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  knowledge: MusicKnowledgePort | undefined;
+  sessionId: string;
+  subjectRef: Ref;
+  idFactory: () => string;
+  clock: () => string;
+  inspectionTtlMs: number;
+}): Promise<Result<ProvisionalReviewInspection>> {
+  const subjectResult = await readReviewSubject(storage, subjectRef);
+
+  if (!subjectResult.ok) {
+    return subjectResult;
+  }
+
+  const subject = subjectResult.value;
+  const outgoingRelations = await storage.listRelations({ subjectRef });
+
+  if (!outgoingRelations.ok) {
+    return outgoingRelations;
+  }
+
+  const allRelations = await storage.listRelations({});
+
+  if (!allRelations.ok) {
+    return allRelations;
+  }
+
+  const incomingRelations = allRelations.value.filter((relation) =>
+    relation.objectRef !== undefined && sameRef(relation.objectRef, subjectRef),
+  );
+  const provisionalHints = await storage.listProvisionalHints({ subjectRef });
+
+  if (!provisionalHints.ok) {
+    return provisionalHints;
+  }
+
+  const neighborRecords = await readNeighborRecords({
+    storage,
+    outgoingRelations: outgoingRelations.value,
+    incomingRelations,
+  });
+
+  if (!neighborRecords.ok) {
+    return neighborRecords;
+  }
+
+  const knowledgeResult = await readReviewKnowledge({
+    knowledge,
+    sessionId,
+    subject,
+    outgoingRelations: outgoingRelations.value,
+    provisionalHints: provisionalHints.value,
+  });
+  const knowledgeItems = knowledgeResult.items;
+  const warnings = knowledgeResult.warnings.map((warning) => warning.message);
+  const anchors = buildAnchors({
+    subjectRef,
+    knowledgeItems,
+    outgoingRelations: outgoingRelations.value,
+    provisionalHints: provisionalHints.value,
+  });
+  const providerRefs = anchors
+    .map((anchor) => anchor.providerRef)
+    .filter((ref): ref is Ref => ref !== undefined && isMusicBrainzRecordingRef(ref));
+  const refTokens = buildRefTokenBindings(providerRefs);
+  const relatedCurrentRecords = await readRelatedCurrentRecords({
+    storage,
+    subjectRef,
+    providerRefs,
+  });
+
+  if (!relatedCurrentRecords.ok) {
+    return relatedCurrentRecords;
+  }
+
+  const inspection: ProvisionalReviewInspection = {
+    inspectionId: idFactory(),
+    subject,
+    outgoingRelations: outgoingRelations.value,
+    incomingRelations,
+    provisionalHints: provisionalHints.value,
+    neighborRecords: neighborRecords.value,
+    relatedCurrentRecords: relatedCurrentRecords.value,
+    knowledgeItems,
+    anchors: [
+      ...anchors,
+      ...relatedCurrentRecords.value.map((record, index) =>
+        activeNeighborAnchor({
+          subjectRef,
+          record,
+          index,
+        }),
+      ),
+    ],
+    relationCandidates: buildRelationCandidates({
+      subjectRef,
+      outgoingRelations: outgoingRelations.value,
+    }),
+    ...(refTokens.length === 0 ? {} : { refTokens }),
+    ...(warnings.length === 0 ? {} : { warnings }),
+    expiresAt: new Date(Date.parse(clock()) + inspectionTtlMs).toISOString(),
+  };
+
+  return ok(inspection);
+}
+
+async function reviewAutoUpdateSingleSubject({
+  storage,
+  knowledge,
+  events,
+  snapshots,
+  sessionId,
+  subjectRef,
+  includeCannotConfirm,
+  idFactory,
+  clock,
+  inspectionTtlMs,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  knowledge: MusicKnowledgePort | undefined;
+  events: EventPort | undefined;
+  snapshots: Map<string, ReviewSnapshot>;
+  sessionId: string;
+  subjectRef: Ref;
+  includeCannotConfirm: boolean | undefined;
+  idFactory: () => string;
+  clock: () => string;
+  inspectionTtlMs: number;
+}): Promise<Result<ProvisionalReviewAutoUpdateOutput>> {
+  if (includeCannotConfirm !== true) {
+    const hiddenStates = await storage.listReviewStates({ subjectRef, outcome: "cannot_confirm" });
+
+    if (!hiddenStates.ok) {
+      return hiddenStates;
+    }
+
+    if (hiddenStates.value.length > 0) {
+      return ok({
+        mode: "single",
+        item: {
+          subjectRef,
+          outcome: "not_qualified",
+          reasonCodes: ["cannot_confirm_hidden"],
+        },
+      });
+    }
+  }
+
+  const inspectionResult = await readSummaryReviewInspection({
+    storage,
+    knowledge,
+    sessionId,
+    subjectRef,
+    idFactory,
+    clock,
+    inspectionTtlMs,
+  });
+
+  if (!inspectionResult.ok) {
+    return ok({
+      mode: "single",
+      item: autoUpdateErrorItem(subjectRef, inspectionResult.error),
+    });
+  }
+
+  const inspection = inspectionResult.value;
+
+  snapshots.set(snapshotKey(sessionId, subjectRef), {
+    sessionId,
+    subjectRef,
+    inspection,
+  });
+
+  const qualification = qualifyReviewRecordings({
+    provisionalHints: inspection.provisionalHints,
+    knowledgeItems: inspection.knowledgeItems,
+  });
+
+  if (qualification.qualifiedRecordingRefs.length !== 1) {
+    return ok({
+      mode: "single",
+      item: {
+        subjectRef,
+        outcome: "not_qualified",
+        reasonCodes: autoUpdateNotQualifiedReasonCodes(qualification),
+      },
+    });
+  }
+
+  const selectedProviderRef = qualification.qualifiedRecordingRefs[0];
+
+  if (selectedProviderRef === undefined) {
+    return ok({
+      mode: "single",
+      item: {
+        subjectRef,
+        outcome: "not_qualified",
+        reasonCodes: ["no_musicbrainz_recording_facts"],
+      },
+    });
+  }
+
+  const selectedProviderRefToken = getOrAddRefToken(inspection, selectedProviderRef, "recording");
+  const applied = await applyUpdateDecision({
+    storage,
+    events,
+    input: {
+      sessionId,
+      inspectionId: inspection.inspectionId,
+      subjectRef,
+      action: "update",
+      selectedProviderRefToken,
+      reason: "Automatically qualified by Provisional Review v3.",
+    },
+    inspection,
+    selectedProviderRef,
+  });
+
+  if (!applied.ok) {
+    return ok({
+      mode: "single",
+      item: autoUpdateErrorItem(subjectRef, applied.error),
+    });
+  }
+
+  const appliedUpdate = applied.value as Extract<ProvisionalReviewApplyOutput, { action: "update" }>;
+
+  snapshots.delete(snapshotKey(sessionId, subjectRef));
+
+  return ok({
+    mode: "single",
+    item: {
+      subjectRef,
+      outcome: "updated",
+      effect: appliedUpdate.appliedAction === "activate" ? "activated" : "merged",
+      ...(appliedUpdate.warnings === undefined ? {} : { warnings: appliedUpdate.warnings }),
+    },
+  });
+}
+
+function autoUpdateNotQualifiedReasonCodes(
+  qualification: ReturnType<typeof qualifyReviewRecordings>,
+): ProvisionalReviewAutoUpdateReasonCode[] {
+  const reasonCodes = qualification.reasonCodes.length > 0
+    ? qualification.reasonCodes
+    : qualification.recordings.flatMap((recording) => recording.reasonCodes);
+
+  return uniqueAutoUpdateReasonCodes(
+    reasonCodes.length === 0 ? ["no_musicbrainz_recording_facts"] : reasonCodes,
+  );
+}
+
+function autoUpdateErrorItem(subjectRef: Ref | undefined, error: StageError): ProvisionalReviewAutoUpdateItem {
+  return {
+    ...(subjectRef === undefined ? {} : { subjectRef }),
+    outcome: "error",
+    errorCode: String(error.code),
+    message: error.message,
+  };
+}
+
+function uniqueAutoUpdateReasonCodes(
+  reasonCodes: ProvisionalReviewAutoUpdateReasonCode[],
+): ProvisionalReviewAutoUpdateReasonCode[] {
+  return [...new Set(reasonCodes)];
 }
 
 function reviewInspectDetail({

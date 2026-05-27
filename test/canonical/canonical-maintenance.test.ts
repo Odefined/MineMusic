@@ -1977,6 +1977,458 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
   );
 }
 
+async function autoUpdateSingleSubjectActivatesWhenOneRecordingQualifies(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const eventRepository = createInMemoryEventRepository();
+  const events = createEventService({
+    repository: eventRepository,
+    idFactory: () => "auto-activate-event",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "auto-update-subject",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Auto Source Label",
+      evidence: [sourceRef],
+    }),
+  );
+  const selectedRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "recording",
+    id: "mb-auto-recording",
+    label: "Auto Track",
+  };
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      if ("providerRef" in query) {
+        return { ok: true, value: { items: [] } };
+      }
+
+      return {
+        ok: true,
+        value: {
+          items: [
+            qualificationRecordingKnowledgeItem({
+              id: selectedRef.id,
+              title: "Auto Track",
+              artistLabel: "Auto Artist",
+              durationMs: 100000,
+              releaseTitle: "Auto Release",
+              releaseDate: "2020-01-02",
+            }),
+          ],
+        },
+      };
+    },
+  };
+
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Auto Track",
+            artistLabels: ["Auto Artist"],
+            releaseLabel: "Auto Release",
+            releaseDate: "2020-01-02",
+            durationMs: 100000,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    events,
+    idFactory: () => "auto-update-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const output = await assertOk(
+    maintenance.reviewAutoUpdate({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const loaded = await assertOk(store.get({ ref: subject.ref }));
+  const providerMatches = repository.findCurrentByProviderIdentity === undefined
+    ? []
+    : await assertOk(repository.findCurrentByProviderIdentity({
+        providerId: "musicbrainz",
+        entityKind: "recording",
+        providerEntityId: selectedRef.id,
+      }));
+
+  assert(output.mode === "single", "single-subject auto update should return single mode");
+  assert(output.item.outcome === "updated", "qualified single-subject auto update should update");
+  assert(output.item.outcome === "updated" && output.item.effect === "activated", "auto update should activate without an existing target");
+  assert(!("inspectionId" in output), "auto update output should not expose inspection id");
+  assert(!("inspectionId" in output.item), "auto update item should not expose inspection id");
+  assert(loaded?.status === "active", "auto update should activate the subject");
+  assert(loaded?.label === "Auto Track", "auto update should write the selected MusicBrainz title");
+  assert(providerMatches.length === 1 && providerMatches[0]?.ref.id === subject.ref.id, "auto update should write provider identity");
+}
+
+async function autoUpdateSingleSubjectMergesWhenOneCurrentRecordHasSelectedIdentity(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "auto-merge-subject",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Auto Merge Source",
+      evidence: [sourceRef],
+    }),
+  );
+  const selectedRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "recording",
+    id: "mb-auto-merge-recording",
+    label: "Auto Merge Track",
+  };
+  const target: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "auto-merge-target" },
+    kind: "recording",
+    label: "Old Auto Merge Target",
+    status: "active",
+  };
+
+  assert(repository.commitChanges !== undefined, "in-memory repository should support canonical changesets");
+  await assertOk(
+    repository.commitChanges({
+      putRecords: [target],
+      putProviderIdentities: [
+        {
+          canonicalRef: target.ref,
+          providerId: selectedRef.namespace,
+          entityKind: selectedRef.kind,
+          providerEntityId: selectedRef.id,
+        },
+      ],
+    }),
+  );
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Auto Merge Track",
+            artistLabels: ["Auto Merge Artist"],
+            releaseLabel: "Auto Merge Release",
+            releaseDate: "2020-01-02",
+            durationMs: 100000,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async ({ query }) => {
+        if ("providerRef" in query) {
+          return { ok: true, value: { items: [] } };
+        }
+
+        return {
+          ok: true,
+          value: {
+            items: [
+              qualificationRecordingKnowledgeItem({
+                id: selectedRef.id,
+                title: "Auto Merge Track",
+                artistLabel: "Auto Merge Artist",
+                durationMs: 100000,
+                releaseTitle: "Auto Merge Release",
+                releaseDate: "2020-01-02",
+              }),
+            ],
+          },
+        };
+      },
+    },
+    idFactory: () => "auto-merge-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const output = await assertOk(
+    maintenance.reviewAutoUpdate({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const providerMatches = repository.findCurrentByProviderIdentity === undefined
+    ? []
+    : await assertOk(repository.findCurrentByProviderIdentity({
+        providerId: selectedRef.namespace,
+        entityKind: selectedRef.kind,
+        providerEntityId: selectedRef.id,
+      }));
+
+  assert(output.mode === "single", "single auto update should return single mode for merge");
+  assert(output.item.outcome === "updated" && output.item.effect === "merged", "auto update should merge into existing provider identity owner");
+  assert(providerMatches.length === 1 && providerMatches[0]?.ref.id === target.ref.id, "auto merge should keep provider identity on target");
+}
+
+async function autoUpdateSingleSubjectReturnsErrorWhenProviderIdentityInvariantFails(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "auto-invariant-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Auto Invariant Source",
+      evidence: [sourceRef],
+    }),
+  );
+  const firstCurrent: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "auto-first-current" },
+    kind: "recording",
+    label: "Auto First Current",
+    status: "active",
+  };
+  const secondCurrent: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "auto-second-current" },
+    kind: "recording",
+    label: "Auto Second Current",
+    status: "provisional",
+  };
+
+  await assertOk(repository.put(firstCurrent));
+  await assertOk(repository.put(secondCurrent));
+  repository.findCurrentByProviderIdentity = async () => ({
+    ok: true,
+    value: [firstCurrent, secondCurrent],
+  });
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Auto Invariant Track",
+            artistLabels: ["Auto Invariant Artist"],
+            releaseLabel: "Auto Invariant Release",
+            releaseDate: "2020-01-02",
+            durationMs: 100000,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async ({ query }) => {
+        if ("providerRef" in query) {
+          return { ok: true, value: { items: [] } };
+        }
+
+        return {
+          ok: true,
+          value: {
+            items: [
+              qualificationRecordingKnowledgeItem({
+                id: "mb-auto-invariant-recording",
+                title: "Auto Invariant Track",
+                artistLabel: "Auto Invariant Artist",
+                durationMs: 100000,
+                releaseTitle: "Auto Invariant Release",
+                releaseDate: "2020-01-02",
+              }),
+            ],
+          },
+        };
+      },
+    },
+    idFactory: () => "auto-invariant-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const output = await assertOk(
+    maintenance.reviewAutoUpdate({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+
+  assert(output.mode === "single", "invariant auto update should still return single mode");
+  assert(output.item.outcome === "error", "invariant failure should return an error item");
+  assert(output.item.outcome === "error" && output.item.errorCode === "canonical.invariant_failed", "invariant failure should preserve error code");
+}
+
+async function autoUpdateNotQualifiedDoesNotWriteReviewStateOrEvent(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const eventRepository = createInMemoryEventRepository();
+  const events = createEventService({
+    repository: eventRepository,
+    idFactory: () => "auto-not-qualified-event",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "auto-not-qualified-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Auto Not Qualified Source",
+      evidence: [sourceRef],
+    }),
+  );
+
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Auto Not Qualified Track",
+            artistLabels: ["Auto Not Qualified Artist"],
+            releaseLabel: "Auto Not Qualified Release",
+            releaseDate: "2020-01-02",
+            durationMs: 100000,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async () => ({ ok: true, value: { items: [] } }),
+    },
+    events,
+    idFactory: () => "auto-not-qualified-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const output = await assertOk(
+    maintenance.reviewAutoUpdate({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const states = await assertOk(repository.listReviewStates({ subjectRef: subject.ref }));
+  const recordedEvents = await assertOk(events.listBySession({ sessionId: reviewSession.id }));
+
+  assert(output.mode === "single", "not-qualified auto update should return single mode");
+  assert(output.item.outcome === "not_qualified", "missing qualified facts should not update");
+  assert(output.item.outcome === "not_qualified" && output.item.reasonCodes.includes("no_musicbrainz_recording_facts"), "not-qualified should explain missing MB facts");
+  assert(states.length === 0, "not-qualified auto update should not write review state");
+  assert(recordedEvents.length === 0, "not-qualified auto update should not record events");
+}
+
+async function autoUpdateRespectsCannotConfirmReviewStateByDefault(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "auto-hidden-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Auto Hidden Source",
+      evidence: [sourceRef],
+    }),
+  );
+  let knowledgeQueries = 0;
+
+  await assertOk(repository.putReviewState({
+    state: {
+      subjectRef: subject.ref,
+      outcome: "cannot_confirm",
+      reason: "Cannot confirm from inspect.",
+      lastSessionId: reviewSession.id,
+      createdAt: "2026-05-27T00:00:00.000Z",
+      updatedAt: "2026-05-27T00:00:00.000Z",
+    },
+  }));
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async () => {
+        knowledgeQueries += 1;
+        return { ok: true, value: { items: [] } };
+      },
+    },
+  });
+  const output = await assertOk(
+    maintenance.reviewAutoUpdate({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+
+  assert(output.mode === "single", "hidden cannot-confirm auto update should return single mode");
+  assert(output.item.outcome === "not_qualified", "hidden cannot-confirm subject should not auto-update by default");
+  assert(
+    output.item.outcome === "not_qualified" && output.item.reasonCodes.includes("cannot_confirm_hidden"),
+    "hidden cannot-confirm subject should return cannot_confirm_hidden",
+  );
+  assert(knowledgeQueries === 0, "hidden cannot-confirm subject should not fetch Knowledge by default");
+}
+
+async function autoUpdateReturnsErrorItemForNonProvisionalSubject(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const activeRef: Ref = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "auto-active-subject",
+  };
+  await assertOk(repository.put({
+    ref: activeRef,
+    kind: "recording",
+    label: "Already Active",
+    status: "active",
+  }));
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async () => ({ ok: true, value: { items: [] } }),
+    },
+  });
+  const output = await assertOk(
+    maintenance.reviewAutoUpdate({
+      sessionId: reviewSession.id,
+      subjectRef: activeRef,
+    }),
+  );
+
+  assert(output.mode === "single", "non-provisional auto update should return single mode");
+  assert(output.item.outcome === "error", "non-provisional auto update should return an error item");
+  assert(output.item.outcome === "error" && output.item.errorCode === "canonical.review_invalid", "non-provisional error item should preserve review error code");
+}
+
 async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
@@ -2337,6 +2789,12 @@ await reviewListSuppressesCannotConfirmSubjectsAcrossSessions();
 await cannotConfirmRejectsEmptyReason();
 await applyRejectsStaleAndExpiredInspections();
 await updateGateRejectsUnsupportedOrUngroundedDecisions();
+await autoUpdateSingleSubjectActivatesWhenOneRecordingQualifies();
+await autoUpdateSingleSubjectMergesWhenOneCurrentRecordHasSelectedIdentity();
+await autoUpdateSingleSubjectReturnsErrorWhenProviderIdentityInvariantFails();
+await autoUpdateNotQualifiedDoesNotWriteReviewStateOrEvent();
+await autoUpdateRespectsCannotConfirmReviewStateByDefault();
+await autoUpdateReturnsErrorItemForNonProvisionalSubject();
 await updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef();
 await updateReturnsWarningWhenAuditEventFailsAfterCommit();
 await updateFailsWhenMultipleCurrentRecordsHaveSelectedMusicBrainzRef();

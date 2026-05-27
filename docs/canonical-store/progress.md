@@ -48,6 +48,7 @@ Task status:
 - Provisional Review v3 Task 2: completed.
 - Provisional Review v3 Task 3: completed.
 - Provisional Review v3 Task 4: completed.
+- Provisional Review v3 Task 5: completed for single-subject auto update.
 
 Implemented:
 
@@ -253,6 +254,13 @@ Implemented:
   `knowledgeFacts` to five items, returns compact total/hidden counts, accepts
   `knowledgeFactLimit` for intentional expansion, and still hides raw Knowledge
   items, scores, match labels, and qualification booleans.
+- Provisional Review v3 single-subject `reviewAutoUpdate` is implemented inside
+  Canonical Maintenance. It requires review posture, respects existing
+  cannot-confirm review state by default, builds a full internal inspection,
+  runs strict qualification, reuses the existing update effect path for
+  activation/merge, returns not-qualified without writing review state or
+  events, returns error items for named-subject failures, and keeps
+  `inspectionId` out of auto-update output.
 
 Implemented public methods:
 
@@ -286,7 +294,7 @@ Pending:
 - Standalone admin port for broader activate/reject/merge/list workflows.
 - Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
   smoke has passed first.
-- Provisional Review v3 Tasks 5-10 from
+- Provisional Review v3 Tasks 6-10 from
   `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
@@ -383,6 +391,10 @@ Pending:
 - Completed Provisional Review v3 Task 4 by using internal qualification to
   order summary recording facts, adding compact `knowledgeFacts` limits/counts
   at Stage Interface, and exposing `knowledgeFactLimit` through the MCP schema.
+- Completed Provisional Review v3 Task 5 by implementing single-subject
+  automatic update in Canonical Maintenance with activation, merge,
+  invariant-error, cannot-confirm-hidden, not-qualified-no-side-effect, and
+  non-provisional error-item coverage.
 
 ## Verification
 
