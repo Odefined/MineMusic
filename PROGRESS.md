@@ -842,6 +842,19 @@
   `canonicalRef` remains Canonical Store context only; MusicBrainz direct MBID
   lookup and provider-internal follow-up lookups now use `providerRef`.
 
+## 2026-05-28
+
+- Replaced the Provisional Review agent-facing `defer` action with
+  `cannot_confirm`, meaning the current inspection cannot safely confirm one
+  MusicBrainz recording identity.
+- Added Canonical Maintenance review state for cannot-confirm outcomes in
+  in-memory storage and SQLite
+  `canonical_recording_identity_review_state`; default review lists hide those
+  provisional recordings across sessions unless `includeCannotConfirm` is set.
+- Updated Stage Context, Handbook, Stage Interface schemas/descriptors, and MCP
+  schema tests to expose `cannot_confirm` and the `includeCannotConfirm` list
+  option.
+
 ## Next
 
 - Add CLI or Web UI peer transports when there is a concrete product workflow.

@@ -113,16 +113,18 @@ host-facing and LLM-facing surface.
   `source_recording_context`, attaches title, artist labels, release context,
   duration, and source track position to a provisional recording and provider
   source ref without treating track position as a canonical relation.
-- Canonical Maintenance Provisional Review v1 is implemented through a separate
+- Canonical Maintenance Provisional Review is implemented through a separate
   `CanonicalMaintenancePort` and Stage Interface tools
   `canonical.review.list`, `canonical.review.inspect`, and
-  `canonical.review.apply`. V1 lists current provisional recordings, inspects
+  `canonical.review.apply`. It lists current provisional recordings, inspects
   neutral local/Knowledge facts with process-memory snapshots, accepts
-  `update` or `defer`, records `provisional_review.deferred` for defer, and
-  derives activation or merge from the selected exact MusicBrainz recording ref
-  at apply time. The agent does not choose activate, merge, or a merge target.
-  Ordinary Canonical Store `get` follows merged redirects, and SQLite persists
-  `mergedIntoRef` through the existing `merged_into_id` column.
+  `update` or `cannot_confirm`, records
+  `provisional_review.cannot_confirm_identity` plus Canonical Maintenance
+  review state for cannot-confirm outcomes, and derives activation or merge
+  from the selected exact MusicBrainz recording ref at apply time. The agent
+  does not choose activate, merge, or a merge target. Ordinary Canonical Store
+  `get` follows merged redirects, and SQLite persists `mergedIntoRef` through
+  the existing `merged_into_id` column.
 - The shared Canonical Store contract exports `CanonicalKind`, including
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
