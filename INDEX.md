@@ -117,6 +117,9 @@ This index points agents to the current MVP documentation pack.
     - `docs/canonical-store/provisional-review-v3.md` is the design draft for
       deterministic review qualification, automatic update, and
       qualification-based ordering of neutral `knowledgeFacts`.
+    - `docs/canonical-store/provisional-review-v3-implementation-plan.md` is the
+      task-by-task plan for implementing v3 automatic update, qualification,
+      compact tool output, and independent-agent workflow validation.
 
 26. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom
