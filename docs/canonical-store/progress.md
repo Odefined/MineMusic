@@ -45,6 +45,7 @@ Task status:
 - Provisional Review v2.1 Task 5: completed.
 - Provisional Review v2.1 Task 6: pending.
 - Provisional Review v3 Task 1: completed for contract and port shape only.
+- Provisional Review v3 Task 2: completed.
 
 Implemented:
 
@@ -233,6 +234,9 @@ Implemented:
   - shared auto-update input/output and decision-origin types exist.
   - the runtime behavior is still a not-implemented placeholder until later v3
     tasks add qualification and apply semantics.
+- MusicBrainz artist-credit artist aliases are preserved on artist nodes as
+  `properties.aliases` when they are already present in recording lookup/search
+  payloads. This adds no extra artist lookup.
 
 Implemented public methods:
 
@@ -266,7 +270,7 @@ Pending:
 - Standalone admin port for broader activate/reject/merge/list workflows.
 - Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
   smoke has passed first.
-- Provisional Review v3 Tasks 2-10 from
+- Provisional Review v3 Tasks 3-10 from
   `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
@@ -353,6 +357,9 @@ Pending:
   `canonical.review.auto_update` contract, `CanonicalMaintenancePort`
   `reviewAutoUpdate` method, stable tool-name/schema placeholders, and type
   coverage. The method is intentionally still a not-implemented placeholder.
+- Completed Provisional Review v3 Task 2 by preserving MusicBrainz
+  artist-credit artist aliases on structured artist nodes without an additional
+  artist lookup.
 
 ## Verification
 
@@ -415,6 +422,6 @@ Evidence boundary:
 
 ## Next Slice
 
-1. Continue Provisional Review v3 Task 2 from
+1. Continue Provisional Review v3 Task 3 from
    `docs/canonical-store/provisional-review-v3-implementation-plan.md`,
-   preserving MusicBrainz artist-credit aliases for qualification.
+   adding the internal recording qualification engine.

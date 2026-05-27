@@ -74,6 +74,10 @@ async function searchesRecordingsAsStructuredKnowledge(): Promise<void> {
                       id: "artist-mbid-1",
                       name: "The xx",
                       "sort-name": "xx, The",
+                      aliases: [
+                        { name: "The Double X" },
+                        { alias: "XX" },
+                      ],
                     },
                   },
                 ],
@@ -99,8 +103,12 @@ async function searchesRecordingsAsStructuredKnowledge(): Promise<void> {
   const result = await assertOk(provider.query({ query: { text: "Intro The xx", limit: 1 } }));
   const item = result.items[0];
   const root = item?.kind === "structured" ? item.nodes.find((node) => node.id === item.rootNodeId) : undefined;
+  const artistNode = item?.kind === "structured"
+    ? item.nodes.find((node) => node.id === "artist:artist-mbid-1")
+    : undefined;
 
   assert(requests[0]?.path === "/ws/2/recording", "default text search should use recording search");
+  assert(requests.length === 1, "artist-credit aliases should not require an additional artist lookup");
   assert(requests[0]?.query.query === "Intro The xx", "search should pass text query");
   assert(requests[0]?.query.limit === "1", "search should pass requested limit");
   assert(item?.kind === "structured", "MusicBrainz search should return structured knowledge");
@@ -113,6 +121,10 @@ async function searchesRecordingsAsStructuredKnowledge(): Promise<void> {
   assert((root?.properties?.genres as Array<{ name: string }> | undefined)?.[0]?.name === "indie pop", "genres should be preserved");
   assert((root?.properties?.tags as Array<{ name: string }> | undefined)?.[0]?.name === "minimal", "tags should be preserved");
   assert((root?.properties?.rating as { value?: number } | undefined)?.value === 4.2, "rating should be preserved");
+  assert(
+    (artistNode?.properties?.aliases as string[] | undefined)?.join(",") === "The Double X,XX",
+    "artist-credit artist aliases should be preserved on the artist node",
+  );
   assert(
     item.relations.some((relation) => relation.type === "artist_credit" && relation.properties?.creditedName === "The xx"),
     "artist credit should be represented as a structured relation",

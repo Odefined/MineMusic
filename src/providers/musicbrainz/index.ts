@@ -66,6 +66,7 @@ type MusicBrainzArtist = {
   disambiguation?: unknown;
   type?: unknown;
   country?: unknown;
+  aliases?: unknown;
   score?: unknown;
   relations?: unknown;
   annotation?: unknown;
@@ -169,6 +170,7 @@ type MusicBrainzArtistCredit = {
     name?: unknown;
     "sort-name"?: unknown;
     disambiguation?: unknown;
+    aliases?: unknown;
   };
 };
 
@@ -1813,6 +1815,7 @@ function appendArtistCredits(
       properties: removeUndefined({
         sortName: stringValue(credit.artist?.["sort-name"]),
         disambiguation: stringValue(credit.artist?.disambiguation),
+        aliases: aliasNames(credit.artist?.aliases),
       }),
     });
     relations.push({
