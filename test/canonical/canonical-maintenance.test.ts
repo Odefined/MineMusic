@@ -418,6 +418,11 @@ async function summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot(): Prom
     kind: "release",
     id: "unmatched-release-mbid",
   };
+  const otherTrackRecordingRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "recording",
+    id: "other-track-recording-mbid",
+  };
   const queries: KnowledgeQuery[] = [];
   const recordingItem: KnowledgeItem = {
     id: "snapshot-recording",
@@ -515,6 +520,22 @@ async function summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot(): Prom
         ref: mbRecordingRef,
         label: "Snapshot Track",
       },
+      {
+        id: "track:other-snapshot-track",
+        type: "track",
+        label: "Other Snapshot Track",
+        properties: {
+          position: 3,
+          title: "Other Snapshot Track",
+          lengthMs: 199000,
+        },
+      },
+      {
+        id: "recording:other-track-recording-mbid",
+        type: "recording",
+        ref: otherTrackRecordingRef,
+        label: "Other Snapshot Track",
+      },
     ],
     relations: [
       {
@@ -536,6 +557,20 @@ async function summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot(): Prom
         endpoints: [
           { nodeId: "track:snapshot-track", role: "track" },
           { nodeId: "recording:mb-recording-1", role: "recording" },
+        ],
+      },
+      {
+        type: "has_track",
+        endpoints: [
+          { nodeId: "medium:snapshot-release-mbid:1", role: "medium" },
+          { nodeId: "track:other-snapshot-track", role: "track" },
+        ],
+      },
+      {
+        type: "represents_recording",
+        endpoints: [
+          { nodeId: "track:other-snapshot-track", role: "track" },
+          { nodeId: "recording:other-track-recording-mbid", role: "recording" },
         ],
       },
     ],
@@ -614,6 +649,11 @@ async function summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot(): Prom
       position.trackTitle === "Snapshot Track" &&
       position.trackLengthMs === 188933,
     "track position detail should project tracklist facts gathered during summary inspect",
+  );
+  assert(
+    summary.refTokens?.filter((binding) => binding.token.kind === "recording").length === 1 &&
+      summary.refTokens[0]?.ref.id === mbRecordingRef.id,
+    "summary recording tokens should come from recording lookup roots, not release tracklist recording nodes",
   );
 }
 

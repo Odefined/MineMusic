@@ -1660,10 +1660,7 @@ function collectMusicBrainzRecordingRefs(
 
   knowledgeItems.forEach((item, index) => {
     const itemId = item.id ?? knowledgeItemId(item, index);
-    const candidates = [
-      item.source.ref,
-      ...(item.kind === "structured" ? item.nodes.map((node) => node.ref) : []),
-    ].filter((ref): ref is Ref => ref !== undefined && isMusicBrainzRecordingRef(ref));
+    const candidates = reviewIdentityRecordingRefs(item);
 
     for (const ref of candidates) {
       const key = refKey(ref);
@@ -1678,6 +1675,24 @@ function collectMusicBrainzRecordingRefs(
   });
 
   return refs;
+}
+
+function reviewIdentityRecordingRefs(item: KnowledgeItem): Ref[] {
+  const refs: Ref[] = [];
+
+  if (item.source.ref !== undefined && isMusicBrainzRecordingRef(item.source.ref)) {
+    refs.push(item.source.ref);
+  }
+
+  if (item.kind === "structured") {
+    const rootNode = item.nodes.find((node) => node.id === item.rootNodeId);
+
+    if (rootNode?.ref !== undefined && isMusicBrainzRecordingRef(rootNode.ref)) {
+      refs.push(rootNode.ref);
+    }
+  }
+
+  return uniqueRefs(refs);
 }
 
 async function readRelatedCurrentRecords({
