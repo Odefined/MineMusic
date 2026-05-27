@@ -1209,7 +1209,7 @@ async function createAndBindCanonicalRecord(
 ): Promise<Result<{ record: CanonicalRecord; outcome: "created_provisional" }>> {
   const created = await canonicalStore.createProvisional({
     kind: item.targetKind,
-    label: item.label,
+    label: canonicalRecordLabelForItem(item),
     evidence: [item.sourceRef],
   });
 
@@ -1230,6 +1230,10 @@ async function createAndBindCanonicalRecord(
     record: attached.value,
     outcome: "created_provisional",
   });
+}
+
+function canonicalRecordLabelForItem(item: PlatformLibraryItem): string {
+  return nonEmptyValue(item.canonicalHints?.label) ?? item.label;
 }
 
 async function provisionalRelationDraftsForItem({

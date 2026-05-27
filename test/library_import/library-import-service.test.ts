@@ -469,7 +469,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
               status: "complete",
               items: [
                 providerItem("bound-track", "Bound Track"),
-                providerItem("new-track", "New Track", {
+                providerItem("new-track", "New Track - Fixture Artist", {
                   label: "New Track",
                   artistLabels: ["Fixture Artist"],
                   artistSourceRefs: [artistSourceRef("fixture-artist", "Fixture Artist")],
@@ -603,6 +603,10 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   assert(
     canonicalRecords.some((record) => record.sourceRefs?.some((ref) => ref.id === "new-track")),
     "import should create a provisional canonical record with the source ref",
+  );
+  assert(
+    canonicalRecords.find((record) => record.sourceRefs?.some((ref) => ref.id === "new-track"))?.label === "New Track",
+    "import should keep recording title separate from provider artist credit in canonical labels",
   );
   assert(savedItems.length === 2, "import should add only resolvable items to saved Collection");
   assert(
