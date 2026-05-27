@@ -52,6 +52,13 @@ type ReviewSnapshot = {
   inspection: ProvisionalReviewInspection;
 };
 
+type AutoUpdateRunState = {
+  runId: string;
+  processedSubjectKeys: Set<string>;
+  expiresAtMs: number;
+  busy: boolean;
+};
+
 type ReleaseAppearanceDraft = Omit<
   NonNullable<NonNullable<ProvisionalReviewInspection["detail"]>["releaseAppearances"]>[number],
   "refToken"
@@ -64,6 +71,7 @@ type SelectedRecordingWriteFacts = {
 };
 
 const defaultInspectionTtlMs = 5 * 60 * 1000;
+const defaultAutoUpdateRunTtlMs = 20 * 60 * 1000;
 
 export function createCanonicalMaintenance({
   repository,
@@ -76,6 +84,8 @@ export function createCanonicalMaintenance({
 }: CanonicalMaintenanceOptions): CanonicalMaintenancePort {
   const storage = createCanonicalStorage({ repository });
   const snapshots = new Map<string, ReviewSnapshot>();
+  const autoUpdateRuns = new Map<string, AutoUpdateRunState>();
+  const autoUpdateRunIdFactory = createDefaultIdFactory("auto-review-run");
 
   return {
     async reviewList({ sessionId, limit, cursor, includeCannotConfirm = false }) {
@@ -282,11 +292,23 @@ export function createCanonicalMaintenance({
       }
 
       if (!("subjectRef" in input) || input.subjectRef === undefined) {
-        return fail({
-          code: "canonical.review_invalid",
-          message: "Batch Provisional Review auto update is not implemented yet.",
-          module: "canonical",
-          retryable: false,
+        const batchInput = input as { limit?: number; runId?: string; includeCannotConfirm?: boolean };
+
+        return reviewAutoUpdateBatch({
+          storage,
+          knowledge,
+          events,
+          snapshots,
+          runs: autoUpdateRuns,
+          sessionId: input.sessionId,
+          limit: batchInput.limit,
+          runId: batchInput.runId,
+          includeCannotConfirm: batchInput.includeCannotConfirm,
+          idFactory,
+          runIdFactory: autoUpdateRunIdFactory,
+          clock,
+          inspectionTtlMs,
+          runTtlMs: defaultAutoUpdateRunTtlMs,
         });
       }
 
@@ -629,6 +651,227 @@ function uniqueAutoUpdateReasonCodes(
   reasonCodes: ProvisionalReviewAutoUpdateReasonCode[],
 ): ProvisionalReviewAutoUpdateReasonCode[] {
   return [...new Set(reasonCodes)];
+}
+
+async function reviewAutoUpdateBatch({
+  storage,
+  knowledge,
+  events,
+  snapshots,
+  runs,
+  sessionId,
+  limit,
+  runId,
+  includeCannotConfirm,
+  idFactory,
+  runIdFactory,
+  clock,
+  inspectionTtlMs,
+  runTtlMs,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  knowledge: MusicKnowledgePort | undefined;
+  events: EventPort | undefined;
+  snapshots: Map<string, ReviewSnapshot>;
+  runs: Map<string, AutoUpdateRunState>;
+  sessionId: string;
+  limit: number | undefined;
+  runId: string | undefined;
+  includeCannotConfirm: boolean | undefined;
+  idFactory: () => string;
+  runIdFactory: () => string;
+  clock: () => string;
+  inspectionTtlMs: number;
+  runTtlMs: number;
+}): Promise<Result<ProvisionalReviewAutoUpdateOutput>> {
+  const nowMs = Date.parse(clock());
+  const limitUsed = normalizeAutoUpdateBatchLimit(limit);
+  const run = readOrCreateAutoUpdateRun({ runs, runId, runIdFactory, nowMs, runTtlMs });
+
+  if (!run.ok) {
+    return ok({
+      mode: "batch",
+      runId: runId ?? "",
+      limitUsed,
+      updatedCount: 0,
+      notQualifiedCount: 0,
+      errorCount: 1,
+      items: [{ outcome: "error", errorCode: run.errorCode }],
+      hasMore: false,
+    });
+  }
+
+  if (run.value.busy) {
+    return ok({
+      mode: "batch",
+      runId: run.value.runId,
+      limitUsed,
+      updatedCount: 0,
+      notQualifiedCount: 0,
+      errorCount: 1,
+      items: [{ outcome: "error", errorCode: "run_busy" }],
+      hasMore: true,
+    });
+  }
+
+  run.value.busy = true;
+
+  try {
+    const subjectRefs = await listAutoUpdateBatchSubjectRefs({ storage, includeCannotConfirm });
+
+    if (!subjectRefs.ok) {
+      return subjectRefs;
+    }
+
+    const selectedSubjectRefs = subjectRefs.value
+      .filter((subjectRef) => !run.value.processedSubjectKeys.has(refKey(subjectRef)))
+      .slice(0, limitUsed);
+    const items: ProvisionalReviewAutoUpdateItem[] = [];
+    let updatedCount = 0;
+    let notQualifiedCount = 0;
+    let errorCount = 0;
+
+    for (const subjectRef of selectedSubjectRefs) {
+      const output = await reviewAutoUpdateSingleSubject({
+        storage,
+        knowledge,
+        events,
+        snapshots,
+        sessionId,
+        subjectRef,
+        includeCannotConfirm,
+        idFactory,
+        clock,
+        inspectionTtlMs,
+      });
+
+      run.value.processedSubjectKeys.add(refKey(subjectRef));
+
+      if (!output.ok) {
+        errorCount += 1;
+        items.push({
+          subjectRef,
+          outcome: "error",
+          errorCode: String(output.error.code),
+          message: output.error.message,
+        });
+        continue;
+      }
+
+      if (output.value.mode !== "single") {
+        errorCount += 1;
+        items.push({ subjectRef, outcome: "error", errorCode: "canonical.invariant_failed" });
+        continue;
+      }
+
+      const item = output.value.item;
+
+      if (item.outcome === "updated") {
+        updatedCount += 1;
+      } else if (item.outcome === "not_qualified") {
+        notQualifiedCount += 1;
+        items.push(item);
+      } else {
+        errorCount += 1;
+        items.push(item);
+      }
+    }
+
+    const remainingSubjectRefs = await listAutoUpdateBatchSubjectRefs({ storage, includeCannotConfirm });
+
+    if (!remainingSubjectRefs.ok) {
+      return remainingSubjectRefs;
+    }
+
+    return ok({
+      mode: "batch",
+      runId: run.value.runId,
+      limitUsed,
+      updatedCount,
+      notQualifiedCount,
+      errorCount,
+      items,
+      hasMore: remainingSubjectRefs.value.some((subjectRef) =>
+        !run.value.processedSubjectKeys.has(refKey(subjectRef))
+      ),
+    });
+  } finally {
+    run.value.busy = false;
+  }
+}
+
+function readOrCreateAutoUpdateRun({
+  runs,
+  runId,
+  runIdFactory,
+  nowMs,
+  runTtlMs,
+}: {
+  runs: Map<string, AutoUpdateRunState>;
+  runId: string | undefined;
+  runIdFactory: () => string;
+  nowMs: number;
+  runTtlMs: number;
+}): { ok: true; value: AutoUpdateRunState } | { ok: false; errorCode: string } {
+  for (const [candidateRunId, run] of runs) {
+    if (run.expiresAtMs <= nowMs) {
+      runs.delete(candidateRunId);
+    }
+  }
+
+  if (runId !== undefined) {
+    const run = runs.get(runId);
+
+    return run === undefined ? { ok: false, errorCode: "run_not_found" } : { ok: true, value: run };
+  }
+
+  const newRunId = runIdFactory();
+  const run: AutoUpdateRunState = {
+    runId: newRunId,
+    processedSubjectKeys: new Set<string>(),
+    expiresAtMs: nowMs + runTtlMs,
+    busy: false,
+  };
+
+  runs.set(newRunId, run);
+
+  return { ok: true, value: run };
+}
+
+async function listAutoUpdateBatchSubjectRefs({
+  storage,
+  includeCannotConfirm,
+}: {
+  storage: ReturnType<typeof createCanonicalStorage>;
+  includeCannotConfirm: boolean | undefined;
+}): Promise<Result<Ref[]>> {
+  const records = await storage.listRecords();
+
+  if (!records.ok) {
+    return records;
+  }
+
+  const hiddenCannotConfirmSubjects = includeCannotConfirm === true
+    ? ok(new Set<string>())
+    : await reviewStateSubjectRefKeys({ storage, outcome: "cannot_confirm" });
+
+  if (!hiddenCannotConfirmSubjects.ok) {
+    return hiddenCannotConfirmSubjects;
+  }
+
+  return ok(records.value
+    .filter((record) => record.kind === "recording" && record.status === "provisional")
+    .filter((record) => !hiddenCannotConfirmSubjects.value.has(refKey(record.ref)))
+    .sort((left, right) => refKey(left.ref).localeCompare(refKey(right.ref)))
+    .map((record) => record.ref));
+}
+
+function normalizeAutoUpdateBatchLimit(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit) || limit < 1) {
+    return 10;
+  }
+
+  return Math.min(50, Math.floor(limit));
 }
 
 function reviewInspectDetail({

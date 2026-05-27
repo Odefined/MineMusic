@@ -2444,6 +2444,315 @@ async function autoUpdateReturnsErrorItemForNonProvisionalSubject(): Promise<voi
   assert(output.item.outcome === "error" && output.item.errorCode === "canonical.review_invalid", "non-provisional error item should preserve review error code");
 }
 
+async function autoUpdateBatchUsesDefaultLimitAndRunProgress(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: (() => {
+      let nextId = 1;
+      return () => `auto-batch-subject-${nextId++}`;
+    })(),
+  });
+
+  for (let index = 1; index <= 12; index += 1) {
+    const source: Ref = {
+      namespace: "source:netease",
+      kind: "track",
+      id: `auto-batch-track-${index}`,
+    };
+    const subject = await assertOk(
+      store.createProvisional({
+        kind: "recording",
+        label: `Auto Batch Source ${index}`,
+        evidence: [source],
+      }),
+    );
+
+    await assertOk(
+      store.recordProvisionalHints({
+        subjectRef: subject.ref,
+        sourceRef: source,
+        hints: [
+          {
+            kind: "source_recording_context",
+            facts: {
+              title: "Auto Batch Track",
+              artistLabels: ["Auto Batch Artist"],
+              releaseLabel: "Auto Batch Release",
+              releaseDate: "2020-01-02",
+              durationMs: 100000,
+            },
+          },
+        ],
+      }),
+    );
+  }
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async ({ query }) => {
+        if ("providerRef" in query) {
+          return { ok: true, value: { items: [] } };
+        }
+
+        return {
+          ok: true,
+          value: {
+            items: [
+              qualificationRecordingKnowledgeItem({
+                id: "mb-auto-batch-recording",
+                title: "Auto Batch Track",
+                artistLabel: "Auto Batch Artist",
+                durationMs: 100000,
+                releaseTitle: "Auto Batch Release",
+                releaseDate: "2020-01-02",
+              }),
+            ],
+          },
+        };
+      },
+    },
+    idFactory: (() => {
+      let nextId = 1;
+      return () => `auto-batch-inspection-${nextId++}`;
+    })(),
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const first = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id }));
+
+  assert(first.mode === "batch", "batch auto update should return batch mode");
+  assert(first.limitUsed === 10, "batch auto update should default limit to 10");
+  assert(first.updatedCount === 10, "first batch call should update up to the default limit");
+  assert(first.items.length === 0, "batch auto update should omit updated rows by default");
+  assert(first.hasMore === true, "first batch call should report remaining unprocessed subjects");
+
+  const second = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id, runId: first.runId }));
+
+  assert(second.mode === "batch", "batch continuation should return batch mode");
+  assert(second.runId === first.runId, "batch continuation should keep the same run id");
+  assert(second.updatedCount === 2, "batch continuation should skip previously processed subjects");
+  assert(second.items.length === 0, "batch continuation should still omit updated rows by default");
+  assert(second.hasMore === false, "batch continuation should report no remaining subjects after processing all current items");
+
+  const capped = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id, limit: 999 }));
+
+  assert(capped.mode === "batch", "new capped batch call should return batch mode");
+  assert(capped.limitUsed === 50, "batch limit should cap at 50");
+}
+
+async function autoUpdateBatchReturnsRunNotFoundForUnknownOrExpiredRun(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const times = [
+    "2026-05-27T00:00:00.000Z",
+    "2026-05-27T00:21:00.000Z",
+  ];
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    clock: () => times.shift() ?? "2026-05-27T00:21:00.000Z",
+  });
+  const created = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id }));
+  const expired = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id, runId: created.mode === "batch" ? created.runId : "missing" }));
+  const unknown = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id, runId: "missing-run" }));
+
+  assert(created.mode === "batch", "empty batch should still create a batch run");
+  assert(expired.mode === "batch" && expired.items[0]?.outcome === "error", "expired run should return an error item");
+  assert(
+    expired.mode === "batch" && expired.items[0]?.outcome === "error" && expired.items[0].errorCode === "run_not_found",
+    "expired run should use run_not_found",
+  );
+  assert(
+    unknown.mode === "batch" && unknown.items[0]?.outcome === "error" && unknown.items[0].errorCode === "run_not_found",
+    "unknown run should use run_not_found",
+  );
+}
+
+async function autoUpdateBatchContinuesAfterPerItemErrors(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: (() => {
+      let nextId = 1;
+      return () => `auto-error-batch-subject-${nextId++}`;
+    })(),
+  });
+
+  for (let index = 1; index <= 2; index += 1) {
+    const source: Ref = {
+      namespace: "source:netease",
+      kind: "track",
+      id: `auto-error-batch-track-${index}`,
+    };
+    const subject = await assertOk(
+      store.createProvisional({
+        kind: "recording",
+        label: `Auto Error Batch Source ${index}`,
+        evidence: [source],
+      }),
+    );
+
+    await assertOk(
+      store.recordProvisionalHints({
+        subjectRef: subject.ref,
+        sourceRef: source,
+        hints: [
+          {
+            kind: "source_recording_context",
+            facts: {
+              title: "Auto Error Batch Track",
+              artistLabels: ["Auto Error Batch Artist"],
+              releaseLabel: "Auto Error Batch Release",
+              releaseDate: "2020-01-02",
+              durationMs: 100000,
+            },
+          },
+        ],
+      }),
+    );
+  }
+
+  const firstCurrent: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "auto-error-first-current" },
+    kind: "recording",
+    label: "Auto Error First Current",
+    status: "active",
+  };
+  const secondCurrent: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "auto-error-second-current" },
+    kind: "recording",
+    label: "Auto Error Second Current",
+    status: "provisional",
+  };
+  let providerIdentityLookupCount = 0;
+
+  await assertOk(repository.put(firstCurrent));
+  await assertOk(repository.put(secondCurrent));
+  repository.findCurrentByProviderIdentity = async () => {
+    providerIdentityLookupCount += 1;
+
+    return {
+      ok: true,
+      value: providerIdentityLookupCount === 1 ? [firstCurrent, secondCurrent] : [],
+    };
+  };
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async ({ query }) => {
+        if ("providerRef" in query) {
+          return { ok: true, value: { items: [] } };
+        }
+
+        return {
+          ok: true,
+          value: {
+            items: [
+              qualificationRecordingKnowledgeItem({
+                id: "mb-auto-error-batch-recording",
+                title: "Auto Error Batch Track",
+                artistLabel: "Auto Error Batch Artist",
+                durationMs: 100000,
+                releaseTitle: "Auto Error Batch Release",
+                releaseDate: "2020-01-02",
+              }),
+            ],
+          },
+        };
+      },
+    },
+    idFactory: (() => {
+      let nextId = 1;
+      return () => `auto-error-batch-inspection-${nextId++}`;
+    })(),
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const output = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id, limit: 2 }));
+
+  assert(output.mode === "batch", "per-item error batch should return batch mode");
+  assert(output.errorCount === 1, "one invariant failure should count as one error");
+  assert(output.updatedCount === 1, "batch should continue after a per-item error");
+  assert(output.items.length === 1 && output.items[0]?.outcome === "error", "batch should return the error item");
+}
+
+async function autoUpdateBatchSkipsCannotConfirmSubjectsUnlessIncluded(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: (() => {
+      const ids = ["auto-hidden-batch-subject", "auto-visible-batch-subject"];
+      return () => ids.shift() ?? "unexpected-auto-batch-subject";
+    })(),
+  });
+  const hidden = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Auto Hidden Batch Source",
+      evidence: [{ namespace: "source:netease", kind: "track", id: "auto-hidden-batch-track" }],
+    }),
+  );
+  const visible = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Auto Visible Batch Source",
+      evidence: [{ namespace: "source:netease", kind: "track", id: "auto-visible-batch-track" }],
+    }),
+  );
+  for (const subject of [hidden, visible]) {
+    await assertOk(
+      store.recordProvisionalHints({
+        subjectRef: subject.ref,
+        sourceRef: subject.sourceRefs?.[0] ?? sourceRef,
+        hints: [
+          {
+            kind: "source_recording_context",
+            facts: {
+              title: subject.label,
+              artistLabels: ["Auto Batch Artist"],
+              releaseLabel: "Auto Batch Release",
+              releaseDate: "2020-01-02",
+              durationMs: 100000,
+            },
+          },
+        ],
+      }),
+    );
+  }
+  await assertOk(repository.putReviewState({
+    state: {
+      subjectRef: hidden.ref,
+      outcome: "cannot_confirm",
+      reason: "Cannot confirm from inspect.",
+      lastSessionId: reviewSession.id,
+      createdAt: "2026-05-27T00:00:00.000Z",
+      updatedAt: "2026-05-27T00:00:00.000Z",
+    },
+  }));
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge: {
+      query: async () => ({ ok: true, value: { items: [] } }),
+    },
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const defaultOutput = await assertOk(maintenance.reviewAutoUpdate({ sessionId: reviewSession.id, limit: 10 }));
+  const includeOutput = await assertOk(maintenance.reviewAutoUpdate({
+    sessionId: reviewSession.id,
+    limit: 10,
+    includeCannotConfirm: true,
+  }));
+
+  assert(defaultOutput.mode === "batch", "default hidden batch should return batch mode");
+  assert(defaultOutput.notQualifiedCount === 1, "default batch should process only the visible not-qualified subject");
+  assert(includeOutput.mode === "batch", "include hidden batch should return batch mode");
+  assert(includeOutput.notQualifiedCount === 2, "includeCannotConfirm batch should include hidden cannot-confirm subjects");
+}
+
 async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
@@ -2810,6 +3119,10 @@ await autoUpdateSingleSubjectReturnsErrorWhenProviderIdentityInvariantFails();
 await autoUpdateNotQualifiedDoesNotWriteReviewStateOrEvent();
 await autoUpdateRespectsCannotConfirmReviewStateByDefault();
 await autoUpdateReturnsErrorItemForNonProvisionalSubject();
+await autoUpdateBatchUsesDefaultLimitAndRunProgress();
+await autoUpdateBatchReturnsRunNotFoundForUnknownOrExpiredRun();
+await autoUpdateBatchContinuesAfterPerItemErrors();
+await autoUpdateBatchSkipsCannotConfirmSubjectsUnlessIncluded();
 await updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef();
 await updateReturnsWarningWhenAuditEventFailsAfterCommit();
 await updateFailsWhenMultipleCurrentRecordsHaveSelectedMusicBrainzRef();

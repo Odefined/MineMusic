@@ -50,6 +50,7 @@ Task status:
 - Provisional Review v3 Task 4: completed.
 - Provisional Review v3 Task 5: completed for single-subject auto update.
 - Provisional Review v3 Task 6: completed.
+- Provisional Review v3 Task 7: completed.
 
 Implemented:
 
@@ -266,6 +267,13 @@ Implemented:
   manual `reviewApply(update)` writes `decisionOrigin: "agent"` and automatic
   single-subject update writes `decisionOrigin: "automatic"` without changing
   the external manual apply payload or Gate semantics.
+- Provisional Review v3 batch `reviewAutoUpdate` runs are implemented with
+  process-memory run state. Batch mode defaults to limit 10, caps at 50,
+  rereads current provisional review subjects on each call, skips subjects
+  already processed by the run, omits updated rows by default, counts only the
+  current call, returns `run_not_found` for unknown/expired runs, handles
+  per-item errors without aborting the batch, skips cannot-confirm subjects by
+  default, and uses a 20-minute run TTL.
 
 Implemented public methods:
 
@@ -299,7 +307,7 @@ Pending:
 - Standalone admin port for broader activate/reject/merge/list workflows.
 - Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
   smoke has passed first.
-- Provisional Review v3 Tasks 7-10 from
+- Provisional Review v3 Tasks 8-10 from
   `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
@@ -403,6 +411,10 @@ Pending:
 - Completed Provisional Review v3 Task 6 by recording `decisionOrigin` in
   update audit payloads for both manual agent-authored updates and automatic
   updates.
+- Completed Provisional Review v3 Task 7 by adding process-memory batch
+  auto-update runs with limit/default/cap behavior, continuation progress,
+  unknown/expired run handling, per-item error continuation, and cannot-confirm
+  filtering coverage.
 
 ## Verification
 
