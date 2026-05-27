@@ -388,12 +388,9 @@ async function inspectsNeutralFactsAndExactMusicBrainzNeighbors(): Promise<void>
   );
   assert(
     reviewQuery?.fieldQuery?.title === "Review Track" &&
-      reviewQuery.fieldQuery.artist === "Review Artist",
-    "review summary inspect should query recording candidates by source title and artist",
-  );
-  assert(
-    reviewQuery?.fieldQuery?.release === undefined,
-    "review summary inspect should not hard-filter first recording search by source release",
+      reviewQuery.fieldQuery.artist === "Review Artist" &&
+      reviewQuery.fieldQuery.release === "Review Release",
+    "review summary inspect should query first by source title, artist, and release when release context exists",
   );
   assert(
     inspection.anchors.some((anchor) => anchor.providerRef?.id === mbRecordingRef.id),
@@ -536,8 +533,15 @@ async function summaryInspectFallsBackToCleanedTitleSingleArtistAndRelease(): Pr
 
   assert(
     fieldQueries[0]?.fieldQuery.title === "月 feat. ヰ世界情緒" &&
-      fieldQueries[0]?.fieldQuery.artist === "Guiano ヰ世界情緒",
-    "fallback inspect should start with the strict source title and joined artist query",
+      fieldQueries[0]?.fieldQuery.artist === "Guiano ヰ世界情緒" &&
+      fieldQueries[0]?.fieldQuery.release === "花鳥風月",
+    "fallback inspect should start with strict source title, joined artist, and release when release context exists",
+  );
+  assert(
+    fieldQueries[1]?.fieldQuery.title === "月 feat. ヰ世界情緒" &&
+      fieldQueries[1]?.fieldQuery.artist === "Guiano ヰ世界情緒" &&
+      fieldQueries[1]?.fieldQuery.release === undefined,
+    "fallback inspect should retry strict source title and joined artist without release after the release-scoped query",
   );
   assert(
     fieldQueries.some((query) =>

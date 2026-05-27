@@ -175,9 +175,9 @@ Implemented:
 - Provisional Review v2.1 summary inspect now asks Music Knowledge for
   recording `releases` only, avoiding unrelated summary expansions such as
   `tracklist`, `release_labels`, and broad `relations`.
-- Provisional Review v2.1 summary inspect now uses source release labels as
-  returned evidence only; it does not hard-filter the first MusicBrainz
-  recording field search by release.
+- Provisional Review v2.1 summary inspect now tries source release labels as a
+  first-pass search constraint when source release context exists, then retries
+  the strict title-plus-artist query without release before broader fallbacks.
 - Provisional Review v2.1 summary inspect now has a bounded MusicBrainz
   recording fallback search plan after strict title-plus-artist lookup. The
   fallback can try cleaned titles, individual source artists, source release

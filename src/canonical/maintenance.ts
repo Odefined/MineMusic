@@ -1596,6 +1596,14 @@ function buildReviewRecordingKnowledgeQueries({
   const queries: KnowledgeQuery[] = [];
   const seen = new Set<string>();
 
+  if (source.release !== undefined) {
+    pushReviewRecordingQuery(queries, seen, buildReviewRecordingFieldQuery({
+      title: source.title,
+      ...(source.artists.length === 0 ? {} : { artist: source.artists.join(" ") }),
+      release: source.release,
+    }));
+  }
+
   pushReviewRecordingQuery(queries, seen, buildReviewRecordingFieldQuery({
     title: source.title,
     ...(source.artists.length === 0 ? {} : { artist: source.artists.join(" ") }),

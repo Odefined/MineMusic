@@ -342,10 +342,13 @@ For MusicBrainz recording candidates:
 ### Recording Search Policy
 
 Summary recording review should start with the strict source title plus joined
-source artist labels. If that does not return useful MusicBrainz recording
-facts, or if returned recording facts do not include source-release context when
-source release context is available, Canonical Maintenance may run a small,
-bounded fallback search plan.
+source artist labels. When source release context is available, the first query
+should include the source release label as a search constraint; if that does not
+return useful MusicBrainz recording facts, retry the same strict title and
+joined artist query without the release constraint before broader fallbacks. If
+returned recording facts still do not include source-release context when source
+release context is available, Canonical Maintenance may run a small, bounded
+fallback search plan.
 
 Fallback search is retrieval-only. It must not mark a candidate as preferred,
 matched, recommended, or safe to update.
