@@ -147,7 +147,6 @@ export function createCanonicalMaintenance({
         return reviewInspectDetail({
           snapshots,
           clock,
-          knowledge,
           input,
         });
       }
@@ -396,17 +395,15 @@ function isReviewProgressEvent(event: StageEvent): boolean {
     event.type === "canonical.merged";
 }
 
-async function reviewInspectDetail({
+function reviewInspectDetail({
   snapshots,
   clock,
-  knowledge,
   input,
 }: {
   snapshots: Map<string, ReviewSnapshot>;
   clock: () => string;
-  knowledge: MusicKnowledgePort | undefined;
   input: ProvisionalReviewInspectInput;
-}): Promise<Result<ProvisionalReviewInspection>> {
+}): Result<ProvisionalReviewInspection> {
   const inspectionId = input.inspectionId;
 
   if (inspectionId === undefined) {
@@ -471,37 +468,10 @@ async function reviewInspectDetail({
   };
 
   if (include.has("releaseAppearances")) {
-    let appearances = releaseAppearancesForRecording(
+    detail.releaseAppearances = releaseAppearancesForRecording(
       snapshot.inspection,
       recordingRef.value,
-    );
-
-    if (appearances.length === 0) {
-      const enriched = await enrichInspectionWithKnowledge({
-        inspection: snapshot.inspection,
-        knowledge,
-        sessionId: input.sessionId,
-        query: {
-          canonicalRef: recordingRef.value,
-          purpose: "review",
-          formats: ["structured"],
-          entityKinds: ["recording"],
-          expand: ["releases"],
-          limit: 10,
-        },
-      });
-
-      if (!enriched.ok) {
-        return enriched;
-      }
-
-      appearances = releaseAppearancesForRecording(
-        snapshot.inspection,
-        recordingRef.value,
-      );
-    }
-
-    detail.releaseAppearances = appearances.map((appearance) => ({
+    ).map((appearance) => ({
       ...appearance,
       refToken: getOrAddRefToken(snapshot.inspection, appearance.ref, "release"),
     }));
@@ -529,7 +499,7 @@ async function reviewInspectDetail({
       releaseRefs.push({ token, ref: ref.value });
     }
 
-    let trackPositions = releaseRefs
+    detail.releaseTrackPositions = releaseRefs
       .map(({ token, ref }) => releaseTrackPositionsForRecording(
         snapshot.inspection,
         recordingRef.value,
@@ -537,43 +507,6 @@ async function reviewInspectDetail({
         token,
       ))
       .filter((positions): positions is NonNullable<typeof positions> => positions !== undefined);
-
-    const missingReleaseRefs = releaseRefs.filter(({ token }) =>
-      !trackPositions.some((positions) => sameReviewToken(positions.refToken, token)),
-    );
-
-    for (const { ref } of missingReleaseRefs) {
-      const enriched = await enrichInspectionWithKnowledge({
-        inspection: snapshot.inspection,
-        knowledge,
-        sessionId: input.sessionId,
-        query: {
-          canonicalRef: ref,
-          purpose: "review",
-          formats: ["structured"],
-          entityKinds: ["release"],
-          expand: ["tracklist"],
-          limit: 1,
-        },
-      });
-
-      if (!enriched.ok) {
-        return enriched;
-      }
-    }
-
-    if (missingReleaseRefs.length > 0) {
-      trackPositions = releaseRefs
-        .map(({ token, ref }) => releaseTrackPositionsForRecording(
-          snapshot.inspection,
-          recordingRef.value,
-          ref,
-          token,
-        ))
-        .filter((positions): positions is NonNullable<typeof positions> => positions !== undefined);
-    }
-
-    detail.releaseTrackPositions = trackPositions;
 
     if (detail.releaseTrackPositions.length < releaseRefs.length) {
       detail.warnings = [
@@ -1489,48 +1422,6 @@ async function readNeighborRecords({
   }
 
   return ok(records);
-}
-
-async function enrichInspectionWithKnowledge({
-  inspection,
-  knowledge,
-  sessionId,
-  query,
-}: {
-  inspection: ProvisionalReviewInspection;
-  knowledge: MusicKnowledgePort | undefined;
-  sessionId: string;
-  query: KnowledgeQuery;
-}): Promise<Result<void>> {
-  if (knowledge === undefined) {
-    return ok(undefined);
-  }
-
-  const result = await knowledge.query({ query, sessionId });
-
-  if (!result.ok) {
-    return fail({
-      code: String(result.error.code),
-      message: result.error.message,
-      module: "canonical",
-      retryable: result.error.retryable,
-    });
-  }
-
-  const offset = inspection.knowledgeItems.length;
-  inspection.knowledgeItems = [
-    ...inspection.knowledgeItems,
-    ...result.value.items.map((item, index) => withKnowledgeItemId(item, offset + index)),
-  ];
-
-  if ((result.warnings?.length ?? 0) > 0) {
-    inspection.warnings = [
-      ...(inspection.warnings ?? []),
-      ...(result.warnings ?? []).map((warning) => warning.message),
-    ];
-  }
-
-  return ok(undefined);
 }
 
 async function readReviewKnowledge({

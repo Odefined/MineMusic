@@ -421,10 +421,8 @@ Rules:
 - `releaseAppearances` is a compressed list of MusicBrainz releases on which
   the recording appears. It includes compact release refs because later detail
   calls need stable release handles.
-- `releaseAppearances` may use release facts already fetched for summary via
-  the recording-level `releases` expansion. If the current inspection lacks
-  release appearance facts for the selected recording token, detail may enrich
-  the existing inspection snapshot by querying that recording with `releases`.
+- `releaseAppearances` uses release facts already fetched into the current
+  summary inspection snapshot.
 - `releaseAppearances` output should be bounded by implementation policy.
   Simple normalized exact string matches with source hint release text may
   appear first, then Knowledge provider order. This ordering is display
@@ -432,9 +430,9 @@ Rules:
   `truncated: true` and a warning.
 - `releaseTrackPositions` returns only the positions of the specified recording
   on specified release refs. It must not return whole release tracklists.
-- `releaseTrackPositions` may query the selected MusicBrainz releases with
-  `tracklist` detail. Tracklist lookup is detail-only and must be filtered down
-  to the selected recording before returning agent-facing output.
+- `releaseTrackPositions` reads tracklist facts already fetched into the current
+  summary inspection snapshot. Detail never performs additional Knowledge
+  lookups.
 - compact tokens are always named `refToken` in outputs. Inputs use role-specific
   names such as `recordingRefToken`, `releaseRefTokens`, and
   `selectedProviderRefToken`.

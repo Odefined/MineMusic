@@ -142,7 +142,7 @@ node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
 node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
 ```
 
-### Task 2: On-Demand Detail Release And Track Positions
+### Task 2: Summary Snapshot Release And Track Positions
 
 **Files**
 
@@ -154,21 +154,22 @@ node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
 
 **Description**
 
-Make detail inspection reliable for real MusicBrainz data by allowing detail to
-enrich the current inspection snapshot with release/tracklist facts.
+Make summary inspection gather the release and track-position facts needed by
+detail views, so detail remains a snapshot-only projection.
 
 **Details**
 
-- Keep detail scoped by `sessionId`, `subjectId`, `inspectionId`, and
-  `recordingRefToken`.
-- `releaseAppearances` first uses snapshot data from Task 1.
-- If required release appearance facts are missing, detail may query Knowledge
-  for the selected MusicBrainz recording with `expand: ["releases"]` and merge
-  compact results into the same snapshot.
-- `releaseTrackPositions` requires `releaseRefTokens`.
-- For selected release tokens, detail may query Knowledge for the MusicBrainz
-  release with `expand: ["tracklist"]`.
-- Return only positions for the selected recording on requested releases.
+- Summary inspect gathers recording release appearances through the Task 1
+  recording `releases` expansion.
+- Summary inspect uses source `releaseLabel` only as post-query evidence to
+  select relevant release appearances; it must not hard-filter the first
+  recording search by release.
+- Summary inspect fetches selected MusicBrainz release tracklists into the same
+  inspection snapshot.
+- Detail remains scoped by `sessionId`, `subjectId`, `inspectionId`, and
+  `recordingRefToken`; it never fetches new Knowledge.
+- `releaseTrackPositions` requires `releaseRefTokens` and returns only positions
+  for the selected recording on requested releases.
 - Do not return full tracklists, source refs, or raw provider payloads.
 - If the provider lacks tracklist facts, return a compact warning instead of an
   empty success that looks authoritative.
@@ -177,11 +178,12 @@ enrich the current inspection snapshot with release/tracklist facts.
 
 - Detail release appearances work through real provider-shaped recording
   release facts, not only manually built test relations.
-- Detail track positions perform release lookup and filter to the selected
-  recording.
+- Summary inspection performs selected release tracklist lookup and stores it in
+  the inspection snapshot.
+- Detail track positions filter snapshot facts to the selected recording.
 - Missing track positions return a compact warning.
-- Detail enrichment does not refresh inspection TTL or allow stale inspection
-  ids.
+- Detail does not perform Knowledge lookups, refresh inspection TTL, or allow
+  stale inspection ids.
 - Apply still does not fetch new Knowledge facts.
 
 **Verification**
@@ -369,7 +371,7 @@ During implementation, update:
 
 - `docs/canonical-store/progress.md` when task status changes.
 - `docs/canonical-store/provisional-review-v2.md` if v2.1 changes design
-  rules, especially detail enrichment semantics.
+  rules, especially summary snapshot and detail projection semantics.
 - `INDEX.md` if docs are added or renamed.
 - `CURRENT_STATE.md`, `ARCHITECTURE.md`, and top-level `PROGRESS.md` only when
   their project-level summaries become stale.
