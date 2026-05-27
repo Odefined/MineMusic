@@ -35,6 +35,7 @@ Task status:
 - Provisional Review v2 Task 4: completed.
 - Provisional Review v2 Task 5: completed.
 - Provisional Review v2 Task 6: completed.
+- Provisional Review v2 Task 7: completed.
 
 Implemented:
 
@@ -177,6 +178,11 @@ Implemented:
     source-derived provisional relations.
   - update audit-event failures return compact warnings after the canonical
     changeset commits.
+- Stage Context and Handbook canonical-review guidance now describe the v2
+  compact workflow: summary inspect by default, detail only for release
+  appearances or selected release track positions, update with
+  `selectedProviderRefToken`, defer with a short reason, and no v1
+  citation/anchor/support-id payloads.
 
 Implemented public methods:
 

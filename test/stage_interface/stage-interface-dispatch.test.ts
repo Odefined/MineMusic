@@ -156,6 +156,12 @@ async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
     handbook.content.includes("Sequence: enter `canonical_review` posture"),
     "handbook should include compact canonical review workflow guidance",
   );
+  assert(
+    handbook.content.includes("selectedProviderRefToken"),
+    "handbook should include v2 token apply guidance",
+  );
+  assert(!handbook.content.includes("supportingRefs"), "handbook should not describe v1 citation payloads");
+  assert(!handbook.content.includes("anchors"), "handbook should not describe v1 anchors");
 }
 
 async function filtersCatalogToExplicitActiveInstruments(): Promise<void> {

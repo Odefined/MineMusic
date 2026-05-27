@@ -105,15 +105,22 @@ async function readsCanonicalReviewGuidanceInReviewPosture(): Promise<void> {
     events,
   });
   const context = await assertOk(sessionContext.readContext({ sessionId: session.id }));
+  const guidanceText = context.guidance?.join("\n") ?? "";
 
   assert(
-    context.guidance?.some((entry) => entry.includes("Provisional Review v1 only supports provisional recordings")),
+    guidanceText.includes("Use summary inspect by default"),
     "canonical review context should include compact review guidance",
   );
   assert(
-    context.guidance?.some((entry) => entry.includes("agent must not choose activate, merge, or a merge target")),
+    guidanceText.includes("selectedProviderRefToken"),
+    "canonical review guidance should expose v2 token apply shape",
+  );
+  assert(
+    guidanceText.includes("agent must not choose activate, merge, or a merge target"),
     "canonical review guidance should keep apply effect selection in Canonical Store",
   );
+  assert(!guidanceText.includes("Knowledge Item ids"), "canonical review guidance should not mention v1 Knowledge Item citations");
+  assert(!guidanceText.includes("anchors"), "canonical review guidance should not mention v1 anchors");
 }
 
 async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {

@@ -98,12 +98,13 @@ export function createSessionContext({
 
 function canonicalReviewGuidance(): string[] {
   return [
-    "Provisional Review v1 only supports provisional recordings.",
-    "Call canonical.review.inspect before canonical.review.apply for a subject.",
-    "Choose update only with one selected MusicBrainz recording ref and at least two non-label support reasons from inspected facts.",
+    "Provisional Review v2 supports provisional recordings.",
+    "Use summary inspect by default; request detail only for release appearances or selected release track positions.",
+    "Inspect returns compact facts for judgment, not action recommendations or merge targets.",
+    "Apply update with one selectedProviderRefToken and a short reason, or apply defer with a short reason.",
     "Choose defer when inspected facts are incomplete, ambiguous, or contradictory.",
     "Apply derives activate or merge from current Canonical Store state; the agent must not choose activate, merge, or a merge target.",
-    "Use only refs, Knowledge Item ids, and anchors returned by canonical.review.inspect.",
+    "Do not ask for raw/full inspection output; use detail views only when compact summary facts are insufficient.",
   ];
 }
 

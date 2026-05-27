@@ -124,7 +124,8 @@ function renderInstrumentGuidance(instrument: InstrumentDescriptor): string[] {
   }
 
   return [
-    "Sequence: enter `canonical_review` posture, read `stage.context.read`, list or inspect a provisional recording, then apply `update` or `defer`.",
+    "Sequence: enter `canonical_review` posture, read `stage.context.read`, list provisional recordings, use summary inspect by default, request detail only for release appearances or selected release track positions, then apply `update` with `selectedProviderRefToken` and a short reason or `defer` with a short reason.",
+    "Inspect returns compact facts, not recommendations. Do not request raw/full inspection output.",
     "",
   ];
 }
