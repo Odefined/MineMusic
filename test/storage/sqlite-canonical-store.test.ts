@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { createCanonicalStore } from "../../src/canonical/index.js";
-import type { CanonicalRecord, Ref, Result } from "../../src/contracts/index.js";
+import type { CanonicalProviderIdentity, CanonicalRecord, Ref, Result } from "../../src/contracts/index.js";
 import type { CanonicalRecordRepository } from "../../src/ports/index.js";
 import { createSqliteCanonicalRecordRepository } from "../../src/storage/index.js";
 
@@ -421,6 +421,130 @@ async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void>
   }
 }
 
+async function persistsFactsAndProviderIdentitiesAcrossRepositoryReopen(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-provider-identity-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const record: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "canonical-mb-recording",
+    },
+    kind: "recording",
+    label: "MusicBrainz Recording Title",
+    status: "active",
+    facts: {
+      artistCreditText: "Fixture Artist",
+      durationMs: 123456,
+      isrcs: ["TESTISRC0001"],
+      disambiguation: "fixture version",
+    },
+  };
+  const identity: CanonicalProviderIdentity = {
+    canonicalRef: record.ref,
+    providerId: "musicbrainz",
+    entityKind: "recording",
+    providerEntityId: "mb-recording-1",
+  };
+
+  try {
+    const repository = createSqliteCanonicalRecordRepository({ path: databasePath });
+
+    assert(repository.commitChanges !== undefined, "SQLite repository should commit canonical changesets");
+    await assertOk(
+      repository.commitChanges({
+        putRecords: [record],
+        putProviderIdentities: [identity],
+      }),
+    );
+
+    const reopenedRepository = createSqliteCanonicalRecordRepository({ path: databasePath });
+    const loaded = await assertOk(reopenedRepository.get(record.ref));
+    const matches = await assertOk(
+      reopenedRepository.findCurrentByProviderIdentity?.({
+        providerId: "musicbrainz",
+        entityKind: "recording",
+        providerEntityId: "mb-recording-1",
+      }) ?? assertUnreachable("SQLite repository should expose provider identity lookup"),
+    );
+
+    assert(loaded?.facts?.artistCreditText === "Fixture Artist", "reopened records should keep facts");
+    assert(loaded?.facts?.durationMs === 123456, "reopened records should keep numeric facts");
+    assert(matches.length === 1, "provider identity lookup should find one current record");
+    assert(matches[0]?.ref.id === record.ref.id, "provider identity lookup should return the bound record");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function changesetDeletesOnlyRequestedRelations(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-delete-relations-"));
+  const databasePath = join(directory, "canonical.sqlite");
+  const subjectRef: Ref = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "delete-relation-subject",
+  };
+  const sourceRef: Ref = {
+    namespace: "source:netease",
+    kind: "track",
+    id: "delete-relation-track",
+  };
+
+  try {
+    const repository = createSqliteCanonicalRecordRepository({ path: databasePath });
+
+    await assertOk(
+      repository.put({
+        ref: subjectRef,
+        kind: "recording",
+        label: "Delete Relation Subject",
+        status: "provisional",
+      }),
+    );
+    await assertOk(
+      repository.putRelation({
+        relation: {
+          id: "delete-me",
+          subjectRef,
+          predicate: "performed_by",
+          objectKind: "artist",
+          objectLabel: "Fixture Artist",
+          sourceRef,
+          status: "provisional",
+          createdAt: "2026-05-27T00:00:00.000Z",
+          updatedAt: "2026-05-27T00:00:00.000Z",
+        },
+      }),
+    );
+    await assertOk(
+      repository.putRelation({
+        relation: {
+          id: "keep-me",
+          subjectRef,
+          predicate: "has_duration_ms",
+          objectKind: "duration_ms",
+          objectValue: 123456,
+          sourceRef,
+          status: "provisional",
+          createdAt: "2026-05-27T00:00:00.000Z",
+          updatedAt: "2026-05-27T00:00:00.000Z",
+        },
+      }),
+    );
+
+    assert(repository.commitChanges !== undefined, "SQLite repository should commit canonical changesets");
+    await assertOk(repository.commitChanges({ deleteRelationIds: ["delete-me"] }));
+
+    const relations = await assertOk(repository.listRelations({ subjectRef }));
+
+    assert(relations.length === 1, "changeset should delete only requested relation ids");
+    assert(relations[0]?.id === "keep-me", "changeset should keep unrelated relations");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function persistsCanonicalProvisionalHintsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-hints-"));
   const databasePath = join(directory, "canonical.sqlite");
@@ -554,9 +678,11 @@ await mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary();
 await usesIndexedSourceRefLookupWithoutFullRepositoryList();
 await migratesLegacySourceRefTableToSourceRefs();
 await persistsCanonicalRelationsAcrossRepositoryReopen();
+await persistsFactsAndProviderIdentitiesAcrossRepositoryReopen();
+await changesetDeletesOnlyRequestedRelations();
 await persistsCanonicalProvisionalHintsAcrossRepositoryReopen();
 await persistsMergedRedirectsAcrossRepositoryReopen();
 
-function assertUnreachable(): never {
-  throw new Error("SQLite repository should expose indexed source-ref lookup");
+function assertUnreachable(message = "SQLite repository should expose indexed source-ref lookup"): never {
+  throw new Error(message);
 }

@@ -30,6 +30,7 @@ Task status:
 - Task 6: completed by this documentation pass.
 - Provisional Review v1 Tasks 1-10: completed for the first runtime slice.
 - Provisional Review v2 Task 1: completed.
+- Provisional Review v2 Task 2: completed.
 
 Implemented:
 
@@ -127,6 +128,13 @@ Implemented:
   - `CanonicalRecordRepository` exposes optional provider identity lookup and
     generic canonical changeset extension points for the storage implementation
     slice.
+- Provisional Review v2 storage foundation is in place:
+  - in-memory and SQLite Canonical repositories can commit provider identity
+    changesets.
+  - SQLite persists `CanonicalRecord.facts` through `metadata_json`.
+  - SQLite stores provider identities separately from source refs and can look
+    up current records by exact provider identity.
+  - changesets can delete canonical relations by id.
 
 Implemented public methods:
 

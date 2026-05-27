@@ -1,5 +1,7 @@
 import type {
+  CanonicalProviderIdentity,
   CanonicalRecord,
+  CanonicalRelation,
   Collection,
   CollectionItem,
   EffectProposal,
@@ -129,6 +131,73 @@ async function repositoriesAreInstanceIsolatedAndReturnCopies(): Promise<void> {
 
   const isolatedRead = await assertOk(secondRepo.get(session.id));
   assert(isolatedRead === null, "separate repository instances should not share records");
+}
+
+async function canonicalRepositoryCommitsProviderIdentityChangesets(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const record: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "in-memory-canonical",
+    },
+    kind: "recording",
+    label: "In Memory Recording",
+    status: "active",
+    facts: {
+      artistCreditText: "Fixture Artist",
+    },
+  };
+  const identity: CanonicalProviderIdentity = {
+    canonicalRef: record.ref,
+    providerId: "musicbrainz",
+    entityKind: "recording",
+    providerEntityId: "in-memory-mbid",
+  };
+  const relation: CanonicalRelation = {
+    id: "remove-in-memory",
+    subjectRef: record.ref,
+    predicate: "performed_by",
+    objectKind: "artist",
+    objectLabel: "Fixture Artist",
+    sourceRef: {
+      namespace: "source:netease",
+      kind: "track",
+      id: "in-memory-source",
+    },
+    status: "provisional",
+    createdAt: "2026-05-27T00:00:00.000Z",
+    updatedAt: "2026-05-27T00:00:00.000Z",
+  };
+
+  assert(repository.commitChanges !== undefined, "in-memory canonical repository should commit changesets");
+  assert(
+    repository.findCurrentByProviderIdentity !== undefined,
+    "in-memory canonical repository should expose provider identity lookup",
+  );
+
+  await assertOk(repository.putRelation({ relation }));
+  await assertOk(
+    repository.commitChanges({
+      putRecords: [record],
+      putProviderIdentities: [identity],
+      deleteRelationIds: [relation.id],
+    }),
+  );
+
+  const loaded = await assertOk(repository.get(record.ref));
+  const matches = await assertOk(
+    repository.findCurrentByProviderIdentity({
+      providerId: "musicbrainz",
+      entityKind: "recording",
+      providerEntityId: "in-memory-mbid",
+    }),
+  );
+  const relations = await assertOk(repository.listRelations({ subjectRef: record.ref }));
+
+  assert(loaded?.facts?.artistCreditText === "Fixture Artist", "changeset should store facts");
+  assert(matches.length === 1 && matches[0]?.ref.id === record.ref.id, "provider identity should find current records");
+  assert(relations.length === 0, "changeset should delete requested relation ids");
 }
 
 async function collectionRepositoryStoresCollectionsByIdAndReturnsCopies(): Promise<void> {
@@ -405,6 +474,7 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
 
 await storesEachRepositoryType();
 await repositoriesAreInstanceIsolatedAndReturnCopies();
+await canonicalRepositoryCommitsProviderIdentityChangesets();
 await collectionRepositoryStoresCollectionsByIdAndReturnsCopies();
 await collectionRepositoryQueriesCollectionsAndActiveLabels();
 await collectionRepositoryRejectsDuplicateActiveLabelsWithinOwnerScope();

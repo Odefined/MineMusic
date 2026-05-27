@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   CanonicalRecord,
+  CanonicalProviderIdentity,
   CanonicalProvisionalHint,
   CanonicalProvisionalHintFacts,
   CanonicalRelation,
@@ -29,6 +30,7 @@ type CanonicalEntityRow = {
   label: string;
   status: CanonicalRecord["status"];
   merged_into_id: string | null;
+  metadata_json: string | null;
 };
 
 type SourceRefRow = {
@@ -109,91 +111,72 @@ export function createSqliteCanonicalRecordRepository({
         database.exec("BEGIN");
 
         try {
-          database
-            .prepare(`
-              INSERT INTO canonical_entities (
-                id,
-                namespace,
-                kind,
-                label,
-                normalized_label,
-                status,
-                merged_into_id,
-                created_at,
-                updated_at
-              )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET
-                namespace = excluded.namespace,
-                kind = excluded.kind,
-                label = excluded.label,
-                normalized_label = excluded.normalized_label,
-                status = excluded.status,
-                merged_into_id = excluded.merged_into_id,
-                updated_at = excluded.updated_at
-            `)
-            .run(
-              record.ref.id,
-              record.ref.namespace,
-              record.kind,
-              record.label,
-              normalizeLabel(record.label),
-              record.status,
-              record.mergedIntoRef?.id ?? null,
-              now,
-              now,
-            );
-
-          database
-            .prepare("DELETE FROM canonical_source_refs WHERE canonical_id = ?")
-            .run(record.ref.id);
-
-          for (const sourceRef of record.sourceRefs ?? []) {
-            database
-              .prepare(`
-                INSERT INTO canonical_source_refs (
-                  canonical_id,
-                  namespace,
-                  kind,
-                  source_id,
-                  label,
-                  url,
-                  created_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-              `)
-              .run(
-                record.ref.id,
-                sourceRef.namespace,
-                sourceRef.kind,
-                sourceRef.id,
-                sourceRef.label ?? null,
-                sourceRef.url ?? null,
-                now,
-              );
-          }
-
-          database
-            .prepare("DELETE FROM canonical_aliases WHERE canonical_id = ?")
-            .run(record.ref.id);
-
-          for (const alias of record.aliases ?? []) {
-            database
-              .prepare(`
-                INSERT INTO canonical_aliases (
-                  canonical_id,
-                  alias,
-                  normalized_alias,
-                  created_at
-                )
-                VALUES (?, ?, ?, ?)
-              `)
-              .run(record.ref.id, alias, normalizeLabel(alias), now);
-          }
+          writeCanonicalRecord(database, record, now);
 
           database.exec("COMMIT");
 
           return structuredClone(record);
+        } catch (error) {
+          database.exec("ROLLBACK");
+          throw error;
+        }
+      });
+    },
+
+    async findCurrentByProviderIdentity(input) {
+      return readResult(() => {
+        const rows = database
+          .prepare(`
+            SELECT canonical_entities.id,
+                   canonical_entities.namespace,
+                   canonical_entities.kind,
+                   canonical_entities.label,
+                   canonical_entities.status,
+                   canonical_entities.merged_into_id,
+                   canonical_entities.metadata_json
+            FROM canonical_entities
+            INNER JOIN canonical_provider_identities
+              ON canonical_provider_identities.canonical_id = canonical_entities.id
+            WHERE canonical_provider_identities.provider_id = ?
+              AND canonical_provider_identities.entity_kind = ?
+              AND canonical_provider_identities.provider_entity_id = ?
+              AND canonical_entities.status IN ('active', 'provisional')
+            ORDER BY canonical_entities.id
+          `)
+          .all(input.providerId, input.entityKind, input.providerEntityId) as CanonicalEntityRow[];
+
+        return rows.map((row) => readCanonicalRecord(database, row));
+      });
+    },
+
+    async commitChanges(input) {
+      return readResult(() => {
+        const now = new Date().toISOString();
+
+        database.exec("BEGIN");
+
+        try {
+          for (const record of input.putRecords ?? []) {
+            writeCanonicalRecord(database, record, now);
+          }
+
+          for (const identity of input.putProviderIdentities ?? []) {
+            writeProviderIdentity(database, identity, now);
+          }
+
+          for (const relationId of input.deleteRelationIds ?? []) {
+            database.prepare("DELETE FROM canonical_relations WHERE id = ?").run(relationId);
+          }
+
+          database.exec("COMMIT");
+
+          return {
+            records: (input.putRecords ?? []).map((record) => structuredClone(record)),
+            providerIdentities: (input.putProviderIdentities ?? []).map((identity) =>
+              structuredClone(identity),
+            ),
+            deletedRelationIds: [...(input.deleteRelationIds ?? [])],
+          };
         } catch (error) {
           database.exec("ROLLBACK");
           throw error;
@@ -206,7 +189,7 @@ export function createSqliteCanonicalRecordRepository({
         const rows = database
           .prepare(`
             SELECT id, namespace, kind, label, status
-                 , merged_into_id
+                 , merged_into_id, metadata_json
             FROM canonical_entities
             ORDER BY id
           `)
@@ -225,7 +208,8 @@ export function createSqliteCanonicalRecordRepository({
                    canonical_entities.kind,
                    canonical_entities.label,
                    canonical_entities.status,
-                   canonical_entities.merged_into_id
+                   canonical_entities.merged_into_id,
+                   canonical_entities.metadata_json
             FROM canonical_entities
             INNER JOIN canonical_source_refs
               ON canonical_source_refs.canonical_id = canonical_entities.id
@@ -405,13 +389,130 @@ function getEntityRow(database: DatabaseSync, ref: Ref): CanonicalEntityRow | nu
   const row = database
     .prepare(`
       SELECT id, namespace, kind, label, status
-           , merged_into_id
+           , merged_into_id, metadata_json
       FROM canonical_entities
       WHERE namespace = ? AND kind = ? AND id = ?
     `)
     .get(ref.namespace, ref.kind, ref.id) as CanonicalEntityRow | undefined;
 
   return row ?? null;
+}
+
+function writeCanonicalRecord(database: DatabaseSync, record: CanonicalRecord, now: string): void {
+  database
+    .prepare(`
+      INSERT INTO canonical_entities (
+        id,
+        namespace,
+        kind,
+        label,
+        normalized_label,
+        status,
+        merged_into_id,
+        metadata_json,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        namespace = excluded.namespace,
+        kind = excluded.kind,
+        label = excluded.label,
+        normalized_label = excluded.normalized_label,
+        status = excluded.status,
+        merged_into_id = excluded.merged_into_id,
+        metadata_json = excluded.metadata_json,
+        updated_at = excluded.updated_at
+    `)
+    .run(
+      record.ref.id,
+      record.ref.namespace,
+      record.kind,
+      record.label,
+      normalizeLabel(record.label),
+      record.status,
+      record.mergedIntoRef?.id ?? null,
+      optionalJson(record.facts),
+      now,
+      now,
+    );
+
+  database
+    .prepare("DELETE FROM canonical_source_refs WHERE canonical_id = ?")
+    .run(record.ref.id);
+
+  for (const sourceRef of record.sourceRefs ?? []) {
+    database
+      .prepare(`
+        INSERT INTO canonical_source_refs (
+          canonical_id,
+          namespace,
+          kind,
+          source_id,
+          label,
+          url,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        record.ref.id,
+        sourceRef.namespace,
+        sourceRef.kind,
+        sourceRef.id,
+        sourceRef.label ?? null,
+        sourceRef.url ?? null,
+        now,
+      );
+  }
+
+  database
+    .prepare("DELETE FROM canonical_aliases WHERE canonical_id = ?")
+    .run(record.ref.id);
+
+  for (const alias of record.aliases ?? []) {
+    database
+      .prepare(`
+        INSERT INTO canonical_aliases (
+          canonical_id,
+          alias,
+          normalized_alias,
+          created_at
+        )
+        VALUES (?, ?, ?, ?)
+      `)
+      .run(record.ref.id, alias, normalizeLabel(alias), now);
+  }
+}
+
+function writeProviderIdentity(
+  database: DatabaseSync,
+  identity: CanonicalProviderIdentity,
+  now: string,
+): void {
+  database
+    .prepare(`
+      INSERT INTO canonical_provider_identities (
+        canonical_id,
+        provider_id,
+        entity_kind,
+        provider_entity_id,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(provider_id, entity_kind, provider_entity_id) DO UPDATE SET
+        canonical_id = excluded.canonical_id,
+        updated_at = excluded.updated_at
+    `)
+    .run(
+      identity.canonicalRef.id,
+      identity.providerId,
+      identity.entityKind,
+      identity.providerEntityId,
+      now,
+      now,
+    );
 }
 
 function readCanonicalRecord(database: DatabaseSync, row: CanonicalEntityRow): CanonicalRecord {
@@ -444,6 +545,7 @@ function readCanonicalRecord(database: DatabaseSync, row: CanonicalEntityRow): C
   };
   const refs = sourceRefs.map(toRef);
   const aliasValues = aliases.map((alias) => alias.alias);
+  const facts = row.metadata_json === null ? undefined : fromJson<Record<string, unknown>>(row.metadata_json);
 
   return {
     ...record,
@@ -458,6 +560,7 @@ function readCanonicalRecord(database: DatabaseSync, row: CanonicalEntityRow): C
         }),
     ...(refs.length === 0 ? {} : { sourceRefs: refs }),
     ...(aliasValues.length === 0 ? {} : { aliases: aliasValues }),
+    ...(facts === undefined ? {} : { facts }),
   };
 }
 

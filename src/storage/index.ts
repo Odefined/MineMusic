@@ -1,5 +1,6 @@
 import type {
   CanonicalRecord,
+  CanonicalProviderIdentity,
   CanonicalProvisionalHint,
   CanonicalRelation,
   Collection,
@@ -80,6 +81,7 @@ export function createInMemoryRepository<TRecord, TKey>({
 
 export function createInMemoryCanonicalRecordRepository(): CanonicalRecordRepository {
   const records = new Map<string, CanonicalRecord>();
+  const providerIdentities = new Map<string, CanonicalProviderIdentity>();
   const relations = new Map<string, CanonicalRelation>();
   const provisionalHints = new Map<string, CanonicalProvisionalHint>();
 
@@ -98,6 +100,63 @@ export function createInMemoryCanonicalRecordRepository(): CanonicalRecordReposi
 
     async list() {
       return ok([...records.values()].map((record) => cloneRecord(record)));
+    },
+
+    async findCurrentByProviderIdentity(input) {
+      const matched = [...providerIdentities.values()]
+        .filter((identity) =>
+          identity.providerId === input.providerId &&
+          identity.entityKind === input.entityKind &&
+          identity.providerEntityId === input.providerEntityId,
+        )
+        .map((identity) => records.get(refToStorageKey(identity.canonicalRef)))
+        .filter((record): record is CanonicalRecord =>
+          record !== undefined && isCurrentCanonicalRecordStatus(record.status),
+        )
+        .map((record) => cloneRecord(record));
+
+      return ok(matched);
+    },
+
+    async commitChanges(input) {
+      const nextRecords = new Map(records);
+      const nextProviderIdentities = new Map(providerIdentities);
+      const nextRelations = new Map(relations);
+
+      for (const record of input.putRecords ?? []) {
+        nextRecords.set(refToStorageKey(record.ref), cloneRecord(record));
+      }
+
+      for (const identity of input.putProviderIdentities ?? []) {
+        nextProviderIdentities.set(providerIdentityKey(identity), cloneRecord(identity));
+      }
+
+      for (const relationId of input.deleteRelationIds ?? []) {
+        nextRelations.delete(relationId);
+      }
+
+      records.clear();
+      for (const [key, record] of nextRecords) {
+        records.set(key, record);
+      }
+
+      providerIdentities.clear();
+      for (const [key, identity] of nextProviderIdentities) {
+        providerIdentities.set(key, identity);
+      }
+
+      relations.clear();
+      for (const [key, relation] of nextRelations) {
+        relations.set(key, relation);
+      }
+
+      return ok({
+        records: (input.putRecords ?? []).map((record) => cloneRecord(record)),
+        providerIdentities: (input.putProviderIdentities ?? []).map((identity) =>
+          cloneRecord(identity),
+        ),
+        deletedRelationIds: [...(input.deleteRelationIds ?? [])],
+      });
     },
 
     async putRelation({ relation }) {
@@ -468,6 +527,21 @@ function matchesCanonicalProvisionalHintQuery(
       refToStorageKey(hint.sourceRef) === refToStorageKey(query.sourceRef)) &&
     (query.kind === undefined || hint.kind === query.kind)
   );
+}
+
+function providerIdentityKey(identity: Pick<
+  CanonicalProviderIdentity,
+  "providerId" | "entityKind" | "providerEntityId"
+>): string {
+  return [
+    identity.providerId,
+    identity.entityKind,
+    identity.providerEntityId,
+  ].join(":");
+}
+
+function isCurrentCanonicalRecordStatus(status: CanonicalRecord["status"]): boolean {
+  return status === "active" || status === "provisional";
 }
 
 function libraryImportAreaSnapshotKey(snapshot: LibraryImportAreaSnapshot): string {

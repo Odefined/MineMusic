@@ -45,6 +45,21 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS canonical_source_refs_canonical_idx
       ON canonical_source_refs(canonical_id);
 
+    CREATE TABLE IF NOT EXISTS canonical_provider_identities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      canonical_id TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      entity_kind TEXT NOT NULL,
+      provider_entity_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (canonical_id) REFERENCES canonical_entities(id),
+      UNIQUE(provider_id, entity_kind, provider_entity_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS canonical_provider_identities_canonical_idx
+      ON canonical_provider_identities(canonical_id);
+
     CREATE TABLE IF NOT EXISTS canonical_aliases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       canonical_id TEXT NOT NULL,
