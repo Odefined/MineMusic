@@ -304,10 +304,22 @@ async function inspectsNeutralFactsAndExactMusicBrainzNeighbors(): Promise<void>
     "inspect should return direct neighbor canonical records",
   );
   assert(inspection.knowledgeItems[0]?.id !== undefined, "inspect should expose citable Knowledge item ids");
-  const reviewQuery = inspection.knowledgeItems[0]?.metadata?.query as { expand?: string[] } | undefined;
+  const reviewQuery = inspection.knowledgeItems[0]?.metadata?.query as {
+    expand?: string[];
+    fieldQuery?: { title?: string; artist?: string; release?: string };
+  } | undefined;
   assert(
     reviewQuery?.expand?.join(",") === "releases",
     "review summary inspect should request release facts without unrelated recording expansions",
+  );
+  assert(
+    reviewQuery?.fieldQuery?.title === "Review Track" &&
+      reviewQuery.fieldQuery.artist === "Review Artist",
+    "review summary inspect should query recording candidates by source title and artist",
+  );
+  assert(
+    reviewQuery?.fieldQuery?.release === undefined,
+    "review summary inspect should not hard-filter first recording search by source release",
   );
   assert(
     inspection.anchors.some((anchor) => anchor.providerRef?.id === mbRecordingRef.id),

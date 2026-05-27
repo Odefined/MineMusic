@@ -39,7 +39,7 @@ Task status:
 - Provisional Review v2 Task 7: completed.
 - Provisional Review v2.1 Task 1: completed.
 - Provisional Review v2.1 Task 2: completed.
-- Provisional Review v2.1 Task 3: pending after replanning.
+- Provisional Review v2.1 Task 3: completed.
 - Provisional Review v2.1 Task 4: completed.
 - Provisional Review v2.1 Task 5: completed.
 - Provisional Review v2.1 Task 6: pending.
@@ -175,6 +175,9 @@ Implemented:
 - Provisional Review v2.1 summary inspect now asks Music Knowledge for
   recording `releases` only, avoiding unrelated summary expansions such as
   `tracklist`, `release_labels`, and broad `relations`.
+- Provisional Review v2.1 summary inspect now uses source release labels as
+  returned evidence only; it does not hard-filter the first MusicBrainz
+  recording field search by release.
 - Knowledge query direct provider lookup now uses `providerRef`; `canonicalRef`
   remains MineMusic Canonical Store context and is not interpreted as a
   MusicBrainz MBID by the MusicBrainz provider.

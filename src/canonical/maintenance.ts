@@ -1492,12 +1492,9 @@ function buildKnowledgeQuery({
       .map((relation) => relation.objectLabel)
       .filter((label): label is string => label !== undefined)
       .join(" ");
-  const release = firstRecordingHint?.facts.releaseLabel ??
-    outgoingRelations.find((relation) => relation.predicate === "appears_on_release")?.objectLabel;
   const fieldQuery = {
     title,
     ...(artist.length === 0 ? {} : { artist }),
-    ...(release === undefined ? {} : { release }),
   };
 
   return {
