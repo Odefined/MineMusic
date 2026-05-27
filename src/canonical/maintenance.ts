@@ -12,6 +12,7 @@ import type {
   ProvisionalReviewAutoUpdateItem,
   ProvisionalReviewAutoUpdateOutput,
   ProvisionalReviewAutoUpdateReasonCode,
+  ProvisionalReviewDecisionOrigin,
   ProvisionalReviewInspection,
   ProvisionalReviewInspectInput,
   ProvisionalReviewRefToken,
@@ -261,6 +262,7 @@ export function createCanonicalMaintenance({
           input,
           inspection: commonGate.value.inspection,
           selectedProviderRef: updateGate.value,
+          decisionOrigin: "agent",
         });
       }
 
@@ -577,6 +579,7 @@ async function reviewAutoUpdateSingleSubject({
     },
     inspection,
     selectedProviderRef,
+    decisionOrigin: "automatic",
   });
 
   if (!applied.ok) {
@@ -920,12 +923,14 @@ async function applyUpdateDecision({
   input,
   inspection,
   selectedProviderRef,
+  decisionOrigin,
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
   selectedProviderRef: Ref;
+  decisionOrigin: ProvisionalReviewDecisionOrigin;
 }): Promise<Result<ProvisionalReviewApplyOutput>> {
   const currentRecords = await storage.findCurrentRecordsByProviderIdentity({
     providerId: selectedProviderRef.namespace,
@@ -955,6 +960,7 @@ async function applyUpdateDecision({
       input,
       inspection,
       selectedProviderRef,
+      decisionOrigin,
     });
   }
 
@@ -976,6 +982,7 @@ async function applyUpdateDecision({
     inspection,
     selectedProviderRef,
     target,
+    decisionOrigin,
   });
 }
 
@@ -985,12 +992,14 @@ async function activateSubject({
   input,
   inspection,
   selectedProviderRef,
+  decisionOrigin,
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
   selectedProviderRef: Ref;
+  decisionOrigin: ProvisionalReviewDecisionOrigin;
 }): Promise<Result<ProvisionalReviewApplyOutput>> {
   const selectedFacts = selectedRecordingWriteFacts(inspection, selectedProviderRef);
   const activatedLabel = selectedFacts.label;
@@ -1028,6 +1037,7 @@ async function activateSubject({
       selectedProviderRef,
       selectedProviderRefToken: input.selectedProviderRefToken,
       reason: input.reason,
+      decisionOrigin,
     },
   });
 
@@ -1050,6 +1060,7 @@ async function mergeSubject({
   inspection,
   selectedProviderRef,
   target,
+  decisionOrigin,
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
@@ -1057,6 +1068,7 @@ async function mergeSubject({
   inspection: ProvisionalReviewInspection;
   selectedProviderRef: Ref;
   target: CanonicalRecord;
+  decisionOrigin: ProvisionalReviewDecisionOrigin;
 }): Promise<Result<ProvisionalReviewApplyOutput>> {
   const selectedFacts = selectedRecordingWriteFacts(inspection, selectedProviderRef);
   const movedSourceRefs = uniqueRefs([
@@ -1125,6 +1137,7 @@ async function mergeSubject({
       selectedProviderRef,
       selectedProviderRefToken: input.selectedProviderRefToken,
       reason: input.reason,
+      decisionOrigin,
     },
   });
 

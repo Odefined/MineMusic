@@ -1972,6 +1972,13 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
   assert(remainingHints.length === 1, "activation should keep provisional hints as review context");
   assert(recordedEvents.some((event) => event.type === "canonical.activated"), "activation should record an update audit event");
   assert(
+    recordedEvents.some((event) =>
+      event.type === "canonical.activated" &&
+        (event.payload as { decisionOrigin?: string } | undefined)?.decisionOrigin === "agent"
+    ),
+    "manual update audit event should record agent decision origin",
+  );
+  assert(
     knowledgeQueries === knowledgeQueriesAfterInspect,
     "apply should use the stored inspection snapshot without fetching new Knowledge facts",
   );
@@ -2068,6 +2075,7 @@ async function autoUpdateSingleSubjectActivatesWhenOneRecordingQualifies(): Prom
         entityKind: "recording",
         providerEntityId: selectedRef.id,
       }));
+  const recordedEvents = await assertOk(events.listBySession({ sessionId: reviewSession.id }));
 
   assert(output.mode === "single", "single-subject auto update should return single mode");
   assert(output.item.outcome === "updated", "qualified single-subject auto update should update");
@@ -2077,6 +2085,13 @@ async function autoUpdateSingleSubjectActivatesWhenOneRecordingQualifies(): Prom
   assert(loaded?.status === "active", "auto update should activate the subject");
   assert(loaded?.label === "Auto Track", "auto update should write the selected MusicBrainz title");
   assert(providerMatches.length === 1 && providerMatches[0]?.ref.id === subject.ref.id, "auto update should write provider identity");
+  assert(
+    recordedEvents.some((event) =>
+      event.type === "canonical.activated" &&
+        (event.payload as { decisionOrigin?: string } | undefined)?.decisionOrigin === "automatic"
+    ),
+    "auto update audit event should record automatic decision origin",
+  );
 }
 
 async function autoUpdateSingleSubjectMergesWhenOneCurrentRecordHasSelectedIdentity(): Promise<void> {

@@ -49,6 +49,7 @@ Task status:
 - Provisional Review v3 Task 3: completed.
 - Provisional Review v3 Task 4: completed.
 - Provisional Review v3 Task 5: completed for single-subject auto update.
+- Provisional Review v3 Task 6: completed.
 
 Implemented:
 
@@ -261,6 +262,10 @@ Implemented:
   activation/merge, returns not-qualified without writing review state or
   events, returns error items for named-subject failures, and keeps
   `inspectionId` out of auto-update output.
+- Provisional Review v3 update audit payloads now record decision origin:
+  manual `reviewApply(update)` writes `decisionOrigin: "agent"` and automatic
+  single-subject update writes `decisionOrigin: "automatic"` without changing
+  the external manual apply payload or Gate semantics.
 
 Implemented public methods:
 
@@ -294,7 +299,7 @@ Pending:
 - Standalone admin port for broader activate/reject/merge/list workflows.
 - Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
   smoke has passed first.
-- Provisional Review v3 Tasks 6-10 from
+- Provisional Review v3 Tasks 7-10 from
   `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
@@ -395,6 +400,9 @@ Pending:
   automatic update in Canonical Maintenance with activation, merge,
   invariant-error, cannot-confirm-hidden, not-qualified-no-side-effect, and
   non-provisional error-item coverage.
+- Completed Provisional Review v3 Task 6 by recording `decisionOrigin` in
+  update audit payloads for both manual agent-authored updates and automatic
+  updates.
 
 ## Verification
 
