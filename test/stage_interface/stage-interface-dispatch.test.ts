@@ -1112,7 +1112,20 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
   const canonicalMaintenance: CanonicalMaintenancePort = {
     reviewList: async ({ sessionId, limit }) => {
       calls.push(`list:${sessionId}:${limit ?? "none"}`);
-      return { ok: true, value: { items: [] } };
+      return {
+        ok: true,
+        value: {
+          items: [
+            {
+              subjectRef: collectionRef,
+              kind: "recording",
+              label: "Quiet Track",
+              sourceRefCount: 1,
+              relationCount: 3,
+            },
+          ],
+        },
+      };
     },
     reviewInspect: async ({ sessionId, subjectRef }) => {
       calls.push(`inspect:${sessionId}:${subjectRef.id}`);
@@ -1128,12 +1141,60 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
           },
           outgoingRelations: [],
           incomingRelations: [],
-          provisionalHints: [],
+          provisionalHints: [
+            {
+              id: "hint-1",
+              subjectRef,
+              kind: "source_recording_context",
+              sourceRef: { namespace: "source:netease", kind: "track", id: "track-1" },
+              facts: {
+                title: "Quiet Track",
+                artistLabels: ["Quiet Artist"],
+                releaseLabel: "Quiet Release",
+                durationMs: 123456,
+                trackPosition: {
+                  discNumber: "1",
+                  trackNumber: 2,
+                  trackCount: 10,
+                },
+              },
+              createdAt: "2026-05-27T00:00:00.000Z",
+              updatedAt: "2026-05-27T00:00:00.000Z",
+            },
+          ],
           neighborRecords: [],
           relatedCurrentRecords: [],
-          knowledgeItems: [],
+          knowledgeItems: [
+            {
+              kind: "structured",
+              providerId: "musicbrainz",
+              source: {
+                ref: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
+              },
+              nodes: [
+                {
+                  id: "recording",
+                  type: "recording",
+                  label: "Quiet Track",
+                  ref: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
+                  properties: {
+                    title: "Quiet Track",
+                    artistCreditText: "Quiet Artist",
+                    durationMs: 123450,
+                  },
+                },
+              ],
+              relations: [],
+            },
+          ],
           anchors: [],
           relationCandidates: [],
+          refTokens: [
+            {
+              token: { kind: "recording", id: "mbrec-1" },
+              ref: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
+            },
+          ],
           expiresAt: "2026-05-27T00:05:00.000Z",
         },
       };
@@ -1183,32 +1244,59 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     canonicalMaintenance,
   });
 
-  await assertOk(
+  const listed = await assertOk(
     dispatch.call({
       sessionId: reviewSession.id,
       toolName: "canonical.review.list",
       payload: { sessionId: "spoofed-session", limit: 2 },
     }),
   );
-  await assertOk(
+  const inspected = await assertOk(
     dispatch.call({
       sessionId: reviewSession.id,
       toolName: "canonical.review.inspect",
-      payload: { sessionId: "spoofed-session", subjectRef: collectionRef },
+      payload: { sessionId: "spoofed-session", subjectId: collectionRef.id },
     }),
   );
-  await assertOk(
+  const applied = await assertOk(
     dispatch.call({
       sessionId: reviewSession.id,
       toolName: "canonical.review.apply",
       payload: {
         sessionId: "spoofed-session",
         inspectionId: "inspection-1",
-        subjectRef: collectionRef,
+        subjectId: collectionRef.id,
         action: "defer",
         reason: "Not enough facts.",
       },
     }),
+  );
+
+  assert(
+    (listed as { items?: Array<{ subjectId?: string; sourceRefCount?: number }> }).items?.[0]?.subjectId ===
+      collectionRef.id,
+    "review list should return compact subject id",
+  );
+  assert(
+    !("sourceRefCount" in ((listed as { items?: object[] }).items?.[0] ?? {})),
+    "review list should not expose source ref counts",
+  );
+  assert(
+    (inspected as { subject?: { subjectId?: string } }).subject?.subjectId === collectionRef.id,
+    "review inspect should return compact subject id",
+  );
+  assert(!("knowledgeItems" in (inspected as object)), "review inspect should not expose raw Knowledge Items");
+  assert(!("anchors" in (inspected as object)), "review inspect should not expose raw anchors");
+  assert(!("outgoingRelations" in (inspected as object)), "review inspect should not expose raw relations");
+  assert(
+    (inspected as { knowledgeFacts?: Array<{ refToken?: { id?: string } }> }).knowledgeFacts?.[0]?.refToken?.id ===
+      "mbrec-1",
+    "review inspect should expose compact Knowledge facts with ref tokens",
+  );
+  assert(
+    (applied as { subjectId?: string; appliedAction?: string }).subjectId === collectionRef.id &&
+      (applied as { appliedAction?: string }).appliedAction === "defer",
+    "review apply should return compact apply output",
   );
 
   assert(calls.includes(`list:${reviewSession.id}:2`), "review list should receive current dispatch session id");

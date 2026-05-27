@@ -184,8 +184,8 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "library import status schema should declare batch id input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "subjectRef"),
-    "canonical review inspect schema should declare subject ref input",
+    hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "subjectId"),
+    "canonical review inspect schema should declare subject id input",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "action"),
@@ -194,6 +194,10 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "inspectionId"),
     "canonical review apply schema should declare inspection id input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "subjectId"),
+    "canonical review apply schema should declare subject id input",
   );
   assert(
     schemaIsEmpty(schemasByName.get("minemusic.handbook.overview.read")),

@@ -32,6 +32,7 @@ Task status:
 - Provisional Review v2 Task 1: completed.
 - Provisional Review v2 Task 2: completed.
 - Provisional Review v2 Task 3: completed.
+- Provisional Review v2 Task 4: completed.
 
 Implemented:
 
@@ -141,6 +142,12 @@ Implemented:
   - Canonical Maintenance assigns MusicBrainz recording tokens with the
     inspection snapshot.
   - Stage Interface still has no review runtime state.
+- Provisional Review v2 Stage Interface compact review output is in place:
+  - review list returns compact subject ids instead of raw refs/counts.
+  - review inspect maps raw maintenance inspection to compact subject, hints,
+    and Knowledge facts.
+  - review apply returns compact subject id/effect output.
+  - review MCP schemas use `subjectId` and token-shaped fields.
 
 Implemented public methods:
 

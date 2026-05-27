@@ -77,6 +77,10 @@ const reviewSupportReasonKindSchema = z.enum([
   "tracklist_context",
   "active_neighbor_anchor",
 ]);
+const reviewRefTokenSchema = z.object({
+  kind: z.enum(["recording", "release"]),
+  id: z.string(),
+});
 
 export type StageInterfaceToolInputSchema = z.ZodRawShape;
 
@@ -217,18 +221,19 @@ export const stageInterfaceToolInputSchemas = {
     cursor: z.string().optional(),
   },
   "canonical.review.inspect": {
-    subjectRef: refSchema,
+    subjectId: z.string(),
+    view: z.enum(["summary", "detail"]).optional(),
+    inspectionId: z.string().optional(),
+    recordingRefToken: reviewRefTokenSchema.optional(),
+    include: z.array(z.enum(["releaseAppearances", "releaseTrackPositions"])).optional(),
+    releaseRefTokens: z.array(reviewRefTokenSchema).optional(),
   },
   "canonical.review.apply": {
     inspectionId: z.string(),
-    subjectRef: refSchema,
+    subjectId: z.string(),
     action: z.enum(["update", "defer"]),
-    selectedProviderRef: refSchema.optional(),
-    supportingReasonKinds: z.array(reviewSupportReasonKindSchema).optional(),
+    selectedProviderRefToken: reviewRefTokenSchema.optional(),
     reason: z.string(),
-    supportingRefs: z.array(refSchema).optional(),
-    supportingKnowledgeItemIds: z.array(z.string()).optional(),
-    supportingAnchorIds: z.array(z.string()).optional(),
   },
   "memory.propose": {
     proposal: z.object({}).passthrough(),

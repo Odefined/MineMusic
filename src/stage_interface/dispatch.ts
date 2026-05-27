@@ -41,6 +41,12 @@ import type {
   SystemCollectionRelationKind,
   ToolDispatchPort,
 } from "../ports/index.js";
+import {
+  compactReviewApply,
+  compactReviewInspect,
+  compactReviewList,
+  reviewSubjectRef,
+} from "./outputs.js";
 import { stableToolNames } from "./tools.js";
 
 const defaultOwnerScope = "local_profile:default";
@@ -411,10 +417,12 @@ export function createToolDispatch({
             return availableMaintenance;
           }
 
-          return availableMaintenance.value.reviewList({
+          const result = await availableMaintenance.value.reviewList({
             ...readPayload<Omit<ProvisionalReviewListInput, "sessionId">>(payload),
             sessionId,
           });
+
+          return result.ok ? ok(compactReviewList(result.value)) : result;
         }
 
         case "canonical.review.inspect": {
@@ -424,10 +432,26 @@ export function createToolDispatch({
             return availableMaintenance;
           }
 
-          return availableMaintenance.value.reviewInspect({
-            ...readPayload<Omit<ProvisionalReviewInspectInput, "sessionId">>(payload),
+          const input = readPayload<{ subjectId?: string; subjectRef?: Ref }>(payload);
+          const subjectRef = input.subjectId === undefined
+            ? input.subjectRef
+            : reviewSubjectRef(input.subjectId);
+
+          if (subjectRef === undefined) {
+            return fail({
+              code: "stage_interface.invalid_payload",
+              message: "canonical.review.inspect requires subjectId.",
+              module: "stage_interface",
+              retryable: false,
+            });
+          }
+
+          const result = await availableMaintenance.value.reviewInspect({
+            subjectRef,
             sessionId,
           });
+
+          return result.ok ? ok(compactReviewInspect(result.value)) : result;
         }
 
         case "canonical.review.apply": {
@@ -437,12 +461,32 @@ export function createToolDispatch({
             return availableMaintenance;
           }
 
-          const input = readPayload<Omit<ProvisionalReviewApplyInput, "sessionId">>(payload);
+          const input = readPayload<
+            Omit<ProvisionalReviewApplyInput, "sessionId" | "subjectRef"> & {
+              subjectId?: string;
+              subjectRef?: Ref;
+            }
+          >(payload);
+          const subjectRef = input.subjectId === undefined
+            ? input.subjectRef
+            : reviewSubjectRef(input.subjectId);
 
-          return availableMaintenance.value.reviewApply({
+          if (subjectRef === undefined) {
+            return fail({
+              code: "stage_interface.invalid_payload",
+              message: "canonical.review.apply requires subjectId.",
+              module: "stage_interface",
+              retryable: false,
+            });
+          }
+
+          const result = await availableMaintenance.value.reviewApply({
             ...input,
+            subjectRef,
             sessionId,
           } as ProvisionalReviewApplyInput);
+
+          return result.ok ? ok(compactReviewApply(result.value)) : result;
         }
 
         case "stage.events.record":
