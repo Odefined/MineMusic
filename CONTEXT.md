@@ -267,10 +267,10 @@ maintenance, storage service.
 
 ### Provisional Review
 
-An agent-facing Canonical Maintenance interaction for choosing a proposed
-outcome for one Provisional Canonical Record.
+A Canonical Maintenance interaction for choosing or deterministically deriving a
+proposed outcome for one Provisional Canonical Record.
 _Avoid_: standalone review subsystem, Knowledge Item, durable review case,
-automatic identity confidence, script decision.
+identity confidence score.
 
 ### Provisional Review Inspection
 
@@ -282,8 +282,8 @@ confidence score.
 
 ### Provisional Review Decision
 
-The outcome selected during Provisional Review before Canonical Maintenance
-applies any Canonical Store state change.
+The outcome selected or deterministically derived during Provisional Review
+before Canonical Maintenance applies any Canonical Store state change.
 _Avoid_: Canonical identity change, provider confidence, confidence score,
 human-only approval.
 
