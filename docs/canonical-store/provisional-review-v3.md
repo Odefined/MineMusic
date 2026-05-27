@@ -32,6 +32,11 @@ Qualification is also not the Gate for agent-authored updates. Manual
 `canonical.review.apply({ action: "update" })` continues to validate payload
 shape and selected-token membership without proving semantic equivalence.
 
+V3 therefore separates the automatic path from the manual review standard:
+automatic update uses strict deterministic qualification, while agent-authored
+review uses guidance that asks the agent to judge semantic recording identity and
+version compatibility from inspected facts.
+
 ## Non-Goals
 
 - Do not add fuzzy semantic equivalence proof.
@@ -42,6 +47,62 @@ shape and selected-token membership without proving semantic equivalence.
   targets in `canonical.review.inspect`.
 - Do not use release tracklist recordings as recording identity facts.
 - Do not record `cannot_confirm` merely because automatic qualification failed.
+
+## Agent-Authored Review Standard
+
+Manual review is not a closest-result selection task. The agent-facing prompt,
+Stage Context guidance, and Handbook guidance should frame the job as:
+
+```text
+Decide whether one inspected MusicBrainz recording can safely serve as the
+recording identity for the provisional source recording.
+```
+
+`knowledgeFacts` are lookup facts, not update candidates. Their order may make
+useful facts easier to inspect, but ordering must not imply that the first fact
+should be updated.
+
+For an agent-authored `update`, the inspected facts should support both:
+
+1. semantic recording identity: the source title/artist facts and the selected
+   MusicBrainz recording facts refer to one recording identity.
+2. version compatibility: the source release, date, duration, and track-position
+   facts, when present, are compatible with the selected MusicBrainz recording's
+   release appearances or tracklist context.
+
+Semantic recording identity allows normal metadata wording differences: aliases,
+title expansion, punctuation differences, artist-credit wording, featured-artist
+formatting, and classical title normalization can be acceptable when the
+inspected facts explain them. This is not a license for substring matching or
+nearest-result guessing.
+
+Version compatibility is not strict string equality. Release titles may differ
+by normal edition wording, country wording, punctuation, or known naming
+expansion, and dates may differ by provider precision or one-day timezone
+boundaries. But the inspected facts should still explain why the source
+release/date context belongs to the selected MusicBrainz recording rather than
+to another edition, take, performance, compilation appearance, or unrelated
+recording.
+
+Same work, similar title, similar artist, or similar duration is not enough by
+itself. If semantic identity may be right but the version context is missing,
+contradictory, or points to a different recording/version, the agent should
+choose `cannot_confirm`.
+
+High-risk contexts should bias toward `cannot_confirm` unless inspected facts
+clearly explain both semantic identity and version compatibility:
+
+- classical recordings and work-title-only matches.
+- soundtrack families with many editions.
+- compilation appearances.
+- reissues and remasters.
+- single-vs-album ambiguity.
+- artist-credit wording or credited-artist conflicts.
+
+These review standards belong in guidance and audit reasons, not in the manual
+apply Gate. The Gate still validates shape, snapshot membership, and Canonical
+Store invariants; it must not become a second automatic qualification engine for
+agent-authored updates.
 
 ## Review Fact Qualification
 
@@ -316,6 +377,8 @@ Automatic qualification must not become a requirement for agent-authored
 updates. A reviewing agent may still choose `update` for an inspected recording
 that does not satisfy the automatic rules, with the decision recorded through
 the ordinary audit path.
+The agent-authored reason should explain semantic recording identity and version
+compatibility when those facts are available.
 
 The generated audit reason should be short and explicit, for example:
 
@@ -607,7 +670,8 @@ The expected long-batch workflow is:
 
 1. `canonical.review.auto_update({ limit })`
 2. inspect only `not_qualified` subjects.
-3. for those subjects, the agent chooses `update` or `cannot_confirm`.
+3. for those subjects, the agent chooses `update` or `cannot_confirm` using the
+   agent-authored review standard above.
 
 This keeps high-certainty cases out of the context-heavy manual review path
 while preserving explicit agent review for ambiguous cases.
@@ -677,5 +741,6 @@ V3 implementation should prove:
 Implementation should update:
 
 - `docs/canonical-store/progress.md` when v3 code lands.
-- Stage Context and Handbook guidance for the new automatic-update tool.
+- Stage Context and Handbook guidance for the new automatic-update tool and the
+  agent-authored review standard.
 - MCP/schema tests so independent agents discover the compact tool contract.
