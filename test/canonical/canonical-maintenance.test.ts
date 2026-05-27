@@ -360,6 +360,263 @@ async function inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning(): Pro
   );
 }
 
+async function detailInspectReusesSnapshotAndReturnsReleaseContexts(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "detail-subject",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Detail Track",
+      evidence: [sourceRef],
+    }),
+  );
+  const releaseRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "release",
+    id: "release-mbid-1",
+  };
+  const otherReleaseRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "release",
+    id: "release-mbid-2",
+  };
+  const otherRecordingRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "recording",
+    id: "other-recording",
+  };
+  const knowledgeItem: KnowledgeItem = {
+    id: "detail-knowledge",
+    kind: "structured",
+    providerId: "musicbrainz",
+    source: { ref: mbRecordingRef },
+    rootNodeId: "recording:mb-recording-1",
+    nodes: [
+      {
+        id: "recording:mb-recording-1",
+        type: "recording",
+        ref: mbRecordingRef,
+        label: "Detail Track",
+        properties: {
+          title: "Detail Track",
+          artistCreditText: "Detail Artist",
+          durationMs: 123000,
+        },
+      },
+      {
+        id: "recording:other-recording",
+        type: "recording",
+        ref: otherRecordingRef,
+        label: "Other Track",
+      },
+      {
+        id: "release:release-mbid-1",
+        type: "release",
+        ref: releaseRef,
+        label: "Detail Release",
+        properties: {
+          title: "Detail Release",
+          date: "2009-01-07",
+          country: "JP",
+          disambiguation: "first press",
+        },
+      },
+      {
+        id: "release:release-mbid-2",
+        type: "release",
+        ref: otherReleaseRef,
+        label: "Other Release",
+        properties: {
+          title: "Other Release",
+          date: "2010",
+        },
+      },
+      {
+        id: "medium:release-mbid-1:1",
+        type: "medium",
+        properties: {
+          position: 1,
+          trackCount: 10,
+        },
+      },
+      {
+        id: "track:track-mbid-1",
+        type: "track",
+        label: "Detail Track",
+        properties: {
+          position: 2,
+          number: "2",
+          title: "Detail Track",
+          lengthMs: 123000,
+        },
+      },
+      {
+        id: "track:other-track",
+        type: "track",
+        label: "Other Track",
+        properties: {
+          position: 3,
+          title: "Other Track",
+        },
+      },
+    ],
+    relations: [
+      {
+        type: "release_appearance",
+        endpoints: [
+          { nodeId: "recording:mb-recording-1", role: "recording" },
+          { nodeId: "release:release-mbid-1", role: "release" },
+        ],
+      },
+      {
+        type: "release_appearance",
+        endpoints: [
+          { nodeId: "recording:mb-recording-1", role: "recording" },
+          { nodeId: "release:release-mbid-2", role: "release" },
+        ],
+      },
+      {
+        type: "has_medium",
+        endpoints: [
+          { nodeId: "release:release-mbid-1", role: "release" },
+          { nodeId: "medium:release-mbid-1:1", role: "medium" },
+        ],
+      },
+      {
+        type: "has_track",
+        endpoints: [
+          { nodeId: "medium:release-mbid-1:1", role: "medium" },
+          { nodeId: "track:track-mbid-1", role: "track" },
+        ],
+      },
+      {
+        type: "represents_recording",
+        endpoints: [
+          { nodeId: "track:track-mbid-1", role: "track" },
+          { nodeId: "recording:mb-recording-1", role: "recording" },
+        ],
+      },
+      {
+        type: "has_track",
+        endpoints: [
+          { nodeId: "medium:release-mbid-1:1", role: "medium" },
+          { nodeId: "track:other-track", role: "track" },
+        ],
+      },
+      {
+        type: "represents_recording",
+        endpoints: [
+          { nodeId: "track:other-track", role: "track" },
+          { nodeId: "recording:other-recording", role: "recording" },
+        ],
+      },
+    ],
+  };
+  const knowledge: MusicKnowledgePort = {
+    query: async () => ({
+      ok: true,
+      value: { items: [knowledgeItem] },
+    }),
+  };
+  let idCalls = 0;
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    idFactory: () => {
+      idCalls += 1;
+      return `inspection-${idCalls}`;
+    },
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const summary = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const appearances = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+      view: "detail",
+      inspectionId: summary.inspectionId,
+      recordingRefToken: { kind: "recording", id: "mbrec-1" },
+      include: ["releaseAppearances"],
+    }),
+  );
+  const firstReleaseToken = appearances.detail?.releaseAppearances?.[0]?.refToken;
+  const secondReleaseToken = appearances.detail?.releaseAppearances?.[1]?.refToken;
+  assert(appearances.inspectionId === summary.inspectionId, "detail inspect should reuse the summary inspection id");
+  assert(appearances.expiresAt === summary.expiresAt, "detail inspect should not refresh snapshot expiry");
+  assert(idCalls === 1, "detail inspect should not create a new inspection snapshot");
+  assert(
+    appearances.detail?.releaseAppearances?.[0]?.title === "Detail Release" &&
+      appearances.detail.releaseAppearances[0]?.date === "2009-01-07" &&
+      appearances.detail.releaseAppearances[0]?.country === "JP" &&
+      firstReleaseToken?.kind === "release" &&
+      firstReleaseToken.id === "mbrel-1",
+    "release appearance detail should return compact release facts and release tokens",
+  );
+
+  assert(firstReleaseToken !== undefined, "release appearance detail should provide a release token");
+
+  const trackPositions = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+      view: "detail",
+      inspectionId: summary.inspectionId,
+      recordingRefToken: { kind: "recording", id: "mbrec-1" },
+      include: ["releaseTrackPositions"],
+      releaseRefTokens: [firstReleaseToken],
+    }),
+  );
+  const position = trackPositions.detail?.releaseTrackPositions?.[0]?.positions[0];
+
+  assert(
+    trackPositions.detail?.releaseTrackPositions?.length === 1 &&
+      trackPositions.detail.releaseTrackPositions[0]?.refToken.id === firstReleaseToken.id,
+    "track position detail should only return requested releases",
+  );
+  assert(
+    trackPositions.detail?.releaseTrackPositions?.[0]?.positions.length === 1 &&
+      position?.disc === "1" &&
+      position.track === 2 &&
+      position.trackCount === 10 &&
+      position.trackTitle === "Detail Track" &&
+      position.trackLengthMs === 123000,
+    "track position detail should only return positions for the selected recording",
+  );
+
+  assert(secondReleaseToken !== undefined, "release appearance detail should provide stable tokens for all release appearances");
+
+  const missingTrackPosition = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+      view: "detail",
+      inspectionId: summary.inspectionId,
+      recordingRefToken: { kind: "recording", id: "mbrec-1" },
+      include: ["releaseTrackPositions"],
+      releaseRefTokens: [secondReleaseToken],
+    }),
+  );
+
+  assert(
+    missingTrackPosition.detail?.releaseTrackPositions?.length === 0,
+    "missing track position detail should stay compact instead of returning raw tracklists",
+  );
+  assert(
+    missingTrackPosition.detail?.warnings?.some((warning) => warning.includes("track position")) === true,
+    "missing track position detail should include a compact warning",
+  );
+}
+
 async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const eventRepository = createInMemoryEventRepository();
@@ -931,6 +1188,7 @@ await listsOnlyCurrentProvisionalRecordings();
 await requiresCanonicalReviewPosture();
 await inspectsNeutralFactsAndExactMusicBrainzNeighbors();
 await inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning();
+await detailInspectReusesSnapshotAndReturnsReleaseContexts();
 await deferRecordsEventAndLeavesIdentityUnchanged();
 await deferRejectsEmptyReasonAndUninspectedCitations();
 await applyRejectsStaleAndExpiredInspections();

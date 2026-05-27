@@ -33,6 +33,7 @@ Task status:
 - Provisional Review v2 Task 2: completed.
 - Provisional Review v2 Task 3: completed.
 - Provisional Review v2 Task 4: completed.
+- Provisional Review v2 Task 5: completed.
 
 Implemented:
 
@@ -148,6 +149,18 @@ Implemented:
     and Knowledge facts.
   - review apply returns compact subject id/effect output.
   - review MCP schemas use `subjectId` and token-shaped fields.
+- Provisional Review v2 detail inspection is in place:
+  - Canonical Maintenance detail reads the existing inspection snapshot without
+    refreshing expiry or creating a new inspection id.
+  - release appearance detail returns compact release tokens and selected
+    release facts.
+  - release track-position detail returns only the selected recording positions
+    on requested release tokens, with compact warnings when unavailable.
+  - Stage Interface maps detail output without exposing full refs or raw
+    Knowledge payloads.
+- MusicBrainz Knowledge extraction now preserves recording aliases and
+  recording release appearances, and summary inspect can expose compact release
+  titles/dates when source hints provide release context.
 
 Implemented public methods:
 

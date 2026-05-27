@@ -2,6 +2,7 @@ import type {
   CanonicalProvisionalHint,
   KnowledgeItem,
   KnowledgeNode,
+  KnowledgeRelation,
   ProvisionalReviewApplyOutput,
   ProvisionalReviewInspection,
   ProvisionalReviewListOutput,
@@ -28,6 +29,10 @@ export function compactReviewList(output: ProvisionalReviewListOutput): unknown 
 }
 
 export function compactReviewInspect(inspection: ProvisionalReviewInspection): unknown {
+  if (inspection.detail !== undefined) {
+    return compactReviewInspectDetail(inspection);
+  }
+
   return {
     inspectionId: inspection.inspectionId,
     subject: {
@@ -47,6 +52,50 @@ export function compactReviewInspect(inspection: ProvisionalReviewInspection): u
       ? {}
       : {
           warnings: inspection.warnings.map((message) => ({
+            code: "canonical.review_warning",
+            message,
+          })),
+        }),
+  };
+}
+
+function compactReviewInspectDetail(inspection: ProvisionalReviewInspection): unknown {
+  const detail = inspection.detail;
+
+  if (detail === undefined) {
+    return {};
+  }
+
+  return {
+    inspectionId: inspection.inspectionId,
+    recordingRefToken: detail.recordingRefToken,
+    ...(detail.releaseAppearances === undefined
+      ? {}
+      : {
+          releaseAppearances: detail.releaseAppearances.map((appearance) => ({
+            refToken: appearance.refToken,
+            title: appearance.title,
+            ...(appearance.date === undefined ? {} : { date: appearance.date }),
+            ...(appearance.country === undefined ? {} : { country: appearance.country }),
+            ...(appearance.disambiguation === undefined ? {} : { disambiguation: appearance.disambiguation }),
+          })),
+        }),
+    ...(detail.releaseTrackPositions === undefined
+      ? {}
+      : {
+          releaseTrackPositions: detail.releaseTrackPositions.map((release) => ({
+            refToken: release.refToken,
+            title: release.title,
+            ...(release.date === undefined ? {} : { date: release.date }),
+            ...(release.country === undefined ? {} : { country: release.country }),
+            positions: release.positions,
+          })),
+        }),
+    ...(detail.truncated === undefined ? {} : { truncated: detail.truncated }),
+    ...(detail.warnings === undefined
+      ? {}
+      : {
+          warnings: detail.warnings.map((message) => ({
             code: "canonical.review_warning",
             message,
           })),
@@ -100,11 +149,13 @@ function compactKnowledgeFacts(inspection: ProvisionalReviewInspection): unknown
     .filter((binding) => binding.token.kind === "recording")
     .map((binding) => {
       const node = findKnowledgeNode(inspection.knowledgeItems, binding.ref);
-      const facts = compactKnowledgeNodeFacts(node, binding.ref);
+      const releases = compactReleaseSummaries(inspection, binding.ref);
+      const facts = compactKnowledgeNodeFacts(node, binding.ref, releases.slice(0, 3));
 
       return {
         refToken: binding.token,
         facts,
+        ...(releases.length > 3 ? { releaseCount: releases.length } : {}),
         ...(node?.properties?.disambiguation === undefined
           ? {}
           : {
@@ -137,6 +188,7 @@ function findKnowledgeNode(items: KnowledgeItem[], ref: Ref): KnowledgeNode | un
 function compactKnowledgeNodeFacts(
   node: KnowledgeNode | undefined,
   ref: Ref,
+  releases: Array<{ title: string; date?: string }>,
 ): Record<string, unknown> {
   const properties = node?.properties ?? {};
 
@@ -148,11 +200,86 @@ function compactKnowledgeNodeFacts(
     ...(numberFact(properties.durationMs) === undefined
       ? {}
       : { durationMs: numberFact(properties.durationMs) }),
+    ...(releases.length === 0 ? {} : { releases }),
   };
+}
+
+function compactReleaseSummaries(
+  inspection: ProvisionalReviewInspection,
+  recordingRef: Ref,
+): Array<{ title: string; date?: string }> {
+  if (!inspection.provisionalHints.some((hint) => hint.facts.releaseLabel !== undefined)) {
+    return [];
+  }
+
+  const byRef = new Map<string, { title: string; date?: string }>();
+
+  for (const item of inspection.knowledgeItems) {
+    if (item.kind !== "structured") {
+      continue;
+    }
+
+    const recordingNode = item.nodes.find((node) =>
+      node.ref !== undefined && sameRef(node.ref, recordingRef),
+    );
+
+    if (recordingNode === undefined) {
+      continue;
+    }
+
+    for (const relation of item.relations.filter((candidate) => candidate.type === "release_appearance")) {
+      if (!relation.endpoints.some((endpoint) => endpoint.nodeId === recordingNode.id)) {
+        continue;
+      }
+
+      const releaseNode = nodeForEndpointRole(item.nodes, relation, "release");
+
+      if (releaseNode?.ref === undefined || byRef.has(refKey(releaseNode.ref))) {
+        continue;
+      }
+
+      const summary = releaseSummaryFromNode(releaseNode);
+
+      if (summary !== undefined) {
+        byRef.set(refKey(releaseNode.ref), summary);
+      }
+    }
+  }
+
+  return [...byRef.values()];
+}
+
+function releaseSummaryFromNode(node: KnowledgeNode): { title: string; date?: string } | undefined {
+  const title = stringFact(node.properties?.title) ?? node.label ?? node.ref?.label;
+
+  if (title === undefined) {
+    return undefined;
+  }
+
+  const date = stringFact(node.properties?.date);
+
+  return {
+    title,
+    ...(date === undefined ? {} : { date }),
+  };
+}
+
+function nodeForEndpointRole(
+  nodes: KnowledgeNode[],
+  relation: KnowledgeRelation,
+  role: string,
+): KnowledgeNode | undefined {
+  const nodeId = relation.endpoints.find((endpoint) => endpoint.role === role)?.nodeId;
+
+  return nodeId === undefined ? undefined : nodes.find((node) => node.id === nodeId);
 }
 
 function sameRef(left: Ref, right: Ref): boolean {
   return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
+}
+
+function refKey(ref: Ref): string {
+  return `${ref.namespace}:${ref.kind}:${ref.id}`;
 }
 
 function stringFact(value: unknown): string | undefined {

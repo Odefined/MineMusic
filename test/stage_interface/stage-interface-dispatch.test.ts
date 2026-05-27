@@ -1127,7 +1127,8 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         },
       };
     },
-    reviewInspect: async ({ sessionId, subjectRef }) => {
+    reviewInspect: async (input) => {
+      const { sessionId, subjectRef } = input;
       calls.push(`inspect:${sessionId}:${subjectRef.id}`);
       return {
         ok: true,
@@ -1183,8 +1184,27 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
                     durationMs: 123450,
                   },
                 },
+                {
+                  id: "release:quiet-release",
+                  type: "release",
+                  label: "Quiet Release",
+                  ref: { namespace: "musicbrainz", kind: "release", id: "quiet-release" },
+                  properties: {
+                    title: "Quiet Release",
+                    date: "2009-01-07",
+                    country: "JP",
+                  },
+                },
               ],
-              relations: [],
+              relations: [
+                {
+                  type: "release_appearance",
+                  endpoints: [
+                    { nodeId: "recording", role: "recording" },
+                    { nodeId: "release:quiet-release", role: "release" },
+                  ],
+                },
+              ],
             },
           ],
           anchors: [],
@@ -1196,6 +1216,23 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
             },
           ],
           expiresAt: "2026-05-27T00:05:00.000Z",
+          ...(input.view === "detail"
+            ? {
+                detail: {
+                  recordingRefToken: input.recordingRefToken ?? { kind: "recording", id: "mbrec-1" },
+                  recordingRef: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
+                  releaseAppearances: [
+                    {
+                      refToken: { kind: "release", id: "mbrel-1" },
+                      ref: { namespace: "musicbrainz", kind: "release", id: "quiet-release" },
+                      title: "Quiet Release",
+                      date: "2009-01-07",
+                      country: "JP",
+                    },
+                  ],
+                },
+              }
+            : {}),
         },
       };
     },
@@ -1258,6 +1295,20 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
       payload: { sessionId: "spoofed-session", subjectId: collectionRef.id },
     }),
   );
+  const detailed = await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.inspect",
+      payload: {
+        sessionId: "spoofed-session",
+        subjectId: collectionRef.id,
+        view: "detail",
+        inspectionId: "inspection-1",
+        recordingRefToken: { kind: "recording", id: "mbrec-1" },
+        include: ["releaseAppearances"],
+      },
+    }),
+  );
   const applied = await assertOk(
     dispatch.call({
       sessionId: reviewSession.id,
@@ -1294,9 +1345,33 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     "review inspect should expose compact Knowledge facts with ref tokens",
   );
   assert(
+    (
+      inspected as {
+        knowledgeFacts?: Array<{ facts?: { releases?: Array<{ title?: string; date?: string }> } }>;
+      }
+    ).knowledgeFacts?.[0]?.facts?.releases?.[0]?.title === "Quiet Release" &&
+      (
+        inspected as {
+          knowledgeFacts?: Array<{ facts?: { releases?: Array<{ title?: string; date?: string }> } }>;
+        }
+      ).knowledgeFacts?.[0]?.facts?.releases?.[0]?.date === "2009-01-07",
+    "review inspect should expose compact release summaries in Knowledge facts",
+  );
+  assert(
     (applied as { subjectId?: string; appliedAction?: string }).subjectId === collectionRef.id &&
       (applied as { appliedAction?: string }).appliedAction === "defer",
     "review apply should return compact apply output",
+  );
+  assert(
+    (detailed as { recordingRefToken?: { id?: string } }).recordingRefToken?.id === "mbrec-1" &&
+      (detailed as { releaseAppearances?: Array<{ refToken?: { id?: string }; title?: string; ref?: Ref }> })
+        .releaseAppearances?.[0]?.refToken?.id === "mbrel-1" &&
+      (detailed as { releaseAppearances?: Array<{ title?: string }> }).releaseAppearances?.[0]?.title === "Quiet Release",
+    "detail inspect should return compact release appearance output",
+  );
+  assert(
+    !("ref" in ((detailed as { releaseAppearances?: object[] }).releaseAppearances?.[0] ?? {})),
+    "detail inspect should not expose full release refs",
   );
 
   assert(calls.includes(`list:${reviewSession.id}:2`), "review list should receive current dispatch session id");

@@ -50,6 +50,8 @@ type MusicBrainzRecording = {
   score?: unknown;
   isrcs?: unknown;
   "artist-credit"?: unknown;
+  aliases?: unknown;
+  releases?: unknown;
   relations?: unknown;
   annotation?: unknown;
   genres?: unknown;
@@ -152,6 +154,11 @@ type MusicBrainzTrack = {
   title?: unknown;
   length?: unknown;
   recording?: unknown;
+};
+
+type MusicBrainzAlias = {
+  name?: unknown;
+  alias?: unknown;
 };
 
 type MusicBrainzArtistCredit = {
@@ -1103,6 +1110,7 @@ function lookupIncFor(
       break;
     case "recording":
       includes.add("artist-credits");
+      includes.add("aliases");
       includes.add("isrcs");
       break;
     case "release":
@@ -1484,6 +1492,7 @@ function recordingToKnowledge(recording: MusicBrainzRecording): StructuredKnowle
   ];
   const relations: KnowledgeRelation[] = [];
   appendArtistCredits(nodes, relations, rootNodeId, recording["artist-credit"]);
+  appendRecordingReleaseAppearances(nodes, relations, rootNodeId, recording.releases);
   appendRelations(nodes, relations, rootNodeId, recording.relations);
 
   const retrievalScore = numberValue(recording.score);
@@ -1718,6 +1727,7 @@ function recordingProperties(recording: MusicBrainzRecording): Record<string, un
     durationMs: numberValue(recording.length),
     artistCreditText: artistCreditText(recording["artist-credit"]),
     isrcs: stringArray(recording.isrcs),
+    aliases: aliasNames(recording.aliases),
     annotation: annotationText(recording.annotation),
     genres: countedNameArray(recording.genres),
     tags: countedNameArray(recording.tags),
@@ -1805,6 +1815,42 @@ function appendArtistCredits(
         creditedName: stringValue(credit.name) ?? stringValue(credit.artist?.name),
         position,
       },
+    });
+  }
+}
+
+function appendRecordingReleaseAppearances(
+  nodes: KnowledgeNode[],
+  relations: KnowledgeRelation[],
+  recordingNodeId: string,
+  value: unknown,
+): void {
+  if (!Array.isArray(value)) {
+    return;
+  }
+
+  for (const release of value as MusicBrainzRelease[]) {
+    const releaseId = stringValue(release.id);
+
+    if (releaseId === undefined) {
+      continue;
+    }
+
+    const releaseLabel = stringValue(release.title);
+    const releaseNodeId = `release:${releaseId}`;
+    pushUniqueNode(nodes, {
+      id: releaseNodeId,
+      type: "release",
+      ...(releaseLabel === undefined ? {} : { label: releaseLabel }),
+      ref: musicBrainzRef("release", releaseId, releaseLabel),
+      properties: releaseProperties(release),
+    });
+    relations.push({
+      type: "release_appearance",
+      endpoints: [
+        { nodeId: recordingNodeId, role: "recording" },
+        { nodeId: releaseNodeId, role: "release" },
+      ],
     });
   }
 }
@@ -2168,6 +2214,18 @@ function countedNameArray(value: unknown): Array<Record<string, unknown>> | unde
       });
     })
     .filter((entry): entry is Record<string, unknown> => entry !== undefined);
+}
+
+function aliasNames(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const aliases = uniqueStrings(
+    (value as MusicBrainzAlias[]).map((entry) => stringValue(entry.name) ?? stringValue(entry.alias)),
+  );
+
+  return aliases.length === 0 ? undefined : aliases;
 }
 
 function ratingValue(value: unknown): Record<string, unknown> | undefined {

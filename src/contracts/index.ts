@@ -313,9 +313,18 @@ export type ProvisionalReviewListOutput = {
   nextCursor?: string;
 };
 
+export type ProvisionalReviewInspectDetailInclude =
+  | "releaseAppearances"
+  | "releaseTrackPositions";
+
 export type ProvisionalReviewInspectInput = {
   sessionId: string;
   subjectRef: Ref;
+  view?: "summary" | "detail";
+  inspectionId?: string;
+  recordingRefToken?: ProvisionalReviewRefToken;
+  include?: ProvisionalReviewInspectDetailInclude[];
+  releaseRefTokens?: ProvisionalReviewRefToken[];
 };
 
 export type ProvisionalReviewRefToken = {
@@ -326,6 +335,41 @@ export type ProvisionalReviewRefToken = {
 export type ProvisionalReviewRefTokenBinding = {
   token: ProvisionalReviewRefToken;
   ref: Ref;
+};
+
+export type ProvisionalReviewReleaseAppearance = {
+  refToken: ProvisionalReviewRefToken;
+  ref: Ref;
+  title: string;
+  date?: string;
+  country?: string;
+  disambiguation?: string;
+};
+
+export type ProvisionalReviewReleaseTrackPosition = {
+  disc?: string;
+  track?: number;
+  trackCount?: number;
+  trackTitle?: string;
+  trackLengthMs?: number;
+};
+
+export type ProvisionalReviewReleaseTrackPositions = {
+  refToken: ProvisionalReviewRefToken;
+  ref: Ref;
+  title: string;
+  date?: string;
+  country?: string;
+  positions: ProvisionalReviewReleaseTrackPosition[];
+};
+
+export type ProvisionalReviewInspectionDetail = {
+  recordingRefToken: ProvisionalReviewRefToken;
+  recordingRef: Ref;
+  releaseAppearances?: ProvisionalReviewReleaseAppearance[];
+  releaseTrackPositions?: ProvisionalReviewReleaseTrackPositions[];
+  truncated?: boolean;
+  warnings?: string[];
 };
 
 export type ProvisionalReviewInspection = {
@@ -340,6 +384,7 @@ export type ProvisionalReviewInspection = {
   anchors: ProvisionalReviewAnchor[];
   relationCandidates: ProvisionalRelationCandidate[];
   refTokens?: ProvisionalReviewRefTokenBinding[];
+  detail?: ProvisionalReviewInspectionDetail;
   warnings?: string[];
   expiresAt: string;
 };

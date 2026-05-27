@@ -2,12 +2,16 @@ import type {
   CanonicalRecord,
   CanonicalRelation,
   KnowledgeItem,
+  KnowledgeNode,
   KnowledgeQuery,
+  KnowledgeRelation,
   ProvisionalRelationCandidate,
   ProvisionalReviewAnchor,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
   ProvisionalReviewInspection,
+  ProvisionalReviewInspectInput,
+  ProvisionalReviewRefToken,
   ProvisionalReviewListOutput,
   Ref,
   Result,
@@ -42,6 +46,11 @@ type ReviewSnapshot = {
   subjectRef: Ref;
   inspection: ProvisionalReviewInspection;
 };
+
+type ReleaseAppearanceDraft = Omit<
+  NonNullable<NonNullable<ProvisionalReviewInspection["detail"]>["releaseAppearances"]>[number],
+  "refToken"
+>;
 
 const defaultInspectionTtlMs = 5 * 60 * 1000;
 
@@ -110,11 +119,20 @@ export function createCanonicalMaintenance({
       return ok(output);
     },
 
-    async reviewInspect({ sessionId, subjectRef }) {
+    async reviewInspect(input) {
+      const { sessionId, subjectRef } = input;
       const posture = await ensureReviewPosture(sessionContext, sessionId);
 
       if (!posture.ok) {
         return posture;
+      }
+
+      if (input.view === "detail") {
+        return reviewInspectDetail({
+          snapshots,
+          clock,
+          input,
+        });
       }
 
       const subjectResult = await readReviewSubject(storage, subjectRef);
@@ -330,6 +348,133 @@ async function ensureReviewPosture(
   }
 
   return ok(undefined);
+}
+
+function reviewInspectDetail({
+  snapshots,
+  clock,
+  input,
+}: {
+  snapshots: Map<string, ReviewSnapshot>;
+  clock: () => string;
+  input: ProvisionalReviewInspectInput;
+}): Result<ProvisionalReviewInspection> {
+  const inspectionId = input.inspectionId;
+
+  if (inspectionId === undefined) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Detail inspection requires the latest summary inspection id.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const recordingToken = input.recordingRefToken;
+
+  if (recordingToken === undefined) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Detail inspection requires a recording ref token from the current inspection.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const snapshot = snapshots.get(snapshotKey(input.sessionId, input.subjectRef));
+
+  if (snapshot === undefined) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "No latest inspection snapshot exists for this session and subject. Run summary inspect again.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (snapshot.inspection.inspectionId !== inspectionId) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Inspection id is stale for this session and subject. Run summary inspect again.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  if (Date.parse(snapshot.inspection.expiresAt) <= Date.parse(clock())) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Inspection snapshot has expired. Run summary inspect again.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const recordingRef = resolveReviewToken(snapshot.inspection, recordingToken, "recording");
+
+  if (!recordingRef.ok) {
+    return recordingRef;
+  }
+
+  const include = new Set(input.include ?? []);
+  const detail: NonNullable<ProvisionalReviewInspection["detail"]> = {
+    recordingRefToken: recordingToken,
+    recordingRef: recordingRef.value,
+  };
+
+  if (include.has("releaseAppearances")) {
+    detail.releaseAppearances = releaseAppearancesForRecording(
+      snapshot.inspection,
+      recordingRef.value,
+    ).map((appearance) => ({
+      ...appearance,
+      refToken: getOrAddRefToken(snapshot.inspection, appearance.ref, "release"),
+    }));
+  }
+
+  if (include.has("releaseTrackPositions")) {
+    if ((input.releaseRefTokens ?? []).length === 0) {
+      return fail({
+        code: "canonical.review_invalid",
+        message: "Release track position detail requires release ref tokens from the current inspection.",
+        module: "canonical",
+        retryable: false,
+      });
+    }
+
+    const releaseRefs: Array<{ token: ProvisionalReviewRefToken; ref: Ref }> = [];
+
+    for (const token of input.releaseRefTokens ?? []) {
+      const ref = resolveReviewToken(snapshot.inspection, token, "release");
+
+      if (!ref.ok) {
+        return ref;
+      }
+
+      releaseRefs.push({ token, ref: ref.value });
+    }
+
+    detail.releaseTrackPositions = releaseRefs
+      .map(({ token, ref }) => releaseTrackPositionsForRecording(
+        snapshot.inspection,
+        recordingRef.value,
+        ref,
+        token,
+      ))
+      .filter((positions): positions is NonNullable<typeof positions> => positions !== undefined);
+
+    if (detail.releaseTrackPositions.length < releaseRefs.length) {
+      detail.warnings = [
+        ...(detail.warnings ?? []),
+        "Requested track position detail is unavailable in the current inspection snapshot.",
+      ];
+    }
+  }
+
+  return ok({
+    ...snapshot.inspection,
+    detail,
+  });
 }
 
 async function readReviewSubject(
@@ -973,6 +1118,317 @@ function buildRefTokenBindings(refs: Ref[]): NonNullable<ProvisionalReviewInspec
     },
     ref,
   }));
+}
+
+function resolveReviewToken(
+  inspection: ProvisionalReviewInspection,
+  token: ProvisionalReviewRefToken,
+  expectedKind: ProvisionalReviewRefToken["kind"],
+): Result<Ref> {
+  if (token.kind !== expectedKind) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: `Review token '${token.id}' must be a ${expectedKind} token from the current inspection.`,
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const binding = (inspection.refTokens ?? []).find((candidate) =>
+    sameReviewToken(candidate.token, token),
+  );
+
+  if (binding === undefined || binding.token.kind !== expectedKind) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: `Review token '${token.id}' was not found in the current inspection snapshot.`,
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  return ok(binding.ref);
+}
+
+function getOrAddRefToken(
+  inspection: ProvisionalReviewInspection,
+  ref: Ref,
+  kind: ProvisionalReviewRefToken["kind"],
+): ProvisionalReviewRefToken {
+  const existing = (inspection.refTokens ?? []).find((binding) =>
+    binding.token.kind === kind && sameRef(binding.ref, ref),
+  );
+
+  if (existing !== undefined) {
+    return existing.token;
+  }
+
+  const prefix = kind === "recording" ? "mbrec" : "mbrel";
+  const nextId = (inspection.refTokens ?? []).filter((binding) => binding.token.kind === kind).length + 1;
+  const token: ProvisionalReviewRefToken = {
+    kind,
+    id: `${prefix}-${nextId}`,
+  };
+  inspection.refTokens = [
+    ...(inspection.refTokens ?? []),
+    { token, ref },
+  ];
+
+  return token;
+}
+
+function sameReviewToken(left: ProvisionalReviewRefToken, right: ProvisionalReviewRefToken): boolean {
+  return left.kind === right.kind && left.id === right.id;
+}
+
+function releaseAppearancesForRecording(
+  inspection: ProvisionalReviewInspection,
+  recordingRef: Ref,
+): ReleaseAppearanceDraft[] {
+  const byRef = new Map<string, ReleaseAppearanceDraft>();
+
+  for (const item of inspection.knowledgeItems) {
+    if (item.kind !== "structured") {
+      continue;
+    }
+
+    const recordingNode = item.nodes.find((node) =>
+      node.ref !== undefined && sameRef(node.ref, recordingRef),
+    );
+
+    if (recordingNode === undefined) {
+      continue;
+    }
+
+    const releaseNodes = [
+      ...releaseNodesFromAppearanceRelations(item.nodes, item.relations, recordingNode.id),
+      ...releaseNodesFromTracklistRelations(item.nodes, item.relations, recordingNode.id),
+    ];
+
+    for (const node of releaseNodes) {
+      const appearance = releaseAppearanceFromNode(node);
+
+      if (appearance === undefined || byRef.has(refKey(appearance.ref))) {
+        continue;
+      }
+
+      byRef.set(refKey(appearance.ref), appearance);
+    }
+  }
+
+  return [...byRef.values()];
+}
+
+function releaseTrackPositionsForRecording(
+  inspection: ProvisionalReviewInspection,
+  recordingRef: Ref,
+  releaseRef: Ref,
+  releaseToken: ProvisionalReviewRefToken,
+): NonNullable<NonNullable<ProvisionalReviewInspection["detail"]>["releaseTrackPositions"]>[number] | undefined {
+  for (const item of inspection.knowledgeItems) {
+    if (item.kind !== "structured") {
+      continue;
+    }
+
+    const releaseNode = item.nodes.find((node) =>
+      node.ref !== undefined && sameRef(node.ref, releaseRef),
+    );
+    const recordingNode = item.nodes.find((node) =>
+      node.ref !== undefined && sameRef(node.ref, recordingRef),
+    );
+
+    if (releaseNode === undefined || recordingNode === undefined) {
+      continue;
+    }
+
+    const positions = trackPositionsForReleaseAndRecording({
+      nodes: item.nodes,
+      relations: item.relations,
+      releaseNodeId: releaseNode.id,
+      recordingNodeId: recordingNode.id,
+    });
+
+    if (positions.length === 0) {
+      continue;
+    }
+
+    const releaseFacts = releaseFactsFromNode(releaseNode);
+
+    return {
+      refToken: releaseToken,
+      ref: releaseRef,
+      title: releaseFacts.title,
+      ...(releaseFacts.date === undefined ? {} : { date: releaseFacts.date }),
+      ...(releaseFacts.country === undefined ? {} : { country: releaseFacts.country }),
+      positions,
+    };
+  }
+
+  return undefined;
+}
+
+function releaseNodesFromAppearanceRelations(
+  nodes: KnowledgeNode[],
+  relations: KnowledgeRelation[],
+  recordingNodeId: string,
+): KnowledgeNode[] {
+  return relations
+    .filter((relation) => relation.type === "release_appearance")
+    .filter((relation) =>
+      relation.endpoints.some((endpoint) =>
+        endpoint.nodeId === recordingNodeId && (endpoint.role === undefined || endpoint.role === "recording"),
+      ),
+    )
+    .map((relation) => nodeForEndpointRole(nodes, relation, "release"))
+    .filter((node): node is KnowledgeNode => node?.ref?.kind === "release");
+}
+
+function releaseNodesFromTracklistRelations(
+  nodes: KnowledgeNode[],
+  relations: KnowledgeRelation[],
+  recordingNodeId: string,
+): KnowledgeNode[] {
+  const trackNodeIds = relations
+    .filter((relation) => relation.type === "represents_recording")
+    .filter((relation) =>
+      relation.endpoints.some((endpoint) =>
+        endpoint.nodeId === recordingNodeId && (endpoint.role === undefined || endpoint.role === "recording"),
+      ),
+    )
+    .map((relation) => nodeIdForEndpointRole(relation, "track"))
+    .filter((nodeId): nodeId is string => nodeId !== undefined);
+  const mediumNodeIds = relations
+    .filter((relation) => relation.type === "has_track")
+    .filter((relation) => relation.endpoints.some((endpoint) => trackNodeIds.includes(endpoint.nodeId)))
+    .map((relation) => nodeIdForEndpointRole(relation, "medium"))
+    .filter((nodeId): nodeId is string => nodeId !== undefined);
+
+  return relations
+    .filter((relation) => relation.type === "has_medium")
+    .filter((relation) => relation.endpoints.some((endpoint) => mediumNodeIds.includes(endpoint.nodeId)))
+    .map((relation) => nodeForEndpointRole(nodes, relation, "release"))
+    .filter((node): node is KnowledgeNode => node?.ref?.kind === "release");
+}
+
+function trackPositionsForReleaseAndRecording({
+  nodes,
+  relations,
+  releaseNodeId,
+  recordingNodeId,
+}: {
+  nodes: KnowledgeNode[];
+  relations: KnowledgeRelation[];
+  releaseNodeId: string;
+  recordingNodeId: string;
+}): NonNullable<NonNullable<ProvisionalReviewInspection["detail"]>["releaseTrackPositions"]>[number]["positions"] {
+  const mediumNodes = relations
+    .filter((relation) => relation.type === "has_medium")
+    .filter((relation) => relation.endpoints.some((endpoint) => endpoint.nodeId === releaseNodeId))
+    .map((relation) => nodeForEndpointRole(nodes, relation, "medium"))
+    .filter((node): node is KnowledgeNode => node !== undefined);
+  const positions: NonNullable<NonNullable<ProvisionalReviewInspection["detail"]>["releaseTrackPositions"]>[number]["positions"] = [];
+
+  for (const mediumNode of mediumNodes) {
+    const trackNodes = relations
+      .filter((relation) => relation.type === "has_track")
+      .filter((relation) => relation.endpoints.some((endpoint) => endpoint.nodeId === mediumNode.id))
+      .map((relation) => nodeForEndpointRole(nodes, relation, "track"))
+      .filter((node): node is KnowledgeNode => node !== undefined);
+
+    for (const trackNode of trackNodes) {
+      const representsSelectedRecording = relations
+        .filter((relation) => relation.type === "represents_recording")
+        .some((relation) =>
+          relation.endpoints.some((endpoint) => endpoint.nodeId === trackNode.id) &&
+            relation.endpoints.some((endpoint) => endpoint.nodeId === recordingNodeId),
+        );
+
+      if (!representsSelectedRecording) {
+        continue;
+      }
+
+      const disc = stringFromUnknown(mediumNode.properties?.position);
+      const track = numberFromUnknown(trackNode.properties?.position);
+      const trackCount = numberFromUnknown(mediumNode.properties?.trackCount);
+      const trackTitle = stringFromUnknown(trackNode.properties?.title) ?? trackNode.label;
+      const trackLengthMs = numberFromUnknown(trackNode.properties?.lengthMs);
+
+      positions.push({
+        ...(disc === undefined ? {} : { disc }),
+        ...(track === undefined ? {} : { track }),
+        ...(trackCount === undefined ? {} : { trackCount }),
+        ...(trackTitle === undefined ? {} : { trackTitle }),
+        ...(trackLengthMs === undefined ? {} : { trackLengthMs }),
+      });
+    }
+  }
+
+  return positions;
+}
+
+function releaseAppearanceFromNode(node: KnowledgeNode): ReleaseAppearanceDraft | undefined {
+  if (node.ref === undefined) {
+    return undefined;
+  }
+
+  const facts = releaseFactsFromNode(node);
+
+  return {
+    ref: node.ref,
+    title: facts.title,
+    ...(facts.date === undefined ? {} : { date: facts.date }),
+    ...(facts.country === undefined ? {} : { country: facts.country }),
+    ...(facts.disambiguation === undefined ? {} : { disambiguation: facts.disambiguation }),
+  };
+}
+
+function releaseFactsFromNode(node: KnowledgeNode): {
+  title: string;
+  date?: string;
+  country?: string;
+  disambiguation?: string;
+} {
+  const title = stringFromUnknown(node.properties?.title) ?? node.label ?? node.ref?.label ?? node.ref?.id ?? node.id;
+  const date = stringFromUnknown(node.properties?.date);
+  const country = stringFromUnknown(node.properties?.country);
+  const disambiguation = stringFromUnknown(node.properties?.disambiguation);
+
+  return {
+    title,
+    ...(date === undefined ? {} : { date }),
+    ...(country === undefined ? {} : { country }),
+    ...(disambiguation === undefined ? {} : { disambiguation }),
+  };
+}
+
+function nodeForEndpointRole(
+  nodes: KnowledgeNode[],
+  relation: KnowledgeRelation,
+  role: string,
+): KnowledgeNode | undefined {
+  const nodeId = nodeIdForEndpointRole(relation, role);
+
+  return nodeId === undefined ? undefined : nodes.find((node) => node.id === nodeId);
+}
+
+function nodeIdForEndpointRole(relation: KnowledgeRelation, role: string): string | undefined {
+  return relation.endpoints.find((endpoint) => endpoint.role === role)?.nodeId;
+}
+
+function stringFromUnknown(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  return undefined;
+}
+
+function numberFromUnknown(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
 function anchorRefs(anchor: ProvisionalReviewAnchor): Array<Ref | undefined> {

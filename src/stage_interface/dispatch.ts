@@ -432,10 +432,16 @@ export function createToolDispatch({
             return availableMaintenance;
           }
 
-          const input = readPayload<{ subjectId?: string; subjectRef?: Ref }>(payload);
-          const subjectRef = input.subjectId === undefined
-            ? input.subjectRef
-            : reviewSubjectRef(input.subjectId);
+          const input = readPayload<
+            Omit<ProvisionalReviewInspectInput, "sessionId" | "subjectRef"> & {
+              subjectId?: string;
+              subjectRef?: Ref;
+            }
+          >(payload);
+          const { subjectId, subjectRef: inputSubjectRef, ...inspectInput } = input;
+          const subjectRef = subjectId === undefined
+            ? inputSubjectRef
+            : reviewSubjectRef(subjectId);
 
           if (subjectRef === undefined) {
             return fail({
@@ -447,6 +453,7 @@ export function createToolDispatch({
           }
 
           const result = await availableMaintenance.value.reviewInspect({
+            ...inspectInput,
             subjectRef,
             sessionId,
           });

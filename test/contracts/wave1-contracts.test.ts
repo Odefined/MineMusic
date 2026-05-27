@@ -11,6 +11,9 @@ import type {
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
   ProvisionalReviewInspection,
+  ProvisionalReviewInspectionDetail,
+  ProvisionalReviewInspectDetailInclude,
+  ProvisionalReviewInspectInput,
   ProvisionalReviewListOutput,
   ProvisionalReviewRefToken,
   ProvisionalReviewRefTokenBinding,
@@ -536,12 +539,44 @@ type _provisionalReviewInspectionKeys = Expect<
     | "anchors"
     | "relationCandidates"
     | "refTokens"
+    | "detail"
     | "warnings"
     | "expiresAt"
   > &
     Equal<ProvisionalReviewInspection["subject"], CanonicalRecord> &
     Equal<ProvisionalReviewInspection["anchors"], ProvisionalReviewAnchor[]> &
-    Equal<ProvisionalReviewInspection["refTokens"], ProvisionalReviewRefTokenBinding[] | undefined>
+    Equal<ProvisionalReviewInspection["refTokens"], ProvisionalReviewRefTokenBinding[] | undefined> &
+    Equal<ProvisionalReviewInspection["detail"], ProvisionalReviewInspectionDetail | undefined>
+>;
+
+type _provisionalReviewInspectInputShape = Expect<
+  Equal<
+    keyof ProvisionalReviewInspectInput,
+    | "sessionId"
+    | "subjectRef"
+    | "view"
+    | "inspectionId"
+    | "recordingRefToken"
+    | "include"
+    | "releaseRefTokens"
+  > &
+    Equal<ProvisionalReviewInspectInput["view"], "summary" | "detail" | undefined> &
+    Equal<ProvisionalReviewInspectInput["include"], ProvisionalReviewInspectDetailInclude[] | undefined> &
+    Equal<ProvisionalReviewInspectInput["recordingRefToken"], ProvisionalReviewRefToken | undefined>
+>;
+
+type _provisionalReviewInspectionDetailShape = Expect<
+  Equal<ProvisionalReviewInspectionDetail["recordingRefToken"], ProvisionalReviewRefToken> &
+    Equal<ProvisionalReviewInspectionDetail["recordingRef"], Ref> &
+    Equal<ProvisionalReviewInspectionDetail["releaseAppearances"], Array<{
+      refToken: ProvisionalReviewRefToken;
+      ref: Ref;
+      title: string;
+      date?: string;
+      country?: string;
+      disambiguation?: string;
+    }> | undefined> &
+    Equal<ProvisionalReviewInspectDetailInclude, "releaseAppearances" | "releaseTrackPositions">
 >;
 
 type _provisionalReviewRefTokenShape = Expect<

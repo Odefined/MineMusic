@@ -1953,6 +1953,71 @@ async function mapsAnnotationWhenReturned(): Promise<void> {
   assert(root?.properties?.annotation === "English indie pop band formed in London.", "annotation text should be preserved");
 }
 
+async function mapsRecordingAliasesAndReleaseAppearances(): Promise<void> {
+  const requests: Parameters<MusicBrainzRequester>[0][] = [];
+  const provider = createMusicBrainzKnowledgeProvider({
+    requestJson: async (request) => {
+      requests.push(request);
+
+      return {
+        ok: true,
+        value: {
+          status: 200,
+          json: {
+            id: "recording-mbid-1",
+            title: "Intro",
+            aliases: [
+              { name: "Intro (album version)" },
+              { name: "Intro" },
+            ],
+            releases: [
+              {
+                id: "release-mbid-1",
+                title: "Album",
+                date: "2009-01-07",
+                country: "JP",
+                disambiguation: "first press",
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const result = await assertOk(
+    provider.query({
+      query: {
+        canonicalRef: {
+          namespace: "musicbrainz",
+          kind: "recording",
+          id: "recording-mbid-1",
+        },
+        expand: ["releases"],
+      },
+    }),
+  );
+  const item = result.items[0];
+  const root = item?.kind === "structured" ? item.nodes.find((node) => node.id === item.rootNodeId) : undefined;
+  const release = item?.kind === "structured"
+    ? item.nodes.find((node) => node.ref?.id === "release-mbid-1")
+    : undefined;
+
+  assert(requests[0]?.query.inc?.includes("aliases"), "recording lookup should request aliases");
+  assert((root?.properties?.aliases as string[] | undefined)?.[0] === "Intro (album version)", "recording aliases should be preserved");
+  assert(release?.type === "release", "recording release appearances should add release nodes");
+  assert(release?.properties?.date === "2009-01-07", "release appearance date should be preserved");
+  assert(
+    item?.kind === "structured" &&
+      item.relations.some((relation) =>
+        relation.type === "release_appearance" &&
+          relationHasEndpoint(relation, "recording:recording-mbid-1", "recording") &&
+          relationHasEndpoint(relation, "release:release-mbid-1", "release"),
+      ),
+    "recording should link to release appearances",
+  );
+}
+
 async function mapsRateLimitErrorWithoutCachingFailure(): Promise<void> {
   const cache = createInMemoryProviderHttpCacheRepository();
   const provider = createMusicBrainzKnowledgeProvider({
@@ -2028,5 +2093,6 @@ await cachesSuccessfulJsonAndSkipsRateLimiterOnHit();
 await searchesFromCanonicalContextWithoutMusicBrainzRef();
 await doesNotSearchCanonicalWorkContextInFirstSlice();
 await mapsAnnotationWhenReturned();
+await mapsRecordingAliasesAndReleaseAppearances();
 await mapsRateLimitErrorWithoutCachingFailure();
 await mapsNonJsonRateLimitFromDefaultRequester();
