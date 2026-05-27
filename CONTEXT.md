@@ -239,9 +239,11 @@ saved or followed asset.
 
 ### Active Canonical Record
 
-A Canonical Store record whose MineMusic identity has a MusicBrainz provider
-ref, required canonical relationships, and canonical naming.
-_Avoid_: status-only promotion, provider-owned identity.
+A Canonical Store record accepted as the current MineMusic identity for its
+kind, with canonical naming and provider identity according to that kind's
+maintenance policy.
+_Avoid_: status-only promotion, provider-owned identity, complete graph
+canonicalization.
 
 ### Canonical Activation
 

@@ -14,6 +14,7 @@ Task breakdown belongs in:
 
 - `docs/canonical-store/implementation-plan.md`
 - `docs/canonical-store/provisional-review-v1-implementation-plan.md`
+- `docs/canonical-store/provisional-review-v2-implementation-plan.md`
 
 ## Current Snapshot
 

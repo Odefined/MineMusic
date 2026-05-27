@@ -106,6 +106,10 @@ This index points agents to the current MVP documentation pack.
     - `docs/canonical-store/provisional-review-v1-implementation-plan.md` is
       the task-by-task plan for implementing `canonical.review.list`,
       `canonical.review.inspect`, and `canonical.review.apply`.
+    - `docs/canonical-store/provisional-review-v2-implementation-plan.md` is
+      the task-by-task plan for replacing v1 review output and update writes
+      with compact v2 agent-facing contracts and MusicBrainz-authoritative
+      recording identity maintenance.
 
 26. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom

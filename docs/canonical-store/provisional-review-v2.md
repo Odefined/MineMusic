@@ -93,6 +93,36 @@ V2 replaces the agent-facing contract of the existing `canonical.review.*`
 tools. It does not introduce `canonical.review.v2.*` tool names. Agents should
 see the compact contract through the existing tool names once v2 is implemented.
 
+## Interface/Core Boundary
+
+Shapes in this document that use `subjectId`, `refToken`,
+`recordingRefToken`, `releaseRefTokens`, or `selectedProviderRefToken` are
+Stage Interface agent-facing contracts.
+
+Canonical Maintenance remains a Canonical Store-owned core capability. It may
+keep rich internal contracts that use full `Ref` values, internal inspection
+snapshots, and current Canonical Store state. Core Canonical Maintenance must
+not depend on short token ids such as `mbrec-1` or `mbrel-1`.
+
+Stage Interface is responsible for:
+
+- turning an agent-facing `subjectId` into the internal MineMusic subject `Ref`.
+- rendering compact `refToken` handles for provider refs returned to the agent.
+- passing agent-selected tokens to Canonical Maintenance without keeping a
+  separate token registry.
+- mapping rich core results and errors into compact agent-facing output.
+
+Canonical Maintenance owns inspection snapshot lifetime and any token map or
+agent-view metadata that must survive between `inspect` and `apply`. Stage
+Interface must not keep separate review runtime state.
+At apply time, Canonical Maintenance resolves the selected token against the
+stored inspection snapshot before Gate validation or write decisions use the
+underlying full provider `Ref`.
+
+Core results may include facts and refs that never appear in agent-facing tool
+output. That internal richness is for Gate validation, write decisions, tests,
+and non-agent/admin surfaces.
+
 ## List Output
 
 `canonical.review.list` should return only the information needed to choose a
@@ -224,21 +254,21 @@ type ProvisionalReviewRefToken = {
   MusicBrainz recording tokens and `mbrel-1` for MusicBrainz release tokens.
   Implementations must still validate through the token map instead of relying
   on the string prefix.
-- Stage Interface generates and resolves review tokens, such as `mbrec-1` and
-  `mbrel-1`, because it owns the agent-facing compression boundary.
-- Core Canonical Maintenance does not understand review token ids. Stage
-  Interface resolves tokens back to full refs before calling core apply or
-  internal detail helpers.
+- Canonical Maintenance assigns and stores review token mappings, such as
+  `mbrec-1` and `mbrel-1`, with the inspection snapshot.
+- Stage Interface renders those tokens at the agent-facing boundary but does
+  not keep the token registry.
 - detail views may introduce additional tokens into the same inspection scope.
   For example, summary can expose recording tokens and `releaseAppearances`
   detail can add release tokens later used by `releaseTrackPositions`.
 - tokens from one inspection must not be reused with another inspection.
-- token maps should be stored with the internal inspection snapshot so token
-  lifetime exactly follows `inspectionId` lifetime. This avoids a separate
-  Stage Interface registry drifting from snapshot expiry.
-- Stage Interface owns token generation and interpretation. Canonical
-  Maintenance may store opaque agent-view token metadata alongside the snapshot,
-  but business logic still works with full refs.
+- token maps should be stored with the internal inspection snapshot owned by
+  Canonical Maintenance so token lifetime exactly follows `inspectionId`
+  lifetime.
+- Stage Interface owns token field names and compact rendering at the tool
+  boundary, but it must not keep separate review runtime state. Canonical
+  Maintenance stores token metadata alongside the snapshot; business logic
+  resolves selected tokens to full refs before using them.
 - deduplicate summary entries by the underlying MusicBrainz `recording` ref. If
   multiple Knowledge Items mention the same recording ref, merge their compact
   readable facts in the summary while keeping the internal snapshot mapping for
@@ -386,7 +416,7 @@ Rules:
 ## Warnings
 
 Warnings are short structured facts about incomplete inspection, missing source
-facts, provider failures, or truncation.
+facts, provider failures, truncation, or non-blocking audit side effects.
 
 ```ts
 type ProvisionalReviewWarning = {
@@ -398,7 +428,7 @@ type ProvisionalReviewWarning = {
 Rules:
 
 - use stable short codes such as `missing_source_title_or_artists`,
-  `knowledge_timeout`, or `detail_truncated`.
+  `knowledge_timeout`, `detail_truncated`, or `audit_event_failed`.
 - keep `message` to one human-readable sentence.
 - do not include raw provider payloads, stack traces, or verbose exception text.
 - warnings inform the agent's judgment; they are not apply inputs.
@@ -435,11 +465,11 @@ provenance, not durable canonical recording truth.
 The Gate continues to validate against the internal inspection snapshot, not
 facts copied back by the agent.
 
-The v2 agent-facing apply payload removes citation and support-id carrying from the
-agent contract:
+The Stage Interface agent-facing apply payload removes citation and support-id
+carrying from the agent contract:
 
 ```ts
-type ProvisionalReviewApplyInputV2 =
+type StageInterfaceReviewApplyInputV2 =
   | {
       inspectionId: string;
       subjectId: string;
@@ -474,20 +504,22 @@ The agent-facing apply payload does not include:
 - `citedFactIds`
 - `selectedKnowledgeFactId`
 
-V2 apply output is also compact:
+Stage Interface apply output is also compact:
 
 ```ts
-type ProvisionalReviewApplyOutputV2 =
+type StageInterfaceReviewApplyOutputV2 =
   | {
       subjectId: string;
       action: "update";
       selectedProviderRefToken: ProvisionalReviewRefToken;
       appliedAction: "activate" | "merge";
+      warnings?: ProvisionalReviewWarning[];
     }
   | {
       subjectId: string;
       action: "defer";
       appliedAction: "defer";
+      warnings?: ProvisionalReviewWarning[];
     };
 ```
 
@@ -564,6 +596,31 @@ MusicBrainz recording identity must not be stored in `sourceRefs` in v2.
 The selected MusicBrainz recording MBID belongs in a separate canonical identity
 field on the recording.
 
+The storage shape should support provider identity lookup directly. A SQLite
+implementation can model this as a provider identity table, for example:
+
+```sql
+canonical_provider_identities (
+  canonical_id TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  entity_kind TEXT NOT NULL,
+  provider_entity_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+```
+
+For v2 recording review, the row represents:
+
+- `provider_id = "musicbrainz"`
+- `entity_kind = "recording"`
+- `provider_entity_id = <MusicBrainz recording MBID>`
+
+The storage API must be able to find current MineMusic recordings by this
+provider identity. Merge target lookup uses that exact provider identity lookup,
+not source-ref lookup, label matching, artist matching, release matching, or
+work matching.
+
 V2 does not need a compatibility migration for earlier temporary v1 data that
 stored MusicBrainz recording refs in `sourceRefs`. Development/test data can be
 rebuilt under the v2 model.
@@ -582,6 +639,53 @@ identity.
 
 Storage should enforce the same rule for current records: one MusicBrainz
 recording identity maps to at most one current MineMusic recording.
+
+### Canonical Write Boundary
+
+The write boundary for v2 update should follow the existing storage shape
+instead of introducing a review-specific storage API.
+
+Current SQLite Canonical Store already makes a single `put(record)` atomic: it
+writes the entity row, rewrites source refs, and rewrites aliases inside one
+SQLite transaction. That is record-level atomicity. V2 update needs
+update-level atomicity across multiple canonical writes: subject/target records,
+provider identity rows, durable facts, and relation deletions.
+
+Do not implement this by wrapping public `put(record)` calls in an outer
+transaction. The current public `put(record)` opens its own transaction. The
+SQLite repository should instead split its internal SQL work into private
+non-transaction-opening helpers and reuse them from:
+
+- public `put(record)`, which keeps the existing single-record behavior.
+- a generic canonical changeset commit operation, which opens one transaction
+  for a group of canonical writes.
+
+The changeset operation must be generic Canonical Store infrastructure, not a
+Provisional Review-specific method. It should express storage operations, not
+business decisions. A minimal v2 changeset needs these reusable operations:
+
+- put one or more Canonical Records.
+- put or replace provider identity rows for Canonical Records.
+- delete Canonical Relations by id.
+
+Canonical Maintenance remains responsible for deciding whether an update is an
+activation or merge, selecting which records to write, and selecting which
+source-derived provisional relation ids to delete. The repository only commits
+the resulting canonical changes atomically.
+
+Stage Interface is not part of this write boundary. It maps compact inputs and
+outputs at the tool boundary and calls Canonical Maintenance. Canonical
+Maintenance resolves selected tokens against its inspection snapshot before
+constructing the canonical changeset.
+
+Events are not part of the same transaction under the current architecture.
+`EventPort` is separate from the Canonical Store repository, and Stage Core may
+use an in-memory event repository while Canonical Store is SQLite-backed. For
+update, commit canonical changes first, then record the audit event. If event
+recording fails after canonical changes are committed, do not roll back or
+pretend the update did not happen; return the compact apply result with a short
+`audit_event_failed` warning. `defer` remains event-only, so defer fails if its
+event cannot be recorded.
 
 Source-derived provisional relations include import-time relations such as
 `performed_by`, `appears_on_release`, and `has_duration_ms` when they came from
