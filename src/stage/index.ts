@@ -99,7 +99,9 @@ export function createSessionContext({
 function canonicalReviewGuidance(): string[] {
   return [
     "Provisional Review v2 supports provisional recordings.",
-    "Use summary inspect by default; request detail only for release appearances or selected release track positions.",
+    "For batch review, call canonical.review.list with small pages and no cursor until no items remain; the default excludes subjects already reviewed in this session, and excludeReviewed false opts out.",
+    "Use summary inspect by default; detail requires the latest inspectionId plus a recordingRefToken from summary.",
+    "Use releaseAppearances detail to get release tokens, then request releaseTrackPositions with releaseRefTokens only for relevant releases.",
     "Inspect returns compact facts for judgment, not action recommendations or merge targets.",
     "Apply update with one selectedProviderRefToken and a short reason, or apply defer with a short reason.",
     "Choose defer when inspected facts are incomplete, ambiguous, or contradictory.",

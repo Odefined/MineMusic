@@ -160,6 +160,14 @@ async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
     handbook.content.includes("selectedProviderRefToken"),
     "handbook should include v2 token apply guidance",
   );
+  assert(
+    handbook.content.includes("small pages") &&
+      handbook.content.includes("excludeReviewed") &&
+      handbook.content.includes("latest `inspectionId`") &&
+      handbook.content.includes("recordingRefToken") &&
+      handbook.content.includes("releaseRefTokens"),
+    "handbook should document the v2.1 batch loop and detail input workflow",
+  );
   assert(!handbook.content.includes("supportingRefs"), "handbook should not describe v1 citation payloads");
   assert(!handbook.content.includes("anchors"), "handbook should not describe v1 anchors");
 }

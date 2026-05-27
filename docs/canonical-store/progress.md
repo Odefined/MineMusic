@@ -40,6 +40,7 @@ Task status:
 - Provisional Review v2.1 Task 1: completed.
 - Provisional Review v2.1 Task 2: completed.
 - Provisional Review v2.1 Task 3: completed.
+- Provisional Review v2.1 Task 4: completed.
 
 Implemented:
 
@@ -203,6 +204,11 @@ Implemented:
   appearances or selected release track positions, update with
   `selectedProviderRefToken`, defer with a short reason, and no v1
   citation/anchor/support-id payloads.
+- Provisional Review v2.1 Stage Context, tool descriptors, MCP schemas, and
+  generated Handbook guidance now describe the small-page batch list loop,
+  reviewed-subject suppression, latest `inspectionId` detail requirement,
+  `recordingRefToken`, `releaseRefTokens`, and v2 token-only apply payloads
+  without stale v1 refs or citation fields.
 
 Implemented public methods:
 
@@ -350,6 +356,6 @@ Evidence boundary:
 
 ## Next Slice
 
-1. Continue Provisional Review v2.1 Task 4 from
+1. Continue Provisional Review v2.1 Task 5 from
    `docs/canonical-store/provisional-review-v2.1-implementation-plan.md`,
-   syncing tool schemas and Handbook guidance for the v2.1 workflow.
+   running the real MCP agent regression against a fresh temporary runtime.

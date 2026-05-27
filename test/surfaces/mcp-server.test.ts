@@ -184,8 +184,20 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "library import status schema should declare batch id input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.canonical.review.list"), "excludeReviewed"),
+    "canonical review list schema should declare reviewed-subject suppression input",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "subjectId"),
     "canonical review inspect schema should declare subject id input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "view") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "inspectionId") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "recordingRefToken") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "include") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "releaseRefTokens"),
+    "canonical review inspect schema should declare v2.1 detail workflow inputs",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "action"),
@@ -198,6 +210,17 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "subjectId"),
     "canonical review apply schema should declare subject id input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "selectedProviderRefToken"),
+    "canonical review apply schema should declare selected provider ref token input",
+  );
+  assert(
+    !hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "subjectRef") &&
+      !hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "selectedProviderRef") &&
+      !hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "supportingRefs") &&
+      !hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "supportingAnchorIds"),
+    "canonical review apply schema should not expose stale v1 ref or citation fields",
   );
   assert(
     schemaIsEmpty(schemasByName.get("minemusic.handbook.overview.read")),

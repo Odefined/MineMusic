@@ -116,6 +116,14 @@ async function readsCanonicalReviewGuidanceInReviewPosture(): Promise<void> {
     "canonical review guidance should expose v2 token apply shape",
   );
   assert(
+    guidanceText.includes("small pages") &&
+      guidanceText.includes("excludeReviewed") &&
+      guidanceText.includes("latest inspectionId") &&
+      guidanceText.includes("recordingRefToken") &&
+      guidanceText.includes("releaseRefTokens"),
+    "canonical review guidance should include the v2.1 batch loop and detail workflow",
+  );
+  assert(
     guidanceText.includes("agent must not choose activate, merge, or a merge target"),
     "canonical review guidance should keep apply effect selection in Canonical Store",
   );

@@ -235,19 +235,19 @@ export const libraryToolDescriptors: StableToolDescriptor[] = [
 export const canonicalReviewToolDescriptors: StableToolDescriptor[] = [
   {
     name: "canonical.review.list",
-    description: "List current provisional recordings that can be reviewed by Canonical Maintenance v1.",
+    description: "List current provisional recordings for Canonical Maintenance review; default batch use hides subjects already reviewed in the current session, and excludeReviewed false opts out.",
     inputSchemaRef: "ProvisionalReviewListInput",
     outputSchemaRef: "ProvisionalReviewListOutput",
   },
   {
     name: "canonical.review.inspect",
-    description: "Inspect one provisional recording and return neutral facts for Canonical Maintenance review.",
+    description: "Inspect one provisional recording: summary is default; detail requires the latest inspectionId plus recordingRefToken, and releaseTrackPositions also requires releaseRefTokens.",
     inputSchemaRef: "ProvisionalReviewInspectInput",
     outputSchemaRef: "ProvisionalReviewInspection",
   },
   {
     name: "canonical.review.apply",
-    description: "Apply an inspected Canonical Maintenance review decision as update or defer.",
+    description: "Apply an inspected Canonical Maintenance decision as update with selectedProviderRefToken or defer with a short reason; do not pass v1 refs or citation fields.",
     inputSchemaRef: "ProvisionalReviewApplyInput",
     outputSchemaRef: "ProvisionalReviewApplyOutput",
     effectKind: "canonical_maintenance",
