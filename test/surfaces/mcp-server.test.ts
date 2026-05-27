@@ -200,8 +200,9 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
       hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "inspectionId") &&
       hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "recordingRefToken") &&
       hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "include") &&
-      hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "releaseRefTokens"),
-    "canonical review inspect schema should declare v2.1 detail workflow inputs",
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "releaseRefTokens") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.inspect"), "knowledgeFactLimit"),
+    "canonical review inspect schema should declare detail workflow and Knowledge fact limit inputs",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "action"),

@@ -229,6 +229,7 @@ export const stageInterfaceToolInputSchemas = {
     recordingRefToken: reviewRefTokenSchema.optional(),
     include: z.array(z.enum(["releaseAppearances", "releaseTrackPositions"])).optional(),
     releaseRefTokens: z.array(reviewRefTokenSchema).optional(),
+    knowledgeFactLimit: z.number().int().positive().optional(),
   },
   "canonical.review.apply": {
     inspectionId: z.string(),

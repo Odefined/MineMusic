@@ -28,10 +28,19 @@ export function compactReviewList(output: ProvisionalReviewListOutput): unknown 
   };
 }
 
-export function compactReviewInspect(inspection: ProvisionalReviewInspection): unknown {
+const defaultKnowledgeFactLimit = 5;
+
+export function compactReviewInspect(
+  inspection: ProvisionalReviewInspection,
+  options: { knowledgeFactLimit?: number | undefined } = {},
+): unknown {
   if (inspection.detail !== undefined) {
     return compactReviewInspectDetail(inspection);
   }
+
+  const allKnowledgeFacts = compactKnowledgeFacts(inspection);
+  const knowledgeFactLimit = normalizeKnowledgeFactLimit(options.knowledgeFactLimit);
+  const knowledgeFacts = allKnowledgeFacts.slice(0, knowledgeFactLimit);
 
   return {
     inspectionId: inspection.inspectionId,
@@ -47,13 +56,23 @@ export function compactReviewInspect(inspection: ProvisionalReviewInspection): u
     hints: inspection.provisionalHints
       .filter((hint) => hint.kind === "source_recording_context")
       .map(compactHint),
-    knowledgeFacts: compactKnowledgeFacts(inspection),
+    knowledgeFacts,
+    knowledgeFactCount: allKnowledgeFacts.length,
+    hiddenKnowledgeFactCount: allKnowledgeFacts.length - knowledgeFacts.length,
     ...(inspection.warnings === undefined
       ? {}
       : {
           warnings: inspection.warnings.map(compactReviewWarning),
         }),
   };
+}
+
+function normalizeKnowledgeFactLimit(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit) || limit < 1) {
+    return defaultKnowledgeFactLimit;
+  }
+
+  return Math.floor(limit);
 }
 
 function compactReviewInspectDetail(inspection: ProvisionalReviewInspection): unknown {

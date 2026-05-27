@@ -327,6 +327,7 @@ export type ProvisionalReviewInspectInput = {
   recordingRefToken?: ProvisionalReviewRefToken;
   include?: ProvisionalReviewInspectDetailInclude[];
   releaseRefTokens?: ProvisionalReviewRefToken[];
+  knowledgeFactLimit?: number;
 };
 
 export type ProvisionalReviewRefToken = {

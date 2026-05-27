@@ -29,6 +29,7 @@ import {
   isCurrentCanonicalRecord,
   sameRef,
 } from "./normalization.js";
+import { qualifyReviewRecordings } from "./review-qualification.js";
 import { createCanonicalStorage } from "./storage.js";
 
 type CanonicalMaintenanceOptions = {
@@ -1514,7 +1515,10 @@ async function readReviewKnowledge({
     }
   }
 
-  const sortedRecordingItems = sortReviewRecordingItems(recordingItems);
+  const sortedRecordingItems = sortReviewRecordingItems({
+    items: recordingItems,
+    provisionalHints,
+  });
   items.push(...sortedRecordingItems.map(({ item }) => item));
 
   if (sortedRecordingItems.some((entry) => entry.precision === "short_segment")) {
@@ -1829,15 +1833,39 @@ function reviewKnowledgeQueryKey(query: KnowledgeQuery): string {
   return JSON.stringify(query);
 }
 
-function sortReviewRecordingItems(
-  items: ReviewRecordingKnowledgeItem[],
-): ReviewRecordingKnowledgeItem[] {
+function sortReviewRecordingItems({
+  items,
+  provisionalHints,
+}: {
+  items: ReviewRecordingKnowledgeItem[];
+  provisionalHints: ProvisionalReviewInspection["provisionalHints"];
+}): ReviewRecordingKnowledgeItem[] {
+  const qualification = qualifyReviewRecordings({
+    provisionalHints,
+    knowledgeItems: items.map(({ item }) => item),
+  });
+  const qualifiedRefKeys = new Set(qualification.qualifiedRecordingRefs.map(refKey));
+
   return [...items].sort((left, right) => {
+    const qualificationDelta = reviewRecordingQualificationRank(left, qualifiedRefKeys) -
+      reviewRecordingQualificationRank(right, qualifiedRefKeys);
+
+    if (qualificationDelta !== 0) {
+      return qualificationDelta;
+    }
+
     const precisionDelta = reviewRecordingPrecisionRank(left.precision) -
       reviewRecordingPrecisionRank(right.precision);
 
     return precisionDelta === 0 ? left.order - right.order : precisionDelta;
   });
+}
+
+function reviewRecordingQualificationRank(
+  item: ReviewRecordingKnowledgeItem,
+  qualifiedRefKeys: Set<string>,
+): number {
+  return reviewIdentityRecordingRefs(item.item).some((ref) => qualifiedRefKeys.has(refKey(ref))) ? 0 : 1;
 }
 
 function reviewRecordingPrecisionRank(precision: ReviewRecordingSearchPrecision): number {

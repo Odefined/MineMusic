@@ -459,7 +459,9 @@ export function createToolDispatch({
             sessionId,
           });
 
-          return result.ok ? ok(compactReviewInspect(result.value)) : result;
+          return result.ok
+            ? ok(compactReviewInspect(result.value, { knowledgeFactLimit: input.knowledgeFactLimit }))
+            : result;
         }
 
         case "canonical.review.apply": {

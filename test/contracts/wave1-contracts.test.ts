@@ -573,10 +573,12 @@ type _provisionalReviewInspectInputShape = Expect<
     | "recordingRefToken"
     | "include"
     | "releaseRefTokens"
+    | "knowledgeFactLimit"
   > &
     Equal<ProvisionalReviewInspectInput["view"], "summary" | "detail" | undefined> &
     Equal<ProvisionalReviewInspectInput["include"], ProvisionalReviewInspectDetailInclude[] | undefined> &
-    Equal<ProvisionalReviewInspectInput["recordingRefToken"], ProvisionalReviewRefToken | undefined>
+    Equal<ProvisionalReviewInspectInput["recordingRefToken"], ProvisionalReviewRefToken | undefined> &
+    Equal<ProvisionalReviewInspectInput["knowledgeFactLimit"], number | undefined>
 >;
 
 type _provisionalReviewInspectionDetailShape = Expect<

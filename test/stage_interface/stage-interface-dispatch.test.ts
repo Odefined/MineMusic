@@ -1123,6 +1123,65 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     ...session,
     posture: "canonical_review",
   };
+  const reviewKnowledgeItems = Array.from({ length: 6 }, (_, index) => {
+    const number = index + 1;
+    const recordingRef: Ref = {
+      namespace: "musicbrainz",
+      kind: "recording",
+      id: `mb-recording-${number}`,
+    };
+    const releaseRef: Ref = {
+      namespace: "musicbrainz",
+      kind: "release",
+      id: `quiet-release-${number}`,
+    };
+
+    return {
+      kind: "structured" as const,
+      providerId: "musicbrainz",
+      source: {
+        ref: recordingRef,
+      },
+      retrievalScore: 100 - number,
+      nodes: [
+        {
+          id: `recording-${number}`,
+          type: "recording",
+          label: `Quiet Track ${number}`,
+          ref: recordingRef,
+          properties: {
+            title: `Quiet Track ${number}`,
+            artistCreditText: "Quiet Artist",
+            durationMs: 123450 + number,
+          },
+        },
+        {
+          id: `release:quiet-release-${number}`,
+          type: "release",
+          label: "Quiet Release",
+          ref: releaseRef,
+          properties: {
+            title: "Quiet Release",
+            date: "2009-01-07",
+            country: "JP",
+          },
+        },
+      ],
+      relations: [
+        {
+          type: "release_appearance",
+          endpoints: [
+            { nodeId: `recording-${number}`, role: "recording" },
+            { nodeId: `release:quiet-release-${number}`, role: "release" },
+          ],
+        },
+      ],
+    };
+  });
+  const reviewRefTokens = reviewKnowledgeItems.map((item, index) => ({
+    token: { kind: "recording" as const, id: `mbrec-${index + 1}` },
+    ref: item.source.ref,
+  }));
   const canonicalMaintenance: CanonicalMaintenancePort = {
     reviewList: async ({ sessionId, limit, includeCannotConfirm }) => {
       calls.push(`list:${sessionId}:${limit ?? "none"}:${String(includeCannotConfirm)}`);
@@ -1180,59 +1239,13 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
           ],
           neighborRecords: [],
           relatedCurrentRecords: [],
-          knowledgeItems: [
-            {
-              kind: "structured",
-              providerId: "musicbrainz",
-              source: {
-                ref: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
-              },
-              nodes: [
-                {
-                  id: "recording",
-                  type: "recording",
-                  label: "Quiet Track",
-                  ref: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
-                  properties: {
-                    title: "Quiet Track",
-                    artistCreditText: "Quiet Artist",
-                    durationMs: 123450,
-                  },
-                },
-                {
-                  id: "release:quiet-release",
-                  type: "release",
-                  label: "Quiet Release",
-                  ref: { namespace: "musicbrainz", kind: "release", id: "quiet-release" },
-                  properties: {
-                    title: "Quiet Release",
-                    date: "2009-01-07",
-                    country: "JP",
-                  },
-                },
-              ],
-              relations: [
-                {
-                  type: "release_appearance",
-                  endpoints: [
-                    { nodeId: "recording", role: "recording" },
-                    { nodeId: "release:quiet-release", role: "release" },
-                  ],
-                },
-              ],
-            },
-          ],
+          knowledgeItems: reviewKnowledgeItems,
           anchors: [],
           relationCandidates: [],
           warnings: [
             "broad_title_fragment_results: Broad title-fragment MusicBrainz results are included; compare them cautiously.",
           ],
-          refTokens: [
-            {
-              token: { kind: "recording", id: "mbrec-1" },
-              ref: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
-            },
-          ],
+          refTokens: reviewRefTokens,
           expiresAt: "2026-05-27T00:05:00.000Z",
           ...(input.view === "detail"
             ? {
@@ -1357,6 +1370,13 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
       },
     }),
   );
+  const inspectedExpanded = await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.inspect",
+      payload: { sessionId: "spoofed-session", subjectId: collectionRef.id, knowledgeFactLimit: 6 },
+    }),
+  );
   const applied = await assertOk(
     dispatch.call({
       sessionId: reviewSession.id,
@@ -1405,6 +1425,24 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     (inspected as { knowledgeFacts?: Array<{ refToken?: { id?: string } }> }).knowledgeFacts?.[0]?.refToken?.id ===
       "mbrec-1",
     "review inspect should expose compact Knowledge facts with ref tokens",
+  );
+  assert(
+    (inspected as { knowledgeFacts?: unknown[] }).knowledgeFacts?.length === 5 &&
+      (inspected as { knowledgeFactCount?: number }).knowledgeFactCount === 6 &&
+      (inspected as { hiddenKnowledgeFactCount?: number }).hiddenKnowledgeFactCount === 1,
+    "review inspect should cap default Knowledge facts and return compact counts",
+  );
+  assert(
+    (inspectedExpanded as { knowledgeFacts?: unknown[] }).knowledgeFacts?.length === 6 &&
+      (inspectedExpanded as { knowledgeFactCount?: number }).knowledgeFactCount === 6 &&
+      (inspectedExpanded as { hiddenKnowledgeFactCount?: number }).hiddenKnowledgeFactCount === 0,
+    "review inspect should honor explicit Knowledge fact limits",
+  );
+  assert(
+    !("score" in (((inspected as { knowledgeFacts?: Array<{ facts?: object }> }).knowledgeFacts?.[0]?.facts) ?? {})) &&
+      !("match" in (((inspected as { knowledgeFacts?: Array<{ facts?: object }> }).knowledgeFacts?.[0]?.facts) ?? {})) &&
+      !("qualified" in (((inspected as { knowledgeFacts?: Array<{ facts?: object }> }).knowledgeFacts?.[0]?.facts) ?? {})),
+    "review inspect should not expose score, match labels, or qualification booleans",
   );
   assert(
     (

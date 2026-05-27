@@ -768,6 +768,179 @@ async function summaryInspectCapsBroadShortSegmentResults(): Promise<void> {
   );
 }
 
+async function summaryInspectOrdersQualifiedRecordingFactsFirst(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "qualified-order-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Intro - The xx",
+      evidence: [sourceRef],
+    }),
+  );
+  const weakItem = qualificationRecordingKnowledgeItem({
+    id: "mb-weak",
+    title: "Intro",
+    artistLabel: "The xx",
+    durationMs: 127000,
+    releaseTitle: "Other Release",
+    releaseDate: "2009-08-14",
+  });
+  const qualifiedItem = qualificationRecordingKnowledgeItem({
+    id: "mb-qualified",
+    title: "Intro",
+    artistLabel: "The xx",
+    durationMs: 127000,
+    releaseTitle: "xx",
+    releaseDate: "2009-08-14",
+  });
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      if ("providerRef" in query) {
+        return { ok: true, value: { items: [] } };
+      }
+
+      return {
+        ok: true,
+        value: {
+          items: [weakItem, qualifiedItem],
+        },
+      };
+    },
+  };
+
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Intro",
+            artistLabels: ["The xx"],
+            releaseLabel: "xx",
+            releaseDate: "2009-08-14",
+            durationMs: 127000,
+          },
+        },
+      ],
+    }),
+  );
+
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    idFactory: () => "qualified-order-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const recordingTokens = inspection.refTokens?.filter((binding) => binding.token.kind === "recording") ?? [];
+
+  assert(recordingTokens[0]?.ref.id === "mb-qualified", "qualified recording facts should sort before weaker facts");
+  assert(recordingTokens[1]?.ref.id === "mb-weak", "weaker recording facts should remain after qualified facts");
+}
+
+function qualificationRecordingKnowledgeItem({
+  id,
+  title,
+  artistLabel,
+  durationMs,
+  releaseTitle,
+  releaseDate,
+}: {
+  id: string;
+  title: string;
+  artistLabel: string;
+  durationMs: number;
+  releaseTitle: string;
+  releaseDate: string;
+}): KnowledgeItem {
+  const recordingRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "recording",
+    id,
+    label: title,
+  };
+  const artistRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "artist",
+    id: `${id}-artist`,
+    label: artistLabel,
+  };
+  const releaseRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "release",
+    id: `${id}-release`,
+    label: releaseTitle,
+  };
+
+  return {
+    id: `knowledge-${id}`,
+    kind: "structured",
+    providerId: "musicbrainz",
+    source: { ref: recordingRef },
+    rootNodeId: `recording:${id}`,
+    nodes: [
+      {
+        id: `recording:${id}`,
+        type: "recording",
+        ref: recordingRef,
+        label: title,
+        properties: {
+          title,
+          durationMs,
+          artistCreditText: artistLabel,
+        },
+      },
+      {
+        id: `artist:${id}-artist`,
+        type: "artist",
+        ref: artistRef,
+        label: artistLabel,
+        properties: {
+          name: artistLabel,
+        },
+      },
+      {
+        id: `release:${id}-release`,
+        type: "release",
+        ref: releaseRef,
+        label: releaseTitle,
+        properties: {
+          title: releaseTitle,
+          date: releaseDate,
+        },
+      },
+    ],
+    relations: [
+      {
+        type: "artist_credit",
+        endpoints: [
+          { nodeId: `recording:${id}`, role: "credited_entity" },
+          { nodeId: `artist:${id}-artist`, role: "artist" },
+        ],
+      },
+      {
+        type: "release_appearance",
+        endpoints: [
+          { nodeId: `recording:${id}`, role: "recording" },
+          { nodeId: `release:${id}-release`, role: "release" },
+        ],
+      },
+    ],
+  };
+}
+
 async function summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const store = createCanonicalStore({
@@ -2156,6 +2329,7 @@ await inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning();
 await summaryInspectFallsBackToCleanedTitleSingleArtistAndRelease();
 await summaryInspectFallsBackToStrongTitleSegments();
 await summaryInspectCapsBroadShortSegmentResults();
+await summaryInspectOrdersQualifiedRecordingFactsFirst();
 await summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot();
 await detailInspectReusesSnapshotAndReturnsReleaseContexts();
 await cannotConfirmRecordsEventStateAndLeavesIdentityUnchanged();
