@@ -39,6 +39,7 @@ Task status:
 - Provisional Review v2 Task 7: completed.
 - Provisional Review v2.1 Task 1: completed.
 - Provisional Review v2.1 Task 2: completed.
+- Provisional Review v2.1 Task 3: completed.
 
 Implemented:
 
@@ -176,6 +177,12 @@ Implemented:
 - Provisional Review v2.1 summary inspect now asks Music Knowledge for
   recording `releases` only, avoiding unrelated summary expansions such as
   `tracklist`, `release_labels`, and broad `relations`.
+- Provisional Review v2.1 review list now supports session-scoped reviewed
+  subject suppression for batch progress. The default hides subjects already
+  recorded in the same session through `provisional_review.deferred`,
+  `canonical.activated`, or `canonical.merged` events; callers can pass
+  `excludeReviewed: false` to preserve explicit cursor pagination over all
+  current provisional recordings.
 - Provisional Review v2 update apply semantics are in place:
   - update resolves `selectedProviderRefToken` against the current inspection
     snapshot inside Canonical Maintenance.
@@ -343,6 +350,6 @@ Evidence boundary:
 
 ## Next Slice
 
-1. Continue Provisional Review v2.1 Task 3 from
+1. Continue Provisional Review v2.1 Task 4 from
    `docs/canonical-store/provisional-review-v2.1-implementation-plan.md`,
-   adding reviewed-subject suppression for long batch review lists.
+   syncing tool schemas and Handbook guidance for the v2.1 workflow.

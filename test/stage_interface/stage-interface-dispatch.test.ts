@@ -1116,8 +1116,8 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     posture: "canonical_review",
   };
   const canonicalMaintenance: CanonicalMaintenancePort = {
-    reviewList: async ({ sessionId, limit }) => {
-      calls.push(`list:${sessionId}:${limit ?? "none"}`);
+    reviewList: async ({ sessionId, limit, excludeReviewed }) => {
+      calls.push(`list:${sessionId}:${limit ?? "none"}:${String(excludeReviewed)}`);
       return {
         ok: true,
         value: {
@@ -1307,7 +1307,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     dispatch.call({
       sessionId: reviewSession.id,
       toolName: "canonical.review.list",
-      payload: { sessionId: "spoofed-session", limit: 2 },
+      payload: { sessionId: "spoofed-session", limit: 2, excludeReviewed: false },
     }),
   );
   const inspected = await assertOk(
@@ -1420,7 +1420,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     "detail inspect should not expose full release refs",
   );
 
-  assert(calls.includes(`list:${reviewSession.id}:2`), "review list should receive current dispatch session id");
+  assert(calls.includes(`list:${reviewSession.id}:2:false`), "review list should receive current dispatch session id and list progress option");
   assert(calls.includes(`inspect:${reviewSession.id}:${collectionRef.id}`), "review inspect should receive current dispatch session id");
   assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:defer`), "review apply should receive current dispatch session id");
   assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:update`), "review update apply should receive current dispatch session id");

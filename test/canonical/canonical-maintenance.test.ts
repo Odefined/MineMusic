@@ -1031,6 +1031,126 @@ async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
   assert(recordedEvents[0]?.target?.id === subject.ref.id, "defer event should target the subject");
 }
 
+async function reviewListSuppressesReviewedSubjectsPerSession(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const eventRepository = createInMemoryEventRepository();
+  const events = createEventService({
+    repository: eventRepository,
+    clock: () => "2026-05-27T00:00:00.000Z",
+    idFactory: (() => {
+      let next = 1;
+      return () => `review-event-${next++}`;
+    })(),
+  });
+  const store = createCanonicalStore({
+    repository,
+    idFactory: (() => {
+      const ids = ["batch-reviewed", "batch-fresh"];
+      return () => ids.shift() ?? "unexpected";
+    })(),
+  });
+  const reviewed = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Already Reviewed Track",
+      evidence: [sourceRef],
+    }),
+  );
+  const fresh = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Fresh Track",
+      evidence: [{ namespace: "source:netease", kind: "track", id: "track-2" }],
+    }),
+  );
+  const otherSession: StageSession = {
+    ...reviewSession,
+    id: "other-review-session",
+  };
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    events,
+    idFactory: () => "batch-inspection",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: reviewed.ref,
+    }),
+  );
+
+  await assertOk(
+    maintenance.reviewApply({
+      sessionId: reviewSession.id,
+      inspectionId: inspection.inspectionId,
+      subjectRef: reviewed.ref,
+      action: "defer",
+      reason: "Needs more release evidence.",
+    }),
+  );
+
+  const defaultList = await assertOk(
+    maintenance.reviewList({
+      sessionId: reviewSession.id,
+    }),
+  );
+  const optOutList = await assertOk(
+    maintenance.reviewList({
+      sessionId: reviewSession.id,
+      excludeReviewed: false,
+    }),
+  );
+  const optOutFirstPage = await assertOk(
+    maintenance.reviewList({
+      sessionId: reviewSession.id,
+      limit: 1,
+      excludeReviewed: false,
+    }),
+  );
+  assert(optOutFirstPage.nextCursor !== undefined, "first opt-out page should return a cursor");
+  const optOutSecondPage = await assertOk(
+    maintenance.reviewList({
+      sessionId: reviewSession.id,
+      limit: 1,
+      cursor: optOutFirstPage.nextCursor,
+      excludeReviewed: false,
+    }),
+  );
+  const otherSessionMaintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(otherSession),
+    events,
+  });
+  const otherSessionList = await assertOk(
+    otherSessionMaintenance.reviewList({
+      sessionId: otherSession.id,
+    }),
+  );
+  const loadedReviewed = await assertOk(store.get({ ref: reviewed.ref }));
+
+  assert(
+    defaultList.items.length === 1 && defaultList.items[0]?.subjectRef.id === fresh.ref.id,
+    "default review list should suppress subjects already reviewed in the same session",
+  );
+  assert(
+    optOutList.items.some((item) => item.subjectRef.id === reviewed.ref.id) &&
+      optOutList.items.some((item) => item.subjectRef.id === fresh.ref.id),
+    "callers should be able to opt out of reviewed-subject suppression",
+  );
+  assert(
+    optOutFirstPage.items.length === 1 &&
+      optOutSecondPage.items.length === 1 &&
+      new Set([...optOutFirstPage.items, ...optOutSecondPage.items].map((item) => item.subjectRef.id)).size === 2,
+    "cursor pagination should remain valid when callers opt out of reviewed-subject suppression",
+  );
+  assert(
+    otherSessionList.items.some((item) => item.subjectRef.id === reviewed.ref.id),
+    "review suppression should not hide deferred subjects from a different session",
+  );
+  assert(loadedReviewed?.status === "provisional", "deferred subjects should remain provisional");
+}
+
 async function deferRejectsEmptyReason(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const events = createEventService({ repository: createInMemoryEventRepository() });
@@ -1689,6 +1809,7 @@ await detailInspectReusesSnapshotAndReturnsReleaseContexts();
 await detailInspectEnrichesMissingReleaseAppearancesFromKnowledge();
 await detailInspectEnrichesMissingTrackPositionsFromReleaseLookup();
 await deferRecordsEventAndLeavesIdentityUnchanged();
+await reviewListSuppressesReviewedSubjectsPerSession();
 await deferRejectsEmptyReason();
 await applyRejectsStaleAndExpiredInspections();
 await updateGateRejectsUnsupportedOrUngroundedDecisions();

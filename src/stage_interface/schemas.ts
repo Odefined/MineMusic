@@ -219,6 +219,7 @@ export const stageInterfaceToolInputSchemas = {
   "canonical.review.list": {
     limit: z.number().int().positive().optional(),
     cursor: z.string().optional(),
+    excludeReviewed: z.boolean().optional(),
   },
   "canonical.review.inspect": {
     subjectId: z.string(),

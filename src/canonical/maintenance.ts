@@ -16,6 +16,7 @@ import type {
   Ref,
   Result,
   StageError,
+  StageEvent,
   StageWarning,
 } from "../contracts/index.js";
 import type {
@@ -73,7 +74,7 @@ export function createCanonicalMaintenance({
   const snapshots = new Map<string, ReviewSnapshot>();
 
   return {
-    async reviewList({ sessionId, limit, cursor }) {
+    async reviewList({ sessionId, limit, cursor, excludeReviewed = true }) {
       const posture = await ensureReviewPosture(sessionContext, sessionId);
 
       if (!posture.ok) {
@@ -92,8 +93,17 @@ export function createCanonicalMaintenance({
         return start;
       }
 
+      const reviewedSubjects = excludeReviewed
+        ? await reviewedSubjectRefKeys({ events, sessionId })
+        : ok(new Set<string>());
+
+      if (!reviewedSubjects.ok) {
+        return reviewedSubjects;
+      }
+
       const matched = records.value
         .filter((record) => record.kind === "recording" && record.status === "provisional")
+        .filter((record) => !reviewedSubjects.value.has(refKey(record.ref)))
         .sort((left, right) => refKey(left.ref).localeCompare(refKey(right.ref)));
       const requestedLimit = normalizeLimit(limit);
       const page = matched.slice(start.value, start.value + requestedLimit);
@@ -352,6 +362,38 @@ async function ensureReviewPosture(
   }
 
   return ok(undefined);
+}
+
+async function reviewedSubjectRefKeys({
+  events,
+  sessionId,
+}: {
+  events: EventPort | undefined;
+  sessionId: string;
+}): Promise<Result<Set<string>>> {
+  if (events === undefined) {
+    return ok(new Set());
+  }
+
+  const listed = await events.listBySession({ sessionId });
+
+  if (!listed.ok) {
+    return listed;
+  }
+
+  return ok(new Set(
+    listed.value
+      .filter(isReviewProgressEvent)
+      .map((event) => event.target)
+      .filter((ref): ref is Ref => ref !== undefined)
+      .map(refKey),
+  ));
+}
+
+function isReviewProgressEvent(event: StageEvent): boolean {
+  return event.type === "provisional_review.deferred" ||
+    event.type === "canonical.activated" ||
+    event.type === "canonical.merged";
 }
 
 async function reviewInspectDetail({

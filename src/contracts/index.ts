@@ -298,6 +298,7 @@ export type ProvisionalReviewListInput = {
   sessionId: string;
   limit?: number;
   cursor?: string;
+  excludeReviewed?: boolean;
 };
 
 export type ProvisionalReviewListItem = {
