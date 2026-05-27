@@ -110,6 +110,10 @@ This index points agents to the current MVP documentation pack.
       the task-by-task plan for replacing v1 review output and update writes
       with compact v2 agent-facing contracts and MusicBrainz-authoritative
       recording identity maintenance.
+    - `docs/canonical-store/provisional-review-v2.1-implementation-plan.md` is
+      the follow-up plan from real MCP agent review feedback, covering
+      MusicBrainz release/track evidence, batch list progress, and v2.1 schema
+      discoverability.
 
 26. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom

@@ -330,5 +330,6 @@ Evidence boundary:
 
 ## Next Slice
 
-1. Design the public `addAlias` method before implementing alias writes through
-   the public port.
+1. Implement Provisional Review v2.1 from
+   `docs/canonical-store/provisional-review-v2.1-implementation-plan.md`,
+   starting with summary candidate MusicBrainz release/date facts.
