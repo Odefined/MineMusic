@@ -106,8 +106,8 @@ Collection status.
     `sourceRef` values.
   - `label` and `canonicalHints` use generic names only.
   - `canonicalHints` may include `label`, `artistLabels`,
-    `artistSourceRefs`, `releaseLabel`, `releaseSourceRef`, and `durationMs`
-    when the adapter can derive them.
+    `artistSourceRefs`, `releaseLabel`, `releaseSourceRef`, `releaseDate`,
+    and `durationMs` when the adapter can derive them.
   - Do not include raw provider payloads or provider-specific metadata.
 - **Dependencies**: Task 3.
 

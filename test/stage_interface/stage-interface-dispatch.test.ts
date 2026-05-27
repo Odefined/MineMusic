@@ -1166,6 +1166,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
                 title: "Quiet Track",
                 artistLabels: ["Quiet Artist"],
                 releaseLabel: "Quiet Release",
+                releaseDate: "2009-01-07",
                 durationMs: 123456,
                 trackPosition: {
                   discNumber: "1",
@@ -1404,6 +1405,10 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         }
       ).knowledgeFacts?.[0]?.facts?.releases?.[0]?.date === "2009-01-07",
     "review inspect should expose compact release summaries in Knowledge facts",
+  );
+  assert(
+    (inspected as { hints?: Array<{ releaseDate?: string }> }).hints?.[0]?.releaseDate === "2009-01-07",
+    "review inspect should expose compact source release date hints",
   );
   assert(
     (inspected as { warnings?: Array<{ code?: string }> }).warnings?.[0]?.code === "broad_title_fragment_results",

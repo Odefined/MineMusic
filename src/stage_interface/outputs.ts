@@ -143,6 +143,7 @@ function compactHint(hint: CanonicalProvisionalHint): unknown {
     ...(hint.facts.title === undefined ? {} : { title: hint.facts.title }),
     ...(hint.facts.artistLabels === undefined ? {} : { artists: hint.facts.artistLabels }),
     ...(hint.facts.releaseLabel === undefined ? {} : { release: hint.facts.releaseLabel }),
+    ...(hint.facts.releaseDate === undefined ? {} : { releaseDate: hint.facts.releaseDate }),
     ...(hint.facts.durationMs === undefined ? {} : { durationMs: hint.facts.durationMs }),
     ...(hint.facts.trackPosition === undefined
       ? {}

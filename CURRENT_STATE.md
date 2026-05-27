@@ -283,8 +283,9 @@ host-facing and LLM-facing surface.
   source refs for saved recordings, batched `song/detail` reads, and paginated
   saved album / followed artist reads. Saved-recording reads now best-effort
   fetch `/album?id=<albumId>` once per distinct album id to populate
-  platform-neutral `canonicalHints.trackPosition`; failed album enrichment does
-  not fail the saved-recording read.
+  platform-neutral `canonicalHints.releaseDate` and
+  `canonicalHints.trackPosition`; failed album enrichment does not fail the
+  saved-recording read.
   `preview` reports readable availability, counts, bounded lightweight samples,
   and unsupported discovery areas. `readItems` now reports complete, failed,
   partial, and unavailable per-area statuses so one area failure does not erase

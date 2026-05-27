@@ -237,6 +237,7 @@ export type CanonicalProvisionalHintFacts = {
   artistLabels?: string[];
   releaseLabel?: string;
   releaseSourceRef?: Ref;
+  releaseDate?: string;
   durationMs?: number;
   trackPosition?: SourceReleaseTrackPosition;
 };
@@ -616,6 +617,7 @@ export type PlatformLibraryCanonicalHints = {
   artistSourceRefs?: Ref[];
   releaseLabel?: string;
   releaseSourceRef?: Ref;
+  releaseDate?: string;
   durationMs?: number;
   trackPosition?: SourceReleaseTrackPosition;
 };

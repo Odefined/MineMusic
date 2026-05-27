@@ -118,11 +118,13 @@ for title, artists, NetEase album source ref/label, and duration when present.
 
 When `/song/detail` exposes a usable album id, saved-recording reads also fetch
 `/album?id=<albumId>` best-effort once per distinct album id in the read call.
-The album tracklist can populate platform-neutral
+The album payload can populate platform-neutral `canonicalHints.releaseDate`
+from album `publishTime`, normalized as an Asia/Shanghai calendar date so it
+matches MusicBrainz date-only release facts. The album tracklist can populate
 `canonicalHints.trackPosition` from source-side `cd`, `no`, and tracklist
 ordering/count. If the album request fails, is malformed, or does not include
-the song, the saved-recording item is still returned without `trackPosition`.
-Preview samples do not perform this album enrichment.
+the song, the saved-recording item is still returned without album-enriched
+facts. Preview samples do not perform this album enrichment.
 
 ## Boundary Rules
 

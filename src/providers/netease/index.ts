@@ -56,6 +56,7 @@ type NetEaseAlbum = {
   name?: unknown;
   artists?: unknown;
   artist?: unknown;
+  publishTime?: unknown;
 };
 
 type NetEaseArtist = {
@@ -93,7 +94,10 @@ type NetEasePaginatedRead = {
   issues?: PlatformLibraryIssue[];
 };
 
-type NetEaseAlbumTrackContext = Map<string, SourceReleaseTrackPosition>;
+type NetEaseAlbumContext = {
+  releaseDate?: string;
+  trackPositions: Map<string, SourceReleaseTrackPosition>;
+};
 
 const readablePlatformLibraryAreas: PlatformLibraryArea[] = [
   "saved_recordings",
@@ -716,7 +720,7 @@ async function readSavedRecordings(
   }
 
   const items: PlatformLibraryItem[] = [];
-  const albumContexts = new Map<string, NetEaseAlbumTrackContext | null>();
+  const albumContexts = new Map<string, NetEaseAlbumContext | null>();
 
   for (const batch of chunks(idsToRead, netEaseSongDetailBatchSize)) {
     const details = await requestJson({
@@ -743,7 +747,7 @@ async function readSavedRecordings(
     await ensureAlbumContextsForSongs(requestJson, songs.value, albumContexts);
     items.push(
       ...songs.value
-        .map((song) => toSavedRecordingItem(song, trackPositionForSong(song, albumContexts)))
+        .map((song) => toSavedRecordingItem(song, albumContextForSong(song, albumContexts)))
         .filter(isDefined),
     );
   }
@@ -1109,7 +1113,7 @@ function extractExactCount(payload: unknown, countKeys: string[]): number | unde
 
 function toSavedRecordingItem(
   song: NetEaseSong,
-  trackPosition?: SourceReleaseTrackPosition,
+  albumContext?: { releaseDate?: string; trackPosition?: SourceReleaseTrackPosition },
 ): PlatformLibraryItem | undefined {
   const songId = toStringId(song.id);
 
@@ -1142,8 +1146,9 @@ function toSavedRecordingItem(
       ...(artistSourceRefs.length === 0 ? {} : { artistSourceRefs }),
       ...(releaseLabel === undefined ? {} : { releaseLabel }),
       ...(releaseSourceRef === undefined ? {} : { releaseSourceRef }),
+      ...(albumContext?.releaseDate === undefined ? {} : { releaseDate: albumContext.releaseDate }),
       ...(durationMs === undefined ? {} : { durationMs }),
-      ...(trackPosition === undefined ? {} : { trackPosition }),
+      ...(albumContext?.trackPosition === undefined ? {} : { trackPosition: albumContext.trackPosition }),
     },
   };
 }
@@ -1371,7 +1376,7 @@ function firstAlbumSourceRef(song: NetEaseSong): Ref | undefined {
 async function ensureAlbumContextsForSongs(
   requestJson: NetEaseRequester,
   songs: NetEaseSong[],
-  albumContexts: Map<string, NetEaseAlbumTrackContext | null>,
+  albumContexts: Map<string, NetEaseAlbumContext | null>,
 ): Promise<void> {
   const albumIds = new Set(
     songs
@@ -1391,7 +1396,7 @@ async function ensureAlbumContextsForSongs(
 async function readAlbumTrackContext(
   requestJson: NetEaseRequester,
   albumId: string,
-): Promise<NetEaseAlbumTrackContext | null> {
+): Promise<NetEaseAlbumContext | null> {
   const album = await requestJson({
     path: "/album",
     query: { id: albumId },
@@ -1401,13 +1406,17 @@ async function readAlbumTrackContext(
     return null;
   }
 
+  const albumPayload = isRecord(album.value) && isRecord(album.value.album)
+    ? album.value.album as NetEaseAlbum
+    : undefined;
+  const releaseDate = releaseDateFromNetEaseTime(albumPayload?.publishTime);
   const songs = extractSongsFromAlbumResult(album.value);
 
   if (!songs.ok || songs.value.length === 0) {
-    return null;
+    return releaseDate === undefined ? null : { releaseDate, trackPositions: new Map() };
   }
 
-  const context: NetEaseAlbumTrackContext = new Map();
+  const trackPositions = new Map<string, SourceReleaseTrackPosition>();
   const trackCount = songs.value.length;
 
   songs.value.forEach((song, index) => {
@@ -1420,17 +1429,19 @@ async function readAlbumTrackContext(
     const trackPosition = trackPositionFromAlbumSong(song, index, trackCount);
 
     if (trackPosition !== undefined) {
-      context.set(songId, trackPosition);
+      trackPositions.set(songId, trackPosition);
     }
   });
 
-  return context.size === 0 ? null : context;
+  return releaseDate === undefined && trackPositions.size === 0
+    ? null
+    : { ...(releaseDate === undefined ? {} : { releaseDate }), trackPositions };
 }
 
-function trackPositionForSong(
+function albumContextForSong(
   song: NetEaseSong,
-  albumContexts: Map<string, NetEaseAlbumTrackContext | null>,
-): SourceReleaseTrackPosition | undefined {
+  albumContexts: Map<string, NetEaseAlbumContext | null>,
+): { releaseDate?: string; trackPosition?: SourceReleaseTrackPosition } | undefined {
   const songId = toStringId(song.id);
   const albumId = firstAlbumId(song);
 
@@ -1438,7 +1449,42 @@ function trackPositionForSong(
     return undefined;
   }
 
-  return albumContexts.get(albumId)?.get(songId);
+  const albumContext = albumContexts.get(albumId);
+
+  if (albumContext === undefined || albumContext === null) {
+    return undefined;
+  }
+
+  const trackPosition = albumContext.trackPositions.get(songId);
+
+  return albumContext.releaseDate === undefined && trackPosition === undefined
+    ? undefined
+    : {
+        ...(albumContext.releaseDate === undefined ? {} : { releaseDate: albumContext.releaseDate }),
+        ...(trackPosition === undefined ? {} : { trackPosition }),
+      };
+}
+
+function releaseDateFromNetEaseTime(value: unknown): string | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return undefined;
+  }
+
+  // NetEase stores album publishTime as a China-local release date; MusicBrainz
+  // release dates are date-only values, so normalize to the same calendar day.
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return year === undefined || month === undefined || day === undefined
+    ? undefined
+    : `${year}-${month}-${day}`;
 }
 
 function trackPositionFromAlbumSong(

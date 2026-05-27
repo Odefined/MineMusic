@@ -202,6 +202,7 @@ export type PlatformLibraryItem = {
     artistSourceRefs?: Ref[];
     releaseLabel?: string;
     releaseSourceRef?: Ref;
+    releaseDate?: string;
     durationMs?: number;
     trackPosition?: SourceReleaseTrackPosition;
   };

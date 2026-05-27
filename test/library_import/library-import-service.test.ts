@@ -475,6 +475,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
                   artistSourceRefs: [artistSourceRef("fixture-artist", "Fixture Artist")],
                   releaseLabel: "Fixture Release",
                   releaseSourceRef: releaseSourceRef("fixture-release", "Fixture Release"),
+                  releaseDate: "2015-09-11",
                   durationMs: 123456,
                   trackPosition: {
                     discNumber: "1",
@@ -654,6 +655,10 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   assert(
     provisionalHints[0]?.facts.durationMs === 123456,
     "source recording context hints should keep duration facts",
+  );
+  assert(
+    provisionalHints[0]?.facts.releaseDate === "2015-09-11",
+    "source recording context hints should keep source release date facts",
   );
   assert(
     provenance.find((item) => item.sourceRef.id === "new-track")?.canonicalHints?.trackPosition?.trackCount === 12,

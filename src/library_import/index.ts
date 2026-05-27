@@ -1321,6 +1321,7 @@ function provisionalHintsForItem(item: PlatformLibraryItem): CanonicalProvisiona
       : { artistLabels: hints.artistLabels }),
     ...(hints.releaseLabel === undefined ? {} : { releaseLabel: hints.releaseLabel }),
     ...(hints.releaseSourceRef === undefined ? {} : { releaseSourceRef: hints.releaseSourceRef }),
+    ...(hints.releaseDate === undefined ? {} : { releaseDate: hints.releaseDate }),
     ...(hints.durationMs === undefined ? {} : { durationMs: hints.durationMs }),
     ...(hints.trackPosition === undefined ? {} : { trackPosition: hints.trackPosition }),
   };

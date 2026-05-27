@@ -821,6 +821,7 @@
   recordings.
 - Updated NetEase saved-recording reads to best-effort fetch
   `/album?id=<albumId>` once per album id and populate
+  `canonicalHints.releaseDate` from album `publishTime` and
   `canonicalHints.trackPosition` when the album tracklist exposes disc/track
   context; album failures leave the importable item intact without the hint.
 - Updated Provisional Review v1/design docs so future inspect output can expose

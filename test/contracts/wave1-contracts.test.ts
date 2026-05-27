@@ -412,9 +412,11 @@ type _platformLibraryCanonicalHintsKeys = Expect<
     | "artistSourceRefs"
     | "releaseLabel"
     | "releaseSourceRef"
+    | "releaseDate"
     | "durationMs"
     | "trackPosition"
   > &
+    Equal<PlatformLibraryCanonicalHints["releaseDate"], string | undefined> &
     Equal<PlatformLibraryCanonicalHints["trackPosition"], SourceReleaseTrackPosition | undefined>
 >;
 
@@ -461,8 +463,9 @@ type _canonicalProvisionalHintKindAllowsSourceRecordingContext = Expect<
 type _canonicalProvisionalHintFactsKeys = Expect<
   Equal<
     keyof CanonicalProvisionalHintFacts,
-    "title" | "artistLabels" | "releaseLabel" | "releaseSourceRef" | "durationMs" | "trackPosition"
+    "title" | "artistLabels" | "releaseLabel" | "releaseSourceRef" | "releaseDate" | "durationMs" | "trackPosition"
   > &
+    Equal<CanonicalProvisionalHintFacts["releaseDate"], string | undefined> &
     Equal<CanonicalProvisionalHintFacts["trackPosition"], SourceReleaseTrackPosition | undefined>
 >;
 

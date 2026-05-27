@@ -561,6 +561,9 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
           ok: true,
           value: {
             code: 200,
+            album: {
+              publishTime: 1441900800000,
+            },
             songs: [
               {
                 id: 11111,
@@ -604,6 +607,7 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
   assert(item.canonicalHints.releaseLabel === "Kept Release", "canonical hints should include release label");
   assert(item.canonicalHints.releaseSourceRef?.kind === "album", "canonical hints should include release source refs");
   assert(item.canonicalHints.releaseSourceRef?.id === "2424", "release source refs should use NetEase album ids");
+  assert(item.canonicalHints.releaseDate === "2015-09-11", "canonical hints should include album publish date when available");
   assert(item.canonicalHints.durationMs === 246000, "canonical hints should include duration when available");
   assert(item.canonicalHints.trackPosition?.discNumber === "1", "canonical hints should include album disc number");
   assert(item.canonicalHints.trackPosition?.trackNumber === 2, "canonical hints should include album track number");
@@ -726,6 +730,9 @@ async function readItemsFetchesEachSavedRecordingAlbumOnce(): Promise<void> {
           ok: true,
           value: {
             code: 200,
+            album: {
+              publishTime: 946684800000,
+            },
             songs: [
               { id: 1, name: "First Shared Track", cd: "1", no: 1 },
               { id: 2, name: "Second Shared Track", cd: "1", no: 2 },
@@ -743,6 +750,8 @@ async function readItemsFetchesEachSavedRecordingAlbumOnce(): Promise<void> {
 
   assert(albumRequests === 1, "same album id should be fetched once per saved-recording read");
   assert(items.length === 2, "both saved recordings should be returned");
+  assert(items[0]?.canonicalHints?.releaseDate === "2000-01-01", "first track should use shared album publish date");
+  assert(items[1]?.canonicalHints?.releaseDate === "2000-01-01", "second track should use shared album publish date");
   assert(items[0]?.canonicalHints?.trackPosition?.trackNumber === 1, "first track should use album track position");
   assert(items[1]?.canonicalHints?.trackPosition?.trackNumber === 2, "second track should use album track position");
 }

@@ -53,9 +53,10 @@ slot and concrete platform-library providers.
   `docs/source-providers/netease.md` now documents that the NetEase adapter
   exposes both `source` and `platform_library` slot providers.
 - NetEase saved-recording reads now best-effort fetch `/album` once per album
-  id during `readItems` to enrich generic `canonicalHints.trackPosition` from
-  source album tracklist context. Album enrichment failures do not fail the
-  saved-recording read, and preview samples remain lightweight.
+  id during `readItems` to enrich generic `canonicalHints.releaseDate` from
+  album `publishTime` and `canonicalHints.trackPosition` from source album
+  tracklist context. Album enrichment failures do not fail the saved-recording
+  read, and preview samples remain lightweight.
 - `PlatformLibraryReadInput.sampleLimitPerArea` is now part of the shared
   provider read contract. NetEase saved-recording reads preserve full-read
   behavior by default and bound the liked-track detail read when a caller passes
