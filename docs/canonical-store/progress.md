@@ -112,10 +112,10 @@ Implemented:
   - `reviewInspect` returns local facts, provisional hints, Knowledge facts,
     anchors, relation candidates, and short-lived process-memory inspection
     snapshots without recommending an action or merge target.
-  - `reviewApply` accepts `update` and `defer`; unsupported actions fail
+  - `reviewApply` accepts `update` and `cannot_confirm`; unsupported actions fail
     explicitly.
-- `defer` records `provisional_review.deferred` and leaves canonical identity
-  state unchanged.
+- `cannot_confirm` records `provisional_review.cannot_confirm_identity` and
+  leaves canonical identity state unchanged.
 - `update` validates the selected same-kind MusicBrainz recording ref and cited
   inspected facts, then derives the effect from current Canonical Store state:
   activate when no current recording carries the selected ref, merge when
@@ -194,12 +194,10 @@ Implemented:
 - Knowledge query direct provider lookup now uses `providerRef`; `canonicalRef`
   remains MineMusic Canonical Store context and is not interpreted as a
   MusicBrainz MBID by the MusicBrainz provider.
-- Provisional Review v2.1 review list now supports session-scoped reviewed
-  subject suppression for batch progress. The default hides subjects already
-  recorded in the same session through `provisional_review.deferred`,
-  `canonical.activated`, or `canonical.merged` events; callers can pass
-  `excludeReviewed: false` to preserve explicit cursor pagination over all
-  current provisional recordings.
+- Provisional Review v2.1 review list now uses Canonical Maintenance review
+  state for batch progress. The default hides provisional recordings whose
+  identity previously could not be confirmed from inspection; callers can pass
+  `includeCannotConfirm: true` to inspect those hidden subjects explicitly.
 - Provisional Review v2 update apply semantics are in place:
   - update resolves `selectedProviderRefToken` against the current inspection
     snapshot inside Canonical Maintenance.
@@ -218,7 +216,7 @@ Implemented:
 - Stage Context and Handbook canonical-review guidance now describe the v2
   compact workflow: summary inspect by default, detail only for release
   appearances or selected release track positions, update with
-  `selectedProviderRefToken`, defer with a short reason, and no v1
+  `selectedProviderRefToken`, `cannot_confirm` with a short reason, and no v1
   citation/anchor/support-id payloads.
 - Provisional Review v2.1 Stage Context, tool descriptors, MCP schemas, and
   generated Handbook guidance now describe the small-page batch list loop,
@@ -326,7 +324,7 @@ Pending:
 - Implemented Provisional Review v1 runtime tools and maintenance port:
   `canonical.review.list`, `canonical.review.inspect`, and
   `canonical.review.apply`.
-- Added process-memory inspection snapshots, defer events, update gate
+- Added process-memory inspection snapshots, cannot-confirm events, update gate
   validation, activation, merge, redirect-following ordinary `get`, and SQLite
   redirect persistence coverage.
 - Wired the review tools through Stage Core, Stage Interface, MCP schema

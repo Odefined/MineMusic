@@ -37,8 +37,8 @@ derived objects by default.
   mapper may be an identity mapper only when the core output is already compact
   enough.
 - Inspect returns information, not conclusions. It must not recommend
-  `update`, recommend `defer`, preselect a merge target, or label a fact as a
-  match.
+  `update`, recommend `cannot_confirm`, preselect a merge target, or label a
+  fact as a match.
 - Agent-facing output uses project vocabulary:
   - `hints` are source-side Provisional Hints.
   - `knowledgeFacts` are readable facts extracted from Music Knowledge Items.
@@ -533,13 +533,18 @@ Rules:
 
 ## Apply Boundary
 
-V2 keeps v1 apply semantics:
+V2 apply keeps the update/derive-effect boundary, but v2.1 replaces the old
+`defer` workflow wording with `cannot_confirm`.
 
-- the agent chooses `update` or `defer`.
+- the agent chooses `update` or `cannot_confirm`.
 - for `update`, the agent selects one MusicBrainz `recording` ref.
 - apply derives activation or merge from current Canonical Store state.
-- `defer` records a `provisional_review.deferred` event and leaves canonical
+- `cannot_confirm` records a `provisional_review.cannot_confirm_identity`
+  event, writes Canonical Maintenance review state, and leaves canonical
   identity state unchanged.
+- `cannot_confirm` means the current inspection does not provide enough
+  evidence to safely choose one MusicBrainz recording identity. It is not a
+  canonical entity status, a cooldown, or a human-review queue.
 
 V2 changes the durable meaning of `update`: update is MusicBrainz-authoritative
 for canonical recording identity. Source/provisional facts are review inputs and
@@ -563,7 +568,7 @@ type StageInterfaceReviewApplyInputV2 =
   | {
       inspectionId: string;
       subjectId: string;
-      action: "defer";
+      action: "cannot_confirm";
       reason: string;
     };
 ```
@@ -600,8 +605,8 @@ type StageInterfaceReviewApplyOutputV2 =
     }
   | {
       subjectId: string;
-      action: "defer";
-      appliedAction: "defer";
+      action: "cannot_confirm";
+      appliedAction: "cannot_confirm";
       warnings?: ProvisionalReviewWarning[];
     };
 ```
@@ -767,8 +772,34 @@ use an in-memory event repository while Canonical Store is SQLite-backed. For
 update, commit canonical changes first, then record the audit event. If event
 recording fails after canonical changes are committed, do not roll back or
 pretend the update did not happen; return the compact apply result with a short
-`audit_event_failed` warning. `defer` remains event-only, so defer fails if its
-event cannot be recorded.
+`audit_event_failed` warning. `cannot_confirm` must record its audit event and
+write Canonical Maintenance review state; if either fails, apply fails because
+no canonical identity update has happened.
+
+### Review State
+
+Canonical Maintenance owns a small durable review-state ledger for current
+review workflow state, conceptually
+`canonical_recording_identity_review_state`. It is separate from event history
+and separate from canonical entity lifecycle state.
+
+The ledger records outcomes such as:
+
+```text
+outcome = "cannot_confirm"
+```
+
+for a provisional recording subject. `reviewList` should hide
+`cannot_confirm` subjects by default across sessions so long review batches do
+not repeatedly spend agent context and MusicBrainz queries on records whose
+identity could not be confirmed from the current inspection. Agents or admin
+tools can opt in to seeing these records when they want to review them by other
+means.
+
+Evidence-change and policy-change detection is explicit. Import/update/admin
+workflows that know a subject should be reviewed again clear the review state.
+Canonical Maintenance must not infer evidence freshness through event replay or
+hidden fingerprint heuristics.
 
 Source-derived provisional relations include import-time relations such as
 `performed_by`, `appears_on_release`, and `has_duration_ms` when they came from
@@ -1018,8 +1049,8 @@ form:
 - use `releaseTrackPositions` only for relevant release refs, and only to
   compare source track context with MusicBrainz release positions.
 - do not request raw/full inspection output.
-- apply an update with `selectedProviderRefToken` and short `reason`, or defer
-  with short `reason`.
+- apply an update with `selectedProviderRefToken` and short `reason`, or
+  `cannot_confirm` with short `reason`.
 
 ## Stage Interface Tool Outputs
 

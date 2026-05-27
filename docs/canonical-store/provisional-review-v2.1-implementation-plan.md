@@ -27,15 +27,15 @@ V2.1 fixes three concrete issues found by real MCP agent use:
   in summary when that context is available.
 - detail inspection needs a reliable path to release appearances and selected
   recording track positions, not fixture-only data.
-- batch review list semantics need to avoid repeatedly returning subjects that
-  were already deferred in the same review session.
+- batch review list semantics need to avoid repeatedly returning subjects whose
+  identity could not be confirmed from the current inspection.
 - direct provider lookup must not overload `canonicalRef`; Canonical refs are
   MineMusic Canonical Store refs, while provider-owned refs use `providerRef`.
 
 ## Non-Goals
 
-- Do not add `needs_human_review`, a review table, deferred canonical status,
-  cooldowns, or a human-review queue.
+- Do not add `needs_human_review`, a deferred canonical status, cooldowns, or a
+  human-review queue.
 - Do not let the agent choose activate, merge, or merge targets.
 - Do not update artist, work, release, or release-group Canonical Store records
   during recording update.
@@ -51,7 +51,7 @@ V2.1 fixes three concrete issues found by real MCP agent use:
 | Summary asks for irrelevant recording expansions | The current review query asks for `relations`, `release_labels`, and `tracklist` while querying `entityKinds: ["recording"]`. `tracklist` and `release_labels` only affect MusicBrainz release lookup in the current provider, and broad `relations` fetches relationship data that v2 summary does not expose. |
 | Detail release/track data is snapshot-only | `reviewInspectDetail` reads existing inspection snapshot data and does not fetch missing release tracklists during detail inspection. |
 | Tests hid the real gap | Existing detail tests construct `release_appearance`, `has_track`, and `represents_recording` relations directly instead of proving the real MusicBrainz provider path supplies them. |
-| Deferred subjects repeat in list | `defer` intentionally records only `provisional_review.deferred`; since canonical state is unchanged, `reviewList` returns the same subject again. |
+| Cannot-confirm subjects repeat in list | The old `defer` action recorded only `provisional_review.deferred`; since canonical state stayed unchanged, `reviewList` returned the same subject again. V2.1 replaces this with `cannot_confirm` plus explicit Canonical Maintenance review state. |
 | Detail contract is hard to discover | Detail requires `inspectionId` and `recordingRefToken`; Handbook and MCP schema/tool docs do not make that workflow explicit enough for an independent agent. |
 | MCP schema drift can mislead agents | Real tool discovery showed stale-looking apply fields while the server accepted v2 token payloads. Schema exposure and cache-refresh behavior need verification. |
 | Direct provider lookup overloaded `canonicalRef` | `canonicalRef` means a MineMusic Canonical Store ref. Direct MusicBrainz lookup needs a separate `KnowledgeQuery.providerRef` entry so providers never treat a MusicBrainz MBID as a canonical record ref. |
@@ -85,11 +85,20 @@ for provider-owned refs returned by Knowledge results or review snapshots. The
 MusicBrainz provider must not treat `canonicalRef.namespace === "musicbrainz"`
 as direct lookup input.
 
-### Preserve Event-Only Defer
+### Cannot Confirm Is Review Outcome State
 
-`defer` remains event-only. V2.1 list improvements should use existing session
-events to suppress already-reviewed subjects for batch ergonomics; they must not
-create a review table or mutate canonical identity state.
+`cannot_confirm` means the current inspection does not provide enough evidence
+to safely choose one MusicBrainz recording identity. It is not a canonical
+entity status and not a human-review queue.
+
+`cannot_confirm` records a durable audit event and writes a small Canonical
+Maintenance review-state row. Events remain immutable history; the review-state
+row is the current workflow index used by `reviewList`.
+
+Evidence-change and policy-change invalidation is explicit. Import/update/admin
+flows that know a subject should be reviewed again call a maintenance method to
+clear review state. Canonical Maintenance does not infer freshness with hidden
+fingerprints.
 
 ### Summary Facts Are Evidence, Not Recommendations
 
@@ -262,7 +271,7 @@ node .tmp-test/test/canonical/canonical-maintenance.test.js
 node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
 ```
 
-### Task 4: Batch Review List Progress
+### Task 4: Cannot-Confirm Review State And List Progress
 
 **Files**
 
@@ -276,33 +285,42 @@ node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
 
 **Description**
 
-Prevent long review batches from repeatedly returning subjects already deferred
-in the same session.
+Prevent long review batches from repeatedly returning subjects whose identity
+could not be confirmed from the current inspection.
 
 **Details**
 
-- Keep `defer` event-only and leave canonical identity state unchanged.
-- Add list input support for excluding subjects already reviewed in the current
-  session, using `EventPort.listBySession`.
-- Treat at least these session events as reviewed for list suppression:
-  - `provisional_review.deferred`
-  - `canonical.activated`
-  - `canonical.merged`
+- Replace the agent-facing `defer` action with `cannot_confirm`; do not keep a
+  compatibility alias.
+- `cannot_confirm` records `provisional_review.cannot_confirm_identity` and
+  leaves canonical identity state unchanged.
+- Add Canonical Maintenance review-state storage for current workflow outcome.
+  At minimum it records subject ref, outcome, reason, last session id, and
+  timestamps.
+- `reviewList` hides `cannot_confirm` review-state subjects by default across
+  sessions.
+- Agents can opt in to seeing hidden review-state subjects for alternative
+  review paths.
+- Add `CanonicalMaintenancePort.clearReviewState` so import/admin/policy flows
+  can explicitly make a subject reviewable again.
+- Update can also write review state as an audit/workflow index, but active or
+  merged records naturally disappear from the provisional-recording list.
 - Make the Stage Interface default suitable for batch agents: repeatedly call
   `canonical.review.list` with a small limit and no cursor until no items remain.
-- Avoid adding a review table, deferred status, cooldown, or hidden Stage
-  Interface runtime state.
+- Avoid adding a deferred canonical status, cooldown, human-review queue, or
+  hidden Stage Interface runtime state.
 - Keep list output compact. If progress metadata is added, it must be small
   and not include raw event payloads.
 
 **Tests**
 
-- After `apply defer`, the same subject is excluded from the default
-  agent-facing list for that session.
-- Deferred subjects remain provisional in Canonical Store.
-- A different session can still see the same deferred provisional subject.
-- Existing cursor behavior remains valid for callers that opt out of reviewed
-  suppression.
+- After `apply cannot_confirm`, the same subject is excluded from the default
+  agent-facing list across sessions.
+- Cannot-confirm subjects remain provisional in Canonical Store.
+- Agents can opt in to see cannot-confirm subjects.
+- Clearing review state makes the subject appear in the default list again.
+- Existing cursor behavior remains valid for callers that opt out of review
+  state suppression.
 
 **Verification**
 
@@ -389,8 +407,8 @@ Re-run the real MCP agent flow that exposed the v2 gaps.
   supplies them.
 - Confirm detail can return release appearances and selected release track
   positions on real examples.
-- Confirm `defer` does not repeat in the default batch list for the same
-  session.
+- Confirm `cannot_confirm` does not repeat in the default batch list across
+  sessions.
 - Stop early only if the evidence is sufficient or the agent is truly stuck,
   not because a single MCP call is slow.
 
@@ -400,9 +418,9 @@ Re-run the real MCP agent flow that exposed the v2 gaps.
 - server command/environment.
 - imported count.
 - reviewed count.
-- update/defer/error counts.
+- update/cannot-confirm/error counts.
 - detail inspect count.
-- examples where release facts changed an update/defer decision.
+- examples where release facts changed an update/cannot-confirm decision.
 - whether context blow-up recurred.
 - whether tool schema discovery matched v2.1.
 
@@ -428,9 +446,10 @@ Critical regressions:
 
 - raw inspect snapshots returning to Stage Interface output.
 - apply fetching new Knowledge facts.
-- defer mutating canonical identity state.
+- cannot_confirm mutating canonical identity state.
 - MusicBrainz recording identity reappearing in `sourceRefs`.
-- list suppression hiding deferred subjects across unrelated sessions.
+- list suppression failing to hide cannot-confirm subjects across unrelated
+  sessions by default.
 - agent-facing tools requiring external prompt hints to call detail correctly.
 
 ## Documentation Updates
