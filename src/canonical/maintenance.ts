@@ -1638,6 +1638,15 @@ function buildReviewRecordingKnowledgeQueries({
   const queries: ReviewRecordingKnowledgeQuery[] = [];
   const seen = new Set<string>();
 
+  if (source.releaseDate !== undefined) {
+    pushReviewRecordingQuery(queries, seen, buildReviewRecordingFieldQuery({
+      title: source.title,
+      ...(source.artists.length === 0 ? {} : { artist: source.artists.join(" ") }),
+      ...(source.release === undefined ? {} : { release: source.release }),
+      date: source.releaseDate,
+    }), source.release === undefined ? "strict" : "release_strict");
+  }
+
   if (source.release !== undefined) {
     pushReviewRecordingQuery(queries, seen, buildReviewRecordingFieldQuery({
       title: source.title,
@@ -1670,6 +1679,7 @@ function reviewSearchSource({
   title: string;
   artists: string[];
   release?: string;
+  releaseDate?: string;
 } {
   const firstRecordingHint = provisionalHints.find((hint) => hint.kind === "source_recording_context");
   const title = firstRecordingHint?.facts.title ?? subject.label;
@@ -1687,6 +1697,7 @@ function reviewSearchSource({
     title,
     artists: uniqueStrings(artists),
     ...(release === undefined ? {} : { release }),
+    ...(firstRecordingHint?.facts.releaseDate === undefined ? {} : { releaseDate: firstRecordingHint.facts.releaseDate }),
   };
 }
 
@@ -1747,15 +1758,18 @@ function buildReviewRecordingFieldQuery({
   title,
   artist,
   release,
+  date,
 }: {
   title: string;
   artist?: string;
   release?: string;
+  date?: string;
 }): KnowledgeQuery {
   const fieldQuery = {
     title,
     ...(artist === undefined || artist.length === 0 ? {} : { artist }),
     ...(release === undefined || release.length === 0 ? {} : { release }),
+    ...(date === undefined || date.length === 0 ? {} : { date }),
   };
 
   return {

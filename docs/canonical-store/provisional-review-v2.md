@@ -342,22 +342,24 @@ For MusicBrainz recording candidates:
 ### Recording Search Policy
 
 Summary recording review should start with the strict source title plus joined
-source artist labels. When source release context is available, the first query
-should include the source release label as a search constraint; if that does not
-return useful MusicBrainz recording facts, retry the same strict title and
-joined artist query without the release constraint before broader fallbacks. If
-returned recording facts still do not include source-release context when source
-release context is available, Canonical Maintenance may run a small, bounded
-fallback search plan.
+source artist labels. When source release date context is available, the first
+query should include the source release date as a search constraint, alongside
+the source release label when present. If that does not return useful
+MusicBrainz recording facts, retry the same strict title, joined artist, and
+release-label query without the date constraint, then retry without the release
+constraint before broader fallbacks. If returned recording facts still do not
+include source-release context when source release context is available,
+Canonical Maintenance may run a small, bounded fallback search plan.
 
 Fallback search is retrieval-only. It must not mark a candidate as preferred,
 matched, recommended, or safe to update.
 
 Fallback results should be ordered internally by retrieval precision before
-being exposed as neutral `knowledgeFacts`: release-scoped strict results first,
-then strict title-plus-artist results, cleaned-title results, combined segment
-results, and broad short-segment results last. Source release overlap may help
-early stopping, tracklist lookup, and ordering, but it must not be a hard
+being exposed as neutral `knowledgeFacts`: release-date scoped strict results
+first, release-scoped strict results next, then strict title-plus-artist
+results, cleaned-title results, combined segment results, and broad
+short-segment results last. Source release overlap may help early stopping,
+tracklist lookup, and ordering, but it must not be a hard
 visibility gate for `knowledgeFacts`.
 
 Allowed fallback transformations are intentionally mechanical:

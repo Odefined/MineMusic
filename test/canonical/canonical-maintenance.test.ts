@@ -341,6 +341,7 @@ async function inspectsNeutralFactsAndExactMusicBrainzNeighbors(): Promise<void>
             title: "Review Track",
             artistLabels: ["Review Artist"],
             releaseLabel: "Review Release",
+            releaseDate: "2015-09-11",
             durationMs: 123456,
             trackPosition: {
               discNumber: "1",
@@ -380,7 +381,7 @@ async function inspectsNeutralFactsAndExactMusicBrainzNeighbors(): Promise<void>
   assert(inspection.knowledgeItems[0]?.id !== undefined, "inspect should expose citable Knowledge item ids");
   const reviewQuery = inspection.knowledgeItems[0]?.metadata?.query as {
     expand?: string[];
-    fieldQuery?: { title?: string; artist?: string; release?: string };
+    fieldQuery?: { title?: string; artist?: string; release?: string; date?: string };
   } | undefined;
   assert(
     reviewQuery?.expand?.join(",") === "releases",
@@ -389,8 +390,9 @@ async function inspectsNeutralFactsAndExactMusicBrainzNeighbors(): Promise<void>
   assert(
     reviewQuery?.fieldQuery?.title === "Review Track" &&
       reviewQuery.fieldQuery.artist === "Review Artist" &&
-      reviewQuery.fieldQuery.release === "Review Release",
-    "review summary inspect should query first by source title, artist, and release when release context exists",
+      reviewQuery.fieldQuery.release === "Review Release" &&
+      reviewQuery.fieldQuery.date === "2015-09-11",
+    "review summary inspect should query first by source title, artist, release, and release date when date context exists",
   );
   assert(
     inspection.anchors.some((anchor) => anchor.providerRef?.id === mbRecordingRef.id),
@@ -507,6 +509,7 @@ async function summaryInspectFallsBackToCleanedTitleSingleArtistAndRelease(): Pr
             title: "月 feat. ヰ世界情緒",
             artistLabels: ["Guiano", "ヰ世界情緒"],
             releaseLabel: "花鳥風月",
+            releaseDate: "2021-06-30",
             durationMs: 214360,
           },
         },
@@ -534,13 +537,22 @@ async function summaryInspectFallsBackToCleanedTitleSingleArtistAndRelease(): Pr
   assert(
     fieldQueries[0]?.fieldQuery.title === "月 feat. ヰ世界情緒" &&
       fieldQueries[0]?.fieldQuery.artist === "Guiano ヰ世界情緒" &&
-      fieldQueries[0]?.fieldQuery.release === "花鳥風月",
-    "fallback inspect should start with strict source title, joined artist, and release when release context exists",
+      fieldQueries[0]?.fieldQuery.release === "花鳥風月" &&
+      fieldQueries[0]?.fieldQuery.date === "2021-06-30",
+    "fallback inspect should start with strict source title, joined artist, release, and release date when release date context exists",
   );
   assert(
     fieldQueries[1]?.fieldQuery.title === "月 feat. ヰ世界情緒" &&
       fieldQueries[1]?.fieldQuery.artist === "Guiano ヰ世界情緒" &&
-      fieldQueries[1]?.fieldQuery.release === undefined,
+      fieldQueries[1]?.fieldQuery.release === "花鳥風月" &&
+      fieldQueries[1]?.fieldQuery.date === undefined,
+    "fallback inspect should retry strict source title, joined artist, and release without date after the date-scoped query",
+  );
+  assert(
+    fieldQueries[2]?.fieldQuery.title === "月 feat. ヰ世界情緒" &&
+      fieldQueries[2]?.fieldQuery.artist === "Guiano ヰ世界情緒" &&
+      fieldQueries[2]?.fieldQuery.release === undefined &&
+      fieldQueries[2]?.fieldQuery.date === undefined,
     "fallback inspect should retry strict source title and joined artist without release after the release-scoped query",
   );
   assert(
