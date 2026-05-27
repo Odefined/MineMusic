@@ -4,6 +4,8 @@ import type {
   KnowledgeNode,
   KnowledgeRelation,
   ProvisionalReviewApplyOutput,
+  ProvisionalReviewAutoUpdateItem,
+  ProvisionalReviewAutoUpdateOutput,
   ProvisionalReviewInspection,
   ProvisionalReviewListOutput,
   Ref,
@@ -153,6 +155,63 @@ export function compactReviewApply(output: ProvisionalReviewApplyOutput): unknow
           })),
         }
       : {}),
+  };
+}
+
+export function compactReviewAutoUpdate(output: ProvisionalReviewAutoUpdateOutput): unknown {
+  if (output.mode === "single") {
+    return {
+      mode: "single",
+      item: compactReviewAutoUpdateItem(output.item),
+    };
+  }
+
+  return {
+    mode: "batch",
+    runId: output.runId,
+    limitUsed: output.limitUsed,
+    updatedCount: output.updatedCount,
+    notQualifiedCount: output.notQualifiedCount,
+    errorCount: output.errorCount,
+    items: output.items.map(compactReviewAutoUpdateItem),
+    hasMore: output.hasMore,
+  };
+}
+
+function compactReviewAutoUpdateItem(item: ProvisionalReviewAutoUpdateItem): unknown {
+  const subject = item.subjectRef === undefined ? {} : { subjectId: item.subjectRef.id };
+
+  if (item.outcome === "updated") {
+    return {
+      ...subject,
+      outcome: item.outcome,
+      effect: item.effect,
+      ...(item.warnings === undefined
+        ? {}
+        : {
+            warnings: item.warnings.map((message) => ({
+              code: message === "Audit event recording failed after canonical update."
+                ? "audit_event_failed"
+                : "canonical.review_warning",
+              message,
+            })),
+          }),
+    };
+  }
+
+  if (item.outcome === "not_qualified") {
+    return {
+      ...subject,
+      outcome: item.outcome,
+      reasonCodes: item.reasonCodes.slice(0, 3),
+    };
+  }
+
+  return {
+    ...subject,
+    outcome: item.outcome,
+    errorCode: item.errorCode,
+    ...(item.message === undefined ? {} : { message: item.message }),
   };
 }
 

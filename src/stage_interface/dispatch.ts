@@ -43,6 +43,7 @@ import type {
   ToolDispatchPort,
 } from "../ports/index.js";
 import {
+  compactReviewAutoUpdate,
   compactReviewApply,
   compactReviewInspect,
   compactReviewList,
@@ -523,7 +524,7 @@ export function createToolDispatch({
             sessionId,
           } as ProvisionalReviewAutoUpdateInput);
 
-          return result;
+          return result.ok ? ok(compactReviewAutoUpdate(result.value)) : result;
         }
 
         case "stage.events.record":

@@ -1294,19 +1294,54 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         },
       };
     },
-    reviewAutoUpdate: async () => ({
-      ok: true,
-      value: {
-        mode: "batch",
-        runId: "auto-review-run-1",
-        limitUsed: 10,
-        updatedCount: 0,
-        notQualifiedCount: 0,
-        errorCount: 0,
-        items: [],
-        hasMore: false,
-      },
-    }),
+    reviewAutoUpdate: async (input) => {
+      calls.push(`auto:${input.sessionId}:${"subjectRef" in input ? input.subjectRef.id : input.limit ?? "none"}`);
+
+      if ("subjectRef" in input) {
+        return {
+          ok: true,
+          value: {
+            mode: "single",
+            item: {
+              subjectRef: input.subjectRef,
+              outcome: "updated",
+              effect: "activated",
+            },
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          mode: "batch",
+          runId: "auto-review-run-1",
+          limitUsed: 10,
+          updatedCount: 1,
+          notQualifiedCount: 1,
+          errorCount: 1,
+          items: [
+            {
+              subjectRef: collectionRef,
+              outcome: "not_qualified",
+              reasonCodes: [
+                "no_musicbrainz_recording_facts",
+                "missing_source_release",
+                "duration_missing",
+                "no_release_date_match",
+              ],
+            },
+            {
+              subjectRef: collectionRef,
+              outcome: "error",
+              errorCode: "canonical.not_found",
+              message: "Missing subject.",
+            },
+          ],
+          hasMore: false,
+        },
+      };
+    },
     clearReviewState: async () => ({ ok: true, value: undefined }),
   };
   const dispatch = createToolDispatch({
@@ -1404,6 +1439,20 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
       },
     }),
   );
+  const autoUpdated = await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.auto_update",
+      payload: { sessionId: "spoofed-session", subjectId: collectionRef.id },
+    }),
+  );
+  const autoBatch = await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.auto_update",
+      payload: { sessionId: "spoofed-session", limit: 10 },
+    }),
+  );
 
   assert(
     (listed as { items?: Array<{ subjectId?: string; sourceRefCount?: number }> }).items?.[0]?.subjectId ===
@@ -1481,6 +1530,31 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     "review update apply should compact audit event warnings",
   );
   assert(
+    (autoUpdated as { mode?: string; item?: { subjectId?: string; outcome?: string; effect?: string; subjectRef?: Ref } }).mode === "single" &&
+      (autoUpdated as { item?: { subjectId?: string; outcome?: string; effect?: string } }).item?.subjectId === collectionRef.id &&
+      (autoUpdated as { item?: { outcome?: string; effect?: string } }).item?.outcome === "updated" &&
+      (autoUpdated as { item?: { effect?: string } }).item?.effect === "activated",
+    "single auto update should return compact subject id and effect",
+  );
+  assert(
+    !("subjectRef" in ((autoUpdated as { item?: object }).item ?? {})) &&
+      !("inspectionId" in ((autoUpdated as { item?: object }).item ?? {})) &&
+      !("selectedProviderRefToken" in ((autoUpdated as { item?: object }).item ?? {})),
+    "single auto update should not expose raw refs or inspection/provider tokens",
+  );
+  assert(
+    (autoBatch as { mode?: string; runId?: string; updatedCount?: number; items?: Array<{ subjectId?: string; reasonCodes?: string[]; subjectRef?: Ref }> }).mode === "batch" &&
+      (autoBatch as { runId?: string }).runId === "auto-review-run-1" &&
+      (autoBatch as { updatedCount?: number }).updatedCount === 1 &&
+      (autoBatch as { items?: Array<{ subjectId?: string; reasonCodes?: string[] }> }).items?.[0]?.subjectId === collectionRef.id &&
+      (autoBatch as { items?: Array<{ reasonCodes?: string[] }> }).items?.[0]?.reasonCodes?.length === 3,
+    "batch auto update should compact counts, subject ids, and reason codes",
+  );
+  assert(
+    !("subjectRef" in ((autoBatch as { items?: object[] }).items?.[0] ?? {})),
+    "batch auto update should not expose raw subject refs",
+  );
+  assert(
     (detailed as { recordingRefToken?: { id?: string } }).recordingRefToken?.id === "mbrec-1" &&
       (detailed as { releaseAppearances?: Array<{ refToken?: { id?: string }; title?: string; ref?: Ref }> })
         .releaseAppearances?.[0]?.refToken?.id === "mbrel-1" &&
@@ -1496,6 +1570,8 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
   assert(calls.includes(`inspect:${reviewSession.id}:${collectionRef.id}`), "review inspect should receive current dispatch session id");
   assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:cannot_confirm`), "review apply should receive current dispatch session id");
   assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:update`), "review update apply should receive current dispatch session id");
+  assert(calls.includes(`auto:${reviewSession.id}:${collectionRef.id}`), "single auto update should receive current dispatch session id");
+  assert(calls.includes(`auto:${reviewSession.id}:10`), "batch auto update should receive current dispatch session id");
 }
 
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {

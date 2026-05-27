@@ -217,6 +217,13 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "canonical review apply schema should declare subject id input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.canonical.review.auto_update"), "subjectId") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.auto_update"), "limit") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.auto_update"), "runId") &&
+      hasSchemaKey(schemasByName.get("minemusic.canonical.review.auto_update"), "includeCannotConfirm"),
+    "canonical review auto update schema should declare single and batch compact inputs",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.apply"), "selectedProviderRefToken"),
     "canonical review apply schema should declare selected provider ref token input",
   );

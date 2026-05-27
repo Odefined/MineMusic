@@ -51,6 +51,7 @@ Task status:
 - Provisional Review v3 Task 5: completed for single-subject auto update.
 - Provisional Review v3 Task 6: completed.
 - Provisional Review v3 Task 7: completed.
+- Provisional Review v3 Task 8: completed.
 
 Implemented:
 
@@ -274,6 +275,10 @@ Implemented:
   current call, returns `run_not_found` for unknown/expired runs, handles
   per-item errors without aborting the batch, skips cannot-confirm subjects by
   default, and uses a 20-minute run TTL.
+- Stage Interface now compacts `canonical.review.auto_update` output for agent
+  use. Single and batch outputs expose subject ids, outcomes, effects, counts,
+  compact reason codes, and compact errors, while hiding full refs,
+  inspection ids, selected provider tokens, and raw qualification facts.
 
 Implemented public methods:
 
@@ -307,7 +312,7 @@ Pending:
 - Standalone admin port for broader activate/reject/merge/list workflows.
 - Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
   smoke has passed first.
-- Provisional Review v3 Tasks 8-10 from
+- Provisional Review v3 Tasks 9-10 from
   `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
@@ -415,6 +420,9 @@ Pending:
   auto-update runs with limit/default/cap behavior, continuation progress,
   unknown/expired run handling, per-item error continuation, and cannot-confirm
   filtering coverage.
+- Completed Provisional Review v3 Task 8 by compacting Stage Interface
+  auto-update output and covering single, batch, reason-code trimming, hidden
+  raw refs/tokens, and MCP schema exposure.
 
 ## Verification
 
