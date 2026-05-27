@@ -395,12 +395,8 @@ export type ProvisionalReviewApplyInput =
       inspectionId: string;
       subjectRef: Ref;
       action: "update";
-      selectedProviderRef: Ref;
-      supportingReasonKinds: ProvisionalReviewSupportReasonKind[];
+      selectedProviderRefToken: ProvisionalReviewRefToken;
       reason: string;
-      supportingRefs?: Ref[];
-      supportingKnowledgeItemIds?: string[];
-      supportingAnchorIds?: string[];
     }
   | {
       sessionId: string;
@@ -408,9 +404,6 @@ export type ProvisionalReviewApplyInput =
       subjectRef: Ref;
       action: "defer";
       reason: string;
-      supportingRefs?: Ref[];
-      supportingKnowledgeItemIds?: string[];
-      supportingAnchorIds?: string[];
     };
 
 export type ProvisionalReviewApplyOutput =
@@ -418,8 +411,9 @@ export type ProvisionalReviewApplyOutput =
       subjectRef: Ref;
       action: "update";
       selectedProviderRef: Ref;
+      selectedProviderRefToken: ProvisionalReviewRefToken;
       appliedAction: "activate" | "merge";
-      targetRef?: Ref;
+      warnings?: string[];
     }
   | {
       subjectRef: Ref;

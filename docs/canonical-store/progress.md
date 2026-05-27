@@ -34,6 +34,7 @@ Task status:
 - Provisional Review v2 Task 3: completed.
 - Provisional Review v2 Task 4: completed.
 - Provisional Review v2 Task 5: completed.
+- Provisional Review v2 Task 6: completed.
 
 Implemented:
 
@@ -161,6 +162,21 @@ Implemented:
 - MusicBrainz Knowledge extraction now preserves recording aliases and
   recording release appearances, and summary inspect can expose compact release
   titles/dates when source hints provide release context.
+- Provisional Review v2 update apply semantics are in place:
+  - update resolves `selectedProviderRefToken` against the current inspection
+    snapshot inside Canonical Maintenance.
+  - activation and merge derive their effect from exact provider identity
+    lookup, not MusicBrainz refs in `sourceRefs`.
+  - MusicBrainz recording identity is written through provider identity
+    changesets, while `sourceRefs` remain source/provenance refs.
+  - activation and merge write MusicBrainz-authoritative recording label,
+    aliases, and recording facts.
+  - successful update deletes source-derived provisional relations and keeps
+    Provisional Hints as review context.
+  - merge redirects the subject to the surviving target without copying
+    source-derived provisional relations.
+  - update audit-event failures return compact warnings after the canonical
+    changeset commits.
 
 Implemented public methods:
 

@@ -594,12 +594,17 @@ type _provisionalReviewListOutputShape = Expect<
 type _provisionalReviewApplyInputIsUpdateOrDefer = Expect<
   Equal<ProvisionalReviewApplyInput["action"], "update" | "defer"> &
     Equal<
-      Extract<ProvisionalReviewApplyInput, { action: "update" }>["selectedProviderRef"],
-      Ref
+      keyof Extract<ProvisionalReviewApplyInput, { action: "update" }>,
+      | "sessionId"
+      | "inspectionId"
+      | "subjectRef"
+      | "action"
+      | "selectedProviderRefToken"
+      | "reason"
     > &
     Equal<
-      Extract<ProvisionalReviewApplyInput, { action: "update" }>["supportingReasonKinds"],
-      ProvisionalReviewSupportReasonKind[]
+      Extract<ProvisionalReviewApplyInput, { action: "update" }>["selectedProviderRefToken"],
+      ProvisionalReviewRefToken
     > &
     Equal<
       keyof Extract<ProvisionalReviewApplyInput, { action: "defer" }>,
@@ -608,9 +613,6 @@ type _provisionalReviewApplyInputIsUpdateOrDefer = Expect<
       | "subjectRef"
       | "action"
       | "reason"
-      | "supportingRefs"
-      | "supportingKnowledgeItemIds"
-      | "supportingAnchorIds"
     >
 >;
 
@@ -619,6 +621,14 @@ type _provisionalReviewApplyOutputIsDerivedEffect = Expect<
     Equal<
       Extract<ProvisionalReviewApplyOutput, { action: "update" }>["appliedAction"],
       "activate" | "merge"
+    > &
+    Equal<
+      Extract<ProvisionalReviewApplyOutput, { action: "update" }>["selectedProviderRefToken"],
+      ProvisionalReviewRefToken
+    > &
+    Equal<
+      Extract<ProvisionalReviewApplyOutput, { action: "update" }>["selectedProviderRef"],
+      Ref
     > &
     Equal<
       Extract<ProvisionalReviewApplyOutput, { action: "defer" }>["appliedAction"],
@@ -1443,6 +1453,7 @@ const canonicalMaintenance: CanonicalMaintenancePort = {
             subjectRef,
             action,
             selectedProviderRef: { namespace: "musicbrainz", kind: "recording", id: "mb-recording" },
+            selectedProviderRefToken: { kind: "recording", id: "mbrec-1" },
             appliedAction: "activate",
           },
         }

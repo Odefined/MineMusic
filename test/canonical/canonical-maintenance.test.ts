@@ -656,7 +656,6 @@ async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
       subjectRef: subject.ref,
       action: "defer",
       reason: "Inspected MusicBrainz facts are ambiguous.",
-      supportingRefs: [sourceRef],
     }),
   );
   const loaded = await assertOk(store.get({ ref: subject.ref }));
@@ -669,7 +668,7 @@ async function deferRecordsEventAndLeavesIdentityUnchanged(): Promise<void> {
   assert(recordedEvents[0]?.target?.id === subject.ref.id, "defer event should target the subject");
 }
 
-async function deferRejectsEmptyReasonAndUninspectedCitations(): Promise<void> {
+async function deferRejectsEmptyReason(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
   const events = createEventService({ repository: createInMemoryEventRepository() });
   const store = createCanonicalStore({
@@ -703,19 +702,9 @@ async function deferRejectsEmptyReasonAndUninspectedCitations(): Promise<void> {
     action: "defer",
     reason: " ",
   });
-  const invalidCitation = await maintenance.reviewApply({
-    sessionId: reviewSession.id,
-    inspectionId: inspection.inspectionId,
-    subjectRef: subject.ref,
-    action: "defer",
-    reason: "Citation is not inspected.",
-    supportingRefs: [{ namespace: "source:netease", kind: "track", id: "not-inspected" }],
-  });
 
   assert(!emptyReason.ok, "defer should reject empty reason");
   assert(emptyReason.error.code === "canonical.review_invalid", "empty defer reason should use review error");
-  assert(!invalidCitation.ok, "defer should reject uninspected supporting refs");
-  assert(invalidCitation.error.code === "canonical.review_invalid", "invalid citations should use review error");
 }
 
 async function applyRejectsStaleAndExpiredInspections(): Promise<void> {
@@ -804,7 +793,12 @@ async function applyRejectsStaleAndExpiredInspections(): Promise<void> {
 
 async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void> {
   const repository = createInMemoryCanonicalRecordRepository();
-  const events = createEventService({ repository: createInMemoryEventRepository() });
+  const eventRepository = createInMemoryEventRepository();
+  const events = createEventService({
+    repository: eventRepository,
+    idFactory: () => "activate-event",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
   const store = createCanonicalStore({
     repository,
     idFactory: () => "update-gate-subject",
@@ -813,8 +807,21 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
   const subject = await assertOk(
     store.createProvisional({
       kind: "recording",
-      label: "Update Gate Track",
+      label: "Source Label - Update Artist",
       evidence: [sourceRef],
+    }),
+  );
+  await assertOk(
+    store.recordProvisionalRelations({
+      subjectRef: subject.ref,
+      sourceRef,
+      relations: [
+        {
+          predicate: "has_duration_ms",
+          objectKind: "duration_ms",
+          objectValue: 1000,
+        },
+      ],
     }),
   );
   await assertOk(
@@ -825,7 +832,7 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
         {
           kind: "source_recording_context",
           facts: {
-            title: "Update Gate Track",
+            title: "Source Title",
             artistLabels: ["Update Artist"],
             releaseLabel: "Update Release",
             durationMs: 1000,
@@ -852,12 +859,14 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
                 id: "recording",
                 type: "recording",
                 ref: mbRecordingRef,
+                label: "Update Gate Track",
                 properties: {
-                  duration: 1000,
-                  release: "Update Release",
-                  track: "1",
-                  isrc: "USFIXTURE1",
-                  artist: "Update Artist",
+                  title: "Update Gate Track",
+                  durationMs: 1000,
+                  artistCreditText: "Update Artist",
+                  isrcs: ["USFIXTURE1"],
+                  disambiguation: "album version",
+                  aliases: ["Update Gate Alias"],
                 },
               },
             ],
@@ -894,8 +903,7 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
     inspectionId: inspection.inspectionId,
     subjectRef: subject.ref,
     action: "update",
-    selectedProviderRef: { namespace: "musicbrainz", kind: "release", id: "mb-release" },
-    supportingReasonKinds: ["duration", "release_appearance"],
+    selectedProviderRefToken: { kind: "release", id: "mbrel-1" },
     reason: "Wrong provider ref kind.",
   });
   const absentRef = await maintenance.reviewApply({
@@ -903,45 +911,61 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
     inspectionId: inspection.inspectionId,
     subjectRef: subject.ref,
     action: "update",
-    selectedProviderRef: { namespace: "musicbrainz", kind: "recording", id: "absent" },
-    supportingReasonKinds: ["duration", "release_appearance"],
+    selectedProviderRefToken: { kind: "recording", id: "missing-token" },
     reason: "Absent provider ref.",
   });
-  const labelOnly = await maintenance.reviewApply({
+  const emptyReason = await maintenance.reviewApply({
     sessionId: reviewSession.id,
     inspectionId: inspection.inspectionId,
     subjectRef: subject.ref,
     action: "update",
-    selectedProviderRef: mbRecordingRef,
-    supportingReasonKinds: ["duration"],
-    reason: "Only one reason kind.",
-    supportingRefs: [mbRecordingRef],
+    selectedProviderRefToken: { kind: "recording", id: "mbrec-1" },
+    reason: " ",
   });
   const activated = await assertOk(maintenance.reviewApply({
     sessionId: reviewSession.id,
     inspectionId: inspection.inspectionId,
     subjectRef: subject.ref,
     action: "update",
-    selectedProviderRef: mbRecordingRef,
-    supportingReasonKinds: ["duration", "release_appearance"],
+    selectedProviderRefToken: { kind: "recording", id: "mbrec-1" },
     reason: "Duration and release appearance support this MusicBrainz recording.",
-    supportingRefs: [mbRecordingRef],
-    supportingKnowledgeItemIds: ["knowledge-recording"],
-    supportingAnchorIds: ["provider-ref:1"],
   }));
   const loaded = await assertOk(store.get({ ref: subject.ref }));
+  const providerMatches = repository.findCurrentByProviderIdentity === undefined
+    ? []
+    : await assertOk(repository.findCurrentByProviderIdentity({
+        providerId: "musicbrainz",
+        entityKind: "recording",
+        providerEntityId: mbRecordingRef.id,
+      }));
+  const remainingRelations = await assertOk(store.listRelations({ subjectRef: subject.ref }));
+  const remainingHints = await assertOk(store.listProvisionalHints({ subjectRef: subject.ref }));
+  const recordedEvents = await assertOk(events.listBySession({ sessionId: reviewSession.id }));
 
   assert(!unsupported.ok, "unsupported action strings should fail");
   assert(unsupported.error.message.includes("Unsupported"), "unsupported action should be explicit");
-  assert(!wrongKind.ok, "update should reject non-recording MusicBrainz refs");
-  assert(!absentRef.ok, "update should reject refs absent from inspection");
-  assert(!labelOnly.ok, "update should reject label-only or single-reason decisions");
+  assert(!wrongKind.ok, "update should reject non-recording review tokens");
+  assert(!absentRef.ok, "update should reject tokens absent from inspection");
+  assert(!emptyReason.ok, "update should reject empty reason");
   assert(activated.appliedAction === "activate", "valid update should activate when no current record has the MB ref");
+  assert(activated.selectedProviderRefToken.id === "mbrec-1", "update output should preserve the selected token");
   assert(loaded?.status === "active", "activation should make the subject active");
+  assert(loaded?.label === "Update Gate Track", "activation should use the MusicBrainz recording title as label");
   assert(
-    loaded?.sourceRefs?.some((ref) => ref.id === mbRecordingRef.id),
-    "activation should attach the selected MusicBrainz recording ref",
+    loaded?.sourceRefs?.some((ref) => ref.namespace === "musicbrainz") !== true,
+    "activation should not store the MusicBrainz recording ref in sourceRefs",
   );
+  assert(providerMatches.length === 1 && providerMatches[0]?.ref.id === subject.ref.id, "activation should write provider identity");
+  assert(loaded?.facts?.artistCreditText === "Update Artist", "activation should store MusicBrainz artist credit fact");
+  assert(loaded?.facts?.durationMs === 1000, "activation should store MusicBrainz duration fact");
+  assert((loaded?.facts?.isrcs as string[] | undefined)?.[0] === "USFIXTURE1", "activation should store MusicBrainz ISRC facts");
+  assert(loaded?.facts?.disambiguation === "album version", "activation should store MusicBrainz disambiguation fact");
+  assert(loaded?.aliases?.[0] === "Update Gate Alias", "MusicBrainz aliases should be ordered before source aliases");
+  assert(loaded?.aliases?.includes("Source Label - Update Artist") === true, "activation should keep old source label as alias");
+  assert(loaded?.aliases?.includes("Source Title") === true, "activation should keep source title as alias");
+  assert(remainingRelations.length === 0, "activation should delete source-derived provisional relations");
+  assert(remainingHints.length === 1, "activation should keep provisional hints as review context");
+  assert(recordedEvents.some((event) => event.type === "canonical.activated"), "activation should record an update audit event");
 }
 
 async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(): Promise<void> {
@@ -960,16 +984,21 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
   const subject = await assertOk(
     store.createProvisional({
       kind: "recording",
-      label: "Merge Track",
+      label: "Merge Source Label",
       evidence: [sourceRef],
     }),
   );
+  const targetSourceRef: Ref = {
+    namespace: "source:netease",
+    kind: "track",
+    id: "target-track",
+  };
   const target: CanonicalRecord = {
     ref: { namespace: "minemusic", kind: "recording", id: "merge-target" },
     kind: "recording",
-    label: "Merge Target",
+    label: "Old Merge Target",
     status: "active",
-    sourceRefs: [mbRecordingRef],
+    sourceRefs: [targetSourceRef],
   };
   const knowledge: MusicKnowledgePort = {
     query: async () => ({
@@ -988,8 +1017,10 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
                 ref: mbRecordingRef,
                 label: "Merge Target",
                 properties: {
-                  duration: 1000,
-                  release: "Merge Release",
+                  title: "Merge Target",
+                  durationMs: 1000,
+                  artistCreditText: "Merge Artist",
+                  aliases: ["Merge Alias"],
                 },
               },
             ],
@@ -1000,7 +1031,20 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
     }),
   };
 
-  await assertOk(repository.put(target));
+  assert(repository.commitChanges !== undefined, "in-memory repository should support canonical changesets");
+  await assertOk(
+    repository.commitChanges({
+      putRecords: [target],
+      putProviderIdentities: [
+        {
+          canonicalRef: target.ref,
+          providerId: "musicbrainz",
+          entityKind: "recording",
+          providerEntityId: mbRecordingRef.id,
+        },
+      ],
+    }),
+  );
   await assertOk(
     store.recordProvisionalRelations({
       subjectRef: subject.ref,
@@ -1051,12 +1095,8 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
       inspectionId: inspection.inspectionId,
       subjectRef: subject.ref,
       action: "update",
-      selectedProviderRef: mbRecordingRef,
-      supportingReasonKinds: ["duration", "release_appearance"],
+      selectedProviderRefToken: { kind: "recording", id: "mbrec-1" },
       reason: "Shared exact MB recording ref on the current target means merge.",
-      supportingRefs: [mbRecordingRef],
-      supportingKnowledgeItemIds: ["merge-knowledge"],
-      supportingAnchorIds: ["provider-ref:1"],
     }),
   );
   const resolvedSource = await assertOk(store.resolveSourceRef({ ref: sourceRef }));
@@ -1065,17 +1105,109 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
   const rawSubject = rawRecords.find((record) => record.ref.id === subject.ref.id);
   const rawTarget = rawRecords.find((record) => record.ref.id === target.ref.id);
   const targetRelations = await assertOk(store.listRelations({ subjectRef: target.ref }));
+  const subjectRelations = await assertOk(store.listRelations({ subjectRef: subject.ref }));
   const recordedEvents = await assertOk(events.listBySession({ sessionId: reviewSession.id }));
 
   assert(applied.appliedAction === "merge", "update should merge when exactly one current target has the MB ref");
-  assert(applied.targetRef?.id === target.ref.id, "merge output should include the target ref");
+  assert(applied.selectedProviderRefToken.id === "mbrec-1", "merge output should preserve the selected token");
   assert(resolvedSource?.ref.id === target.ref.id, "moved source refs should resolve to the surviving target");
   assert(redirectedSubject?.ref.id === target.ref.id, "ordinary get should follow merged subject redirects");
   assert(rawSubject?.status === "merged", "raw subject should be historical after merge");
   assert(rawSubject?.mergedIntoRef?.id === target.ref.id, "raw subject should persist redirect target");
   assert(rawTarget?.sourceRefs?.some((ref) => ref.id === sourceRef.id), "target should receive subject source refs");
-  assert(targetRelations.some((relation) => relation.predicate === "has_duration_ms"), "safe direct subject relations should be copied to target");
+  assert(rawTarget?.sourceRefs?.some((ref) => ref.id === targetSourceRef.id), "target should keep existing source refs");
+  assert(rawTarget?.sourceRefs?.some((ref) => ref.namespace === "musicbrainz") !== true, "merge should not store MusicBrainz ref in sourceRefs");
+  assert(rawTarget?.label === "Merge Target", "merge should rewrite target label from MusicBrainz title");
+  assert(rawTarget?.facts?.artistCreditText === "Merge Artist", "merge should rewrite target facts from MusicBrainz facts");
+  assert(rawTarget?.aliases?.[0] === "Merge Alias", "merge should place MusicBrainz aliases before source aliases");
+  assert(targetRelations.length === 0, "source-derived subject relations should not be copied to target");
+  assert(subjectRelations.length === 0, "source-derived subject relations should be deleted");
   assert(recordedEvents.some((event) => event.type === "canonical.merged"), "merge should record a canonical.merged event");
+}
+
+async function updateReturnsWarningWhenAuditEventFailsAfterCommit(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "audit-warning-subject",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Audit Warning Track",
+      evidence: [sourceRef],
+    }),
+  );
+  const knowledge: MusicKnowledgePort = {
+    query: async () => ({
+      ok: true,
+      value: {
+        items: [
+          {
+            kind: "structured",
+            providerId: "musicbrainz",
+            source: { ref: mbRecordingRef },
+            nodes: [
+              {
+                id: "recording",
+                type: "recording",
+                ref: mbRecordingRef,
+                properties: {
+                  title: "Audit Warning Track",
+                },
+              },
+            ],
+            relations: [],
+          },
+        ],
+      },
+    }),
+  };
+  const events: EventPort = {
+    record: async () => ({
+      ok: false,
+      error: {
+        code: "event.record_failed",
+        message: "Audit sink is unavailable.",
+        module: "events",
+        retryable: true,
+      },
+    }),
+    listBySession: async () => ({ ok: true, value: [] }),
+  };
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    events,
+    idFactory: () => "audit-warning-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+  const inspection = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const applied = await assertOk(
+    maintenance.reviewApply({
+      sessionId: reviewSession.id,
+      inspectionId: inspection.inspectionId,
+      subjectRef: subject.ref,
+      action: "update",
+      selectedProviderRefToken: { kind: "recording", id: "mbrec-1" },
+      reason: "Facts align despite audit warning.",
+    }),
+  );
+  const loaded = await assertOk(store.get({ ref: subject.ref }));
+
+  assert(applied.action === "update", "audit warning fixture should apply update");
+  assert(loaded?.status === "active", "audit event failure should not roll back canonical update");
+  assert(
+    applied.warnings?.some((warning) => warning.includes("Audit event")) === true,
+    "audit event failure should return a compact warning",
+  );
 }
 
 async function updateFailsWhenMultipleCurrentRecordsHaveSelectedMusicBrainzRef(): Promise<void> {
@@ -1108,8 +1240,8 @@ async function updateFailsWhenMultipleCurrentRecordsHaveSelectedMusicBrainzRef()
                 type: "recording",
                 ref: mbRecordingRef,
                 properties: {
-                  duration: 1000,
-                  release: "Invariant Release",
+                  title: "Invariant Track",
+                  durationMs: 1000,
                 },
               },
             ],
@@ -1120,24 +1252,24 @@ async function updateFailsWhenMultipleCurrentRecordsHaveSelectedMusicBrainzRef()
     }),
   };
 
-  await assertOk(
-    repository.put({
-      ref: { namespace: "minemusic", kind: "recording", id: "first-current" },
-      kind: "recording",
-      label: "First Current",
-      status: "active",
-      sourceRefs: [mbRecordingRef],
-    }),
-  );
-  await assertOk(
-    repository.put({
-      ref: { namespace: "minemusic", kind: "recording", id: "second-current" },
-      kind: "recording",
-      label: "Second Current",
-      status: "provisional",
-      sourceRefs: [mbRecordingRef],
-    }),
-  );
+  const firstCurrent: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "first-current" },
+    kind: "recording",
+    label: "First Current",
+    status: "active",
+  };
+  const secondCurrent: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "second-current" },
+    kind: "recording",
+    label: "Second Current",
+    status: "provisional",
+  };
+  await assertOk(repository.put(firstCurrent));
+  await assertOk(repository.put(secondCurrent));
+  repository.findCurrentByProviderIdentity = async () => ({
+    ok: true,
+    value: [firstCurrent, secondCurrent],
+  });
   await assertOk(
     store.recordProvisionalHints({
       subjectRef: subject.ref,
@@ -1172,12 +1304,8 @@ async function updateFailsWhenMultipleCurrentRecordsHaveSelectedMusicBrainzRef()
     inspectionId: inspection.inspectionId,
     subjectRef: subject.ref,
     action: "update",
-    selectedProviderRef: mbRecordingRef,
-    supportingReasonKinds: ["duration", "release_appearance"],
+    selectedProviderRefToken: { kind: "recording", id: "mbrec-1" },
     reason: "Invariant failure.",
-    supportingRefs: [mbRecordingRef],
-    supportingKnowledgeItemIds: ["invariant-knowledge"],
-    supportingAnchorIds: ["provider-ref:1"],
   });
 
   assert(!result.ok, "apply should fail when more than one current record has the selected MB ref");
@@ -1190,8 +1318,9 @@ await inspectsNeutralFactsAndExactMusicBrainzNeighbors();
 await inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning();
 await detailInspectReusesSnapshotAndReturnsReleaseContexts();
 await deferRecordsEventAndLeavesIdentityUnchanged();
-await deferRejectsEmptyReasonAndUninspectedCitations();
+await deferRejectsEmptyReason();
 await applyRejectsStaleAndExpiredInspections();
 await updateGateRejectsUnsupportedOrUngroundedDecisions();
 await updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef();
+await updateReturnsWarningWhenAuditEventFailsAfterCommit();
 await updateFailsWhenMultipleCurrentRecordsHaveSelectedMusicBrainzRef();

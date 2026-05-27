@@ -474,9 +474,10 @@ export function createToolDispatch({
               subjectRef?: Ref;
             }
           >(payload);
-          const subjectRef = input.subjectId === undefined
-            ? input.subjectRef
-            : reviewSubjectRef(input.subjectId);
+          const { subjectId, subjectRef: inputSubjectRef, ...applyInput } = input;
+          const subjectRef = subjectId === undefined
+            ? inputSubjectRef
+            : reviewSubjectRef(subjectId);
 
           if (subjectRef === undefined) {
             return fail({
@@ -488,7 +489,7 @@ export function createToolDispatch({
           }
 
           const result = await availableMaintenance.value.reviewApply({
-            ...input,
+            ...applyInput,
             subjectRef,
             sessionId,
           } as ProvisionalReviewApplyInput);

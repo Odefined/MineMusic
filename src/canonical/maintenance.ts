@@ -52,6 +52,12 @@ type ReleaseAppearanceDraft = Omit<
   "refToken"
 >;
 
+type SelectedRecordingWriteFacts = {
+  label: string;
+  aliases: string[];
+  facts: Record<string, unknown>;
+};
+
 const defaultInspectionTtlMs = 5 * 60 * 1000;
 
 export function createCanonicalMaintenance({
@@ -278,9 +284,6 @@ export function createCanonicalMaintenance({
               subjectRef: input.subjectRef,
               inspectionId: input.inspectionId,
               reason: input.reason,
-              supportingRefs: input.supportingRefs ?? [],
-              supportingKnowledgeItemIds: input.supportingKnowledgeItemIds ?? [],
-              supportingAnchorIds: input.supportingAnchorIds ?? [],
             },
           },
         });
@@ -306,9 +309,9 @@ export function createCanonicalMaintenance({
         return applyUpdateDecision({
           storage,
           events,
-          clock,
           input,
           inspection: commonGate.value.inspection,
+          selectedProviderRef: updateGate.value,
         });
       }
 
@@ -571,12 +574,6 @@ async function validateApplyCommon({
     return subject;
   }
 
-  const citations = validateCitations(input, snapshot.inspection);
-
-  if (!citations.ok) {
-    return citations;
-  }
-
   return ok(snapshot);
 }
 
@@ -599,7 +596,7 @@ function validateDeferDecision(
 function validateUpdateDecision(
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>,
   inspection: ProvisionalReviewInspection,
-): Result<void> {
+): Result<Ref> {
   if (input.reason.trim().length === 0) {
     return fail({
       code: "canonical.review_invalid",
@@ -609,7 +606,28 @@ function validateUpdateDecision(
     });
   }
 
-  if (!isMusicBrainzRecordingRef(input.selectedProviderRef)) {
+  const selectedToken = (input as { selectedProviderRefToken?: ProvisionalReviewRefToken }).selectedProviderRefToken;
+
+  if (selectedToken === undefined) {
+    return fail({
+      code: "canonical.review_invalid",
+      message: "Update decisions require a selected provider ref token.",
+      module: "canonical",
+      retryable: false,
+    });
+  }
+
+  const selectedProviderRef = resolveReviewToken(
+    inspection,
+    selectedToken,
+    "recording",
+  );
+
+  if (!selectedProviderRef.ok) {
+    return selectedProviderRef;
+  }
+
+  if (!isMusicBrainzRecordingRef(selectedProviderRef.value)) {
     return fail({
       code: "canonical.review_invalid",
       message: "Update decisions must select a MusicBrainz recording ref.",
@@ -618,64 +636,26 @@ function validateUpdateDecision(
     });
   }
 
-  if (!inspectionContainsRef(inspection, input.selectedProviderRef)) {
-    return fail({
-      code: "canonical.review_invalid",
-      message: "Selected provider ref was not returned by the latest inspection.",
-      module: "canonical",
-      retryable: false,
-    });
-  }
-
-  if (!selectedProviderRefIsCited(input, inspection)) {
-    return fail({
-      code: "canonical.review_invalid",
-      message: "Update decisions must cite inspected facts for the selected provider ref.",
-      module: "canonical",
-      retryable: false,
-    });
-  }
-
-  const uniqueReasonKinds = [...new Set(input.supportingReasonKinds)];
-
-  if (uniqueReasonKinds.length < 2) {
-    return fail({
-      code: "canonical.review_invalid",
-      message: "Update decisions require at least two non-label support reason kinds.",
-      module: "canonical",
-      retryable: false,
-    });
-  }
-
-  for (const reasonKind of uniqueReasonKinds) {
-    if (!supportReasonKindIsGrounded(reasonKind, inspection, input)) {
-      return fail({
-        code: "canonical.review_invalid",
-        message: `Support reason kind '${reasonKind}' is not grounded in inspected facts.`,
-        module: "canonical",
-        retryable: false,
-      });
-    }
-  }
-
-  return ok(undefined);
+  return ok(selectedProviderRef.value);
 }
 
 async function applyUpdateDecision({
   storage,
   events,
-  clock,
   input,
   inspection,
+  selectedProviderRef,
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
-  clock: () => string;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
+  selectedProviderRef: Ref;
 }): Promise<Result<ProvisionalReviewApplyOutput>> {
-  const currentRecords = await storage.findCurrentRecordsBySourceRef({
-    sourceRef: input.selectedProviderRef,
+  const currentRecords = await storage.findCurrentRecordsByProviderIdentity({
+    providerId: selectedProviderRef.namespace,
+    entityKind: selectedProviderRef.kind,
+    providerEntityId: selectedProviderRef.id,
     excludeRef: input.subjectRef,
     kind: "recording",
   });
@@ -699,6 +679,7 @@ async function applyUpdateDecision({
       events,
       input,
       inspection,
+      selectedProviderRef,
     });
   }
 
@@ -716,9 +697,9 @@ async function applyUpdateDecision({
   return mergeSubject({
     storage,
     events,
-    clock,
     input,
     inspection,
+    selectedProviderRef,
     target,
   });
 }
@@ -728,36 +709,41 @@ async function activateSubject({
   events,
   input,
   inspection,
+  selectedProviderRef,
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
+  selectedProviderRef: Ref;
 }): Promise<Result<ProvisionalReviewApplyOutput>> {
-  const activatedLabel = selectedRecordingLabel(inspection, input.selectedProviderRef) ?? inspection.subject.label;
+  const selectedFacts = selectedRecordingWriteFacts(inspection, selectedProviderRef);
+  const activatedLabel = selectedFacts.label;
   const activatedAliases = mergeAliases([
+    ...selectedFacts.aliases,
     ...(inspection.subject.aliases ?? []),
+    inspection.subject.label,
     ...sourceAliases(inspection),
   ], activatedLabel);
   const activated: CanonicalRecord = {
     ...inspection.subject,
     label: activatedLabel,
     status: "active",
-    sourceRefs: uniqueRefs([
-      ...(inspection.subject.sourceRefs ?? []),
-      input.selectedProviderRef,
-    ]),
+    sourceRefs: uniqueRefs(inspection.subject.sourceRefs ?? []),
+    facts: selectedFacts.facts,
     ...(activatedAliases === undefined ? {} : { aliases: activatedAliases }),
   };
-  const stored = await storage.put(activated, {
-    sourceRefForConflict: input.selectedProviderRef,
+  const committed = await storage.commitChanges({
+    putRecords: [activated],
+    putProviderIdentities: [providerIdentityForRecording(activated.ref, selectedProviderRef)],
+    deleteRelationIds: sourceDerivedRelationIds(inspection),
   });
 
-  if (!stored.ok) {
-    return stored;
+  if (!committed.ok) {
+    return committed;
   }
 
-  await recordOptionalEvent(events, {
+  const warnings = await recordUpdateEvent(events, {
     sessionId: input.sessionId,
     actor: "stage",
     type: "canonical.activated",
@@ -765,38 +751,43 @@ async function activateSubject({
     payload: {
       subjectRef: input.subjectRef,
       inspectionId: input.inspectionId,
-      selectedProviderRef: input.selectedProviderRef,
+      selectedProviderRef,
+      selectedProviderRefToken: input.selectedProviderRefToken,
       reason: input.reason,
     },
   });
 
-  return ok({
+  const output: Extract<ProvisionalReviewApplyOutput, { action: "update" }> = {
     subjectRef: input.subjectRef,
     action: "update",
-    selectedProviderRef: input.selectedProviderRef,
+    selectedProviderRef,
+    selectedProviderRefToken: input.selectedProviderRefToken,
     appliedAction: "activate",
-  });
+    ...(warnings.length === 0 ? {} : { warnings }),
+  };
+
+  return ok(output);
 }
 
 async function mergeSubject({
   storage,
   events,
-  clock,
   input,
   inspection,
+  selectedProviderRef,
   target,
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
-  clock: () => string;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
+  selectedProviderRef: Ref;
   target: CanonicalRecord;
 }): Promise<Result<ProvisionalReviewApplyOutput>> {
+  const selectedFacts = selectedRecordingWriteFacts(inspection, selectedProviderRef);
   const movedSourceRefs = uniqueRefs([
     ...(target.sourceRefs ?? []),
     ...(inspection.subject.sourceRefs ?? []),
-    input.selectedProviderRef,
   ]);
   const conflict = await findMergeSourceRefConflict({
     storage,
@@ -824,46 +815,32 @@ async function mergeSubject({
     sourceRefs: [],
     mergedIntoRef: target.ref,
   };
-  const storedSubject = await storage.put(mergedSubject);
-
-  if (!storedSubject.ok) {
-    return storedSubject;
-  }
-
   const targetAliases = mergeAliases([
+    ...selectedFacts.aliases,
     ...(target.aliases ?? []),
+    target.label,
     ...(inspection.subject.aliases ?? []),
     inspection.subject.label,
     ...sourceAliases(inspection),
-  ], target.label);
+  ], selectedFacts.label);
   const survivingTarget: CanonicalRecord = {
     ...target,
+    label: selectedFacts.label,
     sourceRefs: movedSourceRefs,
+    facts: selectedFacts.facts,
     ...(targetAliases === undefined ? {} : { aliases: targetAliases }),
   };
-  const storedTarget = await storage.put(survivingTarget, {
-    sourceRefForConflict: input.selectedProviderRef,
+  const committed = await storage.commitChanges({
+    putRecords: [mergedSubject, survivingTarget],
+    putProviderIdentities: [providerIdentityForRecording(target.ref, selectedProviderRef)],
+    deleteRelationIds: sourceDerivedRelationIds(inspection),
   });
 
-  if (!storedTarget.ok) {
-    return storedTarget;
+  if (!committed.ok) {
+    return committed;
   }
 
-  for (const relation of inspection.outgoingRelations) {
-    const movedRelation: CanonicalRelation = {
-      ...relation,
-      id: `merged:${target.ref.id}:${relation.id}`,
-      subjectRef: target.ref,
-      updatedAt: clock(),
-    };
-    const storedRelation = await storage.putRelation(movedRelation);
-
-    if (!storedRelation.ok) {
-      return storedRelation;
-    }
-  }
-
-  await recordOptionalEvent(events, {
+  const warnings = await recordUpdateEvent(events, {
     sessionId: input.sessionId,
     actor: "stage",
     type: "canonical.merged",
@@ -872,18 +849,22 @@ async function mergeSubject({
       subjectRef: input.subjectRef,
       targetRef: target.ref,
       inspectionId: input.inspectionId,
-      selectedProviderRef: input.selectedProviderRef,
+      selectedProviderRef,
+      selectedProviderRefToken: input.selectedProviderRefToken,
       reason: input.reason,
     },
   });
 
-  return ok({
+  const output: Extract<ProvisionalReviewApplyOutput, { action: "update" }> = {
     subjectRef: input.subjectRef,
     action: "update",
-    selectedProviderRef: input.selectedProviderRef,
+    selectedProviderRef,
+    selectedProviderRefToken: input.selectedProviderRefToken,
     appliedAction: "merge",
-    targetRef: target.ref,
-  });
+    ...(warnings.length === 0 ? {} : { warnings }),
+  };
+
+  return ok(output);
 }
 
 async function findMergeSourceRefConflict({
@@ -919,195 +900,101 @@ async function findMergeSourceRefConflict({
   return ok(null);
 }
 
-async function recordOptionalEvent(
+async function recordUpdateEvent(
   events: EventPort | undefined,
   event: Parameters<EventPort["record"]>[0]["event"],
-): Promise<void> {
+): Promise<string[]> {
   if (events === undefined) {
-    return;
+    return [];
   }
 
-  await events.record({ event });
+  const recorded = await events.record({ event });
+
+  if (recorded.ok) {
+    return [];
+  }
+
+  return [
+    "Audit event recording failed after canonical update.",
+  ];
 }
 
-function validateCitations(
-  input: ProvisionalReviewApplyInput,
-  inspection: ProvisionalReviewInspection,
-): Result<void> {
-  const inspectedRefKeys = inspectedRefs(inspection);
-  const inspectedKnowledgeItemIds = new Set(
-    inspection.knowledgeItems.map((item, index) => item.id ?? knowledgeItemId(item, index)),
-  );
-  const inspectedAnchorIds = new Set(inspection.anchors.map((anchor) => anchor.id));
-
-  for (const ref of input.supportingRefs ?? []) {
-    if (!inspectedRefKeys.has(refKey(ref))) {
-      return fail({
-        code: "canonical.review_invalid",
-        message: `Supporting ref '${refKey(ref)}' was not returned by the latest inspection.`,
-        module: "canonical",
-        retryable: false,
-      });
-    }
-  }
-
-  for (const knowledgeItemId of input.supportingKnowledgeItemIds ?? []) {
-    if (!inspectedKnowledgeItemIds.has(knowledgeItemId)) {
-      return fail({
-        code: "canonical.review_invalid",
-        message: `Supporting Knowledge item '${knowledgeItemId}' was not returned by the latest inspection.`,
-        module: "canonical",
-        retryable: false,
-      });
-    }
-  }
-
-  for (const anchorId of input.supportingAnchorIds ?? []) {
-    if (!inspectedAnchorIds.has(anchorId)) {
-      return fail({
-        code: "canonical.review_invalid",
-        message: `Supporting anchor '${anchorId}' was not returned by the latest inspection.`,
-        module: "canonical",
-        retryable: false,
-      });
-    }
-  }
-
-  return ok(undefined);
+function providerIdentityForRecording(canonicalRef: Ref, selectedProviderRef: Ref) {
+  return {
+    canonicalRef,
+    providerId: selectedProviderRef.namespace,
+    entityKind: selectedProviderRef.kind,
+    providerEntityId: selectedProviderRef.id,
+  };
 }
 
-function selectedProviderRefIsCited(
-  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>,
+function sourceDerivedRelationIds(inspection: ProvisionalReviewInspection): string[] {
+  return inspection.outgoingRelations
+    .filter((relation) => relation.status === "provisional")
+    .map((relation) => relation.id);
+}
+
+function selectedRecordingWriteFacts(
   inspection: ProvisionalReviewInspection,
-): boolean {
-  if ((input.supportingRefs ?? []).some((ref) => sameRef(ref, input.selectedProviderRef))) {
-    return true;
-  }
-
-  const citedAnchorIds = new Set(input.supportingAnchorIds ?? []);
-
-  if (
-    inspection.anchors.some(
-      (anchor) =>
-        citedAnchorIds.has(anchor.id) &&
-        anchor.providerRef !== undefined &&
-        sameRef(anchor.providerRef, input.selectedProviderRef),
-    )
-  ) {
-    return true;
-  }
-
-  const citedKnowledgeItemIds = new Set(input.supportingKnowledgeItemIds ?? []);
-
-  return inspection.knowledgeItems.some((item, index) => {
-    const itemId = item.id ?? knowledgeItemId(item, index);
-
-    if (!citedKnowledgeItemIds.has(itemId)) {
-      return false;
-    }
-
-    return knowledgeItemRefs(item).some((ref) => sameRef(ref, input.selectedProviderRef));
+  selectedProviderRef: Ref,
+): SelectedRecordingWriteFacts {
+  const node = selectedRecordingNode(inspection, selectedProviderRef);
+  const properties = node?.properties ?? {};
+  const label = stringProperty(properties.title) ?? node?.label ?? selectedProviderRef.label ?? inspection.subject.label;
+  const aliases = stringArrayProperty(properties.aliases);
+  const facts = removeUndefinedFacts({
+    artistCreditText: stringProperty(properties.artistCreditText),
+    durationMs: numberProperty(properties.durationMs),
+    isrcs: stringArrayProperty(properties.isrcs),
+    disambiguation: stringProperty(properties.disambiguation),
   });
+
+  return {
+    label,
+    aliases,
+    facts,
+  };
 }
 
-function supportReasonKindIsGrounded(
-  reasonKind: string,
+function selectedRecordingNode(
   inspection: ProvisionalReviewInspection,
-  input: Extract<ProvisionalReviewApplyInput, { action: "update" }>,
-): boolean {
-  const citedAnchorIds = new Set(input.supportingAnchorIds ?? []);
-  const citedKnowledgeItemIds = new Set(input.supportingKnowledgeItemIds ?? []);
-  const citedRefs = new Set((input.supportingRefs ?? []).map(refKey));
-  const citedAnchors = inspection.anchors.filter((anchor) => citedAnchorIds.has(anchor.id));
-  const citedKnowledgeItems = inspection.knowledgeItems.filter((item, index) =>
-    citedKnowledgeItemIds.has(item.id ?? knowledgeItemId(item, index)),
-  );
+  selectedProviderRef: Ref,
+): KnowledgeNode | undefined {
+  for (const item of inspection.knowledgeItems) {
+    if (item.kind !== "structured") {
+      continue;
+    }
 
-  switch (reasonKind) {
-    case "artist_credit":
-      return (
-        inspection.outgoingRelations.some((relation) => relation.predicate === "performed_by") ||
-        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "artist"))
-      );
-    case "duration":
-      return (
-        inspection.outgoingRelations.some((relation) => relation.predicate === "has_duration_ms") ||
-        inspection.provisionalHints.some((hint) => hint.facts.durationMs !== undefined) ||
-        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "duration"))
-      );
-    case "isrc":
-      return citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "isrc"));
-    case "release_appearance":
-      return (
-        inspection.outgoingRelations.some((relation) => relation.predicate === "appears_on_release") ||
-        inspection.provisionalHints.some((hint) => hint.facts.releaseLabel !== undefined) ||
-        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "release"))
-      );
-    case "source_ref_context":
-      return inspection.provisionalHints.some((hint) => citedRefs.has(refKey(hint.sourceRef))) ||
-        citedAnchors.some((anchor) => anchor.id.startsWith("source-ref-context:"));
-    case "direct_relation_context":
-      return inspection.outgoingRelations.length > 0 || inspection.incomingRelations.length > 0;
-    case "tracklist_context":
-      return (
-        inspection.provisionalHints.some((hint) => hint.facts.trackPosition !== undefined) ||
-        citedKnowledgeItems.some((item) => knowledgeItemContainsText(item, "track"))
-      );
-    case "active_neighbor_anchor":
-      return citedAnchors.some((anchor) => anchor.kind === "active_neighbor");
-    default:
-      return false;
+    const node = item.nodes.find((candidate) =>
+      candidate.ref !== undefined && sameRef(candidate.ref, selectedProviderRef),
+    );
+
+    if (node !== undefined) {
+      return node;
+    }
   }
+
+  return undefined;
 }
 
-function inspectedRefs(inspection: ProvisionalReviewInspection): Set<string> {
-  return new Set(
-    [
-      inspection.subject.ref,
-      ...(inspection.subject.sourceRefs ?? []),
-      ...inspection.outgoingRelations.flatMap(relationRefs),
-      ...inspection.incomingRelations.flatMap(relationRefs),
-      ...inspection.provisionalHints.flatMap((hint) => [
-        hint.subjectRef,
-        hint.sourceRef,
-        hint.facts.releaseSourceRef,
-      ]),
-      ...inspection.neighborRecords.flatMap(recordRefs),
-      ...inspection.relatedCurrentRecords.flatMap(recordRefs),
-      ...inspection.knowledgeItems.flatMap(knowledgeItemRefs),
-      ...inspection.anchors.flatMap(anchorRefs),
-      ...inspection.relationCandidates.flatMap(relationCandidateRefs),
-    ]
-      .filter((ref): ref is Ref => ref !== undefined)
-      .map(refKey),
+function removeUndefinedFacts(facts: Record<string, unknown | undefined>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(facts).filter((entry): entry is [string, unknown] => entry[1] !== undefined),
   );
 }
 
-function inspectionContainsRef(
-  inspection: ProvisionalReviewInspection,
-  ref: Ref,
-): boolean {
-  return inspectedRefs(inspection).has(refKey(ref));
+function stringProperty(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function relationRefs(relation: CanonicalRelation): Array<Ref | undefined> {
-  return [
-    relation.subjectRef,
-    relation.objectRef,
-    relation.sourceRef,
-  ];
+function numberProperty(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
-function relationCandidateRefs(candidate: ProvisionalRelationCandidate): Array<Ref | undefined> {
-  return [
-    candidate.subjectRef,
-    candidate.objectRef,
-    candidate.sourceRef,
-  ];
-}
-
-function recordRefs(record: CanonicalRecord): Ref[] {
-  return [record.ref, ...(record.sourceRefs ?? [])];
+function stringArrayProperty(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+    : [];
 }
 
 function buildRefTokenBindings(refs: Ref[]): NonNullable<ProvisionalReviewInspection["refTokens"]> {
@@ -1429,49 +1316,6 @@ function stringFromUnknown(value: unknown): string | undefined {
 
 function numberFromUnknown(value: unknown): number | undefined {
   return typeof value === "number" ? value : undefined;
-}
-
-function anchorRefs(anchor: ProvisionalReviewAnchor): Array<Ref | undefined> {
-  return [
-    anchor.subjectRef,
-    anchor.providerRef,
-    ...anchor.relatedCanonicalRefs,
-    ...anchor.supportingRefs,
-  ];
-}
-
-function knowledgeItemRefs(item: KnowledgeItem): Ref[] {
-  return [
-    item.source.ref,
-    ...(item.kind === "structured" ? item.nodes.map((node) => node.ref) : []),
-  ].filter((ref): ref is Ref => ref !== undefined);
-}
-
-function knowledgeItemContainsText(item: KnowledgeItem, text: string): boolean {
-  return JSON.stringify(item).toLocaleLowerCase().includes(text);
-}
-
-function selectedRecordingLabel(
-  inspection: ProvisionalReviewInspection,
-  selectedProviderRef: Ref,
-): string | undefined {
-  for (const item of inspection.knowledgeItems) {
-    if (item.source.ref !== undefined && sameRef(item.source.ref, selectedProviderRef) && item.source.label !== undefined) {
-      return item.source.label;
-    }
-
-    if (item.kind === "structured") {
-      const node = item.nodes.find((candidate) =>
-        candidate.ref !== undefined && sameRef(candidate.ref, selectedProviderRef) && candidate.label !== undefined,
-      );
-
-      if (node?.label !== undefined) {
-        return node.label;
-      }
-    }
-  }
-
-  return undefined;
 }
 
 function sourceAliases(inspection: ProvisionalReviewInspection): string[] {

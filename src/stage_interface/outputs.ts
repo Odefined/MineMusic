@@ -108,12 +108,19 @@ export function compactReviewApply(output: ProvisionalReviewApplyOutput): unknow
     subjectId: output.subjectRef.id,
     action: output.action,
     appliedAction: output.appliedAction,
-    ...(output.action === "update" && output.selectedProviderRef !== undefined
+    ...(output.action === "update"
       ? {
-          selectedProviderRefToken: {
-            kind: "recording",
-            id: output.selectedProviderRef.id,
-          },
+          selectedProviderRefToken: output.selectedProviderRefToken,
+        }
+      : {}),
+    ...(output.action === "update" && output.warnings !== undefined
+      ? {
+          warnings: output.warnings.map((message) => ({
+            code: message === "Audit event recording failed after canonical update."
+              ? "audit_event_failed"
+              : "canonical.review_warning",
+            message,
+          })),
         }
       : {}),
   };

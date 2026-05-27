@@ -1236,8 +1236,24 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
         },
       };
     },
-    reviewApply: async ({ sessionId, subjectRef, action }) => {
+    reviewApply: async (input) => {
+      const { sessionId, subjectRef, action } = input;
       calls.push(`apply:${sessionId}:${subjectRef.id}:${action}`);
+
+      if (action === "update") {
+        return {
+          ok: true,
+          value: {
+            subjectRef,
+            action,
+            selectedProviderRef: { namespace: "musicbrainz", kind: "recording", id: "mb-recording-1" },
+            selectedProviderRefToken: input.selectedProviderRefToken,
+            appliedAction: "activate",
+            warnings: ["Audit event recording failed after canonical update."],
+          },
+        };
+      }
+
       return {
         ok: true,
         value: {
@@ -1322,6 +1338,20 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
       },
     }),
   );
+  const appliedUpdate = await assertOk(
+    dispatch.call({
+      sessionId: reviewSession.id,
+      toolName: "canonical.review.apply",
+      payload: {
+        sessionId: "spoofed-session",
+        inspectionId: "inspection-1",
+        subjectId: collectionRef.id,
+        action: "update",
+        selectedProviderRefToken: { kind: "recording", id: "mbrec-1" },
+        reason: "Facts align.",
+      },
+    }),
+  );
 
   assert(
     (listed as { items?: Array<{ subjectId?: string; sourceRefCount?: number }> }).items?.[0]?.subjectId ===
@@ -1363,6 +1393,16 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     "review apply should return compact apply output",
   );
   assert(
+    (appliedUpdate as { selectedProviderRefToken?: { id?: string }; appliedAction?: string }).selectedProviderRefToken?.id === "mbrec-1" &&
+      (appliedUpdate as { appliedAction?: string }).appliedAction === "activate" &&
+      !("selectedProviderRef" in (appliedUpdate as object)),
+    "review update apply should return the selected compact token without exposing the full provider ref",
+  );
+  assert(
+    (appliedUpdate as { warnings?: Array<{ code?: string }> }).warnings?.[0]?.code === "audit_event_failed",
+    "review update apply should compact audit event warnings",
+  );
+  assert(
     (detailed as { recordingRefToken?: { id?: string } }).recordingRefToken?.id === "mbrec-1" &&
       (detailed as { releaseAppearances?: Array<{ refToken?: { id?: string }; title?: string; ref?: Ref }> })
         .releaseAppearances?.[0]?.refToken?.id === "mbrel-1" &&
@@ -1377,6 +1417,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
   assert(calls.includes(`list:${reviewSession.id}:2`), "review list should receive current dispatch session id");
   assert(calls.includes(`inspect:${reviewSession.id}:${collectionRef.id}`), "review inspect should receive current dispatch session id");
   assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:defer`), "review apply should receive current dispatch session id");
+  assert(calls.includes(`apply:${reviewSession.id}:${collectionRef.id}:update`), "review update apply should receive current dispatch session id");
 }
 
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {

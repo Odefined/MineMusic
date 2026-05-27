@@ -8,6 +8,9 @@ import type {
 } from "../contracts/index.js";
 import type {
   CanonicalRecordRepository,
+  CanonicalRecordRepositoryCommitChangesInput,
+  CanonicalRecordRepositoryCommitChangesOutput,
+  CanonicalRecordRepositoryFindByProviderIdentityInput,
   CanonicalProvisionalHintListInput,
   CanonicalRelationListInput,
 } from "../ports/index.js";
@@ -38,6 +41,11 @@ export type CanonicalStorage = {
     excludeRef?: Ref;
     kind?: string;
   }): Promise<Result<CanonicalRecord[]>>;
+  findCurrentRecordsByProviderIdentity(input: CanonicalRecordRepositoryFindByProviderIdentityInput & {
+    excludeRef?: Ref;
+    kind?: string;
+  }): Promise<Result<CanonicalRecord[]>>;
+  commitChanges(input: CanonicalRecordRepositoryCommitChangesInput): Promise<Result<CanonicalRecordRepositoryCommitChangesOutput>>;
   resolveSourceRef(ref: Ref): Promise<Result<CanonicalRecord | null>>;
   putRelation(relation: CanonicalRelation): Promise<Result<CanonicalRelation>>;
   listRelations(input: CanonicalRelationListInput): Promise<Result<CanonicalRelation[]>>;
@@ -167,6 +175,43 @@ export function createCanonicalStorage({
             ),
         ),
       );
+    },
+
+    async findCurrentRecordsByProviderIdentity({ excludeRef, kind, ...identity }) {
+      if (repository.findCurrentByProviderIdentity === undefined) {
+        return fail({
+          code: "storage.unavailable",
+          message: "Canonical repository does not support provider identity lookup.",
+          module: "storage",
+          retryable: false,
+        });
+      }
+
+      const records = await repository.findCurrentByProviderIdentity(identity);
+
+      if (!records.ok) {
+        return records;
+      }
+
+      return ok(
+        records.value.filter((record) =>
+          (kind === undefined || matchesCanonicalKind(record, kind)) &&
+            (excludeRef === undefined || !sameRef(record.ref, excludeRef)),
+        ),
+      );
+    },
+
+    async commitChanges(input) {
+      if (repository.commitChanges === undefined) {
+        return fail({
+          code: "storage.unavailable",
+          message: "Canonical repository does not support canonical changesets.",
+          module: "storage",
+          retryable: false,
+        });
+      }
+
+      return repository.commitChanges(input);
     },
 
     async findSourceRefConflict({ canonicalRef, sourceRef }) {
