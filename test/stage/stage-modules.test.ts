@@ -124,6 +124,15 @@ async function readsCanonicalReviewGuidanceInReviewPosture(): Promise<void> {
     "canonical review guidance should include the v2.1 batch loop and detail workflow",
   );
   assert(
+    guidanceText.includes("canonical.review.auto_update"),
+    "canonical review guidance should mention the v3 automatic batch path",
+  );
+  assert(
+    guidanceText.includes("semantic recording identity") &&
+      guidanceText.includes("version compatibility"),
+    "canonical review guidance should state the manual review standard",
+  );
+  assert(
     guidanceText.includes("agent must not choose activate, merge, or a merge target"),
     "canonical review guidance should keep apply effect selection in Canonical Store",
   );

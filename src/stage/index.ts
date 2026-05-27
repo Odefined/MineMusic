@@ -98,13 +98,17 @@ export function createSessionContext({
 
 function canonicalReviewGuidance(): string[] {
   return [
-    "Provisional Review v2 supports provisional recordings.",
-    "For batch review, call canonical.review.list with small pages and no cursor until no items remain; the default excludes cannot-confirm review-state subjects, and includeCannotConfirm true opts in.",
+    "Provisional Review v3 supports provisional recording maintenance.",
+    "For batch review, call canonical.review.auto_update({ limit }) first; continue with the returned runId while hasMore is true.",
+    "After auto_update, inspect only not_qualified or error subjects that need manual review.",
+    "For manual update, require semantic recording identity and version compatibility from inspected facts; do not pick the closest-looking MusicBrainz result.",
+    "knowledgeFacts are lookup facts, not update candidates.",
+    "For manual list review, call canonical.review.list with small pages and no cursor until no items remain; the default excludes cannot-confirm review-state subjects, and includeCannotConfirm true opts in.",
     "Use summary inspect by default; detail requires the latest inspectionId plus a recordingRefToken from summary.",
     "Use releaseAppearances detail to get release tokens, then request releaseTrackPositions with releaseRefTokens only for relevant releases.",
     "Inspect returns compact facts for judgment, not action recommendations or merge targets.",
-    "Apply update with one selectedProviderRefToken and a short reason, or apply cannot_confirm with a short reason.",
-    "Choose cannot_confirm when inspected facts are incomplete, ambiguous, or contradictory.",
+    "Apply update with one selectedProviderRefToken and a short reason, or apply cannot_confirm with a short reason; cannot_confirm is a normal safe outcome, not a failure.",
+    "Choose cannot_confirm when inspected facts are incomplete, ambiguous, contradictory, or do not establish version compatibility.",
     "Apply derives activate or merge from current Canonical Store state; the agent must not choose activate, merge, or a merge target.",
     "Do not ask for raw/full inspection output; use detail views only when compact summary facts are insufficient.",
   ];

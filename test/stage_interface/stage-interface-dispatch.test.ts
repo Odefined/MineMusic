@@ -143,6 +143,7 @@ async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
   const reviewInstrument = descriptors.find((descriptor) => descriptor.id === "minemusic.canonical_review");
   const toolNames = descriptors.flatMap((descriptor) => descriptor.tools.map((tool) => tool.name));
   const handbook = buildInstrumentHandbook(descriptors);
+  const applyTool = reviewInstrument?.tools.find((tool) => tool.name === "canonical.review.apply");
 
   assert(reviewInstrument !== undefined, "canonical review posture should expose the review instrument");
   assert(toolNames.includes("canonical.review.list"), "review posture should expose review list");
@@ -159,6 +160,19 @@ async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
   assert(
     handbook.content.includes("selectedProviderRefToken"),
     "handbook should include v2 token apply guidance",
+  );
+  assert(
+    handbook.content.includes("knowledgeFacts are lookup facts, not update candidates"),
+    "handbook should say Knowledge facts are not update candidates",
+  );
+  assert(
+    handbook.content.includes("semantic recording identity") &&
+      handbook.content.includes("version compatibility"),
+    "handbook should state the manual update standard",
+  );
+  assert(
+    applyTool?.description.includes("closest") !== true,
+    "apply tool description should not imply closest-result selection",
   );
   assert(
     handbook.content.includes("small pages") &&

@@ -248,7 +248,7 @@ export const canonicalReviewToolDescriptors: StableToolDescriptor[] = [
   },
   {
     name: "canonical.review.apply",
-    description: "Apply an inspected Canonical Maintenance decision as update with selectedProviderRefToken or cannot_confirm with a short reason; do not pass v1 refs or citation fields.",
+    description: "Apply an inspected manual decision: update only when inspected facts establish the recording identity and version, or use cannot_confirm as a normal safe outcome with a short reason; do not pass v1 refs or citation fields.",
     inputSchemaRef: "ProvisionalReviewApplyInput",
     outputSchemaRef: "ProvisionalReviewApplyOutput",
     effectKind: "canonical_maintenance",

@@ -124,10 +124,13 @@ function renderInstrumentGuidance(instrument: InstrumentDescriptor): string[] {
   }
 
   return [
-    "Sequence: enter `canonical_review` posture, read `stage.context.read`, list provisional recordings with small pages and no cursor until no items remain, use summary inspect by default, request detail only for release appearances or selected release track positions, then apply `update` with `selectedProviderRefToken` and a short reason or `cannot_confirm` with a short reason.",
-    "List defaults to hiding cannot-confirm review-state subjects; pass `includeCannotConfirm: true` only when you need to inspect those records explicitly.",
+    "Sequence: enter `canonical_review` posture, read `stage.context.read`, run `canonical.review.auto_update({ limit })` first and continue with `runId` while `hasMore` is true, then manually inspect only not-qualified or error subjects.",
+    "For manual review, use summary inspect by default, request detail only for release appearances or selected release track positions, then apply `update` with `selectedProviderRefToken` and a short reason or `cannot_confirm` with a short reason.",
+    "Manual update requires semantic recording identity and version compatibility from inspected facts. Do not pick the closest-looking MusicBrainz result.",
+    "knowledgeFacts are lookup facts, not update candidates.",
+    "Manual list review uses small pages with `canonical.review.list`; list defaults to hiding cannot-confirm review-state subjects, and `includeCannotConfirm: true` opts in only when you need to inspect those records explicitly.",
     "Detail requires the latest `inspectionId` plus a selected `recordingRefToken`. `releaseAppearances` returns release tokens; `releaseTrackPositions` requires `releaseRefTokens` from that current inspection.",
-    "Inspect returns compact facts, not recommendations. Do not request raw/full inspection output.",
+    "Inspect returns compact facts, not recommendations. `cannot_confirm` is a normal safe outcome when identity or version cannot be established. Do not request raw/full inspection output.",
     "",
   ];
 }

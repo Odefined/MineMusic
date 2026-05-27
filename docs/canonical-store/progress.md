@@ -52,6 +52,7 @@ Task status:
 - Provisional Review v3 Task 6: completed.
 - Provisional Review v3 Task 7: completed.
 - Provisional Review v3 Task 8: completed.
+- Provisional Review v3 Task 9: completed.
 
 Implemented:
 
@@ -279,6 +280,12 @@ Implemented:
   use. Single and batch outputs expose subject ids, outcomes, effects, counts,
   compact reason codes, and compact errors, while hiding full refs,
   inspection ids, selected provider tokens, and raw qualification facts.
+- Stage Context and Handbook canonical-review guidance now describe the v3
+  workflow: use `canonical.review.auto_update` first for batch maintenance,
+  manually inspect not-qualified/error subjects, treat `knowledgeFacts` as
+  lookup facts rather than update candidates, require semantic recording
+  identity and version compatibility for manual update, avoid closest-result
+  selection, and treat `cannot_confirm` as a normal safe outcome.
 
 Implemented public methods:
 
@@ -312,7 +319,7 @@ Pending:
 - Standalone admin port for broader activate/reject/merge/list workflows.
 - Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
   smoke has passed first.
-- Provisional Review v3 Tasks 9-10 from
+- Provisional Review v3 Task 10 from
   `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
@@ -423,6 +430,9 @@ Pending:
 - Completed Provisional Review v3 Task 8 by compacting Stage Interface
   auto-update output and covering single, batch, reason-code trimming, hidden
   raw refs/tokens, and MCP schema exposure.
+- Completed Provisional Review v3 Task 9 by updating Stage Context, Handbook,
+  and apply tool metadata so independent agents can discover the auto-update
+  first workflow and the manual review standard.
 
 ## Verification
 
