@@ -46,6 +46,7 @@ V2.1 fixes three concrete issues found by real MCP agent use:
 | Issue | Evidence |
 | --- | --- |
 | Summary candidates often lack release facts | `src/canonical/maintenance.ts` builds review Knowledge queries without `expand: "releases"`, while `src/providers/musicbrainz/index.ts` only requests MusicBrainz recording releases when that expansion is present. |
+| Summary asks for irrelevant recording expansions | The current review query asks for `relations`, `release_labels`, and `tracklist` while querying `entityKinds: ["recording"]`. `tracklist` and `release_labels` only affect MusicBrainz release lookup in the current provider, and broad `relations` fetches relationship data that v2 summary does not expose. |
 | Detail release/track data is snapshot-only | `reviewInspectDetail` reads existing inspection snapshot data and does not fetch missing release tracklists during detail inspection. |
 | Tests hid the real gap | Existing detail tests construct `release_appearance`, `has_track`, and `represents_recording` relations directly instead of proving the real MusicBrainz provider path supplies them. |
 | Deferred subjects repeat in list | `defer` intentionally records only `provisional_review.deferred`; since canonical state is unchanged, `reviewList` returns the same subject again. |
@@ -103,6 +104,14 @@ recording candidate when the Knowledge provider can supply them.
 **Details**
 
 - Add `releases` to the review Knowledge expansion for recording candidates.
+- Remove irrelevant recording-summary expansions from the review query:
+  - do not request `tracklist` when querying MusicBrainz recordings.
+  - do not request `release_labels` when querying MusicBrainz recordings.
+  - do not request broad `relations` unless a specific agent-facing summary or
+    detail field consumes the resulting relationship data.
+- The intended summary review expansion for MusicBrainz recording candidates is
+  `["releases"]`, plus whatever the provider includes by default for recording
+  identity basics such as aliases, artist credits, duration, and ISRCs.
 - Ensure MusicBrainz field-query review searches perform candidate follow-up
   lookup when `releases` are requested.
 - Keep summary output compact:
@@ -117,6 +126,8 @@ recording candidate when the Knowledge provider can supply them.
 **Tests**
 
 - Canonical Maintenance review query requests `releases` for recording review.
+- Canonical Maintenance review query does not request `tracklist`,
+  `release_labels`, or broad `relations` for summary recording review.
 - A fixture MusicBrainz provider response with recording releases produces
   summary `knowledgeFacts[].facts.releases`.
 - Summary still omits full refs, raw Knowledge Items, anchors, and relations.
