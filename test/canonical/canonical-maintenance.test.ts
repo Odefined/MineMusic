@@ -2,6 +2,7 @@ import { createCanonicalMaintenance, createCanonicalStore } from "../../src/cano
 import type {
   CanonicalRecord,
   KnowledgeItem,
+  KnowledgeQuery,
   Ref,
   Result,
   StageSession,
@@ -374,6 +375,245 @@ async function inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning(): Pro
   assert(
     inspection.warnings?.some((warning) => warning.includes("No Music Knowledge provider")),
     "local inspect should explain missing Knowledge provider as a warning",
+  );
+}
+
+async function summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot(): Promise<void> {
+  const repository = createInMemoryCanonicalRecordRepository();
+  const store = createCanonicalStore({
+    repository,
+    idFactory: () => "tracklist-summary-subject",
+  });
+  const subject = await assertOk(
+    store.createProvisional({
+      kind: "recording",
+      label: "Snapshot Track",
+      evidence: [sourceRef],
+    }),
+  );
+  await assertOk(
+    store.recordProvisionalHints({
+      subjectRef: subject.ref,
+      sourceRef,
+      hints: [
+        {
+          kind: "source_recording_context",
+          facts: {
+            title: "Snapshot Track",
+            artistLabels: ["Snapshot Artist"],
+            releaseLabel: "Snapshot Release",
+          },
+        },
+      ],
+    }),
+  );
+
+  const releaseRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "release",
+    id: "snapshot-release-mbid",
+  };
+  const unmatchedReleaseRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "release",
+    id: "unmatched-release-mbid",
+  };
+  const queries: KnowledgeQuery[] = [];
+  const recordingItem: KnowledgeItem = {
+    id: "snapshot-recording",
+    kind: "structured",
+    providerId: "musicbrainz",
+    source: { ref: mbRecordingRef },
+    rootNodeId: "recording:mb-recording-1",
+    nodes: [
+      {
+        id: "recording:mb-recording-1",
+        type: "recording",
+        ref: mbRecordingRef,
+        label: "Snapshot Track",
+        properties: {
+          title: "Snapshot Track",
+          artistCreditText: "Snapshot Artist",
+        },
+      },
+      {
+        id: "release:snapshot-release-mbid",
+        type: "release",
+        ref: releaseRef,
+        label: "Snapshot Release",
+        properties: {
+          title: "Snapshot Release",
+          date: "2009-01-07",
+        },
+      },
+      {
+        id: "release:unmatched-release-mbid",
+        type: "release",
+        ref: unmatchedReleaseRef,
+        label: "Unmatched Release",
+        properties: {
+          title: "Unmatched Release",
+          date: "2010",
+        },
+      },
+    ],
+    relations: [
+      {
+        type: "release_appearance",
+        endpoints: [
+          { nodeId: "recording:mb-recording-1", role: "recording" },
+          { nodeId: "release:snapshot-release-mbid", role: "release" },
+        ],
+      },
+      {
+        type: "release_appearance",
+        endpoints: [
+          { nodeId: "recording:mb-recording-1", role: "recording" },
+          { nodeId: "release:unmatched-release-mbid", role: "release" },
+        ],
+      },
+    ],
+  };
+  const releaseTracklistItem: KnowledgeItem = {
+    id: "snapshot-release-tracklist",
+    kind: "structured",
+    providerId: "musicbrainz",
+    source: { ref: releaseRef },
+    rootNodeId: "release:snapshot-release-mbid",
+    nodes: [
+      {
+        id: "release:snapshot-release-mbid",
+        type: "release",
+        ref: releaseRef,
+        label: "Snapshot Release",
+        properties: {
+          title: "Snapshot Release",
+          date: "2009-01-07",
+        },
+      },
+      {
+        id: "medium:snapshot-release-mbid:1",
+        type: "medium",
+        properties: {
+          position: 1,
+          trackCount: 9,
+        },
+      },
+      {
+        id: "track:snapshot-track",
+        type: "track",
+        label: "Snapshot Track",
+        properties: {
+          position: 2,
+          title: "Snapshot Track",
+          lengthMs: 188933,
+        },
+      },
+      {
+        id: "recording:mb-recording-1",
+        type: "recording",
+        ref: mbRecordingRef,
+        label: "Snapshot Track",
+      },
+    ],
+    relations: [
+      {
+        type: "has_medium",
+        endpoints: [
+          { nodeId: "release:snapshot-release-mbid", role: "release" },
+          { nodeId: "medium:snapshot-release-mbid:1", role: "medium" },
+        ],
+      },
+      {
+        type: "has_track",
+        endpoints: [
+          { nodeId: "medium:snapshot-release-mbid:1", role: "medium" },
+          { nodeId: "track:snapshot-track", role: "track" },
+        ],
+      },
+      {
+        type: "represents_recording",
+        endpoints: [
+          { nodeId: "track:snapshot-track", role: "track" },
+          { nodeId: "recording:mb-recording-1", role: "recording" },
+        ],
+      },
+    ],
+  };
+  const knowledge: MusicKnowledgePort = {
+    query: async ({ query }) => {
+      queries.push(query);
+
+      if ("providerRef" in query) {
+        return {
+          ok: true,
+          value: { items: [releaseTracklistItem] },
+        };
+      }
+
+      return {
+        ok: true,
+        value: { items: [recordingItem] },
+      };
+    },
+  };
+  const maintenance = createCanonicalMaintenance({
+    repository,
+    sessionContext: createSessionContextFor(reviewSession),
+    knowledge,
+    idFactory: () => "summary-tracklist-inspection",
+    clock: () => "2026-05-27T00:00:00.000Z",
+  });
+
+  const summary = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+    }),
+  );
+  const appearances = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+      view: "detail",
+      inspectionId: summary.inspectionId,
+      recordingRefToken: { kind: "recording", id: "mbrec-1" },
+      include: ["releaseAppearances"],
+    }),
+  );
+  const releaseToken = appearances.detail?.releaseAppearances?.[0]?.refToken;
+
+  assert(releaseToken !== undefined, "release appearance detail should expose release token from summary snapshot");
+
+  const positions = await assertOk(
+    maintenance.reviewInspect({
+      sessionId: reviewSession.id,
+      subjectRef: subject.ref,
+      view: "detail",
+      inspectionId: summary.inspectionId,
+      recordingRefToken: { kind: "recording", id: "mbrec-1" },
+      include: ["releaseTrackPositions"],
+      releaseRefTokens: [releaseToken],
+    }),
+  );
+  const tracklistQuery = queries[1];
+  const position = positions.detail?.releaseTrackPositions?.[0]?.positions[0];
+
+  assert(queries.length === 2, "summary inspect should fetch matched release tracklist into the snapshot");
+  assert(
+    tracklistQuery !== undefined &&
+      "providerRef" in tracklistQuery &&
+      tracklistQuery.providerRef.id === releaseRef.id &&
+      tracklistQuery.expand?.join(",") === "tracklist",
+    "summary tracklist lookup should use providerRef and request only tracklist detail",
+  );
+  assert(
+    position?.disc === "1" &&
+      position.track === 2 &&
+      position.trackCount === 9 &&
+      position.trackTitle === "Snapshot Track" &&
+      position.trackLengthMs === 188933,
+    "track position detail should project tracklist facts gathered during summary inspect",
   );
 }
 
@@ -1459,6 +1699,7 @@ await listsOnlyCurrentProvisionalRecordings();
 await requiresCanonicalReviewPosture();
 await inspectsNeutralFactsAndExactMusicBrainzNeighbors();
 await inspectWithoutKnowledgeProviderReturnsLocalFactsAndWarning();
+await summaryInspectFetchesMatchedReleaseTracklistsIntoSnapshot();
 await detailInspectReusesSnapshotAndReturnsReleaseContexts();
 await deferRecordsEventAndLeavesIdentityUnchanged();
 await reviewListSuppressesReviewedSubjectsPerSession();

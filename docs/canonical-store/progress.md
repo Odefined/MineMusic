@@ -178,6 +178,10 @@ Implemented:
 - Provisional Review v2.1 summary inspect now uses source release labels as
   returned evidence only; it does not hard-filter the first MusicBrainz
   recording field search by release.
+- Provisional Review v2.1 summary inspect now fetches tracklists for
+  MusicBrainz release appearances whose release title exactly matches the
+  source release label, stores those facts in the same inspection snapshot, and
+  keeps detail inspection as a snapshot-only projection.
 - Knowledge query direct provider lookup now uses `providerRef`; `canonicalRef`
   remains MineMusic Canonical Store context and is not interpreted as a
   MusicBrainz MBID by the MusicBrainz provider.

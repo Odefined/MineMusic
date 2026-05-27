@@ -1469,9 +1469,92 @@ async function readReviewKnowledge({
     };
   }
 
+  const items = [...result.value.items];
+  const warnings = [...(result.warnings ?? [])];
+  const releaseTracklistRefs = reviewReleaseTracklistRefs({
+    knowledgeItems: items,
+    provisionalHints,
+  });
+
+  for (const releaseRef of releaseTracklistRefs) {
+    const tracklistResult = await knowledge.query({
+      query: buildReleaseTracklistKnowledgeQuery(releaseRef),
+      sessionId,
+    });
+
+    if (!tracklistResult.ok) {
+      warnings.push({
+        code: String(tracklistResult.error.code),
+        message: tracklistResult.error.message,
+        module: "canonical",
+      });
+      continue;
+    }
+
+    items.push(...tracklistResult.value.items);
+    warnings.push(...(tracklistResult.warnings ?? []));
+  }
+
   return {
-    items: result.value.items.map((item, index) => withKnowledgeItemId(item, index)),
-    warnings: result.warnings ?? [],
+    items: items.map((item, index) => withKnowledgeItemId(item, index)),
+    warnings,
+  };
+}
+
+function reviewReleaseTracklistRefs({
+  knowledgeItems,
+  provisionalHints,
+}: {
+  knowledgeItems: KnowledgeItem[];
+  provisionalHints: ProvisionalReviewInspection["provisionalHints"];
+}): Ref[] {
+  const sourceReleaseLabels = new Set(
+    provisionalHints
+      .filter((hint) => hint.kind === "source_recording_context")
+      .map((hint) => hint.facts.releaseLabel)
+      .filter((label): label is string => label !== undefined)
+      .map(normalizeAlias),
+  );
+
+  if (sourceReleaseLabels.size === 0) {
+    return [];
+  }
+
+  const refs = new Map<string, Ref>();
+
+  for (const item of knowledgeItems) {
+    if (item.kind !== "structured") {
+      continue;
+    }
+
+    for (const relation of item.relations.filter((candidate) => candidate.type === "release_appearance")) {
+      const releaseNode = nodeForEndpointRole(item.nodes, relation, "release");
+
+      if (releaseNode?.ref === undefined || releaseNode.ref.namespace !== "musicbrainz") {
+        continue;
+      }
+
+      const releaseFacts = releaseFactsFromNode(releaseNode);
+
+      if (!sourceReleaseLabels.has(normalizeAlias(releaseFacts.title))) {
+        continue;
+      }
+
+      refs.set(refKey(releaseNode.ref), releaseNode.ref);
+    }
+  }
+
+  return [...refs.values()];
+}
+
+function buildReleaseTracklistKnowledgeQuery(releaseRef: Ref): KnowledgeQuery {
+  return {
+    providerRef: releaseRef,
+    purpose: "review",
+    formats: ["structured"],
+    entityKinds: ["release"],
+    expand: ["tracklist"],
+    limit: 1,
   };
 }
 
