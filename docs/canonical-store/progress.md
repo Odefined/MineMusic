@@ -15,6 +15,7 @@ Task breakdown belongs in:
 - `docs/canonical-store/implementation-plan.md`
 - `docs/canonical-store/provisional-review-v1-implementation-plan.md`
 - `docs/canonical-store/provisional-review-v2-implementation-plan.md`
+- `docs/canonical-store/provisional-review-v2.1-implementation-plan.md`
 
 ## Current Snapshot
 
@@ -36,6 +37,7 @@ Task status:
 - Provisional Review v2 Task 5: completed.
 - Provisional Review v2 Task 6: completed.
 - Provisional Review v2 Task 7: completed.
+- Provisional Review v2.1 Task 1: completed.
 
 Implemented:
 
@@ -163,6 +165,9 @@ Implemented:
 - MusicBrainz Knowledge extraction now preserves recording aliases and
   recording release appearances, and summary inspect can expose compact release
   titles/dates when source hints provide release context.
+- Provisional Review v2.1 summary inspect now asks Music Knowledge for
+  recording `releases` only, avoiding unrelated summary expansions such as
+  `tracklist`, `release_labels`, and broad `relations`.
 - Provisional Review v2 update apply semantics are in place:
   - update resolves `selectedProviderRefToken` against the current inspection
     snapshot inside Canonical Maintenance.
@@ -330,6 +335,6 @@ Evidence boundary:
 
 ## Next Slice
 
-1. Implement Provisional Review v2.1 from
+1. Continue Provisional Review v2.1 Task 2 from
    `docs/canonical-store/provisional-review-v2.1-implementation-plan.md`,
-   starting with summary candidate MusicBrainz release/date facts.
+   adding detail release/track enrichment while keeping apply snapshot-only.

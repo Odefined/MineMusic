@@ -1463,7 +1463,7 @@ function buildKnowledgeQuery({
     purpose: "review",
     formats: ["structured"],
     entityKinds: ["recording"],
-    expand: ["credits", "relations", "release_labels", "tracklist"],
+    expand: ["releases"],
     limit: 10,
   };
 }
