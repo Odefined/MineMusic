@@ -270,6 +270,14 @@ outcome for one Provisional Canonical Record.
 _Avoid_: standalone review subsystem, Knowledge Item, durable review case,
 automatic identity confidence, script decision.
 
+### Provisional Review Inspection
+
+A Canonical Maintenance read for one Provisional Canonical Record that returns
+neutral inspected facts to the agent and stores an internal inspection snapshot
+for the Provisional Review Gate.
+_Avoid_: action recommendation, candidate list, internal snapshot dump,
+confidence score.
+
 ### Provisional Review Decision
 
 The outcome selected during Provisional Review before Canonical Maintenance
@@ -290,6 +298,12 @@ A Canonical Maintenance validation boundary that passes or fails a Provisional
 Review Decision without choosing a different outcome.
 _Avoid_: second adjudicator, action rewrite, script decision, human-review
 routing.
+
+### Provisional Hint
+
+A Canonical Store-owned source-side fact attached to a Provisional Canonical
+Record and source ref for later Provisional Review.
+_Avoid_: Knowledge Fact, identity proof, candidate, confidence.
 
 ### Canonical Identity Change
 

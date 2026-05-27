@@ -97,6 +97,9 @@ This index points agents to the current MVP documentation pack.
 25. `docs/canonical-store/provisional-review-v1.md`
     - Narrow Provisional Review v1 design for Canonical Store-owned maintenance
       of provisional recordings through inspection-backed update and defer.
+    - `docs/canonical-store/provisional-review-v2.md` is the draft design for
+      compact agent-facing review inspection output, including summary/detail
+      views, `hints`, and `knowledgeFacts`.
     - `docs/canonical-store/provisional-hints-implementation-plan.md` is the
       handoff plan for adding source-side provisional recording hints without
       expanding canonical relations.
