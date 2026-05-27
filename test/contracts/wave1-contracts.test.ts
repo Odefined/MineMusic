@@ -1,5 +1,6 @@
 import type {
   CapabilitySlot,
+  CanonicalProviderIdentity,
   CanonicalRecord,
   CanonicalProvisionalHint,
   CanonicalProvisionalHintDraft,
@@ -90,6 +91,9 @@ import type {
 import { stageErrorCodes } from "../../src/contracts/index.js";
 import type {
   CanonicalRecordRepository,
+  CanonicalRecordRepositoryCommitChangesInput,
+  CanonicalRecordRepositoryCommitChangesOutput,
+  CanonicalRecordRepositoryFindByProviderIdentityInput,
   CanonicalProvisionalHintListInput,
   CanonicalMaintenancePort,
   CanonicalStorePort,
@@ -143,6 +147,18 @@ type MethodAcceptsSingleObject<Port, Key extends MethodNames<Port>> =
       : false
     : false;
 
+type OptionalMethodAcceptsSingleObject<Port, Key extends keyof Port> =
+  NonNullable<Port[Key]> extends (
+    input: infer Input,
+    ...extra: infer Extra
+  ) => Promise<Result<infer _Value>>
+    ? Extra extends []
+      ? Input extends object
+        ? true
+        : false
+      : false
+    : false;
+
 type _stageSessionHasVibe = Expect<
   Equal<
     NonNullable<StageSession["vibe"]>["explorationLevel"],
@@ -168,7 +184,36 @@ type _collectionKindsMatchDesignedCanonicalKinds = Expect<
 
 type _canonicalRecordKindIncludesRelease = Expect<
   Equal<Extract<CanonicalRecord["kind"], "release">, "release"> &
+    Equal<CanonicalRecord["facts"], Record<string, unknown> | undefined> &
     Equal<CanonicalRecord["mergedIntoRef"], Ref | undefined>
+>;
+
+type _canonicalProviderIdentityShape = Expect<
+  Equal<CanonicalProviderIdentity["canonicalRef"], Ref> &
+    Equal<CanonicalProviderIdentity["providerId"], string> &
+    Equal<CanonicalProviderIdentity["entityKind"], string> &
+    Equal<CanonicalProviderIdentity["providerEntityId"], string>
+>;
+
+type _canonicalProviderIdentityRepositoryInputShape = Expect<
+  Equal<CanonicalRecordRepositoryFindByProviderIdentityInput["providerId"], string> &
+    Equal<CanonicalRecordRepositoryFindByProviderIdentityInput["entityKind"], string> &
+    Equal<CanonicalRecordRepositoryFindByProviderIdentityInput["providerEntityId"], string>
+>;
+
+type _canonicalChangesetShape = Expect<
+  Equal<CanonicalRecordRepositoryCommitChangesInput["putRecords"], CanonicalRecord[] | undefined> &
+    Equal<
+      CanonicalRecordRepositoryCommitChangesInput["putProviderIdentities"],
+      CanonicalProviderIdentity[] | undefined
+    > &
+    Equal<CanonicalRecordRepositoryCommitChangesInput["deleteRelationIds"], string[] | undefined> &
+    Equal<CanonicalRecordRepositoryCommitChangesOutput["records"], CanonicalRecord[]> &
+    Equal<
+      CanonicalRecordRepositoryCommitChangesOutput["providerIdentities"],
+      CanonicalProviderIdentity[]
+    > &
+    Equal<CanonicalRecordRepositoryCommitChangesOutput["deletedRelationIds"], string[]>
 >;
 
 type _collectionRelationKindsMatchDesignedRelations = Expect<
@@ -843,6 +888,8 @@ type _canonicalRecordRepositoryMethods = Expect<
     keyof CanonicalRecordRepository,
     | keyof Repository<CanonicalRecord, Ref>
     | "findBySourceRef"
+    | "findCurrentByProviderIdentity"
+    | "commitChanges"
     | "putRelation"
     | "listRelations"
     | "putProvisionalHint"
@@ -852,6 +899,8 @@ type _canonicalRecordRepositoryMethods = Expect<
 
 type _canonicalRecordRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CanonicalRecordRepository, "putRelation"> &
+    OptionalMethodAcceptsSingleObject<CanonicalRecordRepository, "findCurrentByProviderIdentity"> &
+    OptionalMethodAcceptsSingleObject<CanonicalRecordRepository, "commitChanges"> &
     MethodAcceptsSingleObject<CanonicalRecordRepository, "listRelations"> &
     MethodAcceptsSingleObject<CanonicalRecordRepository, "putProvisionalHint"> &
     MethodAcceptsSingleObject<CanonicalRecordRepository, "listProvisionalHints">

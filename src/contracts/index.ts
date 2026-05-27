@@ -169,7 +169,15 @@ export type CanonicalRecord = {
   status: "active" | "provisional" | "merged" | "rejected";
   sourceRefs?: Ref[];
   aliases?: string[];
+  facts?: Record<string, unknown>;
   mergedIntoRef?: Ref;
+};
+
+export type CanonicalProviderIdentity = {
+  canonicalRef: Ref;
+  providerId: string;
+  entityKind: string;
+  providerEntityId: string;
 };
 
 export type CanonicalRelationStatus =

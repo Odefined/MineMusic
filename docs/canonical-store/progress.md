@@ -29,6 +29,7 @@ Task status:
 - Task 5: completed.
 - Task 6: completed by this documentation pass.
 - Provisional Review v1 Tasks 1-10: completed for the first runtime slice.
+- Provisional Review v2 Task 1: completed.
 
 Implemented:
 
@@ -119,6 +120,13 @@ Implemented:
 - `stage.context.read` returns compact canonical review guidance in
   `canonical_review` posture, and the Handbook includes the review tool
   sequence.
+- Provisional Review v2 contract foundation is in place:
+  - `CanonicalRecord` can carry durable `facts`.
+  - `CanonicalProviderIdentity` represents provider-owned identity bindings
+    separately from `sourceRefs`.
+  - `CanonicalRecordRepository` exposes optional provider identity lookup and
+    generic canonical changeset extension points for the storage implementation
+    slice.
 
 Implemented public methods:
 

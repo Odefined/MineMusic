@@ -1,6 +1,7 @@
 import type {
   CanonicalRecord,
   CanonicalKind,
+  CanonicalProviderIdentity,
   CanonicalProvisionalHint,
   CanonicalProvisionalHintDraft,
   CanonicalProvisionalHintKind,
@@ -167,6 +168,24 @@ export type ProviderHttpCacheDeleteUnusedInput = {
 export type CanonicalRecordRepositoryFindBySourceRefInput = {
   ref: Ref;
   currentOnly?: boolean;
+};
+
+export type CanonicalRecordRepositoryFindByProviderIdentityInput = {
+  providerId: string;
+  entityKind: string;
+  providerEntityId: string;
+};
+
+export type CanonicalRecordRepositoryCommitChangesInput = {
+  putRecords?: CanonicalRecord[];
+  putProviderIdentities?: CanonicalProviderIdentity[];
+  deleteRelationIds?: string[];
+};
+
+export type CanonicalRecordRepositoryCommitChangesOutput = {
+  records: CanonicalRecord[];
+  providerIdentities: CanonicalProviderIdentity[];
+  deletedRelationIds: string[];
 };
 
 export interface SessionContextPort {
@@ -506,6 +525,14 @@ export interface CanonicalRecordRepository extends Repository<CanonicalRecord, R
   findBySourceRef?(
     input: CanonicalRecordRepositoryFindBySourceRefInput,
   ): Promise<Result<CanonicalRecord | null>>;
+
+  findCurrentByProviderIdentity?(
+    input: CanonicalRecordRepositoryFindByProviderIdentityInput,
+  ): Promise<Result<CanonicalRecord[]>>;
+
+  commitChanges?(
+    input: CanonicalRecordRepositoryCommitChangesInput,
+  ): Promise<Result<CanonicalRecordRepositoryCommitChangesOutput>>;
 
   putRelation(input: { relation: CanonicalRelation }): Promise<Result<CanonicalRelation>>;
 
