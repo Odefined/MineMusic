@@ -309,6 +309,17 @@ async function inspectsNeutralFactsAndExactMusicBrainzNeighbors(): Promise<void>
     "inspect should build provider-ref anchors for inspected MusicBrainz recordings",
   );
   assert(
+    inspection.refTokens?.some(
+      (entry) =>
+        entry.token.kind === "recording" &&
+        entry.token.id === "mbrec-1" &&
+        entry.ref.namespace === "musicbrainz" &&
+        entry.ref.kind === "recording" &&
+        entry.ref.id === mbRecordingRef.id,
+    ),
+    "inspect should store MusicBrainz recording token bindings with the inspection snapshot",
+  );
+  assert(
     inspection.relatedCurrentRecords.length === 1 &&
       inspection.relatedCurrentRecords[0]?.ref.id === exactCurrent.ref.id,
     "related current records should come only from exact inspected MusicBrainz recording refs",

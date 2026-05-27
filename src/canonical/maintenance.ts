@@ -173,6 +173,7 @@ export function createCanonicalMaintenance({
       const providerRefs = anchors
         .map((anchor) => anchor.providerRef)
         .filter((ref): ref is Ref => ref !== undefined && isMusicBrainzRecordingRef(ref));
+      const refTokens = buildRefTokenBindings(providerRefs);
       const relatedCurrentRecords = await readRelatedCurrentRecords({
         storage,
         subjectRef,
@@ -206,6 +207,7 @@ export function createCanonicalMaintenance({
           subjectRef,
           outgoingRelations: outgoingRelations.value,
         }),
+        ...(refTokens.length === 0 ? {} : { refTokens }),
         ...(warnings.length === 0 ? {} : { warnings }),
         expiresAt: new Date(Date.parse(clock()) + inspectionTtlMs).toISOString(),
       };
@@ -961,6 +963,16 @@ function relationCandidateRefs(candidate: ProvisionalRelationCandidate): Array<R
 
 function recordRefs(record: CanonicalRecord): Ref[] {
   return [record.ref, ...(record.sourceRefs ?? [])];
+}
+
+function buildRefTokenBindings(refs: Ref[]): NonNullable<ProvisionalReviewInspection["refTokens"]> {
+  return uniqueRefs(refs).map((ref, index) => ({
+    token: {
+      kind: "recording",
+      id: `mbrec-${index + 1}`,
+    },
+    ref,
+  }));
 }
 
 function anchorRefs(anchor: ProvisionalReviewAnchor): Array<Ref | undefined> {

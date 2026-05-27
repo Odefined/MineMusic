@@ -31,6 +31,7 @@ Task status:
 - Provisional Review v1 Tasks 1-10: completed for the first runtime slice.
 - Provisional Review v2 Task 1: completed.
 - Provisional Review v2 Task 2: completed.
+- Provisional Review v2 Task 3: completed.
 
 Implemented:
 
@@ -135,6 +136,11 @@ Implemented:
   - SQLite stores provider identities separately from source refs and can look
     up current records by exact provider identity.
   - changesets can delete canonical relations by id.
+- Provisional Review v2 maintenance snapshot token state is in place:
+  - `ProvisionalReviewInspection` can carry ref token bindings.
+  - Canonical Maintenance assigns MusicBrainz recording tokens with the
+    inspection snapshot.
+  - Stage Interface still has no review runtime state.
 
 Implemented public methods:
 

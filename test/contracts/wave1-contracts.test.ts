@@ -12,6 +12,8 @@ import type {
   ProvisionalReviewApplyOutput,
   ProvisionalReviewInspection,
   ProvisionalReviewListOutput,
+  ProvisionalReviewRefToken,
+  ProvisionalReviewRefTokenBinding,
   ProvisionalReviewSupportReasonKind,
   ProvisionalRelationCandidate,
   Collection,
@@ -533,11 +535,20 @@ type _provisionalReviewInspectionKeys = Expect<
     | "knowledgeItems"
     | "anchors"
     | "relationCandidates"
+    | "refTokens"
     | "warnings"
     | "expiresAt"
   > &
     Equal<ProvisionalReviewInspection["subject"], CanonicalRecord> &
-    Equal<ProvisionalReviewInspection["anchors"], ProvisionalReviewAnchor[]>
+    Equal<ProvisionalReviewInspection["anchors"], ProvisionalReviewAnchor[]> &
+    Equal<ProvisionalReviewInspection["refTokens"], ProvisionalReviewRefTokenBinding[] | undefined>
+>;
+
+type _provisionalReviewRefTokenShape = Expect<
+  Equal<ProvisionalReviewRefToken["kind"], "recording" | "release"> &
+    Equal<ProvisionalReviewRefToken["id"], string> &
+    Equal<ProvisionalReviewRefTokenBinding["token"], ProvisionalReviewRefToken> &
+    Equal<ProvisionalReviewRefTokenBinding["ref"], Ref>
 >;
 
 type _provisionalReviewListOutputShape = Expect<

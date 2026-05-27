@@ -318,6 +318,16 @@ export type ProvisionalReviewInspectInput = {
   subjectRef: Ref;
 };
 
+export type ProvisionalReviewRefToken = {
+  kind: "recording" | "release";
+  id: string;
+};
+
+export type ProvisionalReviewRefTokenBinding = {
+  token: ProvisionalReviewRefToken;
+  ref: Ref;
+};
+
 export type ProvisionalReviewInspection = {
   inspectionId: string;
   subject: CanonicalRecord;
@@ -329,6 +339,7 @@ export type ProvisionalReviewInspection = {
   knowledgeItems: KnowledgeItem[];
   anchors: ProvisionalReviewAnchor[];
   relationCandidates: ProvisionalRelationCandidate[];
+  refTokens?: ProvisionalReviewRefTokenBinding[];
   warnings?: string[];
   expiresAt: string;
 };
