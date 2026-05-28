@@ -62,6 +62,9 @@ This file tracks Library Import implementation progress.
   baseline instead of the snapshot written by the current batch, and
   `continueImport` / `continueUpdate` now return report-backed progress that
   reflects processed provider items and area-level continuation state.
+- Full update absence reconciliation now uses current `status=present` Source
+  Library membership as the authority for missing-item detection and flips
+  missing memberships to `absent` instead of only writing absence audit rows.
 - Library Import continuation is implemented as MineMusic-owned batch
   continuation. Callers continue an existing batch with `batchId` plus an
   optional MineMusic `pageSize`; provider cursors, offsets, and page tokens
@@ -75,6 +78,12 @@ This file tracks Library Import implementation progress.
 - Paged Library Update still derives absence state only after a scope reaches a
   complete current read. Mid-batch partial progress does not create absence
   baselines.
+- Known issue kept for later:
+  if a paged import batch is interrupted after item-level Source Entity /
+  Source Library writes succeed but before continuation/report state is fully
+  persisted, resuming the same batch can replay that page as `alreadyPresent`.
+  This can dirty `alreadyPresentItems`, `itemCount`, and item-level batch
+  report output without usually corrupting the final Source Library baseline.
 - Deterministic coverage exercises discovery preview, explicit preview
   estimates, Source Entity/Source Library writes, started-batch failure
   status, summary recovery after service recreation, durable Library Import

@@ -226,8 +226,11 @@ host-facing and LLM-facing surface.
   Library Absence provenance for complete reads, and avoids deriving absences
   from partial reads or mid-batch continuation progress. Paged full update now
   compares against the prior complete baseline even after the current batch
-  writes its own snapshot, and continuation status now returns report-backed
-  progress instead of batch-default progress.
+  writes its own snapshot, continuation status now returns report-backed
+  progress instead of batch-default progress, and full update absence
+  reconciliation now operates against current `status=present` Source Library
+  membership, marking missing items `absent` instead of leaving membership
+  state unchanged.
   SQLite-backed Library Import storage still persists batches, completed
   reports, continuation state, area snapshots, item provenance, and Platform
   Library Absence records through `libraryImportDatabasePath` /

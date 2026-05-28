@@ -1583,6 +1583,15 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
       currentBatchId: firstUpdate.batchId,
     }),
   );
+  const missingLibraryItem = await assertOk(
+    environment.materialStore.getSourceLibraryItem({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      libraryKind: "saved_source_track",
+      sourceRef: sourceRef("missing-track"),
+    }),
+  );
 
   assert(readPageInputs.length === 2, "paged update should call provider.readPage once per processed segment");
   assert(
@@ -1602,6 +1611,7 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
   assert(finalSummary.items.length === 1, "paged update summary should omit unchanged existing items");
   assert(finalSummary.items[0]?.sourceRef.id === "new-track", "paged update summary should keep only newly observed items");
   assert(finalAbsences.length === 1 && finalAbsences[0]?.sourceRef.id === "missing-track", "final paged update should store absence records after completion");
+  assert(missingLibraryItem?.status === "absent", "full update should mark missing Source Library items absent");
 }
 
 async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections(): Promise<void> {

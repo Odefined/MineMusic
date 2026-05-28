@@ -760,6 +760,85 @@ async function previewAbsencesForSourceRefs({
   });
 }
 
+async function deriveSourceLibraryAbsences({
+  materialStore,
+  ownerScope,
+  providerId,
+  providerAccountId,
+  area,
+  currentSourceRefs,
+  currentBatchId,
+}: {
+  materialStore: MaterialStorePort;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string | undefined;
+  area: PlatformLibraryArea;
+  currentSourceRefs: Ref[];
+  currentBatchId: string;
+}): Promise<Result<Array<{ absence: PlatformLibraryAbsenceSummary; item: SourceLibraryItem }>>> {
+  if (providerAccountId === undefined) {
+    return ok([]);
+  }
+
+  const libraryKind = libraryKindForArea(area);
+
+  if (libraryKind === null) {
+    return ok([]);
+  }
+
+  const presentItems = await materialStore.listSourceLibraryItems({
+    ownerScope,
+    providerId,
+    providerAccountId,
+    libraryKind,
+    status: "present",
+  });
+
+  if (!presentItems.ok) {
+    return presentItems;
+  }
+
+  const currentRefKeys = new Set(currentSourceRefs.map((sourceRef) => refKey(sourceRef)));
+
+  return ok(
+    presentItems.value
+      .filter((item) => !currentRefKeys.has(refKey(item.sourceRef)))
+      .map((item) => ({
+        item,
+        absence: {
+          providerId,
+          providerAccountId,
+          ownerScope,
+          scope: providerAreaToScope(area),
+          area,
+          sourceRef: item.sourceRef,
+          label: item.label,
+          baselineBatchId:
+            item.lastSeenBatchId ??
+            item.firstImportedBatchId ??
+            item.id,
+          currentBatchId,
+          reason: "platform_not_returned",
+        },
+      })),
+  );
+}
+
+function libraryKindForArea(area: PlatformLibraryArea): PlatformLibraryItem["itemKind"] | null {
+  switch (area) {
+    case "saved_source_tracks":
+      return "saved_source_track";
+    case "saved_source_releases":
+      return "saved_source_release";
+    case "saved_source_artists":
+      return "saved_source_artist";
+    case "playlists":
+    case "listening_history":
+      return null;
+  }
+}
+
 function emptyPreviewAreaEstimates(): PreviewAreaEstimates {
   return {
     sourceLibraryEstimates: emptySourceLibraryEstimates(),
@@ -969,15 +1048,13 @@ async function startLibraryImport({
     processedAreaItems.set(area.area, processedItemsForArea);
 
     if (batchKind === "library_update" && area.status === "complete" && !latestUntilSeen) {
-      const areaAbsences = await previewAbsencesForArea({
-        repository,
+      const areaAbsences = await deriveSourceLibraryAbsences({
+        materialStore,
         ownerScope,
         providerId: read.value.providerId,
         providerAccountId,
-        providerAccountStable,
-        scope,
         area: area.area,
-        currentItems: area.items,
+        currentSourceRefs: area.items.map((item) => item.sourceRef),
         currentBatchId: batchId,
       });
 
@@ -990,8 +1067,9 @@ async function startLibraryImport({
         });
       }
 
-      for (const absence of areaAbsences.value) {
+      for (const { absence, item } of areaAbsences.value) {
         const storedAbsence = await storePlatformLibraryAbsence({
+          materialStore,
           repository,
           events,
           batchId,
@@ -999,6 +1077,7 @@ async function startLibraryImport({
           ownerScope,
           providerId: read.value.providerId,
           providerAccountId,
+          item,
           absence,
           recordedAt: completedAt,
         });
@@ -1612,6 +1691,7 @@ function applyItemReportToCounts(
 }
 
 async function storePlatformLibraryAbsence({
+  materialStore,
   repository,
   events,
   batchId,
@@ -1619,9 +1699,11 @@ async function storePlatformLibraryAbsence({
   ownerScope,
   providerId,
   providerAccountId,
+  item,
   absence,
   recordedAt,
 }: {
+  materialStore: MaterialStorePort;
   repository: LibraryImportRepository;
   events: EventPort;
   batchId: string;
@@ -1629,11 +1711,23 @@ async function storePlatformLibraryAbsence({
   ownerScope: string;
   providerId: string;
   providerAccountId: string;
+  item: SourceLibraryItem;
   absence: PlatformLibraryAbsenceSummary;
   recordedAt: string;
 }): Promise<Result<void>> {
   if (absence.currentBatchId === undefined) {
     return ok(undefined);
+  }
+
+  const updatedLibraryItem = await materialStore.putSourceLibraryItem({
+    item: {
+      ...item,
+      status: "absent",
+    },
+  });
+
+  if (!updatedLibraryItem.ok) {
+    return updatedLibraryItem;
   }
 
   const record: PlatformLibraryAbsence = {
@@ -2376,26 +2470,6 @@ async function processPagedImportSegment({
       : state,
   );
   const segmentAbsences: PlatformLibraryAbsenceSummary[] = [];
-  let baselineSnapshot: LibraryImportAreaSnapshot | null = null;
-
-  if (!areaHasMore && page.value.status === "complete" && !latestUntilSeen) {
-    const baseline = await getLatestCompleteAreaSnapshotForRead({
-      repository,
-      ownerScope: batch.ownerScope,
-      providerId: page.value.providerId,
-      providerAccountId,
-      providerAccountStable,
-      scope: nextState.scope,
-      area: nextState.area,
-    });
-
-    if (!baseline.ok) {
-      return baseline;
-    }
-
-    baselineSnapshot = baseline.value;
-  }
-
   if (!areaHasMore && page.value.status === "complete" && !latestUntilSeen) {
     const storedSnapshot = await repository.putAreaSnapshot({
       snapshot: {
@@ -2419,25 +2493,23 @@ async function processPagedImportSegment({
     }
 
     if (batch.batchKind === "library_update") {
-      const areaAbsences = await previewAbsencesForArea({
-        repository,
+      const areaAbsences = await deriveSourceLibraryAbsences({
+        materialStore,
         ownerScope: batch.ownerScope,
         providerId: page.value.providerId,
         providerAccountId,
-        providerAccountStable,
-        scope: nextState.scope,
         area: nextState.area,
-        currentItems: mergedSourceRefs.map((sourceRef) => ({ sourceRef }) as PlatformLibraryItem),
+        currentSourceRefs: mergedSourceRefs,
         currentBatchId: batch.id,
-        baseline: baselineSnapshot,
       });
 
       if (!areaAbsences.ok) {
         return areaAbsences;
       }
 
-      for (const absence of areaAbsences.value) {
+      for (const { absence, item } of areaAbsences.value) {
         const storedAbsence = await storePlatformLibraryAbsence({
+          materialStore,
           repository,
           events,
           batchId: batch.id,
@@ -2445,6 +2517,7 @@ async function processPagedImportSegment({
           ownerScope: batch.ownerScope,
           providerId: page.value.providerId,
           providerAccountId,
+          item,
           absence,
           recordedAt: seenAt,
         });
