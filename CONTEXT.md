@@ -84,6 +84,16 @@ modules directly.
 Current code mapping: `src/stage_interface/**`, `src/handbook/index.ts`,
 and the dispatch-facing part of `src/stage_core/index.ts`.
 
+### Stage Interface Tool Definition
+
+A Stage Interface-owned description of one callable MineMusic tool as presented,
+validated, routed, and summarized for Host Clients.
+
+### Stage Interface Tool Group
+
+A Stage Interface-owned group of Tool Definitions that matches one instrument
+or agent-facing work area.
+
 ### Stage Modules
 
 Small LLM-facing modules used by Stage Interface.
