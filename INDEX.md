@@ -60,6 +60,12 @@ This index points agents to the current MVP documentation pack.
    - Accepted naming decision: Stage Core means runtime composition and
      lifecycle; current code uses Stage Modules for Session Context and
      Material Gate.
+   - `docs/adr/0002-material-store-boundary.md` records the accepted Material
+     Store boundary: Canonical Store remains the canonical identity subdomain,
+     Source Entity Store owns source entities, Source Library, and Library
+     Import/Update, and external library tools keep user-facing names.
+   - `docs/material-store/implementation-plan.md` is the phased implementation
+     plan for the Source Entity Store and Source Library rewrite.
 
 17. `CURRENT_STATE.md`
    - Current implementation status.

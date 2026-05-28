@@ -854,6 +854,13 @@
 - Updated Stage Context, Handbook, Stage Interface schemas/descriptors, and MCP
   schema tests to expose `cannot_confirm` and the `includeCannotConfirm` list
   option.
+- Accepted ADR-0002 for the Material Store boundary: Canonical Store remains
+  the canonical identity subdomain, Source Entity Store owns source entities,
+  Source Library, Library Import, Library Update, import history, and confirmed
+  source-to-canonical bindings.
+- Added `docs/material-store/implementation-plan.md` as the phased plan for the
+  Source Entity Store and Source Library rewrite on
+  `codex/material-store-source-entity`.
 
 ## Next
 
