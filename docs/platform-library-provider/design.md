@@ -195,7 +195,7 @@ export type PlatformLibraryItem = {
   itemKind: PlatformLibraryItemKind;
   targetKind: PlatformLibraryTargetKind;
   label: string;
-  addedAt?: string;
+  providerAddedAt?: string;
   canonicalHints?: {
     label?: string;
     artistLabels?: string[];
@@ -261,6 +261,11 @@ export type PlatformLibraryReadResult = {
 The provider item is a platform-library fact. It is not a Collection item and
 not a Canonical record.
 
+`providerAddedAt` is the provider's best item-level saved, followed, collected,
+or library-add timestamp when the provider exposes one. It is a platform
+provenance fact, not a MineMusic Collection timestamp and not Source Library
+membership time.
+
 `canonicalHints.trackPosition` is source release context, such as disc and
 track number from a provider album tracklist. It is platform-neutral source
 evidence for later review, not a Canonical Store relation and not recording
@@ -299,6 +304,32 @@ Provider item contracts must not include raw platform responses or a generic
 metadata escape hatch. The provider should map platform data into explicit
 fields needed by MineMusic. Debug fixtures or provider-local logs may retain raw
 responses outside the Platform Library Provider contract.
+
+## Ordered Area Reads
+
+Some Library Update modes need to know whether a provider area returns library
+items newest first.
+
+Newest-first ordering is provider- and area-specific. A provider area may be
+treated as newest-first only when the provider adapter can support an explicit
+area-level statement such as:
+
+- returned items carry an item-level add/follow/collect timestamp and are
+  returned in descending timestamp order.
+- the provider endpoint for that area is known to return newest-first library
+  items, even if it does not expose the timestamp field itself.
+
+Callers must not infer newest-first ordering from source ids, labels, release
+dates, or previous MineMusic import order.
+
+The provider descriptor or equivalent provider-owned area capability metadata
+should declare whether each readable area supports newest-first ordering.
+Library Import consumes that capability; Stage Interface and Library Import
+must not hard-code provider-specific endpoint knowledge.
+
+`latest_until_seen` Library Update may run only for provider areas that support
+newest-first ordering. Areas without this support must use full Library Update
+for reliable synchronization.
 
 ## Availability
 
@@ -402,8 +433,8 @@ Sample rules:
 - Samples may carry only `label`, optional `itemKind`, optional `targetKind`,
   and optional `artistLabels`.
 - Samples help the LLM judge whether the account and area look right.
-- Samples must not carry `sourceRef`, `addedAt`, `canonicalHints`, raw provider
-  metadata, Canonical Store status, or Collection status.
+- Samples must not carry `sourceRef`, `providerAddedAt`, `canonicalHints`, raw
+  provider metadata, Canonical Store status, or Collection status.
 - Samples must not be used for import/update writes.
 - Samples must not create update baselines.
 - Samples must not be counted as part of a complete readable result.

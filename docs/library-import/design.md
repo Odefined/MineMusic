@@ -332,6 +332,64 @@ areas must not be used as baselines. If no eligible complete baseline exists
 for a scope, a `library_update` should behave like an initial import for that
 scope.
 
+For `full`, no eligible baseline means the update may read the full provider
+area, write Source Library state, and store a complete snapshot, but it must not
+derive absences for that area. For `latest_until_seen`, no existing Source
+Library stop point means the update continues from newest first until the
+provider area ends, effectively importing the current newest-first area without
+deriving absences.
+
+Library Update has two distinct product modes:
+
+```text
+full
+latest_until_seen
+```
+
+`full` is authoritative reconciliation. It starts from the provider's current
+first page for each requested area and reads the complete current area. It
+updates Source Library rows for returned source refs, records new source refs as
+newly observed Source Library items, and derives Platform Library Absence
+records only after the requested area has completed. It is the only update mode
+that may say a previously imported source ref was not returned by the platform.
+
+`latest_until_seen` is fast newest-first import/update. It is valid only for
+provider areas that declare newest-first ordering. It starts at the current
+first page, imports newly observed source refs, and stops the area when it
+encounters a source ref that is already present in the owner's Source Library.
+It does not use an old provider cursor. It must not derive Platform Library
+Absence records, update a complete baseline, or claim the platform library was
+fully reconciled.
+
+Library Import should decide whether `latest_until_seen` is allowed by reading
+provider-owned area capability metadata. It must not hard-code provider-specific
+endpoint behavior.
+
+`latest_until_seen` is useful for bringing in newly saved, collected, or
+followed platform items. It is not a substitute for `full` when the caller needs
+deletion/absence detection or a complete current baseline.
+
+`library.update.preview` and `library.update.start` default to `full` when the
+caller does not provide a mode. `latest_until_seen` must be requested
+explicitly for either preview or start.
+
+Preview and start should use the same mode semantics. `full` preview may
+estimate newly observed items and possible absences without writing state.
+`latest_until_seen` preview estimates newest-first additions only, stops at the
+first already present source ref or preview read boundary, and must not estimate
+absences.
+
+If a caller requests `latest_until_seen` for an area whose provider capability
+does not support newest-first ordering, the update should fail clearly for that
+request instead of silently skipping the area.
+
+In `latest_until_seen`, the first already present source ref is the stop point
+for that provider area. The batch should keep newly observed items before that
+point, stop the area, and avoid deriving absences or complete-baseline state.
+A successful `latest_until_seen` batch may finish with normal `completed`
+status because it completed the requested mode. The report must still carry the
+mode and must not imply full reconciliation.
+
 Update diffing should use Library Import-owned batch and item snapshots. Event
 Service records factual history and audit events, but Library Import should not
 reconstruct update baselines by scanning Event Service logs.
@@ -349,10 +407,18 @@ area.
 
 Newly observed platform assets during Library Update use the same Source Entity
 Store flow as initial import: upsert the source entity and update Source
-Library state. Previously absent or previously unseen platform assets are not
-special cases; if a later Library Update returns the same source ref again,
-Library Import should retry the normal Source Entity Store flow using the
-current provider facts.
+Library state. Existing source refs are refreshed internally but should not be
+reported as user-visible update results. Previously absent or previously unseen
+platform assets are not special cases; if a later Library Update returns the
+same source ref again, Library Import should retry the normal Source Entity
+Store flow using the current provider facts.
+
+Agent-facing Library Update output should separate progress from change
+results. Progress may report scanned or processed item counts and whether more
+work remains. Change counts should report only newly observed items, absence
+records, failures, and warnings. Unchanged existing source refs are internal
+refresh state and must not be returned as item reports or counted as update
+results.
 
 Listening history is different. It is context and memory evidence, not a saved
 Collection item. If imported, it should become factual listening-history data
@@ -545,6 +611,7 @@ library.update.start
 library.update.continue
 library.import.status
 library.import.summary
+library.import.items.list
 ```
 
 Import and update use separate preview/start tools because they represent
@@ -616,15 +683,20 @@ Expected behavior:
   may accept a MineMusic page size, but it must not require the caller to pass
   provider-specific cursors, offsets, or page tokens.
 - `library.update.start` creates a `library_update` batch with a batch id,
-  records the explicit update scope, and may process an initial bounded
-  segment.
+  records the explicit update scope and mode, and may process an initial
+  bounded segment.
 - `library.update.continue` continues an existing update batch by batch id. It
   uses the same continuation model as import batches.
 - `library.import.status` reports progress, partial failures, and current
   counts for any Library Import batch id, including whether more continuation
   work remains.
-- `library.import.summary` returns the completed structured report for any
-  Library Import batch id.
+- `library.import.start` and `library.update.start` return compact batch status
+  rather than the full per-item report.
+- `library.import.summary` returns a compact completed summary for any Library
+  Import batch id, including aggregate counts and `itemCount`, without dumping
+  every item into the primary tool response.
+- `library.import.items.list` pages through item-level import facts for a batch
+  when the caller explicitly wants detail.
 
 Library Import uses batch continuation, not a public cursor API. The public
 caller continues a MineMusic import task; it does not page through a provider
@@ -632,11 +704,14 @@ API directly.
 
 ```text
 library.import.start
-  -> returns batchId
+  -> returns compact batch status, including batchId
 
 library.import.continue({ batchId, pageSize? })
   -> processes the next segment
   -> returns current counts and whether more work remains
+
+library.import.items.list({ batchId, limit?, cursor? })
+  -> returns a bounded page of item-level facts only when explicitly requested
 ```
 
 Provider pagination state is internal Library Import working state. The
@@ -644,6 +719,11 @@ repository may store provider-specific continuation details, such as offset,
 cursor, page token, or provider read checkpoint, but those details must remain
 opaque to Stage Interface callers. Different providers can use different
 pagination models without changing MineMusic's public import tools.
+
+Provider continuation state is only valid for the current running batch. It
+must not be treated as a durable "resume from where the user left off last
+month" marker, because provider libraries can change between pages and offset
+or cursor positions can drift.
 
 `sampleLimitPerArea` remains a bounded-read limit for preview or one-shot
 tests. It is not a cursor and should not be used as a continuation token.

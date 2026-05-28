@@ -153,10 +153,11 @@ This index points agents to the current MVP documentation pack.
       writes, and import/update event records.
 
 31. `docs/library-import/implementation-plan.md`
-    - Historical first-slice Library Import Service implementation plan for
-      contracts, storage, orchestration, Stage Core wiring, Stage Interface
-      import/update tools, integration coverage, and state sync. Current
-      binding ownership is superseded by ADR-0002 and the Material Store plan.
+    - Library Import implementation plan. It preserves the historical
+      first-slice task plan and adds the current follow-up plan for Library
+      Update modes, newest-first provider area capabilities, compact
+      agent-facing update output, NetEase ordered saved-source reads, and
+      `providerAddedAt` provenance cleanup.
 
 32. `docs/library-import/progress.md`
     - Library Import implementation progress, including the Source Entity Store

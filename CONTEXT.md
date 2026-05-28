@@ -182,6 +182,14 @@ Imported platform-library items enter Source Library by default. Collection
 state is written only when a Source Entity already has a Confirmed Canonical
 Binding or the user takes an explicit MineMusic-side collection action.
 
+Source Library item `addedAt` means the time MineMusic first added the source
+ref to the owner's Source Library. It is not the provider's saved, liked,
+collected, or followed time.
+
+Provider-side add/follow/collect time is `providerAddedAt` when the provider
+exposes it. `providerAddedAt` is an import/update provenance fact, not Source
+Entity identity and not Source Library membership time.
+
 ### Confirmed Canonical Binding
 
 A confirmed relationship from a Source Entity to the Canonical Record that
@@ -193,6 +201,13 @@ MusicBrainz search result.
 
 A Source Entity Store flow that refreshes Source Library state from current
 platform library facts after an earlier import.
+
+Library Update can run as a full update or as a latest-until-seen update. A
+full update reads a complete current provider area and may derive Platform
+Library Absence records after completion. A latest-until-seen update only works
+for provider areas that are ordered newest first; it imports newly observed
+items until it reaches an already present source ref and must not derive
+absences.
 
 ### Platform Library Absence
 

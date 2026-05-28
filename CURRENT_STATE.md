@@ -204,19 +204,27 @@ host-facing and LLM-facing surface.
   structured provider tracklist when the provider can supply one. Ordinary
   import no longer creates provisional canonical records, attaches
   `canonical_source_refs`, or writes Collection.
-- Library Import public tools remain `library.import.preview`,
-  `library.import.start`, `library.import.continue`,
-  `library.update.preview`, `library.update.start`,
-  `library.update.continue`, `library.import.status`, and
-  `library.import.summary`, exposed under the `minemusic.library`
-  instrument. Preview estimates Source Library observations without writing
-  canonical identity or Collection state. When the provider supports paged
-  reads, import/update batches default to MineMusic-owned continuation batches
-  keyed by `batchId`, using page size `50` unless the caller overrides it;
-  provider cursors stay inside Library Import working state. Library Update compares complete provider
-  reads with eligible baselines, records Source Library absence state and
-  Platform Library Absence provenance for complete reads, and avoids deriving
-  absences from partial reads or mid-batch continuation progress.
+- The `minemusic.library` instrument now exposes `library.source.list` plus
+  Library Import tools. `library.source.list` pages through owner/provider
+  Source Library items and returns short cards only. It does not expose
+  redundant provider/account identity fields, internal item ids, raw provider
+  payloads, or full release tracklists. Import tools
+  remain `library.import.preview`, `library.import.start`,
+  `library.import.continue`, `library.update.preview`,
+  `library.update.start`, `library.update.continue`,
+  `library.import.status`, `library.import.summary`, and
+  `library.import.items.list`. The start tools return compact
+  `LibraryImportStatus` payloads instead of full item arrays, summary returns a
+  compact aggregate view with `itemCount`, and item-level detail is paged
+  through `library.import.items.list`. Preview estimates Source Library
+  observations without writing canonical identity or Collection state. When
+  the provider supports paged reads, import/update batches default to
+  MineMusic-owned continuation batches keyed by `batchId`, using page size
+  `50` unless the caller overrides it; provider cursors stay inside Library
+  Import working state. Library Update compares complete provider reads with
+  eligible baselines, records Source Library absence state and Platform
+  Library Absence provenance for complete reads, and avoids deriving absences
+  from partial reads or mid-batch continuation progress.
   SQLite-backed Library Import storage still persists batches, completed
   reports, continuation state, area snapshots, item provenance, and Platform
   Library Absence records through `libraryImportDatabasePath` /
@@ -503,6 +511,23 @@ host-facing and LLM-facing surface.
   `minemusic.memory.propose`, and `minemusic.stage.effects.propose` passed for a real
   "quiet but not sleepy coding music" scenario, returning NetEase links such as
   `https://music.163.com/#/song?id=22644323`.
+- After a 2026-05-28 launchd reset through
+  `./scripts/reset-minemusic-launchd-runtime.sh`, the live MineMusic handbook
+  exposed the current Library tool surface, including `library.source.list`,
+  `library.import.items.list`, and provider-area `ordering: newest_first`
+  metadata for the NetEase saved-source areas.
+- Live MCP calls against that restarted runtime confirmed compact Library
+  Import/Update output on real library data: bounded import/update status and
+  summary responses returned counts/progress without dumping item arrays, and a
+  repeated bounded update over an already imported saved artist kept
+  `alreadyPresentItems` at `0` while still reporting processed progress.
+- The same validation showed that MCP tool discovery can lag behind the
+  restarted server runtime in at least one host session: the server handbook
+  was up to date, but one Codex session in this thread still lacked
+  `library.source.list`, `library.import.items.list`, and `mode` on
+  `library.update.start` in its generated `mcp__minemusic__` wrappers. Treat
+  that as host-client discovery/session-refresh drift, not a MineMusic runtime
+  regression.
 - Fresh Codex MCP tool visibility is confirmed by the user in this thread.
   Treat this as host-app validation evidence, not a repo-command test.
 - `git diff --check` passes as of the Collection Service documentation/state

@@ -165,6 +165,11 @@ Output: `CollectionListOutput`
   - Playlists (`playlists`): `unsupported`
   - Listening history (`listening_history`): `unsupported`
 
+#### `library.source.list`
+
+Description: List Source Library items in bounded pages as short cards.
+Input: `SourceLibraryListInput`
+Output: `SourceLibraryListOutput`
 #### `library.import.preview`
 
 Description: Preview importing saved platform library facts into MineMusic state.
@@ -174,7 +179,7 @@ Output: `LibraryImportPreview`
 
 Description: Start importing saved platform library facts into MineMusic state.
 Input: `LibraryImportStartInput`
-Output: `LibraryImportReport`
+Output: `LibraryImportStatus`
 #### `library.import.continue`
 
 Description: Continue an existing saved platform library import batch.
@@ -183,13 +188,13 @@ Output: `LibraryImportStatus`
 #### `library.update.preview`
 
 Description: Preview a platform library update against MineMusic's latest complete baseline.
-Input: `LibraryImportPreviewInput`
+Input: `LibraryUpdatePreviewInput`
 Output: `LibraryImportPreview`
 #### `library.update.start`
 
 Description: Start a platform library update against MineMusic's latest complete baseline.
-Input: `LibraryImportStartInput`
-Output: `LibraryImportReport`
+Input: `LibraryUpdateStartInput`
+Output: `LibraryImportStatus`
 #### `library.update.continue`
 
 Description: Continue an existing platform library update batch against MineMusic's latest complete baseline.
@@ -202,9 +207,14 @@ Input: `LibraryImportStatusInput`
 Output: `LibraryImportStatus`
 #### `library.import.summary`
 
-Description: Read the completed report for a Library Import batch.
+Description: Read the compact completed summary for a Library Import batch.
 Input: `LibraryImportSummaryInput`
-Output: `LibraryImportSummary`
+Output: `LibraryImportSummaryView`
+#### `library.import.items.list`
+
+Description: List item-level import facts for a Library Import batch in bounded pages.
+Input: `LibraryImportItemsListInput`
+Output: `LibraryImportItemsListOutput`
 ### MineMusic Memory (`minemusic.memory`)
 
 #### `memory.propose`

@@ -39,12 +39,22 @@ This file tracks Library Import implementation progress.
   `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH` persists
   canonical and Source Entity Store state, while `libraryImportDatabasePath` /
   `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` persists import/update batch working state.
-- Stage Interface exposes import/update preview/start/continue tools plus batch
-  status/summary tools through `minemusic.library` with stable external names:
+- Stage Interface exposes Source Library read tools plus import/update
+  preview/start/continue tools through `minemusic.library` with stable external
+  names: `library.source.list`,
   `library.import.preview`, `library.import.start`,
   `library.import.continue`, `library.update.preview`,
   `library.update.start`, `library.update.continue`,
-  `library.import.status`, and `library.import.summary`.
+  `library.import.status`, `library.import.summary`, and
+  `library.import.items.list`.
+- Source Library read tools also follow the compact-output rule:
+  `library.source.list` returns short cards only. It does not expose redundant
+  provider/account identity fields, internal ids, raw provider payloads, or
+  full release tracklists.
+- The MCP-facing start tools now return compact `LibraryImportStatus` payloads
+  instead of full item arrays. `library.import.summary` returns a compact
+  summary view with aggregate counts and `itemCount`, and item-level detail is
+  paged through `library.import.items.list`.
 - Library Import continuation is implemented as MineMusic-owned batch
   continuation. Callers continue an existing batch with `batchId` plus an
   optional MineMusic `pageSize`; provider cursors, offsets, and page tokens
@@ -77,9 +87,10 @@ This file tracks Library Import implementation progress.
   `MINEMUSIC_MATERIAL_STORE_DB_PATH` and `collectionDatabasePath` /
   `MINEMUSIC_COLLECTION_DB_PATH` when Source Entity Store state, confirmed
   bindings, and Collection state must persist across runtime recreation.
-- Library Import `start` now forwards `sampleLimitPerArea` into provider
+- Library Import `start` forwards `sampleLimitPerArea` into provider
   `readItems`, allowing bounded real imports through the same public start
-  tools while leaving default imports full-sized.
+  tools. When the provider supports paged reads, start/continue default to
+  MineMusic-owned batches with page size `50` unless the caller overrides it.
 - The NetEase Platform Library Provider factory exists, resolves the current
   local API session account identity, and maps saved source tracks, saved
   source releases, and saved source artists into generic provider items.
@@ -103,7 +114,8 @@ This file tracks Library Import implementation progress.
   records, completed reports, per-area snapshots, item provenance, Platform
   Library Absence records, returned-copy behavior, and provider-account-stable
   latest complete baseline lookup.
-- The eight Stage Interface Library Import tools are implemented.
+- The `minemusic.library` instrument now includes ten stable tools, including
+  Source Library list access and Library Import orchestration.
 - Source-of-truth design lives in `docs/library-import/design.md`.
 - Implementation task breakdown lives in
   `docs/library-import/implementation-plan.md`.
@@ -207,3 +219,21 @@ This file tracks Library Import implementation progress.
   snapshots, 2017 item provenance rows, 2017 active saved Collection items,
   3241 canonical source refs, 5249 provisional relations, and 3189 relation
   rows with `objectRef`s.
+- After the 2026-05-28 launchd runtime reset through
+  `./scripts/reset-minemusic-launchd-runtime.sh`, the live MineMusic handbook
+  exposed `library.source.list`, `library.import.items.list`, newest-first
+  provider-area ordering metadata, and the compact Library Import/Update
+  surface expected by the current Stage Interface descriptors.
+- Live MCP calls against that restarted runtime confirmed the compact-output
+  rule on real platform-library flows: a bounded
+  `library.import.start(saved_source_artists, sampleLimitPerArea=1, pageSize=1)`
+  returned status/progress/counts without item arrays, and a follow-up
+  `library.update.start` over the same first artist returned
+  `alreadyPresentItems: 0` while still reporting `processedItems: 1`.
+- The same live validation also showed a host-session discovery lag in at
+  least one Codex session: the restarted MineMusic server handbook was
+  current, but one session's generated `mcp__minemusic__` wrapper list still
+  lacked `library.source.list`, `library.import.items.list`, and the `mode`
+  field on `library.update.start`. Treat that mismatch as client
+  tool-discovery/session refresh drift, not a MineMusic server runtime
+  regression.

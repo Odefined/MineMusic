@@ -143,6 +143,10 @@ If a new Codex session does not show `minemusic.*` tools:
 2. Check `launchctl print gui/$(id -u)/com.minemusic.server`.
 3. Check `codex mcp get minemusic`.
 4. Read the server logs under `/Users/jiajuzang/Library/Logs/MineMusic`.
+5. Compare the live handbook tools with the current Codex session tool list. If
+   `handbook.overview.read` shows a newer MineMusic tool surface than the
+   session-visible `mcp__minemusic__` wrappers, refresh the Codex session; the
+   server runtime is current and the client tool-discovery snapshot is stale.
 
 The first start may take several seconds because `npm run server:minemusic`
 builds the test output before running `src/server/index.ts`.

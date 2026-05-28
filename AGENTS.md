@@ -75,6 +75,20 @@ For risky or architecture-affecting changes, use an explicit approval gate befor
 - Avoid speculative abstractions.
 - Keep public API changes explicit and documented.
 
+## Agent-Facing Output Rules
+
+- Every output returned to an agent-facing tool or instrument must include only
+  information needed for the caller's next decision or user-visible answer.
+- Prefer compact summaries, aggregate counts, progress, opaque ids, and
+  explicit follow-up/detail tools over dumping full records, raw provider
+  payloads, unchanged rows, repeated metadata, or debug-only fields.
+- Do not expose internal storage shape, provider implementation details,
+  canonical/collection internals, or redundant fields just because they are
+  available in the owning module.
+- For import/update/list flows, unchanged existing items are internal state and
+  must not be returned as per-item agent output unless the caller explicitly
+  requested a detail/audit view.
+
 ## File and Architecture Rules
 
 - Confirm the owning module before editing shared utilities or cross-cutting code.

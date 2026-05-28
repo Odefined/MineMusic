@@ -79,6 +79,213 @@ the first Library Import Service implementation.
   unavailable reads may produce warnings and reports, but must not become absence
   baselines.
 
+## Follow-Up Plan: Library Update Modes And Ordered Provider Reads
+
+This follow-up plan implements the update semantics captured in
+`docs/library-import/design.md` after the Source Entity Store rewrite. It
+supersedes the older assumption that Library Update reports every already
+present item as an update result.
+
+### Goal
+
+Make Library Update useful and compact for agent-facing workflows:
+
+- `full` update performs authoritative reconciliation and may derive absences
+  only after complete area reads.
+- `latest_until_seen` update imports newest provider-library items until the
+  first already present source ref, then stops without deriving absences or
+  complete baselines.
+- Agent-facing update output reports changes and progress, not unchanged
+  existing rows.
+- NetEase saved-source-track reads use the liked playlist `trackIds` source,
+  not `/likelist`.
+
+### Confirmed Decisions
+
+- `library.update.preview` and `library.update.start` accept
+  `mode?: "full" | "latest_until_seen"`, defaulting to `full`.
+- `latest_until_seen` must be requested explicitly.
+- `latest_until_seen` is allowed only for provider areas that declare
+  newest-first ordering through provider-owned area capability metadata.
+- Unsupported `latest_until_seen` area requests fail clearly instead of being
+  silently skipped.
+- The first already present source ref is the stop point for a
+  `latest_until_seen` area.
+- `latest_until_seen` completion uses normal `completed` status for the
+  requested mode, but reports must not imply full reconciliation.
+- `full` without a baseline may write a complete current snapshot but must not
+  derive absences for that area.
+- `latest_until_seen` without a Source Library stop point reads to the end of
+  the current newest-first area and still derives no absences.
+- Provider-side add/follow/collect time is `providerAddedAt`. Source Library
+  item `addedAt` means MineMusic first added the source ref to Source Library.
+- `providerAddedAt` may be kept in import/update provenance but must not be
+  written to Source Entity records or Source Library membership time.
+- Do not implement a timestamp watermark optimization in this slice; source ref
+  identity remains the stop and idempotency key.
+
+### Phase 1: Contracts And Capability Metadata
+
+- **Files**:
+  - `src/contracts/index.ts`
+  - `src/ports/index.ts`
+  - `test/contracts/wave1-contracts.test.ts`
+- **Description**: Add update mode and provider area ordering capability
+  contracts.
+- **Details**:
+  - Add `LibraryUpdateMode = "full" | "latest_until_seen"`.
+  - Add `mode?: LibraryUpdateMode` only to update preview/start input paths.
+    Do not add update mode to import start semantics.
+  - Persist update mode in batch/report/status contracts so
+    start/continue/status/summary agree.
+  - Add provider-owned area capability metadata for newest-first ordering.
+    Library Import must read capability metadata instead of hard-coding NetEase
+    behavior.
+  - Rename provider item timestamp from `addedAt` to `providerAddedAt`.
+  - Keep Source Library `addedAt` as MineMusic Source Library membership time.
+- **Dependencies**: Current design docs.
+
+### Phase 2: Storage And Provenance Semantics
+
+- **Files**:
+  - `src/storage/index.ts`
+  - `src/storage/sqlite/source-entity-schema.ts`
+  - `src/storage/sqlite/source-entity-repository.ts`
+  - `src/storage/sqlite/library-import-schema.ts`
+  - `src/storage/sqlite/library-import-repository.ts`
+  - storage tests for Source Entity Store and Library Import repositories.
+- **Description**: Align persisted fields with the clarified time semantics.
+- **Details**:
+  - Stop copying provider item time into `SourceLibraryItem.addedAt`.
+  - Set Source Library `addedAt` from MineMusic first-add time when creating a
+    Source Library item, and preserve it on later refreshes.
+  - Store provider-side item time as `providerAddedAt` only in Library Import
+    provenance if the provider returns it.
+  - Update SQLite schema/row mapping names accordingly. Current local imported
+    data is test data, so do not add compatibility migrations or repair tools
+    unless explicitly requested.
+  - Ensure default Source Library list output does not expose time fields.
+- **Dependencies**: Phase 1.
+
+### Phase 3: NetEase Ordered Reads
+
+- **Files**:
+  - `src/providers/netease/index.ts`
+  - `test/providers/netease-platform-library-provider.test.ts`
+- **Description**: Make NetEase provider reads match the ordered Source Library
+  fact source.
+- **Details**:
+  - Resolve the current account's special liked-music playlist for
+    `saved_source_tracks`.
+  - Read saved tracks from liked playlist `trackIds` order and `trackIds[].at`;
+    enrich returned ids through song detail and album-context reads.
+  - Do not use `/likelist` as the Source Library saved-track import/update fact
+    source.
+  - Map track `trackIds[].at` to `providerAddedAt`.
+  - Map release `subTime` to `providerAddedAt`.
+  - Do not invent `providerAddedAt` for artists.
+  - Declare newest-first capability for NetEase saved source tracks, releases,
+    and artists through provider-owned area metadata.
+  - Keep provider endpoint details inside the NetEase adapter and NetEase docs.
+- **Dependencies**: Phases 1-2.
+
+### Phase 4: Library Update Mode Execution
+
+- **Files**:
+  - `src/material_store/source_entity/library-import.ts`
+  - `test/library_import/library-import-service.test.ts`
+- **Description**: Implement `full` and `latest_until_seen` behavior in the
+  Source Entity Store-owned Library Import service.
+- **Details**:
+  - Default update preview/start mode to `full`.
+  - Store update mode in the batch/report and carry it through continuation.
+  - Keep `full` absence derivation gated on complete current area reads.
+  - For `latest_until_seen`, process newest-first pages until the first already
+    present source ref for that owner/provider/account/library kind.
+  - Do not store complete area snapshots or Platform Library Absence records for
+    `latest_until_seen`.
+  - If `latest_until_seen` has no stop point, read until the provider area ends
+    and complete without absences.
+  - Fail clearly when `latest_until_seen` is requested for an area without
+    newest-first capability.
+  - Do not count unchanged existing source refs as update results.
+  - Keep scanned/read item counts in progress only.
+- **Dependencies**: Phases 1-3.
+
+### Phase 5: Stage Interface And Agent-Facing Output
+
+- **Files**:
+  - `src/stage_interface/schemas.ts`
+  - `src/stage_interface/dispatch.ts`
+  - `src/stage_interface/outputs.ts`
+  - `src/stage_interface/tools.ts`
+  - `test/stage_interface/stage-interface-dispatch.test.ts`
+  - `test/surfaces/mcp-server.test.ts`
+- **Description**: Expose update mode while preserving compact agent-facing
+  outputs.
+- **Details**:
+  - Add optional `mode` to `library.update.preview` and
+    `library.update.start` schemas.
+  - Do not add mode to import tools.
+  - Compact start/continue/status/summary output should show mode, batch id,
+    status, progress, changed counts, failures, and warnings only.
+  - Do not emit unchanged existing item reports in agent-facing update output.
+  - Keep item-level details behind explicit detail/list tools and bounded
+    pagination.
+  - Do not manually edit generated Handbook artifacts; regenerate them only
+    through the existing project workflow if required by tests.
+- **Dependencies**: Phase 4.
+
+### Phase 6: Real Runtime Validation
+
+- **Files**:
+  - `scripts/` restart/test helper if the existing helper needs an update.
+  - `docs/library-import/progress.md` only after implementation is verified.
+- **Description**: Verify against the launchd MineMusic server and real NetEase
+  account data.
+- **Details**:
+  - Restart the launchd server through the repository helper script.
+  - Run real MCP tests for:
+    - `latest_until_seen` saved source tracks.
+    - `latest_until_seen` saved source releases.
+    - `latest_until_seen` saved source artists.
+    - `full` update absence guard behavior on at least one deterministic test
+      provider fixture.
+  - Confirm agent-facing responses do not dump unchanged item arrays.
+  - Confirm Source Library `addedAt` is MineMusic membership time and
+    `providerAddedAt` stays out of Source Library state.
+- **Dependencies**: Phase 5.
+
+### Verification Plan
+
+Run narrow checks after each phase, then broad checks before the final commit:
+
+```bash
+npm run build:test
+node .tmp-test/test/contracts/wave1-contracts.test.js
+node .tmp-test/test/storage/in-memory-library-import-repository.test.js
+node .tmp-test/test/storage/sqlite-library-import-repository.test.js
+node .tmp-test/test/providers/netease-platform-library-provider.test.js
+node .tmp-test/test/library_import/library-import-service.test.js
+node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
+node .tmp-test/test/surfaces/mcp-server.test.js
+npm run typecheck
+npm test
+git diff --check
+git diff --name-only
+```
+
+### Phase Commit Plan
+
+Commit once after each phase:
+
+1. Update-mode contracts and provider capability metadata.
+2. Storage/provenance time-semantics cleanup.
+3. NetEase ordered saved-source reads.
+4. Library Update `full` / `latest_until_seen` execution.
+5. Stage Interface and MCP compact output updates.
+6. Runtime validation, progress docs, and state sync.
+
 ## Implementation Tasks
 
 ### Task 1: Add Library Import Contracts

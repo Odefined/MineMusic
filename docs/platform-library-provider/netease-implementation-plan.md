@@ -46,10 +46,29 @@ Non-readable areas:
 | `listening_history` | Return `unsupported` for import/read. |
 
 `preview` may return lightweight samples. Samples must not include `sourceRef`,
-`addedAt`, `canonicalHints`, raw provider metadata, Canonical Store status, or
-Collection status.
+`providerAddedAt`, `canonicalHints`, raw provider metadata, Canonical Store
+status, or Collection status.
 
 `readItems` must return stable `sourceRef` values for readable items.
+
+NetEase readable-area ordering:
+
+- `saved_source_tracks` import and update reads must use the user's special
+  "liked music" playlist rather than `/likelist`. `/likelist` returns only an
+  `ids` array and a playlist-level checkpoint, and its id order must not be
+  treated as library add order. The liked playlist detail exposes
+  `trackIds[].at`, which is the per-track liked/add timestamp and is ordered
+  newest first. `/likelist` must not be used as the Source Library track
+  import/update fact source.
+- `saved_source_releases` may use `/album/sublist`; returned albums include
+  `subTime` and are ordered newest first.
+- `saved_source_artists` may use `/artist/sublist`; the endpoint is treated as
+  newest-followed first for this provider even though it does not expose a
+  per-artist timestamp field.
+
+These three areas can support a newest-first `latest_until_seen` update mode.
+Only tracks and releases can populate `providerAddedAt` from current NetEase
+payloads. Artists should not invent `providerAddedAt`.
 
 ## Implementation Tasks
 
@@ -100,6 +119,8 @@ Collection status.
 - **Details**:
   - `saved_source_tracks` items use stable NetEase track refs as provider
     `sourceRef` values.
+  - `saved_source_tracks` reads use the liked playlist's `trackIds` order and
+    `trackIds[].at` values, not `/likelist`.
   - `saved_source_releases` items use stable NetEase album refs as provider
     `sourceRef` values.
   - `saved_source_artists` items use stable NetEase artist refs as provider
