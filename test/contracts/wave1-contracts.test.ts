@@ -83,6 +83,8 @@ import type {
   PlatformLibraryItem,
   PlatformLibraryItemKind,
   PlatformLibraryProvider,
+  PlatformLibraryReadPageInput,
+  PlatformLibraryReadPageResult,
   PlatformLibraryReadResult,
   PlatformLibraryReadStatus,
   PlatformLibrarySample,
@@ -491,7 +493,22 @@ type _platformLibraryUnknownCountHasNoValue = Expect<
 
 type _platformLibraryProviderMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<PlatformLibraryProvider, "preview"> &
-    MethodAcceptsSingleObject<PlatformLibraryProvider, "readItems">
+    MethodAcceptsSingleObject<PlatformLibraryProvider, "readItems"> &
+    OptionalMethodAcceptsSingleObject<PlatformLibraryProvider, "readPage">
+>;
+
+type _platformLibraryReadPageInputKeys = Expect<
+  Equal<
+    keyof PlatformLibraryReadPageInput,
+    "providerAccountId" | "area" | "pageSize" | "sampleLimitRemaining" | "providerState"
+  >
+>;
+
+type _platformLibraryReadPageResultKeys = Expect<
+  Equal<
+    keyof PlatformLibraryReadPageResult,
+    "providerId" | "account" | "area" | "status" | "items" | "count" | "providerState" | "hasMore" | "issues"
+  >
 >;
 
 type _canonicalProvisionalHintKindAllowsSourceRecordingContext = Expect<

@@ -1058,6 +1058,262 @@ async function readItemsRespectsSavedReleaseSampleLimit(): Promise<void> {
   assert(read.areas[0]?.items.length === 2, "saved releases read should return only the requested sample size");
 }
 
+async function readPagePaginatesSavedReleasesWithOpaqueProviderState(): Promise<void> {
+  const requests: Array<{ path: string; query: Record<string, string> }> = [];
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path, query }) => {
+      requests.push({ path, query });
+
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 2425,
+                nickname: "Release Page Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/album/sublist" && query.offset === "0") {
+        assert(query.limit === "2", "readPage should pass pageSize through to the provider page request");
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            count: 3,
+            data: [
+              { id: 10, name: "Paged Album A", artists: [{ id: 110, name: "Artist A" }] },
+              { id: 11, name: "Paged Album B", artists: [{ id: 111, name: "Artist B" }] },
+            ],
+          },
+        };
+      }
+
+      if (path === "/album" && query.id === "10") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: { publishTime: 1704067200000 },
+            songs: [],
+          },
+        };
+      }
+
+      if (path === "/album" && query.id === "11") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: { publishTime: 1704153600000 },
+            songs: [],
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path} ${JSON.stringify(query)}`);
+    },
+  });
+
+  assert(provider.readPage !== undefined, "NetEase provider should expose readPage");
+  const page = await assertOk(
+    provider.readPage({
+      area: "saved_source_releases",
+      pageSize: 2,
+    }),
+  );
+
+  assert(
+    requests.map((request) => request.path).join(",") === "/login/status,/album/sublist,/album,/album",
+    "release readPage should use login, one paged list call, and album enrichment for returned items",
+  );
+  assert(page.area === "saved_source_releases", "readPage should report the requested area");
+  assert(page.status === "complete", "successful release page should be complete for that segment");
+  assert(page.count?.certainty === "exact" && page.count.value === 3, "readPage should keep exact provider count");
+  assert(page.items.length === 2, "readPage should return exactly one MineMusic page");
+  assert(page.hasMore === true, "readPage should report when another provider page remains");
+  assert(
+    typeof page.providerState === "object" &&
+      page.providerState !== null &&
+      "offset" in page.providerState &&
+      (page.providerState as { offset: unknown }).offset === 2,
+    "readPage should return opaque provider state for the next page",
+  );
+}
+
+async function readPagePaginatesSavedArtistsWithOpaqueProviderState(): Promise<void> {
+  const requests: Array<{ path: string; query: Record<string, string> }> = [];
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path, query }) => {
+      requests.push({ path, query });
+
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 2526,
+                nickname: "Artist Page Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/artist/sublist") {
+        assert(query.limit === "2", "artist readPage should pass pageSize through to the provider page request");
+        assert(query.offset === "0", "artist first page should start from offset zero");
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            count: 3,
+            data: [
+              { id: 20, name: "Paged Artist A" },
+              { id: 21, name: "Paged Artist B" },
+            ],
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path} ${JSON.stringify(query)}`);
+    },
+  });
+
+  assert(provider.readPage !== undefined, "NetEase provider should expose readPage");
+  const page = await assertOk(
+    provider.readPage({
+      area: "saved_source_artists",
+      pageSize: 2,
+    }),
+  );
+
+  assert(
+    requests.map((request) => request.path).join(",") === "/login/status,/artist/sublist",
+    "artist readPage should use login and one paged list call",
+  );
+  assert(page.area === "saved_source_artists", "artist readPage should report the requested area");
+  assert(page.status === "complete", "successful artist page should be complete for that segment");
+  assert(page.count?.certainty === "exact" && page.count.value === 3, "artist readPage should keep exact provider count");
+  assert(page.items.length === 2, "artist readPage should return exactly one MineMusic page");
+  assert(page.hasMore === true, "artist readPage should report when another provider page remains");
+  assert(
+    typeof page.providerState === "object" &&
+      page.providerState !== null &&
+      "offset" in page.providerState &&
+      (page.providerState as { offset: unknown }).offset === 2,
+    "artist readPage should return opaque provider state for the next page",
+  );
+}
+
+async function readPagePaginatesSavedTracksWithOpaqueProviderState(): Promise<void> {
+  const requests: Array<{ path: string; query: Record<string, string> }> = [];
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path, query }) => {
+      requests.push({ path, query });
+
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 2627,
+                nickname: "Track Page Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/likelist") {
+        assert(query.uid === "2627", "track readPage should use the proven account id");
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            ids: [1001, 1002, 1003],
+          },
+        };
+      }
+
+      if (path === "/song/detail") {
+        assert(query.ids === "1001,1002", "track readPage should fetch only the current sliced page of details");
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            songs: [
+              {
+                id: 1001,
+                name: "Paged Track A",
+                ar: [{ id: 201, name: "Artist A" }],
+                al: { id: 301, name: "Paged Album" },
+                dt: 111000,
+              },
+              {
+                id: 1002,
+                name: "Paged Track B",
+                ar: [{ id: 202, name: "Artist B" }],
+                al: { id: 301, name: "Paged Album" },
+                dt: 112000,
+              },
+            ],
+          },
+        };
+      }
+
+      if (path === "/album") {
+        assert(query.id === "301", "track readPage should enrich the current page album context");
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: { publishTime: 1704067200000 },
+            songs: [
+              { id: 1001, name: "Paged Track A", cd: "1", no: 1 },
+              { id: 1002, name: "Paged Track B", cd: "1", no: 2 },
+              { id: 1003, name: "Paged Track C", cd: "1", no: 3 },
+            ],
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path} ${JSON.stringify(query)}`);
+    },
+  });
+
+  assert(provider.readPage !== undefined, "NetEase provider should expose readPage");
+  const page = await assertOk(
+    provider.readPage({
+      area: "saved_source_tracks",
+      pageSize: 2,
+    }),
+  );
+
+  assert(
+    requests.map((request) => request.path).join(",") === "/login/status,/likelist,/song/detail,/album",
+    "track readPage should use login, liked ids, current detail page, and current album enrichment",
+  );
+  assert(page.area === "saved_source_tracks", "track readPage should report the requested area");
+  assert(page.status === "complete", "successful track page should be complete for that segment");
+  assert(page.count?.certainty === "exact" && page.count.value === 3, "track readPage should keep exact liked count");
+  assert(page.items.length === 2, "track readPage should return exactly one MineMusic page");
+  assert(page.hasMore === true, "track readPage should report when another liked slice remains");
+  assert(
+    typeof page.providerState === "object" &&
+      page.providerState !== null &&
+      "offset" in page.providerState &&
+      (page.providerState as { offset: unknown }).offset === 2,
+    "track readPage should return opaque provider state for the next page",
+  );
+}
+
 async function readItemsMapsSavedArtistsToGenericItems(): Promise<void> {
   const provider = createNetEasePlatformLibraryProvider({
     requestJson: async ({ path }) => {
@@ -1566,6 +1822,9 @@ await readItemsRespectsSavedRecordingSampleLimit();
 await readItemsMapsSavedReleasesToGenericItems();
 await readItemsPaginatesSavedReleases();
 await readItemsRespectsSavedReleaseSampleLimit();
+await readPagePaginatesSavedReleasesWithOpaqueProviderState();
+await readPagePaginatesSavedArtistsWithOpaqueProviderState();
+await readPagePaginatesSavedTracksWithOpaqueProviderState();
 await readItemsMapsSavedArtistsToGenericItems();
 await readItemsPaginatesSavedArtists();
 await readItemsRespectsSavedArtistSampleLimit();

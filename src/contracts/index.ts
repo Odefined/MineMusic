@@ -852,11 +852,32 @@ export type PlatformLibraryReadResult = {
   issues?: PlatformLibraryIssue[];
 };
 
+export type PlatformLibraryReadPageInput = {
+  providerAccountId?: string;
+  area: PlatformLibraryArea;
+  pageSize: number;
+  sampleLimitRemaining?: number;
+  providerState?: unknown;
+};
+
+export type PlatformLibraryReadPageResult = {
+  providerId: string;
+  account?: PlatformLibraryAccountIdentity;
+  area: PlatformLibraryArea;
+  status: PlatformLibraryReadStatus;
+  items: PlatformLibraryItem[];
+  count?: PlatformLibraryCount;
+  providerState?: unknown;
+  hasMore: boolean;
+  issues?: PlatformLibraryIssue[];
+};
+
 export interface PlatformLibraryProvider {
   id: string;
   descriptor?: InstrumentProviderDescriptor;
   preview(input: PlatformLibraryPreviewInput): Promise<Result<PlatformLibraryPreview>>;
   readItems(input: PlatformLibraryReadInput): Promise<Result<PlatformLibraryReadResult>>;
+  readPage?(input: PlatformLibraryReadPageInput): Promise<Result<PlatformLibraryReadPageResult>>;
 }
 
 export type LibraryImportScope =

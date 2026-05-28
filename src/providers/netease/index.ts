@@ -11,6 +11,7 @@ import type {
   PlatformLibraryPreviewArea,
   PlatformLibrarySample,
   PlatformLibraryReadAreaResult,
+  PlatformLibraryReadPageResult,
   PlatformLibraryProvider,
   Ref,
   Result,
@@ -88,6 +89,8 @@ type NetEasePayloadResult<T> =
 type NetEasePreviewAreaOutcome = Omit<PlatformLibraryPreviewArea, "area">;
 
 type NetEaseReadAreaOutcome = Omit<PlatformLibraryReadAreaResult, "area">;
+
+type NetEaseReadPageOutcome = Omit<PlatformLibraryReadPageResult, "providerId" | "account">;
 
 type NetEasePaginatedRead = {
   status: "complete" | "partial" | "failed";
@@ -263,6 +266,35 @@ export function createNetEasePlatformLibraryProvider({
         ...(account.kind === "resolved" ? { account: account.account } : {}),
         areas,
         ...(issues.length === 0 ? {} : { issues }),
+      });
+    },
+
+    async readPage(input) {
+      const account = await resolveNetEaseAccount(requestJson, input.providerAccountId);
+      const issues = account.kind === "unresolved" ? [account.issue] : [];
+      const page =
+        account.kind === "resolved"
+          ? await readPlatformLibraryPage(
+              requestJson,
+              account.account.providerAccountId,
+              input.area,
+              input.pageSize,
+              input.sampleLimitRemaining,
+              input.providerState,
+            )
+          : {
+              area: input.area,
+              status: "unavailable" as const,
+              items: [],
+              hasMore: false,
+              issues: [] as PlatformLibraryIssue[],
+            };
+
+      return ok({
+        providerId: "netease",
+        ...(account.kind === "resolved" ? { account: account.account } : {}),
+        ...page,
+        ...(issues.length === 0 ? {} : { issues: [...(page.issues ?? []), ...issues] }),
       });
     },
   };
@@ -538,6 +570,18 @@ function normalizedReadSampleLimit(sampleLimitPerArea: number | undefined): numb
   return Math.floor(sampleLimitPerArea);
 }
 
+function pageOffsetFromProviderState(providerState: unknown): number {
+  if (!isRecord(providerState) || typeof providerState.offset !== "number") {
+    return 0;
+  }
+
+  if (!Number.isFinite(providerState.offset) || providerState.offset < 0) {
+    return 0;
+  }
+
+  return Math.floor(providerState.offset);
+}
+
 async function previewSavedRecordings(
   requestJson: NetEaseRequester,
   providerAccountId: string,
@@ -693,6 +737,52 @@ async function readPlatformLibraryAreas(
   return results;
 }
 
+async function readPlatformLibraryPage(
+  requestJson: NetEaseRequester,
+  _providerAccountId: string,
+  area: PlatformLibraryArea,
+  pageSize: number,
+  sampleLimitRemaining: number | undefined,
+  providerState: unknown,
+): Promise<NetEaseReadPageOutcome> {
+  if (area === "saved_source_releases") {
+    return readSavedReleasesPage(requestJson, area, pageSize, sampleLimitRemaining, providerState);
+  }
+
+  if (area === "saved_source_tracks") {
+    return readSavedRecordingsPage(
+      requestJson,
+      _providerAccountId,
+      area,
+      pageSize,
+      sampleLimitRemaining,
+      providerState,
+    );
+  }
+
+  if (area === "saved_source_artists") {
+    return readSavedArtistsPage(requestJson, area, pageSize, sampleLimitRemaining, providerState);
+  }
+
+  if (unsupportedPlatformLibraryAreas.includes(area)) {
+    return {
+      area,
+      status: "unavailable",
+      items: [],
+      hasMore: false,
+      issues: [scopeUnsupportedIssue(area)],
+    };
+  }
+
+  return {
+    area,
+    status: "unavailable",
+    items: [],
+    hasMore: false,
+    issues: [scopeUnsupportedIssue(area)],
+  };
+}
+
 async function readSavedRecordings(
   requestJson: NetEaseRequester,
   providerAccountId: string,
@@ -781,6 +871,170 @@ async function readSavedReleases(
   };
 }
 
+async function readSavedRecordingsPage(
+  requestJson: NetEaseRequester,
+  providerAccountId: string,
+  area: PlatformLibraryArea,
+  pageSize: number,
+  sampleLimitRemaining: number | undefined,
+  providerState: unknown,
+): Promise<NetEaseReadPageOutcome> {
+  const liked = await requestJson({
+    path: "/likelist",
+    query: { uid: providerAccountId },
+  });
+
+  if (!liked.ok) {
+    return {
+      area,
+      status: "failed",
+      items: [],
+      hasMore: false,
+      issues: [issueFromStageError(liked.error, area)],
+    };
+  }
+
+  const ids = extractIdListResult(liked.value, area);
+
+  if (!ids.ok) {
+    return {
+      area,
+      status: "failed",
+      items: [],
+      hasMore: false,
+      issues: [ids.issue],
+    };
+  }
+
+  const offset = pageOffsetFromProviderState(providerState);
+  const requestSize = Math.max(
+    Math.min(
+      pageSize,
+      sampleLimitRemaining === undefined ? pageSize : sampleLimitRemaining,
+      Math.max(ids.value.length - offset, 0),
+    ),
+    0,
+  );
+  const idsToRead = requestSize === 0 ? [] : ids.value.slice(offset, offset + requestSize);
+
+  if (idsToRead.length === 0) {
+    return {
+      area,
+      status: "complete",
+      items: [],
+      count: { certainty: "exact", value: ids.value.length },
+      hasMore: false,
+    };
+  }
+
+  const items: PlatformLibraryItem[] = [];
+  const albumContexts = new Map<string, NetEaseAlbumContext | null>();
+
+  for (const batch of chunks(idsToRead, netEaseSongDetailBatchSize)) {
+    const details = await requestJson({
+      path: "/song/detail",
+      query: { ids: batch.join(",") },
+    });
+
+    if (!details.ok) {
+      const issue = issueFromStageError(details.error, area);
+
+      return items.length === 0
+        ? {
+            area,
+            status: "failed",
+            items: [],
+            count: { certainty: "exact", value: ids.value.length },
+            hasMore: false,
+            issues: [issue],
+          }
+        : {
+            area,
+            status: "partial",
+            items,
+            count: { certainty: "exact", value: ids.value.length },
+            hasMore: true,
+            providerState: { offset: offset + items.length },
+            issues: [partialReadIssue(area), issue],
+          };
+    }
+
+    const songs = extractSongsFromDetailResult(details.value, area);
+
+    if (!songs.ok) {
+      return items.length === 0
+        ? {
+            area,
+            status: "failed",
+            items: [],
+            count: { certainty: "exact", value: ids.value.length },
+            hasMore: false,
+            issues: [songs.issue],
+          }
+        : {
+            area,
+            status: "partial",
+            items,
+            count: { certainty: "exact", value: ids.value.length },
+            hasMore: true,
+            providerState: { offset: offset + items.length },
+            issues: [partialReadIssue(area), songs.issue],
+          };
+    }
+
+    await ensureAlbumContextsForSongs(requestJson, songs.value, albumContexts);
+    items.push(
+      ...songs.value
+        .map((song) => toSavedRecordingItem(song, albumContextForSong(song, albumContexts)))
+        .filter(isDefined),
+    );
+  }
+
+  const nextOffset = offset + idsToRead.length;
+
+  return {
+    area,
+    status: "complete",
+    items,
+    count: { certainty: "exact", value: ids.value.length },
+    hasMore: nextOffset < ids.value.length,
+    ...(nextOffset < ids.value.length ? { providerState: { offset: nextOffset } } : {}),
+  };
+}
+
+async function readSavedReleasesPage(
+  requestJson: NetEaseRequester,
+  area: PlatformLibraryArea,
+  pageSize: number,
+  sampleLimitRemaining: number | undefined,
+  providerState: unknown,
+): Promise<NetEaseReadPageOutcome> {
+  const albums = await readPaginatedItemPage(
+    requestJson,
+    "/album/sublist",
+    ["data", "albums"],
+    area,
+    pageSize,
+    sampleLimitRemaining,
+    providerState,
+  );
+  const albumContexts = new Map<string, NetEaseAlbumContext | null>();
+
+  await ensureAlbumContextsForAlbums(requestJson, albums.items, albumContexts);
+
+  return {
+    area,
+    status: albums.status,
+    items: albums.items
+      .map((album) => toSavedReleaseItem(album, albumContextForAlbum(album, albumContexts)))
+      .filter(isDefined),
+    hasMore: albums.hasMore,
+    ...(albums.count === undefined ? {} : { count: albums.count }),
+    ...(albums.providerState === undefined ? {} : { providerState: albums.providerState }),
+    ...(albums.issues === undefined ? {} : { issues: albums.issues }),
+  };
+}
+
 async function readSavedArtists(
   requestJson: NetEaseRequester,
   sampleLimit?: number,
@@ -796,6 +1050,34 @@ async function readSavedArtists(
   return {
     status: artists.status,
     items: artists.items.map(toFollowedArtistItem).filter(isDefined),
+    ...(artists.issues === undefined ? {} : { issues: artists.issues }),
+  };
+}
+
+async function readSavedArtistsPage(
+  requestJson: NetEaseRequester,
+  area: PlatformLibraryArea,
+  pageSize: number,
+  sampleLimitRemaining: number | undefined,
+  providerState: unknown,
+): Promise<NetEaseReadPageOutcome> {
+  const artists = await readPaginatedItemPage(
+    requestJson,
+    "/artist/sublist",
+    ["data", "artists"],
+    area,
+    pageSize,
+    sampleLimitRemaining,
+    providerState,
+  );
+
+  return {
+    area,
+    status: artists.status,
+    items: artists.items.map(toFollowedArtistItem).filter(isDefined),
+    hasMore: artists.hasMore,
+    ...(artists.count === undefined ? {} : { count: artists.count }),
+    ...(artists.providerState === undefined ? {} : { providerState: artists.providerState }),
     ...(artists.issues === undefined ? {} : { issues: artists.issues }),
   };
 }
@@ -863,6 +1145,71 @@ async function readPaginatedItems(
 
     offset += netEasePageLimit;
   }
+}
+
+async function readPaginatedItemPage(
+  requestJson: NetEaseRequester,
+  path: string,
+  arrayKeys: string[],
+  area: PlatformLibraryArea,
+  pageSize: number,
+  sampleLimitRemaining: number | undefined,
+  providerState: unknown,
+): Promise<{
+  status: PlatformLibraryReadAreaResult["status"];
+  items: Record<string, unknown>[];
+  count?: PlatformLibraryCount;
+  providerState?: unknown;
+  hasMore: boolean;
+  issues?: PlatformLibraryIssue[];
+}> {
+  const offset = pageOffsetFromProviderState(providerState);
+  const requestLimit = Math.max(
+    Math.min(
+      netEasePageLimit,
+      pageSize,
+      sampleLimitRemaining === undefined ? pageSize : sampleLimitRemaining,
+    ),
+    1,
+  );
+  const response = await requestJson({
+    path,
+    query: { limit: String(requestLimit), offset: String(offset) },
+  });
+
+  if (!response.ok) {
+    return {
+      status: "failed",
+      items: [],
+      hasMore: false,
+      issues: [issueFromStageError(response.error, area)],
+    };
+  }
+
+  const page = extractArrayPayloadResult(response.value, arrayKeys, area);
+
+  if (!page.ok) {
+    return {
+      status: "failed",
+      items: [],
+      hasMore: false,
+      issues: [page.issue],
+    };
+  }
+
+  const exactCount = extractExactCount(response.value, ["count"]);
+  const nextOffset = offset + page.value.length;
+  const hasMore = exactCount !== undefined
+    ? nextOffset < exactCount
+    : page.value.length >= requestLimit;
+
+  return {
+    status: "complete",
+    items: page.value,
+    hasMore,
+    ...(exactCount === undefined ? {} : { count: { certainty: "exact" as const, value: exactCount } }),
+    ...(hasMore ? { providerState: { offset: nextOffset } } : {}),
+  };
 }
 
 function completeReadArea(items: PlatformLibraryItem[]): NetEaseReadAreaOutcome {
