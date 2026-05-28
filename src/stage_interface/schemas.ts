@@ -68,6 +68,11 @@ const musicCandidateSchema = z.object({
 });
 const collectionKindSchema = z.enum(["recording", "work", "release_group", "release", "artist"]);
 const collectionRelationKindSchema = z.enum(["saved", "favorite", "blocked", "custom"]);
+const platformLibraryItemKindSchema = z.enum([
+  "saved_source_track",
+  "saved_source_release",
+  "saved_source_artist",
+]);
 const libraryImportScopeSchema = z.enum([
   "discovery",
   "saved_source_tracks",
@@ -195,6 +200,14 @@ export const stageInterfaceToolInputSchemas = {
     limit: z.number().int().positive().optional(),
     cursor: z.string().optional(),
   },
+  "library.source.list": {
+    ownerScope: z.string().optional(),
+    providerId: z.string().optional(),
+    providerAccountId: z.string().optional(),
+    libraryKind: platformLibraryItemKindSchema.optional(),
+    limit: z.number().int().positive().optional(),
+    cursor: z.string().optional(),
+  },
   "library.import.preview": {
     providerId: z.string(),
     providerAccountId: z.string().optional(),
@@ -220,6 +233,7 @@ export const stageInterfaceToolInputSchemas = {
     ownerScope: z.string().optional(),
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
+    mode: z.enum(["full", "latest_until_seen"]).optional(),
   },
   "library.update.start": {
     providerId: z.string(),
@@ -228,6 +242,7 @@ export const stageInterfaceToolInputSchemas = {
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
     pageSize: z.number().int().positive().optional(),
+    mode: z.enum(["full", "latest_until_seen"]).optional(),
   },
   "library.update.continue": {
     batchId: z.string(),
@@ -238,6 +253,11 @@ export const stageInterfaceToolInputSchemas = {
   },
   "library.import.summary": {
     batchId: z.string(),
+  },
+  "library.import.items.list": {
+    batchId: z.string(),
+    limit: z.number().int().positive().optional(),
+    cursor: z.string().optional(),
   },
   "canonical.review.list": {
     limit: z.number().int().positive().optional(),

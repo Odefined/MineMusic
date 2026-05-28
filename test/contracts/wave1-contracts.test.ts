@@ -35,6 +35,7 @@ import type {
   Handbook,
   HandbookToolEntry,
   InstrumentProviderDescriptor,
+  InstrumentProviderAreaDescriptor,
   KnowledgeCanonicalContext,
   KnowledgeFieldQuery,
   KnowledgeFilters,
@@ -66,9 +67,15 @@ import type {
   LibraryImportStartInput,
   LibraryImportStatus,
   LibraryImportStatusInput,
+  LibraryImportSummaryView,
   LibraryImportSummary,
   LibraryImportSummaryInput,
+  LibraryImportItemsListInput,
+  LibraryImportItemsListOutput,
   LibraryImportScope,
+  LibraryUpdateMode,
+  LibraryUpdatePreviewInput,
+  LibraryUpdateStartInput,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -97,7 +104,11 @@ import type {
   SourceArtist,
   SourceEntity,
   SourceEntityKind,
+  SourceLibraryEntry,
   SourceLibraryItem,
+  SourceLibraryListItemView,
+  SourceLibraryListInput,
+  SourceLibraryListOutput,
   SourceLibraryResolveScope,
   SourceLibraryItemStatus,
   SourceProvider,
@@ -479,12 +490,19 @@ type _platformLibraryIssueCodes = Expect<
 type _platformLibraryItemHasNoRawEscapeHatch = Expect<
   Equal<
     keyof PlatformLibraryItem,
-    "providerId" | "sourceRef" | "itemKind" | "targetKind" | "label" | "addedAt" | "canonicalHints"
+    "providerId" | "sourceRef" | "itemKind" | "targetKind" | "label" | "providerAddedAt" | "canonicalHints"
   >
 >;
 
 type _platformLibrarySampleIsLightweight = Expect<
   Equal<keyof PlatformLibrarySample, "label" | "itemKind" | "targetKind" | "artistLabels">
+>;
+
+type _instrumentProviderAreaDescriptorKeys = Expect<
+  Equal<
+    keyof InstrumentProviderAreaDescriptor,
+    "id" | "label" | "availability" | "description" | "ordering"
+  >
 >;
 
 type _platformLibraryUnknownCountHasNoValue = Expect<
@@ -748,6 +766,16 @@ type _libraryImportStartInputKeys = Expect<
   >
 >;
 
+type _libraryUpdateMode = Expect<Equal<LibraryUpdateMode, "full" | "latest_until_seen">>;
+
+type _libraryUpdatePreviewInputKeys = Expect<
+  Equal<keyof LibraryUpdatePreviewInput, keyof LibraryImportPreviewInput | "mode">
+>;
+
+type _libraryUpdateStartInputKeys = Expect<
+  Equal<keyof LibraryUpdateStartInput, keyof LibraryImportStartInput | "mode">
+>;
+
 type _libraryImportContinueInputKeys = Expect<
   Equal<keyof LibraryImportContinueInput, "batchId" | "pageSize">
 >;
@@ -755,6 +783,10 @@ type _libraryImportContinueInputKeys = Expect<
 type _libraryImportBatchLookupInputsUseBatchId = Expect<
   Equal<keyof LibraryImportStatusInput, "batchId"> &
     Equal<keyof LibraryImportSummaryInput, "batchId">
+>;
+
+type _libraryImportItemsListInputKeys = Expect<
+  Equal<keyof LibraryImportItemsListInput, "batchId" | "limit" | "cursor">
 >;
 
 type _libraryImportProgressKeys = Expect<
@@ -791,6 +823,7 @@ type _libraryImportReportKeys = Expect<
     keyof LibraryImportReport,
     | "batchId"
     | "batchKind"
+    | "mode"
     | "status"
     | "providerId"
     | "ownerScope"
@@ -812,6 +845,7 @@ type _libraryImportStatusIsBatchSummary = Expect<
     keyof LibraryImportStatus,
     | "batchId"
     | "batchKind"
+    | "mode"
     | "status"
     | "providerId"
     | "ownerScope"
@@ -826,11 +860,38 @@ type _libraryImportStatusIsBatchSummary = Expect<
 
 type _libraryImportSummaryUsesReportShape = Expect<Equal<LibraryImportSummary, LibraryImportReport>>;
 
+type _libraryImportSummaryViewKeys = Expect<
+  Equal<
+    keyof LibraryImportSummaryView,
+    | "batchId"
+    | "batchKind"
+    | "mode"
+    | "status"
+    | "providerId"
+    | "ownerScope"
+    | "scopes"
+    | "account"
+    | "startedAt"
+    | "completedAt"
+    | "counts"
+    | "areas"
+    | "progress"
+    | "itemCount"
+    | "absences"
+    | "issues"
+  >
+>;
+
+type _libraryImportItemsListOutputKeys = Expect<
+  Equal<keyof LibraryImportItemsListOutput, "batchId" | "items" | "totalItems" | "nextCursor">
+>;
+
 type _libraryImportBatchRecordKeys = Expect<
   Equal<
     keyof LibraryImportBatch,
     | "id"
     | "batchKind"
+    | "mode"
     | "status"
     | "providerId"
     | "providerAccountId"
@@ -912,7 +973,7 @@ type _libraryImportItemProvenanceKeys = Expect<
     | "itemKind"
     | "sourceEntityKind"
     | "label"
-    | "addedAt"
+    | "providerAddedAt"
     | "canonicalHints"
     | "firstImportedBatchId"
     | "lastSeenBatchId"
@@ -989,6 +1050,7 @@ type _libraryImportPortMethods = Expect<
     | "continueUpdate"
     | "getStatus"
     | "getSummary"
+    | "listItems"
   >
 >;
 
@@ -1107,6 +1169,28 @@ type _sourceLibraryItemListInputKeys = Expect<
     keyof SourceLibraryItemListInput,
     "ownerScope" | "providerId" | "providerAccountId" | "sourceKind" | "libraryKind" | "status" | "sourceRef"
   >
+>;
+
+type _sourceLibraryListInputKeys = Expect<
+  Equal<
+    keyof SourceLibraryListInput,
+    | "ownerScope"
+    | "providerId"
+    | "providerAccountId"
+    | "libraryKind"
+    | "limit"
+    | "cursor"
+  >
+>;
+
+type _sourceLibraryEntryKeys = Expect<Equal<keyof SourceLibraryEntry, "item" | "sourceEntity">>;
+
+type _sourceLibraryListItemViewKeys = Expect<
+  Equal<keyof SourceLibraryListItemView, "sourceRef" | "label" | "subtitle">
+>;
+
+type _sourceLibraryListOutputKeys = Expect<
+  Equal<keyof SourceLibraryListOutput, "items" | "totalItems" | "nextCursor">
 >;
 
 type _confirmedCanonicalBindingListInputKeys = Expect<
@@ -1471,7 +1555,7 @@ const platformLibraryItem: PlatformLibraryItem = {
   itemKind: "saved_source_release",
   targetKind: "release",
   label: "Fixture Release",
-  addedAt: "2026-05-17T00:00:00.000Z",
+  providerAddedAt: "2026-05-17T00:00:00.000Z",
   canonicalHints: {
     label: "Fixture Release",
     artistLabels: ["Fixture Artist"],

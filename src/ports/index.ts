@@ -42,12 +42,16 @@ import type {
   LibraryImportPreview,
   LibraryImportPreviewInput,
   LibraryImportReport,
+  LibraryImportItemsListInput,
+  LibraryImportItemsListOutput,
   LibraryImportScope,
   LibraryImportStartInput,
   LibraryImportStatus,
   LibraryImportStatusInput,
   LibraryImportSummary,
   LibraryImportSummaryInput,
+  LibraryUpdatePreviewInput,
+  LibraryUpdateStartInput,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -447,15 +451,17 @@ export interface LibraryImportPort {
 
   continueImport(input: LibraryImportContinueInput): Promise<Result<LibraryImportStatus>>;
 
-  previewUpdate(input: LibraryImportPreviewInput): Promise<Result<LibraryImportPreview>>;
+  previewUpdate(input: LibraryUpdatePreviewInput): Promise<Result<LibraryImportPreview>>;
 
-  startUpdate(input: LibraryImportStartInput): Promise<Result<LibraryImportReport>>;
+  startUpdate(input: LibraryUpdateStartInput): Promise<Result<LibraryImportReport>>;
 
   continueUpdate(input: LibraryImportContinueInput): Promise<Result<LibraryImportStatus>>;
 
   getStatus(input: LibraryImportStatusInput): Promise<Result<LibraryImportStatus>>;
 
   getSummary(input: LibraryImportSummaryInput): Promise<Result<LibraryImportSummary>>;
+
+  listItems(input: LibraryImportItemsListInput): Promise<Result<LibraryImportItemsListOutput>>;
 }
 
 export interface ProviderHttpCacheRepository {

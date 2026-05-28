@@ -5,6 +5,8 @@ import type {
   LibraryImportContinuationState,
   LibraryImportContinueInput,
   LibraryImportCounts,
+  LibraryImportItemsListInput,
+  LibraryImportItemsListOutput,
   LibraryImportPreview,
   LibraryImportPreviewArea,
   LibraryImportPreviewInput,
@@ -17,6 +19,9 @@ import type {
   LibraryImportStatus,
   LibraryImportSourceLibraryEstimateCounts,
   LibraryImportUpdateEstimateCounts,
+  LibraryUpdateMode,
+  LibraryUpdatePreviewInput,
+  LibraryUpdateStartInput,
   PlatformLibraryArea,
   PlatformLibraryAbsence,
   PlatformLibraryAbsenceSummary,
@@ -52,6 +57,12 @@ type LibraryImportServiceOptions = {
 };
 
 const defaultOwnerScope = "local_profile:default";
+
+function resolvedUpdateMode(
+  input: LibraryUpdatePreviewInput | LibraryUpdateStartInput,
+): LibraryUpdateMode {
+  return input.mode ?? "full";
+}
 
 export function createLibraryImportService({
   pluginRegistry,
@@ -151,34 +162,82 @@ export function createLibraryImportService({
     },
 
     async getSummary({ batchId }) {
-      const storedReport = await repository.getReport({ batchId });
-
-      if (!storedReport.ok) {
-        return storedReport;
-      }
-
-      if (storedReport.value !== null) {
-        return ok(storedReport.value);
-      }
-
-      const completedReport = completedReports.get(batchId);
-
-      if (completedReport !== undefined) {
-        return ok(structuredClone(completedReport));
-      }
-
-      const batch = await repository.getBatch({ batchId });
-
-      if (!batch.ok) {
-        return batch;
-      }
-
-      if (batch.value === null) {
-        return batchNotFound(batchId);
-      }
-
-      return ok(batchToReport(batch.value));
+      return loadLibraryImportReport({
+        repository,
+        completedReports,
+        batchId,
+      });
     },
+
+    async listItems(input) {
+      const report = await loadLibraryImportReport({
+        repository,
+        completedReports,
+        batchId: input.batchId,
+      });
+
+      if (!report.ok) {
+        return report;
+      }
+
+      return ok(listReportItems(report.value, input));
+    },
+  };
+}
+
+async function loadLibraryImportReport({
+  repository,
+  completedReports,
+  batchId,
+}: {
+  repository: LibraryImportRepository;
+  completedReports: Map<string, LibraryImportReport>;
+  batchId: string;
+}): Promise<Result<LibraryImportReport>> {
+  const storedReport = await repository.getReport({ batchId });
+
+  if (!storedReport.ok) {
+    return storedReport;
+  }
+
+  if (storedReport.value !== null) {
+    return ok(storedReport.value);
+  }
+
+  const completedReport = completedReports.get(batchId);
+
+  if (completedReport !== undefined) {
+    return ok(structuredClone(completedReport));
+  }
+
+  const batch = await repository.getBatch({ batchId });
+
+  if (!batch.ok) {
+    return batch;
+  }
+
+  if (batch.value === null) {
+    return batchNotFound(batchId);
+  }
+
+  return ok(batchToReport(batch.value));
+}
+
+function listReportItems(
+  report: LibraryImportReport,
+  input: LibraryImportItemsListInput,
+): LibraryImportItemsListOutput {
+  const totalItems = report.items.length;
+  const start = normalizeItemCursor(input.cursor, totalItems);
+  const limit = normalizeItemLimit(input.limit);
+  const items = report.items.slice(start, start + limit);
+  const nextOffset = start + items.length;
+
+  return {
+    batchId: report.batchId,
+    items,
+    totalItems,
+    ...(nextOffset < totalItems ? { nextCursor: String(nextOffset) } : {}),
   };
 }
 
@@ -192,7 +251,7 @@ async function previewLibraryImport({
   pluginRegistry: PluginRegistryPort;
   materialStore: MaterialStorePort;
   repository: LibraryImportRepository;
-  input: LibraryImportPreviewInput;
+  input: LibraryImportPreviewInput | LibraryUpdatePreviewInput;
   includeUpdateEstimates: boolean;
 }): Promise<Result<LibraryImportPreview>> {
   const provider = await resolvePlatformLibraryProvider(pluginRegistry, input.providerId);
@@ -660,7 +719,7 @@ async function startLibraryImport({
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
-  input: LibraryImportStartInput;
+  input: LibraryImportStartInput | LibraryUpdateStartInput;
   batchKind: LibraryImportBatchKind;
   idFactory: () => string;
   clock: () => string;
@@ -702,9 +761,11 @@ async function startLibraryImport({
   const startedAt = clock();
   const ownerScope = input.ownerScope ?? defaultOwnerScope;
   const counts = emptyCounts();
+  const updateMode = batchKind === "library_update" ? resolvedUpdateMode(input) : undefined;
   const runningBatch: LibraryImportBatch = {
     id: batchId,
     batchKind,
+    ...(updateMode === undefined ? {} : { mode: updateMode }),
     status: "running",
     providerId: input.providerId,
     ownerScope,
@@ -1140,7 +1201,7 @@ async function storeSourceEntityAndLibraryItem({
     sourceKind: sourceEntity.kind,
     libraryKind: item.itemKind,
     label: item.label,
-    ...(item.addedAt === undefined ? {} : { addedAt: item.addedAt }),
+    addedAt: existingLibraryItem.value?.addedAt ?? seenAt,
     firstImportedBatchId: existingLibraryItem.value?.firstImportedBatchId ?? batchId,
     lastSeenBatchId: batchId,
     lastSeenAt: seenAt,
@@ -1358,7 +1419,9 @@ async function recordItemResult({
       itemKind: report.itemKind,
       sourceEntityKind: report.sourceEntityKind,
       label: report.label,
-      ...(item.addedAt === undefined ? {} : { addedAt: item.addedAt }),
+      ...(item.providerAddedAt === undefined
+        ? {}
+        : { providerAddedAt: item.providerAddedAt }),
       ...(item.canonicalHints === undefined ? {} : { canonicalHints: item.canonicalHints }),
       firstImportedBatchId: existingProvenance.value?.firstImportedBatchId ?? batchId,
       lastSeenBatchId: batchId,
@@ -1705,6 +1768,7 @@ function batchToStatus(batch: LibraryImportBatch): LibraryImportStatus {
   const status: LibraryImportStatus = {
     batchId: batch.id,
     batchKind: batch.batchKind,
+    ...(batch.mode === undefined ? {} : { mode: batch.mode }),
     status: batch.status,
     providerId: batch.providerId,
     ownerScope: batch.ownerScope,
@@ -1729,6 +1793,7 @@ function batchToReport(batch: LibraryImportBatch): LibraryImportReport {
   const report: LibraryImportReport = {
     batchId: batch.id,
     batchKind: batch.batchKind,
+    ...(batch.mode === undefined ? {} : { mode: batch.mode }),
     status: batch.status,
     providerId: batch.providerId,
     ownerScope: batch.ownerScope,
@@ -1815,7 +1880,7 @@ function shouldUsePagedImport({
   provider,
   repository,
 }: {
-  input: LibraryImportStartInput;
+  input: LibraryImportStartInput | LibraryUpdateStartInput;
   provider: PlatformLibraryProvider;
   repository: LibraryImportRepository;
 }): boolean {
@@ -1853,7 +1918,7 @@ async function startPagedLibraryImport({
   provider: PlatformLibraryProvider & {
     readPage: NonNullable<PlatformLibraryProvider["readPage"]>;
   };
-  input: LibraryImportStartInput;
+  input: LibraryImportStartInput | LibraryUpdateStartInput;
   batchKind: LibraryImportBatchKind;
   idFactory: () => string;
   clock: () => string;
@@ -1863,9 +1928,11 @@ async function startPagedLibraryImport({
   const startedAt = clock();
   const ownerScope = input.ownerScope ?? defaultOwnerScope;
   const counts = emptyCounts();
+  const updateMode = batchKind === "library_update" ? resolvedUpdateMode(input) : undefined;
   const runningBatch: LibraryImportBatch = {
     id: batchId,
     batchKind,
+    ...(updateMode === undefined ? {} : { mode: updateMode }),
     status: "running",
     providerId: input.providerId,
     ownerScope,
@@ -2359,6 +2426,31 @@ function reportCountForContinuationState(
     certainty: "at_least",
     value: state.processedItems,
   };
+}
+
+const defaultListItemsLimit = 20;
+const maxListItemsLimit = 200;
+
+function normalizeItemLimit(limit: number | undefined): number {
+  if (limit === undefined || !Number.isFinite(limit) || limit < 1) {
+    return defaultListItemsLimit;
+  }
+
+  return Math.min(Math.floor(limit), maxListItemsLimit);
+}
+
+function normalizeItemCursor(cursor: string | undefined, totalItems: number): number {
+  if (cursor === undefined) {
+    return 0;
+  }
+
+  const parsed = Number.parseInt(cursor, 10);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 0;
+  }
+
+  return Math.min(parsed, totalItems);
 }
 
 function progressFromContinuationStates(

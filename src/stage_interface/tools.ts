@@ -24,6 +24,7 @@ export const stableToolNames = [
   "music.collection.update",
   "music.collection.delete",
   "music.collection.list",
+  "library.source.list",
   "library.import.preview",
   "library.import.start",
   "library.import.continue",
@@ -32,6 +33,7 @@ export const stableToolNames = [
   "library.update.continue",
   "library.import.status",
   "library.import.summary",
+  "library.import.items.list",
   "canonical.review.list",
   "canonical.review.inspect",
   "canonical.review.apply",
@@ -198,6 +200,12 @@ export const knowledgeToolDescriptors: StableToolDescriptor[] = [
 
 export const libraryToolDescriptors: StableToolDescriptor[] = [
   {
+    name: "library.source.list",
+    description: "List Source Library items in bounded pages as short cards.",
+    inputSchemaRef: "SourceLibraryListInput",
+    outputSchemaRef: "SourceLibraryListOutput",
+  },
+  {
     name: "library.import.preview",
     description: "Preview importing saved platform library facts into MineMusic state.",
     inputSchemaRef: "LibraryImportPreviewInput",
@@ -207,7 +215,7 @@ export const libraryToolDescriptors: StableToolDescriptor[] = [
     name: "library.import.start",
     description: "Start importing saved platform library facts into MineMusic state.",
     inputSchemaRef: "LibraryImportStartInput",
-    outputSchemaRef: "LibraryImportReport",
+    outputSchemaRef: "LibraryImportStatus",
   },
   {
     name: "library.import.continue",
@@ -218,14 +226,14 @@ export const libraryToolDescriptors: StableToolDescriptor[] = [
   {
     name: "library.update.preview",
     description: "Preview a platform library update against MineMusic's latest complete baseline.",
-    inputSchemaRef: "LibraryImportPreviewInput",
+    inputSchemaRef: "LibraryUpdatePreviewInput",
     outputSchemaRef: "LibraryImportPreview",
   },
   {
     name: "library.update.start",
     description: "Start a platform library update against MineMusic's latest complete baseline.",
-    inputSchemaRef: "LibraryImportStartInput",
-    outputSchemaRef: "LibraryImportReport",
+    inputSchemaRef: "LibraryUpdateStartInput",
+    outputSchemaRef: "LibraryImportStatus",
   },
   {
     name: "library.update.continue",
@@ -241,9 +249,15 @@ export const libraryToolDescriptors: StableToolDescriptor[] = [
   },
   {
     name: "library.import.summary",
-    description: "Read the completed report for a Library Import batch.",
+    description: "Read the compact completed summary for a Library Import batch.",
     inputSchemaRef: "LibraryImportSummaryInput",
-    outputSchemaRef: "LibraryImportSummary",
+    outputSchemaRef: "LibraryImportSummaryView",
+  },
+  {
+    name: "library.import.items.list",
+    description: "List item-level import facts for a Library Import batch in bounded pages.",
+    inputSchemaRef: "LibraryImportItemsListInput",
+    outputSchemaRef: "LibraryImportItemsListOutput",
   },
 ];
 

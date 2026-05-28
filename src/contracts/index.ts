@@ -591,6 +591,32 @@ export type SourceLibraryItem = {
   status: SourceLibraryItemStatus;
 };
 
+export type SourceLibraryListInput = {
+  ownerScope?: string;
+  providerId?: string;
+  providerAccountId?: string;
+  libraryKind?: PlatformLibraryItemKind;
+  limit?: number;
+  cursor?: string;
+};
+
+export type SourceLibraryEntry = {
+  item: SourceLibraryItem;
+  sourceEntity?: SourceEntity;
+};
+
+export type SourceLibraryListItemView = {
+  sourceRef: Ref;
+  label: string;
+  subtitle?: string;
+};
+
+export type SourceLibraryListOutput = {
+  items: SourceLibraryListItemView[];
+  totalItems: number;
+  nextCursor?: string;
+};
+
 export type SourceLibraryResolveScope = {
   providerId?: string;
   providerAccountId?: string;
@@ -799,7 +825,7 @@ export type PlatformLibraryItem = {
   itemKind: PlatformLibraryItemKind;
   targetKind: PlatformLibraryTargetKind;
   label: string;
-  addedAt?: string;
+  providerAddedAt?: string;
   canonicalHints?: PlatformLibraryCanonicalHints;
 };
 
@@ -910,6 +936,18 @@ export type LibraryImportStartInput = LibraryImportPreviewInput & {
   pageSize?: number;
 };
 
+export type LibraryUpdateMode =
+  | "full"
+  | "latest_until_seen";
+
+export type LibraryUpdatePreviewInput = LibraryImportPreviewInput & {
+  mode?: LibraryUpdateMode;
+};
+
+export type LibraryUpdateStartInput = LibraryImportStartInput & {
+  mode?: LibraryUpdateMode;
+};
+
 export type LibraryImportContinueInput = {
   batchId: string;
   pageSize?: number;
@@ -921,6 +959,12 @@ export type LibraryImportStatusInput = {
 
 export type LibraryImportSummaryInput = {
   batchId: string;
+};
+
+export type LibraryImportItemsListInput = {
+  batchId: string;
+  limit?: number;
+  cursor?: string;
 };
 
 export type LibraryImportSourceLibraryEstimateCounts = {
@@ -1018,6 +1062,7 @@ export type LibraryImportReportArea = {
 export type LibraryImportReport = {
   batchId: string;
   batchKind: LibraryImportBatchKind;
+  mode?: LibraryUpdateMode;
   status: LibraryImportBatchStatus;
   providerId: string;
   ownerScope: string;
@@ -1036,6 +1081,7 @@ export type LibraryImportReport = {
 export type LibraryImportStatus = {
   batchId: string;
   batchKind: LibraryImportBatchKind;
+  mode?: LibraryUpdateMode;
   status: LibraryImportBatchStatus;
   providerId: string;
   ownerScope: string;
@@ -1049,9 +1095,36 @@ export type LibraryImportStatus = {
 
 export type LibraryImportSummary = LibraryImportReport;
 
+export type LibraryImportSummaryView = {
+  batchId: string;
+  batchKind: LibraryImportBatchKind;
+  mode?: LibraryUpdateMode;
+  status: LibraryImportBatchStatus;
+  providerId: string;
+  ownerScope: string;
+  scopes: LibraryImportScope[];
+  account?: PlatformLibraryAccountIdentity;
+  startedAt: string;
+  completedAt?: string;
+  counts: LibraryImportCounts;
+  areas: LibraryImportReportArea[];
+  progress: LibraryImportProgress;
+  itemCount: number;
+  absences?: PlatformLibraryAbsenceSummary[];
+  issues?: PlatformLibraryIssue[];
+};
+
+export type LibraryImportItemsListOutput = {
+  batchId: string;
+  items: LibraryImportItemReport[];
+  totalItems: number;
+  nextCursor?: string;
+};
+
 export type LibraryImportBatch = {
   id: string;
   batchKind: LibraryImportBatchKind;
+  mode?: LibraryUpdateMode;
   status: LibraryImportBatchStatus;
   providerId: string;
   providerAccountId?: string;
@@ -1116,7 +1189,7 @@ export type LibraryImportItemProvenance = {
   itemKind: PlatformLibraryItemKind;
   sourceEntityKind: SourceEntityKind;
   label: string;
-  addedAt?: string;
+  providerAddedAt?: string;
   canonicalHints?: PlatformLibraryCanonicalHints;
   firstImportedBatchId: string;
   lastSeenBatchId: string;
@@ -1375,6 +1448,7 @@ export type ToolName =
   | "music.collection.update"
   | "music.collection.delete"
   | "music.collection.list"
+  | "library.source.list"
   | "library.import.preview"
   | "library.import.start"
   | "library.import.continue"
@@ -1383,6 +1457,7 @@ export type ToolName =
   | "library.update.continue"
   | "library.import.status"
   | "library.import.summary"
+  | "library.import.items.list"
   | "canonical.review.list"
   | "canonical.review.inspect"
   | "canonical.review.apply"
@@ -1432,6 +1507,7 @@ export type InstrumentProviderAreaDescriptor = {
   label: string;
   availability: PlatformLibraryAvailability | (string & {});
   description?: string;
+  ordering?: "newest_first";
 };
 
 export type KnowledgeProviderCapabilityDescriptor = {

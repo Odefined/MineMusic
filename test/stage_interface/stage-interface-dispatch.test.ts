@@ -3,13 +3,17 @@ import type {
   CollectionItem,
   EffectProposal,
   LibraryImportBatchKind,
+  LibraryImportItemsListOutput,
   LibraryImportReport,
   LibraryImportScope,
   LibraryImportStatus,
+  LibraryImportSummaryView,
   MemoryProposal,
   MusicMaterial,
   Ref,
   Result,
+  SourceEntity,
+  SourceLibraryEntry,
   StageSession,
   ToolName,
 } from "../../src/contracts/index.js";
@@ -22,6 +26,7 @@ import type {
   LibraryImportPort,
   MaterialResolvePort,
   MaterialGatePort,
+  MaterialStorePort,
   MemoryPort,
   MusicKnowledgePort,
   SessionContextPort,
@@ -983,8 +988,8 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
         value: libraryImportStatus({ batchId }),
       };
     },
-    previewUpdate: async ({ providerId, ownerScope, scopes }) => {
-      calls.push(`previewUpdate:${providerId}:${ownerScope}:${scopes.join("+")}`);
+    previewUpdate: async ({ providerId, ownerScope, scopes, mode }) => {
+      calls.push(`previewUpdate:${providerId}:${ownerScope}:${scopes.join("+")}:${mode ?? "full"}`);
       return {
         ok: true,
         value: {
@@ -995,8 +1000,8 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
         },
       };
     },
-    startUpdate: async ({ providerId, ownerScope, scopes }) => {
-      calls.push(`startUpdate:${providerId}:${ownerScope}:${scopes.join("+")}`);
+    startUpdate: async ({ providerId, ownerScope, scopes, mode }) => {
+      calls.push(`startUpdate:${providerId}:${ownerScope}:${scopes.join("+")}:${mode ?? "full"}`);
       return {
         ok: true,
         value: libraryImportReport({
@@ -1005,6 +1010,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
           providerId,
           ownerScope: ownerScope ?? "missing",
           scopes,
+          ...(mode === undefined ? {} : { mode }),
         }),
       };
     },
@@ -1033,6 +1039,13 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
           ownerScope: "local_profile:default",
           scopes: ["saved_source_tracks"],
         }),
+      };
+    },
+    listItems: async ({ batchId }) => {
+      calls.push(`items:${batchId}`);
+      return {
+        ok: true,
+        value: libraryImportItemsPage({ batchId }),
       };
     },
   };
@@ -1093,7 +1106,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
       payload: { providerId: "fixture-library", scopes: ["saved_source_tracks"] },
     }),
   );
-  await assertOk(
+  const startResult = await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "library.import.start",
@@ -1111,14 +1124,14 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     dispatch.call({
       sessionId: session.id,
       toolName: "library.update.preview",
-      payload: { providerId: "fixture-library", scopes: ["saved_source_artists"] },
+      payload: { providerId: "fixture-library", scopes: ["saved_source_artists"], mode: "latest_until_seen" },
     }),
   );
-  await assertOk(
+  const updateStartResult = await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "library.update.start",
-      payload: { providerId: "fixture-library", scopes: ["saved_source_tracks"] },
+      payload: { providerId: "fixture-library", scopes: ["saved_source_tracks"], mode: "latest_until_seen" },
     }),
   );
   await assertOk(
@@ -1135,11 +1148,18 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
       payload: { batchId: "import-batch-1" },
     }),
   );
-  await assertOk(
+  const summaryResult = await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "library.import.summary",
       payload: { batchId: "import-batch-1" },
+    }),
+  );
+  const itemsResult = await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "library.import.items.list",
+      payload: { batchId: "import-batch-1", limit: 10 },
     }),
   );
 
@@ -1153,16 +1173,159 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   );
   assert(calls.includes("continueImport:import-batch-1"), "library import continue should route by batch id");
   assert(
-    calls.includes("previewUpdate:fixture-library:local_profile:default:saved_source_artists"),
-    "library update preview should default missing owner scope",
+    calls.includes("previewUpdate:fixture-library:local_profile:default:saved_source_artists:latest_until_seen"),
+    "library update preview should default missing owner scope and pass mode through",
   );
   assert(
-    calls.includes("startUpdate:fixture-library:local_profile:default:saved_source_tracks"),
-    "library update start should default missing owner scope",
+    calls.includes("startUpdate:fixture-library:local_profile:default:saved_source_tracks:latest_until_seen"),
+    "library update start should default missing owner scope and pass mode through",
   );
   assert(calls.includes("continueUpdate:update-batch-1"), "library update continue should route by batch id");
   assert(calls.includes("status:import-batch-1"), "library import status should route by batch id");
   assert(calls.includes("summary:import-batch-1"), "library import summary should route by batch id");
+  assert(calls.includes("items:import-batch-1"), "library import items list should route by batch id");
+  assert(!("items" in (startResult as Record<string, unknown>)), "library import start should return compact status without item list");
+  assert(!("items" in (updateStartResult as Record<string, unknown>)), "library update start should return compact status without item list");
+  assert(!("items" in (summaryResult as Record<string, unknown>)), "library import summary should return compact summary without item list");
+  assert(Array.isArray((itemsResult as { items?: unknown[] }).items), "library import items list should return paged item details");
+}
+
+async function dispatchesSourceLibraryToolsThroughMaterialStore(): Promise<void> {
+  const calls: string[] = [];
+  const sourceEntity: SourceEntity = {
+    sourceRef: {
+      namespace: "source:fixture-library",
+      kind: "track",
+      id: "track-1",
+    },
+    kind: "track",
+    providerId: "fixture-library",
+    label: "Fixture Track",
+    title: "Fixture Track",
+    artistLabels: ["Artist 1"],
+    releaseLabel: "Fixture Release",
+    durationMs: 123000,
+    providerFacts: { noisy: true },
+    createdAt: "2026-05-28T00:00:00.000Z",
+    updatedAt: "2026-05-28T00:00:00.000Z",
+  };
+  const sourceLibraryEntry: SourceLibraryEntry = {
+    item: {
+      id: "source-library-item-1",
+      ownerScope: "local_profile:default",
+      providerId: "fixture-library",
+      providerAccountId: "acct-1",
+      sourceRef: sourceEntity.sourceRef,
+      sourceKind: "track",
+      libraryKind: "saved_source_track",
+      label: "Fixture Track",
+      lastSeenAt: "2026-05-28T00:00:00.000Z",
+      status: "present",
+    },
+    sourceEntity,
+  };
+  const materialStore: MaterialStorePort = {
+    getCanonical: async () => ({ ok: true, value: null }),
+    findCanonicalByLabel: async () => ({ ok: true, value: [] }),
+    getSourceEntity: async ({ sourceRef }) => {
+      calls.push(`sourceEntity:${sourceRef.id}`);
+      return { ok: true, value: sourceRef.id === sourceEntity.sourceRef.id ? sourceEntity : null };
+    },
+    upsertSourceEntity: async ({ entity }) => ({ ok: true, value: entity }),
+    listSourceEntities: async () => ({ ok: true, value: [sourceEntity] }),
+    getSourceLibraryItem: async ({ ownerScope, providerId, providerAccountId, libraryKind, sourceRef }) => {
+      calls.push(`source.get:${ownerScope}:${providerId}:${providerAccountId}:${libraryKind}:${sourceRef.id}`);
+      return { ok: true, value: sourceRef.id === sourceLibraryEntry.item.sourceRef.id ? sourceLibraryEntry.item : null };
+    },
+    putSourceLibraryItem: async ({ item }) => ({ ok: true, value: item }),
+    listSourceLibraryItems: async ({
+      ownerScope,
+      providerId,
+      providerAccountId,
+      libraryKind,
+      status,
+    }) => {
+      calls.push(
+        `source.list:${ownerScope ?? "missing"}:${providerId ?? "missing"}:${providerAccountId ?? "missing"}:${libraryKind ?? "missing"}:${status ?? "missing"}`,
+      );
+      return { ok: true, value: [sourceLibraryEntry.item] };
+    },
+    getConfirmedCanonicalBinding: async () => ({ ok: true, value: null }),
+    putConfirmedCanonicalBinding: async ({ binding }) => ({ ok: true, value: binding }),
+    listConfirmedCanonicalBindings: async () => ({ ok: true, value: [] }),
+  };
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "now" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+    materialStore,
+  });
+
+  const listed = await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "library.source.list",
+      payload: {
+        providerId: "fixture-library",
+        providerAccountId: "acct-1",
+        libraryKind: "saved_source_track",
+        limit: 10,
+      },
+    }),
+  );
+  assert(
+    calls.includes("source.list:local_profile:default:fixture-library:acct-1:saved_source_track:present"),
+    "source library list should route through material store with default owner scope",
+  );
+  assert(calls.includes("sourceEntity:track-1"), "source library tools should hydrate source entity details");
+  assert(
+    Array.isArray((listed as { items?: unknown[] }).items) &&
+      ((listed as { items?: unknown[] }).items?.length ?? 0) === 1,
+    "source library list should return a bounded item page",
+  );
+  const listedFirst = ((listed as { items?: unknown[] }).items?.[0] ?? {}) as {
+    sourceRef?: Record<string, unknown>;
+    label?: unknown;
+    subtitle?: unknown;
+    status?: unknown;
+    libraryKind?: unknown;
+  };
+  assert(listedFirst.label === "Fixture Track", "source library list should expose compact label");
+  assert(typeof listedFirst.subtitle === "string", "source library list should expose a compact subtitle");
+  assert(!("status" in listedFirst), "source library list should not expose status");
+  assert(!("libraryKind" in listedFirst), "source library list should not expose internal library kind");
+  assert(!("providerId" in listedFirst), "source library list should not expose redundant provider id");
+  assert(!("providerAccountId" in listedFirst), "source library list should not expose redundant provider account id");
+  assert(!("sourceEntity" in listedFirst), "source library list should not expose source entity detail by default");
 }
 
 async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<void> {
@@ -1646,12 +1809,14 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
 function libraryImportReport({
   batchId,
   batchKind,
+  mode,
   providerId,
   ownerScope,
   scopes,
 }: {
   batchId: string;
   batchKind: LibraryImportBatchKind;
+  mode?: "full" | "latest_until_seen";
   providerId: string;
   ownerScope: string;
   scopes: LibraryImportScope[];
@@ -1659,6 +1824,7 @@ function libraryImportReport({
   return {
     batchId,
     batchKind,
+    ...(mode === undefined ? {} : { mode }),
     status: "completed",
     providerId,
     ownerScope,
@@ -1684,6 +1850,45 @@ function libraryImportStatus({ batchId }: { batchId: string }): LibraryImportSta
     completedAt: "2026-05-25T00:00:00.000Z",
     counts: emptyImportCounts(),
     progress: emptyImportProgress(),
+  };
+}
+
+function libraryImportSummaryView({ batchId }: { batchId: string }): LibraryImportSummaryView {
+  return {
+    batchId,
+    batchKind: "initial_import",
+    status: "completed",
+    providerId: "fixture-library",
+    ownerScope: "local_profile:default",
+    scopes: ["saved_source_tracks"],
+    startedAt: "2026-05-25T00:00:00.000Z",
+    completedAt: "2026-05-25T00:00:00.000Z",
+    counts: emptyImportCounts(),
+    areas: [],
+    progress: emptyImportProgress(),
+    itemCount: 1,
+  };
+}
+
+function libraryImportItemsPage({ batchId }: { batchId: string }): LibraryImportItemsListOutput {
+  return {
+    batchId,
+    items: [
+      {
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
+        sourceRef: {
+          namespace: "source:fixture-library",
+          kind: "track",
+          id: "track-1",
+        },
+        itemKind: "saved_source_track",
+        sourceEntityKind: "track",
+        label: "Track 1",
+        status: "imported",
+      },
+    ],
+    totalItems: 1,
   };
 }
 
@@ -1715,5 +1920,6 @@ await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
 await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
 await dispatchesLibraryImportToolsWithDefaultOwnerScope();
+await dispatchesSourceLibraryToolsThroughMaterialStore();
 await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();

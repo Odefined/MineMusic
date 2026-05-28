@@ -453,7 +453,7 @@ export function createSqliteLibraryImportRepository({
             provenance.itemKind,
             provenance.sourceEntityKind,
             provenance.label,
-            provenance.addedAt ?? null,
+            provenance.providerAddedAt ?? null,
             optionalJson(provenance.canonicalHints),
             provenance.firstImportedBatchId,
             provenance.lastSeenBatchId,
@@ -700,7 +700,7 @@ function toItemProvenance(row: ItemProvenanceRow): LibraryImportItemProvenance {
   };
 
   if (row.added_at !== null) {
-    provenance.addedAt = row.added_at;
+    provenance.providerAddedAt = row.added_at;
   }
 
   if (row.canonical_hints_json !== null) {
