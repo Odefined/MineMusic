@@ -209,6 +209,7 @@ async function previewLibraryImport({
     providerAccountStable,
     requestedAreas: areas,
     previewAreas: preview.value.areas,
+    sampleLimitPerArea: input.sampleLimitPerArea,
     includeUpdateEstimates,
   });
 
@@ -259,6 +260,7 @@ async function estimateReadablePreviewAreas({
   providerAccountStable,
   requestedAreas,
   previewAreas,
+  sampleLimitPerArea,
   includeUpdateEstimates,
 }: {
   provider: PlatformLibraryProvider;
@@ -270,6 +272,7 @@ async function estimateReadablePreviewAreas({
   providerAccountStable: boolean | undefined;
   requestedAreas: PlatformLibraryArea[];
   previewAreas: PlatformLibraryPreviewArea[];
+  sampleLimitPerArea: number | undefined;
   includeUpdateEstimates: boolean;
 }): Promise<Result<Map<PlatformLibraryArea, PreviewAreaEstimates>>> {
   const readableAreas = previewAreas
@@ -288,6 +291,7 @@ async function estimateReadablePreviewAreas({
   const read = await provider.readItems({
     ...(providerAccountId === undefined ? {} : { providerAccountId }),
     areas: readableAreas,
+    ...(sampleLimitPerArea === undefined ? {} : { sampleLimitPerArea }),
   });
 
   if (!read.ok) {

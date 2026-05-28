@@ -669,14 +669,14 @@ async function readPlatformLibraryAreas(
     if (area === "saved_source_releases") {
       results.push({
         area,
-        ...(await readSavedReleases(requestJson)),
+        ...(await readSavedReleases(requestJson, sampleLimit)),
       });
     }
 
     if (area === "saved_source_artists") {
       results.push({
         area,
-        ...(await readSavedArtists(requestJson)),
+        ...(await readSavedArtists(requestJson, sampleLimit)),
       });
     }
 
@@ -757,8 +757,17 @@ async function readSavedRecordings(
   return completeReadArea(items);
 }
 
-async function readSavedReleases(requestJson: NetEaseRequester): Promise<NetEaseReadAreaOutcome> {
-  const albums = await readPaginatedItems(requestJson, "/album/sublist", ["data", "albums"], "saved_source_releases");
+async function readSavedReleases(
+  requestJson: NetEaseRequester,
+  sampleLimit?: number,
+): Promise<NetEaseReadAreaOutcome> {
+  const albums = await readPaginatedItems(
+    requestJson,
+    "/album/sublist",
+    ["data", "albums"],
+    "saved_source_releases",
+    sampleLimit,
+  );
   const albumContexts = new Map<string, NetEaseAlbumContext | null>();
 
   await ensureAlbumContextsForAlbums(requestJson, albums.items, albumContexts);
@@ -772,8 +781,17 @@ async function readSavedReleases(requestJson: NetEaseRequester): Promise<NetEase
   };
 }
 
-async function readSavedArtists(requestJson: NetEaseRequester): Promise<NetEaseReadAreaOutcome> {
-  const artists = await readPaginatedItems(requestJson, "/artist/sublist", ["data", "artists"], "saved_source_artists");
+async function readSavedArtists(
+  requestJson: NetEaseRequester,
+  sampleLimit?: number,
+): Promise<NetEaseReadAreaOutcome> {
+  const artists = await readPaginatedItems(
+    requestJson,
+    "/artist/sublist",
+    ["data", "artists"],
+    "saved_source_artists",
+    sampleLimit,
+  );
 
   return {
     status: artists.status,
@@ -787,15 +805,20 @@ async function readPaginatedItems(
   path: string,
   arrayKeys: string[],
   area: PlatformLibraryArea,
+  sampleLimit?: number,
 ): Promise<NetEasePaginatedRead> {
   const items: Record<string, unknown>[] = [];
   let offset = 0;
   let expectedCount: number | undefined;
 
   while (true) {
+    const requestLimit =
+      sampleLimit === undefined
+        ? netEasePageLimit
+        : Math.max(Math.min(netEasePageLimit, sampleLimit - items.length), 1);
     const response = await requestJson({
       path,
-      query: { limit: String(netEasePageLimit), offset: String(offset) },
+      query: { limit: String(requestLimit), offset: String(offset) },
     });
 
     if (!response.ok) {
@@ -815,6 +838,10 @@ async function readPaginatedItems(
     }
 
     items.push(...page.value);
+
+    if (sampleLimit !== undefined && items.length >= sampleLimit) {
+      return { status: "complete", items: items.slice(0, sampleLimit) };
+    }
 
     expectedCount ??= extractExactCount(response.value, ["count"]);
 

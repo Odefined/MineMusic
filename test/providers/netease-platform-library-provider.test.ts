@@ -1002,6 +1002,62 @@ async function readItemsPaginatesSavedReleases(): Promise<void> {
   assert(read.areas[0]?.items.length === 2, "saved releases should include items from every page");
 }
 
+async function readItemsRespectsSavedReleaseSampleLimit(): Promise<void> {
+  const requests: Array<{ limit: string | undefined; offset: string | undefined }> = [];
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path, query }) => {
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              account: {
+                id: 2323,
+                userName: "Limited Release Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/album/sublist") {
+        requests.push({ limit: query.limit, offset: query.offset });
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            count: 3,
+            data: [
+              { id: 1, name: "First Album" },
+              { id: 2, name: "Second Album" },
+              { id: 3, name: "Third Album" },
+            ],
+          },
+        };
+      }
+
+      if (path === "/album") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: {},
+            songs: [],
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path}`);
+    },
+  });
+
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_releases"], sampleLimitPerArea: 2 }));
+
+  assert(requests.length === 1, "saved releases should stop after the bounded page");
+  assert(requests[0]?.limit === "2", "saved releases should request only the remaining bounded page size");
+  assert(read.areas[0]?.items.length === 2, "saved releases read should return only the requested sample size");
+}
+
 async function readItemsMapsSavedArtistsToGenericItems(): Promise<void> {
   const provider = createNetEasePlatformLibraryProvider({
     requestJson: async ({ path }) => {
@@ -1108,6 +1164,51 @@ async function readItemsPaginatesSavedArtists(): Promise<void> {
 
   assert(offsets.join(",") === "0,100", "saved artists should follow count-driven pagination");
   assert(read.areas[0]?.items.length === 2, "saved artists should include items from every page");
+}
+
+async function readItemsRespectsSavedArtistSampleLimit(): Promise<void> {
+  const requests: Array<{ limit: string | undefined; offset: string | undefined }> = [];
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path, query }) => {
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 3434,
+                nickname: "Limited Artist Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/artist/sublist") {
+        requests.push({ limit: query.limit, offset: query.offset });
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            count: 3,
+            data: [
+              { id: 10, name: "First Artist" },
+              { id: 20, name: "Second Artist" },
+              { id: 30, name: "Third Artist" },
+            ],
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path}`);
+    },
+  });
+
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_artists"], sampleLimitPerArea: 2 }));
+
+  assert(requests.length === 1, "saved artists should stop after the bounded page");
+  assert(requests[0]?.limit === "2", "saved artists should request only the remaining bounded page size");
+  assert(read.areas[0]?.items.length === 2, "saved artists read should return only the requested sample size");
 }
 
 async function readItemsSkipsProviderItemsWithoutStableSourceRefs(): Promise<void> {
@@ -1464,8 +1565,10 @@ await readItemsBatchesSavedRecordingDetails();
 await readItemsRespectsSavedRecordingSampleLimit();
 await readItemsMapsSavedReleasesToGenericItems();
 await readItemsPaginatesSavedReleases();
+await readItemsRespectsSavedReleaseSampleLimit();
 await readItemsMapsSavedArtistsToGenericItems();
 await readItemsPaginatesSavedArtists();
+await readItemsRespectsSavedArtistSampleLimit();
 await readItemsSkipsProviderItemsWithoutStableSourceRefs();
 await readItemsReportsUnsupportedAreas();
 await readItemsKeepsOtherAreasWhenOneAreaFails();

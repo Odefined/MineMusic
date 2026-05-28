@@ -350,6 +350,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
     environment.libraryImport.previewImport({
       providerId: provider.id,
       scopes: ["saved_source_tracks"],
+      sampleLimitPerArea: 2,
     }),
   );
   const batchesAfterPreview = await assertOk(environment.libraryImportRepository.listBatches({}));
@@ -367,6 +368,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
 
   assert(readInputs.length === 1, "readable preview should read provider items for estimates");
   assert(readInputs[0]?.areas.join(",") === "saved_source_tracks", "preview read should use requested readable areas");
+  assert(readInputs[0]?.sampleLimitPerArea === 2, "preview read should pass sample limit to provider reads");
   assert(preview.areas[0]?.canonicalEstimates.alreadyBound === 2, "preview should count exact source-ref bindings");
   assert(preview.areas[0]?.canonicalEstimates.wouldCreateProvisional === 0, "preview should not estimate provisional creates");
   assert(preview.areas[0]?.canonicalEstimates.unresolved === 2, "preview should count unbound source items as unresolved");
