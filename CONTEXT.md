@@ -108,7 +108,6 @@ Core Capabilities:
 
 - Material Store.
 - Collection Service.
-- Library Import Service.
 - Material Resolve.
 - Source Grounding.
 - Music Knowledge.
@@ -125,10 +124,14 @@ The Core Capability area for MineMusic-owned material identity, source
 entities, and bindings between them before material resolution.
 _Avoid_: MusicMaterial cache, playable-link cache, Material Gate.
 
-Material Store includes Canonical Store, the Source Entity Layer, and confirmed
+Material Store includes Canonical Store, Source Entity Store, and confirmed
 canonical bindings. Canonical Store remains the canonical identity authority;
 Source Entities remain provider-origin music objects rather than Canonical
 Records.
+
+Other Core Capabilities use Material Store through a Material Store public port.
+Canonical Store ports are internal to the Material Store canonical subdomain
+except for explicit Canonical Maintenance workflows.
 
 ### Collection Service
 
@@ -142,18 +145,17 @@ Collection Item is a member of that Collection and points to one canonical music
 object. Source refs and Source Library are external library/source state, not
 Collection identity.
 
-### Library Import Service
+### Source Entity Store
 
-The Core Capability that brings a user's external platform library into
-MineMusic-owned source entities, Source Library state, import records, and
-optional canonical bindings.
-
-### Source Entity Layer
-
-A provider-neutral MineMusic layer for provider-origin music objects that can
-support library, material, and playable-link flows without becoming canonical
-identity.
+A provider-neutral Material Store area for provider-origin music objects and the
+owner-scoped Source Library built from them.
 _Avoid_: NetEase-specific entities, Canonical Records, MusicBrainz normalization.
+
+Provider source refs identify Source Entities in the new architecture; they are
+not Canonical Record evidence rows.
+
+Source Entity Store owns Library Import, Library Update, Source Library state,
+and import/update history such as batches, reports, snapshots, and absences.
 
 ### Source Track
 
@@ -174,18 +176,23 @@ _Avoid_: Canonical Artist, NetEase artist table.
 
 An owner-scoped MineMusic view of external platform-library items backed by
 Source Entities.
-_Avoid_: Collection Item, source-only Collection item, library membership.
+_Avoid_: Collection Item, source-only Collection item.
+
+Imported platform-library items enter Source Library by default. Collection
+state is written only when a Source Entity already has a Confirmed Canonical
+Binding or the user takes an explicit MineMusic-side collection action.
 
 ### Confirmed Canonical Binding
 
 A confirmed relationship from a Source Entity to the Canonical Record that
 MineMusic accepts as the same music object.
-_Avoid_: provisional binding, review candidate, MusicBrainz search result.
+_Avoid_: canonical source-ref evidence, provisional binding, review candidate,
+MusicBrainz search result.
 
 ### Library Update
 
-A later Library Import run that refreshes MineMusic-owned library state from
-current platform library facts after an earlier import.
+A Source Entity Store flow that refreshes Source Library state from current
+platform library facts after an earlier import.
 
 ### Platform Library Absence
 
@@ -197,6 +204,12 @@ Collection removal.
 
 A provider adapter that reads a user's saved, followed, collected, or organized
 music facts from an external music platform.
+
+### Library Import
+
+A Source Entity Store flow that brings an owner's external platform library into
+Source Entities, Source Library state, import records, and optional canonical
+bindings.
 
 ### Import Preview
 
@@ -226,6 +239,10 @@ resolved `MusicMaterial` results for recommendation or presentation.
 Material Resolve is where canonical identity, source evidence, playable material
 state, and user collection constraints such as `blocked` come together before
 materials are returned to Stage Interface.
+
+Material Resolve may read Source Library only when the request explicitly scopes
+material resolution to an owner-scoped source library. It does not choose the
+final recommendation, write Collection state, or create canonical identity.
 
 ### Music Knowledge
 

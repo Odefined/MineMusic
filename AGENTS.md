@@ -56,6 +56,16 @@ For risky or architecture-affecting changes, use an explicit approval gate befor
 - Do not modify generated files unless the repo treats them as source of truth.
 - If you discover a separate bug, note it separately unless it must be fixed to complete the task.
 
+## Project State Constraints
+
+- Treat existing local imported library, canonical, collection, and provider
+  runtime data as development/test data unless the user explicitly says
+  otherwise.
+- Do not preserve old import or provisional-canonical behavior solely for
+  backward compatibility with current local test data.
+- Do not add migrations, repair tools, or compatibility layers for test-era
+  MineMusic state unless the task explicitly asks for them.
+
 ## Code Change Rules
 
 - Follow existing code style before introducing new style choices.
