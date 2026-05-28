@@ -513,10 +513,10 @@ host-facing and LLM-facing surface.
   Stage, Handbook, Music, Knowledge, Library, Canonical Review, and Memory Tool
   Groups: their tool descriptors, host input schemas, dispatch routes, and
   presentation rules now live under
-  `src/stage_interface/tool_definitions/**`. Stage Interface dispatch tries the
-  registry first for migrated tools and keeps unmigrated tools on the fallback
-  path. Module-local design, TODO, progress, and implementation-plan documents
-  live under `docs/stage-interface/`.
+  `src/stage_interface/tool_definitions/**`. Stage Interface dispatch resolves
+  stable tools through the registry without a fallback switch. Module-local
+  design, TODO, progress, and implementation-plan documents live under
+  `docs/stage-interface/`.
 
 ## Verification
 

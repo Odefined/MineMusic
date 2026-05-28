@@ -111,26 +111,12 @@ export function createToolDispatch({
         });
       }
 
-      const availability = await ensureToolAvailableForSession(
-        sessionContext,
-        instruments,
-        sessionId,
-        toolName,
-      );
-
-      if (!availability.ok) {
-        return availability;
-      }
-
-      switch (toolName) {
-        default:
-          return fail({
-            code: "stage_interface.tool_not_found",
-            message: `Tool '${String(toolName)}' is not registered.`,
-            module: "stage_interface",
-            retryable: false,
-          });
-      }
+      return fail({
+        code: "stage_interface.tool_not_found",
+        message: `Tool '${String(toolName)}' is not registered.`,
+        module: "stage_interface",
+        retryable: false,
+      });
     },
   };
 }

@@ -928,6 +928,8 @@
 - Migrated the Memory Tool Group to the same Tool Definition registry so
   `memory.propose` is co-located with Memory descriptor metadata, host input
   schema, required Memory dependency, and availability rule.
+- Removed the Stage Interface fallback dispatch switch after every stable tool
+  migrated to the Tool Definition registry.
 
 ## Next
 
