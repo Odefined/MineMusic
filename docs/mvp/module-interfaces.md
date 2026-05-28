@@ -204,6 +204,26 @@ currently registered Stage Interface subset exposed by instrument descriptors.
 Future tool names may exist in `ToolName` before their dispatch implementation
 is registered.
 
+Stage Interface tool truth should be represented by Tool Definitions grouped by
+instrument or agent-facing work area. A Tool Definition owns the facts a caller
+or Host Adapter must rely on for one callable tool:
+
+- tool name.
+- descriptor metadata.
+- host input schema.
+- availability rule.
+- dispatch route.
+- agent-facing presentation.
+
+Tool Groups keep each work area's execution dependencies local. For example,
+the Library Tool Group should depend on Library Import and Material Store ports,
+not on every port Stage Interface can possibly dispatch to.
+
+Migration rule: keep `ToolDispatchPort.call({ sessionId, toolName, payload })`
+as the public dispatch Interface while moving individual Tool Groups behind a
+registry. Unmigrated tools may continue through a fallback dispatch path until
+their Tool Group is moved.
+
 ## Instrument Catalog And Tool Dispatch Ports
 
 Purpose:
@@ -213,6 +233,8 @@ Purpose:
 - Keep catalog listing separate from tool dispatch so Handbook generation can
   read instrument descriptors without depending on a dispatcher that calls
   Session Context back.
+- Derive tool names, descriptors, and host input schemas from the same
+  Stage Interface Tool Definitions wherever the registry owns that Tool Group.
 
 Public port:
 

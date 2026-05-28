@@ -280,6 +280,34 @@ The current implementation centers instruments, tool descriptors, host schemas,
 dispatch, and the callable facade under `src/stage_interface/**`, with Handbook
 rendering in `src/handbook`.
 
+Stage Interface tool truth should be organized around Tool Definitions and Tool
+Groups:
+
+```text
+Tool Definition
+  -> tool name
+  -> descriptor metadata
+  -> host input schema
+  -> availability rule
+  -> dispatch route
+  -> agent-facing presentation
+
+Tool Group
+  -> one instrument or agent-facing work area
+  -> only the ports needed by that group
+```
+
+`ToolDispatchPort.call({ sessionId, toolName, payload })` remains the narrow
+external Interface for Host Adapters and the Stage Interface facade. The
+deepening happens behind that Interface: dispatch should find a Tool Definition,
+apply the shared availability rule, route to the definition handler, and apply
+the definition's presentation rule before returning to the caller.
+
+During migration, Stage Interface may use a registry-plus-fallback shape: Tool
+Groups already moved to Tool Definitions use the registry path, while unmigrated
+tools continue through the existing dispatch implementation. The migration must
+not change host tool names, MCP prefixes, or the public callable facade.
+
 ## Material State Policy
 
 Every recommended or action-targeted `MusicMaterial` must carry one state:

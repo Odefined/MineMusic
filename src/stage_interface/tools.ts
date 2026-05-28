@@ -1,4 +1,8 @@
 import type { ToolDescriptor, ToolName } from "../contracts/index.js";
+import {
+  libraryToolDescriptors,
+  libraryToolNames,
+} from "./tool_definitions/index.js";
 
 export const stableToolNames = [
   "stage.context.read",
@@ -24,14 +28,7 @@ export const stableToolNames = [
   "music.collection.update",
   "music.collection.delete",
   "music.collection.list",
-  "library.source.list",
-  "library.import.start",
-  "library.import.continue",
-  "library.update.start",
-  "library.update.continue",
-  "library.import.status",
-  "library.import.summary",
-  "library.import.items.list",
+  ...libraryToolNames,
   "canonical.review.list",
   "canonical.review.inspect",
   "canonical.review.apply",
@@ -196,56 +193,7 @@ export const knowledgeToolDescriptors: StableToolDescriptor[] = [
   },
 ];
 
-export const libraryToolDescriptors: StableToolDescriptor[] = [
-  {
-    name: "library.source.list",
-    description: "List Source Library items in bounded pages as short cards.",
-    inputSchemaRef: "SourceLibraryListInput",
-    outputSchemaRef: "SourceLibraryListOutput",
-  },
-  {
-    name: "library.import.start",
-    description: "Start importing saved platform library facts into MineMusic state.",
-    inputSchemaRef: "LibraryImportStartInput",
-    outputSchemaRef: "LibraryImportStatus",
-  },
-  {
-    name: "library.import.continue",
-    description: "Continue an existing saved platform library import batch.",
-    inputSchemaRef: "LibraryImportContinueInput",
-    outputSchemaRef: "LibraryImportStatus",
-  },
-  {
-    name: "library.update.start",
-    description: "Start a platform library update against MineMusic's latest complete baseline.",
-    inputSchemaRef: "LibraryUpdateStartInput",
-    outputSchemaRef: "LibraryImportStatus",
-  },
-  {
-    name: "library.update.continue",
-    description: "Continue an existing platform library update batch against MineMusic's latest complete baseline.",
-    inputSchemaRef: "LibraryImportContinueInput",
-    outputSchemaRef: "LibraryImportStatus",
-  },
-  {
-    name: "library.import.status",
-    description: "Read current status for a Library Import batch.",
-    inputSchemaRef: "LibraryImportStatusInput",
-    outputSchemaRef: "LibraryImportStatus",
-  },
-  {
-    name: "library.import.summary",
-    description: "Read the compact completed summary for a Library Import batch.",
-    inputSchemaRef: "LibraryImportSummaryInput",
-    outputSchemaRef: "LibraryImportSummaryView",
-  },
-  {
-    name: "library.import.items.list",
-    description: "List item-level import facts for a Library Import batch in bounded pages.",
-    inputSchemaRef: "LibraryImportItemsListInput",
-    outputSchemaRef: "LibraryImportItemsListOutput",
-  },
-];
+export { libraryToolDescriptors };
 
 export const canonicalReviewToolDescriptors: StableToolDescriptor[] = [
   {

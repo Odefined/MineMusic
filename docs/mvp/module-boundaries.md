@@ -81,6 +81,8 @@ Own:
 - governed tool dispatch.
 - stable host-facing callable surface.
 - MineMusic-owned ordering for common flows.
+- Tool Definitions for callable MineMusic tools.
+- Tool Groups that match instruments or agent-facing work areas.
 
 Current implementation:
 
@@ -100,6 +102,8 @@ Must not own:
 - final recommendation judgment.
 - Host Adapter transport code.
 - Core Capability private implementation.
+- a single all-knowing dispatch implementation once a Tool Group can own its
+  own narrow execution dependencies.
 
 ## Session Context
 
@@ -184,6 +188,8 @@ Own:
 - tool availability checks against Instrument Catalog.
 - routing tool calls to public module ports.
 - stable tool-not-found errors.
+- registry lookup for migrated Tool Definitions.
+- fallback routing for Tool Groups not yet migrated.
 
 Current implementation:
 
@@ -199,6 +205,8 @@ Must not own:
 - provider implementation.
 - final recommendation judgment.
 - private implementation of routed modules.
+- per-tool presentation rules once a Tool Definition owns the agent-facing
+  output shape.
 
 ## Canonical Store
 

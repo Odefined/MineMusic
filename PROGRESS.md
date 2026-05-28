@@ -893,6 +893,21 @@
   refreshed the packaged `skills/minemusic/HANDBOOK.md` snapshot through the
   automatic handbook generation path.
 
+## 2026-05-29
+
+- Documented the Stage Interface Tool Definition / Tool Group deepening
+  direction in architecture and MVP module docs.
+- Added `docs/stage-interface/design.md`,
+  `docs/stage-interface/tool-definition-registry-implementation-plan.md`,
+  `docs/stage-interface/todo.md`, and `docs/stage-interface/progress.md` as the
+  local documentation set for a Library Tool Group tracer bullet with
+  registry-plus-fallback dispatch.
+- Implemented the Library Tool Group tracer bullet under
+  `src/stage_interface/tool_definitions/**`: Library descriptors, host input
+  schemas, dispatch routes, availability declarations, and compact presentation
+  rules now live in Tool Definitions, while unmigrated tools keep the fallback
+  dispatch path.
+
 ## Next
 
 - Add CLI or Web UI peer transports when there is a concrete product workflow.

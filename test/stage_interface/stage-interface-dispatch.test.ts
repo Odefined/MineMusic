@@ -34,9 +34,12 @@ import type {
 } from "../../src/ports/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import {
+  createStageInterfaceToolDefinitionRegistry,
   createInstrumentCatalog,
   createToolDispatch,
+  libraryToolNames,
   stableToolNames,
+  stageInterfaceToolInputSchemas,
 } from "../../src/stage_interface/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -309,6 +312,25 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
   assert(handbook.content.includes("Continuation: pass `cursor` from `KnowledgeResult.nextCursor`"), "handbook should render cursor guidance");
   assert(handbook.content.includes("Boundaries: No playable links. No identity confirmation."), "handbook should render boundary notes");
   assert(!handbook.content.includes("browse"), "handbook should not expose provider-internal API modes");
+}
+
+async function registersLibraryToolDefinitionsAsTracerBullet(): Promise<void> {
+  const registry = createStageInterfaceToolDefinitionRegistry({
+    library: {},
+  });
+
+  assert(
+    libraryToolNames.every((toolName) => registry.has(toolName)),
+    "Tool Definition registry should register every Library tool",
+  );
+  assert(
+    registry.get("music.material.resolve") === undefined,
+    "Tool Definition registry tracer bullet should not register unmigrated tools",
+  );
+  assert(
+    stageInterfaceToolInputSchemas["library.import.start"] === registry.get("library.import.start")?.inputSchema,
+    "Library tool schemas should be derived from Tool Definitions",
+  );
 }
 
 async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
@@ -1880,6 +1902,7 @@ await exposesCanonicalReviewToolsOnlyInReviewPosture();
 await treatsActiveInstrumentsAsSessionMetadataOnly();
 await attachesProviderDescriptorsToOwningInstruments();
 await rendersKnowledgeProviderCapabilitiesInHandbook();
+await registersLibraryToolDefinitionsAsTracerBullet();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();

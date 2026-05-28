@@ -2,13 +2,7 @@ import type {
   CollectionKind,
   CollectionRelationKind,
   EffectProposal,
-  LibraryImportContinueInput,
-  LibraryImportItemsListInput,
   InstrumentDescriptor,
-  LibraryImportStartInput,
-  LibraryImportStatusInput,
-  LibraryImportSummaryInput,
-  LibraryUpdateStartInput,
   KnowledgeQuery,
   MaterialResolveRequest,
   MemoryProposal,
@@ -21,10 +15,6 @@ import type {
   Result,
   StageError,
   StageEvent,
-  SourceEntity,
-  SourceLibraryEntry,
-  SourceLibraryItem,
-  SourceLibraryListInput,
   ToolName,
 } from "../contracts/index.js";
 import {
@@ -50,10 +40,6 @@ import type {
   ToolDispatchPort,
 } from "../ports/index.js";
 import {
-  compactSourceLibraryList,
-  compactLibraryImportItemsPage,
-  compactLibraryImportStart,
-  compactLibraryImportSummary,
   compactReviewAutoUpdate,
   compactReviewApply,
   compactReviewInspect,
@@ -61,6 +47,10 @@ import {
   reviewSubjectRef,
 } from "./outputs.js";
 import { stableToolNames } from "./tools.js";
+import {
+  createStageInterfaceToolDefinitionRegistry,
+  type BoundStageInterfaceToolDefinition,
+} from "./tool_definitions/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 
@@ -127,12 +117,6 @@ type ToolDispatchOptions = {
   libraryImport?: LibraryImportPort;
 };
 
-type SourceLibraryListPage = {
-  items: SourceLibraryEntry[];
-  totalItems: number;
-  nextCursor?: string;
-};
-
 export function createToolDispatch({
   sessionContext,
   materialGate,
@@ -155,6 +139,12 @@ export function createToolDispatch({
     "handbook.tool.read",
     "stage.session.update",
   ]);
+  const toolDefinitionRegistry = createStageInterfaceToolDefinitionRegistry({
+    library: {
+      ...(materialStore === undefined ? {} : { materialStore }),
+      ...(libraryImport === undefined ? {} : { libraryImport }),
+    },
+  });
 
   return {
     async call({ sessionId, toolName, payload }) {
@@ -164,6 +154,18 @@ export function createToolDispatch({
           message: `Tool '${String(toolName)}' is not registered.`,
           module: "stage_interface",
           retryable: false,
+        });
+      }
+
+      const registryDefinition = toolDefinitionRegistry.get(toolName);
+
+      if (registryDefinition !== undefined) {
+        return callToolDefinition({
+          definition: registryDefinition,
+          sessionContext,
+          instruments,
+          sessionId,
+          payload,
         });
       }
 
@@ -359,122 +361,6 @@ export function createToolDispatch({
           });
         }
 
-        case "library.source.list": {
-          const availableMaterialStore = readMaterialStore(materialStore);
-
-          if (!availableMaterialStore.ok) {
-            return availableMaterialStore;
-          }
-
-          const input = readPayload<SourceLibraryListInput>(payload, {
-            ownerScope: defaultOwnerScope,
-          });
-          const listed = await availableMaterialStore.value.listSourceLibraryItems({
-            ...input,
-            status: "present",
-          });
-
-          if (!listed.ok) {
-            return listed;
-          }
-
-          const page = await pageSourceLibraryEntries(availableMaterialStore.value, listed.value, input);
-
-          return page.ok ? ok(compactSourceLibraryList(page.value)) : page;
-        }
-
-        case "library.import.start": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          const result = await availableLibraryImport.value.startImport(
-            readPayload<LibraryImportStartInput>(payload, { ownerScope: defaultOwnerScope }),
-          );
-
-          return result.ok ? ok(compactLibraryImportStart(result.value)) : result;
-        }
-
-        case "library.import.continue": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          return availableLibraryImport.value.continueImport(
-            readPayload<LibraryImportContinueInput>(payload),
-          );
-        }
-
-        case "library.update.start": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          const result = await availableLibraryImport.value.startUpdate(
-            readPayload<LibraryUpdateStartInput>(payload, { ownerScope: defaultOwnerScope }),
-          );
-
-          return result.ok ? ok(compactLibraryImportStart(result.value)) : result;
-        }
-
-        case "library.update.continue": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          return availableLibraryImport.value.continueUpdate(
-            readPayload<LibraryImportContinueInput>(payload),
-          );
-        }
-
-        case "library.import.status": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          return availableLibraryImport.value.getStatus(
-            readPayload<LibraryImportStatusInput>(payload),
-          );
-        }
-
-        case "library.import.summary": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          const result = await availableLibraryImport.value.getSummary(
-            readPayload<LibraryImportSummaryInput>(payload),
-          );
-
-          return result.ok ? ok(compactLibraryImportSummary(result.value)) : result;
-        }
-
-        case "library.import.items.list": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          const result = await availableLibraryImport.value.listItems(
-            readPayload<LibraryImportItemsListInput>(payload),
-          );
-
-          return result.ok ? ok(compactLibraryImportItemsPage(result.value)) : result;
-        }
-
         case "canonical.review.list": {
           const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
 
@@ -619,6 +505,41 @@ export function createToolDispatch({
   };
 }
 
+async function callToolDefinition({
+  definition,
+  sessionContext,
+  instruments,
+  sessionId,
+  payload,
+}: {
+  definition: BoundStageInterfaceToolDefinition;
+  sessionContext: SessionContextPort;
+  instruments: InstrumentCatalogPort;
+  sessionId: string;
+  payload: unknown;
+}): Promise<Result<unknown>> {
+  if (definition.availability === "requires_active_instrument") {
+    const availability = await ensureToolAvailableForSession(
+      sessionContext,
+      instruments,
+      sessionId,
+      definition.name,
+    );
+
+    if (!availability.ok) {
+      return availability;
+    }
+  }
+
+  const result = await definition.handler({ sessionId, payload });
+
+  if (!result.ok || definition.present === undefined) {
+    return result;
+  }
+
+  return ok(definition.present(result.value));
+}
+
 function dispatchSystemCollectionAdd(
   collection: CollectionPort | undefined,
   payload: unknown,
@@ -661,22 +582,6 @@ function readCollection(collection: CollectionPort | undefined): Result<Collecti
   return ok(collection);
 }
 
-function readMaterialStore(materialStore: MaterialStorePort | undefined): Result<MaterialStorePort> {
-  if (materialStore === undefined) {
-    return materialStoreUnavailable();
-  }
-
-  return ok(materialStore);
-}
-
-function readLibraryImport(libraryImport: LibraryImportPort | undefined): Result<LibraryImportPort> {
-  if (libraryImport === undefined) {
-    return libraryImportUnavailable();
-  }
-
-  return ok(libraryImport);
-}
-
 function readKnowledge(knowledge: MusicKnowledgePort | undefined): Result<MusicKnowledgePort> {
   if (knowledge === undefined) {
     return knowledgeUnavailable();
@@ -713,15 +618,6 @@ function knowledgeUnavailable(): Result<never> {
   });
 }
 
-function libraryImportUnavailable(): Result<never> {
-  return fail({
-    code: "stage_interface.tool_not_found",
-    message: "Library Import tools are not available.",
-    module: "stage_interface",
-    retryable: false,
-  });
-}
-
 function canonicalMaintenanceUnavailable(): Result<never> {
   return fail({
     code: "stage_interface.tool_not_found",
@@ -729,86 +625,6 @@ function canonicalMaintenanceUnavailable(): Result<never> {
     module: "stage_interface",
     retryable: false,
   });
-}
-
-function materialStoreUnavailable(): Result<never> {
-  return fail({
-    code: "stage_interface.tool_not_found",
-    message: "Source Library tools are not available.",
-    module: "stage_interface",
-    retryable: false,
-  });
-}
-
-const defaultSourceLibraryPageSize = 20;
-const maxSourceLibraryPageSize = 200;
-
-async function pageSourceLibraryEntries(
-  materialStore: MaterialStorePort,
-  items: SourceLibraryItem[],
-  input: SourceLibraryListInput,
-): Promise<Result<SourceLibraryListPage>> {
-  const totalItems = items.length;
-  const start = normalizePagedCursor(input.cursor, totalItems);
-  const limit = normalizePagedLimit(input.limit);
-  const pageItems = items.slice(start, start + limit);
-  const entriesResult = await Promise.all(
-    pageItems.map((item) => buildSourceLibraryEntry(materialStore, item)),
-  );
-  const failedEntry = entriesResult.find((entry) => !entry.ok);
-
-  if (failedEntry !== undefined && !failedEntry.ok) {
-    return failedEntry;
-  }
-
-  const entries = entriesResult
-    .filter((entry): entry is { ok: true; value: SourceLibraryEntry } => entry.ok)
-    .map((entry) => entry.value);
-  const nextOffset = start + entries.length;
-
-  return ok({
-    items: entries,
-    totalItems,
-    ...(nextOffset < totalItems ? { nextCursor: String(nextOffset) } : {}),
-  });
-}
-
-async function buildSourceLibraryEntry(
-  materialStore: MaterialStorePort,
-  item: SourceLibraryItem,
-): Promise<Result<SourceLibraryEntry>> {
-  const sourceEntity = await materialStore.getSourceEntity({ sourceRef: item.sourceRef });
-
-  if (!sourceEntity.ok) {
-    return sourceEntity;
-  }
-
-  return ok({
-    item,
-    ...(sourceEntity.value === null ? {} : { sourceEntity: sourceEntity.value as SourceEntity }),
-  });
-}
-
-function normalizePagedLimit(limit: number | undefined): number {
-  if (limit === undefined || !Number.isFinite(limit) || limit < 1) {
-    return defaultSourceLibraryPageSize;
-  }
-
-  return Math.min(Math.floor(limit), maxSourceLibraryPageSize);
-}
-
-function normalizePagedCursor(cursor: string | undefined, totalItems: number): number {
-  if (cursor === undefined) {
-    return 0;
-  }
-
-  const parsed = Number.parseInt(cursor, 10);
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return 0;
-  }
-
-  return Math.min(parsed, totalItems);
 }
 
 function readPayload<TPayload extends object>(
