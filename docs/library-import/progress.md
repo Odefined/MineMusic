@@ -50,11 +50,11 @@ This file tracks Library Import implementation progress.
   optional MineMusic `pageSize`; provider cursors, offsets, and page tokens
   stay inside Library Import working state and are not exposed through the
   Stage Interface.
-- When `pageSize` is provided and the provider supports paged reads, import and
-  update batches process one bounded segment per `start` or `continue` call,
-  persist continuation state in the working-state repository, accumulate
-  partial reports, and complete only after every requested scope reaches a
-  complete provider read.
+- When the provider supports paged reads, import and update batches default to
+  one bounded segment per `start` or `continue` call, using page size `50`
+  unless the caller overrides it. They persist continuation state in the
+  working-state repository, accumulate partial reports, and complete only after
+  every requested scope reaches a complete provider read.
 - Paged Library Update still derives absence state only after a scope reaches a
   complete current read. Mid-batch partial progress does not create absence
   baselines.

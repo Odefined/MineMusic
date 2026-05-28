@@ -102,7 +102,8 @@ Library Import state in memory unless database paths are configured. Set
 `MINEMUSIC_MATERIAL_STORE_DB_PATH` to persist canonical identity state; set
 `MINEMUSIC_COLLECTION_DB_PATH` to persist Collections and
 CollectionItems; and set `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to persist Library
-Import batches, reports, snapshots, provenance, and absence records. These
+Import batches, reports, snapshots, provenance, and absence records. The local
+default groups these SQLite files under `/tmp/minemusic/`. These
 provider, database, cache, and session settings are MineMusic server runtime
 concerns, not Codex skill configuration. Codex/OpenClaw should connect to the
 server MCP URL, by default `http://127.0.0.1:37373/mcp`.
@@ -115,6 +116,15 @@ The Codex workflow skill lives at `skills/minemusic/SKILL.md`, with its
 skill-local Handbook snapshot at `skills/minemusic/HANDBOOK.md`. Codex MCP
 client registration is global host-app state configured with `codex mcp`, not
 repo-local plugin packaging.
+
+For local reset-and-restart, run:
+
+```bash
+./scripts/reset-minemusic-launchd-runtime.sh
+```
+
+It stops the user LaunchAgent, deletes `/tmp/minemusic`, bootstraps the
+LaunchAgent again, and waits for the health endpoint to come back.
 
 ## Non-Goals
 

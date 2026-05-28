@@ -287,7 +287,6 @@ async function startsImportInBoundedSegmentsAndContinuesNextPage(): Promise<void
       providerId: provider.id,
       providerAccountId: "fixture-account",
       scopes: ["saved_source_tracks"],
-      pageSize: 2,
     }),
   );
   const firstStatus = await assertOk(environment.libraryImport.getStatus({ batchId: firstReport.batchId }));
@@ -336,7 +335,7 @@ async function startsImportInBoundedSegmentsAndContinuesNextPage(): Promise<void
   );
 
   assert(readPageInputs.length === 2, "continuation import should call provider.readPage once per processed segment");
-  assert(readPageInputs[0]?.pageSize === 2, "startImport should pass explicit pageSize to provider.readPage");
+  assert(readPageInputs[0]?.pageSize === 50, "startImport should default paged imports to pageSize 50");
   assert(
     typeof readPageInputs[1]?.providerState === "object" &&
       readPageInputs[1]?.providerState !== null &&
@@ -1382,6 +1381,27 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
         providerState: input.providerState,
       });
 
+      if (mode === "baseline") {
+        return {
+          ok: true,
+          value: {
+            providerId: "fixture-library",
+            account: {
+              providerAccountId: "fixture-account",
+              stable: true,
+            },
+            area: "saved_source_tracks",
+            status: "complete",
+            count: { certainty: "exact", value: 2 },
+            items: [
+              providerItem("kept-track", "Kept Track"),
+              providerItem("missing-track", "Missing Track"),
+            ],
+            hasMore: false,
+          },
+        };
+      }
+
       if (readPageInputs.length === 1) {
         return {
           ok: true,
@@ -1443,6 +1463,7 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
       scopes: ["saved_source_tracks"],
     }),
   );
+  readPageInputs.length = 0;
   mode = "paged-update";
 
   const firstUpdate = await assertOk(

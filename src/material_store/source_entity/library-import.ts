@@ -1751,7 +1751,7 @@ function batchToReport(batch: LibraryImportBatch): LibraryImportReport {
   return report;
 }
 
-const defaultContinuationPageSize = 50;
+const defaultPagedImportPageSize = 50;
 
 async function continueLibraryImport({
   pluginRegistry,
@@ -1795,7 +1795,7 @@ async function continueLibraryImport({
         completedReports,
         provider: provider.value,
         batch: batch.value,
-        pageSize: input.pageSize ?? defaultContinuationPageSize,
+        pageSize: input.pageSize ?? defaultPagedImportPageSize,
         clock,
       });
 
@@ -1820,7 +1820,6 @@ function shouldUsePagedImport({
   repository: LibraryImportRepository;
 }): boolean {
   return (
-    input.pageSize !== undefined &&
     isPagedPlatformLibraryProvider(provider) &&
     repository.getContinuationState !== undefined &&
     repository.putContinuationState !== undefined &&
@@ -1924,7 +1923,7 @@ async function startPagedLibraryImport({
     completedReports,
     provider,
     batch: storedRunningBatch.value,
-    pageSize: input.pageSize ?? defaultContinuationPageSize,
+    pageSize: input.pageSize ?? defaultPagedImportPageSize,
     clock,
   });
 

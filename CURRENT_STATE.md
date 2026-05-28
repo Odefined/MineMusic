@@ -210,10 +210,10 @@ host-facing and LLM-facing surface.
   `library.update.continue`, `library.import.status`, and
   `library.import.summary`, exposed under the `minemusic.library`
   instrument. Preview estimates Source Library observations without writing
-  canonical identity or Collection state. When `pageSize` is provided and the provider
-  supports paged reads, import/update batches run as MineMusic-owned
-  continuation batches keyed by `batchId`; provider cursors stay inside
-  Library Import working state. Library Update compares complete provider
+  canonical identity or Collection state. When the provider supports paged
+  reads, import/update batches default to MineMusic-owned continuation batches
+  keyed by `batchId`, using page size `50` unless the caller overrides it;
+  provider cursors stay inside Library Import working state. Library Update compares complete provider
   reads with eligible baselines, records Source Library absence state and
   Platform Library Absence provenance for complete reads, and avoids deriving
   absences from partial reads or mid-batch continuation progress.
