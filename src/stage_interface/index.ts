@@ -27,6 +27,8 @@ export {
   handbookToolNames,
   libraryToolDefinitions,
   libraryToolNames,
+  stageToolDefinitions,
+  stageToolNames,
 } from "./tool_definitions/index.js";
 export type {
   MineMusicStageInterface,
@@ -39,4 +41,5 @@ export type {
   StageInterfaceToolAvailability,
   StageInterfaceToolDefinition,
   StageInterfaceToolHandlerInput,
+  StageToolName,
 } from "./tool_definitions/index.js";

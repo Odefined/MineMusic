@@ -1,7 +1,6 @@
 import type {
   CollectionKind,
   CollectionRelationKind,
-  EffectProposal,
   InstrumentDescriptor,
   KnowledgeQuery,
   MaterialResolveRequest,
@@ -14,7 +13,6 @@ import type {
   Ref,
   Result,
   StageError,
-  StageEvent,
   ToolName,
 } from "../contracts/index.js";
 import type {
@@ -127,11 +125,13 @@ export function createToolDispatch({
   canonicalMaintenance,
   libraryImport,
 }: ToolDispatchOptions): ToolDispatchPort {
-  const discoveryToolNames = new Set<ToolName>([
-    "stage.context.read",
-    "stage.session.update",
-  ]);
   const toolDefinitionRegistry = createStageInterfaceToolDefinitionRegistry({
+    stage: {
+      sessionContext,
+      materialGate,
+      events,
+      effects,
+    },
     handbook: {
       sessionContext,
       instruments,
@@ -165,33 +165,18 @@ export function createToolDispatch({
         });
       }
 
-      if (!discoveryToolNames.has(toolName)) {
-        const availability = await ensureToolAvailableForSession(
-          sessionContext,
-          instruments,
-          sessionId,
-          toolName,
-        );
+      const availability = await ensureToolAvailableForSession(
+        sessionContext,
+        instruments,
+        sessionId,
+        toolName,
+      );
 
-        if (!availability.ok) {
-          return availability;
-        }
+      if (!availability.ok) {
+        return availability;
       }
 
       switch (toolName) {
-        case "stage.context.read": {
-          return sessionContext.readContext({ sessionId });
-        }
-
-        case "stage.materials.prepare":
-          return materialGate.prepareMaterials(
-            readPayload<{
-              sessionId: string;
-              materials: MusicMaterial[];
-              purpose: Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"];
-            }>(payload, { sessionId }),
-          );
-
         case "music.material.resolve":
           return materialResolve.resolve(readPayload<MaterialResolveRequest>(payload, { sessionId }));
 
@@ -436,22 +421,8 @@ export function createToolDispatch({
           return result.ok ? ok(compactReviewAutoUpdate(result.value)) : result;
         }
 
-        case "stage.events.record":
-          return events.record(readPayload<{ event: Omit<StageEvent, "id" | "time"> }>(payload));
-
         case "memory.propose":
           return memory.propose(readPayload<{ proposal: Omit<MemoryProposal, "id"> }>(payload));
-
-        case "stage.effects.propose":
-          return effects.propose(readPayload<{ proposal: Omit<EffectProposal, "id"> }>(payload));
-
-        case "stage.session.update":
-          return sessionContext.updateSession(
-            readPayload<{
-              sessionId: string;
-              patch: Parameters<SessionContextPort["updateSession"]>[0]["patch"];
-            }>(payload, { sessionId }),
-          );
 
         default:
           return fail({

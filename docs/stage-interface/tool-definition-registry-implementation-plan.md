@@ -18,9 +18,9 @@ It must preserve the public Stage Interface and MCP tool surface.
 
 ## Implementation Status
 
-The Library Tool Group tracer bullet is implemented. The Handbook Tool Group is
-also migrated to the registry. Remaining phases in this plan are future Tool
-Group migrations and eventual fallback removal.
+The Library Tool Group tracer bullet is implemented. The Handbook and Stage Tool
+Groups are also migrated to the registry. Remaining phases in this plan are
+future Tool Group migrations and eventual fallback removal.
 
 ## Scope
 
@@ -136,12 +136,15 @@ Tasks:
 Do not mark the implementation complete until `git diff --name-only` is checked
 and the state-sync gate is reported.
 
-## Future Migration Order
+## Remaining Migration Order
 
-Recommended order after the Library tracer bullet:
+Completed after the Library tracer bullet:
 
 1. Handbook Tool Group, because it is low-risk and validates discovery tools.
 2. Stage Tool Group, because it owns common session/material/event/effect flows.
-3. Music Tool Group, because it has collection and material resolve behavior.
-4. Canonical Review Tool Group, because review output presentation is strict.
-5. Memory Tool Group, because it is small and can finish the migration.
+
+Recommended remaining order:
+
+1. Music Tool Group, because it has collection and material resolve behavior.
+2. Canonical Review Tool Group, because review output presentation is strict.
+3. Memory Tool Group, because it is small and can finish the migration.

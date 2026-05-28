@@ -4,15 +4,14 @@ import {
   handbookToolNames,
   libraryToolDescriptors,
   libraryToolNames,
+  stageToolDescriptors,
+  stageToolNames,
 } from "./tool_definitions/index.js";
 
 export const stableToolNames = [
-  "stage.context.read",
+  stageToolNames[0],
   ...handbookToolNames,
-  "stage.materials.prepare",
-  "stage.session.update",
-  "stage.events.record",
-  "stage.effects.propose",
+  ...stageToolNames.slice(1),
   "music.material.resolve",
   "knowledge.query",
   "music.links.refresh",
@@ -42,41 +41,7 @@ export type StableToolDescriptor = Omit<ToolDescriptor, "name"> & {
   name: StableToolName;
 };
 
-export { handbookToolDescriptors };
-
-export const stageToolDescriptors: StableToolDescriptor[] = [
-  {
-    name: "stage.context.read",
-    description: "Read dynamic session context.",
-    inputSchemaRef: "StageContextReadInput",
-    outputSchemaRef: "StageContextReadOutput",
-  },
-  {
-    name: "stage.materials.prepare",
-    description: "Prepare grounded materials through the Material Gate before presentation.",
-    inputSchemaRef: "StageMaterialsPrepareInput",
-    outputSchemaRef: "MusicMaterial[]",
-  },
-  {
-    name: "stage.session.update",
-    description: "Update soft session state through Session Context.",
-    inputSchemaRef: "StageSessionPatch",
-    outputSchemaRef: "StageSession",
-  },
-  {
-    name: "stage.events.record",
-    description: "Record a factual session event.",
-    inputSchemaRef: "StageEventDraft",
-    outputSchemaRef: "StageEvent",
-  },
-  {
-    name: "stage.effects.propose",
-    description: "Create a proposal for a durable write or external action.",
-    inputSchemaRef: "EffectProposalDraft",
-    outputSchemaRef: "EffectProposal",
-    effectKind: "proposal",
-  },
-];
+export { handbookToolDescriptors, stageToolDescriptors };
 
 export const musicToolDescriptors: StableToolDescriptor[] = [
   {

@@ -3,6 +3,7 @@ import type { StableToolName } from "./tools.js";
 import {
   handbookToolInputSchemas,
   libraryToolInputSchemas,
+  stageToolInputSchemas,
   type StageInterfaceToolInputSchema,
 } from "./tool_definitions/index.js";
 
@@ -91,22 +92,8 @@ const reviewRefTokenSchema = z.object({
 });
 
 export const stageInterfaceToolInputSchemas = {
-  "stage.context.read": {},
+  ...stageToolInputSchemas,
   ...handbookToolInputSchemas,
-  "stage.materials.prepare": {
-    materials: z.array(musicMaterialSchema),
-    purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
-  },
-  "stage.session.update": {
-    patch: z.object({}).passthrough(),
-    sessionId: z.string().optional(),
-  },
-  "stage.events.record": {
-    event: z.object({}).passthrough(),
-  },
-  "stage.effects.propose": {
-    proposal: z.object({}).passthrough(),
-  },
   "music.material.resolve": {
     kind: z.enum(["single", "candidate_set"]),
     candidate: musicCandidateSchema.optional(),

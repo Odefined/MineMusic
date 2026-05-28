@@ -40,6 +40,7 @@ import {
   handbookToolNames,
   libraryToolNames,
   stableToolNames,
+  stageToolNames,
   stageInterfaceToolInputSchemas,
 } from "../../src/stage_interface/index.js";
 
@@ -316,18 +317,40 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
 }
 
 async function registersMigratedToolDefinitions(): Promise<void> {
+  const sessionContext: SessionContextPort = {
+    getSession: async () => ({ ok: true, value: session }),
+    readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+    updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+  };
   const registry = createStageInterfaceToolDefinitionRegistry({
-    handbook: {
-      sessionContext: {
-        getSession: async () => ({ ok: true, value: session }),
-        readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
-        updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    stage: {
+      sessionContext,
+      materialGate: {
+        prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
       },
+      events: {
+        record: async ({ event }) => ({
+          ok: true,
+          value: { ...event, id: "event-1", time: "2026-05-17T00:00:00.000Z" },
+        }),
+        listBySession: async () => ({ ok: true, value: [] }),
+      },
+      effects: {
+        propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+        decide: async () => ({ ok: true, value: undefined }),
+      },
+    },
+    handbook: {
+      sessionContext,
       instruments: createInstrumentCatalog(),
     },
     library: {},
   });
 
+  assert(
+    stageToolNames.every((toolName) => registry.has(toolName)),
+    "Tool Definition registry should register every Stage tool",
+  );
   assert(
     handbookToolNames.every((toolName) => registry.has(toolName)),
     "Tool Definition registry should register every Handbook tool",
@@ -343,6 +366,10 @@ async function registersMigratedToolDefinitions(): Promise<void> {
   assert(
     stageInterfaceToolInputSchemas["handbook.tool.read"] === registry.get("handbook.tool.read")?.inputSchema,
     "Handbook tool schemas should be derived from Tool Definitions",
+  );
+  assert(
+    stageInterfaceToolInputSchemas["stage.materials.prepare"] === registry.get("stage.materials.prepare")?.inputSchema,
+    "Stage tool schemas should be derived from Tool Definitions",
   );
   assert(
     stageInterfaceToolInputSchemas["library.import.start"] === registry.get("library.import.start")?.inputSchema,

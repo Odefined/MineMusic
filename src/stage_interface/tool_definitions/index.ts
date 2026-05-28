@@ -18,6 +18,15 @@ import {
   libraryToolNames,
 } from "./library.js";
 import type {
+  StageToolGroupContext,
+} from "./stage.js";
+import {
+  stageToolDefinitions,
+  stageToolDescriptors,
+  stageToolInputSchemas,
+  stageToolNames,
+} from "./stage.js";
+import type {
   BoundStageInterfaceToolDefinition,
 } from "./types.js";
 import {
@@ -33,6 +42,10 @@ export {
   libraryToolDescriptors,
   libraryToolInputSchemas,
   libraryToolNames,
+  stageToolDefinitions,
+  stageToolDescriptors,
+  stageToolInputSchemas,
+  stageToolNames,
 };
 export type {
   HandbookToolGroupContext,
@@ -43,6 +56,10 @@ export type {
   LibraryToolName,
 } from "./library.js";
 export type {
+  StageToolGroupContext,
+  StageToolName,
+} from "./stage.js";
+export type {
   BoundStageInterfaceToolDefinition,
   StageInterfaceToolAvailability,
   StageInterfaceToolDefinition,
@@ -51,15 +68,21 @@ export type {
 } from "./types.js";
 
 export type StageInterfaceToolDefinitionRegistryOptions = {
+  stage: StageToolGroupContext;
   handbook: HandbookToolGroupContext;
   library: LibraryToolGroupContext;
 };
 
 export function createStageInterfaceToolDefinitionRegistry({
+  stage,
   handbook,
   library,
 }: StageInterfaceToolDefinitionRegistryOptions): Map<ToolName, BoundStageInterfaceToolDefinition> {
   const definitions = [
+    ...bindToolDefinitions({
+      definitions: stageToolDefinitions,
+      context: stage,
+    }),
     ...bindToolDefinitions({
       definitions: handbookToolDefinitions,
       context: handbook,

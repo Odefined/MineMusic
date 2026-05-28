@@ -26,7 +26,7 @@
 ## Follow-Up Tool Groups
 
 - [x] Migrate Handbook Tool Group.
-- [ ] Migrate Stage Tool Group.
+- [x] Migrate Stage Tool Group.
 - [ ] Migrate Music Tool Group.
 - [ ] Migrate Canonical Review Tool Group.
 - [ ] Migrate Memory Tool Group.

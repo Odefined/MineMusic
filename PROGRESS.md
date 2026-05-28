@@ -910,6 +910,10 @@
 - Migrated the Handbook Tool Group to the same Tool Definition registry so
   Handbook descriptors, host input schemas, and discovery handlers are
   co-located with always-available dispatch rules.
+- Migrated the Stage Tool Group to the same Tool Definition registry so
+  session context, material preparation, session update, event recording, and
+  effect proposal routes are co-located with Stage descriptors, host input
+  schemas, and availability rules.
 
 ## Next
 
