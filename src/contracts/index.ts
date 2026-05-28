@@ -580,6 +580,13 @@ export type SourceLibraryItem = {
   status: SourceLibraryItemStatus;
 };
 
+export type SourceLibraryResolveScope = {
+  providerId?: string;
+  providerAccountId?: string;
+  libraryKind?: PlatformLibraryItemKind;
+  status?: SourceLibraryItemStatus;
+};
+
 export type ConfirmedCanonicalBinding = {
   sourceRef: Ref;
   canonicalRef: Ref;
@@ -636,6 +643,7 @@ export type MusicCandidate = {
   query?: SourceQuery;
   canonicalRef?: Ref;
   sourceRef?: Ref;
+  sourceLibraryScope?: SourceLibraryResolveScope;
   reason?: string;
   context?: string;
 };
@@ -643,6 +651,7 @@ export type MusicCandidate = {
 export type MaterialResolveRequest = {
   sessionId?: string;
   ownerScope?: string;
+  sourceLibraryScope?: SourceLibraryResolveScope;
   limitPerCandidate?: number;
 } & (
   | {

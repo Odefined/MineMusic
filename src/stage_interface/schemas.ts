@@ -57,6 +57,12 @@ const musicCandidateSchema = z.object({
   query: sourceQuerySchema.optional(),
   canonicalRef: refSchema.optional(),
   sourceRef: refSchema.optional(),
+  sourceLibraryScope: z.object({
+    providerId: z.string().optional(),
+    providerAccountId: z.string().optional(),
+    libraryKind: z.enum(["saved_recording", "saved_release", "followed_artist"]).optional(),
+    status: z.enum(["present", "absent"]).optional(),
+  }).optional(),
   reason: z.string().optional(),
   context: z.string().optional(),
 });
@@ -114,6 +120,12 @@ export const stageInterfaceToolInputSchemas = {
     candidates: z.array(musicCandidateSchema).optional(),
     sessionId: z.string().optional(),
     ownerScope: z.string().optional(),
+    sourceLibraryScope: z.object({
+      providerId: z.string().optional(),
+      providerAccountId: z.string().optional(),
+      libraryKind: z.enum(["saved_recording", "saved_release", "followed_artist"]).optional(),
+      status: z.enum(["present", "absent"]).optional(),
+    }).optional(),
     limitPerCandidate: z.number().int().positive().optional(),
   },
   "knowledge.query": knowledgeQuerySchema,

@@ -250,7 +250,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     canonicalStore: canonical,
   });
   const materialResolve = createMaterialResolveService({
-    canonicalStore: canonical,
+    materialStore,
     sourceGrounding: source,
     collection,
   });

@@ -92,6 +92,7 @@ import type {
   SourceEntity,
   SourceEntityKind,
   SourceLibraryItem,
+  SourceLibraryResolveScope,
   SourceLibraryItemStatus,
   SourceProvider,
   SourceRelease,
@@ -248,7 +249,8 @@ type _collectionRelationKindsMatchDesignedRelations = Expect<
 type _collectionItemStoresCanonicalRef = Expect<Equal<CollectionItem["canonicalRef"], Ref>>;
 
 type _materialResolveRequestCarriesOwnerScope = Expect<
-  Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string>
+  Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
+    Equal<NonNullable<MaterialResolveRequest["sourceLibraryScope"]>, SourceLibraryResolveScope>
 >;
 
 type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
@@ -981,6 +983,10 @@ type _sourceEntityUnion = Expect<
 >;
 
 type _sourceLibraryItemStatus = Expect<Equal<SourceLibraryItemStatus, "present" | "absent">>;
+
+type _sourceLibraryResolveScopeKeys = Expect<
+  Equal<keyof SourceLibraryResolveScope, "providerId" | "providerAccountId" | "libraryKind" | "status">
+>;
 
 type _confirmedCanonicalBindingKeys = Expect<
   Equal<keyof ConfirmedCanonicalBinding, "sourceRef" | "canonicalRef" | "createdAt" | "updatedAt">

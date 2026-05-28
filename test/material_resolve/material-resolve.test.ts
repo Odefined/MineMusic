@@ -1,15 +1,19 @@
 import type {
   CanonicalRecord,
+  ConfirmedCanonicalBinding,
   MaterialResolveResult,
   MusicMaterial,
   Ref,
   Result,
   SourceQuery,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
+import { createCanonicalStore, createMaterialStore } from "../../src/material_store/index.js";
 import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
-import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";
+import {
+  createInMemoryCanonicalRecordRepository,
+  createInMemorySourceEntityStoreRepository,
+} from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -21,6 +25,15 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
   return awaited.value;
+}
+
+function confirmedBinding(sourceRef: Ref, canonicalRef: Ref): ConfirmedCanonicalBinding {
+  return {
+    sourceRef,
+    canonicalRef,
+    createdAt: "2026-05-28T00:00:00.000Z",
+    updatedAt: "2026-05-28T00:00:00.000Z",
+  };
 }
 
 async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
@@ -80,9 +93,13 @@ async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
     },
     refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
   };
+  const sourceEntityStore = createInMemorySourceEntityStoreRepository();
 
   const materialResolve = createMaterialResolveService({
-    canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+      sourceEntityStore,
+    }),
     sourceGrounding,
   });
   const resolved = await assertOk(
@@ -129,10 +146,7 @@ async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
     "resolve should query source grounding from the canonical target before source fallback",
   );
   const updatedCanonical = await assertOk(canonicalRepository.get(canonical.ref));
-  assert(
-    updatedCanonical?.sourceRefs?.some((ref) => ref.id === "known-source-track"),
-    "resolve should attach discovered source evidence to the canonical record",
-  );
+  assert(updatedCanonical?.sourceRefs === undefined, "resolve should not attach provider source refs to canonical records");
 }
 
 async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<void> {
@@ -175,8 +189,12 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
     }),
     refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
   };
+  const sourceEntityStore = createInMemorySourceEntityStoreRepository();
   const materialResolve = createMaterialResolveService({
-    canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+      sourceEntityStore,
+    }),
     sourceGrounding,
     collection,
   });
@@ -226,6 +244,12 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
     sourceRefs: [sourceRef],
   };
   await assertOk(canonicalRepository.put(canonical));
+  const sourceEntityStore = createInMemorySourceEntityStoreRepository();
+  await assertOk(
+    sourceEntityStore.putConfirmedCanonicalBinding({
+      binding: confirmedBinding(sourceRef, canonical.ref),
+    }),
+  );
 
   const ownerScopes: string[] = [];
   const collection = {
@@ -260,7 +284,10 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
     refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
   };
   const materialResolve = createMaterialResolveService({
-    canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+      sourceEntityStore,
+    }),
     sourceGrounding,
     collection,
   });
@@ -290,6 +317,72 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
   assert(ownerScopes[0] === "local_profile:night", "explicit ownerScope should be used for blocked filtering");
 }
 
+async function readsSourceLibraryOnlyWhenExplicitlyScoped(): Promise<void> {
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const sourceEntityStore = createInMemorySourceEntityStoreRepository();
+  const librarySourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "library-track",
+  };
+  await assertOk(
+    sourceEntityStore.putSourceLibraryItem({
+      item: {
+        id: "source-library-item-library-track",
+        ownerScope: "local_profile:default",
+        providerId: "fixture-library",
+        providerAccountId: "fixture-account",
+        sourceRef: librarySourceRef,
+        sourceKind: "track",
+        libraryKind: "saved_recording",
+        label: "Library Track",
+        lastSeenAt: "2026-05-28T00:00:00.000Z",
+        status: "present",
+      },
+    }),
+  );
+  let sourceGroundingCalls = 0;
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => {
+      sourceGroundingCalls += 1;
+
+      return { ok: true, value: [] };
+    },
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialResolve = createMaterialResolveService({
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+      sourceEntityStore,
+    }),
+    sourceGrounding,
+  });
+
+  const resolved = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      sourceLibraryScope: {
+        providerId: "fixture-library",
+        providerAccountId: "fixture-account",
+        libraryKind: "saved_recording",
+      },
+      candidate: {
+        id: "candidate-library-track",
+        label: "Library Track",
+        expectedKind: "track",
+      },
+    }),
+  );
+
+  assert(resolved.kind === "single", "source-library scoped resolve should return a single result");
+  assert(resolved.result.status === "source_only", "source-library scoped items without binding should stay source-only");
+  assert(
+    resolved.result.materials[0]?.sourceRefs?.[0]?.id === librarySourceRef.id,
+    "source-library scoped resolve should return the matched Source Library source ref",
+  );
+  assert(sourceGroundingCalls === 0, "source-library scoped matches should not require provider grounding");
+}
+
 const singleResolveResult: MaterialResolveResult = {
   kind: "single",
   result: {
@@ -311,3 +404,4 @@ assert(sourceOnlyMaterial.state === "source_only_playable", "material resolve fi
 await resolvesCandidateSetsWithCanonicalFirstLookup();
 await blocksCanonicalResolvedMaterialsThroughCollectionPort();
 await blocksSourceMaterialsAfterSourceRefCanonicalLookup();
+await readsSourceLibraryOnlyWhenExplicitlyScoped();
