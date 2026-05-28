@@ -1,14 +1,14 @@
 import type { ToolDescriptor, ToolName } from "../contracts/index.js";
 import {
+  handbookToolDescriptors,
+  handbookToolNames,
   libraryToolDescriptors,
   libraryToolNames,
 } from "./tool_definitions/index.js";
 
 export const stableToolNames = [
   "stage.context.read",
-  "handbook.overview.read",
-  "handbook.instrument.read",
-  "handbook.tool.read",
+  ...handbookToolNames,
   "stage.materials.prepare",
   "stage.session.update",
   "stage.events.record",
@@ -42,26 +42,7 @@ export type StableToolDescriptor = Omit<ToolDescriptor, "name"> & {
   name: StableToolName;
 };
 
-export const handbookToolDescriptors: StableToolDescriptor[] = [
-  {
-    name: "handbook.overview.read",
-    description: "Read the generated overview of current MineMusic instruments and tools.",
-    inputSchemaRef: "HandbookOverviewReadInput",
-    outputSchemaRef: "Handbook",
-  },
-  {
-    name: "handbook.instrument.read",
-    description: "Read the handbook entry for one available MineMusic instrument.",
-    inputSchemaRef: "HandbookInstrumentReadInput",
-    outputSchemaRef: "HandbookInstrumentEntry",
-  },
-  {
-    name: "handbook.tool.read",
-    description: "Read input, output, effect, and description metadata for one available MineMusic tool.",
-    inputSchemaRef: "HandbookToolReadInput",
-    outputSchemaRef: "HandbookToolEntry",
-  },
-];
+export { handbookToolDescriptors };
 
 export const stageToolDescriptors: StableToolDescriptor[] = [
   {

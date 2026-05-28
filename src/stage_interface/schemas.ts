@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 import type { StableToolName } from "./tools.js";
 import {
+  handbookToolInputSchemas,
   libraryToolInputSchemas,
   type StageInterfaceToolInputSchema,
 } from "./tool_definitions/index.js";
@@ -91,13 +92,7 @@ const reviewRefTokenSchema = z.object({
 
 export const stageInterfaceToolInputSchemas = {
   "stage.context.read": {},
-  "handbook.overview.read": {},
-  "handbook.instrument.read": {
-    instrumentId: z.string(),
-  },
-  "handbook.tool.read": {
-    toolName: z.string(),
-  },
+  ...handbookToolInputSchemas,
   "stage.materials.prepare": {
     materials: z.array(musicMaterialSchema),
     purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),

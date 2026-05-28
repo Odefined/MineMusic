@@ -37,6 +37,7 @@ import {
   createStageInterfaceToolDefinitionRegistry,
   createInstrumentCatalog,
   createToolDispatch,
+  handbookToolNames,
   libraryToolNames,
   stableToolNames,
   stageInterfaceToolInputSchemas,
@@ -314,11 +315,23 @@ async function rendersKnowledgeProviderCapabilitiesInHandbook(): Promise<void> {
   assert(!handbook.content.includes("browse"), "handbook should not expose provider-internal API modes");
 }
 
-async function registersLibraryToolDefinitionsAsTracerBullet(): Promise<void> {
+async function registersMigratedToolDefinitions(): Promise<void> {
   const registry = createStageInterfaceToolDefinitionRegistry({
+    handbook: {
+      sessionContext: {
+        getSession: async () => ({ ok: true, value: session }),
+        readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+        updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+      },
+      instruments: createInstrumentCatalog(),
+    },
     library: {},
   });
 
+  assert(
+    handbookToolNames.every((toolName) => registry.has(toolName)),
+    "Tool Definition registry should register every Handbook tool",
+  );
   assert(
     libraryToolNames.every((toolName) => registry.has(toolName)),
     "Tool Definition registry should register every Library tool",
@@ -326,6 +339,10 @@ async function registersLibraryToolDefinitionsAsTracerBullet(): Promise<void> {
   assert(
     registry.get("music.material.resolve") === undefined,
     "Tool Definition registry tracer bullet should not register unmigrated tools",
+  );
+  assert(
+    stageInterfaceToolInputSchemas["handbook.tool.read"] === registry.get("handbook.tool.read")?.inputSchema,
+    "Handbook tool schemas should be derived from Tool Definitions",
   );
   assert(
     stageInterfaceToolInputSchemas["library.import.start"] === registry.get("library.import.start")?.inputSchema,
@@ -1902,7 +1919,7 @@ await exposesCanonicalReviewToolsOnlyInReviewPosture();
 await treatsActiveInstrumentsAsSessionMetadataOnly();
 await attachesProviderDescriptorsToOwningInstruments();
 await rendersKnowledgeProviderCapabilitiesInHandbook();
-await registersLibraryToolDefinitionsAsTracerBullet();
+await registersMigratedToolDefinitions();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();

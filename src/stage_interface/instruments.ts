@@ -1,5 +1,6 @@
 import type {
   CapabilitySlot,
+  InstrumentDescriptor,
   InstrumentProviderDescriptor,
   Result,
 } from "../contracts/index.js";
@@ -41,7 +42,7 @@ export function createInstrumentCatalog({
         return knowledgeProviders;
       }
 
-      const instruments = [
+      const instruments: InstrumentDescriptor[] = [
         {
           id: "minemusic.handbook",
           label: "MineMusic Handbook",

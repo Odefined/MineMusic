@@ -18,8 +18,9 @@ It must preserve the public Stage Interface and MCP tool surface.
 
 ## Implementation Status
 
-The Library Tool Group tracer bullet is implemented. Remaining phases in this
-plan are future Tool Group migrations and eventual fallback removal.
+The Library Tool Group tracer bullet is implemented. The Handbook Tool Group is
+also migrated to the registry. Remaining phases in this plan are future Tool
+Group migrations and eventual fallback removal.
 
 ## Scope
 

@@ -23,6 +23,8 @@ export { createToolDispatch } from "./dispatch.js";
 export { createMineMusicStageInterface } from "./facade.js";
 export {
   createStageInterfaceToolDefinitionRegistry,
+  handbookToolDefinitions,
+  handbookToolNames,
   libraryToolDefinitions,
   libraryToolNames,
 } from "./tool_definitions/index.js";
@@ -32,6 +34,7 @@ export type {
 } from "./facade.js";
 export type {
   BoundStageInterfaceToolDefinition,
+  HandbookToolName,
   LibraryToolName,
   StageInterfaceToolAvailability,
   StageInterfaceToolDefinition,

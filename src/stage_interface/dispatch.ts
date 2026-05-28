@@ -17,11 +17,6 @@ import type {
   StageEvent,
   ToolName,
 } from "../contracts/index.js";
-import {
-  buildInstrumentHandbook,
-  readHandbookInstrument,
-  readHandbookTool,
-} from "../handbook/index.js";
 import type {
   CollectionPort,
   CanonicalMaintenancePort,
@@ -134,12 +129,13 @@ export function createToolDispatch({
 }: ToolDispatchOptions): ToolDispatchPort {
   const discoveryToolNames = new Set<ToolName>([
     "stage.context.read",
-    "handbook.overview.read",
-    "handbook.instrument.read",
-    "handbook.tool.read",
     "stage.session.update",
   ]);
   const toolDefinitionRegistry = createStageInterfaceToolDefinitionRegistry({
+    handbook: {
+      sessionContext,
+      instruments,
+    },
     library: {
       ...(materialStore === undefined ? {} : { materialStore }),
       ...(libraryImport === undefined ? {} : { libraryImport }),
@@ -185,42 +181,6 @@ export function createToolDispatch({
       switch (toolName) {
         case "stage.context.read": {
           return sessionContext.readContext({ sessionId });
-        }
-
-        case "handbook.overview.read": {
-          const instrumentsResult = await listInstrumentsForSession(sessionContext, instruments, sessionId);
-
-          if (!instrumentsResult.ok) {
-            return instrumentsResult;
-          }
-
-          return ok(buildInstrumentHandbook(instrumentsResult.value));
-        }
-
-        case "handbook.instrument.read": {
-          const instrumentsResult = await listInstrumentsForSession(sessionContext, instruments, sessionId);
-
-          if (!instrumentsResult.ok) {
-            return instrumentsResult;
-          }
-
-          return readHandbookInstrument({
-            instruments: instrumentsResult.value,
-            instrumentId: readPayload<{ instrumentId: string }>(payload).instrumentId,
-          });
-        }
-
-        case "handbook.tool.read": {
-          const instrumentsResult = await listInstrumentsForSession(sessionContext, instruments, sessionId);
-
-          if (!instrumentsResult.ok) {
-            return instrumentsResult;
-          }
-
-          return readHandbookTool({
-            instruments: instrumentsResult.value,
-            toolName: readPayload<{ toolName: ToolName | string }>(payload).toolName,
-          });
         }
 
         case "stage.materials.prepare":

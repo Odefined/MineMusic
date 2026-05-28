@@ -907,6 +907,9 @@
   schemas, dispatch routes, availability declarations, and compact presentation
   rules now live in Tool Definitions, while unmigrated tools keep the fallback
   dispatch path.
+- Migrated the Handbook Tool Group to the same Tool Definition registry so
+  Handbook descriptors, host input schemas, and discovery handlers are
+  co-located with always-available dispatch rules.
 
 ## Next
 
