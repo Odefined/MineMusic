@@ -514,6 +514,47 @@ Evidence boundary:
   not acceptance evidence: the subagent reported `auto_update` timeout /
   `run_busy` behavior, short snapshot TTL pain, normalization misses, and
   track-position detail gaps.
+- 20-record Provisional Review v3 MCP-only validation details:
+  - import scope: NetEase `saved_recordings`, `sampleLimitPerArea: 20`,
+    `ownerScope: local_profile:real-v3-20`.
+  - imported count was 20, with 20 provisional canonical recordings created.
+  - the independent subagent observed only 19 visible provisional recordings in
+    review list, so the 20-versus-19 discrepancy remains unresolved.
+  - `canonical.review.auto_update({ limit: 10 })` exceeded the 120 second
+    client timeout and returned no result to the agent.
+  - retrying with `limit: 5` returned `updated=0`, `notQualified=5`,
+    `error=0`, `hasMore=true`, and `runId=auto-review-run-2`.
+  - continuing that run then timed out once, returned repeated `run_busy`
+    errors, and finally returned `hasMore=false` without useful intermediate
+    progress.
+  - manual review updated 10 subjects: `canonical-12`, `canonical-18`,
+    `canonical-22`, `canonical-23`, `canonical-26`, `canonical-28`,
+    `canonical-29`, `canonical-47`, `canonical-5`, and `canonical-8`.
+  - manual review wrote `cannot_confirm` for 9 subjects: `canonical-1`,
+    `canonical-15`, `canonical-30`, `canonical-34`, `canonical-38`,
+    `canonical-4`, `canonical-41`, `canonical-44`, and `canonical-50`.
+  - default `canonical.review.list` was empty after review, while
+    `includeCannotConfirm: true` still showed the 9 cannot-confirm subjects.
+  - `canonical-1` and `canonical-30` returned no MusicBrainz recording facts.
+  - `canonical-15`, `canonical-38`, and `canonical-4` were classical or broad
+    fragment cases where inspected facts did not establish safe recording
+    identity.
+  - `canonical-34` and `canonical-50` had artist-credit mismatches that made
+    identity unsafe from inspected facts.
+  - `canonical-41` had release/version conflict and was treated as unsafe.
+  - `canonical-44` had same-title/same-artist ambiguity in the `Animals`
+    release context.
+  - `canonical-12` and `canonical-22` looked manually updatable but were
+    rejected by auto-update with artist-match issues, likely because review
+    normalization does not fold straight and curly apostrophes in
+    `Carissa's Wierd` / `Carissa’s Wierd`.
+  - `canonical-18` and `canonical-26` were manually updated even though source
+    release date `2023-05-24` differed from MusicBrainz date `2023-04-29`,
+    showing that manual guidance around release/date/version compatibility
+    needs clearer wording.
+  - `canonical-15` release-track-position detail returned unavailable despite
+    a release token, because the relevant tracklist was not available in the
+    summary inspection snapshot.
 - The Codex MCP default runtime accepts `MINEMUSIC_CANONICAL_DB_PATH` when the
   host wants durable Canonical Store state.
 
