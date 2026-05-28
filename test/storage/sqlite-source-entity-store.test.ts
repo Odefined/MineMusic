@@ -68,7 +68,7 @@ async function persistsSourceEntitiesLibraryAndBindingsAcrossReopen(): Promise<v
     providerAccountId: "fixture-account",
     sourceRef: trackRef,
     sourceKind: "track",
-    libraryKind: "saved_recording",
+    libraryKind: "saved_source_track",
     label: "Fixture Track",
     firstImportedBatchId: "batch-1",
     lastSeenBatchId: "batch-1",
@@ -109,7 +109,7 @@ async function persistsSourceEntitiesLibraryAndBindingsAcrossReopen(): Promise<v
         ownerScope: "local_profile:default",
         providerId: "fixture-library",
         providerAccountId: "fixture-account",
-        libraryKind: "saved_recording",
+        libraryKind: "saved_source_track",
         sourceRef: trackRef,
       }),
     );

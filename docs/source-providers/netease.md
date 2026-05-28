@@ -18,7 +18,7 @@ Stage Interface
 ```
 
 The same adapter module also exposes a `PlatformLibraryProvider` for
-account-scoped saved recordings, saved releases, and followed artists:
+account-scoped saved tracks, saved releases, and followed artists:
 
 ```text
 Library Import boundary
@@ -112,18 +112,18 @@ playable links.
 
 ## Platform Library Data Mapping
 
-Saved recordings read `/likelist` for saved song ids, then `/song/detail` for
-required song facts. Each saved recording item keeps generic canonical hints
+Saved tracks read `/likelist` for saved song ids, then `/song/detail` for
+required song facts. Each saved-source-track item keeps generic canonical hints
 for title, artists, NetEase album source ref/label, and duration when present.
 
-When `/song/detail` exposes a usable album id, saved-recording reads also fetch
+When `/song/detail` exposes a usable album id, saved-source-track reads also fetch
 `/album?id=<albumId>` best-effort once per distinct album id in the read call.
 The album payload can populate platform-neutral `canonicalHints.releaseDate`
 from album `publishTime`, normalized as an Asia/Shanghai calendar date so it
 matches MusicBrainz date-only release facts. The album tracklist can populate
 `canonicalHints.trackPosition` from source-side `cd`, `no`, and tracklist
 ordering/count. If the album request fails, is malformed, or does not include
-the song, the saved-recording item is still returned without album-enriched
+the song, the saved-source-track item is still returned without album-enriched
 facts. Preview samples do not perform this album enrichment.
 
 Saved releases also fetch `/album?id=<albumId>` best-effort after
@@ -158,9 +158,9 @@ Deterministic tests cover:
 - provider registration through `PluginRegistryPort`.
 - Source Grounding consumption through the source slot.
 - link refresh from a NetEase source ref.
-- platform-library preview/read behavior for saved recordings, saved releases,
-  and followed artists.
-- best-effort saved-recording album enrichment for source track position,
+- platform-library preview/read behavior for saved tracks, saved releases, and
+  followed artists.
+- best-effort saved-source-track album enrichment for source track position,
   including album failures and one fetch per album id.
 - platform-library unsupported areas, standard issue paths, pagination,
   batching, sample-shape constraints, and registration through the

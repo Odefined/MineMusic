@@ -259,7 +259,7 @@ async function sourceEntityStoreRepositoryStoresEntitiesLibraryAndBindings(): Pr
     providerAccountId: "fixture-account",
     sourceRef,
     sourceKind: "track",
-    libraryKind: "saved_recording",
+    libraryKind: "saved_source_track",
     label: "Fixture Track",
     addedAt: "2026-05-28T00:01:00.000Z",
     lastSeenAt: "2026-05-28T00:02:00.000Z",
@@ -288,7 +288,7 @@ async function sourceEntityStoreRepositoryStoresEntitiesLibraryAndBindings(): Pr
       ownerScope: "local_profile:default",
       providerId: "fixture-library",
       providerAccountId: "fixture-account",
-      libraryKind: "saved_recording",
+      libraryKind: "saved_source_track",
       sourceRef,
     }),
   );

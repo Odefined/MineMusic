@@ -70,8 +70,9 @@ This file tracks Library Import implementation progress.
   `readItems`, allowing bounded real imports through the same public start
   tools while leaving default imports full-sized.
 - The NetEase Platform Library Provider factory exists, resolves the current
-  local API session account identity, and maps saved recordings, saved releases,
-  and saved artists into generic provider items. Provider preview now reports
+  local API session account identity, and maps saved source tracks, saved
+  source releases, and saved source artists into generic provider items.
+  Provider preview now reports
   readable availability, counts, bounded lightweight samples, and unsupported
   discovery areas. Provider item reads now return complete, failed, partial,
   and unavailable per-area statuses without turning a single area failure into
@@ -81,12 +82,12 @@ This file tracks Library Import implementation progress.
   required cases. Deterministic coverage also verifies NetEase provider
   registration through the `platform_library` slot, and the NetEase source docs
   now record that the adapter exposes both `source` and `platform_library` slot
-  providers. Saved-recording reads best-effort fetch NetEase album tracklists
-  once per album id to populate platform-neutral `canonicalHints.trackPosition`;
-  album-context failures leave the saved-recording read successful without that
-  hint. Real validation against the local Docker API currently proves the
-  configured account and reads 1372 saved recordings, 466 saved releases, and
-  179 saved artists.
+  providers. Saved-source-track reads best-effort fetch NetEase album
+  tracklists once per album id to populate platform-neutral
+  `canonicalHints.trackPosition`; album-context failures leave the
+  saved-source-track read successful without that hint. Real validation against
+  the local Docker API currently proves the configured account and reads 1372
+  saved source tracks, 466 saved source releases, and 179 saved source artists.
 - In-memory Library Import storage is implemented for import/update batch
   records, completed reports, per-area snapshots, item provenance, Platform
   Library Absence records, returned-copy behavior, and provider-account-stable
@@ -178,7 +179,7 @@ This file tracks Library Import implementation progress.
   enrichment, and Library Import hint projection.
 - `npm run typecheck` and `npm test` pass after the provisional hint slice.
 - A follow-up live durable MCP import after that performance pass completed in
-  13 seconds for `saved_recordings`, `saved_releases`, and `saved_artists`.
+  13 seconds for `saved_source_tracks`, `saved_source_releases`, and `saved_source_artists`.
   It produced 2017 imported item reports and persisted 3 complete area
   snapshots, 2017 item provenance rows, 2017 active saved Collection items,
   3241 canonical source refs, 5249 provisional relations, and 3189 relation

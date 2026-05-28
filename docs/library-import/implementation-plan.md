@@ -19,9 +19,9 @@ The first useful slice imports:
 
 | Scope | Provider area | Provider item kind | Canonical / Collection kind |
 | --- | --- | --- | --- |
-| `saved_recordings` | `saved_recordings` | `saved_recording` | `recording` |
-| `saved_releases` | `saved_releases` | `saved_release` | `release` |
-| `saved_artists` | `saved_artists` | `followed_artist` | `artist` |
+| `saved_source_tracks` | `saved_source_tracks` | `saved_source_track` | `recording` |
+| `saved_source_releases` | `saved_source_releases` | `saved_source_release` | `release` |
+| `saved_source_artists` | `saved_source_artists` | `saved_source_artist` | `artist` |
 
 `discovery` is preview-only. `playlists` and `listening_history` remain outside
 the first Library Import Service implementation.
@@ -92,9 +92,9 @@ the first Library Import Service implementation.
     - `library_import.canonical_binding_failed`
   - Add `LibraryImportScope`:
     - `discovery`
-    - `saved_recordings`
-    - `saved_releases`
-    - `saved_artists`
+    - `saved_source_tracks`
+    - `saved_source_releases`
+    - `saved_source_artists`
   - Add `LibraryImportBatchKind`: `initial_import` and `library_update`.
   - Add `LibraryImportBatchStatus`: `pending`, `running`, `completed`,
     `completed_with_warnings`, `failed`, and `canceled`.

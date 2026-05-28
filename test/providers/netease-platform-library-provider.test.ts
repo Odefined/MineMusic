@@ -90,7 +90,7 @@ async function registersNetEaseProviderThroughPlatformLibrarySlot(): Promise<voi
 
   assert(listed.length === 1 && listed[0] === "netease", "NetEase provider should list under platform_library");
   assert(
-    descriptors[0]?.areas?.some((area) => area.id === "saved_recordings" && area.availability === "readable"),
+    descriptors[0]?.areas?.some((area) => area.id === "saved_source_tracks" && area.availability === "readable"),
     "NetEase provider descriptor should expose readable library areas",
   );
   assert(stored === provider, "NetEase platform library lookup should return the registered provider");
@@ -183,7 +183,7 @@ async function previewMapsLoginStatusFailureToProviderUnavailable(): Promise<voi
     },
   });
 
-  const preview = await assertOk(provider.preview({ areas: ["saved_recordings"] }));
+  const preview = await assertOk(provider.preview({ areas: ["saved_source_tracks"] }));
 
   assert(preview.account === undefined, "provider-unavailable login status should not expose account");
   assert(preview.areas.length === 0, "provider-unavailable login status should not read areas");
@@ -275,7 +275,7 @@ async function previewDefaultsToReadableAreasWithExactCounts(): Promise<void> {
   const preview = await assertOk(provider.preview({}));
 
   assert(
-    preview.areas.map((area) => area.area).join(",") === "saved_recordings,saved_releases,saved_artists",
+    preview.areas.map((area) => area.area).join(",") === "saved_source_tracks,saved_source_releases,saved_source_artists",
     "preview should default to first-slice readable areas",
   );
   assert(
@@ -380,14 +380,14 @@ async function previewReturnsBoundedLightweightSamples(): Promise<void> {
   });
 
   const preview = await assertOk(
-    provider.preview({ areas: ["saved_recordings"], sampleLimitPerArea: 1 }),
+    provider.preview({ areas: ["saved_source_tracks"], sampleLimitPerArea: 1 }),
   );
   const sample = preview.areas[0]?.samples?.[0];
 
   assert(preview.areas[0]?.count?.certainty === "exact", "preview should still include exact count");
   assert(preview.areas[0]?.count?.value === 2, "preview count should be based on all liked ids");
   assert(sample?.label === "Sample Track - Sample Artist", "sample should include display label");
-  assert(sample.itemKind === "saved_recording", "sample should include item kind");
+  assert(sample.itemKind === "saved_source_track", "sample should include item kind");
   assert(sample.targetKind === "recording", "sample should include target kind");
   assert(sample.artistLabels?.[0] === "Sample Artist", "sample should include generic artist labels");
   assert(!("sourceRef" in sample), "sample should not expose sourceRef");
@@ -443,10 +443,10 @@ async function previewReturnsReleaseAndArtistSamples(): Promise<void> {
   });
 
   const preview = await assertOk(
-    provider.preview({ areas: ["saved_releases", "saved_artists"], sampleLimitPerArea: 1 }),
+    provider.preview({ areas: ["saved_source_releases", "saved_source_artists"], sampleLimitPerArea: 1 }),
   );
-  const releaseArea = preview.areas.find((area) => area.area === "saved_releases");
-  const artistArea = preview.areas.find((area) => area.area === "saved_artists");
+  const releaseArea = preview.areas.find((area) => area.area === "saved_source_releases");
+  const artistArea = preview.areas.find((area) => area.area === "saved_source_artists");
   const releaseSample = releaseArea?.samples?.[0];
   const artistSample = artistArea?.samples?.[0];
 
@@ -454,7 +454,7 @@ async function previewReturnsReleaseAndArtistSamples(): Promise<void> {
   assert(releaseArea.count.value === 2, "release preview should count all returned releases");
   assert(releaseArea.samples?.length === 1, "release preview should respect sample limit");
   assert(releaseSample?.label === "Sample Album - Release Artist", "release sample should include display label");
-  assert(releaseSample.itemKind === "saved_release", "release sample should include item kind");
+  assert(releaseSample.itemKind === "saved_source_release", "release sample should include item kind");
   assert(releaseSample.targetKind === "release", "release sample should include target kind");
   assert(releaseSample.artistLabels?.[0] === "Release Artist", "release sample should include artist labels");
   assert(!("sourceRef" in releaseSample), "release sample should not expose sourceRef");
@@ -464,7 +464,7 @@ async function previewReturnsReleaseAndArtistSamples(): Promise<void> {
   assert(artistArea.count.value === 2, "artist preview should count all returned artists");
   assert(artistArea.samples?.length === 1, "artist preview should respect sample limit");
   assert(artistSample?.label === "Sample Followed Artist", "artist sample should include display label");
-  assert(artistSample.itemKind === "followed_artist", "artist sample should include item kind");
+  assert(artistSample.itemKind === "saved_source_artist", "artist sample should include item kind");
   assert(artistSample.targetKind === "artist", "artist sample should include target kind");
   assert(!("sourceRef" in artistSample), "artist sample should not expose sourceRef");
   assert(!("raw" in artistSample), "artist sample should not expose raw provider payload");
@@ -503,7 +503,7 @@ async function previewMapsRequesterTimeoutToUnavailableIssue(): Promise<void> {
     },
   });
 
-  const preview = await assertOk(provider.preview({ areas: ["saved_recordings"] }));
+  const preview = await assertOk(provider.preview({ areas: ["saved_source_tracks"] }));
   const area = preview.areas[0];
 
   assert(area?.availability === "unavailable", "timeout preview area should be unavailable");
@@ -586,15 +586,15 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks"] }));
   const area = read.areas[0];
   const item = area?.items[0];
 
   assert(paths.join(",") === "/login/status,/likelist,/song/detail,/album", "saved recordings should use expected endpoints");
-  assert(area?.area === "saved_recordings", "read result should include saved_recordings area");
+  assert(area?.area === "saved_source_tracks", "read result should include saved_source_tracks area");
   assert(area.status === "complete", "successful saved recordings read should be complete");
   assert(item?.providerId === "netease", "item should identify provider");
-  assert(item.itemKind === "saved_recording", "item kind should be generic saved recording");
+  assert(item.itemKind === "saved_source_track", "item kind should be generic saved recording");
   assert(item.targetKind === "recording", "target kind should be generic recording");
   assert(item.label === "Kept Track - Kept Artist", "item label should be generic display label");
   assert(item.sourceRef.namespace === "source:netease", "source ref should use NetEase source namespace");
@@ -671,7 +671,7 @@ async function readItemsKeepsSavedRecordingsWhenAlbumContextFails(): Promise<voi
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks"] }));
   const item = read.areas[0]?.items[0];
 
   assert(read.areas[0]?.status === "complete", "album-context failure should not fail saved recordings");
@@ -745,7 +745,7 @@ async function readItemsFetchesEachSavedRecordingAlbumOnce(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks"] }));
   const items = read.areas[0]?.items ?? [];
 
   assert(albumRequests === 1, "same album id should be fetched once per saved-recording read");
@@ -794,7 +794,7 @@ async function readItemsBatchesSavedRecordingDetails(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks"] }));
 
   assert(read.areas[0]?.items.length === 1001, "saved recordings should read every liked song detail");
   assert(detailRequests.length === 2, "song detail reads should be batched below the API limit");
@@ -839,7 +839,7 @@ async function readItemsRespectsSavedRecordingSampleLimit(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"], sampleLimitPerArea: 2 }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks"], sampleLimitPerArea: 2 }));
 
   assert(read.areas[0]?.items.length === 2, "saved recordings read should return only the requested sample size");
   assert(detailRequests.join(";") === "1,2", "saved recordings read should request details only for sampled ids");
@@ -913,13 +913,13 @@ async function readItemsMapsSavedReleasesToGenericItems(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_releases"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_releases"] }));
   const area = read.areas[0];
   const item = area?.items[0];
 
-  assert(area?.area === "saved_releases", "read result should include saved_releases area");
+  assert(area?.area === "saved_source_releases", "read result should include saved_source_releases area");
   assert(area.status === "complete", "successful saved releases read should be complete");
-  assert(item?.itemKind === "saved_release", "item kind should be generic saved release");
+  assert(item?.itemKind === "saved_source_release", "item kind should be generic saved release");
   assert(item.targetKind === "release", "target kind should be generic release");
   assert(item.label === "Kept Album - Album Artist", "release label should include artist when available");
   assert(item.sourceRef.namespace === "source:netease", "release source ref should use NetEase source namespace");
@@ -996,7 +996,7 @@ async function readItemsPaginatesSavedReleases(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_releases"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_releases"] }));
 
   assert(offsets.join(",") === "0,100", "saved releases should follow count-driven pagination");
   assert(read.areas[0]?.items.length === 2, "saved releases should include items from every page");
@@ -1038,13 +1038,13 @@ async function readItemsMapsSavedArtistsToGenericItems(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_artists"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_artists"] }));
   const area = read.areas[0];
   const item = area?.items[0];
 
-  assert(area?.area === "saved_artists", "read result should include saved_artists area");
+  assert(area?.area === "saved_source_artists", "read result should include saved_source_artists area");
   assert(area.status === "complete", "successful saved artists read should be complete");
-  assert(item?.itemKind === "followed_artist", "item kind should be generic followed artist");
+  assert(item?.itemKind === "saved_source_artist", "item kind should be generic followed artist");
   assert(item.targetKind === "artist", "target kind should be generic artist");
   assert(item.label === "Kept Artist", "artist item label should be generic artist label");
   assert(item.sourceRef.namespace === "source:netease", "artist source ref should use NetEase source namespace");
@@ -1104,7 +1104,7 @@ async function readItemsPaginatesSavedArtists(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_artists"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_artists"] }));
 
   assert(offsets.join(",") === "0,100", "saved artists should follow count-driven pagination");
   assert(read.areas[0]?.items.length === 2, "saved artists should include items from every page");
@@ -1141,7 +1141,7 @@ async function readItemsSkipsProviderItemsWithoutStableSourceRefs(): Promise<voi
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_artists"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_artists"] }));
 
   assert(read.areas[0]?.items.length === 0, "items without stable source refs should not be returned");
 }
@@ -1226,9 +1226,9 @@ async function readItemsKeepsOtherAreasWhenOneAreaFails(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings", "saved_artists"] }));
-  const failed = read.areas.find((area) => area.area === "saved_recordings");
-  const complete = read.areas.find((area) => area.area === "saved_artists");
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks", "saved_source_artists"] }));
+  const failed = read.areas.find((area) => area.area === "saved_source_tracks");
+  const complete = read.areas.find((area) => area.area === "saved_source_artists");
 
   assert(failed?.status === "failed", "failed readable area should report failed status");
   assert(failed.items.length === 0, "failed area should not invent items");
@@ -1267,7 +1267,7 @@ async function readItemsMapsMalformedProviderPayload(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks"] }));
   const area = read.areas[0];
 
   assert(area?.status === "failed", "malformed payload should fail the area read");
@@ -1307,7 +1307,7 @@ async function readItemsMapsRateLimitedProviderPayload(): Promise<void> {
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_releases"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_releases"] }));
   const area = read.areas[0];
 
   assert(area?.status === "failed", "rate-limited payload should fail the area read");
@@ -1373,7 +1373,7 @@ async function readItemsReportsPartialWhenRecordingDetailBatchFails(): Promise<v
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_recordings"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_tracks"] }));
   const area = read.areas[0];
 
   assert(area?.status === "partial", "saved recordings should report partial when a later batch fails");
@@ -1436,7 +1436,7 @@ async function readItemsReportsPartialWhenPaginationFailsAfterItems(): Promise<v
     },
   });
 
-  const read = await assertOk(provider.readItems({ areas: ["saved_releases"] }));
+  const read = await assertOk(provider.readItems({ areas: ["saved_source_releases"] }));
   const area = read.areas[0];
 
   assert(area?.status === "partial", "saved releases should report partial when a later page fails");

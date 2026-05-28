@@ -165,7 +165,7 @@ async function writesProviderCapabilitiesIntoInstrumentHandbook(): Promise<void>
       operations: ["preview", "import", "update"],
       areas: [
         {
-          id: "saved_recordings",
+          id: "saved_source_tracks",
           label: "Saved songs",
           availability: "readable",
         },
@@ -207,7 +207,7 @@ async function writesProviderCapabilitiesIntoInstrumentHandbook(): Promise<void>
     assert(content.includes("#### Providers"), "handbook should render provider section");
     assert(content.includes("Fixture Library (`fixture-library`, slot `platform_library`)"), "handbook should render provider label and slot");
     assert(content.includes("Authentication: `required`"), "handbook should render provider authentication");
-    assert(content.includes("Saved songs (`saved_recordings`): `readable`"), "handbook should render readable provider areas");
+    assert(content.includes("Saved songs (`saved_source_tracks`): `readable`"), "handbook should render readable provider areas");
     assert(previewCalls === 0, "handbook generation should not call provider preview");
   } finally {
     await rm(directory, { force: true, recursive: true });
@@ -569,7 +569,7 @@ async function exposesLibraryImportWithInjectedPlatformLibraryProvider(): Promis
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               availability: "readable",
               count: {
                 certainty: "exact",
@@ -617,16 +617,16 @@ async function exposesLibraryImportWithInjectedPlatformLibraryProvider(): Promis
   const preview = await assertOk(
     stageCore.libraryImport.previewImport({
       providerId: platformLibraryProvider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
 
   assert(registeredProvider === platformLibraryProvider, "Stage Core should register the platform-library provider");
   assert(preview.providerId === platformLibraryProvider.id, "Stage Core should expose Library Import");
   assert(preview.account?.providerAccountId === "provider-account-1", "Library Import should return provider account");
-  assert(preview.areas[0]?.area === "saved_recordings", "Library Import should preview requested areas");
+  assert(preview.areas[0]?.area === "saved_source_tracks", "Library Import should preview requested areas");
   assert(
-    previewCalls[0]?.areas?.includes("saved_recordings"),
+    previewCalls[0]?.areas?.includes("saved_source_tracks"),
     "Library Import should call the injected platform-library provider",
   );
 }

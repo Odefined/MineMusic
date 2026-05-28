@@ -60,7 +60,7 @@ const musicCandidateSchema = z.object({
   sourceLibraryScope: z.object({
     providerId: z.string().optional(),
     providerAccountId: z.string().optional(),
-    libraryKind: z.enum(["saved_recording", "saved_release", "followed_artist"]).optional(),
+    libraryKind: z.enum(["saved_source_track", "saved_source_release", "saved_source_artist"]).optional(),
     status: z.enum(["present", "absent"]).optional(),
   }).optional(),
   reason: z.string().optional(),
@@ -70,9 +70,9 @@ const collectionKindSchema = z.enum(["recording", "work", "release_group", "rele
 const collectionRelationKindSchema = z.enum(["saved", "favorite", "blocked", "custom"]);
 const libraryImportScopeSchema = z.enum([
   "discovery",
-  "saved_recordings",
-  "saved_releases",
-  "saved_artists",
+  "saved_source_tracks",
+  "saved_source_releases",
+  "saved_source_artists",
 ]);
 const reviewSupportReasonKindSchema = z.enum([
   "artist_credit",
@@ -123,7 +123,7 @@ export const stageInterfaceToolInputSchemas = {
     sourceLibraryScope: z.object({
       providerId: z.string().optional(),
       providerAccountId: z.string().optional(),
-      libraryKind: z.enum(["saved_recording", "saved_release", "followed_artist"]).optional(),
+      libraryKind: z.enum(["saved_source_track", "saved_source_release", "saved_source_artist"]).optional(),
       status: z.enum(["present", "absent"]).optional(),
     }).optional(),
     limitPerCandidate: z.number().int().positive().optional(),

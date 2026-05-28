@@ -237,11 +237,12 @@ host-facing and LLM-facing surface.
   `preview` and `readItems` methods. Those methods resolve the current local
   NetEase API session account identity through `/login/status` and return
   structured `login_required` issues when no usable account or requested
-  account match can be proven. `readItems` maps `saved_recordings`,
-  `saved_releases`, and `saved_artists` into generic provider item facts with
+  account match can be proven. `readItems` maps `saved_source_tracks`,
+  `saved_source_releases`, and `saved_source_artists` into generic provider item facts with
   stable NetEase source refs and canonical hints, including artist/release
-  source refs for saved recordings, batched `song/detail` reads, and paginated
-  saved album / followed artist reads. Saved-recording reads now best-effort
+  source refs for saved source tracks, batched `song/detail` reads, and
+  paginated saved source release / followed artist reads. Saved-source-track
+  reads now best-effort
   fetch `/album?id=<albumId>` once per distinct album id to populate
   platform-neutral `canonicalHints.releaseDate` and
   `canonicalHints.trackPosition`. Saved-release reads now use the same album
@@ -261,8 +262,8 @@ host-facing and LLM-facing surface.
   NetEase API service at `http://127.0.0.1:3000` now reads the Docker-side
   account setting from `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env`;
   live platform-library `preview` and `readItems` prove the account and return
-  matching counts of 1372 saved recordings, 466 saved releases, and 179 saved
-  artists.
+  matching counts of 1372 saved source tracks, 466 saved source releases, and
+  179 saved source artists.
 - Music Knowledge is exported from `src/knowledge/index.ts` as a provider query
   service returning `KnowledgeResult`. The shared Knowledge contracts now expose
   `StructuredKnowledge`, `TextKnowledge`, graph nodes, endpoint-based

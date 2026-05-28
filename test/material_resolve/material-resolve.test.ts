@@ -334,7 +334,7 @@ async function readsSourceLibraryOnlyWhenExplicitlyScoped(): Promise<void> {
         providerAccountId: "fixture-account",
         sourceRef: librarySourceRef,
         sourceKind: "track",
-        libraryKind: "saved_recording",
+        libraryKind: "saved_source_track",
         label: "Library Track",
         lastSeenAt: "2026-05-28T00:00:00.000Z",
         status: "present",
@@ -364,7 +364,7 @@ async function readsSourceLibraryOnlyWhenExplicitlyScoped(): Promise<void> {
       sourceLibraryScope: {
         providerId: "fixture-library",
         providerAccountId: "fixture-account",
-        libraryKind: "saved_recording",
+        libraryKind: "saved_source_track",
       },
       candidate: {
         id: "candidate-library-track",

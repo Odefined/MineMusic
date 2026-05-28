@@ -34,9 +34,9 @@ Readable areas:
 
 | Area | Item kind | Target kind |
 | --- | --- | --- |
-| `saved_recordings` | `saved_recording` | `recording` |
-| `saved_releases` | `saved_release` | `release` |
-| `saved_artists` | `followed_artist` | `artist` |
+| `saved_source_tracks` | `saved_source_track` | `recording` |
+| `saved_source_releases` | `saved_source_release` | `release` |
+| `saved_source_artists` | `saved_source_artist` | `artist` |
 
 Non-readable areas:
 
@@ -98,11 +98,11 @@ Collection status.
 - **Description**: Map NetEase account-library responses into generic
   `PlatformLibraryItem` records.
 - **Details**:
-  - `saved_recordings` items use stable NetEase track refs as provider
+  - `saved_source_tracks` items use stable NetEase track refs as provider
     `sourceRef` values.
-  - `saved_releases` items use stable NetEase album refs as provider
+  - `saved_source_releases` items use stable NetEase album refs as provider
     `sourceRef` values.
-  - `saved_artists` items use stable NetEase artist refs as provider
+  - `saved_source_artists` items use stable NetEase artist refs as provider
     `sourceRef` values.
   - `label` and `canonicalHints` use generic names only.
   - `canonicalHints` may include `label`, `artistLabels`,
@@ -160,7 +160,7 @@ Collection status.
 - **Description**: Cover provider behavior with fixture responses.
 - **Details**:
   - Preview returns supported readable areas, counts, and lightweight samples.
-  - Read returns `saved_recording`, `saved_release`, and `followed_artist`
+  - Read returns `saved_source_track`, `saved_source_release`, and `saved_source_artist`
     items.
   - Readable items include stable `sourceRef` values.
   - Samples do not include `sourceRef`.

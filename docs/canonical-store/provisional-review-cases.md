@@ -119,7 +119,7 @@ Recommended guidance:
   differences can support identity resolution when release or tracklist context
   also agrees; large differences or edit/live/video disambiguations should
   lead the agent to defer.
-- For NetEase saved-recording imports, ISRC is MusicBrainz-side candidate
+- For NetEase saved-source-track imports, ISRC is MusicBrainz-side candidate
   distinction because NetEase currently provides no source-side ISRC. Absence of
   ISRC still allows identity resolution when other non-label facts converge.
 - Use release appearance as context. A wrong live/video candidate can still

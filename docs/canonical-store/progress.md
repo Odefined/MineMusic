@@ -478,7 +478,7 @@ Results:
   - temporary databases: `material-store.sqlite`, `collection.sqlite`,
     `library-import.sqlite`, and `provider-cache.sqlite` under that directory.
   - import command path: `library.import.start` with NetEase
-    `saved_recordings`, `ownerScope: local_profile:regression-v21`, and
+    `saved_source_tracks`, `ownerScope: local_profile:regression-v21`, and
     `sampleLimitPerArea: 20`.
   - imported count: 20; created provisional canonical recordings: 20; skipped
     and failed import items: 0.
@@ -500,13 +500,13 @@ Evidence boundary:
   `test/integration/canonical-persistence.test.ts`.
 - Live NetEase validation is separate and remains opt-in through
   `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease`.
-- Live NetEase full saved-recording import was also run manually against a temp
+- Live NetEase full saved-source-track import was also run manually against a temp
   SQLite runtime after the label-only merge correction and produced 1372 item
   reports, 1372 canonical source refs, and 1372 active Collection items,
   pending later duplicate-candidate review/merge semantics.
 - Live NetEase full first-slice import was rerun manually against a temp durable
   MCP runtime after indexed source-ref lookup was added. Importing
-  `saved_recordings`, `saved_releases`, and `saved_artists` completed in 13
+  `saved_source_tracks`, `saved_source_releases`, and `saved_source_artists` completed in 13
   seconds and persisted 3241 canonical source refs, 5249 provisional relations,
   and 3189 relation rows with `objectRef`s.
 - A later 20-record Provisional Review v3 MCP-only validation was run with an
@@ -515,7 +515,7 @@ Evidence boundary:
   `run_busy` behavior, short snapshot TTL pain, normalization misses, and
   track-position detail gaps.
 - 20-record Provisional Review v3 MCP-only validation details:
-  - import scope: NetEase `saved_recordings`, `sampleLimitPerArea: 20`,
+  - import scope: NetEase `saved_source_tracks`, `sampleLimitPerArea: 20`,
     `ownerScope: local_profile:real-v3-20`.
   - imported count was 20, with 20 provisional canonical recordings created.
   - the independent subagent observed only 19 visible provisional recordings in

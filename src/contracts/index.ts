@@ -713,9 +713,9 @@ export interface SourceProvider {
 }
 
 export type PlatformLibraryArea =
-  | "saved_recordings"
-  | "saved_releases"
-  | "saved_artists"
+  | "saved_source_tracks"
+  | "saved_source_releases"
+  | "saved_source_artists"
   | "playlists"
   | "listening_history";
 
@@ -746,9 +746,9 @@ export type PlatformLibraryCount =
     };
 
 export type PlatformLibraryItemKind =
-  | "saved_recording"
-  | "saved_release"
-  | "followed_artist";
+  | "saved_source_track"
+  | "saved_source_release"
+  | "saved_source_artist";
 
 export type PlatformLibraryTargetKind =
   | "recording"
@@ -861,9 +861,9 @@ export interface PlatformLibraryProvider {
 
 export type LibraryImportScope =
   | "discovery"
-  | "saved_recordings"
-  | "saved_releases"
-  | "saved_artists";
+  | "saved_source_tracks"
+  | "saved_source_releases"
+  | "saved_source_artists";
 
 export type LibraryImportBatchKind =
   | "initial_import"

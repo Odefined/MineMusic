@@ -63,7 +63,7 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
         operations: ["preview", "import"],
         areas: [
           {
-            id: "saved_recordings",
+            id: "saved_source_tracks",
             label: "Saved songs",
             availability: "readable",
           },
@@ -119,7 +119,7 @@ async function registersAndLooksUpProvidersBySlot(): Promise<void> {
     "registry should normalize descriptor id and slot to the registration key",
   );
   assert(
-    platformLibraryDescriptors[0]?.areas?.[0]?.id === "saved_recordings",
+    platformLibraryDescriptors[0]?.areas?.[0]?.id === "saved_source_tracks",
     "registry should preserve agent-facing provider area metadata",
   );
 }

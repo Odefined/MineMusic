@@ -50,7 +50,7 @@ async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> 
     providerAccountId: "fixture-account",
     providerAccountStable: true,
     ownerScope: "local_profile:default",
-    scopes: ["saved_recordings"],
+    scopes: ["saved_source_tracks"],
     startedAt: "2026-05-25T00:00:00.000Z",
     completedAt,
     counts: {
@@ -71,17 +71,17 @@ async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> 
     counts: batch.counts,
     areas: [
       {
-        scope: "saved_recordings",
-        area: "saved_recordings",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
         readStatus: "complete",
       },
     ],
     items: [
       {
-        scope: "saved_recordings",
-        area: "saved_recordings",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
         sourceRef: sourceRef("track-1"),
-        itemKind: "saved_recording",
+        itemKind: "saved_source_track",
         targetKind: "recording",
         label: "Track 1",
         status: "imported",
@@ -101,7 +101,7 @@ async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> 
     const firstRepository = createSqliteLibraryImportRepository({ path: databasePath });
     await assertOk(firstRepository.putBatch({ batch }));
     await assertOk(firstRepository.putReport({ report }));
-    batch.scopes.push("saved_artists");
+    batch.scopes.push("saved_source_artists");
     report.items.push({ ...report.items[0]!, sourceRef: sourceRef("mutated-after-put") });
 
     const reopenedRepository = createSqliteLibraryImportRepository({ path: databasePath });
@@ -117,7 +117,7 @@ async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> 
       }),
     );
 
-    assert(loadedBatch?.scopes.join(",") === "saved_recordings", "reopened repository should load stored batch");
+    assert(loadedBatch?.scopes.join(",") === "saved_source_tracks", "reopened repository should load stored batch");
     assert(loadedReport?.items.length === 1, "reopened repository should load stored report");
     assert(listed.length === 1 && listed[0]?.id === batch.id, "reopened repository should filter batches");
 
@@ -175,8 +175,8 @@ async function persistsSnapshotsAndFindsStableLatestBaselineAfterReopen(): Promi
         providerId: "fixture-library",
         providerAccountId: "fixture-account",
         providerAccountStable: true,
-        scope: "saved_recordings",
-        area: "saved_recordings",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
         complete: true,
       }),
     );
@@ -186,8 +186,8 @@ async function persistsSnapshotsAndFindsStableLatestBaselineAfterReopen(): Promi
         providerId: "fixture-library",
         providerAccountId: "fixture-account",
         providerAccountStable: true,
-        scope: "saved_recordings",
-        area: "saved_recordings",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
       }),
     );
     const unstableBaseline = await assertOk(
@@ -196,8 +196,8 @@ async function persistsSnapshotsAndFindsStableLatestBaselineAfterReopen(): Promi
         providerId: "fixture-library",
         providerAccountId: "fixture-account",
         providerAccountStable: false,
-        scope: "saved_recordings",
-        area: "saved_recordings",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
       }),
     );
 
@@ -219,10 +219,10 @@ async function persistsProvenanceAndAbsencesAcrossRepositoryReopen(): Promise<vo
     ownerScope: "local_profile:default",
     providerId: "fixture-library",
     providerAccountId: "fixture-account",
-    scope: "saved_recordings",
-    area: "saved_recordings",
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
     sourceRef: sourceRef("track-1"),
-    itemKind: "saved_recording",
+    itemKind: "saved_source_track",
     targetKind: "recording",
     label: "First Label",
     canonicalRef: {
@@ -247,8 +247,8 @@ async function persistsProvenanceAndAbsencesAcrossRepositoryReopen(): Promise<vo
     ownerScope: "local_profile:default",
     providerId: "fixture-library",
     providerAccountId: "fixture-account",
-    scope: "saved_recordings",
-    area: "saved_recordings",
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
     sourceRef: sourceRef("missing-track"),
     canonicalRef: {
       namespace: "minemusic",
@@ -322,8 +322,8 @@ function areaSnapshot({
     providerId: "fixture-library",
     providerAccountId: "fixture-account",
     providerAccountStable,
-    scope: "saved_recordings",
-    area: "saved_recordings",
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
     status: "complete",
     complete: true,
     sourceRefs: [sourceRef(sourceRefId)],

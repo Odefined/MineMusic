@@ -1839,12 +1839,12 @@ function scopesToProviderAreas(scopes: LibraryImportScope[]): PlatformLibraryAre
 
 function scopeToProviderArea(scope: LibraryImportScope): PlatformLibraryArea | null {
   switch (scope) {
-    case "saved_recordings":
-      return "saved_recordings";
-    case "saved_releases":
-      return "saved_releases";
-    case "saved_artists":
-      return "saved_artists";
+    case "saved_source_tracks":
+      return "saved_source_tracks";
+    case "saved_source_releases":
+      return "saved_source_releases";
+    case "saved_source_artists":
+      return "saved_source_artists";
     case "discovery":
       return null;
   }
@@ -1852,12 +1852,12 @@ function scopeToProviderArea(scope: LibraryImportScope): PlatformLibraryArea | n
 
 function providerAreaToScope(area: PlatformLibraryArea): LibraryImportScope {
   switch (area) {
-    case "saved_recordings":
-      return "saved_recordings";
-    case "saved_releases":
-      return "saved_releases";
-    case "saved_artists":
-      return "saved_artists";
+    case "saved_source_tracks":
+      return "saved_source_tracks";
+    case "saved_source_releases":
+      return "saved_source_releases";
+    case "saved_source_artists":
+      return "saved_source_artists";
     case "playlists":
     case "listening_history":
       return "discovery";
@@ -1866,9 +1866,9 @@ function providerAreaToScope(area: PlatformLibraryArea): LibraryImportScope {
 
 function isFirstSliceArea(area: PlatformLibraryArea): boolean {
   switch (area) {
-    case "saved_recordings":
-    case "saved_releases":
-    case "saved_artists":
+    case "saved_source_tracks":
+    case "saved_source_releases":
+    case "saved_source_artists":
       return true;
     case "playlists":
     case "listening_history":

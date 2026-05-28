@@ -464,7 +464,7 @@ Provider item:
 
 ```text
 source:netease / track / 22644323
-itemKind: saved_recording
+itemKind: saved_source_track
 targetKind: recording
 ```
 
@@ -586,9 +586,9 @@ Import scope names should be MineMusic-owned and platform-neutral:
 
 ```text
 discovery
-saved_recordings
-saved_releases
-saved_artists
+saved_source_tracks
+saved_source_releases
+saved_source_artists
 ```
 
 Initial import and library update should use the same scope names.

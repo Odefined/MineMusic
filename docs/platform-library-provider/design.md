@@ -113,9 +113,9 @@ Provider contract:
 
 ```ts
 export type PlatformLibraryArea =
-  | "saved_recordings"
-  | "saved_releases"
-  | "saved_artists"
+  | "saved_source_tracks"
+  | "saved_source_releases"
+  | "saved_source_artists"
   | "playlists"
   | "listening_history";
 
@@ -162,9 +162,9 @@ export type PlatformLibraryAccountIdentity = {
 };
 
 export type PlatformLibraryItemKind =
-  | "saved_recording"
-  | "saved_release"
-  | "followed_artist";
+  | "saved_source_track"
+  | "saved_source_release"
+  | "saved_source_artist";
 
 export type PlatformLibraryTargetKind =
   | "recording"
@@ -282,7 +282,7 @@ items. They may appear only as preview samples or as skipped/unavailable facts.
 Library Import relies on stable source refs for idempotency, update baselines,
 Platform Library Absence derivation, and Canonical Store source-ref binding.
 
-Platform album saves should be expressed as `saved_release` in this slot
+Platform album saves should be expressed as `saved_source_release` in this slot
 contract. Providers should not return `saved_album` as a separate item kind.
 Grouping concrete releases into release groups is a later Canonical/Collection
 concern, not a provider-slot item-kind distinction.
@@ -290,9 +290,9 @@ concern, not a provider-slot item-kind distinction.
 The first contract mapping is:
 
 ```text
-saved_recording -> recording
-saved_release -> release
-followed_artist -> artist
+saved_source_track -> recording
+saved_source_release -> release
+saved_source_artist -> artist
 ```
 
 Provider item contracts must not include raw platform responses or a generic

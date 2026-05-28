@@ -402,7 +402,7 @@ type _providerHttpCacheRepositoryMethodsUseSingleObjectInputs = Expect<
 >;
 
 type _platformLibraryItemKindsMatchFirstContract = Expect<
-  Equal<PlatformLibraryItemKind, "saved_recording" | "saved_release" | "followed_artist">
+  Equal<PlatformLibraryItemKind, "saved_source_track" | "saved_source_release" | "saved_source_artist">
 >;
 
 type _platformLibraryTargetKindsMatchFirstContract = Expect<
@@ -697,7 +697,7 @@ type _canonicalReviewStateShape = Expect<
 >;
 
 type _libraryImportScopesMatchFirstSlice = Expect<
-  Equal<LibraryImportScope, "discovery" | "saved_recordings" | "saved_releases" | "saved_artists">
+  Equal<LibraryImportScope, "discovery" | "saved_source_tracks" | "saved_source_releases" | "saved_source_artists">
 >;
 
 type _libraryImportBatchKinds = Expect<
@@ -1382,7 +1382,7 @@ const platformLibraryItem: PlatformLibraryItem = {
     id: "release-1",
     label: "Fixture Release",
   },
-  itemKind: "saved_release",
+  itemKind: "saved_source_release",
   targetKind: "release",
   label: "Fixture Release",
   addedAt: "2026-05-17T00:00:00.000Z",
@@ -1436,7 +1436,7 @@ const canonicalProvisionalHint: CanonicalProvisionalHint = {
 
 const platformLibrarySample: PlatformLibrarySample = {
   label: "Fixture Release",
-  itemKind: "saved_release",
+  itemKind: "saved_source_release",
   targetKind: "release",
   artistLabels: ["Fixture Artist"],
 };
@@ -1449,7 +1449,7 @@ const platformLibraryPreview: PlatformLibraryPreview = {
   },
   areas: [
     {
-      area: "saved_releases",
+      area: "saved_source_releases",
       availability: "readable",
       count: { certainty: "exact", value: 1 },
       samples: [platformLibrarySample],
@@ -1470,7 +1470,7 @@ const platformLibraryReadResult: PlatformLibraryReadResult = {
   },
   areas: [
     {
-      area: "saved_releases",
+      area: "saved_source_releases",
       status: "complete",
       items: [platformLibraryItem],
     },

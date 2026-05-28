@@ -76,7 +76,7 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [
                 providerItem(importedSourceRef, "Runtime Imported Track", {
@@ -119,7 +119,7 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
     const report = await assertOk(
       stageCore.libraryImport.startImport({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }),
     );
     const batches = await assertOk(libraryImportRepository.listBatches({}));
@@ -153,7 +153,7 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
       registeredPlatformLibraryProvider === platformLibraryProvider,
       "Stage Core should register the platform-library provider separately",
     );
-    assert(readInputs[0]?.areas.includes("saved_recordings"), "Library Import should read the requested provider area");
+    assert(readInputs[0]?.areas.includes("saved_source_tracks"), "Library Import should read the requested provider area");
     assert(report.status === "completed_with_warnings", "unbound runtime import should complete with warnings");
     assert(report.counts.importedItems === 0, "Runtime Library Import should not write Collection without a confirmed binding");
     assert(report.counts.skippedItems === 1, "Runtime Library Import should report unbound source items as skipped");
@@ -202,7 +202,7 @@ async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [providerItem(importedSourceRef, "Persisted Runtime Track")],
             },
@@ -225,7 +225,7 @@ async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise
     const report = await assertOk(
       firstStageCore.libraryImport.startImport({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }),
     );
 
@@ -242,7 +242,7 @@ async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise
 
     assert(status.status === "completed_with_warnings", "recreated Stage Core should read persisted Library Import status");
     assert(summary.items[0]?.sourceRef.id === importedSourceRef.id, "persisted summary should keep item reports");
-    assert(summary.areas[0]?.area === "saved_recordings", "persisted summary should keep area reports");
+    assert(summary.areas[0]?.area === "saved_source_tracks", "persisted summary should keep area reports");
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
@@ -279,7 +279,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     );
 
     providerState.previewAreas = [
-      readablePreviewArea("saved_recordings", 4),
+      readablePreviewArea("saved_source_tracks", 4),
       {
         area: "playlists",
         availability: "unsupported",
@@ -320,7 +320,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const preview = await assertOk(
       stageCore.stageInterface.tools["library.import.preview"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportPreview>>,
     );
     const previewArea = preview.areas[0];
@@ -337,7 +337,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const firstImport = await assertOk(
       stageCore.stageInterface.tools["library.import.start"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportReport>>,
     );
     const firstSnapshots = await assertOk(
@@ -351,7 +351,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
         providerId: platformLibraryProvider.id,
         providerAccountId: "runtime-account",
         ownerScope: "local_profile:default",
-        scope: "saved_recordings",
+        scope: "saved_source_tracks",
       }),
     );
     const savedItemsAfterFirstImport = await listSavedRecordingItems(stageCore);
@@ -369,7 +369,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const repeatedImport = await assertOk(
       stageCore.stageInterface.tools["library.import.start"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportReport>>,
     );
     const savedItemsAfterRepeatedImport = await listSavedRecordingItems(stageCore);
@@ -381,7 +381,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
       "repeated import should keep Collection membership idempotent",
     );
 
-    providerState.previewAreas = [readablePreviewArea("saved_recordings", 4)];
+    providerState.previewAreas = [readablePreviewArea("saved_source_tracks", 4)];
     providerState.readAreas = [
       completeReadArea([
         runtimeProviderItem("saved-bound-track", "Saved Bound Track"),
@@ -401,7 +401,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const updatePreview = await assertOk(
       stageCore.stageInterface.tools["library.update.preview"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportPreview>>,
     );
     const updatePreviewArea = updatePreview.areas[0];
@@ -417,7 +417,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const updateReport = await assertOk(
       stageCore.stageInterface.tools["library.update.start"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportReport>>,
     );
     const savedItemsAfterUpdate = await listSavedRecordingItems(stageCore);
@@ -481,7 +481,7 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
   const providerState = createPlatformLibraryProviderState();
   const platformLibraryProvider = createStatefulPlatformLibraryProvider(providerState);
 
-  providerState.previewAreas = [readablePreviewArea("saved_recordings", 2)];
+  providerState.previewAreas = [readablePreviewArea("saved_source_tracks", 2)];
   providerState.readAreas = [
     completeReadArea([
       runtimeProviderItem("partial-kept-track", "Partial Kept Track"),
@@ -502,21 +502,21 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
     await assertOk(
       stageCore.stageInterface.tools["library.import.start"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportReport>>,
     );
 
-    providerState.previewAreas = [readablePreviewArea("saved_recordings", 1)];
+    providerState.previewAreas = [readablePreviewArea("saved_source_tracks", 1)];
     providerState.readAreas = [
       {
-        area: "saved_recordings",
+        area: "saved_source_tracks",
         status: "partial",
         items: [runtimeProviderItem("partial-kept-track", "Partial Kept Track")],
         issues: [
           {
             code: "partial_read",
             message: "Only part of the provider library was returned.",
-            area: "saved_recordings",
+            area: "saved_source_tracks",
             retryable: true,
           },
         ],
@@ -526,13 +526,13 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
     const partialPreview = await assertOk(
       stageCore.stageInterface.tools["library.update.preview"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportPreview>>,
     );
     const partialReport = await assertOk(
       stageCore.stageInterface.tools["library.update.start"]({
         providerId: platformLibraryProvider.id,
-        scopes: ["saved_recordings"],
+        scopes: ["saved_source_tracks"],
       }) as Promise<Result<LibraryImportReport>>,
     );
     const absences = await assertOk(
@@ -635,7 +635,7 @@ function canonicalRecording(id: string, label: string, sourceRefId: string): Can
   };
 }
 
-function readablePreviewArea(area: "saved_recordings", count: number): PlatformLibraryPreviewArea {
+function readablePreviewArea(area: "saved_source_tracks", count: number): PlatformLibraryPreviewArea {
   return {
     area,
     availability: "readable",
@@ -648,7 +648,7 @@ function readablePreviewArea(area: "saved_recordings", count: number): PlatformL
 
 function completeReadArea(items: PlatformLibraryItem[]): PlatformLibraryReadAreaResult {
   return {
-    area: "saved_recordings",
+    area: "saved_source_tracks",
     status: "complete",
     items,
   };
@@ -693,7 +693,7 @@ function providerItem(
   return {
     providerId: "runtime-platform-library-provider",
     sourceRef: sourceRefValue,
-    itemKind: "saved_recording",
+    itemKind: "saved_source_track",
     targetKind: "recording",
     label,
     ...(canonicalHints === undefined ? {} : { canonicalHints }),

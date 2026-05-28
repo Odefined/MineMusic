@@ -225,7 +225,7 @@ async function attachesProviderDescriptorsToOwningInstruments(): Promise<void> {
         operations: ["preview", "import", "update"],
         areas: [
           {
-            id: "saved_recordings",
+            id: "saved_source_tracks",
             label: "Saved songs",
             availability: "readable",
           },
@@ -1017,7 +1017,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
           batchKind: "initial_import",
           providerId: "fixture-library",
           ownerScope: "local_profile:default",
-          scopes: ["saved_recordings"],
+          scopes: ["saved_source_tracks"],
         }),
       };
     },
@@ -1076,28 +1076,28 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     dispatch.call({
       sessionId: session.id,
       toolName: "library.import.preview",
-      payload: { providerId: "fixture-library", scopes: ["saved_recordings"] },
+      payload: { providerId: "fixture-library", scopes: ["saved_source_tracks"] },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "library.import.start",
-      payload: { providerId: "fixture-library", ownerScope: "local_profile:guest", scopes: ["saved_releases"] },
+      payload: { providerId: "fixture-library", ownerScope: "local_profile:guest", scopes: ["saved_source_releases"] },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "library.update.preview",
-      payload: { providerId: "fixture-library", scopes: ["saved_artists"] },
+      payload: { providerId: "fixture-library", scopes: ["saved_source_artists"] },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "library.update.start",
-      payload: { providerId: "fixture-library", scopes: ["saved_recordings"] },
+      payload: { providerId: "fixture-library", scopes: ["saved_source_tracks"] },
     }),
   );
   await assertOk(
@@ -1116,19 +1116,19 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   );
 
   assert(
-    calls.includes("previewImport:fixture-library:local_profile:default:saved_recordings"),
+    calls.includes("previewImport:fixture-library:local_profile:default:saved_source_tracks"),
     "library import preview should default missing owner scope",
   );
   assert(
-    calls.includes("startImport:fixture-library:local_profile:guest:saved_releases"),
+    calls.includes("startImport:fixture-library:local_profile:guest:saved_source_releases"),
     "library import start should preserve explicit owner scope",
   );
   assert(
-    calls.includes("previewUpdate:fixture-library:local_profile:default:saved_artists"),
+    calls.includes("previewUpdate:fixture-library:local_profile:default:saved_source_artists"),
     "library update preview should default missing owner scope",
   );
   assert(
-    calls.includes("startUpdate:fixture-library:local_profile:default:saved_recordings"),
+    calls.includes("startUpdate:fixture-library:local_profile:default:saved_source_tracks"),
     "library update start should default missing owner scope",
   );
   assert(calls.includes("status:import-batch-1"), "library import status should route by batch id");
@@ -1648,7 +1648,7 @@ function libraryImportStatus({ batchId }: { batchId: string }): LibraryImportSta
     status: "completed",
     providerId: "fixture-library",
     ownerScope: "local_profile:default",
-    scopes: ["saved_recordings"],
+    scopes: ["saved_source_tracks"],
     startedAt: "2026-05-25T00:00:00.000Z",
     completedAt: "2026-05-25T00:00:00.000Z",
     counts: emptyImportCounts(),

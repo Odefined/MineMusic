@@ -376,8 +376,8 @@
   non-matching current session, and emit structured `login_required` issues
   when account identity cannot be proven.
 - Completed NetEase platform-library provider plan Task 4 with a TDD loop:
-  `readItems` now maps `saved_recordings`, `saved_releases`, and
-  `saved_artists` responses into generic `PlatformLibraryItem` records with
+  `readItems` now maps `saved_source_tracks`, `saved_source_releases`, and
+  `saved_source_artists` responses into generic `PlatformLibraryItem` records with
   stable NetEase source refs, item/target kinds, labels, and canonical hints.
 - Completed NetEase platform-library provider plan Task 5 with a TDD loop:
   `preview` now defaults to first-slice readable areas, reports readable
@@ -397,9 +397,9 @@
 - Real NetEase platform-library validation now proves the current account
   through the default local API session. It found and fixed provider read
   completeness gaps by batching `song/detail` requests and paginating saved
-  album / followed artist reads; live `preview` and `readItems` both return
-  matching counts of 1372 saved recordings, 466 saved releases, and 179 saved
-  artists.
+  source release / followed artist reads; live `preview` and `readItems` both
+  return matching counts of 1372 saved source tracks, 466 saved source
+  releases, and 179 saved source artists.
 - Completed NetEase platform-library provider plan Task 6 with a TDD loop:
   `readItems` now returns requested unsupported areas as unavailable, keeps
   successful area data when another area fails, reports first-request area
@@ -549,7 +549,7 @@
 - Corrected Canonical Store provisional identity policy so automatic creation
   only reuses by exact source-ref evidence, not by normalized label or alias
   alone. Added regression coverage for same-label/different-source imports and
-  verified live NetEase saved-recording import now produces 1372 item reports,
+  verified live NetEase saved-source-track import now produces 1372 item reports,
   1372 canonical source refs, and 1372 active Collection items. These are
   source-bound provisional identities, not proof that every source ref is a
   distinct real-world recording.
@@ -573,8 +573,8 @@
   checks, and Library Import caches saved Collection membership per target kind
   during a batch instead of listing saved items once per imported item.
 - Re-ran live NetEase Library Import through a temp durable MCP runtime after
-  the performance pass. Importing `saved_recordings`, `saved_releases`, and
-  `saved_artists` completed in 13 seconds with 2017 imported item reports:
+  the performance pass. Importing `saved_source_tracks`, `saved_source_releases`, and
+  `saved_source_artists` completed in 13 seconds with 2017 imported item reports:
   1372 recordings, 466 releases, and 179 artists. SQLite contained 2017 active
   saved Collection items, 3241 canonical source refs, 5249 provisional
   relation rows, and 3189 relation rows with `objectRef`s.
@@ -818,7 +818,7 @@
   and also project title, artist labels, release context, duration, and source
   track position into Canonical Store hints only for provisional imported
   recordings.
-- Updated NetEase saved-recording reads to best-effort fetch
+- Updated NetEase saved-source-track reads to best-effort fetch
   `/album?id=<albumId>` once per album id and populate
   `canonicalHints.releaseDate` from album `publishTime` and
   `canonicalHints.trackPosition` when the album tracklist exposes disc/track
@@ -880,8 +880,8 @@
   `CURRENT_STATE.md`, `INDEX.md`, `PROGRESS.md`,
   `docs/material-store/progress.md`, and Library Import docs.
 - Added structured SourceRelease tracklists to Source Entity Store contracts and
-  NetEase saved-release import wiring. NetEase `/album` detail now enriches
-  saved releases with release date plus tracklist facts, and Library Import
+  NetEase saved-source-release import wiring. NetEase `/album` detail now enriches
+  saved source releases with release date plus tracklist facts, and Library Import
   persists those facts onto SourceRelease entities.
 
 ## Next

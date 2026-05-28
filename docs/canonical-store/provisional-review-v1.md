@@ -613,7 +613,7 @@ session, album mix, single version, remaster, or alternate take, stays in
 `reason` rather than becoming a separate support reason kind in v1.
 
 ISRC remains a support reason kind for providers or inspections that can ground
-it. For NetEase saved-recording imports, the source side currently provides no
+it. For NetEase saved-source-track imports, the source side currently provides no
 ISRC, so ISRC is MusicBrainz-side candidate distinction rather than a
 NetEase-to-MusicBrainz source match.
 

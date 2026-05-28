@@ -3,7 +3,7 @@
 ## Feature
 
 Add platform-neutral provisional hints for source-side recording context, then
-use NetEase album tracklists to populate those hints during saved-recording
+use NetEase album tracklists to populate those hints during saved-source-track
 imports.
 
 This plan is written as a handoff for another implementation session.
@@ -25,8 +25,8 @@ context for a provisional identity, not a durable identity relationship.
 - `PlatformLibraryCanonicalHints` currently supports only `label`,
   `artistLabels`, `artistSourceRefs`, `releaseLabel`, `releaseSourceRef`, and
   `durationMs` in `src/contracts/index.ts`.
-- NetEase saved recordings read `/likelist`, then `/song/detail`, and map each
-  song to those canonical hints in `src/providers/netease/index.ts`.
+- NetEase saved source tracks read `/likelist`, then `/song/detail`, and map
+  each song to those canonical hints in `src/providers/netease/index.ts`.
 - Library Import stores the provider item's `canonicalHints` in item provenance
   and writes only provisional relations for artist, release, and duration in
   `src/library_import/index.ts`.
@@ -208,16 +208,16 @@ export type CanonicalProvisionalHintDraft = {
     are written as `CanonicalRelation` rows.
 - **Dependencies**: Task 2.
 
-### Task 4: Enrich NetEase Saved Recordings From `/album`
+### Task 4: Enrich NetEase Saved Source Tracks From `/album`
 
 - **Files**:
   - `src/providers/netease/index.ts`
   - `test/providers/netease-platform-library-provider.test.ts`
   - `docs/source-providers/netease.md`
 - **Description**: Fetch source-side album tracklists and add track position to
-  saved-recording canonical hints.
+  saved-source-track canonical hints.
 - **Details**:
-  - Keep `/likelist` and `/song/detail` as the required saved-recording path.
+  - Keep `/likelist` and `/song/detail` as the required saved-source-track path.
   - For songs with a usable album id, fetch `/album?id=<albumId>` once per
     distinct album id per read call.
   - Build an album context map from returned `songs[]`.
@@ -296,7 +296,7 @@ export type CanonicalProvisionalHintDraft = {
   - SQLite reopen test proving hints persist and can be filtered by subject and
     source ref.
 - Library Import:
-  - Existing saved-recording import test should assert:
+  - Existing saved-source-track import test should assert:
     provenance preserves `trackPosition`;
     Canonical Store stores one `source_recording_context` hint;
     canonical relations remain limited to artist/release/duration.
@@ -318,12 +318,12 @@ export type CanonicalProvisionalHintDraft = {
 - Do not add track number as a canonical relation.
 - Do not automatically activate or merge recordings from track-position hints.
 - Do not make NetEase album-context enrichment required for a successful saved
-  recording import.
+  source track import.
 - Do not add MusicBrainz-specific identity confidence scoring.
 
 ## Acceptance Criteria
 
-- NetEase saved recordings can include platform-neutral
+- NetEase saved source tracks can include platform-neutral
   `canonicalHints.trackPosition` when `/album` provides enough data.
 - Shared TypeScript contracts and contract/design docs describe the same
   `trackPosition` and provisional hint shapes.

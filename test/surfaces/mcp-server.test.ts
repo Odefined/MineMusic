@@ -337,7 +337,7 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               availability: "readable",
             },
           ],
@@ -369,7 +369,7 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
 
   const response = await importPreviewTool.handler({
     providerId: platformLibraryProvider.id,
-    scopes: ["saved_recordings"],
+    scopes: ["saved_source_tracks"],
   });
   const firstContent = response.content[0];
   assert(firstContent?.type === "text", "MCP handler should return text content");
@@ -381,7 +381,7 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
     "MCP Library Import tool should preserve Stage Interface owner-scope default",
   );
   assert(
-    previewCalls[0]?.areas?.includes("saved_recordings"),
+    previewCalls[0]?.areas?.includes("saved_source_tracks"),
     "MCP Library Import tool should route requested scopes through Stage Interface dispatch",
   );
 }

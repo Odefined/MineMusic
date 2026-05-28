@@ -18,7 +18,7 @@ default.
 The first implemented path is:
 
 ```text
-library.import.start(saved_recordings | saved_releases | saved_artists)
+library.import.start(saved_source_tracks | saved_source_releases | saved_source_artists)
   -> read Platform Library Provider facts
   -> upsert Source Track / Source Release / Source Artist
   -> update Source Library
@@ -94,9 +94,9 @@ Expected edits:
 - Move Library Import implementation under the Material Store / Source Entity
   Store code path while preserving `library.import.*` and `library.update.*`
   tool names.
-- On `saved_recordings`, upsert Source Track and Source Library state.
-- On `saved_releases`, upsert Source Release and Source Library state.
-- On `saved_artists`, upsert Source Artist and Source Library state.
+- On `saved_source_tracks`, upsert Source Track and Source Library state.
+- On `saved_source_releases`, upsert Source Release and Source Library state.
+- On `saved_source_artists`, upsert Source Artist and Source Library state.
 - Preserve import/update history such as batches, reports, snapshots, and
   absences as Source Entity Store state.
 - Write Collection only when a Source Entity already has a Confirmed Canonical

@@ -81,25 +81,25 @@ async function previewsImportThroughRegisteredPlatformLibraryProvider(): Promise
     libraryImport.previewImport({
       providerId: provider.id,
       providerAccountId: "fixture-account",
-      scopes: ["saved_recordings", "saved_artists"],
+      scopes: ["saved_source_tracks", "saved_source_artists"],
       sampleLimitPerArea: 3,
     }),
   );
 
   assert(preview.providerId === "fixture-library", "preview should report the provider id");
   assert(preview.ownerScope === "local_profile:default", "preview should default the owner scope");
-  assert(preview.scopes.join(",") === "saved_recordings,saved_artists", "preview should keep requested scopes");
+  assert(preview.scopes.join(",") === "saved_source_tracks,saved_source_artists", "preview should keep requested scopes");
   assert(preview.account?.providerAccountId === "fixture-account", "preview should keep provider account identity");
   assert(preview.areas.length === 2, "preview should return one area per requested first-slice scope");
-  assert(preview.areas[0]?.scope === "saved_recordings", "preview should map saved recordings scope");
-  assert(preview.areas[1]?.scope === "saved_artists", "preview should map saved artists scope");
+  assert(preview.areas[0]?.scope === "saved_source_tracks", "preview should map saved recordings scope");
+  assert(preview.areas[1]?.scope === "saved_source_artists", "preview should map saved artists scope");
   assert(
     preview.areas.every((area) => area.canonicalEstimates.alreadyBound >= 0),
     "preview should return canonical estimate fields",
   );
   assert(previewInputs.length === 1, "preview should call the provider once");
   assert(
-    previewInputs[0]?.areas?.join(",") === "saved_recordings,saved_artists",
+    previewInputs[0]?.areas?.join(",") === "saved_source_tracks,saved_source_artists",
     "preview should map MineMusic scopes to provider areas",
   );
   assert(previewInputs[0]?.providerAccountId === "fixture-account", "preview should pass provider account id");
@@ -112,7 +112,7 @@ async function mapsMissingPlatformLibraryProviderToLibraryImportError(): Promise
   await assertErrorCode(
     libraryImport.previewImport({
       providerId: "missing-library",
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
     "library_import.provider_not_found",
   );
@@ -131,7 +131,7 @@ async function rejectsDiscoveryScopesForStartCalls(): Promise<void> {
   await assertErrorCode(
     libraryImport.startUpdate({
       providerId: "missing-library",
-      scopes: ["discovery", "saved_recordings"],
+      scopes: ["discovery", "saved_source_tracks"],
     }),
     "library_import.scope_unsupported",
   );
@@ -164,7 +164,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [
                 {
@@ -174,7 +174,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
                     kind: "track",
                     id: "track-1",
                   },
-                  itemKind: "saved_recording",
+                  itemKind: "saved_source_track",
                   targetKind: "recording",
                   label: "Fixture Track",
                 },
@@ -193,7 +193,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
       providerId: provider.id,
       providerAccountId: "fixture-account",
       ownerScope: "local_profile:work",
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
       sampleLimitPerArea: 200,
     }),
   );
@@ -205,8 +205,8 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
   assert(report.ownerScope === "local_profile:work", "start should keep explicit owner scope");
   assert(report.startedAt === "2026-05-25T00:00:00.000Z", "start should use the service clock");
   assert(report.account?.providerAccountId === "fixture-account", "start should keep provider account identity");
-  assert(report.areas[0]?.scope === "saved_recordings", "start should map read areas back to import scopes");
-  assert(readInputs[0]?.areas.join(",") === "saved_recordings", "start should pass provider read areas");
+  assert(report.areas[0]?.scope === "saved_source_tracks", "start should map read areas back to import scopes");
+  assert(readInputs[0]?.areas.join(",") === "saved_source_tracks", "start should pass provider read areas");
   assert(readInputs[0]?.providerAccountId === "fixture-account", "start should pass provider account id");
   assert(readInputs[0]?.sampleLimitPerArea === 200, "start should pass sample limit to provider reads");
   assert(status.batchId === report.batchId, "status should read back the stored batch");
@@ -245,7 +245,7 @@ async function marksStartedBatchFailedWhenProviderReadFails(): Promise<void> {
   await assertErrorCode(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
     "library_import.provider_read_failed",
   );
@@ -273,7 +273,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               availability: "readable",
               count: { certainty: "exact", value: 4 },
             },
@@ -290,7 +290,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
           providerId: "fixture-library",
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [
                 providerItem("bound-track", "Bound Track"),
@@ -349,7 +349,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
   const preview = await assertOk(
     environment.libraryImport.previewImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const batchesAfterPreview = await assertOk(environment.libraryImportRepository.listBatches({}));
@@ -366,7 +366,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
   );
 
   assert(readInputs.length === 1, "readable preview should read provider items for estimates");
-  assert(readInputs[0]?.areas.join(",") === "saved_recordings", "preview read should use requested readable areas");
+  assert(readInputs[0]?.areas.join(",") === "saved_source_tracks", "preview read should use requested readable areas");
   assert(preview.areas[0]?.canonicalEstimates.alreadyBound === 2, "preview should count exact source-ref bindings");
   assert(preview.areas[0]?.canonicalEstimates.wouldCreateProvisional === 0, "preview should not estimate provisional creates");
   assert(preview.areas[0]?.canonicalEstimates.unresolved === 2, "preview should count unbound source items as unresolved");
@@ -463,7 +463,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [
                 providerItem("bound-track", "Bound Track"),
@@ -518,7 +518,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   const report = await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const status = await assertOk(environment.libraryImport.getStatus({ batchId: report.batchId }));
@@ -536,8 +536,8 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
       ownerScope: "local_profile:default",
       providerId: provider.id,
       providerAccountId: "fixture-account",
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
     }),
   );
   const snapshots = await assertOk(
@@ -545,8 +545,8 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
       ownerScope: "local_profile:default",
       providerId: provider.id,
       providerAccountId: "fixture-account",
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
       complete: true,
     }),
   );
@@ -638,7 +638,7 @@ async function importsSameLabelDifferentSourceRefsAsSeparateSourceEntities(): Pr
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [
                 providerItem("same-title-first", "Same Title"),
@@ -658,7 +658,7 @@ async function importsSameLabelDifferentSourceRefsAsSeparateSourceEntities(): Pr
   const report = await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const canonicalRecords = await assertOk(environment.canonicalRepository.list());
@@ -710,7 +710,7 @@ async function importsSavedReleaseTracklistIntoSourceEntityStore(): Promise<void
           },
           areas: [
             {
-              area: "saved_releases",
+              area: "saved_source_releases",
               status: "complete",
               items: [
                 providerReleaseItem("release-1", "Fixture Release - Fixture Artist", {
@@ -753,7 +753,7 @@ async function importsSavedReleaseTracklistIntoSourceEntityStore(): Promise<void
   const report = await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_releases"],
+      scopes: ["saved_source_releases"],
     }),
   );
   const storedRelease = await assertOk(
@@ -794,7 +794,7 @@ async function cachesSavedCollectionMembershipDuringImportBatch(): Promise<void>
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [
                 providerItem("cache-track-1", "Cache Track 1"),
@@ -837,7 +837,7 @@ async function cachesSavedCollectionMembershipDuringImportBatch(): Promise<void>
   const report = await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
 
@@ -872,7 +872,7 @@ async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: [providerItem("persisted-track", "Persisted Track")],
             },
@@ -887,7 +887,7 @@ async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
   const report = await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const recreatedSourceEntityStore = createInMemorySourceEntityStoreRepository();
@@ -911,7 +911,7 @@ async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
 
   assert(summary.items.length === 1, "summary should survive service-local report cache loss");
 assert(summary.items[0]?.sourceRef.id === "persisted-track", "stored summary should include item reports");
-assert(summary.areas[0]?.area === "saved_recordings", "stored summary should include read areas");
+assert(summary.areas[0]?.area === "saved_source_tracks", "stored summary should include read areas");
 }
 
 async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void> {
@@ -938,7 +938,7 @@ async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "partial",
               items: [providerItem("partial-track", "Partial Track")],
             },
@@ -953,7 +953,7 @@ async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void
   const report = await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const snapshots = await assertOk(
@@ -961,8 +961,8 @@ async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void
       ownerScope: "local_profile:default",
       providerId: provider.id,
       providerAccountId: "fixture-account",
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
     }),
   );
 
@@ -989,7 +989,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               availability: "readable",
               count: { certainty: "exact", value: providerItems.length },
             },
@@ -1008,7 +1008,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: providerItems,
             },
@@ -1035,7 +1035,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
   await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const preExistingCanonical: CanonicalRecord = {
@@ -1075,7 +1075,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
   const preview = await assertOk(
     environment.libraryImport.previewUpdate({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const batchesAfterPreview = await assertOk(environment.libraryImportRepository.listBatches({}));
@@ -1084,8 +1084,8 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
       ownerScope: "local_profile:default",
       providerId: provider.id,
       providerAccountId: "fixture-account",
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
     }),
   );
   const savedItemsAfterPreview = await assertOk(
@@ -1129,7 +1129,7 @@ async function doesNotUseStableAccountBaselinesForUnstableUpdateReads(): Promise
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               availability: "readable",
             },
           ],
@@ -1147,7 +1147,7 @@ async function doesNotUseStableAccountBaselinesForUnstableUpdateReads(): Promise
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: providerItems,
             },
@@ -1177,7 +1177,7 @@ async function doesNotUseStableAccountBaselinesForUnstableUpdateReads(): Promise
   await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   accountStable = false;
@@ -1186,7 +1186,7 @@ async function doesNotUseStableAccountBaselinesForUnstableUpdateReads(): Promise
   const preview = await assertOk(
     environment.libraryImport.previewUpdate({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
 
@@ -1225,7 +1225,7 @@ async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingColle
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: "complete",
               items: providerItems,
             },
@@ -1255,7 +1255,7 @@ async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingColle
   await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   providerItems = [
@@ -1278,7 +1278,7 @@ async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingColle
   const update = await assertOk(
     environment.libraryImport.startUpdate({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   const savedItems = await assertOk(
@@ -1334,7 +1334,7 @@ async function doesNotPreviewUpdateAbsencesForPartialCurrentReads(): Promise<voi
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               availability: "readable",
             },
           ],
@@ -1352,7 +1352,7 @@ async function doesNotPreviewUpdateAbsencesForPartialCurrentReads(): Promise<voi
           },
           areas: [
             {
-              area: "saved_recordings",
+              area: "saved_source_tracks",
               status: readStatus,
               items: providerItems,
             },
@@ -1367,7 +1367,7 @@ async function doesNotPreviewUpdateAbsencesForPartialCurrentReads(): Promise<voi
   await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
   providerItems = [providerItem("kept-track", "Kept Track")];
@@ -1376,7 +1376,7 @@ async function doesNotPreviewUpdateAbsencesForPartialCurrentReads(): Promise<voi
   const preview = await assertOk(
     environment.libraryImport.previewUpdate({
       providerId: provider.id,
-      scopes: ["saved_recordings"],
+      scopes: ["saved_source_tracks"],
     }),
   );
 
@@ -1467,7 +1467,7 @@ function providerItem(id: string, label: string, canonicalHints?: PlatformLibrar
   return {
     providerId: "fixture-library",
     sourceRef: sourceRef(id),
-    itemKind: "saved_recording",
+    itemKind: "saved_source_track",
     targetKind: "recording",
     label,
     ...(canonicalHints === undefined ? {} : { canonicalHints }),
@@ -1478,7 +1478,7 @@ function providerReleaseItem(id: string, label: string, canonicalHints?: Platfor
   return {
     providerId: "fixture-library",
     sourceRef: releaseSourceRef(id, label),
-    itemKind: "saved_release",
+    itemKind: "saved_source_release",
     targetKind: "release",
     label,
     ...(canonicalHints === undefined ? {} : { canonicalHints }),

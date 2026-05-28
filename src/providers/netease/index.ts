@@ -102,9 +102,9 @@ type NetEaseAlbumContext = {
 };
 
 const readablePlatformLibraryAreas: PlatformLibraryArea[] = [
-  "saved_recordings",
-  "saved_releases",
-  "saved_artists",
+  "saved_source_tracks",
+  "saved_source_releases",
+  "saved_source_artists",
 ];
 
 const unsupportedPlatformLibraryAreas: PlatformLibraryArea[] = [
@@ -133,17 +133,17 @@ export const netEasePlatformLibraryProviderDescriptor: InstrumentProviderDescrip
   operations: ["preview", "import", "update"],
   areas: [
     {
-      id: "saved_recordings",
+      id: "saved_source_tracks",
       label: "Saved songs",
       availability: "readable",
     },
     {
-      id: "saved_releases",
+      id: "saved_source_releases",
       label: "Saved albums",
       availability: "readable",
     },
     {
-      id: "saved_artists",
+      id: "saved_source_artists",
       label: "Followed artists",
       availability: "readable",
     },
@@ -290,7 +290,7 @@ async function previewPlatformLibraryAreas(
   const results: PlatformLibraryPreviewArea[] = [];
 
   for (const area of areas) {
-    if (area === "saved_recordings") {
+    if (area === "saved_source_tracks") {
       const preview = await previewSavedRecordings(requestJson, providerAccountId, sampleLimit);
 
       results.push({
@@ -299,7 +299,7 @@ async function previewPlatformLibraryAreas(
       });
     }
 
-    if (area === "saved_releases") {
+    if (area === "saved_source_releases") {
       const preview = await previewSavedReleases(requestJson, sampleLimit);
 
       results.push({
@@ -308,7 +308,7 @@ async function previewPlatformLibraryAreas(
       });
     }
 
-    if (area === "saved_artists") {
+    if (area === "saved_source_artists") {
       const preview = await previewSavedArtists(requestJson, sampleLimit);
 
       results.push({
@@ -549,10 +549,10 @@ async function previewSavedRecordings(
   });
 
   if (!liked.ok) {
-    return unavailablePreviewArea(issueFromStageError(liked.error, "saved_recordings"));
+    return unavailablePreviewArea(issueFromStageError(liked.error, "saved_source_tracks"));
   }
 
-  const ids = extractIdListResult(liked.value, "saved_recordings");
+  const ids = extractIdListResult(liked.value, "saved_source_tracks");
 
   if (!ids.ok) {
     return unavailablePreviewArea(ids.issue);
@@ -580,7 +580,7 @@ async function readRecordingSamples(
     return [];
   }
 
-  const songs = extractSongsFromDetailResult(details.value, "saved_recordings");
+  const songs = extractSongsFromDetailResult(details.value, "saved_source_tracks");
 
   if (!songs.ok) {
     return [];
@@ -602,10 +602,10 @@ async function previewSavedReleases(
   });
 
   if (!albums.ok) {
-    return unavailablePreviewArea(issueFromStageError(albums.error, "saved_releases"));
+    return unavailablePreviewArea(issueFromStageError(albums.error, "saved_source_releases"));
   }
 
-  const albumPayload = extractArrayPayloadResult(albums.value, ["data", "albums"], "saved_releases");
+  const albumPayload = extractArrayPayloadResult(albums.value, ["data", "albums"], "saved_source_releases");
 
   if (!albumPayload.ok) {
     return unavailablePreviewArea(albumPayload.issue);
@@ -631,10 +631,10 @@ async function previewSavedArtists(
   });
 
   if (!artists.ok) {
-    return unavailablePreviewArea(issueFromStageError(artists.error, "saved_artists"));
+    return unavailablePreviewArea(issueFromStageError(artists.error, "saved_source_artists"));
   }
 
-  const artistPayload = extractArrayPayloadResult(artists.value, ["data", "artists"], "saved_artists");
+  const artistPayload = extractArrayPayloadResult(artists.value, ["data", "artists"], "saved_source_artists");
 
   if (!artistPayload.ok) {
     return unavailablePreviewArea(artistPayload.issue);
@@ -659,21 +659,21 @@ async function readPlatformLibraryAreas(
   const results: PlatformLibraryReadAreaResult[] = [];
 
   for (const area of areas) {
-    if (area === "saved_recordings") {
+    if (area === "saved_source_tracks") {
       results.push({
         area,
         ...(await readSavedRecordings(requestJson, providerAccountId, sampleLimit)),
       });
     }
 
-    if (area === "saved_releases") {
+    if (area === "saved_source_releases") {
       results.push({
         area,
         ...(await readSavedReleases(requestJson)),
       });
     }
 
-    if (area === "saved_artists") {
+    if (area === "saved_source_artists") {
       results.push({
         area,
         ...(await readSavedArtists(requestJson)),
@@ -704,13 +704,13 @@ async function readSavedRecordings(
   });
 
   if (!liked.ok) {
-    return failedReadArea("saved_recordings", issueFromStageError(liked.error, "saved_recordings"));
+    return failedReadArea("saved_source_tracks", issueFromStageError(liked.error, "saved_source_tracks"));
   }
 
-  const ids = extractIdListResult(liked.value, "saved_recordings");
+  const ids = extractIdListResult(liked.value, "saved_source_tracks");
 
   if (!ids.ok) {
-    return failedReadArea("saved_recordings", ids.issue);
+    return failedReadArea("saved_source_tracks", ids.issue);
   }
 
   const idsToRead = sampleLimit === undefined
@@ -731,19 +731,19 @@ async function readSavedRecordings(
     });
 
     if (!details.ok) {
-      const issue = issueFromStageError(details.error, "saved_recordings");
+      const issue = issueFromStageError(details.error, "saved_source_tracks");
 
       return items.length === 0
-        ? failedReadArea("saved_recordings", issue)
-        : partialReadArea("saved_recordings", items, issue);
+        ? failedReadArea("saved_source_tracks", issue)
+        : partialReadArea("saved_source_tracks", items, issue);
     }
 
-    const songs = extractSongsFromDetailResult(details.value, "saved_recordings");
+    const songs = extractSongsFromDetailResult(details.value, "saved_source_tracks");
 
     if (!songs.ok) {
       return items.length === 0
-        ? failedReadArea("saved_recordings", songs.issue)
-        : partialReadArea("saved_recordings", items, songs.issue);
+        ? failedReadArea("saved_source_tracks", songs.issue)
+        : partialReadArea("saved_source_tracks", items, songs.issue);
     }
 
     await ensureAlbumContextsForSongs(requestJson, songs.value, albumContexts);
@@ -758,7 +758,7 @@ async function readSavedRecordings(
 }
 
 async function readSavedReleases(requestJson: NetEaseRequester): Promise<NetEaseReadAreaOutcome> {
-  const albums = await readPaginatedItems(requestJson, "/album/sublist", ["data", "albums"], "saved_releases");
+  const albums = await readPaginatedItems(requestJson, "/album/sublist", ["data", "albums"], "saved_source_releases");
   const albumContexts = new Map<string, NetEaseAlbumContext | null>();
 
   await ensureAlbumContextsForAlbums(requestJson, albums.items, albumContexts);
@@ -773,7 +773,7 @@ async function readSavedReleases(requestJson: NetEaseRequester): Promise<NetEase
 }
 
 async function readSavedArtists(requestJson: NetEaseRequester): Promise<NetEaseReadAreaOutcome> {
-  const artists = await readPaginatedItems(requestJson, "/artist/sublist", ["data", "artists"], "saved_artists");
+  const artists = await readPaginatedItems(requestJson, "/artist/sublist", ["data", "artists"], "saved_source_artists");
 
   return {
     status: artists.status,
@@ -1007,14 +1007,14 @@ function extractSongsFromDetailResult(
 }
 
 function extractSongsFromAlbumResult(payload: unknown): NetEasePayloadResult<NetEaseSong[]> {
-  const issue = issueFromNetEasePayload(payload, "saved_recordings");
+  const issue = issueFromNetEasePayload(payload, "saved_source_tracks");
 
   if (issue !== undefined) {
     return { ok: false, issue };
   }
 
   if (!isRecord(payload)) {
-    return { ok: false, issue: malformedResponseIssue("saved_recordings", "NetEase album response was not an object.") };
+    return { ok: false, issue: malformedResponseIssue("saved_source_tracks", "NetEase album response was not an object.") };
   }
 
   if (Array.isArray(payload.songs)) {
@@ -1027,7 +1027,7 @@ function extractSongsFromAlbumResult(payload: unknown): NetEasePayloadResult<Net
     return { ok: true, value: album.songs.filter(isRecord) };
   }
 
-  return { ok: false, issue: malformedResponseIssue("saved_recordings", "NetEase album response did not include songs.") };
+  return { ok: false, issue: malformedResponseIssue("saved_source_tracks", "NetEase album response did not include songs.") };
 }
 
 function extractIdListResult(
@@ -1144,7 +1144,7 @@ function toSavedRecordingItem(
       label,
       url: toSongUrl(songId),
     },
-    itemKind: "saved_recording",
+    itemKind: "saved_source_track",
     targetKind: "recording",
     label,
     canonicalHints: {
@@ -1183,7 +1183,7 @@ function toSavedReleaseItem(
       label,
       url: toAlbumUrl(albumId),
     },
-    itemKind: "saved_release",
+    itemKind: "saved_source_release",
     targetKind: "release",
     label,
     canonicalHints: {
@@ -1213,7 +1213,7 @@ function toFollowedArtistItem(artist: Record<string, unknown>): PlatformLibraryI
       label,
       url: toArtistUrl(artistId),
     },
-    itemKind: "followed_artist",
+    itemKind: "saved_source_artist",
     targetKind: "artist",
     label,
     canonicalHints: {

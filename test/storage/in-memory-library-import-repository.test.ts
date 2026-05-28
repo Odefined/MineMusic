@@ -43,21 +43,21 @@ async function storesBatchesByIdAndReturnsCopies(): Promise<void> {
     providerAccountId: "fixture-account",
     providerAccountStable: true,
     ownerScope: "local_profile:default",
-    scopes: ["saved_recordings"],
+    scopes: ["saved_source_tracks"],
     startedAt: "2026-05-25T00:00:00.000Z",
     counts: emptyCounts,
   };
 
   await assertOk(repository.putBatch({ batch }));
   batch.status = "failed";
-  batch.scopes.push("saved_artists");
+  batch.scopes.push("saved_source_artists");
 
   const firstRead = await assertOk(repository.getBatch({ batchId: batch.id }));
   assert(firstRead !== null, "library import repository should get a batch by id");
   assert(firstRead.status === "running", "repository should not retain batch caller mutations");
   assert(firstRead.scopes.length === 1, "repository should clone nested batch arrays on put");
 
-  firstRead.scopes.push("saved_releases");
+  firstRead.scopes.push("saved_source_releases");
   const secondRead = await assertOk(repository.getBatch({ batchId: batch.id }));
   assert(secondRead?.scopes.length === 1, "repository should return batch copies");
 
@@ -81,23 +81,23 @@ async function storesReportsByBatchIdAndReturnsCopies(): Promise<void> {
     status: "completed",
     providerId: "fixture-library",
     ownerScope: "local_profile:default",
-    scopes: ["saved_recordings"],
+    scopes: ["saved_source_tracks"],
     startedAt: "2026-05-25T00:00:00.000Z",
     completedAt: "2026-05-25T00:01:00.000Z",
     counts: emptyCounts,
     areas: [
       {
-        scope: "saved_recordings",
-        area: "saved_recordings",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
         readStatus: "complete",
       },
     ],
     items: [
       {
-        scope: "saved_recordings",
-        area: "saved_recordings",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
         sourceRef: sourceRef("track-1"),
-        itemKind: "saved_recording",
+        itemKind: "saved_source_track",
         targetKind: "recording",
         label: "Track 1",
         status: "imported",
@@ -139,8 +139,8 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
     providerId: "fixture-library",
     providerAccountId: "fixture-account",
     providerAccountStable: true,
-    scope: "saved_recordings",
-    area: "saved_recordings",
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
     status: "complete",
     complete: true,
     sourceRefs: [sourceRef("old")],
@@ -181,8 +181,8 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
       providerId: "fixture-library",
       providerAccountId: "fixture-account",
       providerAccountStable: true,
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
       complete: true,
     }),
   );
@@ -199,8 +199,8 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
       providerId: "fixture-library",
       providerAccountId: "fixture-account",
       providerAccountStable: true,
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
     }),
   );
   assert(latestBaseline?.batchId === "batch-latest-complete", "baseline lookup should return latest complete snapshot");
@@ -212,8 +212,8 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
       providerId: "fixture-library",
       providerAccountId: "fixture-account",
       providerAccountStable: false,
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
     }),
   );
   assert(
@@ -228,10 +228,10 @@ async function upsertsAndQueriesItemProvenanceByStableSourceRef(): Promise<void>
     ownerScope: "local_profile:default",
     providerId: "fixture-library",
     providerAccountId: "fixture-account",
-    scope: "saved_recordings",
-    area: "saved_recordings",
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
     sourceRef: sourceRef("track-1"),
-    itemKind: "saved_recording",
+    itemKind: "saved_source_track",
     targetKind: "recording",
     label: "First Label",
     canonicalRef: {
@@ -290,8 +290,8 @@ async function storesAndQueriesPlatformLibraryAbsences(): Promise<void> {
     ownerScope: "local_profile:default",
     providerId: "fixture-library",
     providerAccountId: "fixture-account",
-    scope: "saved_recordings",
-    area: "saved_recordings",
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
     sourceRef: sourceRef("missing-track"),
     canonicalRef: {
       namespace: "minemusic",
@@ -313,8 +313,8 @@ async function storesAndQueriesPlatformLibraryAbsences(): Promise<void> {
       ownerScope: "local_profile:default",
       providerId: "fixture-library",
       providerAccountId: "fixture-account",
-      scope: "saved_recordings",
-      area: "saved_recordings",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
       baselineBatchId: "batch-baseline",
       currentBatchId: "batch-current",
     }),

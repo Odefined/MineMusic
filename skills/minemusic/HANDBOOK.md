@@ -159,9 +159,9 @@ Output: `CollectionListOutput`
   Authentication: `required`
   Operations: `preview`, `import`, `update`
   Areas:
-  - Saved songs (`saved_recordings`): `readable`
-  - Saved albums (`saved_releases`): `readable`
-  - Followed artists (`saved_artists`): `readable`
+  - Saved songs (`saved_source_tracks`): `readable`
+  - Saved albums (`saved_source_releases`): `readable`
+  - Followed artists (`saved_source_artists`): `readable`
   - Playlists (`playlists`): `unsupported`
   - Listening history (`listening_history`): `unsupported`
 
