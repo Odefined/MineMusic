@@ -89,12 +89,17 @@ This index points agents to the current MVP documentation pack.
     - Canonical Store implementation progress, current implementation state,
       verification status, remaining gaps, and next slice.
 
-24. `docs/canonical-store/provisional-review.md`
+24. `docs/canonical-store/source-entity-layer-handoff.md`
+    - Handoff note for replacing source-track-to-canonical-recording pressure
+      with provider-neutral `source_track`, `source_release`, and
+      `source_artist` entities plus optional canonical bindings.
+
+25. `docs/canonical-store/provisional-review.md`
     - Broader Provisional Review design reference for Canonical Maintenance,
       agent-facing review posture, Gate behavior, active-neighbor review,
       future split/reject/defer/human-review actions, and event separation.
 
-25. `docs/canonical-store/provisional-review-v1.md`
+26. `docs/canonical-store/provisional-review-v1.md`
     - Narrow Provisional Review v1 design for Canonical Store-owned maintenance
       of provisional recordings through inspection-backed update and defer.
     - `docs/canonical-store/provisional-review-v2.md` is the draft design for
@@ -121,127 +126,127 @@ This index points agents to the current MVP documentation pack.
       task-by-task plan for implementing v3 automatic update, qualification,
       compact tool output, and independent-agent workflow validation.
 
-26. `docs/collection-service/design.md`
+27. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom
       Collections, canonical-only CollectionItems, and blocked filtering.
 
-27. `docs/collection-service/implementation-plan.md`
+28. `docs/collection-service/implementation-plan.md`
     - Task-by-task Collection Service implementation plan for contracts,
       storage, service rules, Stage Core wiring, Stage Interface tools,
       Material Resolve blocked filtering, integration coverage, and state sync.
 
-28. `docs/collection-service/progress.md`
+29. `docs/collection-service/progress.md`
     - Collection Service implementation progress, current implementation state,
       verification status, remaining gaps, and next slice.
 
-29. `docs/library-import/design.md`
+30. `docs/library-import/design.md`
     - Library Import design for import orchestration, library updates,
       Collection Service writes, Canonical Store source-ref bindings,
       linked artist/release graph writes through canonical source-ref
       resolution, and import/update event records.
 
-30. `docs/library-import/implementation-plan.md`
+31. `docs/library-import/implementation-plan.md`
     - Task-by-task Library Import Service implementation plan for contracts,
       storage, orchestration, Stage Core wiring, Stage Interface import/update
       tools, integration coverage, and state sync.
 
-31. `docs/library-import/progress.md`
+32. `docs/library-import/progress.md`
     - Library Import implementation progress, including completed first-slice
       import/update service state, verification, remaining gaps, and future
       slices.
 
-32. `docs/platform-library-provider/design.md`
+33. `docs/platform-library-provider/design.md`
     - `platform_library` capability slot design for account-scoped platform
       library reads, provider account selection, availability, and provider item
       facts.
 
-33. `src/collection/index.ts`
+34. `src/collection/index.ts`
     - Collection Service public-port implementation for owner-scoped system and
       custom Collections, canonical-only CollectionItems, mutual exclusion, and
       Collection events.
 
-34. `test/collection/collection-service.test.ts`
+35. `test/collection/collection-service.test.ts`
     - Collection Service behavior tests for system initialization, custom
       collection lifecycle, item membership, blocked filtering, and events.
 
-35. `src/canonical/index.ts`
+36. `src/canonical/index.ts`
     - Canonical Store public-port implementation, provisional relation
       recording/listing with optional object refs, and current identity policy.
 
-36. `src/canonical/normalization.ts`
+37. `src/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-37. `src/canonical/storage.ts`
+38. `src/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics, plus relation persistence delegation.
 
-38. `src/storage/sqlite/canonical-schema.ts`
+39. `src/storage/sqlite/canonical-schema.ts`
     - SQLite schema initialization for Canonical Store durable storage,
       including provisional relations.
 
-39. `src/storage/sqlite/canonical-repository.ts`
+40. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation for records,
       source refs, aliases, and provisional relations.
 
-40. `src/storage/sqlite/collection-schema.ts`
+41. `src/storage/sqlite/collection-schema.ts`
     - SQLite schema initialization for durable Collection storage.
 
-41. `src/storage/sqlite/collection-repository.ts`
+42. `src/storage/sqlite/collection-repository.ts`
     - SQLite-backed `CollectionRepository` implementation for direct durable
       repository injection.
 
-42. `src/storage/sqlite/index.ts`
+43. `src/storage/sqlite/index.ts`
     - Public SQLite storage exports.
 
-43. `test/storage/sqlite-canonical-store.test.ts`
+44. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository, including provisional relation persistence.
 
-44. `test/storage/sqlite-collection-repository.test.ts`
+45. `test/storage/sqlite-collection-repository.test.ts`
     - Persistence/reopen tests for the SQLite-backed Collection repository.
 
-45. `test/integration/canonical-persistence.test.ts`
+46. `test/integration/canonical-persistence.test.ts`
     - Stage Core restart-style persistence test for SQLite-backed canonical
       storage through `canonicalDatabasePath`.
 
-46. `test/integration/collection-runtime.test.ts`
+47. `test/integration/collection-runtime.test.ts`
     - Composed Stage Core integration coverage for Collection through Stage
       Interface tools, Material Resolve blocked filtering, and durable
       Collection database path reuse.
 
-47. `src/material_resolve/index.ts`
+48. `src/material_resolve/index.ts`
     - Material Resolve service for canonical-first `MusicCandidate` to
       `MusicMaterial` resolution.
 
-48. `src/source/index.ts`
+49. `src/source/index.ts`
     - Source Grounding service for provider search and playable-link refresh.
 
-49. `docs/source-providers/netease.md`
+50. `docs/source-providers/netease.md`
     - NetEase source and platform-library provider design, runtime behavior,
       boundaries, and verification notes.
 
-50. `docs/knowledge-slot/design.md`
+51. `docs/knowledge-slot/design.md`
     - Knowledge Slot design draft for provider-attributed structured graph and
       text knowledge, including the MusicBrainz and document-knowledge-base
       boundary, general expansion names, and coarse relationship focus.
 
-51. `docs/knowledge-slot/musicbrainz-provider.md`
+52. `docs/knowledge-slot/musicbrainz-provider.md`
     - MusicBrainz Knowledge Provider design draft covering supported query
       modes, deterministic search/lookup/browse API planning, first structured
       knowledge scope, expansion mapping, text-query expansion follow-up,
       relation focus, provider activation, and provider boundaries.
 
-52. `docs/knowledge-slot/implementation-plan.md`
+53. `docs/knowledge-slot/implementation-plan.md`
     - Task-by-task implementation plan for the target Knowledge Slot contract,
       generic provider HTTP cache, Stage Interface knowledge tool, and first
       MusicBrainz provider, including runtime provider-factory activation and
       the text-query relation expansion follow-up task.
 
-53. `docs/knowledge-slot/progress.md`
+54. `docs/knowledge-slot/progress.md`
     - Knowledge Slot implementation progress, including implemented shared
       contracts, Provider HTTP Cache work, and MusicBrainz provider status.
 
-54. `src/providers/netease/index.ts`, `src/providers/musicbrainz/index.ts`
+55. `src/providers/netease/index.ts`, `src/providers/musicbrainz/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
       `PlatformLibraryProvider` factories plus agent-facing provider descriptors
       for Handbook generation, including recording hints with artist/release
@@ -249,33 +254,33 @@ This index points agents to the current MVP documentation pack.
       read-only Knowledge provider factory for structured music facts, lookup,
       browse expansions, and successful-response Provider HTTP Cache usage.
 
-55. `docs/host-adapters/codex-skill.md`
+56. `docs/host-adapters/codex-skill.md`
     - Codex skill design, global MCP client boundary, focused instrument/tool
       behavior, default MusicBrainz Knowledge registration, and verification
       notes. It records that Codex connects to the MineMusic MCP server URL,
       while provider/database/cache/session runtime configuration belongs to
       server startup.
 
-56. `docs/host-adapters/service-adapter-refactor-plan.md`
+57. `docs/host-adapters/service-adapter-refactor-plan.md`
     - Corrected refactor plan for moving runtime ownership out of Codex into a
       long-lived MineMusic server that exposes MCP directly.
 
-57. `docs/operations/minemusic-server-launchd.md`
+58. `docs/operations/minemusic-server-launchd.md`
     - Local operation guide recording that MineMusic server is kept alive by
       the user `launchd` agent `com.minemusic.server`, while Codex/OpenClaw
       connect as MCP clients to `http://127.0.0.1:37373/mcp`.
 
-58. `src/server/runtime.ts`
+59. `src/server/runtime.ts`
     - MineMusic server runtime boundary that creates the default server-held
       Stage Core, registers bundled provider factories, applies
       provider/database/cache/session runtime configuration, and exposes the
       server-held Stage Interface.
 
-59. `src/server/index.ts`
+60. `src/server/index.ts`
     - MineMusic server entrypoint that waits for the server runtime and exposes
       MCP over local streamable HTTP.
 
-60. `src/stage_core/index.ts`
+61. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
       initializes the Handbook, exposes the runtime object, composes Collection
       and Library Import with optional repository/provider injection, and
@@ -283,59 +288,59 @@ This index points agents to the current MVP documentation pack.
       Collection, Library Import, Provider HTTP Cache, and explicit Knowledge
       provider registration.
 
-61. `src/surfaces/mcp/server.ts`
+62. `src/surfaces/mcp/server.ts`
     - MCP surface that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; embedded stdio startup is retained only as
       `mcp:minemusic:dev`.
 
-62. `src/stage_interface/**`
+63. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade, including focused
       stage/knowledge/music/library/memory instrument descriptors, provider
       descriptor attachment, Collection tools, and Library Import tools.
 
-63. `src/handbook/index.ts`
+64. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, provider capability sections, and exact tool entries.
 
-64. `skills/minemusic/SKILL.md`
+65. `skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests. MineMusic is no longer packaged as a repo-local
       Codex plugin.
 
-65. `skills/minemusic/HANDBOOK.md`
+66. `skills/minemusic/HANDBOOK.md`
     - Skill-local snapshot of current agent-visible MineMusic instruments and
       tools, including Library Import tool entries. Live Handbook lookup is
       served by the MineMusic server through MCP.
 
-66. `docs/platform-library-provider/netease-implementation-plan.md`
+67. `docs/platform-library-provider/netease-implementation-plan.md`
     - Task-by-task implementation plan for the NetEase `platform_library`
       provider, including supported areas, adapter boundaries, issue mapping,
       fixture tests, and verification.
 
-67. `docs/platform-library-provider/progress.md`
+68. `docs/platform-library-provider/progress.md`
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
-68. `src/storage/sqlite/library-import-schema.ts`
+69. `src/storage/sqlite/library-import-schema.ts`
     - SQLite schema initialization for durable Library Import batches, reports,
       area snapshots, item provenance, and absence records.
 
-69. `src/storage/sqlite/library-import-repository.ts`
+70. `src/storage/sqlite/library-import-repository.ts`
     - SQLite-backed `LibraryImportRepository` implementation for direct durable
       repository injection.
 
-70. `test/storage/in-memory-library-import-repository.test.ts`
+71. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
       report, area snapshot, item provenance, absence, and provider-account-stable
       latest complete baseline storage.
 
-71. `test/storage/sqlite-library-import-repository.test.ts`
+72. `test/storage/sqlite-library-import-repository.test.ts`
     - SQLite Library Import repository persistence tests for batch/report,
       snapshot baseline, item provenance, and absence records across reopen.
 
-72. `src/library_import/index.ts`
+73. `src/library_import/index.ts`
     - Library Import Service skeleton for platform-library provider lookup,
       scope-to-area mapping, discovery start rejection, side-effect-free import
       preview estimates, initial import start, import events, provenance,
@@ -343,7 +348,7 @@ This index points agents to the current MVP documentation pack.
       started-batch failure handling, and repository-backed batch status/summary
       helpers.
 
-73. `test/library_import/library-import-service.test.ts`
+74. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -351,7 +356,7 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-74. `test/integration/library-import-runtime.test.ts`
+75. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, durable Library Import database path
