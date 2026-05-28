@@ -923,25 +923,15 @@ export type LibraryImportSummaryInput = {
   batchId: string;
 };
 
-export type LibraryImportCanonicalEstimateCounts = {
-  alreadyBound: number;
-  wouldCreateProvisional: number;
-  unresolved: number;
-  skipped: number;
-};
-
-export type LibraryImportCollectionEstimateCounts = {
+export type LibraryImportSourceLibraryEstimateCounts = {
   alreadyPresent: number;
-  wouldAdd: number;
-  wouldAddAfterProvisional: number;
-  skipped: number;
+  wouldImport: number;
 };
 
 export type LibraryImportUpdateEstimateCounts = {
-  wouldAdd: number;
+  newlyObserved: number;
   alreadyPresent: number;
   noLongerReturned: number;
-  failedOrSkipped: number;
 };
 
 export type PlatformLibraryAbsenceSummary = {
@@ -951,7 +941,6 @@ export type PlatformLibraryAbsenceSummary = {
   scope: LibraryImportScope;
   area: PlatformLibraryArea;
   sourceRef: Ref;
-  canonicalRef?: Ref;
   label: string;
   baselineBatchId: string;
   currentBatchId?: string;
@@ -965,8 +954,7 @@ export type LibraryImportPreviewArea = {
   count?: PlatformLibraryCount;
   samples?: PlatformLibrarySample[];
   issues?: PlatformLibraryIssue[];
-  canonicalEstimates: LibraryImportCanonicalEstimateCounts;
-  collectionEstimates: LibraryImportCollectionEstimateCounts;
+  sourceLibraryEstimates: LibraryImportSourceLibraryEstimateCounts;
   updateEstimates?: LibraryImportUpdateEstimateCounts;
   absences?: PlatformLibraryAbsenceSummary[];
 };
@@ -980,23 +968,9 @@ export type LibraryImportPreview = {
   issues?: PlatformLibraryIssue[];
 };
 
-export type LibraryImportCanonicalOutcome =
-  | "reused"
-  | "created_provisional"
-  | "unresolved"
-  | "failed";
-
-export type LibraryImportCollectionOutcome =
-  | "added"
-  | "already_present"
-  | "skipped"
-  | "failed"
-  | "unchanged";
-
 export type LibraryImportItemStatus =
   | "imported"
   | "already_present"
-  | "skipped"
   | "failed"
   | "absent";
 
@@ -1005,14 +979,9 @@ export type LibraryImportItemReport = {
   area: PlatformLibraryArea;
   sourceRef: Ref;
   itemKind: PlatformLibraryItemKind;
-  targetKind: PlatformLibraryTargetKind;
+  sourceEntityKind: SourceEntityKind;
   label: string;
   status: LibraryImportItemStatus;
-  canonicalRef?: Ref;
-  canonicalOutcome?: LibraryImportCanonicalOutcome;
-  collectionItemId?: string;
-  collectionOutcome?: LibraryImportCollectionOutcome;
-  skipReason?: string;
   failureCode?: string;
   retryable?: boolean;
 };
@@ -1020,14 +989,8 @@ export type LibraryImportItemReport = {
 export type LibraryImportCounts = {
   importedItems: number;
   alreadyPresentItems: number;
-  skippedItems: number;
   failedItems: number;
   absentItems: number;
-  canonicalRecordsReused: number;
-  canonicalRecordsCreated: number;
-  canonicalRecordsUnresolved: number;
-  collectionItemsAdded: number;
-  collectionItemsAlreadyPresent: number;
 };
 
 export type LibraryImportProgressArea = {
@@ -1151,16 +1114,14 @@ export type LibraryImportItemProvenance = {
   area: PlatformLibraryArea;
   sourceRef: Ref;
   itemKind: PlatformLibraryItemKind;
-  targetKind: PlatformLibraryTargetKind;
+  sourceEntityKind: SourceEntityKind;
   label: string;
   addedAt?: string;
   canonicalHints?: PlatformLibraryCanonicalHints;
-  canonicalRef?: Ref;
   firstImportedBatchId: string;
   lastSeenBatchId: string;
   lastSeenAt: string;
   status: LibraryImportItemStatus;
-  skipReason?: string;
   failureCode?: string;
   retryable?: boolean;
 };
@@ -1173,7 +1134,6 @@ export type PlatformLibraryAbsence = {
   scope: LibraryImportScope;
   area: PlatformLibraryArea;
   sourceRef: Ref;
-  canonicalRef?: Ref;
   label: string;
   baselineBatchId: string;
   currentBatchId: string;

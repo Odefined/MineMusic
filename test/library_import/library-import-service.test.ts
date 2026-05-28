@@ -94,8 +94,12 @@ async function previewsImportThroughRegisteredPlatformLibraryProvider(): Promise
   assert(preview.areas[0]?.scope === "saved_source_tracks", "preview should map saved recordings scope");
   assert(preview.areas[1]?.scope === "saved_source_artists", "preview should map saved artists scope");
   assert(
-    preview.areas.every((area) => area.canonicalEstimates.alreadyBound >= 0),
-    "preview should return canonical estimate fields",
+    preview.areas.every(
+      (area) =>
+        area.sourceLibraryEstimates.alreadyPresent >= 0 &&
+        area.sourceLibraryEstimates.wouldImport >= 0,
+    ),
+    "preview should return source-library estimate fields",
   );
   assert(previewInputs.length === 1, "preview should call the provider once");
   assert(
@@ -201,7 +205,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
 
   assert(report.batchId === "library-import-batch-1", "start should assign a batch id");
   assert(report.batchKind === "initial_import", "startImport should create an initial import batch");
-  assert(report.status === "completed_with_warnings", "unbound source-library items should complete with warnings");
+  assert(report.status === "completed", "source-library items should complete once they are persisted");
   assert(report.ownerScope === "local_profile:work", "start should keep explicit owner scope");
   assert(report.startedAt === "2026-05-25T00:00:00.000Z", "start should use the service clock");
   assert(report.account?.providerAccountId === "fixture-account", "start should keep provider account identity");
@@ -301,7 +305,7 @@ async function startsImportInBoundedSegmentsAndContinuesNextPage(): Promise<void
 
   assert(firstReport.status === "running", "paged startImport should leave the batch running when more work remains");
   assert(firstReport.items.length === 2, "paged startImport should report only the first processed segment");
-  assert(firstReport.counts.skippedItems === 2, "paged startImport should count only the first segment");
+  assert(firstReport.counts.importedItems === 2, "paged startImport should count only the first segment");
   assert(firstReport.progress.hasMore === true, "paged startImport should report that more work remains");
   assert(firstStatus.status === "running", "status should keep the batch running between segments");
   assert(firstStatus.progress.hasMore === true, "status should report that continueImport is still needed");
@@ -340,8 +344,8 @@ async function startsImportInBoundedSegmentsAndContinuesNextPage(): Promise<void
       (readPageInputs[1].providerState as { offset: unknown }).offset === 2,
     "continueImport should resume from the stored providerState",
   );
-  assert(continued.status === "completed_with_warnings", "continueImport should complete the batch after the last segment");
-  assert(continued.counts.skippedItems === 3, "continueImport should accumulate counts across segments");
+  assert(continued.status === "completed", "continueImport should complete the batch after the last segment");
+  assert(continued.counts.importedItems === 3, "continueImport should accumulate counts across segments");
   assert(continued.progress.hasMore === false, "continueImport should clear hasMore once the batch is done");
   assert(finalSummary.items.length === 3, "summary should expose all item reports after completion");
   assert(
@@ -511,13 +515,8 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
   assert(readInputs.length === 1, "readable preview should read provider items for estimates");
   assert(readInputs[0]?.areas.join(",") === "saved_source_tracks", "preview read should use requested readable areas");
   assert(readInputs[0]?.sampleLimitPerArea === 2, "preview read should pass sample limit to provider reads");
-  assert(preview.areas[0]?.canonicalEstimates.alreadyBound === 2, "preview should count exact source-ref bindings");
-  assert(preview.areas[0]?.canonicalEstimates.wouldCreateProvisional === 0, "preview should not estimate provisional creates");
-  assert(preview.areas[0]?.canonicalEstimates.unresolved === 2, "preview should count unbound source items as unresolved");
-  assert(preview.areas[0]?.collectionEstimates.alreadyPresent === 1, "preview should count existing saved items");
-  assert(preview.areas[0]?.collectionEstimates.wouldAdd === 1, "preview should count bound items missing from saved Collection");
-  assert(preview.areas[0]?.collectionEstimates.wouldAddAfterProvisional === 0, "preview should not estimate provisional collection additions");
-  assert(preview.areas[0]?.collectionEstimates.skipped === 2, "preview should count unbound source items as collection skips");
+  assert(preview.areas[0]?.sourceLibraryEstimates.alreadyPresent === 0, "preview should not invent existing Source Library items");
+  assert(preview.areas[0]?.sourceLibraryEstimates.wouldImport === 4, "preview should count all unseen source items as importable");
   assert(batchesAfterPreview.length === 0, "preview should not create import batches");
   assert(canonicalRecordsAfterPreview.length === 2, "preview should not create canonical records");
   assert(savedItemsAfterPreview.length === 1, "preview should not add collection items");
@@ -711,29 +710,25 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     environment.events.listBySession({ sessionId: `library_import:${report.batchId}` }),
   );
 
-  assert(report.status === "completed_with_warnings", "skipped items should complete the batch with warnings");
+  assert(report.status === "completed", "source-library import should complete cleanly when all items persist");
   assert(status.status === report.status, "status should expose the completed batch state");
-  assert(report.counts.alreadyPresentItems === 1, "import should count already-present Collection items");
-  assert(report.counts.importedItems === 0, "import should not import unbound Source Library items into Collection");
-  assert(report.counts.skippedItems === 2, "import should count unbound source items as skipped");
-  assert(report.counts.canonicalRecordsReused === 1, "import should count reused canonical bindings");
-  assert(report.counts.canonicalRecordsCreated === 0, "import should not create provisional canonical records");
-  assert(report.counts.canonicalRecordsUnresolved === 2, "import should count unbound source items as unresolved canonical items");
-  assert(report.counts.collectionItemsAdded === 0, "import should only write Collection for confirmed bindings");
-  assert(report.counts.collectionItemsAlreadyPresent === 1, "import should count existing saved Collection items");
+  assert(report.counts.alreadyPresentItems === 0, "import should only report already-present Source Library items");
+  assert(report.counts.importedItems === 3, "import should import every newly observed source item");
+  assert(report.counts.failedItems === 0, "import should not fail healthy source items");
+  assert(report.counts.absentItems === 0, "initial import should not report absences");
   assert(report.items.length === 3, "import report should include every provider item result");
   assert(summary.items.length === report.items.length, "summary should return the completed item report");
   assert(summary.counts.importedItems === report.counts.importedItems, "summary should preserve completed counts");
   assert(
-    report.items.some((item) => item.sourceRef.id === "bound-track" && item.status === "already_present"),
-    "import report should include confirmed binding item results",
+    report.items.some((item) => item.sourceRef.id === "bound-track" && item.status === "imported"),
+    "import report should include imported source item results",
   );
   assert(
-    report.items.some((item) => item.sourceRef.id === "new-track" && item.status === "skipped"),
-    "import report should include unbound item results",
+    report.items.some((item) => item.sourceRef.id === "new-track" && item.status === "imported"),
+    "import report should include newly imported source item results",
   );
   assert(
-    report.items.some((item) => item.sourceRef.id === "unresolved-track" && item.status === "skipped"),
+    report.items.some((item) => item.sourceRef.id === "unresolved-track" && item.status === "imported"),
     "import report should include weak source item results",
   );
   assert(canonicalRecords.length === 1, "import should not create canonical records for unbound source items");
@@ -753,7 +748,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   assert(snapshots[0]?.sourceRefs.length === 3, "complete snapshots should keep the full observed source-ref set");
   assert(
     importEvents.map((event) => event.type).join(",") ===
-      "library_import.batch.started,library_import.item.imported,library_import.item.skipped,library_import.item.skipped,library_import.batch.completed",
+      "library_import.batch.started,library_import.item.imported,library_import.item.imported,library_import.item.imported,library_import.batch.completed",
     "import should record batch and item facts",
   );
 }
@@ -822,8 +817,8 @@ async function importsSameLabelDifferentSourceRefsAsSeparateSourceEntities(): Pr
     }),
   );
 
-  assert(report.counts.canonicalRecordsCreated === 0, "same labels should not create provisional canonical records");
-  assert(report.counts.collectionItemsAdded === 0, "unbound same-label source items should not write Collection");
+  assert(report.counts.importedItems === 2, "same-label source refs should both import into Source Library");
+  assert(report.counts.alreadyPresentItems === 0, "same-label source refs should start as new source items");
   assert(canonicalRecords.length === 0, "unbound same-label imports should not create canonical identities");
   assert(sourceEntities.length === 2, "same-label imports should remain separate Source Entities by source ref");
   assert(sourceLibraryItems.length === 2, "Source Library should keep both same-label source refs");
@@ -987,8 +982,8 @@ async function cachesSavedCollectionMembershipDuringImportBatch(): Promise<void>
 
   assert(report.counts.importedItems === 3, "fixture import should add every provider item");
   assert(
-    savedRecordingLookups === 1,
-    "import should read saved recording membership once per batch and update the cache in memory",
+    savedRecordingLookups === 0,
+    "source-library import should not read saved recording membership at all",
   );
 }
 
@@ -1044,7 +1039,6 @@ async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
       }),
       sourceEntityStore: recreatedSourceEntityStore,
     }),
-    collection: environment.collections,
     events: environment.events,
     repository: environment.libraryImportRepository,
     idFactory: createSequence("recreated-library-import-batch"),
@@ -1195,6 +1189,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
   };
   await assertOk(environment.canonicalRepository.put(preExistingCanonical));
   await putConfirmedBinding(environment, sourceRef("saved-new-track"), preExistingCanonical.ref);
+  await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
   await assertOk(
     environment.collections.addItemToSystemCollection({
       ownerScope: "local_profile:default",
@@ -1241,12 +1236,11 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
   );
 
   assert(preview.areas[0]?.updateEstimates?.alreadyPresent === 1, "update preview should count still-present assets");
-  assert(preview.areas[0]?.updateEstimates?.wouldAdd === 1, "update preview should count newly observed assets");
+  assert(preview.areas[0]?.updateEstimates?.newlyObserved === 1, "update preview should count newly observed assets");
   assert(
     preview.areas[0]?.updateEstimates?.noLongerReturned === 1,
     "update preview should count baseline assets no longer returned",
   );
-  assert(preview.areas[0]?.updateEstimates?.failedOrSkipped === 0, "update preview should count failed/skipped items");
   assert(preview.areas[0]?.absences?.[0]?.sourceRef.id === "missing-track", "update preview should describe absences");
   assert(batchesAfterPreview.length === batchesBeforePreview.length, "update preview should not create batches");
   assert(absencesAfterPreview.length === 0, "update preview should not store absence records");
@@ -1615,7 +1609,7 @@ async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingColle
   assert(update.counts.importedItems === 1, "update should import newly observed items");
   assert(update.counts.absentItems === 1, "update should count platform absences");
   assert(update.absences?.[0]?.sourceRef.id === "missing-track", "update report should include absence summaries");
-  assert(savedItems.length === 3, "update should not remove saved Collection items when the platform omits them");
+  assert(savedItems.length === 0, "update should leave Collection unchanged");
   assert(absences.length === 1, "update should store absence records");
   assert(absences[0]?.sourceRef.id === "missing-track", "stored absence should identify the missing source ref");
   assert(
@@ -1727,7 +1721,6 @@ function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPl
   const libraryImport = createLibraryImportService({
     pluginRegistry: registry,
     materialStore,
-    collection: collections,
     events,
     repository: libraryImportRepository,
     idFactory: createSequence("library-import-batch"),

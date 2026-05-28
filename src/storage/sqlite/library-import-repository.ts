@@ -82,16 +82,14 @@ type ItemProvenanceRow = {
   area: LibraryImportItemProvenance["area"];
   source_ref_json: string;
   item_kind: LibraryImportItemProvenance["itemKind"];
-  target_kind: LibraryImportItemProvenance["targetKind"];
+  source_entity_kind: LibraryImportItemProvenance["sourceEntityKind"];
   label: string;
   added_at: string | null;
   canonical_hints_json: string | null;
-  canonical_ref_json: string | null;
   first_imported_batch_id: string;
   last_seen_batch_id: string;
   last_seen_at: string;
   status: LibraryImportItemProvenance["status"];
-  skip_reason: string | null;
   failure_code: string | null;
   retryable: number | null;
 };
@@ -104,7 +102,6 @@ type AbsenceRow = {
   scope: PlatformLibraryAbsence["scope"];
   area: PlatformLibraryAbsence["area"];
   source_ref_json: string;
-  canonical_ref_json: string | null;
   label: string;
   baseline_batch_id: string;
   current_batch_id: string;
@@ -408,20 +405,18 @@ export function createSqliteLibraryImportRepository({
               source_ref_id,
               source_ref_json,
               item_kind,
-              target_kind,
+              source_entity_kind,
               label,
               added_at,
               canonical_hints_json,
-              canonical_ref_json,
               first_imported_batch_id,
               last_seen_batch_id,
               last_seen_at,
               status,
-              skip_reason,
               failure_code,
               retryable
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(provenance_key) DO UPDATE SET
               owner_scope = excluded.owner_scope,
               provider_id = excluded.provider_id,
@@ -433,16 +428,14 @@ export function createSqliteLibraryImportRepository({
               source_ref_id = excluded.source_ref_id,
               source_ref_json = excluded.source_ref_json,
               item_kind = excluded.item_kind,
-              target_kind = excluded.target_kind,
+              source_entity_kind = excluded.source_entity_kind,
               label = excluded.label,
               added_at = excluded.added_at,
               canonical_hints_json = excluded.canonical_hints_json,
-              canonical_ref_json = excluded.canonical_ref_json,
               first_imported_batch_id = excluded.first_imported_batch_id,
               last_seen_batch_id = excluded.last_seen_batch_id,
               last_seen_at = excluded.last_seen_at,
               status = excluded.status,
-              skip_reason = excluded.skip_reason,
               failure_code = excluded.failure_code,
               retryable = excluded.retryable
           `)
@@ -458,16 +451,14 @@ export function createSqliteLibraryImportRepository({
             provenance.sourceRef.id,
             toJson(provenance.sourceRef),
             provenance.itemKind,
-            provenance.targetKind,
+            provenance.sourceEntityKind,
             provenance.label,
             provenance.addedAt ?? null,
             optionalJson(provenance.canonicalHints),
-            optionalJson(provenance.canonicalRef),
             provenance.firstImportedBatchId,
             provenance.lastSeenBatchId,
             provenance.lastSeenAt,
             provenance.status,
-            provenance.skipReason ?? null,
             provenance.failureCode ?? null,
             optionalBooleanToInteger(provenance.retryable),
           );
@@ -510,14 +501,13 @@ export function createSqliteLibraryImportRepository({
               scope,
               area,
               source_ref_json,
-              canonical_ref_json,
               label,
               baseline_batch_id,
               current_batch_id,
               reason,
               recorded_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               owner_scope = excluded.owner_scope,
               provider_id = excluded.provider_id,
@@ -525,7 +515,6 @@ export function createSqliteLibraryImportRepository({
               scope = excluded.scope,
               area = excluded.area,
               source_ref_json = excluded.source_ref_json,
-              canonical_ref_json = excluded.canonical_ref_json,
               label = excluded.label,
               baseline_batch_id = excluded.baseline_batch_id,
               current_batch_id = excluded.current_batch_id,
@@ -540,7 +529,6 @@ export function createSqliteLibraryImportRepository({
             absence.scope,
             absence.area,
             toJson(absence.sourceRef),
-            optionalJson(absence.canonicalRef),
             absence.label,
             absence.baselineBatchId,
             absence.currentBatchId,
@@ -703,7 +691,7 @@ function toItemProvenance(row: ItemProvenanceRow): LibraryImportItemProvenance {
     area: row.area,
     sourceRef: fromJson(row.source_ref_json),
     itemKind: row.item_kind,
-    targetKind: row.target_kind,
+    sourceEntityKind: row.source_entity_kind,
     label: row.label,
     firstImportedBatchId: row.first_imported_batch_id,
     lastSeenBatchId: row.last_seen_batch_id,
@@ -717,14 +705,6 @@ function toItemProvenance(row: ItemProvenanceRow): LibraryImportItemProvenance {
 
   if (row.canonical_hints_json !== null) {
     provenance.canonicalHints = fromJson(row.canonical_hints_json);
-  }
-
-  if (row.canonical_ref_json !== null) {
-    provenance.canonicalRef = fromJson(row.canonical_ref_json);
-  }
-
-  if (row.skip_reason !== null) {
-    provenance.skipReason = row.skip_reason;
   }
 
   if (row.failure_code !== null) {
@@ -753,10 +733,6 @@ function toAbsence(row: AbsenceRow): PlatformLibraryAbsence {
     reason: row.reason,
     recordedAt: row.recorded_at,
   };
-
-  if (row.canonical_ref_json !== null) {
-    absence.canonicalRef = fromJson(row.canonical_ref_json);
-  }
 
   return absence;
 }

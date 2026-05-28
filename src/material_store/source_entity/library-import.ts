@@ -1,13 +1,10 @@
 import type {
-  CollectionItem,
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
   LibraryImportBatchKind,
   LibraryImportContinuationState,
-  LibraryImportCollectionEstimateCounts,
   LibraryImportContinueInput,
   LibraryImportCounts,
-  LibraryImportCanonicalEstimateCounts,
   LibraryImportPreview,
   LibraryImportPreviewArea,
   LibraryImportPreviewInput,
@@ -18,6 +15,7 @@ import type {
   LibraryImportScope,
   LibraryImportStartInput,
   LibraryImportStatus,
+  LibraryImportSourceLibraryEstimateCounts,
   LibraryImportUpdateEstimateCounts,
   PlatformLibraryArea,
   PlatformLibraryAbsence,
@@ -37,7 +35,6 @@ import type {
   StageError,
 } from "../../contracts/index.js";
 import type {
-  CollectionPort,
   EventPort,
   LibraryImportPort,
   LibraryImportRepository,
@@ -48,7 +45,6 @@ import type {
 type LibraryImportServiceOptions = {
   pluginRegistry: PluginRegistryPort;
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   events: EventPort;
   repository: LibraryImportRepository;
   idFactory?: () => string;
@@ -60,7 +56,6 @@ const defaultOwnerScope = "local_profile:default";
 export function createLibraryImportService({
   pluginRegistry,
   materialStore,
-  collection,
   events,
   repository,
   idFactory = createDefaultIdFactory("library-import-batch"),
@@ -73,7 +68,6 @@ export function createLibraryImportService({
       return previewLibraryImport({
         pluginRegistry,
         materialStore,
-        collection,
         repository,
         input,
         includeUpdateEstimates: false,
@@ -84,7 +78,6 @@ export function createLibraryImportService({
       return startLibraryImport({
         pluginRegistry,
         materialStore,
-        collection,
         events,
         repository,
         completedReports,
@@ -99,7 +92,6 @@ export function createLibraryImportService({
       return continueLibraryImport({
         pluginRegistry,
         materialStore,
-        collection,
         events,
         repository,
         completedReports,
@@ -112,7 +104,6 @@ export function createLibraryImportService({
       return previewLibraryImport({
         pluginRegistry,
         materialStore,
-        collection,
         repository,
         input,
         includeUpdateEstimates: true,
@@ -123,7 +114,6 @@ export function createLibraryImportService({
       return continueLibraryImport({
         pluginRegistry,
         materialStore,
-        collection,
         events,
         repository,
         completedReports,
@@ -136,7 +126,6 @@ export function createLibraryImportService({
       return startLibraryImport({
         pluginRegistry,
         materialStore,
-        collection,
         events,
         repository,
         completedReports,
@@ -196,14 +185,12 @@ export function createLibraryImportService({
 async function previewLibraryImport({
   pluginRegistry,
   materialStore,
-  collection,
   repository,
   input,
   includeUpdateEstimates,
 }: {
   pluginRegistry: PluginRegistryPort;
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   repository: LibraryImportRepository;
   input: LibraryImportPreviewInput;
   includeUpdateEstimates: boolean;
@@ -233,7 +220,6 @@ async function previewLibraryImport({
   const estimates = await estimateReadablePreviewAreas({
     provider: provider.value,
     materialStore,
-    collection,
     repository,
     ownerScope,
     providerAccountId,
@@ -273,18 +259,14 @@ async function previewLibraryImport({
 }
 
 type PreviewAreaEstimates = {
-  canonicalEstimates: LibraryImportCanonicalEstimateCounts;
-  collectionEstimates: LibraryImportCollectionEstimateCounts;
+  sourceLibraryEstimates: LibraryImportSourceLibraryEstimateCounts;
   updateEstimates?: LibraryImportUpdateEstimateCounts;
   absences?: PlatformLibraryAbsenceSummary[];
 };
 
-type SavedMembershipCache = Map<PlatformLibraryItem["targetKind"], Set<string>>;
-
 async function estimateReadablePreviewAreas({
   provider,
   materialStore,
-  collection,
   repository,
   ownerScope,
   providerAccountId,
@@ -296,7 +278,6 @@ async function estimateReadablePreviewAreas({
 }: {
   provider: PlatformLibraryProvider;
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   repository: LibraryImportRepository;
   ownerScope: string;
   providerAccountId: string | undefined;
@@ -330,7 +311,6 @@ async function estimateReadablePreviewAreas({
   }
 
   const estimates = new Map<PlatformLibraryArea, PreviewAreaEstimates>();
-  const savedItemsByKind = new Map<PlatformLibraryItem["targetKind"], CollectionItem[]>();
   const readProviderAccountId = read.value.account?.providerAccountId ?? providerAccountId;
   const readProviderAccountStable = read.value.account?.stable ?? providerAccountStable;
 
@@ -364,9 +344,9 @@ async function estimateReadablePreviewAreas({
     for (const item of area.items) {
       const itemEstimate = await estimatePreviewItem({
         materialStore,
-        collection,
         ownerScope,
-        savedItemsByKind,
+        providerId: provider.id,
+        providerAccountId: readProviderAccountId,
         item,
       });
 
@@ -418,92 +398,40 @@ async function estimateReadablePreviewAreas({
 
 type PreviewItemEstimate =
   | "already_present"
-  | "would_add"
-  | "would_add_after_provisional"
-  | "unresolved";
+  | "would_import";
 
 async function estimatePreviewItem({
   materialStore,
-  collection,
   ownerScope,
-  savedItemsByKind,
+  providerId,
+  providerAccountId,
   item,
 }: {
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   ownerScope: string;
-  savedItemsByKind: Map<PlatformLibraryItem["targetKind"], CollectionItem[]>;
+  providerId: string;
+  providerAccountId: string | undefined;
   item: PlatformLibraryItem;
 }): Promise<Result<PreviewItemEstimate>> {
-  const binding = await materialStore.getConfirmedCanonicalBinding({ sourceRef: item.sourceRef });
-
-  if (!binding.ok) {
-    return binding;
+  if (providerAccountId === undefined) {
+    return ok("would_import");
   }
 
-  if (binding.value === null) {
-    return ok("unresolved");
-  }
-
-  const canonical = await materialStore.getCanonical({ ref: binding.value.canonicalRef });
-
-  if (!canonical.ok) {
-    return canonical;
-  }
-
-  if (canonical.value === null) {
-    return ok("unresolved");
-  }
-
-  const canonicalRecord = canonical.value;
-  const savedItems = await getSavedItemsForTargetKind({
-    collection,
+  const sourceLibraryItem = await materialStore.getSourceLibraryItem({
     ownerScope,
-    savedItemsByKind,
-    targetKind: item.targetKind,
+    providerId,
+    providerAccountId,
+    libraryKind: item.itemKind,
+    sourceRef: item.sourceRef,
   });
 
-  if (!savedItems.ok) {
-    return savedItems;
+  if (!sourceLibraryItem.ok) {
+    return sourceLibraryItem;
   }
 
   return ok(
-    savedItems.value.some((savedItem) => sameRef(savedItem.canonicalRef, canonicalRecord.ref))
-      ? "already_present"
-      : "would_add",
+    sourceLibraryItem.value?.status === "present" ? "already_present" : "would_import",
   );
-}
-
-async function getSavedItemsForTargetKind({
-  collection,
-  ownerScope,
-  savedItemsByKind,
-  targetKind,
-}: {
-  collection: CollectionPort;
-  ownerScope: string;
-  savedItemsByKind: Map<PlatformLibraryItem["targetKind"], CollectionItem[]>;
-  targetKind: PlatformLibraryItem["targetKind"];
-}): Promise<Result<CollectionItem[]>> {
-  const cached = savedItemsByKind.get(targetKind);
-
-  if (cached !== undefined) {
-    return ok(cached);
-  }
-
-  const items = await collection.listItems({
-    ownerScope,
-    collectionKind: targetKind,
-    relationKind: "saved",
-  });
-
-  if (!items.ok) {
-    return items;
-  }
-
-  savedItemsByKind.set(targetKind, items.value);
-
-  return ok(items.value);
 }
 
 function incrementPreviewAreaEstimates(
@@ -512,20 +440,10 @@ function incrementPreviewAreaEstimates(
 ): void {
   switch (itemEstimate) {
     case "already_present":
-      estimates.canonicalEstimates.alreadyBound += 1;
-      estimates.collectionEstimates.alreadyPresent += 1;
+      estimates.sourceLibraryEstimates.alreadyPresent += 1;
       return;
-    case "would_add":
-      estimates.canonicalEstimates.alreadyBound += 1;
-      estimates.collectionEstimates.wouldAdd += 1;
-      return;
-    case "would_add_after_provisional":
-      estimates.canonicalEstimates.wouldCreateProvisional += 1;
-      estimates.collectionEstimates.wouldAddAfterProvisional += 1;
-      return;
-    case "unresolved":
-      estimates.canonicalEstimates.unresolved += 1;
-      estimates.collectionEstimates.skipped += 1;
+    case "would_import":
+      estimates.sourceLibraryEstimates.wouldImport += 1;
       return;
   }
 }
@@ -542,17 +460,11 @@ function incrementUpdateEstimates(
     baselineSourceRefKeys: Set<string> | null;
   },
 ): void {
-  if (itemEstimate === "unresolved") {
-    estimates.failedOrSkipped += 1;
-
-    return;
-  }
-
   if (baselineSourceRefKeys !== null) {
     if (baselineSourceRefKeys.has(refKey(sourceRef))) {
       estimates.alreadyPresent += 1;
     } else {
-      estimates.wouldAdd += 1;
+      estimates.newlyObserved += 1;
     }
 
     return;
@@ -562,9 +474,8 @@ function incrementUpdateEstimates(
     case "already_present":
       estimates.alreadyPresent += 1;
       return;
-    case "would_add":
-    case "would_add_after_provisional":
-      estimates.wouldAdd += 1;
+    case "would_import":
+      estimates.newlyObserved += 1;
       return;
   }
 }
@@ -680,10 +591,6 @@ async function previewAbsencesForArea({
       reason: "platform_not_returned",
     };
 
-    if (provenance.value?.canonicalRef !== undefined) {
-      absence.canonicalRef = provenance.value.canonicalRef;
-    }
-
     if (currentBatchId !== undefined) {
       absence.currentBatchId = currentBatchId;
     }
@@ -733,15 +640,13 @@ async function previewAbsencesForSourceRefs({
 
 function emptyPreviewAreaEstimates(): PreviewAreaEstimates {
   return {
-    canonicalEstimates: emptyCanonicalEstimates(),
-    collectionEstimates: emptyCollectionEstimates(),
+    sourceLibraryEstimates: emptySourceLibraryEstimates(),
   };
 }
 
 async function startLibraryImport({
   pluginRegistry,
   materialStore,
-  collection,
   events,
   repository,
   completedReports,
@@ -752,7 +657,6 @@ async function startLibraryImport({
 }: {
   pluginRegistry: PluginRegistryPort;
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
@@ -783,7 +687,6 @@ async function startLibraryImport({
   ) {
     return startPagedLibraryImport({
       materialStore,
-      collection,
       events,
       repository,
       completedReports,
@@ -877,19 +780,7 @@ async function startLibraryImport({
   const reportAreas = read.value.areas.map(providerReadAreaToReportArea);
   const itemReports: LibraryImportItemReport[] = [];
   const absences: PlatformLibraryAbsenceSummary[] = [];
-  const savedMembershipsByKind: SavedMembershipCache = new Map();
   let completedWithWarnings = readHasWarnings(read.value.areas, read.value.issues);
-
-  const initializedCollections = await collection.initializeOwnerCollections({ ownerScope });
-
-  if (!initializedCollections.ok) {
-    return markStartedBatchFailed({
-      repository,
-      batch: currentBatch,
-      completedAt: clock(),
-      result: initializedCollections,
-    });
-  }
 
   for (const area of read.value.areas) {
     const scope = providerAreaToScope(area.area);
@@ -897,7 +788,6 @@ async function startLibraryImport({
     for (const item of area.items) {
       const itemReport = await importProviderItem({
         materialStore,
-        collection,
         events,
         repository,
         batchId,
@@ -909,7 +799,6 @@ async function startLibraryImport({
         area: area.area,
         item,
         seenAt: completedAt,
-        savedMembershipsByKind,
       });
 
       if (!itemReport.ok) {
@@ -924,7 +813,7 @@ async function startLibraryImport({
       itemReports.push(itemReport.value);
       applyItemReportToCounts(counts, itemReport.value);
 
-      if (itemReport.value.status === "skipped" || itemReport.value.status === "failed") {
+      if (itemReport.value.status === "failed") {
         completedWithWarnings = true;
       }
     }
@@ -1109,7 +998,6 @@ async function markStartedBatchFailed<T>({
 
 async function importProviderItem({
   materialStore,
-  collection,
   events,
   repository,
   batchId,
@@ -1121,10 +1009,8 @@ async function importProviderItem({
   area,
   item,
   seenAt,
-  savedMembershipsByKind,
 }: {
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   events: EventPort;
   repository: LibraryImportRepository;
   batchId: string;
@@ -1136,7 +1022,6 @@ async function importProviderItem({
   area: PlatformLibraryArea;
   item: PlatformLibraryItem;
   seenAt: string;
-  savedMembershipsByKind: SavedMembershipCache;
 }): Promise<Result<LibraryImportItemReport>> {
   const baseReport = itemReportBase({ scope, area, item });
   const storedSourceState = await storeSourceEntityAndLibraryItem({
@@ -1153,91 +1038,9 @@ async function importProviderItem({
     return storedSourceState;
   }
 
-  const binding = await materialStore.getConfirmedCanonicalBinding({ sourceRef: item.sourceRef });
-
-  if (!binding.ok) {
-    return binding;
-  }
-
-  if (binding.value === null) {
-    const skipped: LibraryImportItemReport = {
-      ...baseReport,
-      status: "skipped",
-      canonicalOutcome: "unresolved",
-      collectionOutcome: "skipped",
-      skipReason: "no_confirmed_canonical_binding",
-    };
-    const recorded = await recordItemResult({
-      events,
-      repository,
-      batchId,
-      batchKind,
-      ownerScope,
-      providerId,
-      providerAccountId,
-      report: skipped,
-      item,
-      seenAt,
-    });
-
-    if (!recorded.ok) {
-      return recorded;
-    }
-
-    return ok(skipped);
-  }
-
-  const canonical = await materialStore.getCanonical({ ref: binding.value.canonicalRef });
-
-  if (!canonical.ok) {
-    return canonical;
-  }
-
-  if (canonical.value === null) {
-    return fail({
-      code: "canonical.not_found",
-      message: `Confirmed binding points to missing canonical record '${binding.value.canonicalRef.id}'.`,
-      module: "canonical",
-      retryable: false,
-    });
-  }
-
-  const alreadyPresent = await isSavedCollectionItemPresent({
-    collection,
-    ownerScope,
-    targetKind: item.targetKind,
-    canonicalRef: canonical.value.ref,
-    savedMembershipsByKind,
-  });
-
-  if (!alreadyPresent.ok) {
-    return alreadyPresent;
-  }
-
-  const collectionItem = await collection.addItemToSystemCollection({
-    ownerScope,
-    relationKind: "saved",
-    canonicalRef: canonical.value.ref,
-    label: item.label,
-  });
-
-  if (!collectionItem.ok) {
-    return collectionItem;
-  }
-
-  rememberSavedMembership({
-    savedMembershipsByKind,
-    targetKind: item.targetKind,
-    canonicalRef: collectionItem.value.canonicalRef,
-  });
-
   const imported: LibraryImportItemReport = {
     ...baseReport,
-    status: alreadyPresent.value ? "already_present" : "imported",
-    canonicalRef: canonical.value.ref,
-    canonicalOutcome: "reused",
-    collectionItemId: collectionItem.value.id,
-    collectionOutcome: alreadyPresent.value ? "already_present" : "added",
+    status: storedSourceState.value.alreadyPresent ? "already_present" : "imported",
   };
   const recorded = await recordItemResult({
     events,
@@ -1273,7 +1076,7 @@ function itemReportBase({
     area,
     sourceRef: item.sourceRef,
     itemKind: item.itemKind,
-    targetKind: item.targetKind,
+    sourceEntityKind: sourceEntityKindForPlatformItemKind(item.itemKind),
     label: item.label,
   };
 }
@@ -1294,7 +1097,7 @@ async function storeSourceEntityAndLibraryItem({
   providerAccountId: string;
   item: PlatformLibraryItem;
   seenAt: string;
-}): Promise<Result<void>> {
+}): Promise<Result<{ alreadyPresent: boolean }>> {
   const existingSourceEntity = await materialStore.getSourceEntity({
     sourceRef: item.sourceRef,
   });
@@ -1351,7 +1154,9 @@ async function storeSourceEntityAndLibraryItem({
     return storedLibraryItem;
   }
 
-  return ok(undefined);
+  return ok({
+    alreadyPresent: existingLibraryItem.value?.status === "present",
+  });
 }
 
 function sourceEntityForPlatformItem({
@@ -1365,13 +1170,26 @@ function sourceEntityForPlatformItem({
   createdAt: string;
   observedAt: string;
 }): SourceEntity {
-  switch (item.targetKind) {
-    case "recording":
+  switch (item.itemKind) {
+    case "saved_source_track":
       return sourceTrackForPlatformItem({ item, providerId, createdAt, observedAt });
-    case "release":
+    case "saved_source_release":
       return sourceReleaseForPlatformItem({ item, providerId, createdAt, observedAt });
-    case "artist":
+    case "saved_source_artist":
       return sourceArtistForPlatformItem({ item, providerId, createdAt, observedAt });
+  }
+}
+
+function sourceEntityKindForPlatformItemKind(
+  itemKind: PlatformLibraryItem["itemKind"],
+): LibraryImportItemReport["sourceEntityKind"] {
+  switch (itemKind) {
+    case "saved_source_track":
+      return "track";
+    case "saved_source_release":
+      return "release";
+    case "saved_source_artist":
+      return "artist";
   }
 }
 
@@ -1493,82 +1311,6 @@ function nonEmptyValue(value: string | undefined): string | undefined {
   return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed;
 }
 
-async function isSavedCollectionItemPresent({
-  collection,
-  ownerScope,
-  targetKind,
-  canonicalRef,
-  savedMembershipsByKind,
-}: {
-  collection: CollectionPort;
-  ownerScope: string;
-  targetKind: PlatformLibraryItem["targetKind"];
-  canonicalRef: Ref;
-  savedMembershipsByKind: SavedMembershipCache;
-}): Promise<Result<boolean>> {
-  const savedRefKeys = await savedMembershipKeysForKind({
-    collection,
-    ownerScope,
-    targetKind,
-    savedMembershipsByKind,
-  });
-
-  if (!savedRefKeys.ok) {
-    return savedRefKeys;
-  }
-
-  return ok(savedRefKeys.value.has(refKey(canonicalRef)));
-}
-
-async function savedMembershipKeysForKind({
-  collection,
-  ownerScope,
-  targetKind,
-  savedMembershipsByKind,
-}: {
-  collection: CollectionPort;
-  ownerScope: string;
-  targetKind: PlatformLibraryItem["targetKind"];
-  savedMembershipsByKind: SavedMembershipCache;
-}): Promise<Result<Set<string>>> {
-  const cached = savedMembershipsByKind.get(targetKind);
-
-  if (cached !== undefined) {
-    return ok(cached);
-  }
-
-  const savedItems = await collection.listItems({
-    ownerScope,
-    collectionKind: targetKind,
-    relationKind: "saved",
-  });
-
-  if (!savedItems.ok) {
-    return savedItems;
-  }
-
-  const savedRefKeys = new Set(savedItems.value.map((item) => refKey(item.canonicalRef)));
-  savedMembershipsByKind.set(targetKind, savedRefKeys);
-
-  return ok(savedRefKeys);
-}
-
-function rememberSavedMembership({
-  savedMembershipsByKind,
-  targetKind,
-  canonicalRef,
-}: {
-  savedMembershipsByKind: SavedMembershipCache;
-  targetKind: PlatformLibraryItem["targetKind"];
-  canonicalRef: Ref;
-}): void {
-  const savedRefKeys = savedMembershipsByKind.get(targetKind);
-
-  if (savedRefKeys !== undefined) {
-    savedRefKeys.add(refKey(canonicalRef));
-  }
-}
-
 async function recordItemResult({
   events,
   repository,
@@ -1614,16 +1356,14 @@ async function recordItemResult({
       area: report.area,
       sourceRef: report.sourceRef,
       itemKind: report.itemKind,
-      targetKind: report.targetKind,
+      sourceEntityKind: report.sourceEntityKind,
       label: report.label,
       ...(item.addedAt === undefined ? {} : { addedAt: item.addedAt }),
       ...(item.canonicalHints === undefined ? {} : { canonicalHints: item.canonicalHints }),
-      ...(report.canonicalRef === undefined ? {} : { canonicalRef: report.canonicalRef }),
       firstImportedBatchId: existingProvenance.value?.firstImportedBatchId ?? batchId,
       lastSeenBatchId: batchId,
       lastSeenAt: seenAt,
       status: report.status,
-      ...(report.skipReason === undefined ? {} : { skipReason: report.skipReason }),
       ...(report.failureCode === undefined ? {} : { failureCode: report.failureCode }),
       ...(report.retryable === undefined ? {} : { retryable: report.retryable }),
     },
@@ -1634,9 +1374,7 @@ async function recordItemResult({
   }
 
   const eventType =
-    report.status === "skipped"
-      ? "library_import.item.skipped"
-      : report.status === "failed"
+    report.status === "failed"
         ? "library_import.item.failed"
         : "library_import.item.imported";
   const recordedEvent = await recordLibraryImportEvent(events, {
@@ -1657,13 +1395,8 @@ async function recordItemResult({
       libraryArea: report.area,
       sourceRef: report.sourceRef,
       itemKind: report.itemKind,
-      targetKind: report.targetKind,
+      sourceEntityKind: report.sourceEntityKind,
       status: report.status,
-      canonicalRef: report.canonicalRef,
-      collectionItemId: report.collectionItemId,
-      canonicalOutcome: report.canonicalOutcome,
-      collectionOutcome: report.collectionOutcome,
-      skipReason: report.skipReason,
       failureCode: report.failureCode,
       retryable: report.retryable,
     },
@@ -1687,29 +1420,12 @@ function applyItemReportToCounts(
     case "already_present":
       counts.alreadyPresentItems += 1;
       break;
-    case "skipped":
-      counts.skippedItems += 1;
-      break;
     case "failed":
       counts.failedItems += 1;
       break;
     case "absent":
       counts.absentItems += 1;
       break;
-  }
-
-  if (report.canonicalOutcome === "reused") {
-    counts.canonicalRecordsReused += 1;
-  } else if (report.canonicalOutcome === "created_provisional") {
-    counts.canonicalRecordsCreated += 1;
-  } else if (report.canonicalOutcome === "unresolved") {
-    counts.canonicalRecordsUnresolved += 1;
-  }
-
-  if (report.collectionOutcome === "added") {
-    counts.collectionItemsAdded += 1;
-  } else if (report.collectionOutcome === "already_present") {
-    counts.collectionItemsAlreadyPresent += 1;
   }
 }
 
@@ -1753,10 +1469,6 @@ async function storePlatformLibraryAbsence({
     recordedAt,
   };
 
-  if (absence.canonicalRef !== undefined) {
-    record.canonicalRef = absence.canonicalRef;
-  }
-
   const stored = await repository.putAbsence({ absence: record });
 
   if (!stored.ok) {
@@ -1780,7 +1492,6 @@ async function storePlatformLibraryAbsence({
       importScope: absence.scope,
       libraryArea: absence.area,
       sourceRef: absence.sourceRef,
-      canonicalRef: absence.canonicalRef,
       baselineBatchId: absence.baselineBatchId,
       absenceReason: absence.reason,
     },
@@ -1841,8 +1552,7 @@ function providerPreviewAreaToLibraryImportArea(
     scope: providerAreaToScope(area.area),
     area: area.area,
     availability: area.availability,
-    canonicalEstimates: estimates?.canonicalEstimates ?? emptyCanonicalEstimates(),
-    collectionEstimates: estimates?.collectionEstimates ?? emptyCollectionEstimates(),
+    sourceLibraryEstimates: estimates?.sourceLibraryEstimates ?? emptySourceLibraryEstimates(),
   };
 
   if (area.count !== undefined) {
@@ -2046,7 +1756,6 @@ const defaultContinuationPageSize = 50;
 async function continueLibraryImport({
   pluginRegistry,
   materialStore,
-  collection,
   events,
   repository,
   completedReports,
@@ -2055,7 +1764,6 @@ async function continueLibraryImport({
 }: {
   pluginRegistry: PluginRegistryPort;
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
@@ -2082,7 +1790,6 @@ async function continueLibraryImport({
     if (isPagedPlatformLibraryProvider(provider.value)) {
       const processed = await processPagedImportSegment({
         materialStore,
-        collection,
         events,
         repository,
         completedReports,
@@ -2131,7 +1838,6 @@ function isPagedPlatformLibraryProvider(
 
 async function startPagedLibraryImport({
   materialStore,
-  collection,
   events,
   repository,
   completedReports,
@@ -2142,7 +1848,6 @@ async function startPagedLibraryImport({
   clock,
 }: {
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
@@ -2214,7 +1919,6 @@ async function startPagedLibraryImport({
 
   const processed = await processPagedImportSegment({
     materialStore,
-    collection,
     events,
     repository,
     completedReports,
@@ -2288,7 +1992,6 @@ async function initializeContinuationStates({
 
 async function processPagedImportSegment({
   materialStore,
-  collection,
   events,
   repository,
   completedReports,
@@ -2298,7 +2001,6 @@ async function processPagedImportSegment({
   clock,
 }: {
   materialStore: MaterialStorePort;
-  collection: CollectionPort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
@@ -2349,19 +2051,6 @@ async function processPagedImportSegment({
     });
   }
 
-  const initializedCollections = await collection.initializeOwnerCollections({
-    ownerScope: batch.ownerScope,
-  });
-
-  if (!initializedCollections.ok) {
-    return markStartedBatchFailed({
-      repository,
-      batch,
-      completedAt: clock(),
-      result: initializedCollections,
-    });
-  }
-
   const seenAt = clock();
   const counts = structuredClone(batch.counts);
   const existingReport = await repository.getReport({ batchId: batch.id });
@@ -2374,13 +2063,11 @@ async function processPagedImportSegment({
   const providerAccountId =
     page.value.account?.providerAccountId ?? batch.providerAccountId ?? "unknown";
   const providerAccountStable = page.value.account?.stable ?? batch.providerAccountStable;
-  const savedMembershipsByKind: SavedMembershipCache = new Map();
   const itemReports: LibraryImportItemReport[] = [];
 
   for (const item of page.value.items) {
     const itemReport = await importProviderItem({
       materialStore,
-      collection,
       events,
       repository,
       batchId: batch.id,
@@ -2392,7 +2079,6 @@ async function processPagedImportSegment({
       area: nextState.area,
       item,
       seenAt,
-      savedMembershipsByKind,
     });
 
     if (!itemReport.ok) {
@@ -2713,7 +2399,6 @@ function hasContinuationWarnings(
   reportIssues: PlatformLibraryReadAreaResult["issues"] | undefined,
 ): boolean {
   return (
-    counts.skippedItems > 0 ||
     counts.failedItems > 0 ||
     counts.absentItems > 0 ||
     pageIssues !== undefined ||
@@ -2740,36 +2425,23 @@ function countProcessedItems(counts: LibraryImportCounts): number {
   return (
     counts.importedItems +
     counts.alreadyPresentItems +
-    counts.skippedItems +
     counts.failedItems +
     counts.absentItems
   );
 }
 
-function emptyCanonicalEstimates(): LibraryImportCanonicalEstimateCounts {
-  return {
-    alreadyBound: 0,
-    wouldCreateProvisional: 0,
-    unresolved: 0,
-    skipped: 0,
-  };
-}
-
-function emptyCollectionEstimates(): LibraryImportCollectionEstimateCounts {
+function emptySourceLibraryEstimates(): LibraryImportSourceLibraryEstimateCounts {
   return {
     alreadyPresent: 0,
-    wouldAdd: 0,
-    wouldAddAfterProvisional: 0,
-    skipped: 0,
+    wouldImport: 0,
   };
 }
 
 function emptyUpdateEstimates(): LibraryImportUpdateEstimateCounts {
   return {
-    wouldAdd: 0,
+    newlyObserved: 0,
     alreadyPresent: 0,
     noLongerReturned: 0,
-    failedOrSkipped: 0,
   };
 }
 
@@ -2777,14 +2449,8 @@ function emptyCounts(): LibraryImportCounts {
   return {
     importedItems: 0,
     alreadyPresentItems: 0,
-    skippedItems: 0,
     failedItems: 0,
     absentItems: 0,
-    canonicalRecordsReused: 0,
-    canonicalRecordsCreated: 0,
-    canonicalRecordsUnresolved: 0,
-    collectionItemsAdded: 0,
-    collectionItemsAlreadyPresent: 0,
   };
 }
 

@@ -1700,14 +1700,8 @@ function emptyImportCounts() {
   return {
     importedItems: 0,
     alreadyPresentItems: 0,
-    skippedItems: 0,
     failedItems: 0,
     absentItems: 0,
-    canonicalRecordsReused: 0,
-    canonicalRecordsCreated: 0,
-    canonicalRecordsUnresolved: 0,
-    collectionItemsAdded: 0,
-    collectionItemsAlreadyPresent: 0,
   };
 }
 

@@ -154,11 +154,9 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
       "Stage Core should register the platform-library provider separately",
     );
     assert(readInputs[0]?.areas.includes("saved_source_tracks"), "Library Import should read the requested provider area");
-    assert(report.status === "completed_with_warnings", "unbound runtime import should complete with warnings");
-    assert(report.counts.importedItems === 0, "Runtime Library Import should not write Collection without a confirmed binding");
-    assert(report.counts.skippedItems === 1, "Runtime Library Import should report unbound source items as skipped");
-    assert(report.counts.canonicalRecordsCreated === 0, "Runtime Library Import should not create canonical identity");
-    assert(report.counts.collectionItemsAdded === 0, "Runtime Library Import should not save unbound source items");
+    assert(report.status === "completed", "unbound runtime import should complete once source state is stored");
+    assert(report.counts.importedItems === 1, "Runtime Library Import should persist the source item");
+    assert(report.counts.alreadyPresentItems === 0, "Runtime Library Import should start from an empty Source Library");
     assert(
       batches.some((batch) => batch.id === report.batchId),
       "Runtime Library Import should use the injected import repository",
@@ -168,7 +166,7 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
     assert(sourceLibraryItems.length === 1, "Runtime Library Import should write Source Library state");
     assert(
       importEvents.map((event) => event.type).join(",") ===
-        "library_import.batch.started,library_import.item.skipped,library_import.batch.completed",
+        "library_import.batch.started,library_import.item.imported,library_import.batch.completed",
       "Runtime Library Import should record factual import events",
     );
   } finally {
@@ -240,7 +238,7 @@ async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise
     const status = await assertOk(recreatedStageCore.libraryImport.getStatus({ batchId: report.batchId }));
     const summary = await assertOk(recreatedStageCore.libraryImport.getSummary({ batchId: report.batchId }));
 
-    assert(status.status === "completed_with_warnings", "recreated Stage Core should read persisted Library Import status");
+    assert(status.status === "completed", "recreated Stage Core should read persisted Library Import status");
     assert(summary.items[0]?.sourceRef.id === importedSourceRef.id, "persisted summary should keep item reports");
     assert(summary.areas[0]?.area === "saved_source_tracks", "persisted summary should keep area reports");
   } finally {
@@ -326,13 +324,8 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const previewArea = preview.areas[0];
 
     assert(preview.ownerScope === "local_profile:default", "Stage Interface should default Library Import owner scope");
-    assert(previewArea?.canonicalEstimates.alreadyBound === 2, "preview should estimate existing canonical bindings");
-    assert(previewArea?.canonicalEstimates.wouldCreateProvisional === 0, "preview should not estimate provisional canonical creation");
-    assert(previewArea?.canonicalEstimates.unresolved === 2, "preview should estimate unbound source items as unresolved");
-    assert(previewArea?.collectionEstimates.alreadyPresent === 1, "preview should estimate existing Collection item");
-    assert(previewArea?.collectionEstimates.wouldAdd === 1, "preview should estimate bound unsaved Collection item");
-    assert(previewArea?.collectionEstimates.wouldAddAfterProvisional === 0, "preview should not estimate provisional Collection additions");
-    assert(previewArea?.collectionEstimates.skipped === 2, "preview should estimate skipped unbound source items");
+    assert(previewArea?.sourceLibraryEstimates.alreadyPresent === 0, "preview should estimate Source Library presence, not canonical state");
+    assert(previewArea?.sourceLibraryEstimates.wouldImport === 4, "preview should count all unseen source items as importable");
 
     const firstImport = await assertOk(
       stageCore.stageInterface.tools["library.import.start"]({
@@ -355,14 +348,10 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
       }),
     );
     const savedItemsAfterFirstImport = await listSavedRecordingItems(stageCore);
-    assert(firstImport.status === "completed_with_warnings", "weak metadata should complete import with warnings");
-    assert(firstImport.counts.alreadyPresentItems === 1, "initial import should count pre-existing saved items");
-    assert(firstImport.counts.importedItems === 1, "initial import should add bound unsaved items only");
-    assert(firstImport.counts.skippedItems === 2, "initial import should skip unbound source items");
-    assert(firstImport.counts.canonicalRecordsReused === 2, "initial import should reuse existing canonical records");
-    assert(firstImport.counts.canonicalRecordsCreated === 0, "initial import should not create provisional records");
-    assert(firstImport.counts.collectionItemsAdded === 1, "initial import should save confirmed bound Collection items only");
-    assert(savedItemsAfterFirstImport.length === 2, "initial import should save confirmed recordings only");
+    assert(firstImport.status === "completed", "source-library import should complete when all source items persist");
+    assert(firstImport.counts.alreadyPresentItems === 0, "initial import should start from an empty Source Library");
+    assert(firstImport.counts.importedItems === 4, "initial import should import every observed source item");
+    assert(savedItemsAfterFirstImport.length === 1, "initial import should leave Collection unchanged");
     assert(firstSnapshots[0]?.sourceRefs.length === 4, "initial import should store a complete baseline snapshot");
     assert(firstProvenance.length === 4, "initial import should store provenance for every observed item");
 
@@ -375,7 +364,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const savedItemsAfterRepeatedImport = await listSavedRecordingItems(stageCore);
 
     assert(repeatedImport.counts.importedItems === 0, "repeated import should not import duplicate items");
-    assert(repeatedImport.counts.alreadyPresentItems === 2, "repeated import should see existing confirmed saved items");
+    assert(repeatedImport.counts.alreadyPresentItems === 4, "repeated import should see every existing Source Library item");
     assert(
       savedItemsAfterRepeatedImport.length === savedItemsAfterFirstImport.length,
       "repeated import should keep Collection membership idempotent",
@@ -406,9 +395,8 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     );
     const updatePreviewArea = updatePreview.areas[0];
 
-    assert(updatePreviewArea?.updateEstimates?.alreadyPresent === 1, "update preview should classify still-present bound items");
-    assert(updatePreviewArea?.updateEstimates?.wouldAdd === 1, "update preview should classify newly observed items");
-    assert(updatePreviewArea?.updateEstimates?.failedOrSkipped === 2, "update preview should classify unbound skipped items");
+    assert(updatePreviewArea?.updateEstimates?.alreadyPresent === 2, "update preview should classify still-present source items");
+    assert(updatePreviewArea?.updateEstimates?.newlyObserved === 2, "update preview should classify newly observed items");
     assert(
       updatePreviewArea?.updateEstimates?.noLongerReturned === 2,
       "update preview should classify baseline items no longer returned",
@@ -434,18 +422,13 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
       }),
     );
 
-    assert(updateReport.counts.alreadyPresentItems === 1, "update start should keep still-present bound items");
-    assert(updateReport.counts.importedItems === 1, "update start should import newly observed items");
-    assert(updateReport.counts.skippedItems === 2, "update start should skip unbound update items");
+    assert(updateReport.counts.alreadyPresentItems === 2, "update start should keep still-present source items");
+    assert(updateReport.counts.importedItems === 2, "update start should import newly observed items");
     assert(updateReport.counts.absentItems === 2, "update start should record no-longer-returned items");
     assert(absences.length === 2, "update start should store absence records for missing baseline refs");
     assert(
-      savedItemsAfterUpdate.some((item) => item.canonicalRef.id === unsavedBoundRecord.ref.id),
-      "update start should not remove Collection items no longer returned by the platform",
-    );
-    assert(
-      savedItemsAfterUpdate.length === savedItemsAfterRepeatedImport.length + 1,
-      "update start should add only the newly observed resolvable item",
+      savedItemsAfterUpdate.length === savedItemsAfterRepeatedImport.length,
+      "update start should leave Collection unchanged",
     );
     assert(
       updateEvents.some((event) => event.type === "library_import.item.not_returned"),

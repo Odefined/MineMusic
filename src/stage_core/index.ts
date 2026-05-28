@@ -257,7 +257,6 @@ export function createMineMusicStageCoreWithSourceProvider({
   const libraryImport = createLibraryImportService({
     pluginRegistry: plugins,
     materialStore,
-    collection,
     events,
     repository: libraryImportRepository,
   });

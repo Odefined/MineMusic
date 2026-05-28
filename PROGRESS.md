@@ -869,9 +869,9 @@
   composition, in-memory storage, and SQLite tables for source entities, Source
   Library items, and Confirmed Canonical Bindings.
 - Completed Phase 3 by routing Library Import/Update through Source Entity
-  Store. Library Import now upserts source entities and Source Library state,
-  writes Collection only through Confirmed Canonical Bindings, and no longer
-  creates provisional canonical records during ordinary import.
+  Store. Library Import now upserts source entities and Source Library state as
+  the primary import result, and no longer creates provisional canonical
+  records during ordinary import.
 - Completed Phase 4 by routing Material Resolve through `MaterialStorePort`.
   Material Resolve remains canonical-first, uses Confirmed Canonical Bindings
   for source refs, reads Source Library only for explicit scoped requests, and

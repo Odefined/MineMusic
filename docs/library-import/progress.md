@@ -21,10 +21,10 @@ This file tracks Library Import implementation progress.
 - For every observed provider item, Library Import upserts a Source Track,
   Source Release, or Source Artist and records Source Library state. This is the
   durable place for imported provider library facts.
-- Library Import writes Collection only when Source Entity Store already has a
-  Confirmed Canonical Binding for the item and the referenced canonical record
-  exists. Unbound provider items stay in Source Library and are reported as
-  unresolved/skipped with no Collection write.
+- Library Import does not write Collection as part of ordinary platform-library
+  import/update. Import success is defined entirely at the source layer: write
+  the Source Entity and Source Library item, then record provenance/reporting
+  against that source-layer result.
 - Ordinary Library Import no longer creates provisional canonical records,
   attaches canonical source refs, or projects imported provider facts into
   Canonical Store as the default binding path. Existing canonical maintenance
@@ -59,12 +59,11 @@ This file tracks Library Import implementation progress.
   complete current read. Mid-batch partial progress does not create absence
   baselines.
 - Deterministic coverage exercises discovery preview, explicit preview
-  estimates, Source Entity/Source Library writes, confirmed-binding Collection
-  writes, unbound import skips, started-batch failure status, summary recovery
-  after service recreation, durable Library Import database path reuse,
-  repeated import idempotency, update diffing, stable-account baseline
-  separation, partial-read absence guards, and Stage Interface / MCP tool
-  exposure. Service coverage lives in
+  estimates, Source Entity/Source Library writes, started-batch failure
+  status, summary recovery after service recreation, durable Library Import
+  database path reuse, repeated import idempotency, update diffing,
+  stable-account baseline separation, partial-read absence guards, and Stage
+  Interface / MCP tool exposure. Service coverage lives in
   `test/library_import/library-import-service.test.ts`.
 - SQLite-backed Library Import working-state storage is implemented for direct
   repository injection through `createSqliteLibraryImportRepository(...)`. The adapter
@@ -77,9 +76,7 @@ This file tracks Library Import implementation progress.
   combine that with `materialStoreDatabasePath` /
   `MINEMUSIC_MATERIAL_STORE_DB_PATH` and `collectionDatabasePath` /
   `MINEMUSIC_COLLECTION_DB_PATH` when Source Entity Store state, confirmed
-  bindings, and Collection writes must persist across runtime recreation.
-  Import batches cache saved Collection membership per target kind, avoiding a
-  full saved-item list read for every imported item.
+  bindings, and Collection state must persist across runtime recreation.
 - Library Import `start` now forwards `sampleLimitPerArea` into provider
   `readItems`, allowing bounded real imports through the same public start
   tools while leaving default imports full-sized.

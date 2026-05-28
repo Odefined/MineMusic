@@ -29,14 +29,8 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 const emptyCounts: LibraryImportBatch["counts"] = {
   importedItems: 0,
   alreadyPresentItems: 0,
-  skippedItems: 0,
   failedItems: 0,
   absentItems: 0,
-  canonicalRecordsReused: 0,
-  canonicalRecordsCreated: 0,
-  canonicalRecordsUnresolved: 0,
-  collectionItemsAdded: 0,
-  collectionItemsAlreadyPresent: 0,
 };
 
 const emptyProgress: LibraryImportReport["progress"] = {
@@ -64,7 +58,6 @@ async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> 
     counts: {
       ...emptyCounts,
       importedItems: 1,
-      collectionItemsAdded: 1,
     },
   };
   const report: LibraryImportReport = {
@@ -90,17 +83,9 @@ async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> 
         area: "saved_source_tracks",
         sourceRef: sourceRef("track-1"),
         itemKind: "saved_source_track",
-        targetKind: "recording",
+        sourceEntityKind: "track",
         label: "Track 1",
         status: "imported",
-        canonicalRef: {
-          namespace: "minemusic",
-          kind: "recording",
-          id: "canonical-track-1",
-        },
-        canonicalOutcome: "created_provisional",
-        collectionItemId: "collection-item-1",
-        collectionOutcome: "added",
       },
     ],
     progress: emptyProgress,
@@ -232,13 +217,8 @@ async function persistsProvenanceAndAbsencesAcrossRepositoryReopen(): Promise<vo
     area: "saved_source_tracks",
     sourceRef: sourceRef("track-1"),
     itemKind: "saved_source_track",
-    targetKind: "recording",
+    sourceEntityKind: "track",
     label: "First Label",
-    canonicalRef: {
-      namespace: "minemusic",
-      kind: "recording",
-      id: "canonical-track-1",
-    },
     firstImportedBatchId: "batch-1",
     lastSeenBatchId: "batch-1",
     lastSeenAt: "2026-05-25T00:00:00.000Z",
@@ -259,11 +239,6 @@ async function persistsProvenanceAndAbsencesAcrossRepositoryReopen(): Promise<vo
     scope: "saved_source_tracks",
     area: "saved_source_tracks",
     sourceRef: sourceRef("missing-track"),
-    canonicalRef: {
-      namespace: "minemusic",
-      kind: "recording",
-      id: "canonical-missing-track",
-    },
     label: "Missing Track",
     baselineBatchId: "batch-baseline",
     currentBatchId: "batch-current",

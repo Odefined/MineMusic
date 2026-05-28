@@ -197,21 +197,20 @@ host-facing and LLM-facing surface.
   re-exports it so existing imports and external tool names stay stable.
   Library Import reads `platform_library` providers, writes import/update
   working state through `LibraryImportRepository`, upserts Source Track/Release/
-  Artist entities, updates Source Library state for every observed provider
-  item, and writes Collection only when a Confirmed Canonical Binding already
-  connects the source entity to a canonical record. SourceRelease entities now
-  preserve a structured provider tracklist when the provider can supply one.
-  Unbound provider items are kept as Source Library state and reported as
-  unresolved/skipped; ordinary import no longer creates provisional canonical
-  records or attaches `canonical_source_refs`.
+  Artist entities, and updates Source Library state for every observed provider
+  item. Import success is a source-layer fact: if the Source Entity and Source
+  Library write succeeds, the item is imported, regardless of canonical
+  binding or Collection state. SourceRelease entities now preserve a
+  structured provider tracklist when the provider can supply one. Ordinary
+  import no longer creates provisional canonical records, attaches
+  `canonical_source_refs`, or writes Collection.
 - Library Import public tools remain `library.import.preview`,
   `library.import.start`, `library.import.continue`,
   `library.update.preview`, `library.update.start`,
   `library.update.continue`, `library.import.status`, and
   `library.import.summary`, exposed under the `minemusic.library`
-  instrument. Preview estimates confirmed bindings, Source Library
-  observations, unresolved items, and saved Collection outcomes without
-  writing canonical identity. When `pageSize` is provided and the provider
+  instrument. Preview estimates Source Library observations without writing
+  canonical identity or Collection state. When `pageSize` is provided and the provider
   supports paged reads, import/update batches run as MineMusic-owned
   continuation batches keyed by `batchId`; provider cursors stay inside
   Library Import working state. Library Update compares complete provider
@@ -224,10 +223,9 @@ host-facing and LLM-facing surface.
   `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`; Source Entity Store state persists
   through `materialStoreDatabasePath` /
   `MINEMUSIC_MATERIAL_STORE_DB_PATH`. Deterministic integration coverage now
-  exercises Source Entity/Source Library writes, confirmed-binding Collection
-  writes, unbound import skips, repeated import idempotency, paged
-  import/update continuation, partial-read absence guards, durable Library
-  Import path reuse, and Stage Interface / MCP tool exposure.
+  exercises Source Entity/Source Library writes, repeated import idempotency,
+  paged import/update continuation, partial-read absence guards, durable
+  Library Import path reuse, and Stage Interface / MCP tool exposure.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared
@@ -523,5 +521,4 @@ host-facing and LLM-facing surface.
   identity.
 - The 2026-05-25 live Library Import run predates the Source Entity Store
   rewrite and is historical evidence only. Current import semantics keep
-  unbound provider assets in Source Library and write Collection only through
-  Confirmed Canonical Bindings.
+  provider assets in Source Library and leave Collection unchanged.
