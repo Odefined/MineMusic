@@ -511,6 +511,82 @@ export type CanonicalReviewState = {
   updatedAt: string;
 };
 
+export type SourceEntityKind =
+  | "track"
+  | "release"
+  | "artist";
+
+export type SourceEntityBase = {
+  sourceRef: Ref;
+  providerId: string;
+  label: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SourceTrack = SourceEntityBase & {
+  kind: "track";
+  title?: string;
+  artistLabels?: string[];
+  artistSourceRefs?: Ref[];
+  releaseLabel?: string;
+  releaseSourceRef?: Ref;
+  durationMs?: number;
+  trackPosition?: SourceReleaseTrackPosition;
+  providerUrl?: string;
+  providerFacts?: Record<string, unknown>;
+};
+
+export type SourceRelease = SourceEntityBase & {
+  kind: "release";
+  title?: string;
+  artistLabels?: string[];
+  artistSourceRefs?: Ref[];
+  releaseDate?: string;
+  providerUrl?: string;
+  providerFacts?: Record<string, unknown>;
+};
+
+export type SourceArtist = SourceEntityBase & {
+  kind: "artist";
+  name?: string;
+  aliases?: string[];
+  providerUrl?: string;
+  providerFacts?: Record<string, unknown>;
+};
+
+export type SourceEntity =
+  | SourceTrack
+  | SourceRelease
+  | SourceArtist;
+
+export type SourceLibraryItemStatus =
+  | "present"
+  | "absent";
+
+export type SourceLibraryItem = {
+  id: string;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  sourceRef: Ref;
+  sourceKind: SourceEntityKind;
+  libraryKind: PlatformLibraryItemKind;
+  label: string;
+  addedAt?: string;
+  firstImportedBatchId?: string;
+  lastSeenBatchId?: string;
+  lastSeenAt: string;
+  status: SourceLibraryItemStatus;
+};
+
+export type ConfirmedCanonicalBinding = {
+  sourceRef: Ref;
+  canonicalRef: Ref;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CollectionKind =
   | "recording"
   | "work"

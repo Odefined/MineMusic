@@ -9,3 +9,5 @@ export { createSqliteLibraryImportRepository } from "./library-import-repository
 export type { SqliteLibraryImportRepositoryOptions } from "./library-import-repository.js";
 export { createSqliteProviderHttpCacheRepository } from "./provider-http-cache-repository.js";
 export type { SqliteProviderHttpCacheRepositoryOptions } from "./provider-http-cache-repository.js";
+export { createSqliteSourceEntityStoreRepository } from "./source-entity-repository.js";
+export type { SqliteSourceEntityStoreRepositoryOptions } from "./source-entity-repository.js";

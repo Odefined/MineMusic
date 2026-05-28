@@ -7,7 +7,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
-import { createCanonicalMaintenance, createCanonicalStore } from "../material_store/index.js";
+import { createCanonicalMaintenance, createCanonicalStore, createMaterialStore } from "../material_store/index.js";
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
@@ -27,6 +27,7 @@ import type {
   EventPort,
   LibraryImportPort,
   LibraryImportRepository,
+  MaterialStorePort,
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
@@ -34,6 +35,7 @@ import type {
   PluginRegistryPort,
   ProviderHttpCacheRepository,
   SessionContextPort,
+  SourceEntityStoreRepository,
   SourceGroundingPort,
   ToolDispatchPort,
 } from "../ports/index.js";
@@ -53,10 +55,12 @@ import {
   createInMemoryLibraryImportRepository,
   createInMemoryMemoryRepository,
   createInMemoryProviderHttpCacheRepository,
+  createInMemorySourceEntityStoreRepository,
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
   createSqliteProviderHttpCacheRepository,
+  createSqliteSourceEntityStoreRepository,
 } from "../storage/index.js";
 
 export type MineMusicStageCore = {
@@ -65,6 +69,7 @@ export type MineMusicStageCore = {
   dispatch: ToolDispatchPort;
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
+  materialStore: MaterialStorePort;
   canonical: CanonicalStorePort;
   canonicalMaintenance: CanonicalMaintenancePort;
   collection: CollectionPort;
@@ -90,6 +95,7 @@ export type MineMusicStageCoreOptions = {
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
   collectionDatabasePath?: string;
@@ -109,6 +115,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
   collectionDatabasePath?: string;
@@ -128,6 +135,7 @@ export function createMineMusicStageCore({
   sourceMaterials,
   canonicalRecords = [],
   canonicalRepository,
+  sourceEntityStoreRepository,
   materialStoreDatabasePath,
   collectionRepository,
   collectionDatabasePath,
@@ -146,6 +154,7 @@ export function createMineMusicStageCore({
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
     ...(canonicalRepository === undefined ? {} : { canonicalRepository }),
+    ...(sourceEntityStoreRepository === undefined ? {} : { sourceEntityStoreRepository }),
     ...(materialStoreDatabasePath === undefined ? {} : { materialStoreDatabasePath }),
     ...(collectionRepository === undefined ? {} : { collectionRepository }),
     ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
@@ -166,6 +175,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   sourceProvider,
   canonicalRecords = [],
   canonicalRepository: injectedCanonicalRepository,
+  sourceEntityStoreRepository: injectedSourceEntityStoreRepository,
   materialStoreDatabasePath,
   collectionRepository: injectedCollectionRepository,
   collectionDatabasePath,
@@ -184,6 +194,11 @@ export function createMineMusicStageCoreWithSourceProvider({
     (materialStoreDatabasePath === undefined
       ? createInMemoryCanonicalRecordRepository()
       : createSqliteCanonicalRecordRepository({ path: materialStoreDatabasePath }));
+  const sourceEntityStoreRepository =
+    injectedSourceEntityStoreRepository ??
+    (materialStoreDatabasePath === undefined
+      ? createInMemorySourceEntityStoreRepository()
+      : createSqliteSourceEntityStoreRepository({ path: materialStoreDatabasePath }));
   const collectionRepository =
     injectedCollectionRepository ??
     (collectionDatabasePath === undefined
@@ -213,6 +228,10 @@ export function createMineMusicStageCoreWithSourceProvider({
 
   const plugins = createPluginRegistry();
   const canonical = createCanonicalStore({ repository: canonicalRepository });
+  const materialStore = createMaterialStore({
+    canonicalStore: canonical,
+    sourceEntityStore: sourceEntityStoreRepository,
+  });
   const events = createEventService({ repository: eventRepository });
   const collection = createCollectionService({
     repository: collectionRepository,
@@ -297,6 +316,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     dispatch,
     sessionContext,
     materialGate,
+    materialStore,
     canonical,
     canonicalMaintenance,
     collection,

@@ -9,6 +9,7 @@ import type {
   CanonicalRelation,
   CanonicalReviewState,
   CanonicalReviewStateOutcome,
+  ConfirmedCanonicalBinding,
   ProvisionalReviewAnchor,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
@@ -87,8 +88,15 @@ import type {
   ProviderHttpCacheEntry,
   Ref,
   Result,
+  SourceArtist,
+  SourceEntity,
+  SourceEntityKind,
+  SourceLibraryItem,
+  SourceLibraryItemStatus,
   SourceProvider,
+  SourceRelease,
   SourceReleaseTrackPosition,
+  SourceTrack,
   StageError,
   StageErrorCode,
   StageEvent,
@@ -117,6 +125,7 @@ import type {
   InstrumentCatalogPort,
   LibraryImportPort,
   LibraryImportRepository,
+  MaterialStorePort,
   MaterialResolvePort,
   MaterialGatePort,
   MemoryPort,
@@ -127,6 +136,11 @@ import type {
   Repository,
   SessionRepository,
   SessionContextPort,
+  SourceEntityStoreRepository,
+  SourceEntityStoreListEntitiesInput,
+  SourceLibraryItemKeyInput,
+  SourceLibraryItemListInput,
+  ConfirmedCanonicalBindingListInput,
   SourceGroundingPort,
   SystemCollectionRelationKind,
   ToolDispatchPort,
@@ -958,6 +972,98 @@ type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CanonicalStorePort, "listRelations"> &
     MethodAcceptsSingleObject<CanonicalStorePort, "recordProvisionalHints"> &
     MethodAcceptsSingleObject<CanonicalStorePort, "listProvisionalHints">
+>;
+
+type _sourceEntityKinds = Expect<Equal<SourceEntityKind, "track" | "release" | "artist">>;
+
+type _sourceEntityUnion = Expect<
+  Equal<SourceEntity, SourceTrack | SourceRelease | SourceArtist>
+>;
+
+type _sourceLibraryItemStatus = Expect<Equal<SourceLibraryItemStatus, "present" | "absent">>;
+
+type _confirmedCanonicalBindingKeys = Expect<
+  Equal<keyof ConfirmedCanonicalBinding, "sourceRef" | "canonicalRef" | "createdAt" | "updatedAt">
+>;
+
+type _sourceLibraryItemKeyInputKeys = Expect<
+  Equal<
+    keyof SourceLibraryItemKeyInput,
+    "ownerScope" | "providerId" | "providerAccountId" | "libraryKind" | "sourceRef"
+  >
+>;
+
+type _sourceEntityStoreListEntitiesInputKeys = Expect<
+  Equal<keyof SourceEntityStoreListEntitiesInput, "providerId" | "kind" | "sourceRef">
+>;
+
+type _sourceLibraryItemListInputKeys = Expect<
+  Equal<
+    keyof SourceLibraryItemListInput,
+    "ownerScope" | "providerId" | "providerAccountId" | "sourceKind" | "libraryKind" | "status" | "sourceRef"
+  >
+>;
+
+type _confirmedCanonicalBindingListInputKeys = Expect<
+  Equal<keyof ConfirmedCanonicalBindingListInput, "sourceRef" | "canonicalRef">
+>;
+
+type _materialStorePortMethods = Expect<
+  Equal<
+    keyof MaterialStorePort,
+    | "getCanonical"
+    | "findCanonicalByLabel"
+    | "getSourceEntity"
+    | "upsertSourceEntity"
+    | "listSourceEntities"
+    | "getSourceLibraryItem"
+    | "putSourceLibraryItem"
+    | "listSourceLibraryItems"
+    | "getConfirmedCanonicalBinding"
+    | "putConfirmedCanonicalBinding"
+    | "listConfirmedCanonicalBindings"
+  >
+>;
+
+type _materialStorePortMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<MaterialStorePort, "getCanonical"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "findCanonicalByLabel"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getSourceEntity"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "upsertSourceEntity"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "listSourceEntities"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getSourceLibraryItem"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "putSourceLibraryItem"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "listSourceLibraryItems"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getConfirmedCanonicalBinding"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "putConfirmedCanonicalBinding"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "listConfirmedCanonicalBindings">
+>;
+
+type _sourceEntityStoreRepositoryMethods = Expect<
+  Equal<
+    keyof SourceEntityStoreRepository,
+    | "getSourceEntity"
+    | "putSourceEntity"
+    | "listSourceEntities"
+    | "getSourceLibraryItem"
+    | "putSourceLibraryItem"
+    | "listSourceLibraryItems"
+    | "getConfirmedCanonicalBinding"
+    | "putConfirmedCanonicalBinding"
+    | "listConfirmedCanonicalBindings"
+  >
+>;
+
+type _sourceEntityStoreRepositoryMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<SourceEntityStoreRepository, "getSourceEntity"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "putSourceEntity"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "listSourceEntities"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "getSourceLibraryItem"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "putSourceLibraryItem"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "listSourceLibraryItems"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "getConfirmedCanonicalBinding"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "putConfirmedCanonicalBinding"> &
+    MethodAcceptsSingleObject<SourceEntityStoreRepository, "listConfirmedCanonicalBindings">
 >;
 
 type _canonicalMaintenancePortMethods = Expect<

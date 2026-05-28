@@ -6,6 +6,7 @@ const testModules = [
   "./storage/sqlite-collection-repository.test.js",
   "./storage/sqlite-library-import-repository.test.js",
   "./storage/sqlite-provider-http-cache-repository.test.js",
+  "./storage/sqlite-source-entity-store.test.js",
   "./plugins/plugin-registry.test.js",
   "./canonical/canonical-store.test.js",
   "./canonical/canonical-review-qualification.test.js",

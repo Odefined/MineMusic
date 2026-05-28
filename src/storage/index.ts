@@ -16,9 +16,12 @@ import type {
   ProviderHttpCacheEntry,
   Ref,
   Result,
+  SourceEntity,
+  SourceLibraryItem,
   StageError,
   StageEvent,
   StageSession,
+  ConfirmedCanonicalBinding,
 } from "../contracts/index.js";
 import type {
   CanonicalRecordRepository,
@@ -30,6 +33,7 @@ import type {
   ProviderHttpCacheRepository,
   Repository,
   SessionRepository,
+  SourceEntityStoreRepository,
 } from "../ports/index.js";
 
 export {
@@ -37,6 +41,7 @@ export {
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
   createSqliteProviderHttpCacheRepository,
+  createSqliteSourceEntityStoreRepository,
   sqliteCanonicalSourceRefConflictConstraint,
 } from "./sqlite/index.js";
 export type {
@@ -44,6 +49,7 @@ export type {
   SqliteCollectionRepositoryOptions,
   SqliteLibraryImportRepositoryOptions,
   SqliteProviderHttpCacheRepositoryOptions,
+  SqliteSourceEntityStoreRepositoryOptions,
 } from "./sqlite/index.js";
 
 type RepositoryOptions<TRecord, TKey> = {
@@ -224,6 +230,74 @@ export function createInMemoryCanonicalRecordRepository(): CanonicalRecordReposi
       reviewStates.delete(refToStorageKey(subjectRef));
 
       return ok(undefined);
+    },
+  };
+}
+
+export function createInMemorySourceEntityStoreRepository(): SourceEntityStoreRepository {
+  const entities = new Map<string, SourceEntity>();
+  const libraryItems = new Map<string, SourceLibraryItem>();
+  const bindings = new Map<string, ConfirmedCanonicalBinding>();
+
+  return {
+    async getSourceEntity({ sourceRef }) {
+      const entity = entities.get(refToStorageKey(sourceRef));
+
+      return ok(entity === undefined ? null : cloneRecord(entity));
+    },
+
+    async putSourceEntity({ entity }) {
+      entities.set(refToStorageKey(entity.sourceRef), cloneRecord(entity));
+
+      return ok(cloneRecord(entity));
+    },
+
+    async listSourceEntities(query) {
+      return ok(
+        [...entities.values()]
+          .filter((entity) => matchesSourceEntityQuery(entity, query))
+          .map((entity) => cloneRecord(entity)),
+      );
+    },
+
+    async getSourceLibraryItem(input) {
+      const item = libraryItems.get(sourceLibraryItemKey(input));
+
+      return ok(item === undefined ? null : cloneRecord(item));
+    },
+
+    async putSourceLibraryItem({ item }) {
+      libraryItems.set(sourceLibraryItemKey(item), cloneRecord(item));
+
+      return ok(cloneRecord(item));
+    },
+
+    async listSourceLibraryItems(query) {
+      return ok(
+        [...libraryItems.values()]
+          .filter((item) => matchesSourceLibraryItemQuery(item, query))
+          .map((item) => cloneRecord(item)),
+      );
+    },
+
+    async getConfirmedCanonicalBinding({ sourceRef }) {
+      const binding = bindings.get(refToStorageKey(sourceRef));
+
+      return ok(binding === undefined ? null : cloneRecord(binding));
+    },
+
+    async putConfirmedCanonicalBinding({ binding }) {
+      bindings.set(refToStorageKey(binding.sourceRef), cloneRecord(binding));
+
+      return ok(cloneRecord(binding));
+    },
+
+    async listConfirmedCanonicalBindings(query) {
+      return ok(
+        [...bindings.values()]
+          .filter((binding) => matchesConfirmedCanonicalBindingQuery(binding, query))
+          .map((binding) => cloneRecord(binding)),
+      );
     },
   };
 }
@@ -568,6 +642,61 @@ function matchesCanonicalReviewStateQuery(
     (query.subjectRef === undefined ||
       refToStorageKey(state.subjectRef) === refToStorageKey(query.subjectRef)) &&
     (query.outcome === undefined || state.outcome === query.outcome)
+  );
+}
+
+function matchesSourceEntityQuery(
+  entity: SourceEntity,
+  query: Parameters<SourceEntityStoreRepository["listSourceEntities"]>[0],
+): boolean {
+  return (
+    (query.providerId === undefined || entity.providerId === query.providerId) &&
+    (query.kind === undefined || entity.kind === query.kind) &&
+    (query.sourceRef === undefined ||
+      refToStorageKey(entity.sourceRef) === refToStorageKey(query.sourceRef))
+  );
+}
+
+function sourceLibraryItemKey(
+  item: Pick<
+    SourceLibraryItem,
+    "ownerScope" | "providerId" | "providerAccountId" | "libraryKind" | "sourceRef"
+  >,
+): string {
+  return [
+    item.ownerScope,
+    item.providerId,
+    item.providerAccountId,
+    item.libraryKind,
+    refToStorageKey(item.sourceRef),
+  ].join(":");
+}
+
+function matchesSourceLibraryItemQuery(
+  item: SourceLibraryItem,
+  query: Parameters<SourceEntityStoreRepository["listSourceLibraryItems"]>[0],
+): boolean {
+  return (
+    (query.ownerScope === undefined || item.ownerScope === query.ownerScope) &&
+    (query.providerId === undefined || item.providerId === query.providerId) &&
+    (query.providerAccountId === undefined || item.providerAccountId === query.providerAccountId) &&
+    (query.sourceKind === undefined || item.sourceKind === query.sourceKind) &&
+    (query.libraryKind === undefined || item.libraryKind === query.libraryKind) &&
+    (query.status === undefined || item.status === query.status) &&
+    (query.sourceRef === undefined ||
+      refToStorageKey(item.sourceRef) === refToStorageKey(query.sourceRef))
+  );
+}
+
+function matchesConfirmedCanonicalBindingQuery(
+  binding: ConfirmedCanonicalBinding,
+  query: Parameters<SourceEntityStoreRepository["listConfirmedCanonicalBindings"]>[0],
+): boolean {
+  return (
+    (query.sourceRef === undefined ||
+      refToStorageKey(binding.sourceRef) === refToStorageKey(query.sourceRef)) &&
+    (query.canonicalRef === undefined ||
+      refToStorageKey(binding.canonicalRef) === refToStorageKey(query.canonicalRef))
   );
 }
 

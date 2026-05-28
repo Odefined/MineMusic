@@ -11,6 +11,7 @@ import type {
   CanonicalRelationStatus,
   CanonicalReviewState,
   CanonicalReviewStateOutcome,
+  ConfirmedCanonicalBinding,
   ProvisionalReviewApplyInput,
   ProvisionalReviewApplyOutput,
   ProvisionalReviewAutoUpdateInput,
@@ -50,11 +51,16 @@ import type {
   MemoryProposal,
   MusicMaterial,
   PlatformLibraryAbsence,
+  PlatformLibraryItemKind,
   ProviderHttpCacheEntry,
   PlatformLibraryArea,
   Ref,
   Result,
   StageContext,
+  SourceEntity,
+  SourceEntityKind,
+  SourceLibraryItem,
+  SourceLibraryItemStatus,
   SourceQuery,
   StageEvent,
   StageSession,
@@ -174,6 +180,35 @@ export type ProviderHttpCacheDeleteUnusedInput = {
   lastUsedBefore: string;
 };
 
+export type SourceEntityStoreListEntitiesInput = {
+  providerId?: string;
+  kind?: SourceEntityKind;
+  sourceRef?: Ref;
+};
+
+export type SourceLibraryItemKeyInput = {
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  libraryKind: PlatformLibraryItemKind;
+  sourceRef: Ref;
+};
+
+export type SourceLibraryItemListInput = {
+  ownerScope?: string;
+  providerId?: string;
+  providerAccountId?: string;
+  sourceKind?: SourceEntityKind;
+  libraryKind?: PlatformLibraryItemKind;
+  status?: SourceLibraryItemStatus;
+  sourceRef?: Ref;
+};
+
+export type ConfirmedCanonicalBindingListInput = {
+  sourceRef?: Ref;
+  canonicalRef?: Ref;
+};
+
 export type CanonicalRecordRepositoryFindBySourceRefInput = {
   ref: Ref;
   currentOnly?: boolean;
@@ -226,6 +261,47 @@ export interface ToolDispatchPort {
     toolName: ToolName;
     payload: unknown;
   }): Promise<Result<unknown>>;
+}
+
+export interface MaterialStorePort {
+  getCanonical(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;
+
+  findCanonicalByLabel(input: {
+    label: string;
+    kind?: CanonicalKind;
+  }): Promise<Result<CanonicalRecord[]>>;
+
+  getSourceEntity(input: { sourceRef: Ref }): Promise<Result<SourceEntity | null>>;
+
+  upsertSourceEntity(input: { entity: SourceEntity }): Promise<Result<SourceEntity>>;
+
+  listSourceEntities(
+    input: SourceEntityStoreListEntitiesInput,
+  ): Promise<Result<SourceEntity[]>>;
+
+  getSourceLibraryItem(
+    input: SourceLibraryItemKeyInput,
+  ): Promise<Result<SourceLibraryItem | null>>;
+
+  putSourceLibraryItem(input: {
+    item: SourceLibraryItem;
+  }): Promise<Result<SourceLibraryItem>>;
+
+  listSourceLibraryItems(
+    input: SourceLibraryItemListInput,
+  ): Promise<Result<SourceLibraryItem[]>>;
+
+  getConfirmedCanonicalBinding(input: {
+    sourceRef: Ref;
+  }): Promise<Result<ConfirmedCanonicalBinding | null>>;
+
+  putConfirmedCanonicalBinding(input: {
+    binding: ConfirmedCanonicalBinding;
+  }): Promise<Result<ConfirmedCanonicalBinding>>;
+
+  listConfirmedCanonicalBindings(
+    input: ConfirmedCanonicalBindingListInput,
+  ): Promise<Result<ConfirmedCanonicalBinding[]>>;
 }
 
 export interface CanonicalStorePort {
@@ -565,6 +641,41 @@ export interface CanonicalRecordRepository extends Repository<CanonicalRecord, R
 
   deleteReviewState(input: { subjectRef: Ref }): Promise<Result<void>>;
 }
+
+export interface SourceEntityStoreRepository {
+  getSourceEntity(input: { sourceRef: Ref }): Promise<Result<SourceEntity | null>>;
+
+  putSourceEntity(input: { entity: SourceEntity }): Promise<Result<SourceEntity>>;
+
+  listSourceEntities(
+    input: SourceEntityStoreListEntitiesInput,
+  ): Promise<Result<SourceEntity[]>>;
+
+  getSourceLibraryItem(
+    input: SourceLibraryItemKeyInput,
+  ): Promise<Result<SourceLibraryItem | null>>;
+
+  putSourceLibraryItem(input: {
+    item: SourceLibraryItem;
+  }): Promise<Result<SourceLibraryItem>>;
+
+  listSourceLibraryItems(
+    input: SourceLibraryItemListInput,
+  ): Promise<Result<SourceLibraryItem[]>>;
+
+  getConfirmedCanonicalBinding(input: {
+    sourceRef: Ref;
+  }): Promise<Result<ConfirmedCanonicalBinding | null>>;
+
+  putConfirmedCanonicalBinding(input: {
+    binding: ConfirmedCanonicalBinding;
+  }): Promise<Result<ConfirmedCanonicalBinding>>;
+
+  listConfirmedCanonicalBindings(
+    input: ConfirmedCanonicalBindingListInput,
+  ): Promise<Result<ConfirmedCanonicalBinding[]>>;
+}
+
 export type EventRepository = Repository<StageEvent, string>;
 export type MemoryRepository = Repository<MemoryEntry, string>;
 export type SessionRepository = Repository<StageSession, string>;

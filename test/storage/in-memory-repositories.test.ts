@@ -4,9 +4,12 @@ import type {
   CanonicalRelation,
   Collection,
   CollectionItem,
+  ConfirmedCanonicalBinding,
   EffectProposal,
   MemoryEntry,
   Ref,
+  SourceLibraryItem,
+  SourceTrack,
   StageEvent,
   StageSession,
 } from "../../src/contracts/index.js";
@@ -17,6 +20,7 @@ import {
   createInMemoryEventRepository,
   createInMemoryMemoryRepository,
   createInMemorySessionRepository,
+  createInMemorySourceEntityStoreRepository,
   refToStorageKey,
 } from "../../src/storage/index.js";
 
@@ -229,6 +233,90 @@ async function canonicalRepositoryStoresReviewState(): Promise<void> {
   const cleared = await assertOk(repository.listReviewStates({ subjectRef }));
 
   assert(cleared.length === 0, "review state should be deletable by subject");
+}
+
+async function sourceEntityStoreRepositoryStoresEntitiesLibraryAndBindings(): Promise<void> {
+  const repository = createInMemorySourceEntityStoreRepository();
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "track-1",
+  };
+  const track: SourceTrack = {
+    kind: "track",
+    sourceRef,
+    providerId: "fixture-library",
+    label: "Fixture Track",
+    title: "Fixture Track",
+    artistLabels: ["Fixture Artist"],
+    createdAt: "2026-05-28T00:00:00.000Z",
+    updatedAt: "2026-05-28T00:00:00.000Z",
+  };
+  const sourceLibraryItem: SourceLibraryItem = {
+    id: "source-library-item-1",
+    ownerScope: "local_profile:default",
+    providerId: "fixture-library",
+    providerAccountId: "fixture-account",
+    sourceRef,
+    sourceKind: "track",
+    libraryKind: "saved_recording",
+    label: "Fixture Track",
+    addedAt: "2026-05-28T00:01:00.000Z",
+    lastSeenAt: "2026-05-28T00:02:00.000Z",
+    status: "present",
+  };
+  const binding: ConfirmedCanonicalBinding = {
+    sourceRef,
+    canonicalRef: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "canonical-track-1",
+    },
+    createdAt: "2026-05-28T00:03:00.000Z",
+    updatedAt: "2026-05-28T00:03:00.000Z",
+  };
+
+  await assertOk(repository.putSourceEntity({ entity: track }));
+  await assertOk(repository.putSourceLibraryItem({ item: sourceLibraryItem }));
+  await assertOk(repository.putConfirmedCanonicalBinding({ binding }));
+  track.label = "Mutated after put";
+  sourceLibraryItem.label = "Mutated after put";
+
+  const storedTrack = await assertOk(repository.getSourceEntity({ sourceRef }));
+  const storedItem = await assertOk(
+    repository.getSourceLibraryItem({
+      ownerScope: "local_profile:default",
+      providerId: "fixture-library",
+      providerAccountId: "fixture-account",
+      libraryKind: "saved_recording",
+      sourceRef,
+    }),
+  );
+  const storedBinding = await assertOk(repository.getConfirmedCanonicalBinding({ sourceRef }));
+  const listedTracks = await assertOk(
+    repository.listSourceEntities({
+      providerId: "fixture-library",
+      kind: "track",
+    }),
+  );
+  const listedLibrary = await assertOk(
+    repository.listSourceLibraryItems({
+      ownerScope: "local_profile:default",
+      status: "present",
+    }),
+  );
+  const listedBindings = await assertOk(
+    repository.listConfirmedCanonicalBindings({
+      canonicalRef: binding.canonicalRef,
+    }),
+  );
+
+  assert(storedTrack?.label === "Fixture Track", "source entity store should return entity copies");
+  assert(storedItem?.label === "Fixture Track", "source library item should be keyed by owner/provider/source ref");
+  assert(storedBinding?.canonicalRef.id === "canonical-track-1", "confirmed binding should be keyed by source ref");
+  assert(listedTracks.length === 1, "source entities should be filterable by provider and kind");
+  assert(listedLibrary.length === 1, "source library should be filterable by owner and status");
+  assert(listedBindings.length === 1, "confirmed bindings should be filterable by canonical ref");
 }
 
 async function collectionRepositoryStoresCollectionsByIdAndReturnsCopies(): Promise<void> {
@@ -507,6 +595,7 @@ await storesEachRepositoryType();
 await repositoriesAreInstanceIsolatedAndReturnCopies();
 await canonicalRepositoryCommitsProviderIdentityChangesets();
 await canonicalRepositoryStoresReviewState();
+await sourceEntityStoreRepositoryStoresEntitiesLibraryAndBindings();
 await collectionRepositoryStoresCollectionsByIdAndReturnsCopies();
 await collectionRepositoryQueriesCollectionsAndActiveLabels();
 await collectionRepositoryRejectsDuplicateActiveLabelsWithinOwnerScope();
