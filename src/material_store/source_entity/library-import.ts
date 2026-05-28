@@ -694,6 +694,43 @@ async function previewAbsencesForArea({
   return ok(absences);
 }
 
+async function previewAbsencesForSourceRefs({
+  repository,
+  ownerScope,
+  providerId,
+  providerAccountId,
+  providerAccountStable,
+  scope,
+  area,
+  currentSourceRefs,
+  currentBatchId,
+}: {
+  repository: LibraryImportRepository;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string | undefined;
+  providerAccountStable: boolean | undefined;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  currentSourceRefs: Ref[];
+  currentBatchId: string | undefined;
+}): Promise<Result<PlatformLibraryAbsenceSummary[]>> {
+  return previewAbsencesForArea({
+    repository,
+    ownerScope,
+    providerId,
+    providerAccountId,
+    providerAccountStable,
+    scope,
+    area,
+    currentItems: currentSourceRefs
+      .map((sourceRef) => ({
+        sourceRef,
+      }) as PlatformLibraryItem),
+    currentBatchId,
+  });
+}
+
 function emptyPreviewAreaEstimates(): PreviewAreaEstimates {
   return {
     canonicalEstimates: emptyCanonicalEstimates(),
@@ -738,7 +775,6 @@ async function startLibraryImport({
 
   if (
     shouldUsePagedImport({
-      batchKind,
       input,
       provider: provider.value,
       repository,
@@ -2036,11 +2072,7 @@ async function continueLibraryImport({
     return batchNotFound(input.batchId);
   }
 
-  if (
-    batch.value.batchKind === "initial_import" &&
-    batch.value.status === "running" &&
-    repository.listContinuationStates !== undefined
-  ) {
+  if (batch.value.status === "running" && repository.listContinuationStates !== undefined) {
     const provider = await resolvePlatformLibraryProvider(pluginRegistry, batch.value.providerId);
 
     if (!provider.ok) {
@@ -2072,18 +2104,15 @@ async function continueLibraryImport({
 }
 
 function shouldUsePagedImport({
-  batchKind,
   input,
   provider,
   repository,
 }: {
-  batchKind: LibraryImportBatchKind;
   input: LibraryImportStartInput;
   provider: PlatformLibraryProvider;
   repository: LibraryImportRepository;
 }): boolean {
   return (
-    batchKind === "initial_import" &&
     input.pageSize !== undefined &&
     isPagedPlatformLibraryProvider(provider) &&
     repository.getContinuationState !== undefined &&
@@ -2434,6 +2463,7 @@ async function processPagedImportSegment({
       ? updatedState
       : state,
   );
+  const segmentAbsences: PlatformLibraryAbsenceSummary[] = [];
 
   if (!areaHasMore && page.value.status === "complete") {
     const storedSnapshot = await repository.putAreaSnapshot({
@@ -2455,6 +2485,45 @@ async function processPagedImportSegment({
 
     if (!storedSnapshot.ok) {
       return storedSnapshot;
+    }
+
+    if (batch.batchKind === "library_update") {
+      const areaAbsences = await previewAbsencesForSourceRefs({
+        repository,
+        ownerScope: batch.ownerScope,
+        providerId: page.value.providerId,
+        providerAccountId,
+        providerAccountStable,
+        scope: nextState.scope,
+        area: nextState.area,
+        currentSourceRefs: mergedSourceRefs,
+        currentBatchId: batch.id,
+      });
+
+      if (!areaAbsences.ok) {
+        return areaAbsences;
+      }
+
+      for (const absence of areaAbsences.value) {
+        const storedAbsence = await storePlatformLibraryAbsence({
+          repository,
+          events,
+          batchId: batch.id,
+          batchKind: batch.batchKind,
+          ownerScope: batch.ownerScope,
+          providerId: page.value.providerId,
+          providerAccountId,
+          absence,
+          recordedAt: seenAt,
+        });
+
+        if (!storedAbsence.ok) {
+          return storedAbsence;
+        }
+
+        segmentAbsences.push(absence);
+        counts.absentItems += 1;
+      }
     }
   }
 
@@ -2503,6 +2572,10 @@ async function processPagedImportSegment({
 
   report.areas = upsertReportArea(report.areas, nextReportArea);
   report.progress = progressFromContinuationStates(updatedStates, storedBatch.value.status);
+
+  if (segmentAbsences.length > 0) {
+    report.absences = (report.absences ?? []).concat(segmentAbsences);
+  }
 
   if (page.value.account !== undefined) {
     report.account = page.value.account;

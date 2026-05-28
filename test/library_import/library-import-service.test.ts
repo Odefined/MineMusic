@@ -1341,6 +1341,172 @@ async function doesNotUseStableAccountBaselinesForUnstableUpdateReads(): Promise
   assert(preview.areas[0]?.absences === undefined, "stable-account absences should not leak into unstable previews");
 }
 
+async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion(): Promise<void> {
+  const registry = createPluginRegistry();
+  let mode: "baseline" | "paged-update" = "baseline";
+  const readPageInputs: Array<{ pageSize: number; providerState?: unknown }> = [];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      if (mode !== "baseline") {
+        throw new Error("paged update should not fall back to readItems once readPage is available");
+      }
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_source_tracks",
+              status: "complete",
+              items: [
+                providerItem("kept-track", "Kept Track"),
+                providerItem("missing-track", "Missing Track"),
+              ],
+            },
+          ],
+        },
+      };
+    },
+    async readPage(input) {
+      readPageInputs.push({
+        pageSize: input.pageSize,
+        providerState: input.providerState,
+      });
+
+      if (readPageInputs.length === 1) {
+        return {
+          ok: true,
+          value: {
+            providerId: "fixture-library",
+            account: {
+              providerAccountId: "fixture-account",
+              stable: true,
+            },
+            area: "saved_source_tracks",
+            status: "complete",
+            count: { certainty: "exact", value: 2 },
+            items: [providerItem("kept-track", "Kept Track")],
+            providerState: { offset: 1 },
+            hasMore: true,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          area: "saved_source_tracks",
+          status: "complete",
+          count: { certainty: "exact", value: 2 },
+          items: [providerItem("new-track", "New Track")],
+          hasMore: false,
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  for (const id of ["kept-track", "missing-track", "new-track"]) {
+    const canonical: CanonicalRecord = {
+      ref: {
+        namespace: "minemusic",
+        kind: "recording",
+        id: `canonical-paged-update-${id}`,
+      },
+      kind: "recording",
+      label: id,
+      status: "active",
+    };
+
+    await assertOk(environment.canonicalRepository.put(canonical));
+    await putConfirmedBinding(environment, sourceRef(id), canonical.ref);
+  }
+
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  mode = "paged-update";
+
+  const firstUpdate = await assertOk(
+    environment.libraryImport.startUpdate({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+      pageSize: 1,
+    }),
+  );
+  const absencesAfterStart = await assertOk(
+    environment.libraryImportRepository.listAbsences({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      currentBatchId: firstUpdate.batchId,
+    }),
+  );
+  const firstSummary = await assertOk(
+    environment.libraryImport.getSummary({ batchId: firstUpdate.batchId }),
+  );
+
+  assert(firstUpdate.status === "running", "paged update should remain running while more provider pages remain");
+  assert(firstUpdate.counts.absentItems === 0, "paged update should not derive absences before area completion");
+  assert(absencesAfterStart.length === 0, "paged update should not store absences before the final page");
+  assert(firstSummary.absences === undefined, "partial update summary should not include absence summaries early");
+
+  const finalStatus = await assertOk(
+    environment.libraryImport.continueUpdate({
+      batchId: firstUpdate.batchId,
+      pageSize: 1,
+    }),
+  );
+  const finalSummary = await assertOk(
+    environment.libraryImport.getSummary({ batchId: firstUpdate.batchId }),
+  );
+  const finalAbsences = await assertOk(
+    environment.libraryImportRepository.listAbsences({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      currentBatchId: firstUpdate.batchId,
+    }),
+  );
+
+  assert(readPageInputs.length === 2, "paged update should call provider.readPage once per processed segment");
+  assert(
+    typeof readPageInputs[1]?.providerState === "object" &&
+      readPageInputs[1]?.providerState !== null &&
+      "offset" in readPageInputs[1].providerState &&
+      (readPageInputs[1].providerState as { offset: unknown }).offset === 1,
+    "continueUpdate should resume from the stored providerState",
+  );
+  assert(finalStatus.status === "completed_with_warnings", "final update status should complete with warnings when an absence is derived");
+  assert(finalStatus.counts.absentItems === 1, "final paged update should derive absences only after completion");
+  assert(finalSummary.absences?.[0]?.sourceRef.id === "missing-track", "final update summary should include derived absences");
+  assert(finalAbsences.length === 1 && finalAbsences[0]?.sourceRef.id === "missing-track", "final paged update should store absence records after completion");
+}
+
 async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections(): Promise<void> {
   const registry = createPluginRegistry();
   let providerItems = [
@@ -1679,5 +1845,6 @@ await returnsStoredSummaryAfterServiceRecreation();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
 await previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting();
 await doesNotUseStableAccountBaselinesForUnstableUpdateReads();
+await continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion();
 await startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections();
 await doesNotPreviewUpdateAbsencesForPartialCurrentReads();
