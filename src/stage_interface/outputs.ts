@@ -3,6 +3,15 @@ import type {
   KnowledgeItem,
   KnowledgeNode,
   KnowledgeRelation,
+  SourceEntity,
+  SourceLibraryEntry,
+  SourceLibraryItem,
+  SourceLibraryListItemView,
+  LibraryImportItemsListOutput,
+  LibraryImportReport,
+  LibraryImportStatus,
+  LibraryImportSummaryView,
+  SourceLibraryListOutput,
   ProvisionalReviewApplyOutput,
   ProvisionalReviewAutoUpdateItem,
   ProvisionalReviewAutoUpdateOutput,
@@ -17,6 +26,118 @@ export function reviewSubjectRef(subjectId: string): Ref {
     kind: "recording",
     id: subjectId,
   };
+}
+
+export function compactLibraryImportStart(report: LibraryImportReport): LibraryImportStatus {
+  const status: LibraryImportStatus = {
+    batchId: report.batchId,
+    batchKind: report.batchKind,
+    status: report.status,
+    providerId: report.providerId,
+    ownerScope: report.ownerScope,
+    scopes: report.scopes,
+    startedAt: report.startedAt,
+    counts: report.counts,
+    progress: report.progress,
+  };
+
+  if (report.completedAt !== undefined) {
+    status.completedAt = report.completedAt;
+  }
+
+  if (report.issues !== undefined) {
+    status.issues = report.issues;
+  }
+
+  return status;
+}
+
+export function compactLibraryImportSummary(report: LibraryImportReport): LibraryImportSummaryView {
+  const summary: LibraryImportSummaryView = {
+    batchId: report.batchId,
+    batchKind: report.batchKind,
+    status: report.status,
+    providerId: report.providerId,
+    ownerScope: report.ownerScope,
+    scopes: report.scopes,
+    startedAt: report.startedAt,
+    counts: report.counts,
+    areas: report.areas,
+    progress: report.progress,
+    itemCount: report.items.length,
+  };
+
+  if (report.account !== undefined) {
+    summary.account = report.account;
+  }
+
+  if (report.completedAt !== undefined) {
+    summary.completedAt = report.completedAt;
+  }
+
+  if (report.absences !== undefined) {
+    summary.absences = report.absences;
+  }
+
+  if (report.issues !== undefined) {
+    summary.issues = report.issues;
+  }
+
+  return summary;
+}
+
+export function compactLibraryImportItemsPage(page: LibraryImportItemsListOutput): unknown {
+  return page;
+}
+
+export function compactSourceLibraryList(
+  output: SourceLibraryListOutput | { items: SourceLibraryEntry[]; totalItems: number; nextCursor?: string },
+): unknown {
+  return {
+    items: output.items.map((entry) =>
+      compactSourceLibraryListItemView(entry as SourceLibraryEntry | SourceLibraryListItemView),
+    ),
+    totalItems: output.totalItems,
+    ...(output.nextCursor === undefined ? {} : { nextCursor: output.nextCursor }),
+  };
+}
+
+function compactSourceLibraryListItemView(entry: SourceLibraryEntry | SourceLibraryListItemView): unknown {
+  return {
+    sourceRef: "item" in entry ? entry.item.sourceRef : entry.sourceRef,
+    label: "item" in entry ? entry.item.label : entry.label,
+    ...("subtitle" in entry && entry.subtitle !== undefined
+      ? { subtitle: entry.subtitle }
+      : "sourceEntity" in entry && entry.sourceEntity !== undefined
+        ? compactSourceLibrarySubtitle(entry.item, entry.sourceEntity)
+        : {}),
+  };
+}
+
+function compactSourceLibrarySubtitle(item: SourceLibraryItem, entity: SourceEntity): { subtitle: string } | {} {
+  if (entity.kind === "track") {
+    const parts = [
+      entity.artistLabels?.join(", "),
+      entity.releaseLabel,
+    ].filter((part): part is string => typeof part === "string" && part.length > 0);
+
+    return parts.length === 0 ? {} : { subtitle: parts.join(" - ") };
+  }
+
+  if (entity.kind === "release") {
+    const parts = [
+      entity.artistLabels?.join(", "),
+      entity.releaseDate,
+    ].filter((part): part is string => typeof part === "string" && part.length > 0);
+
+    return parts.length === 0 ? {} : { subtitle: parts.join(" - ") };
+  }
+
+  if (entity.kind === "artist") {
+    return entity.name === undefined || entity.name === item.label ? {} : { subtitle: entity.name };
+  }
+
+  return {};
 }
 
 export function compactReviewList(output: ProvisionalReviewListOutput): unknown {

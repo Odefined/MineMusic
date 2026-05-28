@@ -176,6 +176,12 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "collection list schema should declare ownerScope input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.library.source.list"), "providerId") &&
+      hasSchemaKey(schemasByName.get("minemusic.library.source.list"), "limit") &&
+      hasSchemaKey(schemasByName.get("minemusic.library.source.list"), "cursor"),
+    "source library list schema should declare filtering and paging inputs",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.library.import.preview"), "providerId"),
     "library import preview schema should declare provider id input",
   );
@@ -194,6 +200,12 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.library.import.status"), "batchId"),
     "library import status schema should declare batch id input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.library.import.items.list"), "batchId") &&
+      hasSchemaKey(schemasByName.get("minemusic.library.import.items.list"), "limit") &&
+      hasSchemaKey(schemasByName.get("minemusic.library.import.items.list"), "cursor"),
+    "library import items list schema should declare batch id and paging inputs",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.canonical.review.list"), "includeCannotConfirm"),

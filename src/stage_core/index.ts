@@ -292,6 +292,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     events,
     memory,
     effects,
+    materialStore,
     collection,
     canonicalMaintenance,
     libraryImport,
