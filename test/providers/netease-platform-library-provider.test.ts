@@ -17,6 +17,34 @@ async function assertOk<T>(result: Promise<{ ok: true; value: T } | { ok: false 
   return awaited.value;
 }
 
+function userPlaylistPayload(
+  playlistId: number | string,
+  trackCount: number,
+): {
+  code: number;
+  playlist: Array<{ id: number | string; specialType: number; trackCount: number }>;
+} {
+  return {
+    code: 200,
+    playlist: [{ id: playlistId, specialType: 5, trackCount }],
+  };
+}
+
+function likedPlaylistDetailPayload(
+  entries: Array<{ id: number | string; at?: number }>,
+): {
+  code: number;
+  playlist: { trackIds: Array<{ id: number | string; at?: number }>; trackCount: number };
+} {
+  return {
+    code: 200,
+    playlist: {
+      trackIds: entries,
+      trackCount: entries.length,
+    },
+  };
+}
+
 async function createsPlatformLibraryProviderWithSharedRequesterOptions(): Promise<void> {
   const options: NetEaseProviderOptions = {
     requestJson: async ({ path }) => {
@@ -92,6 +120,10 @@ async function registersNetEaseProviderThroughPlatformLibrarySlot(): Promise<voi
   assert(
     descriptors[0]?.areas?.some((area) => area.id === "saved_source_tracks" && area.availability === "readable"),
     "NetEase provider descriptor should expose readable library areas",
+  );
+  assert(
+    descriptors[0]?.areas?.filter((area) => area.availability === "readable").every((area) => area.ordering === "newest_first"),
+    "NetEase readable library areas should declare newest-first ordering capability",
   );
   assert(stored === provider, "NetEase platform library lookup should return the registered provider");
   assert(preview.account?.providerAccountId === "24680", "registered provider should remain callable");
@@ -256,8 +288,12 @@ async function previewDefaultsToReadableAreasWithExactCounts(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
-        return { ok: true, value: { code: 200, ids: [] } };
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(5001, 0) };
+      }
+
+      if (path === "/playlist/detail") {
+        return { ok: true, value: likedPlaylistDetailPayload([]) };
       }
 
       if (path === "/album/sublist") {
@@ -305,8 +341,12 @@ async function previewDiscoveryReportsUnsupportedAreas(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
-        return { ok: true, value: { code: 200, ids: [] } };
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(6001, 0) };
+      }
+
+      if (path === "/playlist/detail") {
+        return { ok: true, value: likedPlaylistDetailPayload([]) };
       }
 
       if (path === "/album/sublist") {
@@ -354,8 +394,19 @@ async function previewReturnsBoundedLightweightSamples(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
-        return { ok: true, value: { code: 200, ids: [1, 2] } };
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(7001, 2) };
+      }
+
+      if (path === "/playlist/detail") {
+        assert(query.id === "7001", "preview should fetch liked playlist detail after resolving the liked playlist");
+        return {
+          ok: true,
+          value: likedPlaylistDetailPayload([
+            { id: 1, at: 1716768000000 },
+            { id: 2, at: 1716681600000 },
+          ]),
+        };
       }
 
       if (path === "/song/detail") {
@@ -487,7 +538,7 @@ async function previewMapsRequesterTimeoutToUnavailableIssue(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
+      if (path === "/user/playlist") {
         return {
           ok: false,
           error: {
@@ -531,9 +582,17 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
+      if (path === "/user/playlist") {
         assert(query.uid === "1010", "saved recordings should use the proven account id");
-        return { ok: true, value: { code: 200, ids: [98765] } };
+        return { ok: true, value: userPlaylistPayload(101001, 1) };
+      }
+
+      if (path === "/playlist/detail") {
+        assert(query.id === "101001", "saved recordings should resolve the liked playlist before reading track ids");
+        return {
+          ok: true,
+          value: likedPlaylistDetailPayload([{ id: 98765, at: 1716854400000 }]),
+        };
       }
 
       if (path === "/song/detail") {
@@ -590,7 +649,10 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
   const area = read.areas[0];
   const item = area?.items[0];
 
-  assert(paths.join(",") === "/login/status,/likelist,/song/detail,/album", "saved recordings should use expected endpoints");
+  assert(
+    paths.join(",") === "/login/status,/user/playlist,/playlist/detail,/song/detail,/album",
+    "saved recordings should use liked playlist endpoints instead of likelist",
+  );
   assert(area?.area === "saved_source_tracks", "read result should include saved_source_tracks area");
   assert(area.status === "complete", "successful saved recordings read should be complete");
   assert(item?.providerId === "netease", "item should identify provider");
@@ -600,6 +662,7 @@ async function readItemsMapsSavedRecordingsToGenericItems(): Promise<void> {
   assert(item.sourceRef.namespace === "source:netease", "source ref should use NetEase source namespace");
   assert(item.sourceRef.kind === "track", "source ref should identify NetEase track object");
   assert(item.sourceRef.id === "98765", "source ref should use stable NetEase track id");
+  assert(item.providerAddedAt === "2024-05-28T00:00:00.000Z", "track item should keep provider-side liked time");
   assert(item.canonicalHints?.label === "Kept Track", "canonical hints should include generic recording label");
   assert(item.canonicalHints?.artistLabels?.[0] === "Kept Artist", "canonical hints should include artist labels");
   assert(item.canonicalHints?.artistSourceRefs?.[0]?.kind === "artist", "canonical hints should include artist source refs");
@@ -635,8 +698,12 @@ async function readItemsKeepsSavedRecordingsWhenAlbumContextFails(): Promise<voi
         };
       }
 
-      if (path === "/likelist") {
-        return { ok: true, value: { code: 200, ids: [22222] } };
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(101101, 1) };
+      }
+
+      if (path === "/playlist/detail") {
+        return { ok: true, value: likedPlaylistDetailPayload([{ id: 22222, at: 1716768000000 }]) };
       }
 
       if (path === "/song/detail") {
@@ -678,7 +745,10 @@ async function readItemsKeepsSavedRecordingsWhenAlbumContextFails(): Promise<voi
   assert(item?.sourceRef.id === "22222", "saved recording should still be returned");
   assert(item.canonicalHints?.releaseSourceRef?.id === "33333", "album source ref should still come from song detail");
   assert(item.canonicalHints.trackPosition === undefined, "failed album context should omit track position");
-  assert(paths.join(",") === "/login/status,/likelist,/song/detail,/album", "album context should be attempted once");
+  assert(
+    paths.join(",") === "/login/status,/user/playlist,/playlist/detail,/song/detail,/album",
+    "album context should be attempted once after resolving liked playlist order",
+  );
 }
 
 async function readItemsFetchesEachSavedRecordingAlbumOnce(): Promise<void> {
@@ -699,8 +769,18 @@ async function readItemsFetchesEachSavedRecordingAlbumOnce(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
-        return { ok: true, value: { code: 200, ids: [1, 2] } };
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(101201, 2) };
+      }
+
+      if (path === "/playlist/detail") {
+        return {
+          ok: true,
+          value: likedPlaylistDetailPayload([
+            { id: 1, at: 1716854400000 },
+            { id: 2, at: 1716768000000 },
+          ]),
+        };
       }
 
       if (path === "/song/detail") {
@@ -750,6 +830,8 @@ async function readItemsFetchesEachSavedRecordingAlbumOnce(): Promise<void> {
 
   assert(albumRequests === 1, "same album id should be fetched once per saved-recording read");
   assert(items.length === 2, "both saved recordings should be returned");
+  assert(items[0]?.providerAddedAt === "2024-05-28T00:00:00.000Z", "first track should keep liked time order");
+  assert(items[1]?.providerAddedAt === "2024-05-27T00:00:00.000Z", "second track should keep liked time order");
   assert(items[0]?.canonicalHints?.releaseDate === "2000-01-01", "first track should use shared album publish date");
   assert(items[1]?.canonicalHints?.releaseDate === "2000-01-01", "second track should use shared album publish date");
   assert(items[0]?.canonicalHints?.trackPosition?.trackNumber === 1, "first track should use album track position");
@@ -775,8 +857,15 @@ async function readItemsBatchesSavedRecordingDetails(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
-        return { ok: true, value: { code: 200, ids: likedIds } };
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(111101, likedIds.length) };
+      }
+
+      if (path === "/playlist/detail") {
+        return {
+          ok: true,
+          value: likedPlaylistDetailPayload(likedIds.map((id) => ({ id }))),
+        };
       }
 
       if (path === "/song/detail") {
@@ -820,8 +909,15 @@ async function readItemsRespectsSavedRecordingSampleLimit(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
-        return { ok: true, value: { code: 200, ids: [1, 2, 3] } };
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(111102, 3) };
+      }
+
+      if (path === "/playlist/detail") {
+        return {
+          ok: true,
+          value: likedPlaylistDetailPayload([{ id: 1 }, { id: 2 }, { id: 3 }]),
+        };
       }
 
       if (path === "/song/detail") {
@@ -872,6 +968,7 @@ async function readItemsMapsSavedReleasesToGenericItems(): Promise<void> {
                 id: 112233,
                 name: "Kept Album",
                 artists: [{ name: "Album Artist" }],
+                subTime: 1716768000000,
               },
             ],
           },
@@ -925,6 +1022,7 @@ async function readItemsMapsSavedReleasesToGenericItems(): Promise<void> {
   assert(item.sourceRef.namespace === "source:netease", "release source ref should use NetEase source namespace");
   assert(item.sourceRef.kind === "album", "source ref should identify NetEase album object");
   assert(item.sourceRef.id === "112233", "source ref should use stable NetEase album id");
+  assert(item.providerAddedAt === "2024-05-27T00:00:00.000Z", "release item should keep provider-side saved time");
   assert(item.canonicalHints?.label === "Kept Album", "release hints should include generic release label");
   assert(item.canonicalHints?.artistLabels?.[0] === "Album Artist", "release hints should include artist labels");
   assert(item.canonicalHints?.releaseDate === "2015-09-11", "release hints should include album publish date");
@@ -1231,14 +1329,20 @@ async function readPagePaginatesSavedTracksWithOpaqueProviderState(): Promise<vo
         };
       }
 
-      if (path === "/likelist") {
+      if (path === "/user/playlist") {
         assert(query.uid === "2627", "track readPage should use the proven account id");
+        return { ok: true, value: userPlaylistPayload(262701, 3) };
+      }
+
+      if (path === "/playlist/detail") {
+        assert(query.id === "262701", "track readPage should resolve liked playlist detail before paging");
         return {
           ok: true,
-          value: {
-            code: 200,
-            ids: [1001, 1002, 1003],
-          },
+          value: likedPlaylistDetailPayload([
+            { id: 1001, at: 1716854400000 },
+            { id: 1002, at: 1716768000000 },
+            { id: 1003, at: 1716681600000 },
+          ]),
         };
       }
 
@@ -1297,13 +1401,14 @@ async function readPagePaginatesSavedTracksWithOpaqueProviderState(): Promise<vo
   );
 
   assert(
-    requests.map((request) => request.path).join(",") === "/login/status,/likelist,/song/detail,/album",
-    "track readPage should use login, liked ids, current detail page, and current album enrichment",
+    requests.map((request) => request.path).join(",") === "/login/status,/user/playlist,/playlist/detail,/song/detail,/album",
+    "track readPage should use liked playlist detail, current detail page, and current album enrichment",
   );
   assert(page.area === "saved_source_tracks", "track readPage should report the requested area");
   assert(page.status === "complete", "successful track page should be complete for that segment");
   assert(page.count?.certainty === "exact" && page.count.value === 3, "track readPage should keep exact liked count");
   assert(page.items.length === 2, "track readPage should return exactly one MineMusic page");
+  assert(page.items[0]?.providerAddedAt === "2024-05-28T00:00:00.000Z", "track page should keep provider-side liked time");
   assert(page.hasMore === true, "track readPage should report when another liked slice remains");
   assert(
     typeof page.providerState === "object" &&
@@ -1556,7 +1661,7 @@ async function readItemsKeepsOtherAreasWhenOneAreaFails(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
+      if (path === "/user/playlist") {
         return {
           ok: false,
           error: {
@@ -1611,11 +1716,19 @@ async function readItemsMapsMalformedProviderPayload(): Promise<void> {
         };
       }
 
-      if (path === "/likelist") {
+      if (path === "/user/playlist") {
+        return {
+          ok: true,
+          value: userPlaylistPayload(626201, 1),
+        };
+      }
+
+      if (path === "/playlist/detail") {
         return {
           ok: true,
           value: {
             code: 200,
+            playlist: {},
           },
         };
       }
@@ -1689,13 +1802,19 @@ async function readItemsReportsPartialWhenRecordingDetailBatchFails(): Promise<v
         };
       }
 
-      if (path === "/likelist") {
+      if (path === "/user/playlist") {
         return {
           ok: true,
-          value: {
-            code: 200,
-            ids: Array.from({ length: 1001 }, (_, index) => index + 1),
-          },
+          value: userPlaylistPayload(717101, 1001),
+        };
+      }
+
+      if (path === "/playlist/detail") {
+        return {
+          ok: true,
+          value: likedPlaylistDetailPayload(
+            Array.from({ length: 1001 }, (_, index) => ({ id: index + 1 })),
+          ),
         };
       }
 

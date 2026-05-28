@@ -59,6 +59,7 @@ type NetEaseAlbum = {
   artists?: unknown;
   artist?: unknown;
   publishTime?: unknown;
+  subTime?: unknown;
 };
 
 type NetEaseArtist = {
@@ -104,6 +105,11 @@ type NetEaseAlbumContext = {
   tracklist?: SourceReleaseTracklistItem[];
 };
 
+type NetEaseLikedPlaylistTrackEntry = {
+  id: string;
+  providerAddedAt?: string;
+};
+
 const readablePlatformLibraryAreas: PlatformLibraryArea[] = [
   "saved_source_tracks",
   "saved_source_releases",
@@ -139,16 +145,19 @@ export const netEasePlatformLibraryProviderDescriptor: InstrumentProviderDescrip
       id: "saved_source_tracks",
       label: "Saved songs",
       availability: "readable",
+      ordering: "newest_first",
     },
     {
       id: "saved_source_releases",
       label: "Saved albums",
       availability: "readable",
+      ordering: "newest_first",
     },
     {
       id: "saved_source_artists",
       label: "Followed artists",
       availability: "readable",
+      ordering: "newest_first",
     },
     {
       id: "playlists",
@@ -587,33 +596,28 @@ async function previewSavedRecordings(
   providerAccountId: string,
   sampleLimit: number,
 ): Promise<NetEasePreviewAreaOutcome> {
-  const liked = await requestJson({
-    path: "/likelist",
-    query: { uid: providerAccountId },
-  });
+  const liked = await readLikedPlaylistTrackEntries(requestJson, providerAccountId, "saved_source_tracks");
 
   if (!liked.ok) {
-    return unavailablePreviewArea(issueFromStageError(liked.error, "saved_source_tracks"));
+    return unavailablePreviewArea(liked.issue);
   }
 
-  const ids = extractIdListResult(liked.value, "saved_source_tracks");
+  const samples = sampleLimit === 0
+    ? []
+    : await readRecordingSamples(requestJson, liked.value.entries.slice(0, sampleLimit));
 
-  if (!ids.ok) {
-    return unavailablePreviewArea(ids.issue);
-  }
-
-  const samples = sampleLimit === 0 ? [] : await readRecordingSamples(requestJson, ids.value.slice(0, sampleLimit));
-
-  return readablePreviewArea({ certainty: "exact", value: ids.value.length }, samples);
+  return readablePreviewArea({ certainty: "exact", value: liked.value.count }, samples);
 }
 
 async function readRecordingSamples(
   requestJson: NetEaseRequester,
-  ids: string[],
+  entries: NetEaseLikedPlaylistTrackEntry[],
 ): Promise<PlatformLibrarySample[]> {
-  if (ids.length === 0) {
+  if (entries.length === 0) {
     return [];
   }
+
+  const ids = entries.map((entry) => entry.id);
 
   const details = await requestJson({
     path: "/song/detail",
@@ -630,8 +634,20 @@ async function readRecordingSamples(
     return [];
   }
 
-  return songs.value
-    .map((song) => toSavedRecordingItem(song))
+  const songsById = new Map(
+    songs.value
+      .map((song) => {
+        const songId = toStringId(song.id);
+        return songId === undefined ? undefined : ([songId, song] as const);
+      })
+      .filter((entry): entry is readonly [string, NetEaseSong] => entry !== undefined),
+  );
+
+  return entries
+    .map((entry) => {
+      const song = songsById.get(entry.id);
+      return song === undefined ? undefined : toSavedRecordingItem(song, undefined, entry.providerAddedAt);
+    })
     .filter(isDefined)
     .map(toPreviewSample);
 }
@@ -788,36 +804,27 @@ async function readSavedRecordings(
   providerAccountId: string,
   sampleLimit: number | undefined,
 ): Promise<NetEaseReadAreaOutcome> {
-  const liked = await requestJson({
-    path: "/likelist",
-    query: { uid: providerAccountId },
-  });
+  const liked = await readLikedPlaylistTrackEntries(requestJson, providerAccountId, "saved_source_tracks");
 
   if (!liked.ok) {
-    return failedReadArea("saved_source_tracks", issueFromStageError(liked.error, "saved_source_tracks"));
+    return failedReadArea("saved_source_tracks", liked.issue);
   }
 
-  const ids = extractIdListResult(liked.value, "saved_source_tracks");
+  const entriesToRead = sampleLimit === undefined
+    ? liked.value.entries
+    : liked.value.entries.slice(0, sampleLimit);
 
-  if (!ids.ok) {
-    return failedReadArea("saved_source_tracks", ids.issue);
-  }
-
-  const idsToRead = sampleLimit === undefined
-    ? ids.value
-    : ids.value.slice(0, sampleLimit);
-
-  if (idsToRead.length === 0) {
+  if (entriesToRead.length === 0) {
     return completeReadArea([]);
   }
 
   const items: PlatformLibraryItem[] = [];
   const albumContexts = new Map<string, NetEaseAlbumContext | null>();
 
-  for (const batch of chunks(idsToRead, netEaseSongDetailBatchSize)) {
+  for (const batch of chunks(entriesToRead, netEaseSongDetailBatchSize)) {
     const details = await requestJson({
       path: "/song/detail",
-      query: { ids: batch.join(",") },
+      query: { ids: batch.map((entry) => entry.id).join(",") },
     });
 
     if (!details.ok) {
@@ -837,9 +844,22 @@ async function readSavedRecordings(
     }
 
     await ensureAlbumContextsForSongs(requestJson, songs.value, albumContexts);
+    const songsById = new Map(
+      songs.value
+        .map((song) => {
+          const songId = toStringId(song.id);
+          return songId === undefined ? undefined : ([songId, song] as const);
+        })
+        .filter((entry): entry is readonly [string, NetEaseSong] => entry !== undefined),
+    );
     items.push(
-      ...songs.value
-        .map((song) => toSavedRecordingItem(song, albumContextForSong(song, albumContexts)))
+      ...batch
+        .map((entry) => {
+          const song = songsById.get(entry.id);
+          return song === undefined
+            ? undefined
+            : toSavedRecordingItem(song, albumContextForSong(song, albumContexts), entry.providerAddedAt);
+        })
         .filter(isDefined),
     );
   }
@@ -879,10 +899,7 @@ async function readSavedRecordingsPage(
   sampleLimitRemaining: number | undefined,
   providerState: unknown,
 ): Promise<NetEaseReadPageOutcome> {
-  const liked = await requestJson({
-    path: "/likelist",
-    query: { uid: providerAccountId },
-  });
+  const liked = await readLikedPlaylistTrackEntries(requestJson, providerAccountId, area);
 
   if (!liked.ok) {
     return {
@@ -890,19 +907,7 @@ async function readSavedRecordingsPage(
       status: "failed",
       items: [],
       hasMore: false,
-      issues: [issueFromStageError(liked.error, area)],
-    };
-  }
-
-  const ids = extractIdListResult(liked.value, area);
-
-  if (!ids.ok) {
-    return {
-      area,
-      status: "failed",
-      items: [],
-      hasMore: false,
-      issues: [ids.issue],
+      issues: [liked.issue],
     };
   }
 
@@ -911,29 +916,30 @@ async function readSavedRecordingsPage(
     Math.min(
       pageSize,
       sampleLimitRemaining === undefined ? pageSize : sampleLimitRemaining,
-      Math.max(ids.value.length - offset, 0),
+      Math.max(liked.value.entries.length - offset, 0),
     ),
     0,
   );
-  const idsToRead = requestSize === 0 ? [] : ids.value.slice(offset, offset + requestSize);
+  const entriesToRead = requestSize === 0 ? [] : liked.value.entries.slice(offset, offset + requestSize);
 
-  if (idsToRead.length === 0) {
+  if (entriesToRead.length === 0) {
     return {
       area,
       status: "complete",
       items: [],
-      count: { certainty: "exact", value: ids.value.length },
+      count: { certainty: "exact", value: liked.value.count },
       hasMore: false,
     };
   }
 
   const items: PlatformLibraryItem[] = [];
   const albumContexts = new Map<string, NetEaseAlbumContext | null>();
+  let processedEntryCount = 0;
 
-  for (const batch of chunks(idsToRead, netEaseSongDetailBatchSize)) {
+  for (const batch of chunks(entriesToRead, netEaseSongDetailBatchSize)) {
     const details = await requestJson({
       path: "/song/detail",
-      query: { ids: batch.join(",") },
+      query: { ids: batch.map((entry) => entry.id).join(",") },
     });
 
     if (!details.ok) {
@@ -944,7 +950,7 @@ async function readSavedRecordingsPage(
             area,
             status: "failed",
             items: [],
-            count: { certainty: "exact", value: ids.value.length },
+            count: { certainty: "exact", value: liked.value.count },
             hasMore: false,
             issues: [issue],
           }
@@ -952,9 +958,9 @@ async function readSavedRecordingsPage(
             area,
             status: "partial",
             items,
-            count: { certainty: "exact", value: ids.value.length },
+            count: { certainty: "exact", value: liked.value.count },
             hasMore: true,
-            providerState: { offset: offset + items.length },
+            providerState: { offset: offset + processedEntryCount },
             issues: [partialReadIssue(area), issue],
           };
     }
@@ -967,7 +973,7 @@ async function readSavedRecordingsPage(
             area,
             status: "failed",
             items: [],
-            count: { certainty: "exact", value: ids.value.length },
+            count: { certainty: "exact", value: liked.value.count },
             hasMore: false,
             issues: [songs.issue],
           }
@@ -975,30 +981,44 @@ async function readSavedRecordingsPage(
             area,
             status: "partial",
             items,
-            count: { certainty: "exact", value: ids.value.length },
+            count: { certainty: "exact", value: liked.value.count },
             hasMore: true,
-            providerState: { offset: offset + items.length },
+            providerState: { offset: offset + processedEntryCount },
             issues: [partialReadIssue(area), songs.issue],
           };
     }
 
     await ensureAlbumContextsForSongs(requestJson, songs.value, albumContexts);
+    const songsById = new Map(
+      songs.value
+        .map((song) => {
+          const songId = toStringId(song.id);
+          return songId === undefined ? undefined : ([songId, song] as const);
+        })
+        .filter((entry): entry is readonly [string, NetEaseSong] => entry !== undefined),
+    );
     items.push(
-      ...songs.value
-        .map((song) => toSavedRecordingItem(song, albumContextForSong(song, albumContexts)))
+      ...batch
+        .map((entry) => {
+          const song = songsById.get(entry.id);
+          return song === undefined
+            ? undefined
+            : toSavedRecordingItem(song, albumContextForSong(song, albumContexts), entry.providerAddedAt);
+        })
         .filter(isDefined),
     );
+    processedEntryCount += batch.length;
   }
 
-  const nextOffset = offset + idsToRead.length;
+  const nextOffset = offset + entriesToRead.length;
 
   return {
     area,
     status: "complete",
     items,
-    count: { certainty: "exact", value: ids.value.length },
-    hasMore: nextOffset < ids.value.length,
-    ...(nextOffset < ids.value.length ? { providerState: { offset: nextOffset } } : {}),
+    count: { certainty: "exact", value: liked.value.count },
+    hasMore: nextOffset < liked.value.entries.length,
+    ...(nextOffset < liked.value.entries.length ? { providerState: { offset: nextOffset } } : {}),
   };
 }
 
@@ -1424,6 +1444,112 @@ function extractIdListResult(
   };
 }
 
+async function readLikedPlaylistTrackEntries(
+  requestJson: NetEaseRequester,
+  providerAccountId: string,
+  area: PlatformLibraryArea,
+): Promise<NetEasePayloadResult<{ entries: NetEaseLikedPlaylistTrackEntry[]; count: number }>> {
+  const playlists = await requestJson({
+    path: "/user/playlist",
+    query: { uid: providerAccountId },
+  });
+
+  if (!playlists.ok) {
+    return { ok: false, issue: issueFromStageError(playlists.error, area) };
+  }
+
+  const likedPlaylistId = extractLikedPlaylistIdResult(playlists.value, area);
+
+  if (!likedPlaylistId.ok) {
+    return likedPlaylistId;
+  }
+
+  const detail = await requestJson({
+    path: "/playlist/detail",
+    query: { id: likedPlaylistId.value },
+  });
+
+  if (!detail.ok) {
+    return { ok: false, issue: issueFromStageError(detail.error, area) };
+  }
+
+  return extractLikedPlaylistTrackEntriesResult(detail.value, area);
+}
+
+function extractLikedPlaylistIdResult(
+  payload: unknown,
+  area: PlatformLibraryArea,
+): NetEasePayloadResult<string> {
+  const issue = issueFromNetEasePayload(payload, area);
+
+  if (issue !== undefined) {
+    return { ok: false, issue };
+  }
+
+  if (!isRecord(payload) || !Array.isArray(payload.playlist)) {
+    return {
+      ok: false,
+      issue: malformedResponseIssue(area, "NetEase user playlist response did not include playlists."),
+    };
+  }
+
+  const likedPlaylist = payload.playlist
+    .filter(isRecord)
+    .find((playlist) => playlist.specialType === 5);
+  const likedPlaylistId = likedPlaylist === undefined ? undefined : toStringId(likedPlaylist.id);
+
+  return likedPlaylistId === undefined
+    ? {
+        ok: false,
+        issue: malformedResponseIssue(area, "NetEase user playlist response did not include liked-music playlist."),
+      }
+    : { ok: true, value: likedPlaylistId };
+}
+
+function extractLikedPlaylistTrackEntriesResult(
+  payload: unknown,
+  area: PlatformLibraryArea,
+): NetEasePayloadResult<{ entries: NetEaseLikedPlaylistTrackEntry[]; count: number }> {
+  const issue = issueFromNetEasePayload(payload, area);
+
+  if (issue !== undefined) {
+    return { ok: false, issue };
+  }
+
+  if (!isRecord(payload) || !isRecord(payload.playlist) || !Array.isArray(payload.playlist.trackIds)) {
+    return {
+      ok: false,
+      issue: malformedResponseIssue(area, "NetEase liked-playlist detail did not include trackIds."),
+    };
+  }
+
+  const entries = payload.playlist.trackIds
+    .filter(isRecord)
+    .map((track) => {
+      const id = toStringId(track.id);
+
+      if (id === undefined) {
+        return undefined;
+      }
+
+      const providerAddedAt = epochMillisecondsToIsoString(track.at);
+
+      return {
+        id,
+        ...(providerAddedAt === undefined ? {} : { providerAddedAt }),
+      };
+    })
+    .filter((entry): entry is NetEaseLikedPlaylistTrackEntry => entry !== undefined);
+
+  const trackCount = payload.playlist.trackCount;
+  const count = typeof trackCount === "number" && Number.isFinite(trackCount) ? trackCount : entries.length;
+
+  return {
+    ok: true,
+    value: { entries, count },
+  };
+}
+
 function extractArrayPayloadResult(
   payload: unknown,
   keys: string[],
@@ -1495,6 +1621,7 @@ function extractExactCount(payload: unknown, countKeys: string[]): number | unde
 function toSavedRecordingItem(
   song: NetEaseSong,
   albumContext?: { releaseDate?: string; trackPosition?: SourceReleaseTrackPosition },
+  providerAddedAt?: string,
 ): PlatformLibraryItem | undefined {
   const songId = toStringId(song.id);
 
@@ -1521,6 +1648,7 @@ function toSavedRecordingItem(
     itemKind: "saved_source_track",
     targetKind: "recording",
     label,
+    ...(providerAddedAt === undefined ? {} : { providerAddedAt }),
     canonicalHints: {
       label: toNonEmptyString(song.name) ?? label,
       ...(artistLabels.length === 0 ? {} : { artistLabels }),
@@ -1547,6 +1675,7 @@ function toSavedReleaseItem(
   const title = toNonEmptyString(album.name) ?? "Unresolved NetEase Album";
   const artistLabels = toAlbumArtistNames(album as NetEaseAlbum);
   const label = artistLabels.length === 0 ? title : `${title} - ${artistLabels.join(", ")}`;
+  const providerAddedAt = epochMillisecondsToIsoString((album as NetEaseAlbum).subTime);
 
   return {
     providerId: "netease",
@@ -1560,6 +1689,7 @@ function toSavedReleaseItem(
     itemKind: "saved_source_release",
     targetKind: "release",
     label,
+    ...(providerAddedAt === undefined ? {} : { providerAddedAt }),
     canonicalHints: {
       label: title,
       ...(artistLabels.length === 0 ? {} : { artistLabels }),
@@ -1981,6 +2111,12 @@ function toStringId(id: unknown): string | undefined {
 
 function toNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function epochMillisecondsToIsoString(value: unknown): string | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? new Date(value).toISOString()
+    : undefined;
 }
 
 function toOptionalString(value: unknown): string | undefined {
