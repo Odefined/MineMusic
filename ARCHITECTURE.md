@@ -20,17 +20,19 @@ runtime lifecycle
 ```
 
 The original MVP proves a grounded recommendation flow with playable links when
-available. The current architecture also includes Collection Service
-foundations and first-slice Library Import service/runtime/tool composition. It
-also includes direct SQLite repository adapters for Canonical Store, Collection
-Service, and Library Import persistence, plus Stage Core runtime configuration
-for durable Canonical Store, Collection, and Library Import storage. Canonical
-Store also includes the first Canonical Maintenance runtime slice for
-inspection-backed Provisional Review of provisional recordings. MineMusic
-runtime configuration belongs to the long-lived MineMusic server process, not
-to a particular host adapter such as the Codex skill. It does not prove
-playback control, autonomous DJ behavior, playlist editing, music intelligence,
-or notifications.
+available. The current architecture also includes Material Store, Collection
+Service, Library Import/Update, and the first Canonical Maintenance runtime
+slice for inspection-backed Provisional Review of provisional recordings.
+Material Store is the top-level capability for MineMusic-owned material
+identity and source-material state: Canonical Store remains the canonical
+identity subdomain, while Source Entity Store owns Source Track/Release/Artist,
+Source Library, Library Import/Update state, import history, and confirmed
+source-to-canonical bindings. Direct SQLite adapters now cover Material Store,
+Collection Service, Library Import working state, and other opt-in runtime
+storage paths. MineMusic runtime configuration belongs to the long-lived
+MineMusic server process, not to a particular host adapter such as the Codex
+skill. It does not prove playback control, autonomous DJ behavior, playlist
+editing, music intelligence, or notifications.
 
 ## Vocabulary Source
 
@@ -77,9 +79,8 @@ MineMusic Server Process
      -> Instrument Catalog
      -> Handbook renderer
   -> Core Capability Layer
-     -> Canonical Store
+     -> Material Store
      -> Collection Service
-     -> Library Import Service
      -> Material Resolve
      -> Source Grounding
      -> Music Knowledge
@@ -124,7 +125,7 @@ without creating provider-specific environment switches in host adapter config.
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
-| Core Capabilities | `src/material_store/canonical`, `src/collection`, `src/library_import`, `src/material_resolve`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
+| Core Capabilities | `src/material_store/**`, `src/collection`, `src/material_resolve`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
@@ -142,10 +143,12 @@ needs.
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
 | Session Context | session identity, session state, `StageVibe`, dynamic context | source matching, memory persistence, effect execution, tool availability policy |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
-| Canonical Store | MineMusic-owned identity anchors, source-ref identity evidence, and Canonical Maintenance review/apply policy | current playability, user taste, source account state |
+| Material Store | MineMusic canonical identity, source entities, Source Library, Library Import/Update state, import history, and confirmed source-to-canonical bindings | current playability, user taste, final recommendation selection, external write-back |
+| Canonical Store inside Material Store | MineMusic-owned canonical records, identity anchors, Canonical Maintenance review/apply policy, provisional review facts, and canonical graph maintenance | provider account library state, Source Library membership, ordinary Library Import source binding |
+| Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
-| Library Import Service | external platform library import/update orchestration, import batches, item provenance, update baselines | provider API details, Collection storage schema, canonical admin policy, final recommendation judgment |
-| Material Resolve | canonical-first candidate-to-material resolution, `MaterialResolveResult` status, canonical evidence attachment | provider internals, playable-link refresh, final recommendation selection |
+| Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, update baselines, and Collection writes only after confirmed canonical binding | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
+| Material Resolve | canonical-first candidate-to-material resolution through Material Store, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history | derived preference claims |
@@ -171,8 +174,10 @@ needs.
 8. MCP client calls Stage Interface tools through the server's MCP surface.
 9. Stage Interface reads Session Context and Handbook entries when needed.
 10. Stage Interface sends music candidates to Material Resolve.
-11. Material Resolve checks Canonical Store first, then uses Source Grounding as
-   source evidence when needed.
+11. Material Resolve checks Material Store first: canonical lookup stays
+   canonical-first, source refs resolve through Confirmed Canonical Bindings,
+   and Source Library is read only for explicit source-library scoped requests.
+   Source Grounding is used as source evidence when needed.
 12. Source Grounding uses Source Slot adapters for source refs and playable
    links.
 13. Material Resolve returns `MusicMaterial` with honest material state and
@@ -290,8 +295,8 @@ verbal_only
 ```
 
 Only `confirmed_playable` and `source_only_playable` may be presented as
-playable links. Durable memory should prefer a canonical ref or provisional
-canonical ref before falling back to source refs or plain text.
+playable links. Durable memory should prefer a canonical ref or a confirmed
+source-to-canonical binding before falling back to source refs or plain text.
 
 Material Resolve owns candidate-level material state/status assembly. Source
 Grounding owns source-backed playable-link state normalization. Material Gate

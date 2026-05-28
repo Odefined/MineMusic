@@ -6,83 +6,64 @@ This file tracks Library Import implementation progress.
 
 - Library Import initial import and update orchestration are implemented for the
   first synchronous slice.
-- Tasks 1-12 from `docs/library-import/implementation-plan.md` are complete:
-  `src/contracts/index.ts` now defines Library Import scopes, batch kinds,
-  batch statuses, preview/start/status/summary input shapes, preview/report
-  output shapes, item outcome summaries, import counts, import batch records,
-  area snapshots, item provenance records, Platform Library Absence records, and
-  stable first-slice Library Import error codes. `src/ports/index.ts` now defines
-  `LibraryImportPort` and `LibraryImportRepository` public boundaries for preview,
-  start, status, summary, batch storage, completed report storage, area snapshots,
-  item provenance, absence records, and provider-account-stable latest complete
-  baseline lookup. `src/storage/index.ts` now exports
-  `createInMemoryLibraryImportRepository()` for clone-return in-memory batch,
-  report, snapshot, provenance, and absence storage, and
-  `createSqliteLibraryImportRepository()` for direct SQLite-backed durable
-  repository injection. Contract coverage lives in
-  `test/contracts/wave1-contracts.test.ts`; storage coverage lives in
-  `test/storage/in-memory-library-import-repository.test.ts`. The service
-  skeleton in `src/library_import/index.ts` now provides provider lookup and
-  validation, first-slice scope-to-area mapping, discovery start rejection,
-  skeleton import/update batch creation, batch status/summary helpers,
-  repository-backed completed summary reads, and
-  side-effect-free import preview estimates for exact source-ref canonical
-  bindings, provisional canonical creates, unresolved items, and saved
-  Collection outcomes. Initial import start now creates running/completed
-  batches, records import events, reuses exact canonical bindings, creates and
-  binds provisional canonical records for strong provider facts, writes saved
-  Collection items, stores item provenance, stores complete area snapshots only
-  for complete provider reads, persists completed summary reports, marks started
-  batches failed when provider reads or downstream import steps fail, and returns
-  completed summary reports. Library update preview/start now compares current
-  provider reads against the latest eligible complete baseline for the same
-  provider account stability, reports already-present, would-add, and
-  no-longer-returned categories from baseline source refs, writes new Collection
-  items, stores Platform Library Absence records, records
-  `library_import.item.not_returned` events, and intentionally derives no
-  absences from partial current reads. Stage Core now creates and exposes
-  `libraryImport`, defaults to an in-memory Library Import repository, supports
-  optional `libraryImportRepository`, `libraryImportDatabasePath`, and
-  `platformLibraryProvider` injection, and registers platform-library providers
-  separately from source providers during runtime readiness. Stage Interface now
-  exposes import/update preview/start tools plus batch status/summary tools,
-  routes them through `LibraryImportPort`, applies the default owner scope, and
-  exposes explicit MCP input schemas and generated Handbook entries. The default
-  Codex MCP runtime now registers NetEase through both `source` and
-  `platform_library` slots and reuses `MINEMUSIC_NETEASE_BASE_URL` for both
-  provider factories and accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH`,
-  `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` for
-  durable canonical bindings, durable Collection writes, and durable Library
-  Import storage without adding credential storage. Deterministic
-  integration coverage now exercises discovery preview, explicit preview
-  estimates, initial import side effects, started-batch failure status, summary
-  recovery after service recreation, Stage Core recreation against the same
-  Library Import SQLite database path, repeated import idempotency, update
-  diffing, stable-account baseline separation, partial-read absence guards, and
-  Stage Interface / MCP tool exposure through the composed runtime.
-  Documentation and project state now record the completed first-slice scope
-  without putting mutable implementation status in the design document.
-  Service coverage lives in `test/library_import/library-import-service.test.ts`.
-- SQLite-backed Library Import storage is implemented for direct repository
-  injection through `createSqliteLibraryImportRepository(...)`. The adapter
+- Library Import is now owned by Source Entity Store inside Material Store. The
+  implementation lives in `src/material_store/source_entity/library-import.ts`.
+  `src/library_import/index.ts` is a compatibility export path for existing
+  imports and tests, not a separate ownership boundary.
+- Public contracts still expose `LibraryImportPort` and
+  `LibraryImportRepository` for preview, start, status, summary, import/update
+  batch storage, completed report storage, area snapshots, item provenance,
+  absence records, and provider-account-stable latest complete baseline lookup.
+- Library Import reads `platform_library` providers, maps first-slice scopes to
+  provider areas, rejects `discovery` start calls, creates import/update
+  batches, stores completed reports, and records provider item provenance and
+  complete-area snapshots.
+- For every observed provider item, Library Import upserts a Source Track,
+  Source Release, or Source Artist and records Source Library state. This is the
+  durable place for imported provider library facts.
+- Library Import writes Collection only when Source Entity Store already has a
+  Confirmed Canonical Binding for the item and the referenced canonical record
+  exists. Unbound provider items stay in Source Library and are reported as
+  unresolved/skipped with no Collection write.
+- Ordinary Library Import no longer creates provisional canonical records,
+  attaches canonical source refs, or projects imported provider facts into
+  Canonical Store as the default binding path. Existing canonical maintenance
+  APIs remain available for canonical review workflows.
+- Library Update compares current complete provider reads against the latest
+  eligible complete baseline, updates Source Library presence/absence state,
+  stores Platform Library Absence records for complete reads, records
+  `library_import.item.not_returned` events, and derives no absences from
+  partial current reads.
+- Stage Core creates and exposes `libraryImport`, `materialStore`, and the
+  Source Entity Store repository. Runtime storage paths are split by purpose:
+  `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH` persists
+  canonical and Source Entity Store state, while `libraryImportDatabasePath` /
+  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` persists import/update batch working state.
+- Stage Interface exposes import/update preview/start tools plus batch
+  status/summary tools through `minemusic.library` with stable external names:
+  `library.import.preview`, `library.import.start`,
+  `library.update.preview`, `library.update.start`,
+  `library.import.status`, and `library.import.summary`.
+- Deterministic coverage exercises discovery preview, explicit preview
+  estimates, Source Entity/Source Library writes, confirmed-binding Collection
+  writes, unbound import skips, started-batch failure status, summary recovery
+  after service recreation, durable Library Import database path reuse,
+  repeated import idempotency, update diffing, stable-account baseline
+  separation, partial-read absence guards, and Stage Interface / MCP tool
+  exposure. Service coverage lives in
+  `test/library_import/library-import-service.test.ts`.
+- SQLite-backed Library Import working-state storage is implemented for direct
+  repository injection through `createSqliteLibraryImportRepository(...)`. The adapter
   persists import/update batches, completed reports, per-area snapshots, item
   provenance, and Platform Library Absence records across repository reopen. It
   keeps returned-copy behavior and provider-account-stable latest baseline
   lookup aligned with the in-memory repository. Stage Core and host surfaces
   still default to in-memory Library Import storage unless
   `libraryImportDatabasePath` or `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` is provided;
-  combine that with `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH` and
-  `collectionDatabasePath` / `MINEMUSIC_COLLECTION_DB_PATH` when import-created
-  canonical bindings, provisional relation context, and Collection writes must
-  persist across runtime recreation. Library Import now records provisional
-  canonical relations from provider hints for imported recordings, including
-  performer, release, and duration context; artist/release source-ref hints
-  resolve linked canonical records, create provisional records only when no
-  existing binding is found, and become relation `objectRef`s. Library Import
-  also records Canonical Store `source_recording_context` provisional hints
-  from provider `canonicalHints` only for provisional recording records,
-  preserving source title, artist labels, release context, duration, and source
-  track position without introducing a track-position `CanonicalRelation`.
+  combine that with `materialStoreDatabasePath` /
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH` and `collectionDatabasePath` /
+  `MINEMUSIC_COLLECTION_DB_PATH` when Source Entity Store state, confirmed
+  bindings, and Collection writes must persist across runtime recreation.
   Import batches cache saved Collection membership per target kind, avoiding a
   full saved-item list read for every imported item.
 - Library Import `start` now forwards `sampleLimitPerArea` into provider
@@ -121,7 +102,8 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. The first Library Import Service implementation plan is complete.
+1. The first Library Import Service implementation plan is complete, and its
+   ownership has moved under Source Entity Store.
 2. Future slices can choose playlist import, listening-history import,
    background job execution, cleanup guidance, or deeper durable storage wiring
    for other modules.
@@ -130,6 +112,8 @@ This file tracks Library Import implementation progress.
 
 ## Verification
 
+- `npm run typecheck`, `npm test`, and `git diff --check` pass after the
+  Source Entity Store ownership rewrite and Phase 5 state sync on 2026-05-28.
 - Updated during NetEase Platform Library Provider Task 1 state sync to point
   at `docs/platform-library-provider/progress.md`.
 - Added `docs/library-import/implementation-plan.md` as the task-by-task plan

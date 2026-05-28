@@ -66,6 +66,8 @@ This index points agents to the current MVP documentation pack.
      Import/Update, and external library tools keep user-facing names.
    - `docs/material-store/implementation-plan.md` is the phased implementation
      plan for the Source Entity Store and Source Library rewrite.
+   - `docs/material-store/progress.md` records current Material Store
+     implementation state, verification, and remaining gaps.
 
 17. `CURRENT_STATE.md`
    - Current implementation status.
@@ -146,20 +148,20 @@ This index points agents to the current MVP documentation pack.
       verification status, remaining gaps, and next slice.
 
 30. `docs/library-import/design.md`
-    - Library Import design for import orchestration, library updates,
-      Collection Service writes, Canonical Store source-ref bindings,
-      linked artist/release graph writes through canonical source-ref
-      resolution, and import/update event records.
+    - Library Import design for Source Entity Store-owned import orchestration,
+      library updates, Source Library state, confirmed-binding Collection
+      writes, and import/update event records.
 
 31. `docs/library-import/implementation-plan.md`
-    - Task-by-task Library Import Service implementation plan for contracts,
-      storage, orchestration, Stage Core wiring, Stage Interface import/update
-      tools, integration coverage, and state sync.
+    - Historical first-slice Library Import Service implementation plan for
+      contracts, storage, orchestration, Stage Core wiring, Stage Interface
+      import/update tools, integration coverage, and state sync. Current
+      binding ownership is superseded by ADR-0002 and the Material Store plan.
 
 32. `docs/library-import/progress.md`
-    - Library Import implementation progress, including completed first-slice
-      import/update service state, verification, remaining gaps, and future
-      slices.
+    - Library Import implementation progress, including the Source Entity Store
+      ownership boundary, Source Library writes, confirmed-binding Collection
+      behavior, verification, remaining gaps, and future slices.
 
 33. `docs/platform-library-provider/design.md`
     - `platform_library` capability slot design for account-scoped platform
@@ -175,84 +177,106 @@ This index points agents to the current MVP documentation pack.
     - Collection Service behavior tests for system initialization, custom
       collection lifecycle, item membership, blocked filtering, and events.
 
-36. `src/material_store/canonical/index.ts`
+36. `src/material_store/index.ts`
+    - Material Store composition boundary that combines Canonical Store and
+      Source Entity Store behind `MaterialStorePort`.
+
+37. `src/material_store/canonical/index.ts`
     - Canonical Store public-port implementation, provisional relation
       recording/listing with optional object refs, and current identity policy.
 
-37. `src/material_store/canonical/normalization.ts`
+38. `src/material_store/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-38. `src/material_store/canonical/storage.ts`
+39. `src/material_store/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics, plus relation persistence delegation.
 
-39. `src/storage/sqlite/canonical-schema.ts`
+40. `src/storage/sqlite/canonical-schema.ts`
     - SQLite schema initialization for Canonical Store durable storage,
       including provisional relations.
 
-40. `src/storage/sqlite/canonical-repository.ts`
+41. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation for records,
       source refs, aliases, and provisional relations.
 
-41. `src/storage/sqlite/collection-schema.ts`
+42. `src/storage/sqlite/source-entity-schema.ts`
+    - SQLite schema initialization for Source Entity Store durable storage:
+      source entities, Source Library items, and Confirmed Canonical Bindings.
+
+43. `src/storage/sqlite/source-entity-repository.ts`
+    - SQLite-backed Source Entity Store repository implementation.
+
+44. `src/storage/sqlite/collection-schema.ts`
     - SQLite schema initialization for durable Collection storage.
 
-42. `src/storage/sqlite/collection-repository.ts`
+45. `src/storage/sqlite/collection-repository.ts`
     - SQLite-backed `CollectionRepository` implementation for direct durable
       repository injection.
 
-43. `src/storage/sqlite/index.ts`
+46. `src/storage/sqlite/index.ts`
     - Public SQLite storage exports.
 
-44. `test/storage/sqlite-canonical-store.test.ts`
+47. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository, including provisional relation persistence.
 
-45. `test/storage/sqlite-collection-repository.test.ts`
+48. `test/storage/sqlite-source-entity-store.test.ts`
+    - Persistence/reopen tests for Source Entity Store source entities, Source
+      Library items, and Confirmed Canonical Bindings.
+
+49. `test/storage/sqlite-collection-repository.test.ts`
     - Persistence/reopen tests for the SQLite-backed Collection repository.
 
-46. `test/integration/canonical-persistence.test.ts`
+50. `test/integration/canonical-persistence.test.ts`
     - Stage Core restart-style persistence test for SQLite-backed canonical
       storage through `materialStoreDatabasePath`.
 
-47. `test/integration/collection-runtime.test.ts`
+51. `test/integration/collection-runtime.test.ts`
     - Composed Stage Core integration coverage for Collection through Stage
       Interface tools, Material Resolve blocked filtering, and durable
       Collection database path reuse.
 
-48. `src/material_resolve/index.ts`
+52. `src/material_resolve/index.ts`
     - Material Resolve service for canonical-first `MusicCandidate` to
-      `MusicMaterial` resolution.
+      `MusicMaterial` resolution through `MaterialStorePort`, including
+      Confirmed Canonical Binding lookup and explicit Source Library scoped
+      reads.
 
-49. `src/source/index.ts`
+53. `test/material_resolve/material-resolve.test.ts`
+    - Material Resolve tests for canonical-first lookup, source-ref confirmed
+      binding lookup, blocked filtering, and explicit Source Library scoped
+      resolution.
+
+54. `src/source/index.ts`
     - Source Grounding service for provider search and playable-link refresh.
 
-50. `docs/source-providers/netease.md`
+55. `docs/source-providers/netease.md`
     - NetEase source and platform-library provider design, runtime behavior,
       boundaries, and verification notes.
 
-51. `docs/knowledge-slot/design.md`
+56. `docs/knowledge-slot/design.md`
     - Knowledge Slot design draft for provider-attributed structured graph and
       text knowledge, including the MusicBrainz and document-knowledge-base
       boundary, general expansion names, and coarse relationship focus.
 
-52. `docs/knowledge-slot/musicbrainz-provider.md`
+57. `docs/knowledge-slot/musicbrainz-provider.md`
     - MusicBrainz Knowledge Provider design draft covering supported query
       modes, deterministic search/lookup/browse API planning, first structured
       knowledge scope, expansion mapping, text-query expansion follow-up,
       relation focus, provider activation, and provider boundaries.
 
-53. `docs/knowledge-slot/implementation-plan.md`
+58. `docs/knowledge-slot/implementation-plan.md`
     - Task-by-task implementation plan for the target Knowledge Slot contract,
       generic provider HTTP cache, Stage Interface knowledge tool, and first
       MusicBrainz provider, including runtime provider-factory activation and
       the text-query relation expansion follow-up task.
 
-54. `docs/knowledge-slot/progress.md`
+59. `docs/knowledge-slot/progress.md`
     - Knowledge Slot implementation progress, including implemented shared
       contracts, Provider HTTP Cache work, and MusicBrainz provider status.
 
-55. `src/providers/netease/index.ts`, `src/providers/musicbrainz/index.ts`
+60. `src/providers/netease/index.ts`, `src/providers/musicbrainz/index.ts`
     - Read-only NetEase adapter implementing `SourceProvider` and
       `PlatformLibraryProvider` factories plus agent-facing provider descriptors
       for Handbook generation, including recording hints with artist/release
@@ -260,101 +284,104 @@ This index points agents to the current MVP documentation pack.
       read-only Knowledge provider factory for structured music facts, lookup,
       browse expansions, and successful-response Provider HTTP Cache usage.
 
-56. `docs/host-adapters/codex-skill.md`
+61. `docs/host-adapters/codex-skill.md`
     - Codex skill design, global MCP client boundary, focused instrument/tool
       behavior, default MusicBrainz Knowledge registration, and verification
       notes. It records that Codex connects to the MineMusic MCP server URL,
       while provider/database/cache/session runtime configuration belongs to
       server startup.
 
-57. `docs/host-adapters/service-adapter-refactor-plan.md`
+62. `docs/host-adapters/service-adapter-refactor-plan.md`
     - Corrected refactor plan for moving runtime ownership out of Codex into a
       long-lived MineMusic server that exposes MCP directly.
 
-58. `docs/operations/minemusic-server-launchd.md`
+63. `docs/operations/minemusic-server-launchd.md`
     - Local operation guide recording that MineMusic server is kept alive by
       the user `launchd` agent `com.minemusic.server`, while Codex/OpenClaw
       connect as MCP clients to `http://127.0.0.1:37373/mcp`.
 
-59. `src/server/runtime.ts`
+64. `src/server/runtime.ts`
     - MineMusic server runtime boundary that creates the default server-held
       Stage Core, registers bundled provider factories, applies
       provider/database/cache/session runtime configuration, and exposes the
       server-held Stage Interface.
 
-60. `src/server/index.ts`
+65. `src/server/index.ts`
     - MineMusic server entrypoint that waits for the server runtime and exposes
       MCP over local streamable HTTP.
 
-61. `src/stage_core/index.ts`
+66. `src/stage_core/index.ts`
     - Stage Core composition root that assembles modules, registers providers,
-      initializes the Handbook, exposes the runtime object, composes Collection
-      and Library Import with optional repository/provider injection, and
-      supports optional SQLite database path configuration for Canonical Store,
-      Collection, Library Import, Provider HTTP Cache, and explicit Knowledge
-      provider registration.
+      initializes the Handbook, exposes the runtime object, composes Material
+      Store, Collection, and Library Import with optional repository/provider
+      injection, and supports optional SQLite database path configuration for
+      Material Store, Collection, Library Import, Provider HTTP Cache, and
+      explicit Knowledge provider registration.
 
-62. `src/surfaces/mcp/server.ts`
+67. `src/surfaces/mcp/server.ts`
     - MCP surface that derives prefixed tools from MineMusic
       instrument descriptors, including Library Import tools, and delegates to
       `MineMusicStageInterface`; embedded stdio startup is retained only as
       `mcp:minemusic:dev`.
 
-63. `src/stage_interface/**`
+68. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
       dispatch, and callable facade, including focused
       stage/knowledge/music/library/memory instrument descriptors, provider
       descriptor attachment, Collection tools, and Library Import tools.
 
-64. `src/handbook/index.ts`
+69. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,
       instrument entries, provider capability sections, and exact tool entries.
 
-65. `skills/minemusic/SKILL.md`
+70. `skills/minemusic/SKILL.md`
     - Codex workflow skill that tells agents when and how to use MineMusic MCP
       tools for music requests. MineMusic is no longer packaged as a repo-local
       Codex plugin.
 
-66. `skills/minemusic/HANDBOOK.md`
+71. `skills/minemusic/HANDBOOK.md`
     - Skill-local snapshot of current agent-visible MineMusic instruments and
       tools, including Library Import tool entries. Live Handbook lookup is
       served by the MineMusic server through MCP.
 
-67. `docs/platform-library-provider/netease-implementation-plan.md`
+72. `docs/platform-library-provider/netease-implementation-plan.md`
     - Task-by-task implementation plan for the NetEase `platform_library`
       provider, including supported areas, adapter boundaries, issue mapping,
       fixture tests, and verification.
 
-68. `docs/platform-library-provider/progress.md`
+73. `docs/platform-library-provider/progress.md`
     - Platform Library Provider implementation progress, including current
       NetEase provider task status and next slice.
 
-69. `src/storage/sqlite/library-import-schema.ts`
+74. `src/storage/sqlite/library-import-schema.ts`
     - SQLite schema initialization for durable Library Import batches, reports,
       area snapshots, item provenance, and absence records.
 
-70. `src/storage/sqlite/library-import-repository.ts`
+75. `src/storage/sqlite/library-import-repository.ts`
     - SQLite-backed `LibraryImportRepository` implementation for direct durable
       repository injection.
 
-71. `test/storage/in-memory-library-import-repository.test.ts`
+76. `test/storage/in-memory-library-import-repository.test.ts`
     - In-memory Library Import repository behavior tests for clone-return batch,
       report, area snapshot, item provenance, absence, and provider-account-stable
       latest complete baseline storage.
 
-72. `test/storage/sqlite-library-import-repository.test.ts`
+77. `test/storage/sqlite-library-import-repository.test.ts`
     - SQLite Library Import repository persistence tests for batch/report,
       snapshot baseline, item provenance, and absence records across reopen.
 
-73. `src/library_import/index.ts`
-    - Library Import Service skeleton for platform-library provider lookup,
-      scope-to-area mapping, discovery start rejection, side-effect-free import
-      preview estimates, initial import start, import events, provenance,
-      complete snapshots, update diffing, Platform Library Absence records,
-      started-batch failure handling, and repository-backed batch status/summary
-      helpers.
+78. `src/material_store/source_entity/library-import.ts`
+    - Library Import/Update implementation owned by Source Entity Store:
+      platform-library provider lookup, Source Entity and Source Library
+      upserts, confirmed-binding Collection writes, update diffing, Platform
+      Library Absence records, started-batch failure handling, and
+      repository-backed batch status/summary helpers.
 
-74. `test/library_import/library-import-service.test.ts`
+79. `src/library_import/index.ts`
+    - Compatibility export path for the Source Entity Store-owned Library
+      Import/Update implementation.
+
+80. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -362,27 +389,27 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-75. `test/integration/library-import-runtime.test.ts`
+81. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, durable Library Import database path
       reuse, and Stage Interface / MCP exposure.
 
-75. `src/storage/sqlite/provider-http-cache-schema.ts`
+82. `src/storage/sqlite/provider-http-cache-schema.ts`
     - SQLite schema initialization for the generic Provider HTTP Cache.
 
-76. `src/storage/sqlite/provider-http-cache-repository.ts`
+83. `src/storage/sqlite/provider-http-cache-repository.ts`
     - SQLite-backed `ProviderHttpCacheRepository` implementation for persistent
       provider HTTP response caching and least-recently-used cleanup.
 
-77. `test/storage/in-memory-provider-http-cache-repository.test.ts`
+84. `test/storage/in-memory-provider-http-cache-repository.test.ts`
     - In-memory Provider HTTP Cache behavior tests for cache read/write,
       `lastUsedAt` update, clone returns, and maintenance operations.
 
-78. `test/storage/sqlite-provider-http-cache-repository.test.ts`
+85. `test/storage/sqlite-provider-http-cache-repository.test.ts`
     - SQLite Provider HTTP Cache persistence tests across repository reopen.
 
-79. `.env.example`
+86. `.env.example`
     - Repo-local template for MineMusic server env, including server endpoint,
       provider base URL, SQLite storage paths, and optional multi-path Handbook
       snapshot output.

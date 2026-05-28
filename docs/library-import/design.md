@@ -25,8 +25,8 @@ Should this be recommended next?
 Should MineMusic write back to the external platform?
 ```
 
-Those questions belong to Memory Service, Canonical Store, Material Resolve,
-Source Grounding, the LLM, and Effect Boundary.
+Those questions belong to Material Store, Canonical Maintenance, Material
+Resolve, Source Grounding, Memory Service, the LLM, and Effect Boundary.
 
 ## Product Motivation
 
@@ -68,6 +68,11 @@ decisions; it is not the main Library Import function.
 
 ## Architecture
 
+Library Import is a Source Entity Store flow inside Material Store. Its direct
+job is to put provider library facts into Source Entity Store and Source
+Library. It may write Collection only after Source Entity Store already has a
+Confirmed Canonical Binding for the provider source entity.
+
 ```mermaid
 flowchart TD
     User["User"]
@@ -77,7 +82,10 @@ flowchart TD
     LibraryProvider["Platform Library Provider"]
     SourceProvider["Source Provider"]
     NetEasePlugin["NetEase Plugin"]
+    MaterialStore["Material Store"]
+    SourceEntityStore["Source Entity Store"]
     CanonicalStore["Canonical Store"]
+    SourceLibrary["Source Library"]
     CollectionService["Collection Service"]
     EventService["Event Service"]
     MaterialResolve["Material Resolve"]
@@ -90,11 +98,14 @@ flowchart TD
     PluginRegistry --> LibraryProvider
     NetEasePlugin --> LibraryProvider
     NetEasePlugin --> SourceProvider
-    ImportService --> CanonicalStore
+    ImportService --> MaterialStore
+    MaterialStore --> SourceEntityStore
+    MaterialStore --> CanonicalStore
+    SourceEntityStore --> SourceLibrary
     ImportService --> CollectionService
     ImportService --> EventService
     MaterialResolve --> SourceGrounding
-    MaterialResolve --> CanonicalStore
+    MaterialResolve --> MaterialStore
     SourceGrounding --> SourceProvider
     CollectionService -. "future taste proposals" .-> MemoryService
     EventService -. "future summarized signals" .-> MemoryService
@@ -134,8 +145,8 @@ MineMusic can store that fact with:
 - provider account id.
 - source ref.
 - fetched time.
-- the minimal platform metadata needed to support the Collection write and
-  Canonical Store binding.
+- the minimal platform metadata needed to maintain Source Library state and, if
+  a confirmed binding exists, support the Collection write.
 - import batch id.
 
 This is not the same as proving the MineMusic canonical identity.
@@ -155,10 +166,9 @@ canonical:minemusic / recording / ...
 
 The binding can be:
 
-- already active, if Canonical Store already knows the source ref.
-- provisional, if import creates a MineMusic record from platform metadata.
-- absent, if MineMusic keeps the platform fact as import provenance without
-  writing a Collection item until it can bind a canonical record.
+- confirmed, if Source Entity Store has an explicit Confirmed Canonical Binding.
+- absent, if MineMusic keeps the platform fact in Source Library without writing
+  a Collection item until a binding is created.
 - rejected or corrected later, if the source ref was bound to the wrong
   canonical object.
 
@@ -190,8 +200,8 @@ It owns:
 - import batch and item snapshots used for update baselines.
 - item-level idempotency.
 - update diffing and reconciliation for previously imported platform assets.
-- mapping provider items to collection writes, canonical lookup/create, and
-  event records.
+- mapping provider items to Source Entity Store writes, Source Library state,
+  confirmed-binding Collection writes, and event records.
 - returning an LLM-facing structured import report.
 
 Library Import needs its own repository boundary for its working state. It
@@ -208,6 +218,7 @@ It does not own:
 
 - platform API details.
 - Collection Service storage schema.
+- canonical identity creation.
 - canonical merge/reject/admin policy.
 - playable-link freshness.
 - deciding which parts of a user's platform library they meant to import.
@@ -219,9 +230,8 @@ It does not own:
 Owns explicit user assets after import.
 
 Imported saved songs, saved albums, and followed artists should become
-collection items only after Library Import has a
-`canonicalRef` to write. The `canonicalRef` may point to an existing active
-Canonical Store record or a newly created provisional canonical record.
+Collection items only after Source Entity Store has a Confirmed Canonical
+Binding and the referenced canonical record exists.
 
 Provider account identity is import/update provenance, not Collection
 ownership. Multiple provider accounts imported into the same `ownerScope` merge
@@ -230,24 +240,22 @@ the same canonical object, Collection Service should still keep one idempotent
 Collection item for that canonical ref.
 
 Collection items do not store source refs. Source refs remain recoverable
-through Canonical Store source refs and import event provenance.
+through Source Entity Store, Source Library, Confirmed Canonical Bindings, and
+import/update provenance.
 
 Library Import should retain item-level provenance that connects provider id,
 provider account id, import scope, source ref, and canonical ref for imported
 assets. This provenance belongs to Library Import, not CollectionItem identity.
 Checking or repairing provenance after later canonical rebinding belongs to
-repository consistency or Canonical Store review workflows, not ordinary Library
-Import or Library Update.
+Source Entity Store binding workflows or canonical review workflows, not
+ordinary Library Import or Library Update.
 
 Provider `canonicalHints` are preserved in item provenance as the audit copy of
 source facts, including platform-neutral `trackPosition` when a provider can
-derive it from source release context. For provisional recording records,
-Library Import also projects review-useful source facts into Canonical Store as
-a `source_recording_context` provisional hint attached to the provisional
-recording and provider `sourceRef`. It does not record these hints for active
-reused records. Existing provisional relations remain limited to catalog
-context such as `performed_by`, `appears_on_release`, and `has_duration_ms`;
-track position is not a canonical relation.
+derive it from source release context. Ordinary Library Import does not project
+those hints into Canonical Store or create canonical relations. A later binding
+or canonical maintenance workflow may inspect Source Library facts when it needs
+source-side evidence.
 
 Platform saved, liked, collected, or followed library facts should map to the
 owner's matching `saved` system Collection. They do not imply MineMusic
@@ -348,38 +356,35 @@ should not manage pagination cursors or provider batching directly; it should
 trust the provider's structured complete or partial result for each requested
 area.
 
-Newly observed platform assets during Library Update use the same canonical
-binding flow as initial import: exact source-ref lookup first, provisional
-canonical creation only when no binding exists and metadata is strong enough,
-and unresolved or skipped state when no usable canonical binding can be
-established.
+Newly observed platform assets during Library Update use the same Source Entity
+Store flow as initial import: upsert the source entity, update Source Library
+state, use a Confirmed Canonical Binding if one exists, and otherwise report
+the item as unresolved/skipped without writing Collection.
 
 Previously unresolved or skipped platform assets are not permanently skipped.
 If a later Library Update returns the same source ref again, Library Import
-should retry the normal canonical binding flow using the current provider facts.
-If metadata is now strong enough, the update may create or reuse a canonical
-record and then add the Collection item.
+should retry the normal Source Entity Store flow using the current provider
+facts. If a Confirmed Canonical Binding now exists, the update may add the
+Collection item.
 
 Listening history is different. It is context and memory evidence, not a saved
 Collection item. If imported, it should become factual listening-history data
 and may later seed memory proposals.
 
-### Canonical Store
+### Material Store
 
-Owns MineMusic identity anchors and source ref bindings.
+Owns MineMusic material identity and source-material state.
 
-During import, Canonical Store is used to:
+During import, Material Store is used to:
 
-- resolve known source refs.
-- reuse existing records when an source ref is already bound.
-- create provisional records for explicit imported user assets when provider
-  metadata is strong enough.
-- resolve provider hint source refs for artist and release records before
-  writing recording relations, creating provisional artist/release records only
-  when no existing canonical binding is found.
-- attach source refs to canonical records through the public canonical port.
+- upsert Source Track, Source Release, or Source Artist records.
+- update Source Library items for the owner/provider/account/library kind.
+- read Confirmed Canonical Bindings.
+- read canonical records for confirmed bindings before Collection writes.
 
-Canonical Store should not treat a platform id as a canonical id.
+Canonical Store is the canonical identity subdomain inside Material Store. It
+does not create canonical records as an ordinary import side effect, and it
+should not treat a platform id as a canonical id.
 
 ### Event Service
 
@@ -418,7 +423,8 @@ sequenceDiagram
     participant Stage as Stage Interface
     participant Import as Library Import Service
     participant Provider as Platform Library Provider
-    participant Canonical as Canonical Store
+    participant Material as Material Store
+    participant SourceEntity as Source Entity Store
     participant Collection as Collection Service
     participant Events as Event Service
 
@@ -437,17 +443,16 @@ sequenceDiagram
     Import->>Provider: read platform library items for scope
     Provider-->>Import: complete or partial item result
     Import->>Events: record batch/item facts
-    Import->>Canonical: resolve source ref
-    alt known binding
-        Canonical-->>Import: canonical record
-    else strong platform metadata
-        Import->>Canonical: create provisional record and attach source ref
-        Canonical-->>Import: provisional canonical record
-    else unresolved
-        Canonical-->>Import: no canonical record
+    Import->>Material: upsert source entity and Source Library item
+    Material->>SourceEntity: persist source entity/library state
+    Import->>Material: read Confirmed Canonical Binding
+    alt confirmed binding exists
+        Material-->>Import: canonical record
+        Import->>Collection: save imported collection item
+        Collection-->>Import: collection item
+    else no confirmed binding
+        Material-->>Import: unresolved source library item
     end
-    Import->>Collection: save imported collection item
-    Collection-->>Import: collection item
     Import-->>Stage: structured import report
     Stage-->>LLM: structured import report
     LLM-->>User: explanation or next question
@@ -468,20 +473,19 @@ Saved or liked platform tracks should be written to the owner's saved
 
 Import behavior:
 
-1. Resolve the source ref in Canonical Store.
-2. If known, save the collection item with `canonicalRef`.
-3. If unknown but metadata is usable, create a provisional `recording` record
-   and bind the NetEase source ref.
-4. If canonical creation fails or metadata is too weak, mark the item as
-   unresolved or skipped without writing a Collection item.
+1. Upsert a Source Track and Source Library item.
+2. Read Confirmed Canonical Binding for the source ref.
+3. If a confirmed binding and canonical record exist, save the Collection item
+   with `canonicalRef`.
+4. If no confirmed binding exists, keep the Source Library item and mark the
+   report item as unresolved/skipped without writing Collection.
 
 ### Saved Album
 
 Platform album saves should preserve the platform fact. If NetEase returns a
 concrete album id, Library Import should treat that imported asset as a
-`release`, create or reuse a provisional `release` canonical record, attach the
-NetEase album source ref, and write the Collection item to the owner's saved
-`release` Collection.
+Source Release, update Source Library, and write the owner's saved `release`
+Collection only after a Confirmed Canonical Binding exists.
 
 `release_group` is still useful for grouping editions later, but Library Import
 should not collapse a concrete platform album save into `release_group` during
@@ -489,8 +493,9 @@ the first import.
 
 ### Followed Artist
 
-Followed artists target `artist` and should be written to the owner's saved
-`artist` Collection.
+Followed artists become Source Artist records and Source Library items. They
+should be written to the owner's saved `artist` Collection only after a
+Confirmed Canonical Binding exists.
 
 ### Recent Play Or History
 
@@ -513,15 +518,19 @@ import batch:
 collection item:
   collection id + canonical ref
 
-canonical source ref:
+source entity:
   source ref namespace + kind + id
+
+source library item:
+  owner scope + provider id + provider account id + source ref + library kind
 ```
 
 On repeated import, Library Import should first use the platform source ref to
-recognize the same source asset and ask Canonical Store for the existing
-canonical record. Collection Service then keeps the Collection item idempotent
-by `collectionId + canonicalRef`. Re-importing the same platform asset should
-not create a second provisional canonical record or a second Collection item.
+recognize the same source asset and upsert Source Entity Store and Source
+Library state. If a Confirmed Canonical Binding exists, Collection Service then
+keeps the Collection item idempotent by `collectionId + canonicalRef`.
+Re-importing the same platform asset should not create a second source entity,
+Source Library item, or Collection item.
 
 Readable provider items without stable `sourceRef` are not importable. Library
 Import should skip them or report provider warnings rather than writing
@@ -535,30 +544,24 @@ If an imported asset already exists, import may update retained provider
 snapshots and use a better canonical binding when one is available.
 
 Retained provider snapshots should be minimal. Library Import should keep only
-the fields needed to justify or repeat the Collection write, Canonical Store
-binding, and later update baseline, such as provider id, provider account id,
-import scope, source ref, item kind, target kind, label, strong canonical hints,
-fetched time, and import batch id. It should not retain full raw provider
-responses by default.
+the fields needed to justify or repeat the Source Library update, confirmed
+binding Collection write, and later update baseline, such as provider id,
+provider account id, import scope, source ref, item kind, target kind, label,
+provider hints, fetched time, and import batch id. It should not retain full raw
+provider responses by default.
 
 After the user starts an import, Library Import should eagerly bind each
-imported saved or followed asset to a canonical record before writing
-Collection items. "Eagerly bind" means:
+imported saved or followed asset as a source entity before deciding Collection
+writes. "Eagerly store" means:
 
-1. resolve the platform source ref through Canonical Store.
-2. reuse an existing canonical record when found.
-3. create a provisional canonical record only when no binding exists and
-   provider metadata is strong enough.
-4. resolve linked artist/release records when provider hints include stable
-   source refs, creating provisional records only when no binding exists.
-5. record provisional canonical relations from provider hints, such as artist,
-   release, and duration context, without using those hints as automatic
-   identity merge proof.
-6. mark the item unresolved or skipped when neither reuse nor provisional
-   creation is possible.
+1. upsert the Source Track, Source Release, or Source Artist.
+2. update Source Library state for the owner/provider/account/library kind.
+3. read a Confirmed Canonical Binding when one exists.
+4. write Collection only for confirmed bindings.
+5. mark the item unresolved or skipped when no confirmed binding exists.
 
-The first implementation should not defer canonical binding until a later
-recommendation or collection-read flow.
+The first implementation should not defer Source Entity Store writes until a
+later recommendation or collection-read flow.
 
 ## Stage Interface Tools
 
@@ -630,20 +633,18 @@ Expected behavior:
   preview-only provider facts. They must not carry source refs, canonical
   hints, provider metadata, or per-sample canonical or Collection status;
   binding and Collection estimates are aggregate counts.
-- Both preview tools should estimate canonical binding outcomes without writing:
-  already bound to an existing canonical record, would create a provisional
-  canonical record on start, or unresolved/skipped because metadata is too weak.
-- Preview canonical binding estimates should use exact source-ref lookup only.
-  Provider metadata can indicate whether provisional creation would be possible,
-  but preview should not use fuzzy label, artist, or album matching to claim an
-  existing binding.
+- Both preview tools should estimate binding outcomes without writing:
+  confirmed binding to an existing canonical record, no confirmed binding,
+  unresolved, or skipped.
+- Preview binding estimates should use Confirmed Canonical Binding lookup only.
+  Provider metadata can explain the source asset, but preview should not use
+  fuzzy label, artist, or album matching to claim an existing binding.
 - Preview does not audit whether an existing canonical binding is semantically
   correct. Binding correction belongs to later Canonical Store review/admin
   flows, not import preview.
 - Both preview tools should estimate Collection outcomes without writing:
   already present in the target Collection, would add to the target Collection,
-  would add after provisional canonical creation, or skipped because no
-  canonical binding can be established.
+  or skipped because no Confirmed Canonical Binding exists.
 - Preview does not write Canonical Store records, Collection items, import
   events, or import batches. It may read from the platform provider and from
   MineMusic state to estimate what `start` would do.
@@ -735,9 +736,9 @@ authorize external effects automatically.
 Failures should carry structured `failureCode` and `retryable` fields. Examples
 of retryable failures include provider timeouts, temporary rate limits, and
 transient local API failures. Examples of non-retryable failures include an
-unsupported import scope or provider metadata that is too weak to create a
-provisional canonical record. MineMusic should return these fields as state; it
-should not turn them into user-facing advice.
+unsupported import scope or a provider item that cannot be represented as a
+stable source entity. MineMusic should return these fields as state; it should
+not turn them into user-facing advice.
 
 ## Import / Update Report
 
@@ -767,10 +768,8 @@ The preview result should include:
 - item counts by provider item kind when available, with count certainty such
   as exact, at least, or unknown.
 - bounded lightweight provider samples.
-- estimated canonical binding counts: already bound, would create provisional,
-  unresolved, or skipped.
-- estimated Collection counts: already present, would add, would add after
-  provisional canonical creation, or skipped.
+- estimated binding counts: confirmed, unresolved, or skipped.
+- estimated Collection counts: already present, would add, or skipped.
 - for `library.update.preview`, factual update counts: would add, already
   present, no longer returned by the provider with Collection unchanged, and
   failed or skipped.
@@ -792,11 +791,11 @@ First useful slice:
    slot.
 2. Import saved songs, saved albums, and followed artists when the local NetEase
    service exposes them.
-3. Resolve existing canonical records by source ref, creating provisional
-   canonical records for imported saved/followed assets only when no binding
-   exists and metadata is strong enough.
-4. Report unresolved or skipped items without creating source-only Collection
-   items when metadata is too weak for a provisional canonical record.
+3. Upsert Source Track/Release/Artist records and Source Library state for
+   imported saved/followed assets.
+4. Write Collection only for items with Confirmed Canonical Bindings, and
+   report unbound items as unresolved/skipped without creating source-only
+   Collection items.
 5. Write explicit collection items through Collection Service.
 6. Record import batch and item events.
 7. Expose Stage Interface import and update preview/start tools, plus shared

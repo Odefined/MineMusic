@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/service-adapter-refactor` with the Wave 8 Codex
-skill/MCP implementation and the server/MCP boundary refactor applied locally.
+MineMusic is on `codex/material-store-source-entity` with the Material Store /
+Source Entity Store rewrite through Material Resolve applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -11,8 +11,8 @@ core domain service skeletons, Stage Core runtime composition, Stage Modules
 for Session Context and Material Gate, Stage Interface facade, instrument
 registry, a fixture end-to-end MVP slice, a read-only NetEase provider adapter,
 contract/runtime tests, and SQLite-backed repository adapters plus opt-in
-runtime database-path wiring for Canonical Store, Collection, and Library
-Import state.
+runtime database-path wiring for Material Store, Collection, and Library Import
+state.
 Wave 7 adds a read-only NetEase source provider adapter and opt-in live smoke
 command. The local NetEase service is currently verified through explicit live
 smoke against `http://127.0.0.1:3000`. Wave 8 adds a Codex skill surface plus
@@ -35,6 +35,13 @@ The active Codex session has verified live MineMusic MCP tool visibility and a
 real NetEase-backed recommendation flow. Fresh Codex session tool visibility has
 also been confirmed by the user in this thread; the repo now treats Codex as a
 skill plus global MCP client, not a MineMusic plugin package.
+
+The 2026-05-28 Material Store rewrite makes Source Entity Store the owner of
+Source Track/Release/Artist records, Source Library, Library Import/Update
+state, import history, and Confirmed Canonical Bindings. Canonical Store remains
+inside Material Store as the canonical identity subdomain. Existing repository
+data is test/dev data, so this repo does not carry compatibility repair layers
+for the old provisional import path unless explicitly requested.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
@@ -88,31 +95,23 @@ host-facing and LLM-facing surface.
 - The runtime test runner imports compiled test modules sequentially so
   file-writing startup tests do not race Codex skill packaging checks.
 - In-memory repositories are exported from `src/storage/index.ts` for sessions,
-  canonical records, collection records/items, events, memory entries, and
-  effect proposals. The same module also exports the SQLite-backed Canonical
-  Store repository factory.
+  canonical records, Source Entity Store records, collection records/items,
+  Library Import working state, events, memory entries, and effect proposals.
+  The same module also exports SQLite-backed repository factories for Material
+  Store canonical/source-entity storage, Collection, Library Import,
+  Provider HTTP Cache, and related runtime storage.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
-- Canonical Store is exported from `src/material_store/canonical/index.ts` with get,
-  source-ref resolution, provisional record creation, and source ref
-  attachment. It reuses current canonical records by source-ref evidence during
-  provisional creation, keeps label/alias matching as lookup-only candidate
-  discovery, filters ordinary lookup to active/provisional records, and keeps
-  same-record source-ref attachment idempotent. Separate source refs may create
-  separate source-bound provisional identities, but that is not proof that the
-  real-world recordings are distinct. Canonical Store also records provisional
-  relations such as `performed_by`, `appears_on_release`, and
-  `has_duration_ms` from provider hints. When imported recording hints include
-  stable artist/release source refs, Library Import resolves linked
-  artist/release records, creates provisional records only when no existing
-  canonical binding is found, and stores relation `objectRef`s. These relations
-  are context for catalog navigation, review, and later merge, not automatic
-  identity proof. Canonical Store also records separate provisional hints for
-  source-side review facts. The first implemented hint kind,
-  `source_recording_context`, attaches title, artist labels, release context,
-  duration, and source track position to a provisional recording and provider
-  source ref without treating track position as a canonical relation.
+- Canonical Store is exported from `src/material_store/canonical/index.ts` as
+  the canonical identity subdomain inside Material Store. It still owns
+  canonical records, label/alias lookup, provisional records, provisional
+  relations, provisional hints, merge redirects, and Canonical Maintenance
+  review/apply policy. Its older source-ref APIs remain available for canonical
+  maintenance and existing tests, but ordinary Library Import and Material
+  Resolve no longer use `canonical_source_refs` as the provider-source binding
+  path. Confirmed provider source-to-canonical binding now belongs to Source
+  Entity Store.
 - Canonical Maintenance Provisional Review is implemented through a separate
   `CanonicalMaintenancePort` and Stage Interface tools
   `canonical.review.list`, `canonical.review.inspect`, and
@@ -138,7 +137,7 @@ host-facing and LLM-facing surface.
   `docs/canonical-store/interfaces.md`. The durable implementation plan is
   documented in `docs/canonical-store/implementation-plan.md`. Canonical
   Store-specific progress is tracked in `docs/canonical-store/progress.md`.
-- SQLite-backed Canonical Store storage is implemented under
+- SQLite-backed canonical storage is implemented under
   `src/storage/sqlite/**` for direct repository injection. Schema
   initialization lives in `src/storage/sqlite/canonical-schema.ts`; repository
   behavior lives in `src/storage/sqlite/canonical-repository.ts`; public exports
@@ -154,7 +153,13 @@ host-facing and LLM-facing surface.
   durable canonical storage. SQLite initialization migrates the legacy
   `canonical_external_refs.external_id` table shape to
   `canonical_source_refs.source_id`. The Codex MCP default runtime accepts
-  `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize that durable Canonical Store.
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize durable Material Store
+  storage.
+- SQLite-backed Source Entity Store storage is implemented under
+  `src/storage/sqlite/source-entity-schema.ts` and
+  `src/storage/sqlite/source-entity-repository.ts`. It persists source
+  entities, Source Library items, and Confirmed Canonical Bindings in the same
+  Material Store database path used by canonical storage.
 - Canonical Store persistence integration is covered by
   `test/integration/canonical-persistence.test.ts`: it recreates Stage Core
   with the same SQLite canonical database path, proves persisted canonical
@@ -186,81 +191,35 @@ host-facing and LLM-facing surface.
   `docs/collection-service/design.md`, task breakdown is
   `docs/collection-service/implementation-plan.md`, and detailed implementation
   status is tracked in `docs/collection-service/progress.md`.
-- Library Import orchestration service skeleton is implemented. The design is
-  documented in `docs/library-import/design.md` as the path for helping users
-  switch from platforms such as NetEase by importing saved songs, albums,
-  followed artists, and other first-slice platform-library facts into
-  MineMusic-owned Collection items, canonical source-ref bindings, and
-  import/update event records.
-  Playlist import is documented as a later feature. The implementation task
-  breakdown is documented in `docs/library-import/implementation-plan.md`, and
-  detailed implementation status is tracked in `docs/library-import/progress.md`.
-- Library Import implementation Tasks 1-12 are complete: shared TypeScript contracts
-  now define first-slice import scopes, batch kinds/statuses, preview/start/status
-  inputs, preview/report outputs, item outcomes, import counts, batch records,
-  area snapshots, item provenance, Platform Library Absence records, and stable
-  Library Import error codes. Public ports now define `LibraryImportPort` and
-  `LibraryImportRepository` boundaries for preview/start/status/summary,
-  batch storage, completed report storage, area snapshots, item provenance,
-  absence records, and provider-account-stable latest complete baseline lookup.
-  In-memory storage now exports `createInMemoryLibraryImportRepository()` for
-  clone-return batch, report, snapshot, provenance, absence, and latest complete
-  baseline operations. The service
-  skeleton in `src/library_import/index.ts` now resolves and validates
-  `platform_library` providers, maps first-slice scopes to provider areas,
-  rejects `discovery` start calls, creates skeleton import/update batches for
-  readable starts, exposes batch status/summary helpers backed by completed
-  report storage, and implements side-effect-free import preview estimates for
-  exact source-ref canonical
-  bindings, provisional canonical creates, unresolved items, and saved
-  Collection outcomes. Initial import start now creates running/completed
-  batches, records import events, reuses exact canonical bindings, creates and
-  binds provisional canonical records for strong provider facts, writes saved
-  Collection items, stores item provenance, records
-  `source_recording_context` provisional hints for provisional imported
-  recordings, and stores complete area snapshots only for complete provider
-  reads, persists completed summary reports, and marks started batches failed
-  when provider reads or downstream import steps fail. Library update
-  preview/start now compares current provider reads with
-  the latest eligible complete baseline for the same provider account stability,
-  reports newly observed, already-present, and no-longer-returned categories
-  from baseline source refs, stores Platform Library Absence records with
-  `library_import.item.not_returned` events for complete update reads, and
-  avoids deriving absences from partial reads. Stage Core now creates and
-  exposes `libraryImport`, creates an
-  in-memory Library Import repository by default, accepts optional
-  `libraryImportRepository` and `platformLibraryProvider` injections, and
-  registers source and platform-library providers separately during runtime
-  readiness. Stage Interface now exposes `library.import.preview`,
-  `library.import.start`, `library.update.preview`,
-  `library.update.start`, `library.import.status`, and
-  `library.import.summary` with explicit MCP schemas and generated
-  Handbook entries. The Instrument Catalog now exposes focused
-  `minemusic.stage`, `minemusic.knowledge`, `minemusic.music`,
-  `minemusic.library`, and
-  `minemusic.memory` instruments instead of a single aggregate MVP instrument,
-  and it attaches registered provider descriptors to their owning instruments.
-  The service runtime registers NetEase through both
-  `source` and `platform_library` slots, publishes NetEase provider capability
-  metadata for Handbook generation without calling live preview/read APIs, and
-  reuses `MINEMUSIC_NETEASE_BASE_URL` for both provider factories. SQLite-backed
-  Library Import storage is now implemented under `src/storage/sqlite/**` for
-  direct repository injection and Stage Core `libraryImportDatabasePath`
-  configuration: it persists import/update batches, completed reports, area
-  snapshots, item provenance, and Platform Library Absence records across
-  repository reopen while preserving returned-copy behavior and
-  provider-account-stable baseline lookup. The service runtime accepts
-  `MINEMUSIC_COLLECTION_DB_PATH` and
-  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to initialize durable Collection and
-  Library Import stores; without them, Stage Core still defaults to in-memory
-  Collection and Library Import storage.
-  Deterministic integration coverage now exercises discovery preview,
-  explicit preview estimates, initial import side effects, Stage Core recreation
-  against the same Library Import SQLite database path, repeated import
-  idempotency, update diffing, partial-read absence guards, and Stage Interface /
-  MCP tool exposure through the composed runtime.
-  Documentation and project state now record the completed first-slice scope
-  without moving mutable status into the design document.
+- Library Import/Update is now a Source Entity Store flow inside Material
+  Store. The implementation lives in
+  `src/material_store/source_entity/library-import.ts`; `src/library_import/index.ts`
+  re-exports it so existing imports and external tool names stay stable.
+  Library Import reads `platform_library` providers, writes import/update
+  working state through `LibraryImportRepository`, upserts Source Track/Release/
+  Artist entities, updates Source Library state for every observed provider
+  item, and writes Collection only when a Confirmed Canonical Binding already
+  connects the source entity to a canonical record. Unbound provider items are
+  kept as Source Library state and reported as unresolved/skipped; ordinary
+  import no longer creates provisional canonical records or attaches
+  `canonical_source_refs`.
+- Library Import public tools remain `library.import.preview`,
+  `library.import.start`, `library.update.preview`, `library.update.start`,
+  `library.import.status`, and `library.import.summary`, exposed under the
+  `minemusic.library` instrument. Preview estimates confirmed bindings,
+  Source Library observations, unresolved items, and saved Collection outcomes
+  without writing canonical identity. Library Update compares complete
+  provider reads with eligible baselines, records Source Library absence state
+  and Platform Library Absence provenance for complete reads, and avoids
+  deriving absences from partial reads. SQLite-backed Library Import storage
+  still persists batches, completed reports, area snapshots, item provenance,
+  and Platform Library Absence records through `libraryImportDatabasePath` /
+  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`; Source Entity Store state persists through
+  `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH`.
+  Deterministic integration coverage now exercises Source Entity/Source Library
+  writes, confirmed-binding Collection writes, unbound import skips, repeated
+  import idempotency, update diffing, partial-read absence guards, durable
+  Library Import path reuse, and Stage Interface / MCP tool exposure.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared
@@ -403,12 +362,13 @@ host-facing and LLM-facing surface.
   does not make a MusicBrainz-specific environment variable decide provider
   activation.
 - Material Resolve is exported from `src/material_resolve/index.ts` with
-  canonical-first `MusicCandidate` to `MusicMaterial` resolution,
-  `MaterialResolveResult` status, and source evidence attachment to known
-  canonical records. It can accept `CollectionPort` for owner-scoped blocked
+  canonical-first `MusicCandidate` to `MusicMaterial` resolution through
+  `MaterialStorePort`. It can accept `CollectionPort` for owner-scoped blocked
   filtering, defaults missing `ownerScope` to `local_profile:default`, marks
-  blocked canonical materials as `blocked`, and can recover canonical identity
-  from source material source-ref bindings before blocked checks.
+  blocked canonical materials as `blocked`, resolves source refs through
+  Confirmed Canonical Bindings, reads Source Library only when
+  `sourceLibraryScope` is explicit, and does not attach source refs or create
+  canonical identity.
 - Source Grounding is exported from `src/source/index.ts` with provider search,
   playable-link refresh, canonical-ref lookup from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.
@@ -510,9 +470,9 @@ host-facing and LLM-facing surface.
 
 - Stage Interface can still be deepened with richer provider capability
   metadata in `InstrumentDescriptor` / Handbook output.
-- Durable storage repositories beyond the direct SQLite-backed Canonical Store,
-  Collection, and Library Import repository adapters and their opt-in Stage Core
-  / service runtime database-path wiring.
+- Durable storage repositories beyond the direct SQLite-backed Material Store,
+  Collection, Library Import, and Provider HTTP Cache adapters and their opt-in
+  Stage Core / service runtime database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter.
 - CLI and Web UI peer transports over the server-held Stage Core.
 - Automatic Knowledge provider activation through future plugin `config.json`
@@ -522,6 +482,8 @@ host-facing and LLM-facing surface.
 
 ## Verification
 
+- `npm run typecheck`, `npm test`, and `git diff --check` pass as of the
+  Material Store / Source Entity Store rewrite through Phase 5 on 2026-05-28.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
   implementation and is covered inside the latest `npm test` run.
@@ -549,10 +511,7 @@ host-facing and LLM-facing surface.
 - Do not build heavy recommender scoring into the MVP path.
 - Do not treat a `source_only_playable` event target as durable canonical
   identity.
-- Full live Library Import through MCP with durable SQLite paths now completes
-  after the indexed source-ref lookup and per-batch saved-membership cache
-  performance pass. On 2026-05-25, a temp durable MCP runtime imported NetEase
-  `saved_recordings`, `saved_releases`, and `saved_artists` in 13 seconds:
-  2017 item reports, 2017 active saved Collection items, 3241 canonical source
-  refs, and 5249 provisional relation rows, including 3189 relation rows with
-  `objectRef`s.
+- The 2026-05-25 live Library Import run predates the Source Entity Store
+  rewrite and is historical evidence only. Current import semantics keep
+  unbound provider assets in Source Library and write Collection only through
+  Confirmed Canonical Bindings.

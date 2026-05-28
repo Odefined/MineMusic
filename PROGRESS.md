@@ -861,6 +861,24 @@
 - Added `docs/material-store/implementation-plan.md` as the phased plan for the
   Source Entity Store and Source Library rewrite on
   `codex/material-store-source-entity`.
+- Completed Phase 1 of that plan by establishing `src/material_store/**` as the
+  Material Store module boundary, moving Canonical Store under it, and renaming
+  runtime config to `materialStoreDatabasePath` /
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH`.
+- Completed Phase 2 by adding Source Entity Store contracts, `MaterialStorePort`
+  composition, in-memory storage, and SQLite tables for source entities, Source
+  Library items, and Confirmed Canonical Bindings.
+- Completed Phase 3 by routing Library Import/Update through Source Entity
+  Store. Library Import now upserts source entities and Source Library state,
+  writes Collection only through Confirmed Canonical Bindings, and no longer
+  creates provisional canonical records during ordinary import.
+- Completed Phase 4 by routing Material Resolve through `MaterialStorePort`.
+  Material Resolve remains canonical-first, uses Confirmed Canonical Bindings
+  for source refs, reads Source Library only for explicit scoped requests, and
+  does not write canonical or Collection state.
+- Completed Phase 5 documentation/state sync across `ARCHITECTURE.md`,
+  `CURRENT_STATE.md`, `INDEX.md`, `PROGRESS.md`,
+  `docs/material-store/progress.md`, and Library Import docs.
 
 ## Next
 

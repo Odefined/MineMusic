@@ -1,5 +1,12 @@
 # Library Import Service Implementation Plan
 
+This is the historical first-slice implementation plan for Library Import
+tools and working-state storage. Current binding ownership is superseded by
+`docs/adr/0002-material-store-boundary.md` and
+`docs/material-store/implementation-plan.md`: Library Import/Update is a Source
+Entity Store flow, imported provider assets enter Source Library first, and
+Collection writes require Confirmed Canonical Bindings.
+
 ## Goal
 
 Implement the first Library Import Service slice.
@@ -39,7 +46,9 @@ the first Library Import Service implementation.
   provider-specific `sourceRef.kind` meanings.
 - Library Import uses provider `itemKind` and `targetKind` for import behavior.
 - Library Import writes Collection membership only through `CollectionPort`.
-- Library Import writes canonical identity only through `CanonicalStorePort`.
+- Library Import does not write canonical identity. It writes Source Entity
+  Store / Source Library state through Material Store and reads Confirmed
+  Canonical Bindings before Collection writes.
 - Library Import records factual events through `EventPort`.
 - Library Import keeps batch, item provenance, area snapshots, update baselines,
   warnings, failures, and absence records in its own repository boundary.
@@ -48,7 +57,8 @@ the first Library Import Service implementation.
 
 ## Architecture Decisions
 
-- Add `src/library_import/index.ts` as a Core Capability.
+- Add `src/library_import/index.ts` as the original public export path. Current
+  implementation ownership is under `src/material_store/source_entity`.
 - Add `LibraryImportPort` and `LibraryImportRepository` in `src/ports/index.ts`.
 - Add in-memory Library Import storage in `src/storage/index.ts` before any
   durable repository.
@@ -189,12 +199,10 @@ the first Library Import Service implementation.
   - Explicit first-slice previews call provider `preview` for availability and,
     when an area is readable, provider `readItems` to estimate canonical and
     Collection outcomes without writing.
-  - Estimate canonical binding by exact source-ref lookup only through
-    `CanonicalStorePort.resolveSourceRef`.
-  - Estimate provisional creation only from provider item facts:
-    - stable source ref is present.
-    - target kind is a first-slice canonical kind.
-    - non-empty label is available.
+  - Estimate binding by Confirmed Canonical Binding lookup through
+    `MaterialStorePort`.
+  - Estimate unbound Source Library observations from provider item facts:
+    stable source ref, first-slice target kind, and non-empty label.
   - Estimate Collection outcome by reading existing saved system Collection items
     through `CollectionPort.listItems`.
   - Do not create batches, canonical records, Collection items, or events.
@@ -210,12 +218,10 @@ the first Library Import Service implementation.
   - Record `library_import.batch.started`.
   - Call provider `readItems` for the explicit first-slice scopes.
   - For each readable provider item:
-    - resolve `sourceRef` through Canonical Store.
-    - create a provisional canonical record when no binding exists and provider
-      metadata is strong enough.
-    - attach the source ref when needed.
+    - upsert Source Entity Store / Source Library state through Material Store.
+    - read Confirmed Canonical Binding.
     - write to the owner's saved system Collection through
-      `addItemToSystemCollection`.
+      `addItemToSystemCollection` only when a confirmed binding exists.
     - upsert item provenance.
     - record `library_import.item.imported`, `library_import.item.skipped`, or
       `library_import.item.failed`.
@@ -328,12 +334,13 @@ the first Library Import Service implementation.
 - **Description**: Prove the full first-slice behavior deterministically.
 - **Details**:
   - Provider discovery preview returns supported and unsupported areas.
-  - Explicit import preview estimates existing canonical bindings, provisional
-    creation, unresolved/skipped items, already-present Collection items, and
-    would-add Collection items.
-  - Initial import creates or reuses canonical records, saves Collection items,
-    records item provenance, records events, and stores complete baselines.
-  - Repeated import is idempotent for canonical source refs and Collection
+  - Explicit import preview estimates confirmed bindings, Source Library
+    observations, unresolved/skipped items, already-present Collection items,
+    and would-add Collection items.
+  - Initial import upserts Source Entity / Source Library state, saves
+    Collection items only for confirmed bindings, records item provenance,
+    records events, and stores complete baselines.
+  - Repeated import is idempotent for Source Entity Store state and Collection
     membership.
   - Update preview and start classify newly observed, still-present, absent, and
     skipped/failed items.
