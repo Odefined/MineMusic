@@ -25,6 +25,8 @@ export {
   createStageInterfaceToolDefinitionRegistry,
   handbookToolDefinitions,
   handbookToolNames,
+  knowledgeToolDefinitions,
+  knowledgeToolNames,
   libraryToolDefinitions,
   libraryToolNames,
   musicToolDefinitions,
@@ -39,6 +41,7 @@ export type {
 export type {
   BoundStageInterfaceToolDefinition,
   HandbookToolName,
+  KnowledgeToolName,
   LibraryToolName,
   MusicToolName,
   StageInterfaceToolAvailability,

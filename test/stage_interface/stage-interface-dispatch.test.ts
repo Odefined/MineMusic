@@ -38,6 +38,7 @@ import {
   createInstrumentCatalog,
   createToolDispatch,
   handbookToolNames,
+  knowledgeToolNames,
   libraryToolNames,
   musicToolNames,
   stableToolNames,
@@ -360,6 +361,16 @@ async function registersMigratedToolDefinitions(): Promise<void> {
         refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
       },
     },
+    knowledge: {
+      knowledge: {
+        query: async () => ({
+          ok: true,
+          value: {
+            items: [],
+          },
+        }),
+      },
+    },
     library: {},
   });
 
@@ -380,6 +391,10 @@ async function registersMigratedToolDefinitions(): Promise<void> {
     "Tool Definition registry should register every Music tool",
   );
   assert(
+    knowledgeToolNames.every((toolName) => registry.has(toolName)),
+    "Tool Definition registry should register every Knowledge tool",
+  );
+  assert(
     registry.get("canonical.review.list") === undefined,
     "Tool Definition registry tracer bullet should not register unmigrated tools",
   );
@@ -394,6 +409,10 @@ async function registersMigratedToolDefinitions(): Promise<void> {
   assert(
     stageInterfaceToolInputSchemas["music.material.resolve"] === registry.get("music.material.resolve")?.inputSchema,
     "Music tool schemas should be derived from Tool Definitions",
+  );
+  assert(
+    stageInterfaceToolInputSchemas["knowledge.query"] === registry.get("knowledge.query")?.inputSchema,
+    "Knowledge tool schemas should be derived from Tool Definitions",
   );
   assert(
     stageInterfaceToolInputSchemas["library.import.start"] === registry.get("library.import.start")?.inputSchema,

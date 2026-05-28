@@ -2,6 +2,8 @@ import type { ToolDescriptor, ToolName } from "../contracts/index.js";
 import {
   handbookToolDescriptors,
   handbookToolNames,
+  knowledgeToolDescriptors,
+  knowledgeToolNames,
   libraryToolDescriptors,
   libraryToolNames,
   musicToolDescriptors,
@@ -15,7 +17,7 @@ export const stableToolNames = [
   ...handbookToolNames,
   ...stageToolNames.slice(1),
   musicToolNames[0],
-  "knowledge.query",
+  ...knowledgeToolNames,
   ...musicToolNames.slice(1),
   ...libraryToolNames,
   "canonical.review.list",
@@ -35,14 +37,7 @@ export { handbookToolDescriptors, stageToolDescriptors };
 
 export { musicToolDescriptors };
 
-export const knowledgeToolDescriptors: StableToolDescriptor[] = [
-  {
-    name: "knowledge.query",
-    description: "Query provider-attributed structured or text knowledge.",
-    inputSchemaRef: "KnowledgeQuery",
-    outputSchemaRef: "KnowledgeResult",
-  },
-];
+export { knowledgeToolDescriptors };
 
 export { libraryToolDescriptors };
 

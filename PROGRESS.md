@@ -918,6 +918,9 @@
   resolution, playable-link refresh, and Collection routes are co-located with
   Music descriptors, host input schemas, dependency context, and availability
   rules.
+- Migrated the Knowledge Tool Group to the same Tool Definition registry so
+  `knowledge.query` is co-located with Knowledge descriptor metadata, host input
+  schema, optional provider dependency, and availability rule.
 
 ## Next
 

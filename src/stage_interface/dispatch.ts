@@ -1,6 +1,5 @@
 import type {
   InstrumentDescriptor,
-  KnowledgeQuery,
   MemoryProposal,
   ProvisionalReviewApplyInput,
   ProvisionalReviewAutoUpdateInput,
@@ -87,6 +86,9 @@ export function createToolDispatch({
       source,
       ...(collection === undefined ? {} : { collection }),
     },
+    knowledge: {
+      ...(knowledge === undefined ? {} : { knowledge }),
+    },
     library: {
       ...(materialStore === undefined ? {} : { materialStore }),
       ...(libraryImport === undefined ? {} : { libraryImport }),
@@ -128,19 +130,6 @@ export function createToolDispatch({
       }
 
       switch (toolName) {
-        case "knowledge.query": {
-          const availableKnowledge = readKnowledge(knowledge);
-
-          if (!availableKnowledge.ok) {
-            return availableKnowledge;
-          }
-
-          return availableKnowledge.value.query({
-            query: readPayload<KnowledgeQuery>(payload),
-            sessionId,
-          });
-        }
-
         case "canonical.review.list": {
           const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
 
@@ -306,14 +295,6 @@ async function callToolDefinition({
   return ok(definition.present(result.value));
 }
 
-function readKnowledge(knowledge: MusicKnowledgePort | undefined): Result<MusicKnowledgePort> {
-  if (knowledge === undefined) {
-    return knowledgeUnavailable();
-  }
-
-  return ok(knowledge);
-}
-
 function readCanonicalMaintenance(
   canonicalMaintenance: CanonicalMaintenancePort | undefined,
 ): Result<CanonicalMaintenancePort> {
@@ -322,15 +303,6 @@ function readCanonicalMaintenance(
   }
 
   return ok(canonicalMaintenance);
-}
-
-function knowledgeUnavailable(): Result<never> {
-  return fail({
-    code: "stage_interface.tool_not_found",
-    message: "Music Knowledge tools are not available.",
-    module: "stage_interface",
-    retryable: false,
-  });
 }
 
 function canonicalMaintenanceUnavailable(): Result<never> {

@@ -9,6 +9,15 @@ import {
   handbookToolNames,
 } from "./handbook.js";
 import type {
+  KnowledgeToolGroupContext,
+} from "./knowledge.js";
+import {
+  knowledgeToolDefinitions,
+  knowledgeToolDescriptors,
+  knowledgeToolInputSchemas,
+  knowledgeToolNames,
+} from "./knowledge.js";
+import type {
   LibraryToolGroupContext,
 } from "./library.js";
 import {
@@ -47,6 +56,10 @@ export {
   handbookToolDescriptors,
   handbookToolInputSchemas,
   handbookToolNames,
+  knowledgeToolDefinitions,
+  knowledgeToolDescriptors,
+  knowledgeToolInputSchemas,
+  knowledgeToolNames,
   libraryToolDefinitions,
   libraryToolDescriptors,
   libraryToolInputSchemas,
@@ -64,6 +77,10 @@ export type {
   HandbookToolGroupContext,
   HandbookToolName,
 } from "./handbook.js";
+export type {
+  KnowledgeToolGroupContext,
+  KnowledgeToolName,
+} from "./knowledge.js";
 export type {
   LibraryToolGroupContext,
   LibraryToolName,
@@ -88,6 +105,7 @@ export type StageInterfaceToolDefinitionRegistryOptions = {
   stage: StageToolGroupContext;
   handbook: HandbookToolGroupContext;
   music: MusicToolGroupContext;
+  knowledge: KnowledgeToolGroupContext;
   library: LibraryToolGroupContext;
 };
 
@@ -95,6 +113,7 @@ export function createStageInterfaceToolDefinitionRegistry({
   stage,
   handbook,
   music,
+  knowledge,
   library,
 }: StageInterfaceToolDefinitionRegistryOptions): Map<ToolName, BoundStageInterfaceToolDefinition> {
   const definitions = [
@@ -109,6 +128,10 @@ export function createStageInterfaceToolDefinitionRegistry({
     ...bindToolDefinitions({
       definitions: musicToolDefinitions,
       context: music,
+    }),
+    ...bindToolDefinitions({
+      definitions: knowledgeToolDefinitions,
+      context: knowledge,
     }),
     ...bindToolDefinitions({
       definitions: libraryToolDefinitions,
