@@ -213,6 +213,148 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
   assert(status.status === report.status, "status should expose stored batch status");
 }
 
+async function startsImportInBoundedSegmentsAndContinuesNextPage(): Promise<void> {
+  const registry = createPluginRegistry();
+  const readPageInputs: Array<{ pageSize: number; providerState?: unknown }> = [];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      throw new Error("segmented import should not fall back to readItems when readPage is available");
+    },
+    async readPage(input) {
+      readPageInputs.push({
+        pageSize: input.pageSize,
+        providerState: input.providerState,
+      });
+
+      if (readPageInputs.length === 1) {
+        return {
+          ok: true,
+          value: {
+            providerId: "fixture-library",
+            account: {
+              providerAccountId: input.providerAccountId ?? "fixture-account",
+              stable: true,
+            },
+            area: "saved_source_tracks",
+            status: "complete",
+            count: { certainty: "exact", value: 3 },
+            items: [
+              providerItem("track-1", "Track 1"),
+              providerItem("track-2", "Track 2"),
+            ],
+            providerState: { offset: 2 },
+            hasMore: true,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: input.providerAccountId ?? "fixture-account",
+            stable: true,
+          },
+          area: "saved_source_tracks",
+          status: "complete",
+          count: { certainty: "exact", value: 3 },
+          items: [providerItem("track-3", "Track 3")],
+          hasMore: false,
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const firstReport = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      scopes: ["saved_source_tracks"],
+      pageSize: 2,
+    }),
+  );
+  const firstStatus = await assertOk(environment.libraryImport.getStatus({ batchId: firstReport.batchId }));
+  const firstSummary = await assertOk(environment.libraryImport.getSummary({ batchId: firstReport.batchId }));
+  const continuationStatesAfterStart = await assertOk(
+    environment.libraryImportRepository.listContinuationStates?.({
+      batchId: firstReport.batchId,
+    }) ?? Promise.resolve({ ok: true as const, value: [] }),
+  );
+  const snapshotsAfterStart = await assertOk(
+    environment.libraryImportRepository.listAreaSnapshots({
+      batchId: firstReport.batchId,
+    }),
+  );
+
+  assert(firstReport.status === "running", "paged startImport should leave the batch running when more work remains");
+  assert(firstReport.items.length === 2, "paged startImport should report only the first processed segment");
+  assert(firstReport.counts.skippedItems === 2, "paged startImport should count only the first segment");
+  assert(firstReport.progress.hasMore === true, "paged startImport should report that more work remains");
+  assert(firstStatus.status === "running", "status should keep the batch running between segments");
+  assert(firstStatus.progress.hasMore === true, "status should report that continueImport is still needed");
+  assert(firstSummary.items.length === 2, "summary should expose the stored partial report while the batch is running");
+  assert(
+    continuationStatesAfterStart[0]?.processedItems === 2 &&
+      continuationStatesAfterStart[0]?.status === "running",
+    "startImport should persist running continuation state after the first segment",
+  );
+  assert(snapshotsAfterStart.length === 0, "startImport should not store a complete snapshot before the area finishes");
+
+  const continued = await assertOk(
+    environment.libraryImport.continueImport({
+      batchId: firstReport.batchId,
+    }),
+  );
+  const finalSummary = await assertOk(environment.libraryImport.getSummary({ batchId: firstReport.batchId }));
+  const continuationStatesAfterContinue = await assertOk(
+    environment.libraryImportRepository.listContinuationStates?.({
+      batchId: firstReport.batchId,
+    }) ?? Promise.resolve({ ok: true as const, value: [] }),
+  );
+  const snapshotsAfterContinue = await assertOk(
+    environment.libraryImportRepository.listAreaSnapshots({
+      batchId: firstReport.batchId,
+      complete: true,
+    }),
+  );
+
+  assert(readPageInputs.length === 2, "continuation import should call provider.readPage once per processed segment");
+  assert(readPageInputs[0]?.pageSize === 2, "startImport should pass explicit pageSize to provider.readPage");
+  assert(
+    typeof readPageInputs[1]?.providerState === "object" &&
+      readPageInputs[1]?.providerState !== null &&
+      "offset" in readPageInputs[1].providerState &&
+      (readPageInputs[1].providerState as { offset: unknown }).offset === 2,
+    "continueImport should resume from the stored providerState",
+  );
+  assert(continued.status === "completed_with_warnings", "continueImport should complete the batch after the last segment");
+  assert(continued.counts.skippedItems === 3, "continueImport should accumulate counts across segments");
+  assert(continued.progress.hasMore === false, "continueImport should clear hasMore once the batch is done");
+  assert(finalSummary.items.length === 3, "summary should expose all item reports after completion");
+  assert(
+    continuationStatesAfterContinue[0]?.processedItems === 3 &&
+      continuationStatesAfterContinue[0]?.status === "complete",
+    "continueImport should persist completed continuation state after the final segment",
+  );
+  assert(
+    snapshotsAfterContinue.length === 1 && snapshotsAfterContinue[0]?.sourceRefs.length === 3,
+    "continueImport should store the complete area snapshot only after the last segment",
+  );
+}
+
 async function marksStartedBatchFailedWhenProviderReadFails(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
@@ -1525,6 +1667,7 @@ await previewsImportThroughRegisteredPlatformLibraryProvider();
 await mapsMissingPlatformLibraryProviderToLibraryImportError();
 await rejectsDiscoveryScopesForStartCalls();
 await startsReadableImportBatchAndExposesStatus();
+await startsImportInBoundedSegmentsAndContinuesNextPage();
 await marksStartedBatchFailedWhenProviderReadFails();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();

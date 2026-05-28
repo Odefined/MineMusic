@@ -3,6 +3,7 @@ import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
   LibraryImportBatchKind,
+  LibraryImportContinuationState,
   LibraryImportCollectionEstimateCounts,
   LibraryImportContinueInput,
   LibraryImportCounts,
@@ -15,11 +16,13 @@ import type {
   LibraryImportReportArea,
   LibraryImportItemReport,
   LibraryImportScope,
+  LibraryImportStartInput,
   LibraryImportStatus,
   LibraryImportUpdateEstimateCounts,
   PlatformLibraryArea,
   PlatformLibraryAbsence,
   PlatformLibraryAbsenceSummary,
+  PlatformLibraryCount,
   PlatformLibraryItem,
   PlatformLibraryPreviewArea,
   PlatformLibraryProvider,
@@ -94,8 +97,14 @@ export function createLibraryImportService({
 
     async continueImport(input) {
       return continueLibraryImport({
+        pluginRegistry,
+        materialStore,
+        collection,
+        events,
         repository,
+        completedReports,
         input,
+        clock,
       });
     },
 
@@ -112,8 +121,14 @@ export function createLibraryImportService({
 
     async continueUpdate(input) {
       return continueLibraryImport({
+        pluginRegistry,
+        materialStore,
+        collection,
+        events,
         repository,
+        completedReports,
         input,
+        clock,
       });
     },
 
@@ -704,7 +719,7 @@ async function startLibraryImport({
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
-  input: LibraryImportPreviewInput;
+  input: LibraryImportStartInput;
   batchKind: LibraryImportBatchKind;
   idFactory: () => string;
   clock: () => string;
@@ -719,6 +734,29 @@ async function startLibraryImport({
 
   if (!provider.ok) {
     return provider;
+  }
+
+  if (
+    shouldUsePagedImport({
+      batchKind,
+      input,
+      provider: provider.value,
+      repository,
+    }) &&
+    isPagedPlatformLibraryProvider(provider.value)
+  ) {
+    return startPagedLibraryImport({
+      materialStore,
+      collection,
+      events,
+      repository,
+      completedReports,
+      provider: provider.value,
+      input,
+      batchKind,
+      idFactory,
+      clock,
+    });
   }
 
   const batchId = idFactory();
@@ -1967,12 +2005,26 @@ function batchToReport(batch: LibraryImportBatch): LibraryImportReport {
   return report;
 }
 
+const defaultContinuationPageSize = 50;
+
 async function continueLibraryImport({
+  pluginRegistry,
+  materialStore,
+  collection,
+  events,
   repository,
+  completedReports,
   input,
+  clock,
 }: {
+  pluginRegistry: PluginRegistryPort;
+  materialStore: MaterialStorePort;
+  collection: CollectionPort;
+  events: EventPort;
   repository: LibraryImportRepository;
+  completedReports: Map<string, LibraryImportReport>;
   input: LibraryImportContinueInput;
+  clock: () => string;
 }): Promise<Result<LibraryImportStatus>> {
   const batch = await repository.getBatch({ batchId: input.batchId });
 
@@ -1984,7 +2036,617 @@ async function continueLibraryImport({
     return batchNotFound(input.batchId);
   }
 
+  if (
+    batch.value.batchKind === "initial_import" &&
+    batch.value.status === "running" &&
+    repository.listContinuationStates !== undefined
+  ) {
+    const provider = await resolvePlatformLibraryProvider(pluginRegistry, batch.value.providerId);
+
+    if (!provider.ok) {
+      return provider;
+    }
+
+    if (isPagedPlatformLibraryProvider(provider.value)) {
+      const processed = await processPagedImportSegment({
+        materialStore,
+        collection,
+        events,
+        repository,
+        completedReports,
+        provider: provider.value,
+        batch: batch.value,
+        pageSize: input.pageSize ?? defaultContinuationPageSize,
+        clock,
+      });
+
+      if (!processed.ok) {
+        return processed;
+      }
+
+      return ok(batchToStatus(processed.value.batch));
+    }
+  }
+
   return ok(batchToStatus(batch.value));
+}
+
+function shouldUsePagedImport({
+  batchKind,
+  input,
+  provider,
+  repository,
+}: {
+  batchKind: LibraryImportBatchKind;
+  input: LibraryImportStartInput;
+  provider: PlatformLibraryProvider;
+  repository: LibraryImportRepository;
+}): boolean {
+  return (
+    batchKind === "initial_import" &&
+    input.pageSize !== undefined &&
+    isPagedPlatformLibraryProvider(provider) &&
+    repository.getContinuationState !== undefined &&
+    repository.putContinuationState !== undefined &&
+    repository.listContinuationStates !== undefined
+  );
+}
+
+function isPagedPlatformLibraryProvider(
+  provider: PlatformLibraryProvider,
+): provider is PlatformLibraryProvider & {
+  readPage: NonNullable<PlatformLibraryProvider["readPage"]>;
+} {
+  return typeof provider.readPage === "function";
+}
+
+async function startPagedLibraryImport({
+  materialStore,
+  collection,
+  events,
+  repository,
+  completedReports,
+  provider,
+  input,
+  batchKind,
+  idFactory,
+  clock,
+}: {
+  materialStore: MaterialStorePort;
+  collection: CollectionPort;
+  events: EventPort;
+  repository: LibraryImportRepository;
+  completedReports: Map<string, LibraryImportReport>;
+  provider: PlatformLibraryProvider & {
+    readPage: NonNullable<PlatformLibraryProvider["readPage"]>;
+  };
+  input: LibraryImportStartInput;
+  batchKind: LibraryImportBatchKind;
+  idFactory: () => string;
+  clock: () => string;
+}): Promise<Result<LibraryImportReport>> {
+  const scopes = normalizeScopes(input.scopes);
+  const batchId = idFactory();
+  const startedAt = clock();
+  const ownerScope = input.ownerScope ?? defaultOwnerScope;
+  const counts = emptyCounts();
+  const runningBatch: LibraryImportBatch = {
+    id: batchId,
+    batchKind,
+    status: "running",
+    providerId: input.providerId,
+    ownerScope,
+    scopes,
+    startedAt,
+    counts,
+  };
+
+  if (input.providerAccountId !== undefined) {
+    runningBatch.providerAccountId = input.providerAccountId;
+  }
+
+  const storedRunningBatch = await repository.putBatch({ batch: runningBatch });
+
+  if (!storedRunningBatch.ok) {
+    return storedRunningBatch;
+  }
+
+  const startedEvent = await recordLibraryImportEvent(events, {
+    batch: storedRunningBatch.value,
+    type: "library_import.batch.started",
+    payload: {},
+  });
+
+  if (!startedEvent.ok) {
+    return markStartedBatchFailed({
+      repository,
+      batch: storedRunningBatch.value,
+      completedAt: clock(),
+      result: startedEvent,
+    });
+  }
+
+  const initializedStates = await initializeContinuationStates({
+    repository,
+    batch: storedRunningBatch.value,
+    scopes,
+    sampleLimitPerArea: input.sampleLimitPerArea,
+    recordedAt: startedAt,
+  });
+
+  if (!initializedStates.ok) {
+    return markStartedBatchFailed({
+      repository,
+      batch: storedRunningBatch.value,
+      completedAt: clock(),
+      result: initializedStates,
+    });
+  }
+
+  const processed = await processPagedImportSegment({
+    materialStore,
+    collection,
+    events,
+    repository,
+    completedReports,
+    provider,
+    batch: storedRunningBatch.value,
+    pageSize: input.pageSize ?? defaultContinuationPageSize,
+    clock,
+  });
+
+  if (!processed.ok) {
+    return processed;
+  }
+
+  return ok(processed.value.report);
+}
+
+async function initializeContinuationStates({
+  repository,
+  batch,
+  scopes,
+  sampleLimitPerArea,
+  recordedAt,
+}: {
+  repository: LibraryImportRepository;
+  batch: LibraryImportBatch;
+  scopes: LibraryImportScope[];
+  sampleLimitPerArea: number | undefined;
+  recordedAt: string;
+}): Promise<Result<void>> {
+  if (repository.putContinuationState === undefined) {
+    return ok(undefined);
+  }
+
+  for (const scope of scopes) {
+    const area = scopeToProviderArea(scope);
+
+    if (area === null) {
+      continue;
+    }
+
+    const stored = await repository.putContinuationState({
+      state: {
+        batchId: batch.id,
+        batchKind: batch.batchKind,
+        ownerScope: batch.ownerScope,
+        providerId: batch.providerId,
+        providerAccountId: batch.providerAccountId ?? "unknown",
+        ...(batch.providerAccountStable === undefined
+          ? {}
+          : { providerAccountStable: batch.providerAccountStable }),
+        scope,
+        area,
+        status: "pending",
+        processedItems: 0,
+        ...(sampleLimitPerArea === undefined
+          ? {}
+          : { sampleLimitRemaining: sampleLimitPerArea }),
+        sourceRefsSeen: [],
+        createdAt: recordedAt,
+        updatedAt: recordedAt,
+      },
+    });
+
+    if (!stored.ok) {
+      return stored;
+    }
+  }
+
+  return ok(undefined);
+}
+
+async function processPagedImportSegment({
+  materialStore,
+  collection,
+  events,
+  repository,
+  completedReports,
+  provider,
+  batch,
+  pageSize,
+  clock,
+}: {
+  materialStore: MaterialStorePort;
+  collection: CollectionPort;
+  events: EventPort;
+  repository: LibraryImportRepository;
+  completedReports: Map<string, LibraryImportReport>;
+  provider: PlatformLibraryProvider & {
+    readPage: NonNullable<PlatformLibraryProvider["readPage"]>;
+  };
+  batch: LibraryImportBatch;
+  pageSize: number;
+  clock: () => string;
+}): Promise<Result<{ batch: LibraryImportBatch; report: LibraryImportReport }>> {
+  if (repository.listContinuationStates === undefined || repository.putContinuationState === undefined) {
+    return ok({ batch, report: batchToReport(batch) });
+  }
+
+  const listedStates = await repository.listContinuationStates({ batchId: batch.id });
+
+  if (!listedStates.ok) {
+    return listedStates;
+  }
+
+  const nextState = selectNextContinuationState(listedStates.value, batch.scopes);
+
+  if (nextState === null) {
+    return ok({ batch, report: batchToReport(batch) });
+  }
+
+  const page = await provider.readPage({
+    ...(batch.providerAccountId === undefined || batch.providerAccountId === "unknown"
+      ? {}
+      : { providerAccountId: batch.providerAccountId }),
+    area: nextState.area,
+    pageSize,
+    ...(nextState.sampleLimitRemaining === undefined
+      ? {}
+      : { sampleLimitRemaining: nextState.sampleLimitRemaining }),
+    ...(nextState.providerState === undefined ? {} : { providerState: nextState.providerState }),
+  });
+
+  if (!page.ok) {
+    return markStartedBatchFailed({
+      repository,
+      batch,
+      completedAt: clock(),
+      result: {
+        ok: false,
+        error: providerReadFailedError(batch.providerId, page.error),
+      },
+    });
+  }
+
+  const initializedCollections = await collection.initializeOwnerCollections({
+    ownerScope: batch.ownerScope,
+  });
+
+  if (!initializedCollections.ok) {
+    return markStartedBatchFailed({
+      repository,
+      batch,
+      completedAt: clock(),
+      result: initializedCollections,
+    });
+  }
+
+  const seenAt = clock();
+  const counts = structuredClone(batch.counts);
+  const existingReport = await repository.getReport({ batchId: batch.id });
+
+  if (!existingReport.ok) {
+    return existingReport;
+  }
+
+  const report = existingReport.value ?? batchToReport(batch);
+  const providerAccountId =
+    page.value.account?.providerAccountId ?? batch.providerAccountId ?? "unknown";
+  const providerAccountStable = page.value.account?.stable ?? batch.providerAccountStable;
+  const savedMembershipsByKind: SavedMembershipCache = new Map();
+  const itemReports: LibraryImportItemReport[] = [];
+
+  for (const item of page.value.items) {
+    const itemReport = await importProviderItem({
+      materialStore,
+      collection,
+      events,
+      repository,
+      batchId: batch.id,
+      batchKind: batch.batchKind,
+      ownerScope: batch.ownerScope,
+      providerId: page.value.providerId,
+      providerAccountId,
+      scope: nextState.scope,
+      area: nextState.area,
+      item,
+      seenAt,
+      savedMembershipsByKind,
+    });
+
+    if (!itemReport.ok) {
+      return markStartedBatchFailed({
+        repository,
+        batch,
+        completedAt: clock(),
+        result: itemReport,
+      });
+    }
+
+    itemReports.push(itemReport.value);
+    applyItemReportToCounts(counts, itemReport.value);
+  }
+
+  const mergedSourceRefs = mergeSourceRefs(nextState.sourceRefsSeen, page.value.items);
+  const remainingSampleLimit =
+    nextState.sampleLimitRemaining === undefined
+      ? undefined
+      : Math.max(nextState.sampleLimitRemaining - page.value.items.length, 0);
+  const areaHasMore =
+    page.value.hasMore && (remainingSampleLimit === undefined || remainingSampleLimit > 0);
+  const updatedState: LibraryImportContinuationState = {
+    batchId: nextState.batchId,
+    batchKind: nextState.batchKind,
+    ownerScope: nextState.ownerScope,
+    providerId: page.value.providerId,
+    providerAccountId,
+    ...(providerAccountStable === undefined ? {} : { providerAccountStable }),
+    scope: nextState.scope,
+    area: nextState.area,
+    status: areaHasMore ? "running" : "complete",
+    processedItems: nextState.processedItems + page.value.items.length,
+    sourceRefsSeen: mergedSourceRefs,
+    createdAt: nextState.createdAt,
+    updatedAt: seenAt,
+  };
+
+  if (page.value.count !== undefined && page.value.count.certainty !== "unknown") {
+    updatedState.expectedItems = page.value.count.value;
+  } else if (nextState.expectedItems !== undefined) {
+    updatedState.expectedItems = nextState.expectedItems;
+  }
+
+  if (remainingSampleLimit !== undefined) {
+    updatedState.sampleLimitRemaining = remainingSampleLimit;
+  }
+
+  if (areaHasMore && page.value.providerState !== undefined) {
+    updatedState.providerState = page.value.providerState;
+  }
+
+  if (page.value.issues !== undefined) {
+    updatedState.issues = page.value.issues;
+  } else if (nextState.issues !== undefined) {
+    updatedState.issues = nextState.issues;
+  }
+  const storedState = await repository.putContinuationState({ state: updatedState });
+
+  if (!storedState.ok) {
+    return storedState;
+  }
+
+  const updatedStates = listedStates.value.map((state) =>
+    state.batchId === updatedState.batchId &&
+      state.scope === updatedState.scope &&
+      state.area === updatedState.area
+      ? updatedState
+      : state,
+  );
+
+  if (!areaHasMore && page.value.status === "complete") {
+    const storedSnapshot = await repository.putAreaSnapshot({
+      snapshot: {
+        batchId: batch.id,
+        ownerScope: batch.ownerScope,
+        providerId: page.value.providerId,
+        providerAccountId,
+        ...(providerAccountStable === undefined ? {} : { providerAccountStable }),
+        scope: nextState.scope,
+        area: nextState.area,
+        status: "complete",
+        complete: true,
+        sourceRefs: mergedSourceRefs,
+        itemCount: mergedSourceRefs.length,
+        recordedAt: seenAt,
+      },
+    });
+
+    if (!storedSnapshot.ok) {
+      return storedSnapshot;
+    }
+  }
+
+  const terminal = updatedStates.every(
+    (state) => state.status !== "pending" && state.status !== "running",
+  );
+  const nextBatch: LibraryImportBatch = {
+    ...batch,
+    providerId: page.value.providerId,
+    providerAccountId,
+    counts,
+    ...(providerAccountStable === undefined ? {} : { providerAccountStable }),
+    status: terminal
+      ? hasContinuationWarnings(updatedStates, counts, page.value.issues, report.issues)
+        ? "completed_with_warnings"
+        : "completed"
+      : "running",
+    ...(terminal ? { completedAt: seenAt } : {}),
+  };
+
+  const storedBatch = await repository.putBatch({ batch: nextBatch });
+
+  if (!storedBatch.ok) {
+    return storedBatch;
+  }
+
+  report.batchId = storedBatch.value.id;
+  report.batchKind = storedBatch.value.batchKind;
+  report.status = storedBatch.value.status;
+  report.providerId = page.value.providerId;
+  report.ownerScope = storedBatch.value.ownerScope;
+  report.scopes = storedBatch.value.scopes;
+  report.startedAt = storedBatch.value.startedAt;
+  report.counts = counts;
+  report.items = report.items.concat(itemReports);
+  const nextReportArea: LibraryImportReportArea = {
+    scope: nextState.scope,
+    area: nextState.area,
+    readStatus: areaHasMore ? "partial" : page.value.status,
+    count: reportCountForContinuationState(updatedState),
+  };
+
+  if (page.value.issues !== undefined) {
+    nextReportArea.issues = page.value.issues;
+  }
+
+  report.areas = upsertReportArea(report.areas, nextReportArea);
+  report.progress = progressFromContinuationStates(updatedStates, storedBatch.value.status);
+
+  if (page.value.account !== undefined) {
+    report.account = page.value.account;
+  }
+
+  if (storedBatch.value.completedAt !== undefined) {
+    report.completedAt = storedBatch.value.completedAt;
+  }
+
+  const storedReport = await repository.putReport({ report });
+
+  if (!storedReport.ok) {
+    return storedReport;
+  }
+
+  if (terminal) {
+    const completedEvent = await recordLibraryImportEvent(events, {
+      batch: storedBatch.value,
+      type: "library_import.batch.completed",
+      payload: {
+        status: storedBatch.value.status,
+        counts: storedBatch.value.counts,
+      },
+    });
+
+    if (!completedEvent.ok) {
+      return completedEvent;
+    }
+
+    completedReports.set(storedReport.value.batchId, structuredClone(storedReport.value));
+  }
+
+  return ok({
+    batch: storedBatch.value,
+    report: storedReport.value,
+  });
+}
+
+function selectNextContinuationState(
+  states: LibraryImportContinuationState[],
+  scopes: LibraryImportScope[],
+): LibraryImportContinuationState | null {
+  const ranked = [...states]
+    .filter((state) => state.status === "running" || state.status === "pending")
+    .sort((left, right) => {
+      const leftRank = left.status === "running" ? 0 : 1;
+      const rightRank = right.status === "running" ? 0 : 1;
+
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+
+      return scopes.indexOf(left.scope) - scopes.indexOf(right.scope);
+    });
+
+  return ranked[0] ?? null;
+}
+
+function mergeSourceRefs(
+  existing: Ref[],
+  items: PlatformLibraryItem[],
+): Ref[] {
+  const merged = new Map(existing.map((ref) => [refKey(ref), ref]));
+
+  for (const item of items) {
+    merged.set(refKey(item.sourceRef), item.sourceRef);
+  }
+
+  return [...merged.values()];
+}
+
+function upsertReportArea(
+  areas: LibraryImportReportArea[],
+  nextArea: LibraryImportReportArea,
+): LibraryImportReportArea[] {
+  const filtered = areas.filter(
+    (area) => !(area.scope === nextArea.scope && area.area === nextArea.area),
+  );
+
+  filtered.push(nextArea);
+
+  return filtered;
+}
+
+function reportCountForContinuationState(
+  state: LibraryImportContinuationState,
+): PlatformLibraryCount {
+  if (state.expectedItems !== undefined) {
+    return {
+      certainty: "exact",
+      value: state.expectedItems,
+    };
+  }
+
+  return {
+    certainty: "at_least",
+    value: state.processedItems,
+  };
+}
+
+function progressFromContinuationStates(
+  states: LibraryImportContinuationState[],
+  batchStatus: LibraryImportBatch["status"],
+): LibraryImportProgress {
+  const hasMore = states.some((state) => state.status === "pending" || state.status === "running");
+
+  return {
+    processedItems: states.reduce((sum, state) => sum + state.processedItems, 0),
+    areas: states.map((state) => ({
+      scope: state.scope,
+      area: state.area,
+      processedItems: state.processedItems,
+      ...(state.expectedItems === undefined
+        ? {}
+        : {
+            count: {
+              certainty: "exact" as const,
+              value: state.expectedItems,
+            },
+          }),
+    })),
+    hasMore,
+    nextAction: hasMore
+      ? "continue"
+      : batchStatus === "completed" || batchStatus === "completed_with_warnings"
+        ? "summary"
+        : "none",
+  };
+}
+
+function hasContinuationWarnings(
+  states: LibraryImportContinuationState[],
+  counts: LibraryImportCounts,
+  pageIssues: PlatformLibraryReadAreaResult["issues"] | undefined,
+  reportIssues: PlatformLibraryReadAreaResult["issues"] | undefined,
+): boolean {
+  return (
+    counts.skippedItems > 0 ||
+    counts.failedItems > 0 ||
+    counts.absentItems > 0 ||
+    pageIssues !== undefined ||
+    reportIssues !== undefined ||
+    states.some((state) => state.status !== "complete" || state.issues !== undefined)
+  );
 }
 
 function defaultProgressForBatch(batch: LibraryImportBatch): LibraryImportProgress {
