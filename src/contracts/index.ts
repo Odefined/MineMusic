@@ -885,7 +885,14 @@ export type LibraryImportPreviewInput = {
   sampleLimitPerArea?: number;
 };
 
-export type LibraryImportStartInput = LibraryImportPreviewInput;
+export type LibraryImportStartInput = LibraryImportPreviewInput & {
+  pageSize?: number;
+};
+
+export type LibraryImportContinueInput = {
+  batchId: string;
+  pageSize?: number;
+};
 
 export type LibraryImportStatusInput = {
   batchId: string;
@@ -1002,6 +1009,20 @@ export type LibraryImportCounts = {
   collectionItemsAlreadyPresent: number;
 };
 
+export type LibraryImportProgressArea = {
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  processedItems: number;
+  count?: PlatformLibraryCount;
+};
+
+export type LibraryImportProgress = {
+  processedItems: number;
+  areas: LibraryImportProgressArea[];
+  hasMore: boolean;
+  nextAction: "continue" | "summary" | "none";
+};
+
 export type LibraryImportReportArea = {
   scope: LibraryImportScope;
   area: PlatformLibraryArea;
@@ -1023,6 +1044,7 @@ export type LibraryImportReport = {
   counts: LibraryImportCounts;
   areas: LibraryImportReportArea[];
   items: LibraryImportItemReport[];
+  progress: LibraryImportProgress;
   absences?: PlatformLibraryAbsenceSummary[];
   issues?: PlatformLibraryIssue[];
 };
@@ -1037,6 +1059,7 @@ export type LibraryImportStatus = {
   startedAt: string;
   completedAt?: string;
   counts: LibraryImportCounts;
+  progress: LibraryImportProgress;
   issues?: PlatformLibraryIssue[];
 };
 

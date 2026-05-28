@@ -38,6 +38,13 @@ const emptyCounts: LibraryImportBatch["counts"] = {
   collectionItemsAlreadyPresent: 0,
 };
 
+const emptyProgress: LibraryImportReport["progress"] = {
+  processedItems: 0,
+  areas: [],
+  hasMore: false,
+  nextAction: "summary",
+};
+
 async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-library-import-"));
   const databasePath = join(directory, "library-import.sqlite");
@@ -95,6 +102,7 @@ async function persistsBatchesAndReportsAcrossRepositoryReopen(): Promise<void> 
         collectionOutcome: "added",
       },
     ],
+    progress: emptyProgress,
   };
 
   try {

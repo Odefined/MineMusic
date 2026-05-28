@@ -33,6 +33,13 @@ const emptyCounts: LibraryImportBatch["counts"] = {
   collectionItemsAlreadyPresent: 0,
 };
 
+const emptyProgress: LibraryImportReport["progress"] = {
+  processedItems: 0,
+  areas: [],
+  hasMore: false,
+  nextAction: "summary",
+};
+
 async function storesBatchesByIdAndReturnsCopies(): Promise<void> {
   const repository = createInMemoryLibraryImportRepository();
   const batch: LibraryImportBatch = {
@@ -111,6 +118,7 @@ async function storesReportsByBatchIdAndReturnsCopies(): Promise<void> {
         collectionOutcome: "added",
       },
     ],
+    progress: emptyProgress,
   };
 
   await assertOk(repository.putReport({ report }));

@@ -976,6 +976,13 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
         }),
       };
     },
+    continueImport: async ({ batchId }) => {
+      calls.push(`continueImport:${batchId}`);
+      return {
+        ok: true,
+        value: libraryImportStatus({ batchId }),
+      };
+    },
     previewUpdate: async ({ providerId, ownerScope, scopes }) => {
       calls.push(`previewUpdate:${providerId}:${ownerScope}:${scopes.join("+")}`);
       return {
@@ -999,6 +1006,13 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
           ownerScope: ownerScope ?? "missing",
           scopes,
         }),
+      };
+    },
+    continueUpdate: async ({ batchId }) => {
+      calls.push(`continueUpdate:${batchId}`);
+      return {
+        ok: true,
+        value: libraryImportStatus({ batchId }),
       };
     },
     getStatus: async ({ batchId }) => {
@@ -1638,6 +1652,7 @@ function libraryImportReport({
     counts: emptyImportCounts(),
     areas: [],
     items: [],
+    progress: emptyImportProgress(),
   };
 }
 
@@ -1652,6 +1667,16 @@ function libraryImportStatus({ batchId }: { batchId: string }): LibraryImportSta
     startedAt: "2026-05-25T00:00:00.000Z",
     completedAt: "2026-05-25T00:00:00.000Z",
     counts: emptyImportCounts(),
+    progress: emptyImportProgress(),
+  };
+}
+
+function emptyImportProgress() {
+  return {
+    processedItems: 0,
+    areas: [],
+    hasMore: false,
+    nextAction: "summary" as const,
   };
 }
 

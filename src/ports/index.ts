@@ -35,6 +35,7 @@ import type {
   LibraryImportBatch,
   LibraryImportBatchKind,
   LibraryImportBatchStatus,
+  LibraryImportContinueInput,
   LibraryImportItemProvenance,
   LibraryImportPreview,
   LibraryImportPreviewInput,
@@ -430,9 +431,13 @@ export interface LibraryImportPort {
 
   startImport(input: LibraryImportStartInput): Promise<Result<LibraryImportReport>>;
 
+  continueImport(input: LibraryImportContinueInput): Promise<Result<LibraryImportStatus>>;
+
   previewUpdate(input: LibraryImportPreviewInput): Promise<Result<LibraryImportPreview>>;
 
   startUpdate(input: LibraryImportStartInput): Promise<Result<LibraryImportReport>>;
+
+  continueUpdate(input: LibraryImportContinueInput): Promise<Result<LibraryImportStatus>>;
 
   getStatus(input: LibraryImportStatusInput): Promise<Result<LibraryImportStatus>>;
 

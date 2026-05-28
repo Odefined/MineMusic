@@ -4,11 +4,13 @@ import type {
   LibraryImportBatch,
   LibraryImportBatchKind,
   LibraryImportCollectionEstimateCounts,
+  LibraryImportContinueInput,
   LibraryImportCounts,
   LibraryImportCanonicalEstimateCounts,
   LibraryImportPreview,
   LibraryImportPreviewArea,
   LibraryImportPreviewInput,
+  LibraryImportProgress,
   LibraryImportReport,
   LibraryImportReportArea,
   LibraryImportItemReport,
@@ -90,6 +92,13 @@ export function createLibraryImportService({
       });
     },
 
+    async continueImport(input) {
+      return continueLibraryImport({
+        repository,
+        input,
+      });
+    },
+
     previewUpdate(input) {
       return previewLibraryImport({
         pluginRegistry,
@@ -98,6 +107,13 @@ export function createLibraryImportService({
         repository,
         input,
         includeUpdateEstimates: true,
+      });
+    },
+
+    async continueUpdate(input) {
+      return continueLibraryImport({
+        repository,
+        input,
       });
     },
 
@@ -1911,6 +1927,7 @@ function batchToStatus(batch: LibraryImportBatch): LibraryImportStatus {
     scopes: batch.scopes,
     startedAt: batch.startedAt,
     counts: batch.counts,
+    progress: defaultProgressForBatch(batch),
   };
 
   if (batch.completedAt !== undefined) {
@@ -1936,6 +1953,7 @@ function batchToReport(batch: LibraryImportBatch): LibraryImportReport {
     counts: batch.counts,
     areas: [],
     items: [],
+    progress: defaultProgressForBatch(batch),
   };
 
   if (batch.completedAt !== undefined) {
@@ -1947,6 +1965,50 @@ function batchToReport(batch: LibraryImportBatch): LibraryImportReport {
   }
 
   return report;
+}
+
+async function continueLibraryImport({
+  repository,
+  input,
+}: {
+  repository: LibraryImportRepository;
+  input: LibraryImportContinueInput;
+}): Promise<Result<LibraryImportStatus>> {
+  const batch = await repository.getBatch({ batchId: input.batchId });
+
+  if (!batch.ok) {
+    return batch;
+  }
+
+  if (batch.value === null) {
+    return batchNotFound(input.batchId);
+  }
+
+  return ok(batchToStatus(batch.value));
+}
+
+function defaultProgressForBatch(batch: LibraryImportBatch): LibraryImportProgress {
+  return {
+    processedItems: countProcessedItems(batch.counts),
+    areas: [],
+    hasMore: batch.status === "running" || batch.status === "pending",
+    nextAction:
+      batch.status === "running" || batch.status === "pending"
+        ? "continue"
+        : batch.status === "completed" || batch.status === "completed_with_warnings"
+          ? "summary"
+          : "none",
+  };
+}
+
+function countProcessedItems(counts: LibraryImportCounts): number {
+  return (
+    counts.importedItems +
+    counts.alreadyPresentItems +
+    counts.skippedItems +
+    counts.failedItems +
+    counts.absentItems
+  );
 }
 
 function emptyCanonicalEstimates(): LibraryImportCanonicalEstimateCounts {

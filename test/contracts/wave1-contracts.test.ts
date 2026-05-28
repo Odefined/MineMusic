@@ -58,7 +58,9 @@ import type {
   LibraryImportPreview,
   LibraryImportPreviewArea,
   LibraryImportPreviewInput,
+  LibraryImportContinueInput,
   LibraryImportReport,
+  LibraryImportProgress,
   LibraryImportStartInput,
   LibraryImportStatus,
   LibraryImportStatusInput,
@@ -719,12 +721,29 @@ type _libraryImportPreviewInputKeys = Expect<
 >;
 
 type _libraryImportStartInputKeys = Expect<
-  Equal<keyof LibraryImportStartInput, keyof LibraryImportPreviewInput>
+  Equal<
+    keyof LibraryImportStartInput,
+    keyof LibraryImportPreviewInput | "pageSize"
+  >
+>;
+
+type _libraryImportContinueInputKeys = Expect<
+  Equal<keyof LibraryImportContinueInput, "batchId" | "pageSize">
 >;
 
 type _libraryImportBatchLookupInputsUseBatchId = Expect<
   Equal<keyof LibraryImportStatusInput, "batchId"> &
     Equal<keyof LibraryImportSummaryInput, "batchId">
+>;
+
+type _libraryImportProgressKeys = Expect<
+  Equal<
+    keyof LibraryImportProgress,
+    | "processedItems"
+    | "areas"
+    | "hasMore"
+    | "nextAction"
+  >
 >;
 
 type _libraryImportPreviewAreaKeys = Expect<
@@ -762,6 +781,7 @@ type _libraryImportReportKeys = Expect<
     | "counts"
     | "areas"
     | "items"
+    | "progress"
     | "absences"
     | "issues"
   >
@@ -779,6 +799,7 @@ type _libraryImportStatusIsBatchSummary = Expect<
     | "startedAt"
     | "completedAt"
     | "counts"
+    | "progress"
     | "issues"
   >
 >;
@@ -907,8 +928,10 @@ type _libraryImportPortMethods = Expect<
     keyof LibraryImportPort,
     | "previewImport"
     | "startImport"
+    | "continueImport"
     | "previewUpdate"
     | "startUpdate"
+    | "continueUpdate"
     | "getStatus"
     | "getSummary"
   >
@@ -917,8 +940,10 @@ type _libraryImportPortMethods = Expect<
 type _libraryImportPortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<LibraryImportPort, "previewImport"> &
     MethodAcceptsSingleObject<LibraryImportPort, "startImport"> &
+    MethodAcceptsSingleObject<LibraryImportPort, "continueImport"> &
     MethodAcceptsSingleObject<LibraryImportPort, "previewUpdate"> &
     MethodAcceptsSingleObject<LibraryImportPort, "startUpdate"> &
+    MethodAcceptsSingleObject<LibraryImportPort, "continueUpdate"> &
     MethodAcceptsSingleObject<LibraryImportPort, "getStatus"> &
     MethodAcceptsSingleObject<LibraryImportPort, "getSummary">
 >;
