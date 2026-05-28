@@ -93,7 +93,7 @@ export function initializeLibraryImportSchema(database: DatabaseSync): void {
       item_kind TEXT NOT NULL,
       source_entity_kind TEXT NOT NULL,
       label TEXT NOT NULL,
-      added_at TEXT,
+      provider_added_at TEXT,
       canonical_hints_json TEXT,
       first_imported_batch_id TEXT NOT NULL,
       last_seen_batch_id TEXT NOT NULL,

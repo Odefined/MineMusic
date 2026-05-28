@@ -305,6 +305,7 @@ async function upsertsAndQueriesItemProvenanceByStableSourceRef(): Promise<void>
     itemKind: "saved_source_track",
     sourceEntityKind: "track",
     label: "First Label",
+    providerAddedAt: "2026-05-24T23:59:00.000Z",
     firstImportedBatchId: "batch-1",
     lastSeenBatchId: "batch-1",
     lastSeenAt: "2026-05-25T00:00:00.000Z",
@@ -333,6 +334,10 @@ async function upsertsAndQueriesItemProvenanceByStableSourceRef(): Promise<void>
     }),
   );
   assert(stored?.label === "Updated Label", "provenance upsert should replace the same source-ref record");
+  assert(
+    stored?.providerAddedAt === "2026-05-24T23:59:00.000Z",
+    "provenance should preserve provider-side membership time separately from source library membership time",
+  );
   assert(stored.lastSeenBatchId === "batch-2", "provenance upsert should keep latest seen batch");
 
   stored.label = "Mutated after get";

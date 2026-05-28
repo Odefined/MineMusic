@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import type {
   LibraryImportAreaSnapshot,
@@ -219,6 +220,7 @@ async function persistsProvenanceAndAbsencesAcrossRepositoryReopen(): Promise<vo
     itemKind: "saved_source_track",
     sourceEntityKind: "track",
     label: "First Label",
+    providerAddedAt: "2026-05-24T23:59:00.000Z",
     firstImportedBatchId: "batch-1",
     lastSeenBatchId: "batch-1",
     lastSeenAt: "2026-05-25T00:00:00.000Z",
@@ -282,8 +284,37 @@ async function persistsProvenanceAndAbsencesAcrossRepositoryReopen(): Promise<vo
     );
 
     assert(loadedProvenance?.label === "Updated Label", "reopened provenance should use latest upsert");
+    assert(
+      loadedProvenance?.providerAddedAt === "2026-05-24T23:59:00.000Z",
+      "reopened provenance should keep provider-side membership time",
+    );
     assert(listedProvenance.length === 1, "reopened repository should filter provenance");
     assert(listedAbsences[0]?.sourceRef.id === "missing-track", "reopened repository should filter absences");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function usesProviderAddedAtColumnForItemProvenance(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-library-import-schema-"));
+  const databasePath = join(directory, "library-import.sqlite");
+
+  try {
+    createSqliteLibraryImportRepository({ path: databasePath });
+    const database = new DatabaseSync(databasePath);
+    const columns = database
+      .prepare("PRAGMA table_info(library_import_item_provenance)")
+      .all() as Array<{ name: string }>;
+    const columnNames = new Set(columns.map((column) => column.name));
+
+    assert(
+      columnNames.has("provider_added_at"),
+      "item provenance table should use provider_added_at for provider-side membership time",
+    );
+    assert(
+      !columnNames.has("added_at"),
+      "item provenance table should not reuse ambiguous added_at naming",
+    );
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
@@ -405,4 +436,5 @@ function sourceRef(id: string): Ref {
 await persistsBatchesAndReportsAcrossRepositoryReopen();
 await persistsSnapshotsAndFindsStableLatestBaselineAfterReopen();
 await persistsProvenanceAndAbsencesAcrossRepositoryReopen();
+await usesProviderAddedAtColumnForItemProvenance();
 await persistsContinuationStatesAcrossRepositoryReopen();

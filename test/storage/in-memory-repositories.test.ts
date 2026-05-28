@@ -313,6 +313,10 @@ async function sourceEntityStoreRepositoryStoresEntitiesLibraryAndBindings(): Pr
 
   assert(storedTrack?.label === "Fixture Track", "source entity store should return entity copies");
   assert(storedItem?.label === "Fixture Track", "source library item should be keyed by owner/provider/source ref");
+  assert(
+    storedItem?.addedAt === "2026-05-28T00:01:00.000Z",
+    "source library item addedAt should remain MineMusic source-library membership time",
+  );
   assert(storedBinding?.canonicalRef.id === "canonical-track-1", "confirmed binding should be keyed by source ref");
   assert(listedTracks.length === 1, "source entities should be filterable by provider and kind");
   assert(listedLibrary.length === 1, "source library should be filterable by owner and status");

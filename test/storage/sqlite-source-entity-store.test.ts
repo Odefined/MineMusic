@@ -70,6 +70,7 @@ async function persistsSourceEntitiesLibraryAndBindingsAcrossReopen(): Promise<v
     sourceKind: "track",
     libraryKind: "saved_source_track",
     label: "Fixture Track",
+    addedAt: "2026-05-28T00:00:30.000Z",
     firstImportedBatchId: "batch-1",
     lastSeenBatchId: "batch-1",
     lastSeenAt: "2026-05-28T00:01:00.000Z",
@@ -136,6 +137,10 @@ async function persistsSourceEntitiesLibraryAndBindingsAcrossReopen(): Promise<v
     assert(loadedRelease?.tracklist?.[0]?.title === "Fixture Track", "reopened repository should preserve release tracklists");
     assert(listedTracks.length === 1 && listedTracks[0]?.sourceRef.id === "track-1", "repository should filter source entities");
     assert(loadedLibraryItem?.label === "Fixture Track", "reopened repository should load source library items");
+    assert(
+      loadedLibraryItem?.addedAt === "2026-05-28T00:00:30.000Z",
+      "reopened source library item should preserve MineMusic membership time",
+    );
     assert(listedLibraryItems.length === 1, "repository should filter source library items");
     assert(loadedBinding?.canonicalRef.id === "canonical-track-1", "reopened repository should load confirmed bindings");
     assert(listedBindings.length === 1, "repository should filter confirmed bindings");

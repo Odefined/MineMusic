@@ -84,7 +84,7 @@ type ItemProvenanceRow = {
   item_kind: LibraryImportItemProvenance["itemKind"];
   source_entity_kind: LibraryImportItemProvenance["sourceEntityKind"];
   label: string;
-  added_at: string | null;
+  provider_added_at: string | null;
   canonical_hints_json: string | null;
   first_imported_batch_id: string;
   last_seen_batch_id: string;
@@ -407,7 +407,7 @@ export function createSqliteLibraryImportRepository({
               item_kind,
               source_entity_kind,
               label,
-              added_at,
+              provider_added_at,
               canonical_hints_json,
               first_imported_batch_id,
               last_seen_batch_id,
@@ -430,7 +430,7 @@ export function createSqliteLibraryImportRepository({
               item_kind = excluded.item_kind,
               source_entity_kind = excluded.source_entity_kind,
               label = excluded.label,
-              added_at = excluded.added_at,
+              provider_added_at = excluded.provider_added_at,
               canonical_hints_json = excluded.canonical_hints_json,
               first_imported_batch_id = excluded.first_imported_batch_id,
               last_seen_batch_id = excluded.last_seen_batch_id,
@@ -699,8 +699,8 @@ function toItemProvenance(row: ItemProvenanceRow): LibraryImportItemProvenance {
     status: row.status,
   };
 
-  if (row.added_at !== null) {
-    provenance.providerAddedAt = row.added_at;
+  if (row.provider_added_at !== null) {
+    provenance.providerAddedAt = row.provider_added_at;
   }
 
   if (row.canonical_hints_json !== null) {
