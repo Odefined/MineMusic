@@ -109,7 +109,9 @@ This file tracks Library Import implementation progress.
 ## Next Slice
 
 1. Add batch continuation for import/update so large platform libraries can be
-   processed in bounded segments without exposing provider cursor details.
+   processed in bounded segments without exposing provider cursor details. The
+   concrete phase plan lives in
+   `docs/library-import/implementation-plan.md#next-slice-batch-continuation`.
 2. The first Library Import Service implementation plan is complete, and its
    ownership has moved under Source Entity Store.
 3. Future slices can choose playlist import, listening-history import,
