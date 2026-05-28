@@ -55,10 +55,13 @@ This file tracks Library Import implementation progress.
   instead of full item arrays. `library.import.summary` returns a compact
   summary view with aggregate counts and `itemCount`, and item-level detail is
   paged through `library.import.items.list`.
-- Preview tools now also return compact agent-facing views. They keep
-  provider/account/scope facts, short samples, and the change counts needed for
-  the next decision, but they no longer expose raw nested estimate buckets such
-  as `sourceLibraryEstimates` or `updateEstimates`.
+- Preview remains an internal runtime capability and is no longer part of the
+  normal agent-facing tool surface.
+- Fixed two paged-update runtime issues:
+  full update absence derivation now compares against the prior complete
+  baseline instead of the snapshot written by the current batch, and
+  `continueImport` / `continueUpdate` now return report-backed progress that
+  reflects processed provider items and area-level continuation state.
 - Library Import continuation is implemented as MineMusic-owned batch
   continuation. Callers continue an existing batch with `batchId` plus an
   optional MineMusic `pageSize`; provider cursors, offsets, and page tokens

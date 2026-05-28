@@ -1437,6 +1437,7 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
               status: "complete",
               items: [
                 providerItem("kept-track", "Kept Track"),
+                providerItem("kept-track-2", "Kept Track 2"),
                 providerItem("missing-track", "Missing Track"),
               ],
             },
@@ -1464,6 +1465,7 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
             count: { certainty: "exact", value: 2 },
             items: [
               providerItem("kept-track", "Kept Track"),
+              providerItem("kept-track-2", "Kept Track 2"),
               providerItem("missing-track", "Missing Track"),
             ],
             hasMore: false,
@@ -1482,9 +1484,12 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
             },
             area: "saved_source_tracks",
             status: "complete",
-            count: { certainty: "exact", value: 2 },
-            items: [providerItem("kept-track", "Kept Track")],
-            providerState: { offset: 1 },
+            count: { certainty: "exact", value: 3 },
+            items: [
+              providerItem("kept-track", "Kept Track"),
+              providerItem("kept-track-2", "Kept Track 2"),
+            ],
+            providerState: { offset: 2 },
             hasMore: true,
           },
         };
@@ -1500,7 +1505,7 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
           },
           area: "saved_source_tracks",
           status: "complete",
-          count: { certainty: "exact", value: 2 },
+          count: { certainty: "exact", value: 3 },
           items: [providerItem("new-track", "New Track")],
           hasMore: false,
         },
@@ -1509,8 +1514,10 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
   };
   await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
 
-  const environment = createTestLibraryImportEnvironment(registry);
-  for (const id of ["kept-track", "missing-track", "new-track"]) {
+  const environment = createTestLibraryImportEnvironment(registry, {
+    clock: createIncrementingIsoClock("2026-05-25T00:00:00.000Z"),
+  });
+  for (const id of ["kept-track", "kept-track-2", "missing-track", "new-track"]) {
     const canonical: CanonicalRecord = {
       ref: {
         namespace: "minemusic",
@@ -1582,13 +1589,15 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
     typeof readPageInputs[1]?.providerState === "object" &&
       readPageInputs[1]?.providerState !== null &&
       "offset" in readPageInputs[1].providerState &&
-      (readPageInputs[1].providerState as { offset: unknown }).offset === 1,
+      (readPageInputs[1].providerState as { offset: unknown }).offset === 2,
     "continueUpdate should resume from the stored providerState",
   );
   assert(finalStatus.status === "completed_with_warnings", "final update status should complete with warnings when an absence is derived");
   assert(finalStatus.counts.alreadyPresentItems === 0, "paged update should not report unchanged existing items");
   assert(finalStatus.counts.importedItems === 1, "paged update should report only newly observed items");
   assert(finalStatus.counts.absentItems === 1, "final paged update should derive absences only after completion");
+  assert(finalStatus.progress.processedItems === 3, "continueUpdate should report processed provider items, not only change counts");
+  assert(finalStatus.progress.areas[0]?.processedItems === 3, "continueUpdate should keep area-level progress after the final segment");
   assert(finalSummary.absences?.[0]?.sourceRef.id === "missing-track", "final update summary should include derived absences");
   assert(finalSummary.items.length === 1, "paged update summary should omit unchanged existing items");
   assert(finalSummary.items[0]?.sourceRef.id === "new-track", "paged update summary should keep only newly observed items");
@@ -1928,11 +1937,15 @@ function createTestLibraryImportService(registry: ReturnType<typeof createPlugin
   return createTestLibraryImportEnvironment(registry).libraryImport;
 }
 
-function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPluginRegistry>) {
+function createTestLibraryImportEnvironment(
+  registry: ReturnType<typeof createPluginRegistry>,
+  options: { clock?: () => string } = {},
+) {
+  const clock = options.clock ?? (() => "2026-05-25T00:00:00.000Z");
   const events = createEventService({
     repository: createInMemoryEventRepository(),
     idFactory: createSequence("event"),
-    clock: () => "2026-05-25T00:00:00.000Z",
+    clock,
   });
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const canonicalStore = createCanonicalStore({
@@ -1948,7 +1961,7 @@ function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPl
     repository: createInMemoryCollectionRepository(),
     events,
     idFactory: createSequence("collection"),
-    clock: () => "2026-05-25T00:00:00.000Z",
+    clock,
   });
   const libraryImportRepository = createInMemoryLibraryImportRepository();
   const libraryImport = createLibraryImportService({
@@ -1957,7 +1970,7 @@ function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPl
     events,
     repository: libraryImportRepository,
     idFactory: createSequence("library-import-batch"),
-    clock: () => "2026-05-25T00:00:00.000Z",
+    clock,
   });
 
   return {
@@ -1976,6 +1989,16 @@ function createSequence(prefix: string): () => string {
   let nextId = 1;
 
   return () => `${prefix}-${nextId++}`;
+}
+
+function createIncrementingIsoClock(seed: string): () => string {
+  let next = Date.parse(seed);
+
+  return () => {
+    const current = new Date(next).toISOString();
+    next += 1000;
+    return current;
+  };
 }
 
 async function putConfirmedBinding(

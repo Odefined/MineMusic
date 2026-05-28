@@ -7,6 +7,35 @@ ENV_FILE="$ROOT_DIR/.env"
 LAUNCH_AGENT_LABEL="com.minemusic.server"
 LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/com.minemusic.server.plist"
 TMP_DIR="/tmp/minemusic"
+CLEAR_RUNTIME=0
+
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/reset-minemusic-launchd-runtime.sh [--clear-runtime]
+
+Options:
+  --clear-runtime  Remove /tmp/minemusic before restarting the launchd server.
+  -h, --help       Show this help message.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --clear-runtime)
+      CLEAR_RUNTIME=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "[minemusic] unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
 
 if [[ -f "$ENV_FILE" ]]; then
   set -a
@@ -23,8 +52,12 @@ LAUNCHD_TARGET="gui/$(id -u)/${LAUNCH_AGENT_LABEL}"
 echo "[minemusic] stopping launchd agent if it is running"
 launchctl bootout "$LAUNCHD_TARGET" >/dev/null 2>&1 || true
 
-echo "[minemusic] removing runtime directory: $TMP_DIR"
-rm -rf "$TMP_DIR"
+if [[ "$CLEAR_RUNTIME" -eq 1 ]]; then
+  echo "[minemusic] removing runtime directory: $TMP_DIR"
+  rm -rf "$TMP_DIR"
+else
+  echo "[minemusic] preserving runtime directory: $TMP_DIR"
+fi
 mkdir -p "$TMP_DIR"
 
 echo "[minemusic] bootstrapping launchd agent"

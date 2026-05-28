@@ -123,8 +123,15 @@ For local reset-and-restart, run:
 ./scripts/reset-minemusic-launchd-runtime.sh
 ```
 
-It stops the user LaunchAgent, deletes `/tmp/minemusic`, bootstraps the
-LaunchAgent again, and waits for the health endpoint to come back.
+It stops the user LaunchAgent, preserves `/tmp/minemusic` by default,
+bootstraps the LaunchAgent again, and waits for the health endpoint to come
+back.
+
+To clear runtime state as part of the restart:
+
+```bash
+./scripts/reset-minemusic-launchd-runtime.sh --clear-runtime
+```
 
 ## Non-Goals
 

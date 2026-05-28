@@ -2012,7 +2012,7 @@ async function continueLibraryImport({
         return processed;
       }
 
-      return ok(batchToStatus(processed.value.batch));
+      return ok(reportToStatus(processed.value.report));
     }
   }
 
@@ -2376,6 +2376,25 @@ async function processPagedImportSegment({
       : state,
   );
   const segmentAbsences: PlatformLibraryAbsenceSummary[] = [];
+  let baselineSnapshot: LibraryImportAreaSnapshot | null = null;
+
+  if (!areaHasMore && page.value.status === "complete" && !latestUntilSeen) {
+    const baseline = await getLatestCompleteAreaSnapshotForRead({
+      repository,
+      ownerScope: batch.ownerScope,
+      providerId: page.value.providerId,
+      providerAccountId,
+      providerAccountStable,
+      scope: nextState.scope,
+      area: nextState.area,
+    });
+
+    if (!baseline.ok) {
+      return baseline;
+    }
+
+    baselineSnapshot = baseline.value;
+  }
 
   if (!areaHasMore && page.value.status === "complete" && !latestUntilSeen) {
     const storedSnapshot = await repository.putAreaSnapshot({
@@ -2400,7 +2419,7 @@ async function processPagedImportSegment({
     }
 
     if (batch.batchKind === "library_update") {
-      const areaAbsences = await previewAbsencesForSourceRefs({
+      const areaAbsences = await previewAbsencesForArea({
         repository,
         ownerScope: batch.ownerScope,
         providerId: page.value.providerId,
@@ -2408,8 +2427,9 @@ async function processPagedImportSegment({
         providerAccountStable,
         scope: nextState.scope,
         area: nextState.area,
-        currentSourceRefs: mergedSourceRefs,
+        currentItems: mergedSourceRefs.map((sourceRef) => ({ sourceRef }) as PlatformLibraryItem),
         currentBatchId: batch.id,
+        baseline: baselineSnapshot,
       });
 
       if (!areaAbsences.ok) {

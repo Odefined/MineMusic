@@ -216,19 +216,18 @@ host-facing and LLM-facing surface.
   `library.import.items.list`. The start tools return compact
   `LibraryImportStatus` payloads instead of full item arrays, summary returns a
   compact aggregate view with `itemCount`, and item-level detail is paged
-  through `library.import.items.list`. Preview now also returns a compact
-  view: short samples, `wouldImport` for import preview, and
-  `newlyObserved` / `absentItems` for update preview, without exposing raw
-  estimate buckets such as `sourceLibraryEstimates` or `updateEstimates`.
-  Preview estimates Source Library observations without writing canonical
-  identity or Collection state. When the provider supports paged reads,
+  through `library.import.items.list`. Preview remains an internal runtime
+  capability rather than an agent-facing tool. When the provider supports paged reads,
   import/update batches default to
   MineMusic-owned continuation batches keyed by `batchId`, using page size
   `50` unless the caller overrides it; provider cursors stay inside Library
   Import working state. Library Update compares complete provider reads with
   eligible baselines, records Source Library absence state and Platform
   Library Absence provenance for complete reads, and avoids deriving absences
-  from partial reads or mid-batch continuation progress.
+  from partial reads or mid-batch continuation progress. Paged full update now
+  compares against the prior complete baseline even after the current batch
+  writes its own snapshot, and continuation status now returns report-backed
+  progress instead of batch-default progress.
   SQLite-backed Library Import storage still persists batches, completed
   reports, continuation state, area snapshots, item provenance, and Platform
   Library Absence records through `libraryImportDatabasePath` /
@@ -435,6 +434,9 @@ host-facing and LLM-facing surface.
   `MINEMUSIC_LIVE_NETEASE=1`.
 - The Codex skill surface design, global MCP client boundary, and verification
   notes are documented in `docs/host-adapters/codex-skill.md`.
+- `./scripts/reset-minemusic-launchd-runtime.sh` now preserves
+  `/tmp/minemusic` by default and only clears runtime state when called with
+  `--clear-runtime`.
 - `stage.materials.prepare` is a stable Stage Interface / Instrument tool, so
   Material Gate behavior is Codex-visible.
 - Tool Dispatch enforces current instrument availability through

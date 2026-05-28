@@ -69,14 +69,20 @@ Restart the server through `launchd`:
 launchctl kickstart -k gui/$(id -u)/com.minemusic.server
 ```
 
-Reset runtime SQLite state under `/tmp/minemusic` and restart the server:
+Restart the server while preserving runtime SQLite state under `/tmp/minemusic`:
 
 ```bash
 ./scripts/reset-minemusic-launchd-runtime.sh
 ```
 
-This wrapper stops the LaunchAgent, removes `/tmp/minemusic`, bootstraps the
-agent again, and waits for `http://127.0.0.1:37373/health`.
+This wrapper stops the LaunchAgent, preserves `/tmp/minemusic` by default,
+bootstraps the agent again, and waits for `http://127.0.0.1:37373/health`.
+
+To clear runtime SQLite state and restart from an empty `/tmp/minemusic`:
+
+```bash
+./scripts/reset-minemusic-launchd-runtime.sh --clear-runtime
+```
 
 Stop the server:
 
