@@ -44,6 +44,11 @@ This file tracks Library Import implementation progress.
   `library.import.preview`, `library.import.start`,
   `library.update.preview`, `library.update.start`,
   `library.import.status`, and `library.import.summary`.
+- Continuation is not implemented yet. The accepted next direction is
+  batch-id based continuation, with future `library.import.continue` and
+  `library.update.continue` tools. Provider cursors, offsets, and page tokens
+  should stay in Library Import working state rather than becoming public Stage
+  Interface inputs.
 - Deterministic coverage exercises discovery preview, explicit preview
   estimates, Source Entity/Source Library writes, confirmed-binding Collection
   writes, unbound import skips, started-batch failure status, summary recovery
@@ -103,12 +108,14 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. The first Library Import Service implementation plan is complete, and its
+1. Add batch continuation for import/update so large platform libraries can be
+   processed in bounded segments without exposing provider cursor details.
+2. The first Library Import Service implementation plan is complete, and its
    ownership has moved under Source Entity Store.
-2. Future slices can choose playlist import, listening-history import,
+3. Future slices can choose playlist import, listening-history import,
    background job execution, cleanup guidance, or deeper durable storage wiring
    for other modules.
-3. Keep future mutable implementation status in this progress document rather
+4. Keep future mutable implementation status in this progress document rather
    than `docs/library-import/design.md`.
 
 ## Verification

@@ -67,6 +67,10 @@ the first Library Import Service implementation.
   completed report in one call.
 - Keep `status` and `summary` batch-id based even while `start` is synchronous,
   so a later background worker does not need a different public API.
+- Future import/update continuation should stay batch-id based. Do not expose
+  provider cursors, offsets, or page tokens as public Stage Interface inputs.
+  Store provider continuation state inside Library Import working state and let
+  callers continue a MineMusic batch with `batchId` plus an optional page size.
 - Treat provider account identity as provenance, not Collection ownership.
   Missing `ownerScope` defaults to `local_profile:default` at Stage Interface and
   service boundaries, matching Collection and Material Resolve tools.
@@ -101,6 +105,7 @@ the first Library Import Service implementation.
   - Add public input contracts for preview, start, status, and summary:
     - `LibraryImportPreviewInput`
     - `LibraryImportStartInput`
+    - future `LibraryImportContinueInput`
     - `LibraryImportStatusInput`
     - `LibraryImportSummaryInput`
   - Add public output/report contracts for:
@@ -127,8 +132,10 @@ the first Library Import Service implementation.
   - Add `LibraryImportPort` with single-object methods:
     - `previewImport(input)`
     - `startImport(input)`
+    - future `continueImport(input)`
     - `previewUpdate(input)`
     - `startUpdate(input)`
+    - future `continueUpdate(input)`
     - `getStatus(input)`
     - `getSummary(input)`
   - Add `LibraryImportRepository` methods for:
@@ -405,13 +412,46 @@ Expected outcomes:
 - Stage Interface and MCP expose user-semantic Library Import tools, not storage
   shaped tools.
 
+## Future Slice: Batch Continuation
+
+The next Library Import scaling slice should replace the synchronous one-shot
+`start` assumption with batch continuation.
+
+Target behavior:
+
+- `library.import.start` and `library.update.start` create a batch and may
+  process an initial bounded segment.
+- `library.import.continue` and `library.update.continue` process the next
+  segment for an existing `batchId`.
+- Public continue inputs should contain `batchId` and an optional MineMusic
+  `pageSize`; they should not contain provider cursors, offsets, or page
+  tokens.
+- `LibraryImportStatus` should expose enough progress for the caller to know
+  whether more continuation work remains.
+- `LibraryImportSummary` should remain batch-id based and should return the
+  completed report once the batch is complete.
+- Library Import repository storage should persist per-area continuation state,
+  including opaque provider-specific read state and processed counts.
+- Platform Library Provider reads may grow a provider-facing continuation
+  contract, but Library Import must translate it into repository-owned state
+  before returning to Stage Interface.
+
+Suggested implementation order:
+
+1. Add public `continue` contracts and tool names.
+2. Add repository-owned continuation-state contracts and in-memory storage.
+3. Add provider-facing paged read support for NetEase tracks, releases, and
+   artists.
+4. Refactor `start` to initialize continuation state and process one segment.
+5. Implement `continue` to process the next segment and update batch counts.
+6. Add SQLite continuation persistence and restart/resume coverage.
+7. Restart the launchd server and run live bounded imports through MCP.
+
 ## Non-Goals
 
-- Durable SQLite Library Import storage.
 - Playlist import.
 - Listening-history import.
 - Source write-back or platform mutation.
 - Memory proposal generation from imported libraries.
 - Canonical merge, reject, or admin review workflows.
-- Background job execution.
 - Cleanup recommendations for platform items no longer returned by the provider.

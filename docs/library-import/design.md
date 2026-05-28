@@ -572,15 +572,17 @@ Expose user-semantic tools:
 ```text
 library.import.preview
 library.import.start
+library.import.continue
 library.update.preview
 library.update.start
+library.update.continue
 library.import.status
 library.import.summary
 ```
 
 Import and update use separate preview/start tools because they represent
 different user intents. They share the same Import Batch/report model underneath,
-so status and summary can remain batch-id based and shared.
+so continuation, status, and summary can remain batch-id based and shared.
 
 Import scope names should be MineMusic-owned and platform-neutral:
 
@@ -652,13 +654,43 @@ Expected behavior:
   an explicit provider, account/default-account choice, and import or update
   scope, it may call the relevant start tool directly.
 - `library.import.start` creates an `initial_import` batch with a batch
-  id, then begins the import with the explicit import scope.
+  id, records the explicit import scope, and may process an initial bounded
+  segment.
+- `library.import.continue` continues an existing import batch by batch id. It
+  may accept a MineMusic page size, but it must not require the caller to pass
+  provider-specific cursors, offsets, or page tokens.
 - `library.update.start` creates a `library_update` batch with a batch id,
-  then begins the update with the explicit update scope.
+  records the explicit update scope, and may process an initial bounded
+  segment.
+- `library.update.continue` continues an existing update batch by batch id. It
+  uses the same continuation model as import batches.
 - `library.import.status` reports progress, partial failures, and current
-  counts for any Library Import batch id.
+  counts for any Library Import batch id, including whether more continuation
+  work remains.
 - `library.import.summary` returns the completed structured report for any
   Library Import batch id.
+
+Library Import uses batch continuation, not a public cursor API. The public
+caller continues a MineMusic import task; it does not page through a provider
+API directly.
+
+```text
+library.import.start
+  -> returns batchId
+
+library.import.continue({ batchId, pageSize? })
+  -> processes the next segment
+  -> returns current counts and whether more work remains
+```
+
+Provider pagination state is internal Library Import working state. The
+repository may store provider-specific continuation details, such as offset,
+cursor, page token, or provider read checkpoint, but those details must remain
+opaque to Stage Interface callers. Different providers can use different
+pagination models without changing MineMusic's public import tools.
+
+`sampleLimitPerArea` remains a bounded-read limit for preview or one-shot
+tests. It is not a cursor and should not be used as a continuation token.
 
 The LLM should not call Canonical Store, storage repositories, or provider APIs
 directly for this flow.
