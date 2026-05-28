@@ -317,10 +317,9 @@ Pending:
 
 - Public `addAlias` method.
 - Standalone admin port for broader activate/reject/merge/list workflows.
-- Full 200-record Provisional Review v2.1 real MCP regression. A 20-record
-  smoke has passed first.
-- Provisional Review v3 Task 10 from
-  `docs/canonical-store/provisional-review-v3-implementation-plan.md`.
+- Provisional Review v3 is paused after a 20-record real MCP validation run.
+  Do not expand to 50/200-record review runs or continue auto-update ergonomics
+  unless Canonical Maintenance becomes the active project priority again.
 - Future maintenance actions such as split, reject, durable review queues,
   human-review queues, and provider-specific review tools.
 
@@ -437,6 +436,22 @@ Pending:
   longer filters tool availability. Posture still controls posture-specific
   review tool exposure, while setup tools such as Library Import remain
   callable during review validation sessions.
+- Paused Provisional Review v3 after a 20-record real MCP validation run showed
+  that the workflow is consuming more project attention than Canonical
+  Maintenance should currently receive. The pause is intentional stop-loss, not
+  a declaration that v3 is production-ready.
+- Recorded the known risks to revisit only if Canonical Maintenance becomes the
+  active priority again:
+  - batch `auto_update` can exceed client timeouts and leave agents seeing
+    `run_busy` without useful progress.
+  - inspection snapshots still expire after five minutes, which is too short
+    for slow manual review.
+  - review text normalization is too weak for punctuation variants such as
+    straight versus curly apostrophes.
+  - release track-position detail can be unavailable when summary did not
+    prefetch the relevant tracklist.
+  - manual guidance around release/date/version compatibility still needs
+    tightening before larger real review runs.
 
 ## Verification
 
@@ -494,11 +509,17 @@ Evidence boundary:
   `saved_recordings`, `saved_releases`, and `saved_artists` completed in 13
   seconds and persisted 3241 canonical source refs, 5249 provisional relations,
   and 3189 relation rows with `objectRef`s.
+- A later 20-record Provisional Review v3 MCP-only validation was run with an
+  independent subagent after launchd restart. It is treated as risk evidence,
+  not acceptance evidence: the subagent reported `auto_update` timeout /
+  `run_busy` behavior, short snapshot TTL pain, normalization misses, and
+  track-position detail gaps.
 - The Codex MCP default runtime accepts `MINEMUSIC_CANONICAL_DB_PATH` when the
   host wants durable Canonical Store state.
 
 ## Next Slice
 
-1. Continue Provisional Review v3 Task 3 from
-   `docs/canonical-store/provisional-review-v3-implementation-plan.md`,
-   adding the internal recording qualification engine.
+1. Return to the main MineMusic product path: recommendation, collection, and
+   playable-material flows.
+2. If Canonical Maintenance work resumes later, start from the paused v3 risks
+   above and keep real review batch sizes small until those risks are fixed.
