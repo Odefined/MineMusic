@@ -1,4 +1,4 @@
-import type { CanonicalRecord, Ref } from "../contracts/index.js";
+import type { CanonicalRecord, Ref } from "../../contracts/index.js";
 
 export function normalizeCanonicalLabel(label: string): string {
   return label.trim().replace(/\s+/g, " ").toLowerCase();

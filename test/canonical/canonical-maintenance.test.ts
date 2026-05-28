@@ -1,4 +1,4 @@
-import { createCanonicalMaintenance, createCanonicalStore } from "../../src/canonical/index.js";
+import { createCanonicalMaintenance, createCanonicalStore } from "../../src/material_store/canonical/index.js";
 import type {
   CanonicalRecord,
   KnowledgeItem,

@@ -142,7 +142,7 @@ Purpose:
 
 Owns:
 
-- `src/canonical/**`
+- `src/material_store/canonical/**`
 - canonical repository interface and default implementation.
 
 Inputs:

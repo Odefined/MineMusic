@@ -94,7 +94,7 @@ host-facing and LLM-facing surface.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
-- Canonical Store is exported from `src/canonical/index.ts` with get,
+- Canonical Store is exported from `src/material_store/canonical/index.ts` with get,
   source-ref resolution, provisional record creation, and source ref
   attachment. It reuses current canonical records by source-ref evidence during
   provisional creation, keeps label/alias matching as lookup-only candidate
@@ -129,8 +129,8 @@ host-facing and LLM-facing surface.
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
 - Canonical Store identity policy is split from storage mechanics:
-  `src/canonical/index.ts` owns policy flow, `src/canonical/normalization.ts`
-  owns label/ref/current-record normalization, and `src/canonical/storage.ts`
+  `src/material_store/canonical/index.ts` owns policy flow, `src/material_store/canonical/normalization.ts`
+  owns label/ref/current-record normalization, and `src/material_store/canonical/storage.ts`
   owns repository-backed lookup and write-error mapping.
 - Canonical Store durable storage design is documented in
   `docs/canonical-store/storage-model.md`. Responsibility and interface designs
@@ -150,11 +150,11 @@ host-facing and LLM-facing surface.
   Canonical Store boundary. Stage Core
   still defaults to in-memory canonical storage, and its factories now accept
   optional `canonicalRepository` injection or
-  `canonicalDatabasePath` configuration for host surfaces or tests that need
+  `materialStoreDatabasePath` configuration for host surfaces or tests that need
   durable canonical storage. SQLite initialization migrates the legacy
   `canonical_external_refs.external_id` table shape to
   `canonical_source_refs.source_id`. The Codex MCP default runtime accepts
-  `MINEMUSIC_CANONICAL_DB_PATH` to initialize that durable Canonical Store.
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize that durable Canonical Store.
 - Canonical Store persistence integration is covered by
   `test/integration/canonical-persistence.test.ts`: it recreates Stage Core
   with the same SQLite canonical database path, proves persisted canonical

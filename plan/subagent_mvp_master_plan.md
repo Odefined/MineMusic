@@ -214,7 +214,7 @@ Forbidden write paths:
 
 - `src/stage/**`
 - `src/stage_interface/**`
-- `src/canonical/**`
+- `src/material_store/canonical/**`
 - `src/source/**`
 - `src/knowledge/**`
 - `src/events/**`
@@ -306,7 +306,7 @@ Subagent: Canonical Store Subagent.
 
 Owned write paths:
 
-- `src/canonical/**`
+- `src/material_store/canonical/**`
 - `test/canonical/**`
 
 Consumes:

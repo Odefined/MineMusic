@@ -40,7 +40,7 @@
 - Added plugin registry runtime tests in `test/plugins/plugin-registry.test.ts`.
 - Verified Wave 2 with `npm test`.
 - Entered Wave 3 for core domain modules.
-- Added Canonical Store in `src/canonical/index.ts` with provisional records,
+- Added Canonical Store in `src/material_store/canonical/index.ts` with provisional records,
   source ref resolution, source ref attachment, and conflict rejection.
 - Added Event Service in `src/events/index.ts` with factual event recording and
   session-scoped listing.
@@ -218,7 +218,7 @@
 - Added `test/storage/sqlite-canonical-store.test.ts` to prove canonical record
   persistence, source-ref reverse lookup, and source-ref conflict behavior
   across repository reopen.
-- Tightened `src/canonical/index.ts` identity policy so provisional creation
+- Tightened `src/material_store/canonical/index.ts` identity policy so provisional creation
   reuses existing current records by source-ref evidence; ordinary label lookup
   and source-ref lookup ignore historical records; label/alias matches remain
   lookup-only candidate discovery; and repeated same-record source-ref
@@ -241,8 +241,8 @@
   `canonical_source_refs.source_id` so existing local durable stores keep their
   source-ref bindings after the terminology refactor.
 - Completed Canonical Store plan Task 3 by splitting canonical normalization
-  and repository-backed lookup/write mechanics out of `src/canonical/index.ts`
-  into `src/canonical/normalization.ts` and `src/canonical/storage.ts`.
+  and repository-backed lookup/write mechanics out of `src/material_store/canonical/index.ts`
+  into `src/material_store/canonical/normalization.ts` and `src/material_store/canonical/storage.ts`.
 - Completed Canonical Store plan Task 4 by adding optional
   `canonicalRepository` injection to Stage Core factories while preserving the
   default in-memory runtime.
@@ -541,9 +541,9 @@
   runtime. Added storage, Stage Core recreation, and MCP database initialization
   coverage.
 - Wired durable Canonical Store storage into Stage Core and the Codex MCP
-  runtime: `canonicalDatabasePath` now builds a SQLite-backed canonical
+  runtime: `materialStoreDatabasePath` now builds a SQLite-backed canonical
   repository unless an explicit `canonicalRepository` is injected, and
-  `MINEMUSIC_CANONICAL_DB_PATH` configures the default MCP runtime. Updated
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH` configures the default MCP runtime. Updated
   runtime coverage for Stage Core recreation against the same canonical
   database path and MCP database initialization.
 - Corrected Canonical Store provisional identity policy so automatic creation

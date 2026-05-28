@@ -482,13 +482,13 @@ async function defaultMcpStageCoreUsesCollectionDatabasePathEnv(): Promise<void>
 
 async function defaultMcpStageCoreUsesCanonicalDatabasePathEnv(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-mcp-canonical-db-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
 
   try {
     const runtime = createDefaultMineMusicServerRuntime({
       MINEMUSIC_SESSION_ID: "mcp-default-canonical-db-session",
       MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
-      MINEMUSIC_CANONICAL_DB_PATH: databasePath,
+      MINEMUSIC_MATERIAL_STORE_DB_PATH: databasePath,
     });
     await runtime.ready;
 

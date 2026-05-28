@@ -47,7 +47,7 @@ V2.1 fixes three concrete issues found by real MCP agent use:
 
 | Issue | Evidence |
 | --- | --- |
-| Summary candidates often lack release facts | `src/canonical/maintenance.ts` builds review Knowledge queries without `expand: "releases"`, while `src/providers/musicbrainz/index.ts` only requests MusicBrainz recording releases when that expansion is present. |
+| Summary candidates often lack release facts | `src/material_store/canonical/maintenance.ts` builds review Knowledge queries without `expand: "releases"`, while `src/providers/musicbrainz/index.ts` only requests MusicBrainz recording releases when that expansion is present. |
 | Summary asks for irrelevant recording expansions | The current review query asks for `relations`, `release_labels`, and `tracklist` while querying `entityKinds: ["recording"]`. `tracklist` and `release_labels` only affect MusicBrainz release lookup in the current provider, and broad `relations` fetches relationship data that v2 summary does not expose. |
 | Detail release/track data is snapshot-only | `reviewInspectDetail` reads existing inspection snapshot data and does not fetch missing release tracklists during detail inspection. |
 | Tests hid the real gap | Existing detail tests construct `release_appearance`, `has_track`, and `represents_recording` relations directly instead of proving the real MusicBrainz provider path supplies them. |
@@ -114,7 +114,7 @@ Each task should be implemented and committed separately.
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `src/stage_interface/outputs.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 - `test/stage_interface/stage-interface-dispatch.test.ts`
@@ -224,7 +224,7 @@ node .tmp-test/test/surfaces/mcp-server.test.js
 **Files**
 
 - `src/contracts/index.ts`
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `src/providers/musicbrainz/index.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 - `test/providers/musicbrainz-knowledge-provider.test.ts`
@@ -276,7 +276,7 @@ node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
 **Files**
 
 - `src/contracts/index.ts`
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `src/stage_interface/schemas.ts`
 - `src/stage_interface/dispatch.ts`
 - `src/stage_interface/outputs.ts`

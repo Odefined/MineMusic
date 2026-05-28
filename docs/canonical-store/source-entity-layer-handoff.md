@@ -195,7 +195,7 @@ Suggested next-session sequence:
     Store source-ref/provisional canonical records.
 - `docs/collection-service/design.md`
   - current Collection Service is canonical-only.
-- `src/canonical/index.ts`
+- `src/material_store/canonical/index.ts`
   - current Canonical Store public path.
 - `src/library_import/index.ts`
   - current import orchestration.

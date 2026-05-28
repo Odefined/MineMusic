@@ -5,7 +5,7 @@ import type {
   PlatformLibraryProvider,
   Ref,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/canonical/index.js";
+import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createLibraryImportService } from "../../src/library_import/index.js";

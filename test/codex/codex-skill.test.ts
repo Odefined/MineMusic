@@ -88,7 +88,7 @@ async function packagesRepoLocalCodexSkill(): Promise<void> {
     "skill should not own provider runtime env",
   );
   assert(
-    !skillText.includes("MINEMUSIC_CANONICAL_DB_PATH"),
+    !skillText.includes("MINEMUSIC_MATERIAL_STORE_DB_PATH"),
     "skill should not own Canonical Store runtime env",
   );
   assert(

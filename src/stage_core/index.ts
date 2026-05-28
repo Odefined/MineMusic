@@ -7,7 +7,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
-import { createCanonicalMaintenance, createCanonicalStore } from "../canonical/index.js";
+import { createCanonicalMaintenance, createCanonicalStore } from "../material_store/index.js";
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
@@ -90,7 +90,7 @@ export type MineMusicStageCoreOptions = {
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
-  canonicalDatabasePath?: string;
+  materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
@@ -109,7 +109,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
-  canonicalDatabasePath?: string;
+  materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
@@ -128,7 +128,7 @@ export function createMineMusicStageCore({
   sourceMaterials,
   canonicalRecords = [],
   canonicalRepository,
-  canonicalDatabasePath,
+  materialStoreDatabasePath,
   collectionRepository,
   collectionDatabasePath,
   libraryImportRepository,
@@ -146,7 +146,7 @@ export function createMineMusicStageCore({
     sourceProvider: createFixtureSourceProvider(sourceMaterials),
     canonicalRecords,
     ...(canonicalRepository === undefined ? {} : { canonicalRepository }),
-    ...(canonicalDatabasePath === undefined ? {} : { canonicalDatabasePath }),
+    ...(materialStoreDatabasePath === undefined ? {} : { materialStoreDatabasePath }),
     ...(collectionRepository === undefined ? {} : { collectionRepository }),
     ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
     ...(libraryImportRepository === undefined ? {} : { libraryImportRepository }),
@@ -166,7 +166,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   sourceProvider,
   canonicalRecords = [],
   canonicalRepository: injectedCanonicalRepository,
-  canonicalDatabasePath,
+  materialStoreDatabasePath,
   collectionRepository: injectedCollectionRepository,
   collectionDatabasePath,
   libraryImportRepository: injectedLibraryImportRepository,
@@ -181,9 +181,9 @@ export function createMineMusicStageCoreWithSourceProvider({
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
   const canonicalRepository =
     injectedCanonicalRepository ??
-    (canonicalDatabasePath === undefined
+    (materialStoreDatabasePath === undefined
       ? createInMemoryCanonicalRecordRepository()
-      : createSqliteCanonicalRecordRepository({ path: canonicalDatabasePath }));
+      : createSqliteCanonicalRecordRepository({ path: materialStoreDatabasePath }));
   const collectionRepository =
     injectedCollectionRepository ??
     (collectionDatabasePath === undefined

@@ -97,10 +97,10 @@ is expected to stay running outside Codex sessions. See
 `docs/operations/minemusic-server-launchd.md` before changing startup or MCP
 client config.
 
-The MineMusic server startup path keeps Canonical Store, Collection, and
+The MineMusic server startup path keeps Material Store, Collection, and
 Library Import state in memory unless database paths are configured. Set
-`MINEMUSIC_CANONICAL_DB_PATH` to persist canonical entities, external refs, and
-aliases; set `MINEMUSIC_COLLECTION_DB_PATH` to persist Collections and
+`MINEMUSIC_MATERIAL_STORE_DB_PATH` to persist canonical identity state; set
+`MINEMUSIC_COLLECTION_DB_PATH` to persist Collections and
 CollectionItems; and set `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` to persist Library
 Import batches, reports, snapshots, provenance, and absence records. These
 provider, database, cache, and session settings are MineMusic server runtime

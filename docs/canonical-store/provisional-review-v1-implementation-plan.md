@@ -67,8 +67,8 @@ The implementation must preserve these design constraints:
 | Canonical records | `src/contracts/index.ts` | `CanonicalRecord` has `ref`, `kind`, `label`, `status`, `sourceRefs`, and `aliases`. |
 | Provisional hints | `src/contracts/index.ts` | `CanonicalProvisionalHint` and `source_recording_context` facts already exist. |
 | Canonical public port | `src/ports/index.ts` | `CanonicalStorePort` currently exposes normal product-path methods, relation methods, and hint methods. |
-| Canonical service | `src/canonical/index.ts` | `createCanonicalStore` implements ordinary Canonical Store policy over an injected repository. |
-| Storage helper | `src/canonical/storage.ts` | Canonical storage centralizes current-record lookup, source-ref conflict checks, relations, and hints. |
+| Canonical service | `src/material_store/canonical/index.ts` | `createCanonicalStore` implements ordinary Canonical Store policy over an injected repository. |
+| Storage helper | `src/material_store/canonical/storage.ts` | Canonical storage centralizes current-record lookup, source-ref conflict checks, relations, and hints. |
 | SQLite storage | `src/storage/sqlite/canonical-schema.ts` | SQLite already has `merged_into_id`, source refs, aliases, relations, and provisional hints. |
 | Event service | `src/events/index.ts` | `EventPort.record` stores `StageEvent` values with generated id/time. |
 | Stage tools | `src/stage_interface/tools.ts` | Stable tool names and descriptors are declared centrally. |
@@ -94,7 +94,7 @@ reviewInspect(input: ProvisionalReviewInspectInput): Promise<Result<ProvisionalR
 reviewApply(input: ProvisionalReviewApplyInput): Promise<Result<ProvisionalReviewApplyOutput>>;
 ```
 
-The implementation can live in `src/canonical/maintenance.ts` and share the
+The implementation can live in `src/material_store/canonical/maintenance.ts` and share the
 same repository/storage boundary as Canonical Store. This keeps maintenance
 policy in the canonical module while keeping ordinary Canonical Store consumers
 away from review/admin operations.
@@ -269,9 +269,9 @@ validate session posture and snapshot ownership.
 
 **Files**
 
-- new `src/canonical/maintenance.ts`
-- `src/canonical/storage.ts`
-- `src/canonical/index.ts` if shared helpers need exporting.
+- new `src/material_store/canonical/maintenance.ts`
+- `src/material_store/canonical/storage.ts`
+- `src/material_store/canonical/index.ts` if shared helpers need exporting.
 - `test/canonical/canonical-maintenance.test.ts`
 
 **Work**
@@ -303,8 +303,8 @@ validate session posture and snapshot ownership.
 
 **Files**
 
-- `src/canonical/maintenance.ts`
-- `src/canonical/storage.ts`
+- `src/material_store/canonical/maintenance.ts`
+- `src/material_store/canonical/storage.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 - `test/knowledge/music-knowledge.test.ts` only if canonical review reveals a
   missing provider query behavior.
@@ -345,7 +345,7 @@ validate session posture and snapshot ownership.
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 - `test/events/event-service.test.ts` only if event behavior needs helper
   coverage.
@@ -381,7 +381,7 @@ validate session posture and snapshot ownership.
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 
 **Work**
@@ -415,8 +415,8 @@ validate session posture and snapshot ownership.
 
 **Files**
 
-- `src/canonical/maintenance.ts`
-- `src/canonical/storage.ts`
+- `src/material_store/canonical/maintenance.ts`
+- `src/material_store/canonical/storage.ts`
 - `src/storage/index.ts`
 - `src/storage/sqlite/canonical-repository.ts`
 - `test/canonical/canonical-maintenance.test.ts`
@@ -451,8 +451,8 @@ validate session posture and snapshot ownership.
 
 **Files**
 
-- `src/canonical/maintenance.ts`
-- `src/canonical/storage.ts`
+- `src/material_store/canonical/maintenance.ts`
+- `src/material_store/canonical/storage.ts`
 - `src/contracts/index.ts` if public redirect shape is needed.
 - `src/storage/index.ts`
 - `src/storage/sqlite/canonical-repository.ts`

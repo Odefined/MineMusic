@@ -12,7 +12,7 @@ function assert(condition: unknown, message: string): asserts condition {
 
 async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-server-runtime-"));
-  const canonicalDatabasePath = join(directory, "canonical.sqlite");
+  const materialStoreDatabasePath = join(directory, "material-store.sqlite");
   const collectionDatabasePath = join(directory, "collection.sqlite");
   const libraryImportDatabasePath = join(directory, "library-import.sqlite");
   const providerHttpCacheDatabasePath = join(directory, "provider-http-cache.sqlite");
@@ -24,7 +24,7 @@ async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
       {
         MINEMUSIC_SESSION_ID: "server-runtime-session",
         MINEMUSIC_NETEASE_BASE_URL: "http://127.0.0.1:39999",
-        MINEMUSIC_CANONICAL_DB_PATH: canonicalDatabasePath,
+        MINEMUSIC_MATERIAL_STORE_DB_PATH: materialStoreDatabasePath,
         MINEMUSIC_COLLECTION_DB_PATH: collectionDatabasePath,
         MINEMUSIC_LIBRARY_IMPORT_DB_PATH: libraryImportDatabasePath,
         MINEMUSIC_HANDBOOK_PATHS: [handbookPath, secondHandbookPath].join(delimiter),
@@ -56,7 +56,7 @@ async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
     assert(knowledgeProviderResult.ok, "server runtime should read the Knowledge provider registry");
     assert(knowledgeProviderResult.value !== null, "server runtime should register bundled MusicBrainz knowledge");
     assert(handbook.ok, "server runtime should expose the Stage Interface");
-    assert((await stat(canonicalDatabasePath)).isFile(), "server runtime should initialize Canonical Store storage");
+    assert((await stat(materialStoreDatabasePath)).isFile(), "server runtime should initialize Material Store storage");
     assert((await stat(collectionDatabasePath)).isFile(), "server runtime should initialize Collection storage");
     assert((await stat(libraryImportDatabasePath)).isFile(), "server runtime should initialize Library Import storage");
     assert((await stat(providerHttpCacheDatabasePath)).isFile(), "server runtime should initialize Provider HTTP Cache storage");

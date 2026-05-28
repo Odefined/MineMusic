@@ -6,7 +6,7 @@ import type {
   ProvisionalReviewAutoUpdateReasonCode,
   Ref,
   SourceReleaseTrackPosition,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 
 export type ReviewRecordingQualification = {
   recordingRef: Ref;

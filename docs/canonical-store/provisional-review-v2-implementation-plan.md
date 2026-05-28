@@ -65,10 +65,10 @@ Each task below should be implemented and committed separately.
 | Canonical records | `src/contracts/index.ts` | `CanonicalRecord` has `ref`, `kind`, `label`, `status`, `sourceRefs`, `aliases`, and `mergedIntoRef`; it does not yet expose `facts`. |
 | Maintenance port | `src/ports/index.ts` | `CanonicalMaintenancePort` currently exposes `reviewList`, `reviewInspect`, and `reviewApply`. |
 | Repository port | `src/ports/index.ts` | `CanonicalRecordRepository` has `put`, `list`, `findBySourceRef`, relation writes, and hint writes; it has no provider identity lookup, relation delete, or changeset commit. |
-| Canonical storage helper | `src/canonical/storage.ts` | Centralizes record lookup, source-ref conflict checks, relation delegation, and hint delegation. |
+| Canonical storage helper | `src/material_store/canonical/storage.ts` | Centralizes record lookup, source-ref conflict checks, relation delegation, and hint delegation. |
 | SQLite schema | `src/storage/sqlite/canonical-schema.ts` | `canonical_entities` already has `metadata_json`; there is no provider identity table. |
 | SQLite repository | `src/storage/sqlite/canonical-repository.ts` | Public `put(record)` opens its own SQLite transaction and rewrites source refs and aliases. |
-| Maintenance implementation | `src/canonical/maintenance.ts` | v1 inspect returns raw relations, hints, Knowledge Items, anchors, and relation candidates; v1 apply stores selected MusicBrainz refs in `sourceRefs` and copies relations on merge. |
+| Maintenance implementation | `src/material_store/canonical/maintenance.ts` | v1 inspect returns raw relations, hints, Knowledge Items, anchors, and relation candidates; v1 apply stores selected MusicBrainz refs in `sourceRefs` and copies relations on merge. |
 | Stage Interface dispatch | `src/stage_interface/dispatch.ts` | Review tools currently pass v1 payloads straight through to `CanonicalMaintenancePort`. |
 | Stage Interface schemas | `src/stage_interface/schemas.ts` | Review schemas currently expose full `subjectRef`/v1 apply shapes. |
 | MCP schema tests | `test/surfaces/mcp-server.test.ts` | Current surface tests expect review schemas to expose v1 fields such as `subjectRef`. |
@@ -173,7 +173,7 @@ npm run build:test
 **Files**
 
 - `src/storage/index.ts`
-- `src/canonical/storage.ts`
+- `src/material_store/canonical/storage.ts`
 - `src/storage/sqlite/canonical-schema.ts`
 - `src/storage/sqlite/canonical-repository.ts`
 - `src/storage/sqlite/index.ts`
@@ -228,7 +228,7 @@ npm run test:stage-core
 **Files**
 
 - `src/contracts/index.ts`
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 
 **Description**
@@ -329,7 +329,7 @@ npm run test:stage-core
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `src/providers/musicbrainz/index.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 - `test/providers/musicbrainz-knowledge-provider.test.ts`
@@ -376,8 +376,8 @@ npm run test:stage-core
 
 **Files**
 
-- `src/canonical/maintenance.ts`
-- `src/canonical/storage.ts`
+- `src/material_store/canonical/maintenance.ts`
+- `src/material_store/canonical/storage.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 - `test/storage/sqlite-canonical-store.test.ts`
 

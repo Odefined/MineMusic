@@ -3,7 +3,7 @@ import type {
   MusicMaterial,
   SourceProvider,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/canonical/index.js";
+import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import { createSourceGroundingService } from "../../src/source/index.js";
 import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";

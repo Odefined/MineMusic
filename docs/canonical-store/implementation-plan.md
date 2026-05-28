@@ -25,7 +25,7 @@ MineMusic canonical identity
 
 | Concern | Current file | Evidence |
 | --- | --- | --- |
-| Canonical service | `src/canonical/index.ts` | `createCanonicalStore` depends on `CanonicalRecordRepository`; `src/canonical/storage.ts` uses indexed repository source-ref lookup when available and falls back to `repository.list()` for minimal repositories. |
+| Canonical service | `src/material_store/canonical/index.ts` | `createCanonicalStore` depends on `CanonicalRecordRepository`; `src/material_store/canonical/storage.ts` uses indexed repository source-ref lookup when available and falls back to `repository.list()` for minimal repositories. |
 | Public port | `src/ports/index.ts` | `CanonicalStorePort` currently exposes `get`, `findByLabel`, `resolveSourceRef`, `createProvisional`, and `attachSourceRef`. |
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` stores records in a process-local `Map`. |
 | Current tests | `test/canonical/canonical-store.test.ts` | Covers provisional create/get, source-ref attach/resolve, and conflict rejection. |
@@ -144,9 +144,9 @@ until Canonical Store uses the adapter semantics correctly.
 
 **Files**
 
-- `src/canonical/index.ts`
-- optional internal helper: `src/canonical/normalization.ts`
-- optional internal helper: `src/canonical/storage.ts`
+- `src/material_store/canonical/index.ts`
+- optional internal helper: `src/material_store/canonical/normalization.ts`
+- optional internal helper: `src/material_store/canonical/storage.ts`
 - `test/canonical/canonical-store.test.ts`
 
 **Description**
@@ -209,7 +209,7 @@ runtime behavior deterministic.
 - Add a helper for SQLite-backed canonical storage only if the call site needs
   it.
 - Do not make `npm test` depend on a fixed local database path.
-- For MCP, use `MINEMUSIC_CANONICAL_DB_PATH` only after Stage Core accepts
+- For MCP, use `MINEMUSIC_MATERIAL_STORE_DB_PATH` only after Stage Core accepts
   injected durable storage cleanly.
 
 **Dependencies**

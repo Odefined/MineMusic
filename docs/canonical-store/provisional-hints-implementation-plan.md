@@ -148,8 +148,8 @@ export type CanonicalProvisionalHintDraft = {
 
 - **Files**:
   - `src/ports/index.ts`
-  - `src/canonical/index.ts`
-  - `src/canonical/storage.ts`
+  - `src/material_store/canonical/index.ts`
+  - `src/material_store/canonical/storage.ts`
   - `src/storage/index.ts`
   - `src/storage/sqlite/canonical-schema.ts`
   - `src/storage/sqlite/canonical-repository.ts`

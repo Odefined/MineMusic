@@ -48,9 +48,9 @@ export function createDefaultMineMusicServerRuntime(
     session: createDefaultServerSession(env),
     sourceProvider: createNetEaseSourceProvider(netEaseOptions),
     platformLibraryProvider: createNetEasePlatformLibraryProvider(netEaseOptions),
-    ...(env.MINEMUSIC_CANONICAL_DB_PATH === undefined
+    ...(env.MINEMUSIC_MATERIAL_STORE_DB_PATH === undefined
       ? {}
-      : { canonicalDatabasePath: env.MINEMUSIC_CANONICAL_DB_PATH }),
+      : { materialStoreDatabasePath: env.MINEMUSIC_MATERIAL_STORE_DB_PATH }),
     ...(env.MINEMUSIC_COLLECTION_DB_PATH === undefined
       ? {}
       : { collectionDatabasePath: env.MINEMUSIC_COLLECTION_DB_PATH }),

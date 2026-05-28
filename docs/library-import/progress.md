@@ -50,7 +50,7 @@ This file tracks Library Import implementation progress.
   exposes explicit MCP input schemas and generated Handbook entries. The default
   Codex MCP runtime now registers NetEase through both `source` and
   `platform_library` slots and reuses `MINEMUSIC_NETEASE_BASE_URL` for both
-  provider factories and accepts `MINEMUSIC_CANONICAL_DB_PATH`,
+  provider factories and accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH`,
   `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` for
   durable canonical bindings, durable Collection writes, and durable Library
   Import storage without adding credential storage. Deterministic
@@ -71,7 +71,7 @@ This file tracks Library Import implementation progress.
   lookup aligned with the in-memory repository. Stage Core and host surfaces
   still default to in-memory Library Import storage unless
   `libraryImportDatabasePath` or `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` is provided;
-  combine that with `canonicalDatabasePath` / `MINEMUSIC_CANONICAL_DB_PATH` and
+  combine that with `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH` and
   `collectionDatabasePath` / `MINEMUSIC_COLLECTION_DB_PATH` when import-created
   canonical bindings, provisional relation context, and Collection writes must
   persist across runtime recreation. Library Import now records provisional

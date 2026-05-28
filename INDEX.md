@@ -175,14 +175,14 @@ This index points agents to the current MVP documentation pack.
     - Collection Service behavior tests for system initialization, custom
       collection lifecycle, item membership, blocked filtering, and events.
 
-36. `src/canonical/index.ts`
+36. `src/material_store/canonical/index.ts`
     - Canonical Store public-port implementation, provisional relation
       recording/listing with optional object refs, and current identity policy.
 
-37. `src/canonical/normalization.ts`
+37. `src/material_store/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-38. `src/canonical/storage.ts`
+38. `src/material_store/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics, plus relation persistence delegation.
 
@@ -213,7 +213,7 @@ This index points agents to the current MVP documentation pack.
 
 46. `test/integration/canonical-persistence.test.ts`
     - Stage Core restart-style persistence test for SQLite-backed canonical
-      storage through `canonicalDatabasePath`.
+      storage through `materialStoreDatabasePath`.
 
 47. `test/integration/collection-runtime.test.ts`
     - Composed Stage Core integration coverage for Collection through Stage

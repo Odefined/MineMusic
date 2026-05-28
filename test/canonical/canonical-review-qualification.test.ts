@@ -5,7 +5,7 @@ import type {
   KnowledgeRelation,
   Ref,
 } from "../../src/contracts/index.js";
-import { qualifyReviewRecordings } from "../../src/canonical/review-qualification.js";
+import { qualifyReviewRecordings } from "../../src/material_store/canonical/review-qualification.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {

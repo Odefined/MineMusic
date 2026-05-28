@@ -6,7 +6,7 @@ import type {
   Ref,
   Result,
   StageError,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 import type {
   CanonicalRecordRepository,
   CanonicalRecordRepositoryCommitChangesInput,
@@ -15,7 +15,7 @@ import type {
   CanonicalProvisionalHintListInput,
   CanonicalRelationListInput,
   CanonicalReviewStateListInput,
-} from "../ports/index.js";
+} from "../../ports/index.js";
 import {
   isCurrentCanonicalRecord,
   matchesCanonicalKind,

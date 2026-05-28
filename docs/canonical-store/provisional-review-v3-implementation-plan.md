@@ -39,10 +39,10 @@ the selected MusicBrainz recording identity.
 | Existing review tools | `src/ports/index.ts:273` exposes `reviewList`, `reviewInspect`, `reviewApply`, and `clearReviewState`; no `reviewAutoUpdate` exists. |
 | Stage Interface tools | `src/stage_interface/tools.ts:235` lists `canonical.review.list`, `canonical.review.inspect`, and `canonical.review.apply`; no `canonical.review.auto_update` exists. |
 | Tool dispatch | `src/stage_interface/dispatch.ts:413` routes list/inspect/apply only. |
-| Current apply Gate | `src/canonical/maintenance.ts:641` validates non-empty reason and selected inspected MusicBrainz recording token; it does not prove semantic equivalence. |
-| Existing apply effects | `src/canonical/maintenance.ts:686` derives activate or merge from current provider identity state and writes through `activateSubject` / `mergeSubject`. |
-| Current review search | `src/canonical/maintenance.ts:1421` reads MusicBrainz facts during inspection; `src/canonical/maintenance.ts:1628` builds staged recording queries with release/date already in the stronger stages. |
-| Tracklist context | `src/canonical/maintenance.ts:1519` fetches release tracklists for source-matching release labels and keeps them in the inspection snapshot. |
+| Current apply Gate | `src/material_store/canonical/maintenance.ts:641` validates non-empty reason and selected inspected MusicBrainz recording token; it does not prove semantic equivalence. |
+| Existing apply effects | `src/material_store/canonical/maintenance.ts:686` derives activate or merge from current provider identity state and writes through `activateSubject` / `mergeSubject`. |
+| Current review search | `src/material_store/canonical/maintenance.ts:1421` reads MusicBrainz facts during inspection; `src/material_store/canonical/maintenance.ts:1628` builds staged recording queries with release/date already in the stronger stages. |
+| Tracklist context | `src/material_store/canonical/maintenance.ts:1519` fetches release tracklists for source-matching release labels and keeps them in the inspection snapshot. |
 | Agent-facing compact output | `src/stage_interface/outputs.ts:166` builds `knowledgeFacts` from recording tokens and release summaries. |
 | MusicBrainz artist aliases | `src/providers/musicbrainz/index.ts:62` does not include artist aliases on `MusicBrainzArtist`, and `src/providers/musicbrainz/index.ts:1793` writes artist-credit nodes without `properties.aliases`. |
 
@@ -176,8 +176,8 @@ node .tmp-test/test/providers/musicbrainz-knowledge-provider.test.js
 
 **Files**
 
-- `src/canonical/maintenance.ts`
-- `src/canonical/review-qualification.ts`
+- `src/material_store/canonical/maintenance.ts`
+- `src/material_store/canonical/review-qualification.ts`
 - `test/canonical/canonical-review-qualification.test.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 
@@ -188,8 +188,8 @@ against inspected MusicBrainz recording facts.
 
 **Details**
 
-- Create `src/canonical/review-qualification.ts` for pure helper logic. This is
-  justified because `src/canonical/maintenance.ts` already owns inspection,
+- Create `src/material_store/canonical/review-qualification.ts` for pure helper logic. This is
+  justified because `src/material_store/canonical/maintenance.ts` already owns inspection,
   apply, search, detail, and write effects; qualification needs focused tests.
 - Extract source facts from `source_recording_context` hints.
 - Do not stitch hard facts across conflicting source contexts.
@@ -240,7 +240,7 @@ node .tmp-test/test/canonical/canonical-maintenance.test.js
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `src/stage_interface/outputs.ts`
 - `src/stage_interface/schemas.ts`
 - `test/canonical/canonical-maintenance.test.ts`
@@ -289,7 +289,7 @@ node .tmp-test/test/surfaces/mcp-server.test.js
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 
 **Description**
@@ -341,7 +341,7 @@ node .tmp-test/test/canonical/canonical-maintenance.test.js
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 
 **Description**
@@ -381,7 +381,7 @@ node .tmp-test/test/canonical/canonical-maintenance.test.js
 
 **Files**
 
-- `src/canonical/maintenance.ts`
+- `src/material_store/canonical/maintenance.ts`
 - `test/canonical/canonical-maintenance.test.ts`
 
 **Description**

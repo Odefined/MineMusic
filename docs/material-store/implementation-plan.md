@@ -41,7 +41,7 @@ Expected edits:
   while preserving canonical subdomain names.
 - Add `src/material_store/index.ts` as the Material Store factory/export
   boundary.
-- Update imports from `src/canonical/**` to `src/material_store/canonical/**`.
+- Update imports from `src/material_store/canonical/**` to `src/material_store/canonical/**`.
 - Update durable runtime configuration toward
   `MINEMUSIC_MATERIAL_STORE_DB_PATH`.
 - Keep `canonical.review.*` tool names and Canonical Maintenance semantics.

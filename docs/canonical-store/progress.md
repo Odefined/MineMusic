@@ -96,13 +96,13 @@ Implemented:
   can carry title, artist labels, release context, duration, and source track
   position without extending `CanonicalRelation`.
 - Canonical label/ref/current-record normalization is isolated in
-  `src/canonical/normalization.ts`.
-- Canonical Store storage mechanics are isolated in `src/canonical/storage.ts`,
-  so `src/canonical/index.ts` no longer scans `repository.list()` directly.
+  `src/material_store/canonical/normalization.ts`.
+- Canonical Store storage mechanics are isolated in `src/material_store/canonical/storage.ts`,
+  so `src/material_store/canonical/index.ts` no longer scans `repository.list()` directly.
 - Stage Core accepts optional `canonicalRepository` injection and
-  `canonicalDatabasePath` SQLite configuration while keeping in-memory
+  `materialStoreDatabasePath` SQLite configuration while keeping in-memory
   canonical storage as the default.
-- Codex MCP runtime configuration accepts `MINEMUSIC_CANONICAL_DB_PATH` for
+- Codex MCP runtime configuration accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH` for
   durable Canonical Store storage.
 - Stage Core factory tests prove Material Resolve uses the injected canonical
   repository through Stage Interface tools.
@@ -116,7 +116,7 @@ Implemented:
 - Canonical Maintenance is exposed through a separate
   `CanonicalMaintenancePort`; ordinary product-path methods remain on
   `CanonicalStorePort`.
-- `src/canonical/maintenance.ts` implements Provisional Review v1 for current
+- `src/material_store/canonical/maintenance.ts` implements Provisional Review v1 for current
   provisional recordings:
   - `reviewList` returns maintainable provisional recordings.
   - `reviewInspect` returns local facts, provisional hints, Knowledge facts,
@@ -342,9 +342,9 @@ Pending:
   uniqueness failures to `canonical.source_ref_conflict` at the Canonical
   Store boundary.
 - Completed Task 3 by moving canonical normalization into
-  `src/canonical/normalization.ts`, moving label/source-ref/current-record
-  lookup mechanics into `src/canonical/storage.ts`, and keeping
-  `src/canonical/index.ts` focused on Canonical Store policy flow.
+  `src/material_store/canonical/normalization.ts`, moving label/source-ref/current-record
+  lookup mechanics into `src/material_store/canonical/storage.ts`, and keeping
+  `src/material_store/canonical/index.ts` focused on Canonical Store policy flow.
 - Completed Task 4 by adding optional `canonicalRepository` injection to Stage
   Core factories while preserving the default in-memory runtime.
 - Completed Task 5 by adding
@@ -361,12 +361,12 @@ Pending:
 
 ### 2026-05-25
 
-- Added `canonicalDatabasePath` to Stage Core factories. Explicit
+- Added `materialStoreDatabasePath` to Stage Core factories. Explicit
   `canonicalRepository` injection still wins; otherwise the database path builds
   a SQLite-backed canonical repository.
-- Wired `MINEMUSIC_CANONICAL_DB_PATH` into the default Codex MCP runtime.
+- Wired `MINEMUSIC_MATERIAL_STORE_DB_PATH` into the default Codex MCP runtime.
 - Updated the canonical persistence integration test to exercise
-  `canonicalDatabasePath` directly, and added MCP database initialization
+  `materialStoreDatabasePath` directly, and added MCP database initialization
   coverage.
 - Corrected provisional identity creation so exact source-ref evidence can reuse
   an existing identity, but normalized label or alias alone cannot automatically
@@ -475,7 +475,7 @@ Results:
 - Real MCP 20-record smoke passed against a temporary runtime at
   `/tmp/minemusic-v21-regression.WH3vCh`:
   - server endpoint: `http://127.0.0.1:37373/mcp`.
-  - temporary databases: `canonical.sqlite`, `collection.sqlite`,
+  - temporary databases: `material-store.sqlite`, `collection.sqlite`,
     `library-import.sqlite`, and `provider-cache.sqlite` under that directory.
   - import command path: `library.import.start` with NetEase
     `saved_recordings`, `ownerScope: local_profile:regression-v21`, and
@@ -555,7 +555,7 @@ Evidence boundary:
   - `canonical-15` release-track-position detail returned unavailable despite
     a release token, because the relevant tracklist was not available in the
     summary inspection snapshot.
-- The Codex MCP default runtime accepts `MINEMUSIC_CANONICAL_DB_PATH` when the
+- The Codex MCP default runtime accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH` when the
   host wants durable Canonical Store state.
 
 ## Next Slice

@@ -6,7 +6,7 @@ import type {
   Result,
   SourceQuery,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/canonical/index.js";
+import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
 import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
 import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";

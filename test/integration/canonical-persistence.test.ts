@@ -33,7 +33,7 @@ const session: StageSession = {
 
 async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-stage-core-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:provider",
     kind: "track",
@@ -91,7 +91,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     const firstStageCore = createMineMusicStageCoreWithSourceProvider({
       session,
       sourceProvider,
-      canonicalDatabasePath: databasePath,
+      materialStoreDatabasePath: databasePath,
       canonicalRecords: [canonicalRecord],
       handbookPath: join(directory, "first-HANDBOOK.md"),
     });
@@ -110,7 +110,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     const recreatedStageCore = createMineMusicStageCoreWithSourceProvider({
       session,
       sourceProvider,
-      canonicalDatabasePath: databasePath,
+      materialStoreDatabasePath: databasePath,
       handbookPath: join(directory, "second-HANDBOOK.md"),
     });
     await recreatedStageCore.ready;

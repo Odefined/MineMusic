@@ -334,15 +334,15 @@ Still outside the implementation:
 
 | Concern | File | Key Symbols |
 | --- | --- | --- |
-| Current Canonical Store | `src/canonical/index.ts` | `createCanonicalStore` |
-| Canonical normalization | `src/canonical/normalization.ts` | `normalizeCanonicalLabel`, `sameRef` |
-| Canonical storage mechanics | `src/canonical/storage.ts` | `createCanonicalStorage` |
+| Current Canonical Store | `src/material_store/canonical/index.ts` | `createCanonicalStore` |
+| Canonical normalization | `src/material_store/canonical/normalization.ts` | `normalizeCanonicalLabel`, `sameRef` |
+| Canonical storage mechanics | `src/material_store/canonical/storage.ts` | `createCanonicalStorage` |
 | Public ports | `src/ports/index.ts` | `CanonicalStorePort` |
 | Shared contracts | `src/contracts/index.ts` | `CanonicalRecord`, `CanonicalRelation`, `Ref`, `DomainEventType` |
 | In-memory storage | `src/storage/index.ts` | `createInMemoryCanonicalRecordRepository` |
 | SQLite schema | `src/storage/sqlite/canonical-schema.ts` | `initializeCanonicalSchema` |
 | SQLite repository | `src/storage/sqlite/canonical-repository.ts` | `createSqliteCanonicalRecordRepository` |
-| Stage Core wiring | `src/stage_core/index.ts` | `canonicalRepository`, `canonicalDatabasePath` factory options |
+| Stage Core wiring | `src/stage_core/index.ts` | `canonicalRepository`, `materialStoreDatabasePath` factory options |
 | Material Resolve integration | `src/material_resolve/index.ts` | `createMaterialResolveService` |
 | Source Grounding integration | `src/source/index.ts` | `createSourceGroundingService` |
 | Current tests | `test/canonical/canonical-store.test.ts` | canonical store runtime tests |

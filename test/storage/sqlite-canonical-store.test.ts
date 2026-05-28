@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { createCanonicalStore } from "../../src/canonical/index.js";
+import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
 import type { CanonicalProviderIdentity, CanonicalRecord, Ref, Result } from "../../src/contracts/index.js";
 import type { CanonicalRecordRepository } from "../../src/ports/index.js";
 import { createSqliteCanonicalRecordRepository } from "../../src/storage/index.js";
@@ -22,7 +22,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 
 async function persistsCanonicalRecordsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:netease",
     kind: "track",
@@ -64,7 +64,7 @@ async function persistsCanonicalRecordsAcrossRepositoryReopen(): Promise<void> {
 
 async function rejectsSourceRefConflictsAfterRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-conflict-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:netease",
     kind: "track",
@@ -112,7 +112,7 @@ async function rejectsSourceRefConflictsAfterRepositoryReopen(): Promise<void> {
 
 async function mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-race-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:netease",
     kind: "track",
@@ -184,7 +184,7 @@ async function mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary(): Promis
 
 async function usesIndexedSourceRefLookupWithoutFullRepositoryList(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-indexed-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:netease",
     kind: "track",
@@ -260,7 +260,7 @@ async function usesIndexedSourceRefLookupWithoutFullRepositoryList(): Promise<vo
 
 async function migratesLegacySourceRefTableToSourceRefs(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-migration-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:netease",
     kind: "track",
@@ -356,7 +356,7 @@ async function migratesLegacySourceRefTableToSourceRefs(): Promise<void> {
 
 async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-relations-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:netease",
     kind: "track",
@@ -429,7 +429,7 @@ async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void>
 
 async function persistsFactsAndProviderIdentitiesAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-provider-identity-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const record: CanonicalRecord = {
     ref: {
       namespace: "minemusic",
@@ -485,7 +485,7 @@ async function persistsFactsAndProviderIdentitiesAcrossRepositoryReopen(): Promi
 
 async function changesetDeletesOnlyRequestedRelations(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-delete-relations-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const subjectRef: Ref = {
     namespace: "minemusic",
     kind: "recording",
@@ -553,7 +553,7 @@ async function changesetDeletesOnlyRequestedRelations(): Promise<void> {
 
 async function persistsCanonicalProvisionalHintsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-hints-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const sourceRef: Ref = {
     namespace: "source:netease",
     kind: "track",
@@ -634,7 +634,7 @@ async function persistsCanonicalProvisionalHintsAcrossRepositoryReopen(): Promis
 
 async function persistsCanonicalReviewStateAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-review-state-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const subjectRef: Ref = {
     namespace: "minemusic",
     kind: "recording",
@@ -675,7 +675,7 @@ async function persistsCanonicalReviewStateAcrossRepositoryReopen(): Promise<voi
 
 async function persistsMergedRedirectsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-redirect-"));
-  const databasePath = join(directory, "canonical.sqlite");
+  const databasePath = join(directory, "material-store.sqlite");
   const targetRef: Ref = {
     namespace: "minemusic",
     kind: "recording",
