@@ -214,11 +214,11 @@ export const stageInterfaceToolInputSchemas = {
     ownerScope: z.string().optional(),
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
-    pageSize: z.number().int().positive().optional(),
+    pageSize: z.number().int().positive().max(100).optional(),
   },
   "library.import.continue": {
     batchId: z.string(),
-    pageSize: z.number().int().positive().optional(),
+    pageSize: z.number().int().positive().max(100).optional(),
   },
   "library.update.start": {
     providerId: z.string(),
@@ -226,12 +226,12 @@ export const stageInterfaceToolInputSchemas = {
     ownerScope: z.string().optional(),
     scopes: z.array(libraryImportScopeSchema).min(1),
     sampleLimitPerArea: z.number().int().positive().optional(),
-    pageSize: z.number().int().positive().optional(),
+    pageSize: z.number().int().positive().max(100).optional(),
     mode: z.enum(["full", "latest_until_seen"]).optional(),
   },
   "library.update.continue": {
     batchId: z.string(),
-    pageSize: z.number().int().positive().optional(),
+    pageSize: z.number().int().positive().max(100).optional(),
   },
   "library.import.status": {
     batchId: z.string(),

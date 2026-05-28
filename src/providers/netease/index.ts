@@ -1542,7 +1542,10 @@ function extractLikedPlaylistTrackEntriesResult(
     .filter((entry): entry is NetEaseLikedPlaylistTrackEntry => entry !== undefined);
 
   const trackCount = payload.playlist.trackCount;
-  const count = typeof trackCount === "number" && Number.isFinite(trackCount) ? trackCount : entries.length;
+  const count =
+    typeof trackCount === "number" && Number.isFinite(trackCount)
+      ? Math.max(trackCount, entries.length)
+      : entries.length;
 
   return {
     ok: true,

@@ -253,3 +253,9 @@ This file tracks Library Import implementation progress.
   field on `library.update.start`. Treat that mismatch as client
   tool-discovery/session refresh drift, not a MineMusic server runtime
   regression.
+- `npm run build:test && node .tmp-test/test/library_import/library-import-service.test.js && node .tmp-test/test/providers/netease-platform-library-provider.test.js && node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js && node .tmp-test/test/surfaces/mcp-server.test.js && node .tmp-test/test/integration/library-import-runtime.test.js`
+  now pass after three runtime hardening changes: restart-safe default Library
+  Import batch ids for durable runtimes, `pageSize <= 100` enforcement for
+  paged import/update entrypoints, and NetEase saved-track count normalization
+  that prefers returned liked-playlist `trackIds.length` when
+  `playlist.trackCount` lags behind.

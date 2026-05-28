@@ -358,6 +358,175 @@ async function startsImportInBoundedSegmentsAndContinuesNextPage(): Promise<void
   );
 }
 
+async function clampsPagedImportPageSizeToOneHundred(): Promise<void> {
+  const registry = createPluginRegistry();
+  const readPageInputs: Array<{ pageSize: number; providerState?: unknown }> = [];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      throw new Error("clamped paged import should stay on readPage");
+    },
+    async readPage(input) {
+      readPageInputs.push({
+        pageSize: input.pageSize,
+        providerState: input.providerState,
+      });
+
+      if (readPageInputs.length === 1) {
+        return {
+          ok: true,
+          value: {
+            providerId: "fixture-library",
+            account: {
+              providerAccountId: input.providerAccountId ?? "fixture-account",
+              stable: true,
+            },
+            area: "saved_source_tracks",
+            status: "complete",
+            count: { certainty: "exact", value: 3 },
+            items: [providerItem("track-1", "Track 1")],
+            providerState: { offset: 1 },
+            hasMore: true,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: input.providerAccountId ?? "fixture-account",
+            stable: true,
+          },
+          area: "saved_source_tracks",
+          status: "complete",
+          count: { certainty: "exact", value: 3 },
+          items: [providerItem("track-2", "Track 2"), providerItem("track-3", "Track 3")],
+          hasMore: false,
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const firstReport = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+      pageSize: 150,
+    }),
+  );
+
+  await assertOk(
+    environment.libraryImport.continueImport({
+      batchId: firstReport.batchId,
+      pageSize: 500,
+    }),
+  );
+
+  assert(readPageInputs[0]?.pageSize === 100, "startImport should clamp requested pageSize above 100");
+  assert(readPageInputs[1]?.pageSize === 100, "continueImport should clamp requested pageSize above 100");
+}
+
+async function assignsDistinctDefaultBatchIdsAcrossServiceRecreation(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_source_tracks",
+              status: "complete",
+              items: [providerItem("track-1", "Track 1")],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const clock = () => "2026-05-25T00:00:00.000Z";
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    idFactory: createSequence("event"),
+    clock,
+  });
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const canonicalStore = createCanonicalStore({
+    repository: canonicalRepository,
+    idFactory: createSequence("canonical"),
+  });
+  const sourceEntityStore = createInMemorySourceEntityStoreRepository();
+  const materialStore = createMaterialStore({
+    canonicalStore,
+    sourceEntityStore,
+  });
+  const repository = createInMemoryLibraryImportRepository();
+
+  const firstService = createLibraryImportService({
+    pluginRegistry: registry,
+    materialStore,
+    events,
+    repository,
+    clock,
+  });
+  const secondService = createLibraryImportService({
+    pluginRegistry: registry,
+    materialStore,
+    events,
+    repository,
+    clock,
+  });
+
+  const firstReport = await assertOk(
+    firstService.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  const secondReport = await assertOk(
+    secondService.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  const firstBatch = await assertOk(repository.getBatch({ batchId: firstReport.batchId }));
+  const secondBatch = await assertOk(repository.getBatch({ batchId: secondReport.batchId }));
+
+  assert(firstReport.batchId !== secondReport.batchId, "default batch ids should stay unique across service recreation");
+  assert(firstBatch !== null, "first batch should remain addressable after a later service recreation");
+  assert(secondBatch !== null, "second batch should be stored under its own id");
+}
+
 async function marksStartedBatchFailedWhenProviderReadFails(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
@@ -2093,6 +2262,8 @@ await mapsMissingPlatformLibraryProviderToLibraryImportError();
 await rejectsDiscoveryScopesForStartCalls();
 await startsReadableImportBatchAndExposesStatus();
 await startsImportInBoundedSegmentsAndContinuesNextPage();
+await clampsPagedImportPageSizeToOneHundred();
+await assignsDistinctDefaultBatchIdsAcrossServiceRecreation();
 await marksStartedBatchFailedWhenProviderReadFails();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();

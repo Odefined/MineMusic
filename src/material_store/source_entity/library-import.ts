@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
@@ -2055,6 +2057,7 @@ function batchToReport(batch: LibraryImportBatch): LibraryImportReport {
 }
 
 const defaultPagedImportPageSize = 50;
+const maxPagedImportPageSize = 100;
 
 async function continueLibraryImport({
   pluginRegistry,
@@ -2098,7 +2101,7 @@ async function continueLibraryImport({
         completedReports,
         provider: provider.value,
         batch: batch.value,
-        pageSize: input.pageSize ?? defaultPagedImportPageSize,
+        pageSize: normalizePagedImportPageSize(input.pageSize),
         clock,
       });
 
@@ -2228,7 +2231,7 @@ async function startPagedLibraryImport({
     completedReports,
     provider,
     batch: storedRunningBatch.value,
-    pageSize: input.pageSize ?? defaultPagedImportPageSize,
+    pageSize: normalizePagedImportPageSize(input.pageSize),
     clock,
   });
 
@@ -2844,9 +2847,15 @@ function batchNotFound(batchId: string): Result<never> {
 }
 
 function createDefaultIdFactory(prefix: string): () => string {
-  let nextId = 1;
+  return () => `${prefix}-${Date.now().toString(36)}-${randomUUID()}`;
+}
 
-  return () => `${prefix}-${nextId++}`;
+function normalizePagedImportPageSize(pageSize: number | undefined): number {
+  if (pageSize === undefined) {
+    return defaultPagedImportPageSize;
+  }
+
+  return Math.min(pageSize, maxPagedImportPageSize);
 }
 
 function ok<T>(value: T): Result<T> {

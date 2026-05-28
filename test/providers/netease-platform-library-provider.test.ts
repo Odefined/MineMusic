@@ -1419,6 +1419,87 @@ async function readPagePaginatesSavedTracksWithOpaqueProviderState(): Promise<vo
   );
 }
 
+async function readPagePrefersReturnedTrackIdsWhenLikedPlaylistTrackCountLags(): Promise<void> {
+  const provider = createNetEasePlatformLibraryProvider({
+    requestJson: async ({ path }) => {
+      if (path === "/login/status") {
+        return {
+          ok: true,
+          value: {
+            data: {
+              profile: {
+                userId: 2727,
+                nickname: "Lagging Track Count Listener",
+              },
+            },
+          },
+        };
+      }
+
+      if (path === "/user/playlist") {
+        return { ok: true, value: userPlaylistPayload(272701, 3) };
+      }
+
+      if (path === "/playlist/detail") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            playlist: {
+              trackIds: [
+                { id: 1001, at: 1716854400000 },
+                { id: 1002, at: 1716768000000 },
+                { id: 1003, at: 1716681600000 },
+                { id: 1004, at: 1716595200000 },
+              ],
+              trackCount: 3,
+            },
+          },
+        };
+      }
+
+      if (path === "/song/detail") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            songs: [
+              { id: 1001, name: "Track A", ar: [{ id: 201, name: "Artist A" }], al: { id: 301, name: "Album" } },
+              { id: 1002, name: "Track B", ar: [{ id: 202, name: "Artist B" }], al: { id: 301, name: "Album" } },
+            ],
+          },
+        };
+      }
+
+      if (path === "/album") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: { publishTime: 1704067200000 },
+            songs: [],
+          },
+        };
+      }
+
+      throw new Error(`unexpected request path: ${path}`);
+    },
+  });
+
+  assert(provider.readPage !== undefined, "NetEase provider should expose readPage");
+  const page = await assertOk(
+    provider.readPage({
+      area: "saved_source_tracks",
+      pageSize: 2,
+    }),
+  );
+
+  assert(
+    page.count?.certainty === "exact" && page.count.value === 4,
+    "track readPage should prefer returned liked track ids when playlist.trackCount lags behind",
+  );
+}
+
 async function readItemsMapsSavedArtistsToGenericItems(): Promise<void> {
   const provider = createNetEasePlatformLibraryProvider({
     requestJson: async ({ path }) => {
@@ -1944,6 +2025,7 @@ await readItemsRespectsSavedReleaseSampleLimit();
 await readPagePaginatesSavedReleasesWithOpaqueProviderState();
 await readPagePaginatesSavedArtistsWithOpaqueProviderState();
 await readPagePaginatesSavedTracksWithOpaqueProviderState();
+await readPagePrefersReturnedTrackIdsWhenLikedPlaylistTrackCountLags();
 await readItemsMapsSavedArtistsToGenericItems();
 await readItemsPaginatesSavedArtists();
 await readItemsRespectsSavedArtistSampleLimit();

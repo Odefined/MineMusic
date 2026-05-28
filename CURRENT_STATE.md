@@ -220,8 +220,11 @@ host-facing and LLM-facing surface.
   capability rather than an agent-facing tool. When the provider supports paged reads,
   import/update batches default to
   MineMusic-owned continuation batches keyed by `batchId`, using page size
-  `50` unless the caller overrides it; provider cursors stay inside Library
-  Import working state. Library Update compares complete provider reads with
+  `50` unless the caller overrides it; explicit `pageSize` is now capped at
+  `100` in both Stage Interface validation and service execution. Provider
+  cursors stay inside Library Import working state, and default batch ids are
+  restart-safe so preserved durable batch rows do not collide with new runs
+  after a server reboot. Library Update compares complete provider reads with
   eligible baselines, records Source Library absence state and Platform
   Library Absence provenance for complete reads, and avoids deriving absences
   from partial reads or mid-batch continuation progress. Paged full update now
@@ -230,7 +233,9 @@ host-facing and LLM-facing surface.
   progress instead of batch-default progress, and full update absence
   reconciliation now operates against current `status=present` Source Library
   membership, marking missing items `absent` instead of leaving membership
-  state unchanged.
+  state unchanged. NetEase `saved_source_tracks` paged reads also prefer the
+  returned liked-playlist `trackIds.length` when `playlist.trackCount`
+  under-reports the current saved-track total.
   SQLite-backed Library Import storage still persists batches, completed
   reports, continuation state, area snapshots, item provenance, and Platform
   Library Absence records through `libraryImportDatabasePath` /
