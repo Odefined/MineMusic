@@ -36,6 +36,15 @@ import {
   libraryToolNames,
 } from "./library.js";
 import type {
+  MemoryToolGroupContext,
+} from "./memory.js";
+import {
+  memoryToolDefinitions,
+  memoryToolDescriptors,
+  memoryToolInputSchemas,
+  memoryToolNames,
+} from "./memory.js";
+import type {
   MusicToolGroupContext,
 } from "./music.js";
 import {
@@ -77,6 +86,10 @@ export {
   libraryToolDescriptors,
   libraryToolInputSchemas,
   libraryToolNames,
+  memoryToolDefinitions,
+  memoryToolDescriptors,
+  memoryToolInputSchemas,
+  memoryToolNames,
   musicToolDefinitions,
   musicToolDescriptors,
   musicToolInputSchemas,
@@ -103,6 +116,10 @@ export type {
   LibraryToolName,
 } from "./library.js";
 export type {
+  MemoryToolGroupContext,
+  MemoryToolName,
+} from "./memory.js";
+export type {
   MusicToolGroupContext,
   MusicToolName,
 } from "./music.js";
@@ -125,6 +142,7 @@ export type StageInterfaceToolDefinitionRegistryOptions = {
   knowledge: KnowledgeToolGroupContext;
   library: LibraryToolGroupContext;
   canonicalReview: CanonicalReviewToolGroupContext;
+  memory: MemoryToolGroupContext;
 };
 
 export function createStageInterfaceToolDefinitionRegistry({
@@ -134,6 +152,7 @@ export function createStageInterfaceToolDefinitionRegistry({
   knowledge,
   library,
   canonicalReview,
+  memory,
 }: StageInterfaceToolDefinitionRegistryOptions): Map<ToolName, BoundStageInterfaceToolDefinition> {
   const definitions = [
     ...bindToolDefinitions({
@@ -159,6 +178,10 @@ export function createStageInterfaceToolDefinitionRegistry({
     ...bindToolDefinitions({
       definitions: canonicalReviewToolDefinitions,
       context: canonicalReview,
+    }),
+    ...bindToolDefinitions({
+      definitions: memoryToolDefinitions,
+      context: memory,
     }),
   ];
 

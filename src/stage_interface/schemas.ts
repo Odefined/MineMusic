@@ -1,10 +1,10 @@
-import { z } from "zod/v4";
 import type { StableToolName } from "./tools.js";
 import {
   canonicalReviewToolInputSchemas,
   handbookToolInputSchemas,
   knowledgeToolInputSchemas,
   libraryToolInputSchemas,
+  memoryToolInputSchemas,
   musicToolInputSchemas,
   stageToolInputSchemas,
   type StageInterfaceToolInputSchema,
@@ -19,7 +19,5 @@ export const stageInterfaceToolInputSchemas = {
   ...knowledgeToolInputSchemas,
   ...libraryToolInputSchemas,
   ...canonicalReviewToolInputSchemas,
-  "memory.propose": {
-    proposal: z.object({}).passthrough(),
-  },
+  ...memoryToolInputSchemas,
 } satisfies Record<StableToolName, StageInterfaceToolInputSchema>;

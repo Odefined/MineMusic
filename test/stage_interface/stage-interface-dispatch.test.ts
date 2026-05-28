@@ -41,6 +41,7 @@ import {
   handbookToolNames,
   knowledgeToolNames,
   libraryToolNames,
+  memoryToolNames,
   musicToolNames,
   stableToolNames,
   stageToolNames,
@@ -374,6 +375,16 @@ async function registersMigratedToolDefinitions(): Promise<void> {
     },
     library: {},
     canonicalReview: {},
+    memory: {
+      memory: {
+        summarizeForSession: async () => ({ ok: true, value: [] }),
+        propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-proposal-1" } }),
+        accept: async () => ({
+          ok: true,
+          value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+        }),
+      },
+    },
   });
 
   assert(
@@ -401,8 +412,12 @@ async function registersMigratedToolDefinitions(): Promise<void> {
     "Tool Definition registry should register every Canonical Review tool",
   );
   assert(
-    registry.get("memory.propose") === undefined,
-    "Tool Definition registry tracer bullet should not register unmigrated tools",
+    memoryToolNames.every((toolName) => registry.has(toolName)),
+    "Tool Definition registry should register every Memory tool",
+  );
+  assert(
+    stableToolNames.every((toolName) => registry.has(toolName)),
+    "Tool Definition registry should register every stable tool after full migration",
   );
   assert(
     stageInterfaceToolInputSchemas["handbook.tool.read"] === registry.get("handbook.tool.read")?.inputSchema,
@@ -423,6 +438,10 @@ async function registersMigratedToolDefinitions(): Promise<void> {
   assert(
     stageInterfaceToolInputSchemas["canonical.review.list"] === registry.get("canonical.review.list")?.inputSchema,
     "Canonical Review tool schemas should be derived from Tool Definitions",
+  );
+  assert(
+    stageInterfaceToolInputSchemas["memory.propose"] === registry.get("memory.propose")?.inputSchema,
+    "Memory tool schemas should be derived from Tool Definitions",
   );
   assert(
     stageInterfaceToolInputSchemas["library.import.start"] === registry.get("library.import.start")?.inputSchema,

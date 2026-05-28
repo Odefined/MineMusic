@@ -30,6 +30,6 @@
 - [x] Migrate Music Tool Group.
 - [x] Migrate Knowledge Tool Group.
 - [x] Migrate Canonical Review Tool Group.
-- [ ] Migrate Memory Tool Group.
+- [x] Migrate Memory Tool Group.
 - [ ] Remove fallback dispatch only after every stable tool has migrated.
 - [ ] Reassess whether runtime payload validation can be enabled for all tools.

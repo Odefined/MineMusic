@@ -925,6 +925,9 @@
   so review list/inspect/apply/auto-update routes are co-located with
   descriptor metadata, host input schemas, optional Canonical Maintenance
   dependency, availability rules, and compact output presentation.
+- Migrated the Memory Tool Group to the same Tool Definition registry so
+  `memory.propose` is co-located with Memory descriptor metadata, host input
+  schema, required Memory dependency, and availability rule.
 
 ## Next
 

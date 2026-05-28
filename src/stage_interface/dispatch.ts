@@ -1,6 +1,5 @@
 import type {
   InstrumentDescriptor,
-  MemoryProposal,
   Result,
   StageError,
   ToolName,
@@ -84,6 +83,9 @@ export function createToolDispatch({
     canonicalReview: {
       ...(canonicalMaintenance === undefined ? {} : { canonicalMaintenance }),
     },
+    memory: {
+      memory,
+    },
   });
 
   return {
@@ -121,9 +123,6 @@ export function createToolDispatch({
       }
 
       switch (toolName) {
-        case "memory.propose":
-          return memory.propose(readPayload<{ proposal: Omit<MemoryProposal, "id"> }>(payload));
-
         default:
           return fail({
             code: "stage_interface.tool_not_found",
@@ -169,19 +168,6 @@ async function callToolDefinition({
   }
 
   return ok(definition.present(result.value));
-}
-
-function readPayload<TPayload extends object>(
-  payload: unknown,
-  defaults?: Partial<TPayload>,
-): TPayload {
-  const payloadObject =
-    typeof payload === "object" && payload !== null ? (payload as Partial<TPayload>) : {};
-
-  return {
-    ...(defaults ?? {}),
-    ...payloadObject,
-  } as TPayload;
 }
 
 function isStableToolName(toolName: ToolName | string): toolName is ToolName {

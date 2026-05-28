@@ -19,9 +19,8 @@ It must preserve the public Stage Interface and MCP tool surface.
 ## Implementation Status
 
 The Library Tool Group tracer bullet is implemented. The Handbook, Stage,
-Music, Knowledge, and Canonical Review Tool Groups are also migrated to the
-registry. Remaining phases in this plan are future Tool Group migrations and
-eventual fallback removal.
+Music, Knowledge, Canonical Review, and Memory Tool Groups are also migrated to
+the registry. The remaining phase is fallback removal.
 
 ## Scope
 
@@ -146,7 +145,8 @@ Completed after the Library tracer bullet:
 3. Music Tool Group, because it has collection and material resolve behavior.
 4. Knowledge Tool Group, because it is a small dedicated query surface.
 5. Canonical Review Tool Group, because review output presentation is strict.
+6. Memory Tool Group, because it is small and can finish the migration.
 
 Recommended remaining order:
 
-1. Memory Tool Group, because it is small and can finish the migration.
+1. Remove fallback dispatch.

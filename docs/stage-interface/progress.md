@@ -7,9 +7,9 @@ instruments, tools, Handbook lookup, governed dispatch, and common MineMusic
 flow ordering.
 
 The Tool Definition / Tool Group direction is documented. The Stage, Handbook,
-Music, Knowledge, Library, and Canonical Review Tool Groups are implemented in
-the registry. Their tool names, descriptors, host input schemas, dispatch
-routes, and output presentation rules now live under
+Music, Knowledge, Library, Canonical Review, and Memory Tool Groups are
+implemented in the registry. Their tool names, descriptors, host input schemas,
+dispatch routes, and output presentation rules now live under
 `src/stage_interface/tool_definitions/`.
 
 Stage Interface dispatch now tries the Tool Definition registry before falling
@@ -37,6 +37,7 @@ back to the existing switch path for unmigrated tools.
 - `src/stage_interface/tool_definitions/handbook.ts`.
 - `src/stage_interface/tool_definitions/knowledge.ts`.
 - `src/stage_interface/tool_definitions/library.ts`.
+- `src/stage_interface/tool_definitions/memory.ts`.
 - `src/stage_interface/tool_definitions/music.ts`.
 - `src/stage_interface/tool_definitions/stage.ts`.
 - `src/stage_interface/tool_definitions/index.ts`.
@@ -46,20 +47,22 @@ back to the existing switch path for unmigrated tools.
 - Music Tool Group registry definitions.
 - Library Tool Group registry definitions.
 - Canonical Review Tool Group registry definitions.
+- Memory Tool Group registry definitions.
 - Registry-first dispatch for Stage tools.
 - Registry-first dispatch for Handbook tools.
 - Registry-first dispatch for Knowledge tools.
 - Registry-first dispatch for Music tools.
 - Registry-first dispatch for Library tools.
 - Registry-first dispatch for Canonical Review tools.
+- Registry-first dispatch for Memory tools.
 - Compatibility exports for Stage, Handbook, Knowledge, Music, Library, and
-  Canonical Review descriptors and schemas derived from the registry.
+  Canonical Review, and Memory descriptors and schemas derived from the
+  registry.
 - Co-located compact Canonical Review output presentation rules.
 - Focused registry/fallback dispatch test coverage.
 
 ## Not Yet Implemented
 
-- Memory Tool Group registry definitions.
 - Runtime payload validation for all tools.
 - Removal of fallback dispatch.
 
@@ -70,5 +73,5 @@ back to the existing switch path for unmigrated tools.
 
 ## Next Slice
 
-Migrate the Memory Tool Group next, then remove the fallback dispatch path once
-every stable tool resolves through the registry.
+Remove the fallback dispatch path now that every stable tool resolves through
+the Tool Definition registry.

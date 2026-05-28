@@ -8,6 +8,8 @@ import {
   knowledgeToolNames,
   libraryToolDescriptors,
   libraryToolNames,
+  memoryToolDescriptors,
+  memoryToolNames,
   musicToolDescriptors,
   musicToolNames,
   stageToolDescriptors,
@@ -23,7 +25,7 @@ export const stableToolNames = [
   ...musicToolNames.slice(1),
   ...libraryToolNames,
   ...canonicalReviewToolNames,
-  "memory.propose",
+  ...memoryToolNames,
 ] as const satisfies readonly ToolName[];
 
 export type StableToolName = (typeof stableToolNames)[number];
@@ -42,14 +44,7 @@ export { libraryToolDescriptors };
 
 export { canonicalReviewToolDescriptors };
 
-export const memoryToolDescriptors: StableToolDescriptor[] = [
-  {
-    name: "memory.propose",
-    description: "Create an evidence-backed memory proposal.",
-    inputSchemaRef: "MemoryProposalDraft",
-    outputSchemaRef: "MemoryProposal",
-  },
-];
+export { memoryToolDescriptors };
 
 export const agentToolDescriptors: StableToolDescriptor[] = [
   ...handbookToolDescriptors,
