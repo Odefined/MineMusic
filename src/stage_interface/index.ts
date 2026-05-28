@@ -22,6 +22,8 @@ export { createInstrumentCatalog } from "./instruments.js";
 export { createToolDispatch } from "./dispatch.js";
 export { createMineMusicStageInterface } from "./facade.js";
 export {
+  canonicalReviewToolDefinitions,
+  canonicalReviewToolNames,
   createStageInterfaceToolDefinitionRegistry,
   handbookToolDefinitions,
   handbookToolNames,
@@ -40,6 +42,7 @@ export type {
 } from "./facade.js";
 export type {
   BoundStageInterfaceToolDefinition,
+  CanonicalReviewToolName,
   HandbookToolName,
   KnowledgeToolName,
   LibraryToolName,

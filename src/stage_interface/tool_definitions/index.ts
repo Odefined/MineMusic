@@ -1,5 +1,14 @@
 import type { ToolName } from "../../contracts/index.js";
 import type {
+  CanonicalReviewToolGroupContext,
+} from "./canonical_review.js";
+import {
+  canonicalReviewToolDefinitions,
+  canonicalReviewToolDescriptors,
+  canonicalReviewToolInputSchemas,
+  canonicalReviewToolNames,
+} from "./canonical_review.js";
+import type {
   HandbookToolGroupContext,
 } from "./handbook.js";
 import {
@@ -52,6 +61,10 @@ import {
 } from "./types.js";
 
 export {
+  canonicalReviewToolDefinitions,
+  canonicalReviewToolDescriptors,
+  canonicalReviewToolInputSchemas,
+  canonicalReviewToolNames,
   handbookToolDefinitions,
   handbookToolDescriptors,
   handbookToolInputSchemas,
@@ -73,6 +86,10 @@ export {
   stageToolInputSchemas,
   stageToolNames,
 };
+export type {
+  CanonicalReviewToolGroupContext,
+  CanonicalReviewToolName,
+} from "./canonical_review.js";
 export type {
   HandbookToolGroupContext,
   HandbookToolName,
@@ -107,6 +124,7 @@ export type StageInterfaceToolDefinitionRegistryOptions = {
   music: MusicToolGroupContext;
   knowledge: KnowledgeToolGroupContext;
   library: LibraryToolGroupContext;
+  canonicalReview: CanonicalReviewToolGroupContext;
 };
 
 export function createStageInterfaceToolDefinitionRegistry({
@@ -115,6 +133,7 @@ export function createStageInterfaceToolDefinitionRegistry({
   music,
   knowledge,
   library,
+  canonicalReview,
 }: StageInterfaceToolDefinitionRegistryOptions): Map<ToolName, BoundStageInterfaceToolDefinition> {
   const definitions = [
     ...bindToolDefinitions({
@@ -136,6 +155,10 @@ export function createStageInterfaceToolDefinitionRegistry({
     ...bindToolDefinitions({
       definitions: libraryToolDefinitions,
       context: library,
+    }),
+    ...bindToolDefinitions({
+      definitions: canonicalReviewToolDefinitions,
+      context: canonicalReview,
     }),
   ];
 

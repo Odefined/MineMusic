@@ -1,11 +1,6 @@
 import type {
   InstrumentDescriptor,
   MemoryProposal,
-  ProvisionalReviewApplyInput,
-  ProvisionalReviewAutoUpdateInput,
-  ProvisionalReviewInspectInput,
-  ProvisionalReviewListInput,
-  Ref,
   Result,
   StageError,
   ToolName,
@@ -26,13 +21,6 @@ import type {
   SourceGroundingPort,
   ToolDispatchPort,
 } from "../ports/index.js";
-import {
-  compactReviewAutoUpdate,
-  compactReviewApply,
-  compactReviewInspect,
-  compactReviewList,
-  reviewSubjectRef,
-} from "./outputs.js";
 import { stableToolNames } from "./tools.js";
 import {
   createStageInterfaceToolDefinitionRegistry,
@@ -93,6 +81,9 @@ export function createToolDispatch({
       ...(materialStore === undefined ? {} : { materialStore }),
       ...(libraryImport === undefined ? {} : { libraryImport }),
     },
+    canonicalReview: {
+      ...(canonicalMaintenance === undefined ? {} : { canonicalMaintenance }),
+    },
   });
 
   return {
@@ -130,121 +121,6 @@ export function createToolDispatch({
       }
 
       switch (toolName) {
-        case "canonical.review.list": {
-          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
-
-          if (!availableMaintenance.ok) {
-            return availableMaintenance;
-          }
-
-          const result = await availableMaintenance.value.reviewList({
-            ...readPayload<Omit<ProvisionalReviewListInput, "sessionId">>(payload),
-            sessionId,
-          });
-
-          return result.ok ? ok(compactReviewList(result.value)) : result;
-        }
-
-        case "canonical.review.inspect": {
-          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
-
-          if (!availableMaintenance.ok) {
-            return availableMaintenance;
-          }
-
-          const input = readPayload<
-            Omit<ProvisionalReviewInspectInput, "sessionId" | "subjectRef"> & {
-              subjectId?: string;
-              subjectRef?: Ref;
-            }
-          >(payload);
-          const { subjectId, subjectRef: inputSubjectRef, ...inspectInput } = input;
-          const subjectRef = subjectId === undefined
-            ? inputSubjectRef
-            : reviewSubjectRef(subjectId);
-
-          if (subjectRef === undefined) {
-            return fail({
-              code: "stage_interface.invalid_payload",
-              message: "canonical.review.inspect requires subjectId.",
-              module: "stage_interface",
-              retryable: false,
-            });
-          }
-
-          const result = await availableMaintenance.value.reviewInspect({
-            ...inspectInput,
-            subjectRef,
-            sessionId,
-          });
-
-          return result.ok
-            ? ok(compactReviewInspect(result.value, { knowledgeFactLimit: input.knowledgeFactLimit }))
-            : result;
-        }
-
-        case "canonical.review.apply": {
-          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
-
-          if (!availableMaintenance.ok) {
-            return availableMaintenance;
-          }
-
-          const input = readPayload<
-            Omit<ProvisionalReviewApplyInput, "sessionId" | "subjectRef"> & {
-              subjectId?: string;
-              subjectRef?: Ref;
-            }
-          >(payload);
-          const { subjectId, subjectRef: inputSubjectRef, ...applyInput } = input;
-          const subjectRef = subjectId === undefined
-            ? inputSubjectRef
-            : reviewSubjectRef(subjectId);
-
-          if (subjectRef === undefined) {
-            return fail({
-              code: "stage_interface.invalid_payload",
-              message: "canonical.review.apply requires subjectId.",
-              module: "stage_interface",
-              retryable: false,
-            });
-          }
-
-          const result = await availableMaintenance.value.reviewApply({
-            ...applyInput,
-            subjectRef,
-            sessionId,
-          } as ProvisionalReviewApplyInput);
-
-          return result.ok ? ok(compactReviewApply(result.value)) : result;
-        }
-
-        case "canonical.review.auto_update": {
-          const availableMaintenance = readCanonicalMaintenance(canonicalMaintenance);
-
-          if (!availableMaintenance.ok) {
-            return availableMaintenance;
-          }
-
-          const input = readPayload<
-            Omit<ProvisionalReviewAutoUpdateInput, "sessionId" | "subjectRef"> & {
-              subjectId?: string;
-              subjectRef?: Ref;
-            }
-          >(payload);
-          const { subjectId, subjectRef: inputSubjectRef, ...autoUpdateInput } = input;
-          const subjectRef = subjectId === undefined
-            ? inputSubjectRef
-            : reviewSubjectRef(subjectId);
-          const result = await availableMaintenance.value.reviewAutoUpdate({
-            ...autoUpdateInput,
-            ...(subjectRef === undefined ? {} : { subjectRef }),
-            sessionId,
-          } as ProvisionalReviewAutoUpdateInput);
-
-          return result.ok ? ok(compactReviewAutoUpdate(result.value)) : result;
-        }
-
         case "memory.propose":
           return memory.propose(readPayload<{ proposal: Omit<MemoryProposal, "id"> }>(payload));
 
@@ -293,25 +169,6 @@ async function callToolDefinition({
   }
 
   return ok(definition.present(result.value));
-}
-
-function readCanonicalMaintenance(
-  canonicalMaintenance: CanonicalMaintenancePort | undefined,
-): Result<CanonicalMaintenancePort> {
-  if (canonicalMaintenance === undefined) {
-    return canonicalMaintenanceUnavailable();
-  }
-
-  return ok(canonicalMaintenance);
-}
-
-function canonicalMaintenanceUnavailable(): Result<never> {
-  return fail({
-    code: "stage_interface.tool_not_found",
-    message: "Canonical Maintenance tools are not available.",
-    module: "stage_interface",
-    retryable: false,
-  });
 }
 
 function readPayload<TPayload extends object>(

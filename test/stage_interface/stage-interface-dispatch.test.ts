@@ -34,6 +34,7 @@ import type {
 } from "../../src/ports/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import {
+  canonicalReviewToolNames,
   createStageInterfaceToolDefinitionRegistry,
   createInstrumentCatalog,
   createToolDispatch,
@@ -372,6 +373,7 @@ async function registersMigratedToolDefinitions(): Promise<void> {
       },
     },
     library: {},
+    canonicalReview: {},
   });
 
   assert(
@@ -395,7 +397,11 @@ async function registersMigratedToolDefinitions(): Promise<void> {
     "Tool Definition registry should register every Knowledge tool",
   );
   assert(
-    registry.get("canonical.review.list") === undefined,
+    canonicalReviewToolNames.every((toolName) => registry.has(toolName)),
+    "Tool Definition registry should register every Canonical Review tool",
+  );
+  assert(
+    registry.get("memory.propose") === undefined,
     "Tool Definition registry tracer bullet should not register unmigrated tools",
   );
   assert(
@@ -413,6 +419,10 @@ async function registersMigratedToolDefinitions(): Promise<void> {
   assert(
     stageInterfaceToolInputSchemas["knowledge.query"] === registry.get("knowledge.query")?.inputSchema,
     "Knowledge tool schemas should be derived from Tool Definitions",
+  );
+  assert(
+    stageInterfaceToolInputSchemas["canonical.review.list"] === registry.get("canonical.review.list")?.inputSchema,
+    "Canonical Review tool schemas should be derived from Tool Definitions",
   );
   assert(
     stageInterfaceToolInputSchemas["library.import.start"] === registry.get("library.import.start")?.inputSchema,

@@ -921,6 +921,10 @@
 - Migrated the Knowledge Tool Group to the same Tool Definition registry so
   `knowledge.query` is co-located with Knowledge descriptor metadata, host input
   schema, optional provider dependency, and availability rule.
+- Migrated the Canonical Review Tool Group to the same Tool Definition registry
+  so review list/inspect/apply/auto-update routes are co-located with
+  descriptor metadata, host input schemas, optional Canonical Maintenance
+  dependency, availability rules, and compact output presentation.
 
 ## Next
 
