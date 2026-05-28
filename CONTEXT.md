@@ -106,7 +106,7 @@ MineMusic business capabilities that own domain behavior behind public ports.
 
 Core Capabilities:
 
-- Canonical Store.
+- Material Store.
 - Collection Service.
 - Library Import Service.
 - Material Resolve.
@@ -119,21 +119,68 @@ Core Capabilities:
 Core Capabilities are not Host Adapters and are not plugin packages. They
 depend on public contracts, Plugin Slots, and Storage ports.
 
+### Material Store
+
+The Core Capability area for MineMusic-owned material identity, source
+entities, and bindings between them before material resolution.
+_Avoid_: MusicMaterial cache, playable-link cache, Material Gate.
+
+Material Store includes Canonical Store, the Source Entity Layer, and confirmed
+canonical bindings. Canonical Store remains the canonical identity authority;
+Source Entities remain provider-origin music objects rather than Canonical
+Records.
+
 ### Collection Service
 
 The Core Capability for a user's explicit long-lived music assets, such as kept
 recordings, works, release groups, releases, and artists.
 
-Collection Service is distinct from Memory Service, Event Service, Canonical
+Collection Service is distinct from Memory Service, Event Service, Material
 Store, Material Resolve, Source Grounding, and Session Context. A Collection is
 an owner-scoped group of long-lived relationships to canonical music objects; a
 Collection Item is a member of that Collection and points to one canonical music
-object. Source refs are external evidence, not Collection identity.
+object. Source refs and Source Library are external library/source state, not
+Collection identity.
 
 ### Library Import Service
 
 The Core Capability that brings a user's external platform library into
-MineMusic-owned identity anchors, Collections, and import records.
+MineMusic-owned source entities, Source Library state, import records, and
+optional canonical bindings.
+
+### Source Entity Layer
+
+A provider-neutral MineMusic layer for provider-origin music objects that can
+support library, material, and playable-link flows without becoming canonical
+identity.
+_Avoid_: NetEase-specific entities, Canonical Records, MusicBrainz normalization.
+
+### Source Track
+
+A Source Entity for one provider-owned playable or library track identity.
+_Avoid_: Canonical Recording, NetEase track table.
+
+### Source Release
+
+A Source Entity for one provider-owned release or album identity.
+_Avoid_: Canonical Release, NetEase album table.
+
+### Source Artist
+
+A Source Entity for one provider-owned artist identity.
+_Avoid_: Canonical Artist, NetEase artist table.
+
+### Source Library
+
+An owner-scoped MineMusic view of external platform-library items backed by
+Source Entities.
+_Avoid_: Collection Item, source-only Collection item, library membership.
+
+### Confirmed Canonical Binding
+
+A confirmed relationship from a Source Entity to the Canonical Record that
+MineMusic accepts as the same music object.
+_Avoid_: provisional binding, review candidate, MusicBrainz search result.
 
 ### Library Update
 

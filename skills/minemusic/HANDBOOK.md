@@ -61,7 +61,7 @@ Effect kind: `proposal`
   Entity kinds: `artist`, `label`, `recording`, `release`, `release_group`, `work`
   Expansions: `credits`, `relations`, `releases`, `release_groups`, `works`, `release_labels`, `tracklist`, `identifiers`, `urls`, `genres`, `tags`, `ratings`, `annotation`
   Relation focus: `members`
-  Query entries: `text`, `canonicalRef`, `tagQuery`, `fieldQuery`
+  Query entries: `text`, `canonicalRef`, `providerRef`, `tagQuery`, `fieldQuery`
   Tag filters: `filters.tags.include`, `filters.tags.exclude`
   Continuation: pass `cursor` from `KnowledgeResult.nextCursor`
   Boundaries: No playable links. No identity confirmation. No Canonical Store writes.
