@@ -914,6 +914,10 @@
   session context, material preparation, session update, event recording, and
   effect proposal routes are co-located with Stage descriptors, host input
   schemas, and availability rules.
+- Migrated the Music Tool Group to the same Tool Definition registry so material
+  resolution, playable-link refresh, and Collection routes are co-located with
+  Music descriptors, host input schemas, dependency context, and availability
+  rules.
 
 ## Next
 

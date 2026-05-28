@@ -3,6 +3,7 @@ import type { StableToolName } from "./tools.js";
 import {
   handbookToolInputSchemas,
   libraryToolInputSchemas,
+  musicToolInputSchemas,
   stageToolInputSchemas,
   type StageInterfaceToolInputSchema,
 } from "./tool_definitions/index.js";
@@ -15,18 +16,6 @@ const refSchema = z.object({
   id: z.string(),
   label: z.string().optional(),
   url: z.string().optional(),
-});
-const musicMaterialSchema = z.object({
-  id: z.string(),
-  kind: z.string(),
-  label: z.string(),
-  state: z.string(),
-}).passthrough();
-const sourceQuerySchema = z.object({
-  text: z.string().optional(),
-  canonicalRef: refSchema.optional(),
-  sourceRef: refSchema.optional(),
-  limit: z.number().int().positive().optional(),
 });
 const knowledgeQuerySchema = {
   text: z.string().optional(),
@@ -58,24 +47,6 @@ const knowledgeQuerySchema = {
   limit: z.number().int().positive().max(50).optional(),
   cursor: z.string().optional(),
 };
-const musicCandidateSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  expectedKind: z.string().optional(),
-  query: sourceQuerySchema.optional(),
-  canonicalRef: refSchema.optional(),
-  sourceRef: refSchema.optional(),
-  sourceLibraryScope: z.object({
-    providerId: z.string().optional(),
-    providerAccountId: z.string().optional(),
-    libraryKind: z.enum(["saved_source_track", "saved_source_release", "saved_source_artist"]).optional(),
-    status: z.enum(["present", "absent"]).optional(),
-  }).optional(),
-  reason: z.string().optional(),
-  context: z.string().optional(),
-});
-const collectionKindSchema = z.enum(["recording", "work", "release_group", "release", "artist"]);
-const collectionRelationKindSchema = z.enum(["saved", "favorite", "blocked", "custom"]);
 const reviewSupportReasonKindSchema = z.enum([
   "artist_credit",
   "duration",
@@ -94,87 +65,8 @@ const reviewRefTokenSchema = z.object({
 export const stageInterfaceToolInputSchemas = {
   ...stageToolInputSchemas,
   ...handbookToolInputSchemas,
-  "music.material.resolve": {
-    kind: z.enum(["single", "candidate_set"]),
-    candidate: musicCandidateSchema.optional(),
-    candidates: z.array(musicCandidateSchema).optional(),
-    sessionId: z.string().optional(),
-    ownerScope: z.string().optional(),
-    sourceLibraryScope: z.object({
-      providerId: z.string().optional(),
-      providerAccountId: z.string().optional(),
-      libraryKind: z.enum(["saved_source_track", "saved_source_release", "saved_source_artist"]).optional(),
-      status: z.enum(["present", "absent"]).optional(),
-    }).optional(),
-    limitPerCandidate: z.number().int().positive().optional(),
-  },
+  ...musicToolInputSchemas,
   "knowledge.query": knowledgeQuerySchema,
-  "music.links.refresh": {
-    material: musicMaterialSchema,
-  },
-  "music.collection.save": {
-    ownerScope: z.string().optional(),
-    canonicalRef: refSchema,
-    label: z.string(),
-    description: z.string().optional(),
-  },
-  "music.collection.unsave": {
-    ownerScope: z.string().optional(),
-    canonicalRef: refSchema,
-  },
-  "music.collection.favorite": {
-    ownerScope: z.string().optional(),
-    canonicalRef: refSchema,
-    label: z.string(),
-    description: z.string().optional(),
-  },
-  "music.collection.unfavorite": {
-    ownerScope: z.string().optional(),
-    canonicalRef: refSchema,
-  },
-  "music.collection.block": {
-    ownerScope: z.string().optional(),
-    canonicalRef: refSchema,
-    label: z.string(),
-    description: z.string().optional(),
-  },
-  "music.collection.unblock": {
-    ownerScope: z.string().optional(),
-    canonicalRef: refSchema,
-  },
-  "music.collection.item.add": {
-    collectionId: z.string(),
-    canonicalRef: refSchema,
-    label: z.string(),
-    description: z.string().optional(),
-  },
-  "music.collection.item.remove": {
-    collectionId: z.string(),
-    canonicalRef: refSchema,
-  },
-  "music.collection.create": {
-    ownerScope: z.string().optional(),
-    collectionKind: collectionKindSchema,
-    label: z.string(),
-    description: z.string().optional(),
-  },
-  "music.collection.update": {
-    collectionId: z.string(),
-    label: z.string().optional(),
-    description: z.string().optional(),
-  },
-  "music.collection.delete": {
-    collectionId: z.string(),
-  },
-  "music.collection.list": {
-    ownerScope: z.string().optional(),
-    collectionId: z.string().optional(),
-    collectionKind: collectionKindSchema.optional(),
-    relationKind: collectionRelationKindSchema.optional(),
-    includeRemoved: z.boolean().optional(),
-    limit: z.number().int().positive().optional(),
-    cursor: z.string().optional(),
-  },
   ...libraryToolInputSchemas,
   "canonical.review.list": {
     limit: z.number().int().positive().optional(),

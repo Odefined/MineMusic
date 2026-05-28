@@ -27,6 +27,8 @@ export {
   handbookToolNames,
   libraryToolDefinitions,
   libraryToolNames,
+  musicToolDefinitions,
+  musicToolNames,
   stageToolDefinitions,
   stageToolNames,
 } from "./tool_definitions/index.js";
@@ -38,6 +40,7 @@ export type {
   BoundStageInterfaceToolDefinition,
   HandbookToolName,
   LibraryToolName,
+  MusicToolName,
   StageInterfaceToolAvailability,
   StageInterfaceToolDefinition,
   StageInterfaceToolHandlerInput,

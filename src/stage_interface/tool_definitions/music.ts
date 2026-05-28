@@ -1,0 +1,512 @@
+import { z } from "zod/v4";
+
+import type {
+  CollectionKind,
+  CollectionRelationKind,
+  MaterialResolveRequest,
+  MusicMaterial,
+  Ref,
+  Result,
+  StageError,
+  ToolDescriptor,
+} from "../../contracts/index.js";
+import type {
+  CollectionPort,
+  MaterialResolvePort,
+  SourceGroundingPort,
+  SystemCollectionRelationKind,
+} from "../../ports/index.js";
+import type {
+  StageInterfaceToolDefinition,
+  StageInterfaceToolInputSchema,
+} from "./types.js";
+import { descriptorForToolDefinition } from "./types.js";
+
+export const musicToolNames = [
+  "music.material.resolve",
+  "music.links.refresh",
+  "music.collection.save",
+  "music.collection.unsave",
+  "music.collection.favorite",
+  "music.collection.unfavorite",
+  "music.collection.block",
+  "music.collection.unblock",
+  "music.collection.item.add",
+  "music.collection.item.remove",
+  "music.collection.create",
+  "music.collection.update",
+  "music.collection.delete",
+  "music.collection.list",
+] as const;
+
+export type MusicToolName = (typeof musicToolNames)[number];
+
+export type MusicToolGroupContext = {
+  materialResolve: MaterialResolvePort;
+  source: SourceGroundingPort;
+  collection?: CollectionPort;
+};
+
+type CollectionSystemAddPayload = {
+  ownerScope: string;
+  canonicalRef: Ref;
+  label: string;
+  description?: string;
+};
+
+type CollectionSystemRemovePayload = {
+  ownerScope: string;
+  canonicalRef: Ref;
+};
+
+type CollectionItemAddPayload = {
+  collectionId: string;
+  canonicalRef: Ref;
+  label: string;
+  description?: string;
+};
+
+type CollectionItemRemovePayload = {
+  collectionId: string;
+  canonicalRef: Ref;
+};
+
+type CollectionCreatePayload = {
+  ownerScope: string;
+  collectionKind: CollectionKind;
+  label: string;
+  description?: string;
+};
+
+type CollectionUpdatePayload = {
+  collectionId: string;
+  label?: string;
+  description?: string;
+};
+
+type CollectionListPayload = {
+  ownerScope: string;
+  collectionId?: string;
+  collectionKind?: CollectionKind;
+  relationKind?: CollectionRelationKind;
+  includeRemoved?: boolean;
+  limit?: number;
+  cursor?: string;
+};
+
+const defaultOwnerScope = "local_profile:default";
+
+const refSchema = z.object({
+  namespace: z.string(),
+  kind: z.string(),
+  id: z.string(),
+  label: z.string().optional(),
+  url: z.string().optional(),
+});
+
+const musicMaterialSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  label: z.string(),
+  state: z.string(),
+}).passthrough();
+
+const sourceQuerySchema = z.object({
+  text: z.string().optional(),
+  canonicalRef: refSchema.optional(),
+  sourceRef: refSchema.optional(),
+  limit: z.number().int().positive().optional(),
+});
+
+const musicCandidateSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  expectedKind: z.string().optional(),
+  query: sourceQuerySchema.optional(),
+  canonicalRef: refSchema.optional(),
+  sourceRef: refSchema.optional(),
+  sourceLibraryScope: z.object({
+    providerId: z.string().optional(),
+    providerAccountId: z.string().optional(),
+    libraryKind: z.enum(["saved_source_track", "saved_source_release", "saved_source_artist"]).optional(),
+    status: z.enum(["present", "absent"]).optional(),
+  }).optional(),
+  reason: z.string().optional(),
+  context: z.string().optional(),
+});
+
+const collectionKindSchema = z.enum(["recording", "work", "release_group", "release", "artist"]);
+const collectionRelationKindSchema = z.enum(["saved", "favorite", "blocked", "custom"]);
+
+export const musicToolDefinitions = [
+  {
+    name: "music.material.resolve",
+    description: "Resolve music candidates into material through canonical-first material resolution.",
+    inputSchemaRef: "MaterialResolveRequest",
+    outputSchemaRef: "MaterialResolveResult",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      kind: z.enum(["single", "candidate_set"]),
+      candidate: musicCandidateSchema.optional(),
+      candidates: z.array(musicCandidateSchema).optional(),
+      sessionId: z.string().optional(),
+      ownerScope: z.string().optional(),
+      sourceLibraryScope: z.object({
+        providerId: z.string().optional(),
+        providerAccountId: z.string().optional(),
+        libraryKind: z.enum(["saved_source_track", "saved_source_release", "saved_source_artist"]).optional(),
+        status: z.enum(["present", "absent"]).optional(),
+      }).optional(),
+      limitPerCandidate: z.number().int().positive().optional(),
+    },
+    handler({ context, sessionId, payload }) {
+      return context.materialResolve.resolve(
+        readPayload<MaterialResolveRequest>(payload, { sessionId }),
+      );
+    },
+  },
+  {
+    name: "music.links.refresh",
+    description: "Refresh source-backed playable links for a material item.",
+    inputSchemaRef: "MusicMaterial",
+    outputSchemaRef: "MusicMaterial",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      material: musicMaterialSchema,
+    },
+    handler({ context, sessionId, payload }) {
+      return context.source.refreshPlayableLinks(
+        readPayload<{
+          material: MusicMaterial;
+          sessionId?: string;
+        }>(payload, { sessionId }),
+      );
+    },
+  },
+  {
+    name: "music.collection.save",
+    description: "Save a canonical music object to the owner's saved system collection.",
+    inputSchemaRef: "CollectionSystemItemInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      canonicalRef: refSchema,
+      label: z.string(),
+      description: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      return dispatchSystemCollectionAdd(context.collection, payload, "saved");
+    },
+  },
+  {
+    name: "music.collection.unsave",
+    description: "Remove a canonical music object from the owner's saved system collection.",
+    inputSchemaRef: "CollectionSystemRemoveInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      canonicalRef: refSchema,
+    },
+    handler({ context, payload }) {
+      return dispatchSystemCollectionRemove(context.collection, payload, "saved");
+    },
+  },
+  {
+    name: "music.collection.favorite",
+    description: "Favorite a canonical music object in the owner's favorite system collection.",
+    inputSchemaRef: "CollectionSystemItemInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      canonicalRef: refSchema,
+      label: z.string(),
+      description: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      return dispatchSystemCollectionAdd(context.collection, payload, "favorite");
+    },
+  },
+  {
+    name: "music.collection.unfavorite",
+    description: "Remove a canonical music object from the owner's favorite system collection.",
+    inputSchemaRef: "CollectionSystemRemoveInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      canonicalRef: refSchema,
+    },
+    handler({ context, payload }) {
+      return dispatchSystemCollectionRemove(context.collection, payload, "favorite");
+    },
+  },
+  {
+    name: "music.collection.block",
+    description: "Block a canonical music object from future recommendations for the owner.",
+    inputSchemaRef: "CollectionSystemItemInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      canonicalRef: refSchema,
+      label: z.string(),
+      description: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      return dispatchSystemCollectionAdd(context.collection, payload, "blocked");
+    },
+  },
+  {
+    name: "music.collection.unblock",
+    description: "Remove a canonical music object from the owner's blocked system collection.",
+    inputSchemaRef: "CollectionSystemRemoveInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      canonicalRef: refSchema,
+    },
+    handler({ context, payload }) {
+      return dispatchSystemCollectionRemove(context.collection, payload, "blocked");
+    },
+  },
+  {
+    name: "music.collection.item.add",
+    description: "Add a canonical music object to a custom collection by collection id.",
+    inputSchemaRef: "CollectionItemAddInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      collectionId: z.string(),
+      canonicalRef: refSchema,
+      label: z.string(),
+      description: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      const availableCollection = readCollection(context.collection);
+
+      if (!availableCollection.ok) {
+        return availableCollection;
+      }
+
+      return availableCollection.value.addItemToCollection(
+        readPayload<CollectionItemAddPayload>(payload),
+      );
+    },
+  },
+  {
+    name: "music.collection.item.remove",
+    description: "Remove a canonical music object from a custom collection by collection id.",
+    inputSchemaRef: "CollectionItemRemoveInput",
+    outputSchemaRef: "CollectionItem",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      collectionId: z.string(),
+      canonicalRef: refSchema,
+    },
+    handler({ context, payload }) {
+      const availableCollection = readCollection(context.collection);
+
+      if (!availableCollection.ok) {
+        return availableCollection;
+      }
+
+      return availableCollection.value.removeItemFromCollection(
+        readPayload<CollectionItemRemovePayload>(payload),
+      );
+    },
+  },
+  {
+    name: "music.collection.create",
+    description: "Create a user-owned custom collection for one collection kind.",
+    inputSchemaRef: "CollectionCreateInput",
+    outputSchemaRef: "Collection",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      collectionKind: collectionKindSchema,
+      label: z.string(),
+      description: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      const availableCollection = readCollection(context.collection);
+
+      if (!availableCollection.ok) {
+        return availableCollection;
+      }
+
+      return availableCollection.value.createCollection({
+        ...readPayload<CollectionCreatePayload>(payload, { ownerScope: defaultOwnerScope }),
+        relationKind: "custom",
+      });
+    },
+  },
+  {
+    name: "music.collection.update",
+    description: "Update a user-created custom collection label or description.",
+    inputSchemaRef: "CollectionUpdateInput",
+    outputSchemaRef: "Collection",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      collectionId: z.string(),
+      label: z.string().optional(),
+      description: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      const availableCollection = readCollection(context.collection);
+
+      if (!availableCollection.ok) {
+        return availableCollection;
+      }
+
+      return availableCollection.value.updateCollection(
+        readPayload<CollectionUpdatePayload>(payload),
+      );
+    },
+  },
+  {
+    name: "music.collection.delete",
+    description: "Soft-remove a user-created custom collection.",
+    inputSchemaRef: "CollectionDeleteInput",
+    outputSchemaRef: "Collection",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      collectionId: z.string(),
+    },
+    handler({ context, payload }) {
+      const availableCollection = readCollection(context.collection);
+
+      if (!availableCollection.ok) {
+        return availableCollection;
+      }
+
+      return availableCollection.value.removeCollection(
+        readPayload<{ collectionId: string }>(payload),
+      );
+    },
+  },
+  {
+    name: "music.collection.list",
+    description: "List owner collections and matching collection items.",
+    inputSchemaRef: "CollectionListInput",
+    outputSchemaRef: "CollectionListOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      collectionId: z.string().optional(),
+      collectionKind: collectionKindSchema.optional(),
+      relationKind: collectionRelationKindSchema.optional(),
+      includeRemoved: z.boolean().optional(),
+      limit: z.number().int().positive().optional(),
+      cursor: z.string().optional(),
+    },
+    async handler({ context, payload }) {
+      const availableCollection = readCollection(context.collection);
+
+      if (!availableCollection.ok) {
+        return availableCollection;
+      }
+
+      const input = readPayload<CollectionListPayload>(payload, { ownerScope: defaultOwnerScope });
+      const collections = await availableCollection.value.listCollections(input);
+
+      if (!collections.ok) {
+        return collections;
+      }
+
+      const items = await availableCollection.value.listItems(input);
+
+      if (!items.ok) {
+        return items;
+      }
+
+      return ok({
+        collections: collections.value,
+        items: items.value,
+      });
+    },
+  },
+] satisfies readonly StageInterfaceToolDefinition<MusicToolName, MusicToolGroupContext>[];
+
+export const musicToolDescriptors = musicToolDefinitions.map(
+  descriptorForToolDefinition,
+) as Array<ToolDescriptor & { name: MusicToolName }>;
+
+export const musicToolInputSchemas = Object.fromEntries(
+  musicToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
+) as unknown as Record<MusicToolName, StageInterfaceToolInputSchema>;
+
+function dispatchSystemCollectionAdd(
+  collection: CollectionPort | undefined,
+  payload: unknown,
+  relationKind: SystemCollectionRelationKind,
+): ReturnType<CollectionPort["addItemToSystemCollection"]> | Result<never> {
+  const availableCollection = readCollection(collection);
+
+  if (!availableCollection.ok) {
+    return availableCollection;
+  }
+
+  return availableCollection.value.addItemToSystemCollection({
+    ...readPayload<CollectionSystemAddPayload>(payload, { ownerScope: defaultOwnerScope }),
+    relationKind,
+  });
+}
+
+function dispatchSystemCollectionRemove(
+  collection: CollectionPort | undefined,
+  payload: unknown,
+  relationKind: SystemCollectionRelationKind,
+): ReturnType<CollectionPort["removeItemFromSystemCollection"]> | Result<never> {
+  const availableCollection = readCollection(collection);
+
+  if (!availableCollection.ok) {
+    return availableCollection;
+  }
+
+  return availableCollection.value.removeItemFromSystemCollection({
+    ...readPayload<CollectionSystemRemovePayload>(payload, { ownerScope: defaultOwnerScope }),
+    relationKind,
+  });
+}
+
+function readCollection(collection: CollectionPort | undefined): Result<CollectionPort> {
+  if (collection === undefined) {
+    return collectionUnavailable();
+  }
+
+  return ok(collection);
+}
+
+function collectionUnavailable(): Result<never> {
+  return fail({
+    code: "stage_interface.tool_not_found",
+    message: "Collection tools are not available.",
+    module: "stage_interface",
+    retryable: false,
+  });
+}
+
+function readPayload<TPayload extends object>(
+  payload: unknown,
+  defaults?: Partial<TPayload>,
+): TPayload {
+  const payloadObject =
+    typeof payload === "object" && payload !== null ? (payload as Partial<TPayload>) : {};
+
+  return {
+    ...(defaults ?? {}),
+    ...payloadObject,
+  } as TPayload;
+}
+
+function ok<T>(value: T): Result<T> {
+  return { ok: true, value };
+}
+
+function fail(error: StageError): Result<never> {
+  return { ok: false, error };
+}

@@ -510,8 +510,8 @@ host-facing and LLM-facing surface.
 - More host-surface validation for Handbook snapshot refresh when tool
   descriptors change.
 - Stage Interface Tool Definition registry implementation has migrated the
-  Stage, Handbook, and Library Tool Groups: their tool descriptors, host input
-  schemas, dispatch routes, and presentation rules now live under
+  Stage, Handbook, Music, and Library Tool Groups: their tool descriptors, host
+  input schemas, dispatch routes, and presentation rules now live under
   `src/stage_interface/tool_definitions/**`. Stage Interface dispatch tries the
   registry first for migrated tools and keeps unmigrated tools on the fallback
   path. Module-local design, TODO, progress, and implementation-plan documents

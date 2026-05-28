@@ -27,7 +27,8 @@
 
 - [x] Migrate Handbook Tool Group.
 - [x] Migrate Stage Tool Group.
-- [ ] Migrate Music Tool Group.
+- [x] Migrate Music Tool Group.
+- [ ] Migrate Knowledge Tool Group.
 - [ ] Migrate Canonical Review Tool Group.
 - [ ] Migrate Memory Tool Group.
 - [ ] Remove fallback dispatch only after every stable tool has migrated.

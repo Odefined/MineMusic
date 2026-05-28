@@ -4,6 +4,8 @@ import {
   handbookToolNames,
   libraryToolDescriptors,
   libraryToolNames,
+  musicToolDescriptors,
+  musicToolNames,
   stageToolDescriptors,
   stageToolNames,
 } from "./tool_definitions/index.js";
@@ -12,21 +14,9 @@ export const stableToolNames = [
   stageToolNames[0],
   ...handbookToolNames,
   ...stageToolNames.slice(1),
-  "music.material.resolve",
+  musicToolNames[0],
   "knowledge.query",
-  "music.links.refresh",
-  "music.collection.save",
-  "music.collection.unsave",
-  "music.collection.favorite",
-  "music.collection.unfavorite",
-  "music.collection.block",
-  "music.collection.unblock",
-  "music.collection.item.add",
-  "music.collection.item.remove",
-  "music.collection.create",
-  "music.collection.update",
-  "music.collection.delete",
-  "music.collection.list",
+  ...musicToolNames.slice(1),
   ...libraryToolNames,
   "canonical.review.list",
   "canonical.review.inspect",
@@ -43,92 +33,7 @@ export type StableToolDescriptor = Omit<ToolDescriptor, "name"> & {
 
 export { handbookToolDescriptors, stageToolDescriptors };
 
-export const musicToolDescriptors: StableToolDescriptor[] = [
-  {
-    name: "music.material.resolve",
-    description: "Resolve music candidates into material through canonical-first material resolution.",
-    inputSchemaRef: "MaterialResolveRequest",
-    outputSchemaRef: "MaterialResolveResult",
-  },
-  {
-    name: "music.links.refresh",
-    description: "Refresh source-backed playable links for a material item.",
-    inputSchemaRef: "MusicMaterial",
-    outputSchemaRef: "MusicMaterial",
-  },
-  {
-    name: "music.collection.save",
-    description: "Save a canonical music object to the owner's saved system collection.",
-    inputSchemaRef: "CollectionSystemItemInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.unsave",
-    description: "Remove a canonical music object from the owner's saved system collection.",
-    inputSchemaRef: "CollectionSystemRemoveInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.favorite",
-    description: "Favorite a canonical music object in the owner's favorite system collection.",
-    inputSchemaRef: "CollectionSystemItemInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.unfavorite",
-    description: "Remove a canonical music object from the owner's favorite system collection.",
-    inputSchemaRef: "CollectionSystemRemoveInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.block",
-    description: "Block a canonical music object from future recommendations for the owner.",
-    inputSchemaRef: "CollectionSystemItemInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.unblock",
-    description: "Remove a canonical music object from the owner's blocked system collection.",
-    inputSchemaRef: "CollectionSystemRemoveInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.item.add",
-    description: "Add a canonical music object to a custom collection by collection id.",
-    inputSchemaRef: "CollectionItemAddInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.item.remove",
-    description: "Remove a canonical music object from a custom collection by collection id.",
-    inputSchemaRef: "CollectionItemRemoveInput",
-    outputSchemaRef: "CollectionItem",
-  },
-  {
-    name: "music.collection.create",
-    description: "Create a user-owned custom collection for one collection kind.",
-    inputSchemaRef: "CollectionCreateInput",
-    outputSchemaRef: "Collection",
-  },
-  {
-    name: "music.collection.update",
-    description: "Update a user-created custom collection label or description.",
-    inputSchemaRef: "CollectionUpdateInput",
-    outputSchemaRef: "Collection",
-  },
-  {
-    name: "music.collection.delete",
-    description: "Soft-remove a user-created custom collection.",
-    inputSchemaRef: "CollectionDeleteInput",
-    outputSchemaRef: "Collection",
-  },
-  {
-    name: "music.collection.list",
-    description: "List owner collections and matching collection items.",
-    inputSchemaRef: "CollectionListInput",
-    outputSchemaRef: "CollectionListOutput",
-  },
-];
+export { musicToolDescriptors };
 
 export const knowledgeToolDescriptors: StableToolDescriptor[] = [
   {

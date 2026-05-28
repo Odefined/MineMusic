@@ -7,9 +7,9 @@ instruments, tools, Handbook lookup, governed dispatch, and common MineMusic
 flow ordering.
 
 The Tool Definition / Tool Group direction is documented. The Stage, Handbook,
-and Library Tool Groups are implemented in the registry. Their tool names,
-descriptors, host input schemas, dispatch routes, and output presentation rules
-now live under `src/stage_interface/tool_definitions/`.
+Music, and Library Tool Groups are implemented in the registry. Their tool
+names, descriptors, host input schemas, dispatch routes, and output
+presentation rules now live under `src/stage_interface/tool_definitions/`.
 
 Stage Interface dispatch now tries the Tool Definition registry before falling
 back to the existing switch path for unmigrated tools.
@@ -34,21 +34,24 @@ back to the existing switch path for unmigrated tools.
 - `src/stage_interface/tool_definitions/types.ts`.
 - `src/stage_interface/tool_definitions/handbook.ts`.
 - `src/stage_interface/tool_definitions/library.ts`.
+- `src/stage_interface/tool_definitions/music.ts`.
 - `src/stage_interface/tool_definitions/stage.ts`.
 - `src/stage_interface/tool_definitions/index.ts`.
 - Stage Tool Group registry definitions.
 - Handbook Tool Group registry definitions.
+- Music Tool Group registry definitions.
 - Library Tool Group registry definitions.
 - Registry-first dispatch for Stage tools.
 - Registry-first dispatch for Handbook tools.
+- Registry-first dispatch for Music tools.
 - Registry-first dispatch for Library tools.
-- Compatibility exports for Stage, Handbook, and Library descriptors and schemas
-  derived from the registry.
+- Compatibility exports for Stage, Handbook, Music, and Library descriptors and
+  schemas derived from the registry.
 - Focused registry/fallback dispatch test coverage.
 
 ## Not Yet Implemented
 
-- Music Tool Group registry definitions.
+- Knowledge Tool Group registry definitions.
 - Canonical Review Tool Group registry definitions.
 - Memory Tool Group registry definitions.
 - Runtime payload validation for all tools.
@@ -61,6 +64,6 @@ back to the existing switch path for unmigrated tools.
 
 ## Next Slice
 
-Migrate the Music Tool Group next. It covers material resolve, playable-link
-refresh, knowledge query, and collection flows while the fallback path still
-guards Canonical Review and Memory until their slices are migrated.
+Migrate the Knowledge Tool Group next. It is a small single-tool slice for
+`knowledge.query`, and it keeps the fallback path focused on Canonical Review
+and Memory afterward.

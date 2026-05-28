@@ -18,6 +18,15 @@ import {
   libraryToolNames,
 } from "./library.js";
 import type {
+  MusicToolGroupContext,
+} from "./music.js";
+import {
+  musicToolDefinitions,
+  musicToolDescriptors,
+  musicToolInputSchemas,
+  musicToolNames,
+} from "./music.js";
+import type {
   StageToolGroupContext,
 } from "./stage.js";
 import {
@@ -42,6 +51,10 @@ export {
   libraryToolDescriptors,
   libraryToolInputSchemas,
   libraryToolNames,
+  musicToolDefinitions,
+  musicToolDescriptors,
+  musicToolInputSchemas,
+  musicToolNames,
   stageToolDefinitions,
   stageToolDescriptors,
   stageToolInputSchemas,
@@ -55,6 +68,10 @@ export type {
   LibraryToolGroupContext,
   LibraryToolName,
 } from "./library.js";
+export type {
+  MusicToolGroupContext,
+  MusicToolName,
+} from "./music.js";
 export type {
   StageToolGroupContext,
   StageToolName,
@@ -70,12 +87,14 @@ export type {
 export type StageInterfaceToolDefinitionRegistryOptions = {
   stage: StageToolGroupContext;
   handbook: HandbookToolGroupContext;
+  music: MusicToolGroupContext;
   library: LibraryToolGroupContext;
 };
 
 export function createStageInterfaceToolDefinitionRegistry({
   stage,
   handbook,
+  music,
   library,
 }: StageInterfaceToolDefinitionRegistryOptions): Map<ToolName, BoundStageInterfaceToolDefinition> {
   const definitions = [
@@ -86,6 +105,10 @@ export function createStageInterfaceToolDefinitionRegistry({
     ...bindToolDefinitions({
       definitions: handbookToolDefinitions,
       context: handbook,
+    }),
+    ...bindToolDefinitions({
+      definitions: musicToolDefinitions,
+      context: music,
     }),
     ...bindToolDefinitions({
       definitions: libraryToolDefinitions,
