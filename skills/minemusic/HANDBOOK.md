@@ -175,6 +175,11 @@ Output: `LibraryImportPreview`
 Description: Start importing saved platform library facts into MineMusic state.
 Input: `LibraryImportStartInput`
 Output: `LibraryImportReport`
+#### `library.import.continue`
+
+Description: Continue an existing saved platform library import batch.
+Input: `LibraryImportContinueInput`
+Output: `LibraryImportStatus`
 #### `library.update.preview`
 
 Description: Preview a platform library update against MineMusic's latest complete baseline.
@@ -185,6 +190,11 @@ Output: `LibraryImportPreview`
 Description: Start a platform library update against MineMusic's latest complete baseline.
 Input: `LibraryImportStartInput`
 Output: `LibraryImportReport`
+#### `library.update.continue`
+
+Description: Continue an existing platform library update batch against MineMusic's latest complete baseline.
+Input: `LibraryImportContinueInput`
+Output: `LibraryImportStatus`
 #### `library.import.status`
 
 Description: Read current status for a Library Import batch.

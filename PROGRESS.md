@@ -883,6 +883,15 @@
   NetEase saved-source-release import wiring. NetEase `/album` detail now enriches
   saved source releases with release date plus tracklist facts, and Library Import
   persists those facts onto SourceRelease entities.
+- Completed Library Import continuation Phases 1-7: added public continuation
+  contracts and repository state, persisted continuation state in in-memory and
+  SQLite Library Import repositories, added paged NetEase platform-library
+  reads, implemented paged import/update continuation with deferred update
+  absence writes, and exposed `library.import.continue` plus
+  `library.update.continue` through Stage Interface and MCP schemas.
+- Synced Library Import state docs to reflect the new continuation behavior and
+  refreshed the packaged `skills/minemusic/HANDBOOK.md` snapshot through the
+  automatic handbook generation path.
 
 ## Next
 
@@ -891,9 +900,9 @@
   `.env.example` documents the default server/provider/storage/Handbook output
   settings, and `npm run server:minemusic` loads `.env` before starting the
   server.
-- Pick the next Library Import slice: playlist import, listening-history import,
-  background jobs, cleanup guidance, or deeper durable storage wiring for other
-  modules.
+- Pick the next Library Import slice: host-side auto-continuation/background
+  runners, playlist import, listening-history import, cleanup guidance, or
+  deeper durable storage wiring for other modules.
 - Expand MusicBrainz browse coverage beyond the currently implemented
   release-group releases and artist release groups when a concrete agent use
   case needs it.

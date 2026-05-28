@@ -205,22 +205,29 @@ host-facing and LLM-facing surface.
   unresolved/skipped; ordinary import no longer creates provisional canonical
   records or attaches `canonical_source_refs`.
 - Library Import public tools remain `library.import.preview`,
-  `library.import.start`, `library.update.preview`, `library.update.start`,
-  `library.import.status`, and `library.import.summary`, exposed under the
-  `minemusic.library` instrument. Preview estimates confirmed bindings,
-  Source Library observations, unresolved items, and saved Collection outcomes
-  without writing canonical identity. Library Update compares complete
-  provider reads with eligible baselines, records Source Library absence state
-  and Platform Library Absence provenance for complete reads, and avoids
-  deriving absences from partial reads. SQLite-backed Library Import storage
-  still persists batches, completed reports, area snapshots, item provenance,
-  and Platform Library Absence records through `libraryImportDatabasePath` /
-  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`; Source Entity Store state persists through
-  `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH`.
-  Deterministic integration coverage now exercises Source Entity/Source Library
-  writes, confirmed-binding Collection writes, unbound import skips, repeated
-  import idempotency, update diffing, partial-read absence guards, durable
-  Library Import path reuse, and Stage Interface / MCP tool exposure.
+  `library.import.start`, `library.import.continue`,
+  `library.update.preview`, `library.update.start`,
+  `library.update.continue`, `library.import.status`, and
+  `library.import.summary`, exposed under the `minemusic.library`
+  instrument. Preview estimates confirmed bindings, Source Library
+  observations, unresolved items, and saved Collection outcomes without
+  writing canonical identity. When `pageSize` is provided and the provider
+  supports paged reads, import/update batches run as MineMusic-owned
+  continuation batches keyed by `batchId`; provider cursors stay inside
+  Library Import working state. Library Update compares complete provider
+  reads with eligible baselines, records Source Library absence state and
+  Platform Library Absence provenance for complete reads, and avoids deriving
+  absences from partial reads or mid-batch continuation progress.
+  SQLite-backed Library Import storage still persists batches, completed
+  reports, continuation state, area snapshots, item provenance, and Platform
+  Library Absence records through `libraryImportDatabasePath` /
+  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`; Source Entity Store state persists
+  through `materialStoreDatabasePath` /
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH`. Deterministic integration coverage now
+  exercises Source Entity/Source Library writes, confirmed-binding Collection
+  writes, unbound import skips, repeated import idempotency, paged
+  import/update continuation, partial-read absence guards, durable Library
+  Import path reuse, and Stage Interface / MCP tool exposure.
 - The `platform_library` capability slot contract is documented separately in
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared
@@ -486,7 +493,7 @@ host-facing and LLM-facing surface.
 ## Verification
 
 - `npm run typecheck`, `npm test`, and `git diff --check` pass as of the
-  Material Store / Source Entity Store rewrite through Phase 5 on 2026-05-28.
+  Material Store / Source Entity Store rewrite through Phase 7 on 2026-05-28.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
   implementation and is covered inside the latest `npm test` run.

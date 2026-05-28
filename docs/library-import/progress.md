@@ -39,16 +39,25 @@ This file tracks Library Import implementation progress.
   `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH` persists
   canonical and Source Entity Store state, while `libraryImportDatabasePath` /
   `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` persists import/update batch working state.
-- Stage Interface exposes import/update preview/start tools plus batch
+- Stage Interface exposes import/update preview/start/continue tools plus batch
   status/summary tools through `minemusic.library` with stable external names:
   `library.import.preview`, `library.import.start`,
-  `library.update.preview`, `library.update.start`,
+  `library.import.continue`, `library.update.preview`,
+  `library.update.start`, `library.update.continue`,
   `library.import.status`, and `library.import.summary`.
-- Continuation is not implemented yet. The accepted next direction is
-  batch-id based continuation, with future `library.import.continue` and
-  `library.update.continue` tools. Provider cursors, offsets, and page tokens
-  should stay in Library Import working state rather than becoming public Stage
-  Interface inputs.
+- Library Import continuation is implemented as MineMusic-owned batch
+  continuation. Callers continue an existing batch with `batchId` plus an
+  optional MineMusic `pageSize`; provider cursors, offsets, and page tokens
+  stay inside Library Import working state and are not exposed through the
+  Stage Interface.
+- When `pageSize` is provided and the provider supports paged reads, import and
+  update batches process one bounded segment per `start` or `continue` call,
+  persist continuation state in the working-state repository, accumulate
+  partial reports, and complete only after every requested scope reaches a
+  complete provider read.
+- Paged Library Update still derives absence state only after a scope reaches a
+  complete current read. Mid-batch partial progress does not create absence
+  baselines.
 - Deterministic coverage exercises discovery preview, explicit preview
   estimates, Source Entity/Source Library writes, confirmed-binding Collection
   writes, unbound import skips, started-batch failure status, summary recovery
@@ -97,7 +106,7 @@ This file tracks Library Import implementation progress.
   records, completed reports, per-area snapshots, item provenance, Platform
   Library Absence records, returned-copy behavior, and provider-account-stable
   latest complete baseline lookup.
-- The six Stage Interface Library Import tools are implemented.
+- The eight Stage Interface Library Import tools are implemented.
 - Source-of-truth design lives in `docs/library-import/design.md`.
 - Implementation task breakdown lives in
   `docs/library-import/implementation-plan.md`.
@@ -108,15 +117,14 @@ This file tracks Library Import implementation progress.
 
 ## Next Slice
 
-1. Add batch continuation for import/update so large platform libraries can be
-   processed in bounded segments without exposing provider cursor details. The
-   concrete phase plan lives in
-   `docs/library-import/implementation-plan.md#next-slice-batch-continuation`.
-2. The first Library Import Service implementation plan is complete, and its
+1. The first Library Import Service implementation plan is complete, and its
    ownership has moved under Source Entity Store.
-3. Future slices can choose playlist import, listening-history import,
+2. Future slices can choose playlist import, listening-history import,
    background job execution, cleanup guidance, or deeper durable storage wiring
    for other modules.
+3. A follow-up scaling slice can add host-side auto-continuation or background
+   batch runners on top of the new batch-id continuation contract, without
+   exposing provider cursor details.
 4. Keep future mutable implementation status in this progress document rather
    than `docs/library-import/design.md`.
 
@@ -187,6 +195,15 @@ This file tracks Library Import implementation progress.
   passes after adding provisional recording hints, NetEase album track-position
   enrichment, and Library Import hint projection.
 - `npm run typecheck` and `npm test` pass after the provisional hint slice.
+- `npm run build:test && npm run typecheck && node .tmp-test/test/storage/in-memory-library-import-repository.test.js && node .tmp-test/test/storage/sqlite-library-import-repository.test.js && node .tmp-test/test/providers/netease-platform-library-provider.test.js`
+  pass after adding continuation contracts, in-memory continuation state,
+  SQLite continuation persistence, and provider paged reads.
+- `npm run build:test && npm run typecheck && node .tmp-test/test/library_import/library-import-service.test.js`
+  pass after adding paged import/update continuation with deferred update
+  absence writes.
+- `npm run build:test && npm run typecheck && node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js && node .tmp-test/test/surfaces/mcp-server.test.js`
+  pass after exposing `library.import.continue` and
+  `library.update.continue` through Stage Interface and MCP schemas.
 - A follow-up live durable MCP import after that performance pass completed in
   13 seconds for `saved_source_tracks`, `saved_source_releases`, and `saved_source_artists`.
   It produced 2017 imported item reports and persisted 3 complete area
