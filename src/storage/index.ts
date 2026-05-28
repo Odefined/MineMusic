@@ -9,6 +9,7 @@ import type {
   EffectProposal,
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
+  LibraryImportContinuationState,
   LibraryImportItemProvenance,
   LibraryImportReport,
   MemoryEntry,
@@ -388,6 +389,7 @@ export function createInMemoryLibraryImportRepository(): LibraryImportRepository
   const batches = new Map<string, LibraryImportBatch>();
   const reports = new Map<string, LibraryImportReport>();
   const areaSnapshots = new Map<string, LibraryImportAreaSnapshot>();
+  const continuationStates = new Map<string, LibraryImportContinuationState>();
   const itemProvenance = new Map<string, LibraryImportItemProvenance>();
   const absences = new Map<string, PlatformLibraryAbsence>();
 
@@ -435,6 +437,26 @@ export function createInMemoryLibraryImportRepository(): LibraryImportRepository
         [...areaSnapshots.values()]
           .filter((snapshot) => matchesLibraryImportAreaSnapshotQuery(snapshot, query))
           .map((snapshot) => cloneRecord(snapshot)),
+      );
+    },
+
+    async getContinuationState(input) {
+      const state = continuationStates.get(libraryImportContinuationStateKey(input));
+
+      return ok(state === undefined ? null : cloneRecord(state));
+    },
+
+    async putContinuationState({ state }) {
+      continuationStates.set(libraryImportContinuationStateKey(state), cloneRecord(state));
+
+      return ok(cloneRecord(state));
+    },
+
+    async listContinuationStates(query) {
+      return ok(
+        [...continuationStates.values()]
+          .filter((state) => matchesLibraryImportContinuationStateQuery(state, query))
+          .map((state) => cloneRecord(state)),
       );
     },
 
@@ -740,6 +762,24 @@ function matchesLibraryImportAreaSnapshotQuery(
     (query.scope === undefined || snapshot.scope === query.scope) &&
     (query.area === undefined || snapshot.area === query.area) &&
     (query.complete === undefined || snapshot.complete === query.complete)
+  );
+}
+
+function libraryImportContinuationStateKey(
+  state: Pick<LibraryImportContinuationState, "batchId" | "scope" | "area">,
+): string {
+  return [state.batchId, state.scope, state.area].join(":");
+}
+
+function matchesLibraryImportContinuationStateQuery(
+  state: LibraryImportContinuationState,
+  query: NonNullable<Parameters<NonNullable<LibraryImportRepository["listContinuationStates"]>>[0]>,
+): boolean {
+  return (
+    (query.batchId === undefined || state.batchId === query.batchId) &&
+    (query.scope === undefined || state.scope === query.scope) &&
+    (query.area === undefined || state.area === query.area) &&
+    (query.status === undefined || state.status === query.status)
   );
 }
 

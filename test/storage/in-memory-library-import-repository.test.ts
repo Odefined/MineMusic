@@ -1,6 +1,7 @@
 import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
+  LibraryImportContinuationState,
   LibraryImportItemProvenance,
   LibraryImportReport,
   PlatformLibraryAbsence,
@@ -230,6 +231,82 @@ async function storesAreaSnapshotsAndFindsLatestCompleteBaseline(): Promise<void
   );
 }
 
+async function storesAndQueriesContinuationStatesByBatchAndArea(): Promise<void> {
+  const repository = createInMemoryLibraryImportRepository();
+  assert(repository.putContinuationState !== undefined, "repository should expose continuation state writes");
+  assert(repository.getContinuationState !== undefined, "repository should expose continuation state reads");
+  assert(repository.listContinuationStates !== undefined, "repository should expose continuation state queries");
+
+  const first: LibraryImportContinuationState = {
+    batchId: "batch-1",
+    batchKind: "initial_import",
+    ownerScope: "local_profile:default",
+    providerId: "fixture-library",
+    providerAccountId: "fixture-account",
+    providerAccountStable: true,
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
+    status: "running",
+    processedItems: 25,
+    expectedItems: 200,
+    sampleLimitRemaining: 175,
+    providerState: {
+      offset: 25,
+    },
+    sourceRefsSeen: [sourceRef("track-1")],
+    createdAt: "2026-05-28T00:00:00.000Z",
+    updatedAt: "2026-05-28T00:01:00.000Z",
+  };
+  const second: LibraryImportContinuationState = {
+    ...first,
+    scope: "saved_source_releases",
+    area: "saved_source_releases",
+    status: "pending",
+    processedItems: 0,
+    expectedItems: 100,
+    sampleLimitRemaining: 100,
+    providerState: {
+      offset: 0,
+    },
+    sourceRefsSeen: [],
+  };
+
+  await assertOk(repository.putContinuationState({ state: first }));
+  await assertOk(repository.putContinuationState({ state: second }));
+  first.sourceRefsSeen.push(sourceRef("mutated-after-put"));
+
+  const stored = await assertOk(
+    repository.getContinuationState({
+      batchId: "batch-1",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
+    }),
+  );
+  assert(stored?.processedItems === 25, "continuation state lookup should match batch and area");
+  assert(stored?.sourceRefsSeen.length === 1, "continuation state put should clone nested arrays");
+
+  stored.sourceRefsSeen.push(sourceRef("mutated-after-get"));
+  const listed = await assertOk(
+    repository.listContinuationStates({
+      batchId: "batch-1",
+      status: "pending",
+    }),
+  );
+  assert(
+    listed.length === 1 && listed[0]?.area === "saved_source_releases",
+    "continuation state query should filter by batch and status",
+  );
+
+  const reread = await assertOk(
+    repository.getContinuationState({
+      batchId: "batch-1",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
+    }),
+  );
+  assert(reread?.sourceRefsSeen.length === 1, "continuation state reads should return copies");
+}
+
 async function upsertsAndQueriesItemProvenanceByStableSourceRef(): Promise<void> {
   const repository = createInMemoryLibraryImportRepository();
   const first: LibraryImportItemProvenance = {
@@ -345,5 +422,6 @@ function sourceRef(id: string): Ref {
 await storesBatchesByIdAndReturnsCopies();
 await storesReportsByBatchIdAndReturnsCopies();
 await storesAreaSnapshotsAndFindsLatestCompleteBaseline();
+await storesAndQueriesContinuationStatesByBatchAndArea();
 await upsertsAndQueriesItemProvenanceByStableSourceRef();
 await storesAndQueriesPlatformLibraryAbsences();

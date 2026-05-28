@@ -35,6 +35,8 @@ import type {
   LibraryImportBatch,
   LibraryImportBatchKind,
   LibraryImportBatchStatus,
+  LibraryImportContinuationState,
+  LibraryImportContinuationStateStatus,
   LibraryImportContinueInput,
   LibraryImportItemProvenance,
   LibraryImportPreview,
@@ -121,6 +123,18 @@ export type LibraryImportRepositoryListAreaSnapshotsInput = {
   scope?: LibraryImportScope;
   area?: PlatformLibraryArea;
   complete?: boolean;
+};
+
+export type LibraryImportRepositoryContinuationStateInput = {
+  batchId: string;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+};
+
+export type LibraryImportRepositoryListContinuationStatesInput = Partial<
+  LibraryImportRepositoryContinuationStateInput
+> & {
+  status?: LibraryImportContinuationStateStatus;
 };
 
 export type LibraryImportRepositoryBaselineInput = {
@@ -591,6 +605,18 @@ export interface LibraryImportRepository {
   listAreaSnapshots(
     input: LibraryImportRepositoryListAreaSnapshotsInput,
   ): Promise<Result<LibraryImportAreaSnapshot[]>>;
+
+  getContinuationState?(
+    input: LibraryImportRepositoryContinuationStateInput,
+  ): Promise<Result<LibraryImportContinuationState | null>>;
+
+  putContinuationState?(input: {
+    state: LibraryImportContinuationState;
+  }): Promise<Result<LibraryImportContinuationState>>;
+
+  listContinuationStates?(
+    input: LibraryImportRepositoryListContinuationStatesInput,
+  ): Promise<Result<LibraryImportContinuationState[]>>;
 
   getLatestCompleteAreaSnapshot(
     input: LibraryImportRepositoryBaselineInput,

@@ -55,6 +55,8 @@ import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
   LibraryImportItemProvenance,
+  LibraryImportContinuationState,
+  LibraryImportContinuationStateStatus,
   LibraryImportPreview,
   LibraryImportPreviewArea,
   LibraryImportPreviewInput,
@@ -129,6 +131,8 @@ import type {
   InstrumentCatalogPort,
   LibraryImportPort,
   LibraryImportRepository,
+  LibraryImportRepositoryContinuationStateInput,
+  LibraryImportRepositoryListContinuationStatesInput,
   MaterialStorePort,
   MaterialResolvePort,
   MaterialGatePort,
@@ -824,6 +828,44 @@ type _libraryImportBatchRecordKeys = Expect<
   >
 >;
 
+type _libraryImportContinuationStatuses = Expect<
+  Equal<
+    LibraryImportContinuationStateStatus,
+    "pending" | "running" | "complete" | "failed" | "unavailable"
+  >
+>;
+
+type _libraryImportContinuationStateKeys = Expect<
+  Equal<
+    keyof LibraryImportContinuationState,
+    | "batchId"
+    | "batchKind"
+    | "ownerScope"
+    | "providerId"
+    | "providerAccountId"
+    | "providerAccountStable"
+    | "scope"
+    | "area"
+    | "status"
+    | "processedItems"
+    | "expectedItems"
+    | "sampleLimitRemaining"
+    | "providerState"
+    | "sourceRefsSeen"
+    | "issues"
+    | "createdAt"
+    | "updatedAt"
+  >
+>;
+
+type _libraryImportContinuationStateLookupInputs = Expect<
+  Equal<keyof LibraryImportRepositoryContinuationStateInput, "batchId" | "scope" | "area"> &
+    Equal<
+      keyof LibraryImportRepositoryListContinuationStatesInput,
+      "batchId" | "scope" | "area" | "status"
+    >
+>;
+
 type _libraryImportAreaSnapshotKeys = Expect<
   Equal<
     keyof LibraryImportAreaSnapshot,
@@ -959,6 +1001,9 @@ type _libraryImportRepositoryMethods = Expect<
     | "putAreaSnapshot"
     | "listAreaSnapshots"
     | "getLatestCompleteAreaSnapshot"
+    | "getContinuationState"
+    | "putContinuationState"
+    | "listContinuationStates"
     | "upsertItemProvenance"
     | "getItemProvenance"
     | "listItemProvenance"
@@ -976,6 +1021,9 @@ type _libraryImportRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<LibraryImportRepository, "putAreaSnapshot"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "listAreaSnapshots"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "getLatestCompleteAreaSnapshot"> &
+    OptionalMethodAcceptsSingleObject<LibraryImportRepository, "getContinuationState"> &
+    OptionalMethodAcceptsSingleObject<LibraryImportRepository, "putContinuationState"> &
+    OptionalMethodAcceptsSingleObject<LibraryImportRepository, "listContinuationStates"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "upsertItemProvenance"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "getItemProvenance"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "listItemProvenance"> &

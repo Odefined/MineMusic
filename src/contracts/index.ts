@@ -1080,6 +1080,33 @@ export type LibraryImportBatch = {
   issues?: PlatformLibraryIssue[];
 };
 
+export type LibraryImportContinuationStateStatus =
+  | "pending"
+  | "running"
+  | "complete"
+  | "failed"
+  | "unavailable";
+
+export type LibraryImportContinuationState = {
+  batchId: string;
+  batchKind: LibraryImportBatchKind;
+  ownerScope: string;
+  providerId: string;
+  providerAccountId: string;
+  providerAccountStable?: boolean;
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  status: LibraryImportContinuationStateStatus;
+  processedItems: number;
+  expectedItems?: number;
+  sampleLimitRemaining?: number;
+  providerState?: unknown;
+  sourceRefsSeen: Ref[];
+  issues?: PlatformLibraryIssue[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type LibraryImportAreaSnapshot = {
   batchId: string;
   ownerScope: string;
