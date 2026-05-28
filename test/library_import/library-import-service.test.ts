@@ -1051,6 +1051,75 @@ assert(summary.items[0]?.sourceRef.id === "persisted-track", "stored summary sho
 assert(summary.areas[0]?.area === "saved_source_tracks", "stored summary should include read areas");
 }
 
+async function listsImportItemsInBoundedPages(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_source_tracks",
+              status: "complete",
+              items: [
+                providerItem("paged-track-1", "Paged Track 1"),
+                providerItem("paged-track-2", "Paged Track 2"),
+                providerItem("paged-track-3", "Paged Track 3"),
+              ],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  const report = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+
+  const firstPage = await assertOk(
+    environment.libraryImport.listItems({
+      batchId: report.batchId,
+      limit: 2,
+    }),
+  );
+  const secondPage = await assertOk(
+    environment.libraryImport.listItems({
+      batchId: report.batchId,
+      limit: 2,
+      ...(firstPage.nextCursor === undefined ? {} : { cursor: firstPage.nextCursor }),
+    }),
+  );
+
+  assert(firstPage.items.length === 2, "listItems should return the requested first page size");
+  assert(firstPage.totalItems === 3, "listItems should report the total item count");
+  assert(firstPage.nextCursor === "2", "listItems should return a cursor for the next page");
+  assert(secondPage.items.length === 1, "listItems should return the remaining items on the final page");
+  assert(secondPage.items[0]?.sourceRef.id === "paged-track-3", "listItems should resume from the provided cursor");
+  assert(secondPage.nextCursor === undefined, "listItems should stop emitting cursors on the final page");
+}
+
 async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
@@ -1517,8 +1586,12 @@ async function continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion()
     "continueUpdate should resume from the stored providerState",
   );
   assert(finalStatus.status === "completed_with_warnings", "final update status should complete with warnings when an absence is derived");
+  assert(finalStatus.counts.alreadyPresentItems === 0, "paged update should not report unchanged existing items");
+  assert(finalStatus.counts.importedItems === 1, "paged update should report only newly observed items");
   assert(finalStatus.counts.absentItems === 1, "final paged update should derive absences only after completion");
   assert(finalSummary.absences?.[0]?.sourceRef.id === "missing-track", "final update summary should include derived absences");
+  assert(finalSummary.items.length === 1, "paged update summary should omit unchanged existing items");
+  assert(finalSummary.items[0]?.sourceRef.id === "new-track", "paged update summary should keep only newly observed items");
   assert(finalAbsences.length === 1 && finalAbsences[0]?.sourceRef.id === "missing-track", "final paged update should store absence records after completion");
 }
 
@@ -1626,9 +1699,11 @@ async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingColle
   );
 
   assert(update.batchKind === "library_update", "startUpdate should create a library update batch");
-  assert(update.counts.alreadyPresentItems === 1, "update should count still-present saved items");
+  assert(update.counts.alreadyPresentItems === 0, "update should not count still-present saved items");
   assert(update.counts.importedItems === 1, "update should import newly observed items");
   assert(update.counts.absentItems === 1, "update should count platform absences");
+  assert(update.items.length === 1, "update report should omit unchanged existing items");
+  assert(update.items[0]?.sourceRef.id === "new-track", "update report should keep only newly observed items");
   assert(update.absences?.[0]?.sourceRef.id === "missing-track", "update report should include absence summaries");
   assert(savedItems.length === 0, "update should leave Collection unchanged");
   assert(absences.length === 1, "update should store absence records");
@@ -1710,6 +1785,143 @@ async function doesNotPreviewUpdateAbsencesForPartialCurrentReads(): Promise<voi
     "partial update preview should not derive absences",
   );
   assert(preview.areas[0]?.absences === undefined, "partial update preview should not include absence summaries");
+}
+
+async function stopsLatestUntilSeenUpdateAtFirstExistingSourceRef(): Promise<void> {
+  const registry = createPluginRegistry();
+  let mode: "baseline" | "latest" = "baseline";
+  const readPageInputs: Array<{ pageSize: number; providerState?: unknown }> = [];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    descriptor: {
+      id: "fixture-library",
+      label: "Fixture Library",
+      slot: "platform_library",
+      status: "available",
+      areas: [
+        {
+          id: "saved_source_tracks",
+          label: "Saved tracks",
+          availability: "readable",
+          ordering: "newest_first",
+        },
+      ],
+    },
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      throw new Error("latest_until_seen test should stay on readPage for both baseline and update");
+    },
+    async readPage(input) {
+      readPageInputs.push({
+        pageSize: input.pageSize,
+        providerState: input.providerState,
+      });
+
+      if (mode === "baseline") {
+        return {
+          ok: true,
+          value: {
+            providerId: "fixture-library",
+            account: {
+              providerAccountId: "fixture-account",
+              stable: true,
+            },
+            area: "saved_source_tracks",
+            status: "complete",
+            count: { certainty: "exact", value: 2 },
+            items: [
+              providerItem("kept-track", "Kept Track"),
+              providerItem("older-track", "Older Track"),
+            ],
+            hasMore: false,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          area: "saved_source_tracks",
+          status: "complete",
+          count: { certainty: "exact", value: 3 },
+          items: [
+            providerItem("new-track", "New Track"),
+            providerItem("kept-track", "Kept Track"),
+          ],
+          providerState: { offset: 2 },
+          hasMore: true,
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  readPageInputs.length = 0;
+  mode = "latest";
+
+  const update = await assertOk(
+    environment.libraryImport.startUpdate({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+      pageSize: 2,
+      mode: "latest_until_seen",
+    }),
+  );
+  const summary = await assertOk(
+    environment.libraryImport.getSummary({ batchId: update.batchId }),
+  );
+  const absences = await assertOk(
+    environment.libraryImportRepository.listAbsences({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      currentBatchId: update.batchId,
+    }),
+  );
+  const snapshots = await assertOk(
+    environment.libraryImportRepository.listAreaSnapshots({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      scope: "saved_source_tracks",
+      area: "saved_source_tracks",
+    }),
+  );
+
+  assert(readPageInputs.length === 1, "latest_until_seen should stop inside the first page when it reaches an existing source ref");
+  assert(update.mode === "latest_until_seen", "latest_until_seen update should keep its mode on the report");
+  assert(update.status === "completed", "latest_until_seen should complete once it hits the stop point");
+  assert(update.counts.importedItems === 1, "latest_until_seen should import newly observed items before the stop point");
+  assert(update.counts.alreadyPresentItems === 0, "latest_until_seen should not report the stop-point item as already present");
+  assert(update.counts.absentItems === 0, "latest_until_seen should not derive absences");
+  assert(update.items.length === 1 && update.items[0]?.sourceRef.id === "new-track", "latest_until_seen should report only newly observed items");
+  assert(summary.progress.hasMore === false, "latest_until_seen should finish the MineMusic batch after the stop point");
+  assert(summary.absences === undefined, "latest_until_seen summary should not include absences");
+  assert(absences.length === 0, "latest_until_seen should not store absences");
+  assert(
+    snapshots.every((snapshot) => snapshot.batchId !== update.batchId),
+    "latest_until_seen should not store a complete current snapshot for the fast update batch",
+  );
 }
 
 function createTestLibraryImportService(registry: ReturnType<typeof createPluginRegistry>) {
@@ -1856,9 +2068,11 @@ await importsSameLabelDifferentSourceRefsAsSeparateSourceEntities();
 await importsSavedReleaseTracklistIntoSourceEntityStore();
 await cachesSavedCollectionMembershipDuringImportBatch();
 await returnsStoredSummaryAfterServiceRecreation();
+await listsImportItemsInBoundedPages();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
 await previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting();
 await doesNotUseStableAccountBaselinesForUnstableUpdateReads();
 await continuesPagedLibraryUpdateAndDefersAbsencesUntilAreaCompletion();
 await startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingCollections();
 await doesNotPreviewUpdateAbsencesForPartialCurrentReads();
+await stopsLatestUntilSeenUpdateAtFirstExistingSourceRef();

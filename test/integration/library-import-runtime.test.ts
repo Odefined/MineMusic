@@ -416,15 +416,21 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
         providerAccountId: "runtime-account",
       }),
     );
+    const updateSummary = await assertOk(
+      stageCore.libraryImport.getSummary({
+        batchId: updateReport.batchId,
+      }),
+    );
     const updateEvents = await assertOk(
       stageCore.events.listBySession({
         sessionId: `library_import:${updateReport.batchId}`,
       }),
     );
 
-    assert(updateReport.counts.alreadyPresentItems === 2, "update start should keep still-present source items");
+    assert(updateReport.counts.alreadyPresentItems === 0, "update start should not report still-present source items");
     assert(updateReport.counts.importedItems === 2, "update start should import newly observed items");
     assert(updateReport.counts.absentItems === 2, "update start should record no-longer-returned items");
+    assert(updateSummary.items.length === 2, "update summary should report only newly observed items");
     assert(absences.length === 2, "update start should store absence records for missing baseline refs");
     assert(
       savedItemsAfterUpdate.length === savedItemsAfterRepeatedImport.length,

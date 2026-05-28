@@ -64,6 +64,10 @@ function resolvedUpdateMode(
   return input.mode ?? "full";
 }
 
+function isLatestUntilSeenMode(mode: LibraryUpdateMode | undefined): boolean {
+  return mode === "latest_until_seen";
+}
+
 export function createLibraryImportService({
   pluginRegistry,
   materialStore,
@@ -148,6 +152,16 @@ export function createLibraryImportService({
     },
 
     async getStatus({ batchId }) {
+      const storedReport = await repository.getReport({ batchId });
+
+      if (!storedReport.ok) {
+        return storedReport;
+      }
+
+      if (storedReport.value !== null) {
+        return ok(reportToStatus(storedReport.value));
+      }
+
       const batch = await repository.getBatch({ batchId });
 
       if (!batch.ok) {
@@ -260,8 +274,22 @@ async function previewLibraryImport({
     return provider;
   }
 
+  const updateMode =
+    includeUpdateEstimates && "mode" in input
+      ? resolvedUpdateMode(input as LibraryUpdatePreviewInput)
+      : undefined;
+
   const scopes = normalizeScopes(input.scopes);
   const areas = scopesToProviderAreas(scopes);
+  const latestModeSupport = ensureLibraryUpdateModeSupported({
+    provider: provider.value,
+    scopes,
+    mode: updateMode,
+  });
+
+  if (!latestModeSupport.ok) {
+    return latestModeSupport;
+  }
   const ownerScope = input.ownerScope ?? defaultOwnerScope;
   const preview = await provider.value.preview({
     ...(input.providerAccountId === undefined ? {} : { providerAccountId: input.providerAccountId }),
@@ -315,6 +343,41 @@ async function previewLibraryImport({
   }
 
   return ok(result);
+}
+
+function ensureLibraryUpdateModeSupported({
+  provider,
+  scopes,
+  mode,
+}: {
+  provider: PlatformLibraryProvider;
+  scopes: LibraryImportScope[];
+  mode: LibraryUpdateMode | undefined;
+}): Result<void> {
+  if (!isLatestUntilSeenMode(mode)) {
+    return ok(undefined);
+  }
+
+  for (const scope of scopes) {
+    const area = scopeToProviderArea(scope);
+
+    if (area === null) {
+      continue;
+    }
+
+    const descriptor = provider.descriptor?.areas?.find((candidate) => candidate.id === area);
+
+    if (descriptor?.ordering !== "newest_first") {
+      return fail({
+        code: "library_import.update_mode_unsupported",
+        message: `Library Update mode 'latest_until_seen' is not supported for area '${area}' by provider '${provider.id}'.`,
+        module: "library_import",
+        retryable: false,
+      });
+    }
+  }
+
+  return ok(undefined);
 }
 
 type PreviewAreaEstimates = {
@@ -736,6 +799,17 @@ async function startLibraryImport({
     return provider;
   }
 
+  const updateMode = batchKind === "library_update" ? resolvedUpdateMode(input) : undefined;
+  const supportedMode = ensureLibraryUpdateModeSupported({
+    provider: provider.value,
+    scopes,
+    mode: updateMode,
+  });
+
+  if (!supportedMode.ok) {
+    return supportedMode;
+  }
+
   if (
     shouldUsePagedImport({
       input,
@@ -761,7 +835,6 @@ async function startLibraryImport({
   const startedAt = clock();
   const ownerScope = input.ownerScope ?? defaultOwnerScope;
   const counts = emptyCounts();
-  const updateMode = batchKind === "library_update" ? resolvedUpdateMode(input) : undefined;
   const runningBatch: LibraryImportBatch = {
     id: batchId,
     batchKind,
@@ -841,10 +914,14 @@ async function startLibraryImport({
   const reportAreas = read.value.areas.map(providerReadAreaToReportArea);
   const itemReports: LibraryImportItemReport[] = [];
   const absences: PlatformLibraryAbsenceSummary[] = [];
+  const processedAreaItems = new Map<PlatformLibraryArea, number>();
   let completedWithWarnings = readHasWarnings(read.value.areas, read.value.issues);
+  const latestUntilSeen = isLatestUntilSeenMode(updateMode);
 
   for (const area of read.value.areas) {
     const scope = providerAreaToScope(area.area);
+    let processedItemsForArea = 0;
+    let stoppedAtExistingSourceRef = false;
 
     for (const item of area.items) {
       const itemReport = await importProviderItem({
@@ -860,6 +937,7 @@ async function startLibraryImport({
         area: area.area,
         item,
         seenAt: completedAt,
+        suppressAlreadyPresentReport: batchKind === "library_update",
       });
 
       if (!itemReport.ok) {
@@ -871,15 +949,26 @@ async function startLibraryImport({
         });
       }
 
-      itemReports.push(itemReport.value);
-      applyItemReportToCounts(counts, itemReport.value);
+      processedItemsForArea += 1;
 
-      if (itemReport.value.status === "failed") {
-        completedWithWarnings = true;
+      if (itemReport.value.report !== null) {
+        itemReports.push(itemReport.value.report);
+        applyItemReportToCounts(counts, itemReport.value.report);
+
+        if (itemReport.value.report.status === "failed") {
+          completedWithWarnings = true;
+        }
+      }
+
+      if (latestUntilSeen && itemReport.value.alreadyPresent) {
+        stoppedAtExistingSourceRef = true;
+        break;
       }
     }
 
-    if (batchKind === "library_update" && area.status === "complete") {
+    processedAreaItems.set(area.area, processedItemsForArea);
+
+    if (batchKind === "library_update" && area.status === "complete" && !latestUntilSeen) {
       const areaAbsences = await previewAbsencesForArea({
         repository,
         ownerScope,
@@ -928,7 +1017,7 @@ async function startLibraryImport({
       }
     }
 
-    if (area.status === "complete") {
+    if (area.status === "complete" && !latestUntilSeen) {
       const storedSnapshot = await repository.putAreaSnapshot({
         snapshot: {
           batchId,
@@ -955,11 +1044,22 @@ async function startLibraryImport({
         });
       }
     }
+
+    if (stoppedAtExistingSourceRef) {
+      const reportArea = reportAreas.find(
+        (candidate) => candidate.scope === scope && candidate.area === area.area,
+      );
+
+      if (reportArea !== undefined) {
+        reportArea.readStatus = "complete";
+      }
+    }
   }
 
   const batch: LibraryImportBatch = {
     id: batchId,
     batchKind,
+    ...(updateMode === undefined ? {} : { mode: updateMode }),
     status: completedWithWarnings ? "completed_with_warnings" : "completed",
     providerId: read.value.providerId,
     ownerScope,
@@ -993,6 +1093,17 @@ async function startLibraryImport({
   const report = batchToReport(stored.value);
   report.areas = reportAreas;
   report.items = itemReports;
+  report.progress = {
+    processedItems: [...processedAreaItems.values()].reduce((sum, value) => sum + value, 0),
+    areas: reportAreas.map((area) => ({
+      scope: area.scope,
+      area: area.area,
+      processedItems: processedAreaItems.get(area.area) ?? 0,
+      ...(area.count === undefined ? {} : { count: area.count }),
+    })),
+    hasMore: false,
+    nextAction: "summary",
+  };
 
   if (absences.length > 0) {
     report.absences = absences;
@@ -1070,6 +1181,7 @@ async function importProviderItem({
   area,
   item,
   seenAt,
+  suppressAlreadyPresentReport,
 }: {
   materialStore: MaterialStorePort;
   events: EventPort;
@@ -1083,7 +1195,8 @@ async function importProviderItem({
   area: PlatformLibraryArea;
   item: PlatformLibraryItem;
   seenAt: string;
-}): Promise<Result<LibraryImportItemReport>> {
+  suppressAlreadyPresentReport: boolean;
+}): Promise<Result<{ report: LibraryImportItemReport | null; alreadyPresent: boolean }>> {
   const baseReport = itemReportBase({ scope, area, item });
   const storedSourceState = await storeSourceEntityAndLibraryItem({
     materialStore,
@@ -1120,7 +1233,13 @@ async function importProviderItem({
     return recorded;
   }
 
-  return ok(imported);
+  return ok({
+    report:
+      storedSourceState.value.alreadyPresent && suppressAlreadyPresentReport
+        ? null
+        : imported,
+    alreadyPresent: storedSourceState.value.alreadyPresent,
+  });
 }
 
 function itemReportBase({
@@ -1789,6 +1908,31 @@ function batchToStatus(batch: LibraryImportBatch): LibraryImportStatus {
   return status;
 }
 
+function reportToStatus(report: LibraryImportReport): LibraryImportStatus {
+  const status: LibraryImportStatus = {
+    batchId: report.batchId,
+    batchKind: report.batchKind,
+    ...(report.mode === undefined ? {} : { mode: report.mode }),
+    status: report.status,
+    providerId: report.providerId,
+    ownerScope: report.ownerScope,
+    scopes: report.scopes,
+    startedAt: report.startedAt,
+    counts: report.counts,
+    progress: report.progress,
+  };
+
+  if (report.completedAt !== undefined) {
+    status.completedAt = report.completedAt;
+  }
+
+  if (report.issues !== undefined) {
+    status.issues = report.issues;
+  }
+
+  return status;
+}
+
 function batchToReport(batch: LibraryImportBatch): LibraryImportReport {
   const report: LibraryImportReport = {
     batchId: batch.id,
@@ -2130,6 +2274,9 @@ async function processPagedImportSegment({
     page.value.account?.providerAccountId ?? batch.providerAccountId ?? "unknown";
   const providerAccountStable = page.value.account?.stable ?? batch.providerAccountStable;
   const itemReports: LibraryImportItemReport[] = [];
+  const latestUntilSeen = isLatestUntilSeenMode(batch.mode);
+  let processedItemsInSegment = 0;
+  let stoppedAtExistingSourceRef = false;
 
   for (const item of page.value.items) {
     const itemReport = await importProviderItem({
@@ -2145,6 +2292,7 @@ async function processPagedImportSegment({
       area: nextState.area,
       item,
       seenAt,
+      suppressAlreadyPresentReport: batch.batchKind === "library_update",
     });
 
     if (!itemReport.ok) {
@@ -2156,17 +2304,29 @@ async function processPagedImportSegment({
       });
     }
 
-    itemReports.push(itemReport.value);
-    applyItemReportToCounts(counts, itemReport.value);
+    processedItemsInSegment += 1;
+
+    if (itemReport.value.report !== null) {
+      itemReports.push(itemReport.value.report);
+      applyItemReportToCounts(counts, itemReport.value.report);
+    }
+
+    if (latestUntilSeen && itemReport.value.alreadyPresent) {
+      stoppedAtExistingSourceRef = true;
+      break;
+    }
   }
 
-  const mergedSourceRefs = mergeSourceRefs(nextState.sourceRefsSeen, page.value.items);
+  const processedPageItems = page.value.items.slice(0, processedItemsInSegment);
+  const mergedSourceRefs = mergeSourceRefs(nextState.sourceRefsSeen, processedPageItems);
   const remainingSampleLimit =
     nextState.sampleLimitRemaining === undefined
       ? undefined
-      : Math.max(nextState.sampleLimitRemaining - page.value.items.length, 0);
+      : Math.max(nextState.sampleLimitRemaining - processedItemsInSegment, 0);
   const areaHasMore =
-    page.value.hasMore && (remainingSampleLimit === undefined || remainingSampleLimit > 0);
+    !stoppedAtExistingSourceRef &&
+    page.value.hasMore &&
+    (remainingSampleLimit === undefined || remainingSampleLimit > 0);
   const updatedState: LibraryImportContinuationState = {
     batchId: nextState.batchId,
     batchKind: nextState.batchKind,
@@ -2177,7 +2337,7 @@ async function processPagedImportSegment({
     scope: nextState.scope,
     area: nextState.area,
     status: areaHasMore ? "running" : "complete",
-    processedItems: nextState.processedItems + page.value.items.length,
+    processedItems: nextState.processedItems + processedItemsInSegment,
     sourceRefsSeen: mergedSourceRefs,
     createdAt: nextState.createdAt,
     updatedAt: seenAt,
@@ -2217,7 +2377,7 @@ async function processPagedImportSegment({
   );
   const segmentAbsences: PlatformLibraryAbsenceSummary[] = [];
 
-  if (!areaHasMore && page.value.status === "complete") {
+  if (!areaHasMore && page.value.status === "complete" && !latestUntilSeen) {
     const storedSnapshot = await repository.putAreaSnapshot({
       snapshot: {
         batchId: batch.id,
@@ -2314,7 +2474,7 @@ async function processPagedImportSegment({
   const nextReportArea: LibraryImportReportArea = {
     scope: nextState.scope,
     area: nextState.area,
-    readStatus: areaHasMore ? "partial" : page.value.status,
+    readStatus: areaHasMore ? "partial" : "complete",
     count: reportCountForContinuationState(updatedState),
   };
 
