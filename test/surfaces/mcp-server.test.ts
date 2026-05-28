@@ -184,6 +184,14 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "library import preview schema should declare scopes input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.library.import.continue"), "batchId"),
+    "library import continue schema should declare batch id input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.library.update.continue"), "batchId"),
+    "library update continue schema should declare batch id input",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.library.import.status"), "batchId"),
     "library import status schema should declare batch id input",
   );

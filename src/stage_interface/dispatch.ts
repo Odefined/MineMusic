@@ -2,6 +2,7 @@ import type {
   CollectionKind,
   CollectionRelationKind,
   EffectProposal,
+  LibraryImportContinueInput,
   InstrumentDescriptor,
   LibraryImportPreviewInput,
   LibraryImportStartInput,
@@ -364,6 +365,18 @@ export function createToolDispatch({
           );
         }
 
+        case "library.import.continue": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.continueImport(
+            readPayload<LibraryImportContinueInput>(payload),
+          );
+        }
+
         case "library.update.preview": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
@@ -385,6 +398,18 @@ export function createToolDispatch({
 
           return availableLibraryImport.value.startUpdate(
             readPayload<LibraryImportStartInput>(payload, { ownerScope: defaultOwnerScope }),
+          );
+        }
+
+        case "library.update.continue": {
+          const availableLibraryImport = readLibraryImport(libraryImport);
+
+          if (!availableLibraryImport.ok) {
+            return availableLibraryImport;
+          }
+
+          return availableLibraryImport.value.continueUpdate(
+            readPayload<LibraryImportContinueInput>(payload),
           );
         }
 

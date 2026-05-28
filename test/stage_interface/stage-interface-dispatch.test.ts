@@ -1103,6 +1103,13 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   await assertOk(
     dispatch.call({
       sessionId: session.id,
+      toolName: "library.import.continue",
+      payload: { batchId: "import-batch-1", pageSize: 20 },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
       toolName: "library.update.preview",
       payload: { providerId: "fixture-library", scopes: ["saved_source_artists"] },
     }),
@@ -1112,6 +1119,13 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
       sessionId: session.id,
       toolName: "library.update.start",
       payload: { providerId: "fixture-library", scopes: ["saved_source_tracks"] },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "library.update.continue",
+      payload: { batchId: "update-batch-1", pageSize: 20 },
     }),
   );
   await assertOk(
@@ -1137,6 +1151,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     calls.includes("startImport:fixture-library:local_profile:guest:saved_source_releases"),
     "library import start should preserve explicit owner scope",
   );
+  assert(calls.includes("continueImport:import-batch-1"), "library import continue should route by batch id");
   assert(
     calls.includes("previewUpdate:fixture-library:local_profile:default:saved_source_artists"),
     "library update preview should default missing owner scope",
@@ -1145,6 +1160,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     calls.includes("startUpdate:fixture-library:local_profile:default:saved_source_tracks"),
     "library update start should default missing owner scope",
   );
+  assert(calls.includes("continueUpdate:update-batch-1"), "library update continue should route by batch id");
   assert(calls.includes("status:import-batch-1"), "library import status should route by batch id");
   assert(calls.includes("summary:import-batch-1"), "library import summary should route by batch id");
 }
