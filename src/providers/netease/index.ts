@@ -15,6 +15,7 @@ import type {
   Ref,
   Result,
   SourceProvider,
+  SourceReleaseTracklistItem,
   SourceReleaseTrackPosition,
   StageError,
 } from "../../contracts/index.js";
@@ -97,6 +98,7 @@ type NetEasePaginatedRead = {
 type NetEaseAlbumContext = {
   releaseDate?: string;
   trackPositions: Map<string, SourceReleaseTrackPosition>;
+  tracklist?: SourceReleaseTracklistItem[];
 };
 
 const readablePlatformLibraryAreas: PlatformLibraryArea[] = [
@@ -610,7 +612,7 @@ async function previewSavedReleases(
   }
 
   const items = albumPayload.value
-    .map(toSavedReleaseItem)
+    .map((album) => toSavedReleaseItem(album))
     .filter(isDefined);
 
   return readablePreviewArea(
@@ -757,10 +759,15 @@ async function readSavedRecordings(
 
 async function readSavedReleases(requestJson: NetEaseRequester): Promise<NetEaseReadAreaOutcome> {
   const albums = await readPaginatedItems(requestJson, "/album/sublist", ["data", "albums"], "saved_releases");
+  const albumContexts = new Map<string, NetEaseAlbumContext | null>();
+
+  await ensureAlbumContextsForAlbums(requestJson, albums.items, albumContexts);
 
   return {
     status: albums.status,
-    items: albums.items.map(toSavedReleaseItem).filter(isDefined),
+    items: albums.items
+      .map((album) => toSavedReleaseItem(album, albumContextForAlbum(album, albumContexts)))
+      .filter(isDefined),
     ...(albums.issues === undefined ? {} : { issues: albums.issues }),
   };
 }
@@ -1153,7 +1160,10 @@ function toSavedRecordingItem(
   };
 }
 
-function toSavedReleaseItem(album: Record<string, unknown>): PlatformLibraryItem | undefined {
+function toSavedReleaseItem(
+  album: Record<string, unknown>,
+  albumContext?: NetEaseAlbumContext | null,
+): PlatformLibraryItem | undefined {
   const albumId = toStringId(album.id);
 
   if (albumId === undefined) {
@@ -1179,6 +1189,8 @@ function toSavedReleaseItem(album: Record<string, unknown>): PlatformLibraryItem
     canonicalHints: {
       label: title,
       ...(artistLabels.length === 0 ? {} : { artistLabels }),
+      ...(albumContext?.releaseDate === undefined ? {} : { releaseDate: albumContext.releaseDate }),
+      ...(albumContext?.tracklist === undefined ? {} : { tracklist: albumContext.tracklist }),
     },
   };
 }
@@ -1393,6 +1405,22 @@ async function ensureAlbumContextsForSongs(
   }
 }
 
+async function ensureAlbumContextsForAlbums(
+  requestJson: NetEaseRequester,
+  albums: Record<string, unknown>[],
+  albumContexts: Map<string, NetEaseAlbumContext | null>,
+): Promise<void> {
+  for (const album of albums) {
+    const albumId = toStringId(album.id);
+
+    if (albumId === undefined || albumContexts.has(albumId)) {
+      continue;
+    }
+
+    albumContexts.set(albumId, await readAlbumTrackContext(requestJson, albumId));
+  }
+}
+
 async function readAlbumTrackContext(
   requestJson: NetEaseRequester,
   albumId: string,
@@ -1418,6 +1446,9 @@ async function readAlbumTrackContext(
 
   const trackPositions = new Map<string, SourceReleaseTrackPosition>();
   const trackCount = songs.value.length;
+  const tracklist = songs.value
+    .map((song, index) => tracklistItemFromAlbumSong(song, index, trackCount))
+    .filter(isDefined);
 
   songs.value.forEach((song, index) => {
     const songId = toStringId(song.id);
@@ -1433,9 +1464,13 @@ async function readAlbumTrackContext(
     }
   });
 
-  return releaseDate === undefined && trackPositions.size === 0
+  return releaseDate === undefined && trackPositions.size === 0 && tracklist.length === 0
     ? null
-    : { ...(releaseDate === undefined ? {} : { releaseDate }), trackPositions };
+    : {
+        ...(releaseDate === undefined ? {} : { releaseDate }),
+        ...(tracklist.length === 0 ? {} : { tracklist }),
+        trackPositions,
+      };
 }
 
 function albumContextForSong(
@@ -1463,6 +1498,15 @@ function albumContextForSong(
         ...(albumContext.releaseDate === undefined ? {} : { releaseDate: albumContext.releaseDate }),
         ...(trackPosition === undefined ? {} : { trackPosition }),
       };
+}
+
+function albumContextForAlbum(
+  album: Record<string, unknown>,
+  albumContexts: Map<string, NetEaseAlbumContext | null>,
+): NetEaseAlbumContext | null | undefined {
+  const albumId = toStringId(album.id);
+
+  return albumId === undefined ? undefined : albumContexts.get(albumId);
 }
 
 function releaseDateFromNetEaseTime(value: unknown): string | undefined {
@@ -1501,6 +1545,38 @@ function trackPositionFromAlbumSong(
   };
 
   return Object.keys(position).length === 0 ? undefined : position;
+}
+
+function tracklistItemFromAlbumSong(
+  song: NetEaseSong,
+  index: number,
+  trackCount: number,
+): SourceReleaseTracklistItem | undefined {
+  const title = toNonEmptyString(song.name) ?? `Track ${index + 1}`;
+  const songId = toStringId(song.id);
+  const artistLabels = toArtistNames(song);
+  const durationMs = typeof song.dt === "number" && Number.isFinite(song.dt) ? song.dt : undefined;
+  const trackPosition = trackPositionFromAlbumSong(song, index, trackCount);
+
+  return {
+    ...(songId === undefined
+      ? {}
+      : {
+          sourceRef: {
+            namespace: "source:netease",
+            kind: "track",
+            id: songId,
+            label: title,
+            url: toSongUrl(songId),
+          },
+        }),
+    title,
+    ...(artistLabels.length === 0 ? {} : { artistLabels }),
+    ...(trackPosition?.discNumber === undefined ? {} : { discNumber: trackPosition.discNumber }),
+    ...(trackPosition?.trackNumber === undefined ? {} : { trackNumber: trackPosition.trackNumber }),
+    ...(trackPosition?.trackCount === undefined ? {} : { trackCount: trackPosition.trackCount }),
+    ...(durationMs === undefined ? {} : { durationMs }),
+  };
 }
 
 function firstAlbumId(song: NetEaseSong): string | undefined {

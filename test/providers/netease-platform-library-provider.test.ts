@@ -847,7 +847,7 @@ async function readItemsRespectsSavedRecordingSampleLimit(): Promise<void> {
 
 async function readItemsMapsSavedReleasesToGenericItems(): Promise<void> {
   const provider = createNetEasePlatformLibraryProvider({
-    requestJson: async ({ path }) => {
+    requestJson: async ({ path, query }) => {
       if (path === "/login/status") {
         return {
           ok: true,
@@ -878,6 +878,37 @@ async function readItemsMapsSavedReleasesToGenericItems(): Promise<void> {
         };
       }
 
+      if (path === "/album") {
+        assert(query.id === "112233", "saved releases should fetch album detail by album id");
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: {
+              publishTime: 1441900800000,
+            },
+            songs: [
+              {
+                id: 555001,
+                name: "Track One",
+                ar: [{ id: 9001, name: "Album Artist" }],
+                dt: 210000,
+                cd: "1",
+                no: 1,
+              },
+              {
+                id: 555002,
+                name: "Track Two",
+                ar: [{ id: 9001, name: "Album Artist" }],
+                dt: 180000,
+                cd: "1",
+                no: 2,
+              },
+            ],
+          },
+        };
+      }
+
       throw new Error(`unexpected request path: ${path}`);
     },
   });
@@ -896,6 +927,11 @@ async function readItemsMapsSavedReleasesToGenericItems(): Promise<void> {
   assert(item.sourceRef.id === "112233", "source ref should use stable NetEase album id");
   assert(item.canonicalHints?.label === "Kept Album", "release hints should include generic release label");
   assert(item.canonicalHints?.artistLabels?.[0] === "Album Artist", "release hints should include artist labels");
+  assert(item.canonicalHints?.releaseDate === "2015-09-11", "release hints should include album publish date");
+  assert(item.canonicalHints?.tracklist?.length === 2, "release hints should include a structured tracklist");
+  assert(item.canonicalHints?.tracklist?.[0]?.sourceRef?.id === "555001", "tracklist should preserve source track refs");
+  assert(item.canonicalHints?.tracklist?.[0]?.trackNumber === 1, "tracklist should preserve track numbers");
+  assert(item.canonicalHints?.tracklist?.[1]?.durationMs === 180000, "tracklist should preserve track duration");
   assert(!("raw" in item), "release item should not expose raw provider payload");
 }
 
@@ -943,6 +979,17 @@ async function readItemsPaginatesSavedReleases(): Promise<void> {
             },
           };
         }
+      }
+
+      if (path === "/album") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: {},
+            songs: [],
+          },
+        };
       }
 
       throw new Error(`unexpected request path: ${path}`);
@@ -1370,6 +1417,17 @@ async function readItemsReportsPartialWhenPaginationFailsAfterItems(): Promise<v
             message: "NetEase failed next album page.",
             module: "source",
             retryable: true,
+          },
+        };
+      }
+
+      if (path === "/album") {
+        return {
+          ok: true,
+          value: {
+            code: 200,
+            album: {},
+            songs: [],
           },
         };
       }

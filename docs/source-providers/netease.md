@@ -126,6 +126,13 @@ ordering/count. If the album request fails, is malformed, or does not include
 the song, the saved-recording item is still returned without album-enriched
 facts. Preview samples do not perform this album enrichment.
 
+Saved releases also fetch `/album?id=<albumId>` best-effort after
+`/album/sublist`. The album payload can populate
+`canonicalHints.releaseDate` and a structured release `tracklist`, including
+track source refs when NetEase exposes stable song ids, source-side disc/track
+order, duration, and visible artist labels. If the album request fails or is
+malformed, the saved-release item is still returned without those extra facts.
+
 ## Boundary Rules
 
 - NetEase track ids are source refs, not MineMusic canonical refs.

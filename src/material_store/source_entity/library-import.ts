@@ -1335,6 +1335,7 @@ function sourceReleaseForPlatformItem({
     ...(hints?.artistLabels === undefined ? {} : { artistLabels: hints.artistLabels }),
     ...(hints?.artistSourceRefs === undefined ? {} : { artistSourceRefs: hints.artistSourceRefs }),
     ...(hints?.releaseDate === undefined ? {} : { releaseDate: hints.releaseDate }),
+    ...(hints?.tracklist === undefined ? {} : { tracklist: hints.tracklist }),
     ...(item.sourceRef.url === undefined ? {} : { providerUrl: item.sourceRef.url }),
     ...(hints === undefined ? {} : { providerFacts: { canonicalHints: hints } }),
     createdAt,

@@ -96,6 +96,7 @@ import type {
   SourceLibraryItemStatus,
   SourceProvider,
   SourceRelease,
+  SourceReleaseTracklistItem,
   SourceReleaseTrackPosition,
   SourceTrack,
   StageError,
@@ -423,6 +424,16 @@ type _sourceReleaseTrackPositionKeys = Expect<
     Equal<SourceReleaseTrackPosition["trackCount"], number | undefined>
 >;
 
+type _sourceReleaseTracklistItemKeys = Expect<
+  Equal<
+    keyof SourceReleaseTracklistItem,
+    "sourceRef" | "title" | "artistLabels" | "discNumber" | "trackNumber" | "trackCount" | "durationMs"
+  > &
+    Equal<SourceReleaseTracklistItem["sourceRef"], Ref | undefined> &
+    Equal<SourceReleaseTracklistItem["title"], string> &
+    Equal<SourceReleaseTracklistItem["artistLabels"], string[] | undefined>
+>;
+
 type _platformLibraryCanonicalHintsKeys = Expect<
   Equal<
     keyof PlatformLibraryCanonicalHints,
@@ -432,10 +443,12 @@ type _platformLibraryCanonicalHintsKeys = Expect<
     | "releaseLabel"
     | "releaseSourceRef"
     | "releaseDate"
+    | "tracklist"
     | "durationMs"
     | "trackPosition"
   > &
     Equal<PlatformLibraryCanonicalHints["releaseDate"], string | undefined> &
+    Equal<PlatformLibraryCanonicalHints["tracklist"], SourceReleaseTracklistItem[] | undefined> &
     Equal<PlatformLibraryCanonicalHints["trackPosition"], SourceReleaseTrackPosition | undefined>
 >;
 
@@ -1379,6 +1392,17 @@ const platformLibraryItem: PlatformLibraryItem = {
     artistSourceRefs: [{ namespace: "source:fixture-library", kind: "artist", id: "artist-1" }],
     releaseLabel: "Fixture Release",
     releaseSourceRef: { namespace: "source:fixture-library", kind: "album", id: "release-1" },
+    tracklist: [
+      {
+        sourceRef: { namespace: "source:fixture-library", kind: "track", id: "track-1" },
+        title: "Fixture Track 1",
+        artistLabels: ["Fixture Artist"],
+        discNumber: "1",
+        trackNumber: 1,
+        trackCount: 10,
+        durationMs: 123456,
+      },
+    ],
     trackPosition: {
       discNumber: "1",
       trackNumber: 3,

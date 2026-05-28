@@ -879,6 +879,10 @@
 - Completed Phase 5 documentation/state sync across `ARCHITECTURE.md`,
   `CURRENT_STATE.md`, `INDEX.md`, `PROGRESS.md`,
   `docs/material-store/progress.md`, and Library Import docs.
+- Added structured SourceRelease tracklists to Source Entity Store contracts and
+  NetEase saved-release import wiring. NetEase `/album` detail now enriches
+  saved releases with release date plus tracklist facts, and Library Import
+  persists those facts onto SourceRelease entities.
 
 ## Next
 

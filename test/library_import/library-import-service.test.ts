@@ -686,6 +686,90 @@ async function importsSameLabelDifferentSourceRefsAsSeparateSourceEntities(): Pr
   assert(savedItems.length === 0, "Collection should stay canonical-only for unbound source imports");
 }
 
+async function importsSavedReleaseTracklistIntoSourceEntityStore(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_releases",
+              status: "complete",
+              items: [
+                providerReleaseItem("release-1", "Fixture Release - Fixture Artist", {
+                  label: "Fixture Release",
+                  artistLabels: ["Fixture Artist"],
+                  releaseDate: "2024-01-02",
+                  tracklist: [
+                    {
+                      sourceRef: sourceTrackRef("track-1"),
+                      title: "Opening Track",
+                      artistLabels: ["Fixture Artist"],
+                      discNumber: "1",
+                      trackNumber: 1,
+                      trackCount: 2,
+                      durationMs: 210000,
+                    },
+                    {
+                      sourceRef: sourceTrackRef("track-2"),
+                      title: "Closing Track",
+                      artistLabels: ["Fixture Artist"],
+                      discNumber: "1",
+                      trackNumber: 2,
+                      trackCount: 2,
+                      durationMs: 180000,
+                    },
+                  ],
+                }),
+              ],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+
+  const report = await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_releases"],
+    }),
+  );
+  const storedRelease = await assertOk(
+    environment.materialStore.getSourceEntity({
+      sourceRef: releaseSourceRef("release-1", "Fixture Release"),
+    }),
+  );
+
+  assert(report.items.length === 1, "saved release import should report the provider release item");
+  assert(storedRelease?.kind === "release", "saved release import should store a SourceRelease");
+  assert(storedRelease?.releaseDate === "2024-01-02", "SourceRelease should keep provider release date");
+  assert(storedRelease?.tracklist?.length === 2, "SourceRelease should keep structured release tracklist");
+  assert(storedRelease?.tracklist?.[0]?.sourceRef?.id === "track-1", "tracklist should keep source track refs");
+  assert(storedRelease?.tracklist?.[1]?.trackNumber === 2, "tracklist should keep track ordering");
+}
+
 async function cachesSavedCollectionMembershipDuringImportBatch(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
@@ -1390,6 +1474,17 @@ function providerItem(id: string, label: string, canonicalHints?: PlatformLibrar
   } as const;
 }
 
+function providerReleaseItem(id: string, label: string, canonicalHints?: PlatformLibraryItem["canonicalHints"]) {
+  return {
+    providerId: "fixture-library",
+    sourceRef: releaseSourceRef(id, label),
+    itemKind: "saved_release",
+    targetKind: "release",
+    label,
+    ...(canonicalHints === undefined ? {} : { canonicalHints }),
+  } as const;
+}
+
 function sourceRef(id: string): Ref {
   return {
     namespace: "source:fixture-library",
@@ -1404,6 +1499,14 @@ function artistSourceRef(id: string, label: string): Ref {
     kind: "artist",
     id,
     label,
+  };
+}
+
+function sourceTrackRef(id: string): Ref {
+  return {
+    namespace: "source:fixture-library",
+    kind: "track",
+    id,
   };
 }
 
@@ -1425,6 +1528,7 @@ await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
 await importsSameLabelDifferentSourceRefsAsSeparateSourceEntities();
+await importsSavedReleaseTracklistIntoSourceEntityStore();
 await cachesSavedCollectionMembershipDuringImportBatch();
 await returnsStoredSummaryAfterServiceRecreation();
 await doesNotStoreCompleteSnapshotForPartialImportReads();

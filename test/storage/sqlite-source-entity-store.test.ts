@@ -46,6 +46,18 @@ async function persistsSourceEntitiesLibraryAndBindingsAcrossReopen(): Promise<v
     providerId: "fixture-library",
     label: "Fixture Release",
     title: "Fixture Release",
+    releaseDate: "2026-05-28",
+    tracklist: [
+      {
+        sourceRef: trackRef,
+        title: "Fixture Track",
+        artistLabels: ["Fixture Artist"],
+        discNumber: "1",
+        trackNumber: 1,
+        trackCount: 1,
+        durationMs: 210000,
+      },
+    ],
     createdAt: "2026-05-28T00:00:00.000Z",
     updatedAt: "2026-05-28T00:00:00.000Z",
   };
@@ -85,6 +97,7 @@ async function persistsSourceEntitiesLibraryAndBindingsAcrossReopen(): Promise<v
 
     const reopenedRepository = createSqliteSourceEntityStoreRepository({ path: databasePath });
     const loadedTrack = await assertOk(reopenedRepository.getSourceEntity({ sourceRef: trackRef }));
+    const loadedRelease = await assertOk(reopenedRepository.getSourceEntity({ sourceRef: releaseRef }));
     const listedTracks = await assertOk(
       reopenedRepository.listSourceEntities({
         providerId: "fixture-library",
@@ -119,6 +132,8 @@ async function persistsSourceEntitiesLibraryAndBindingsAcrossReopen(): Promise<v
     );
 
     assert(loadedTrack?.label === "Fixture Track", "reopened repository should load source entities");
+    assert(loadedRelease?.kind === "release", "reopened repository should load release entities");
+    assert(loadedRelease?.tracklist?.[0]?.title === "Fixture Track", "reopened repository should preserve release tracklists");
     assert(listedTracks.length === 1 && listedTracks[0]?.sourceRef.id === "track-1", "repository should filter source entities");
     assert(loadedLibraryItem?.label === "Fixture Track", "reopened repository should load source library items");
     assert(listedLibraryItems.length === 1, "repository should filter source library items");

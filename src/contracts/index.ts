@@ -228,6 +228,16 @@ export type SourceReleaseTrackPosition = {
   trackCount?: number;
 };
 
+export type SourceReleaseTracklistItem = {
+  sourceRef?: Ref;
+  title: string;
+  artistLabels?: string[];
+  discNumber?: string;
+  trackNumber?: number;
+  trackCount?: number;
+  durationMs?: number;
+};
+
 export type CanonicalProvisionalHintKind =
   | "source_recording_context"
   | (string & {});
@@ -543,6 +553,7 @@ export type SourceRelease = SourceEntityBase & {
   artistLabels?: string[];
   artistSourceRefs?: Ref[];
   releaseDate?: string;
+  tracklist?: SourceReleaseTracklistItem[];
   providerUrl?: string;
   providerFacts?: Record<string, unknown>;
 };
@@ -777,6 +788,7 @@ export type PlatformLibraryCanonicalHints = {
   releaseLabel?: string;
   releaseSourceRef?: Ref;
   releaseDate?: string;
+  tracklist?: SourceReleaseTracklistItem[];
   durationMs?: number;
   trackPosition?: SourceReleaseTrackPosition;
 };

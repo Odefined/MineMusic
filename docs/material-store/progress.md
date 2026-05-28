@@ -12,7 +12,8 @@ This file tracks implementation progress for Material Store.
   maintenance, provisional review facts, and canonical graph maintenance.
 - Source Entity Store contracts are defined in `src/contracts/index.ts` and
   `src/ports/index.ts`. It owns Source Track/Release/Artist, Source Library
-  items, and Confirmed Canonical Bindings.
+  items, Confirmed Canonical Bindings, and structured SourceRelease tracklists
+  when providers expose release track order.
 - In-memory Source Entity Store storage is exported from `src/storage/index.ts`.
   SQLite Source Entity Store storage is implemented in
   `src/storage/sqlite/source-entity-schema.ts` and
@@ -29,7 +30,8 @@ This file tracks implementation progress for Material Store.
 - Library Import writes every observed provider item into Source Entity Store
   and Source Library. It writes Collection only when a Confirmed Canonical
   Binding already maps the source entity to an existing canonical record.
-  Unbound provider items remain Source Library state and are reported as
+  SourceRelease imports preserve provider release date and structured tracklist
+  facts. Unbound provider items remain Source Library state and are reported as
   unresolved/skipped.
 - Material Resolve depends on `MaterialStorePort`. It resolves canonical refs
   first, uses Confirmed Canonical Bindings for source refs, reads Source Library

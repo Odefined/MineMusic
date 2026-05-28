@@ -199,10 +199,11 @@ host-facing and LLM-facing surface.
   working state through `LibraryImportRepository`, upserts Source Track/Release/
   Artist entities, updates Source Library state for every observed provider
   item, and writes Collection only when a Confirmed Canonical Binding already
-  connects the source entity to a canonical record. Unbound provider items are
-  kept as Source Library state and reported as unresolved/skipped; ordinary
-  import no longer creates provisional canonical records or attaches
-  `canonical_source_refs`.
+  connects the source entity to a canonical record. SourceRelease entities now
+  preserve a structured provider tracklist when the provider can supply one.
+  Unbound provider items are kept as Source Library state and reported as
+  unresolved/skipped; ordinary import no longer creates provisional canonical
+  records or attaches `canonical_source_refs`.
 - Library Import public tools remain `library.import.preview`,
   `library.import.start`, `library.update.preview`, `library.update.start`,
   `library.import.status`, and `library.import.summary`, exposed under the
@@ -243,8 +244,9 @@ host-facing and LLM-facing surface.
   saved album / followed artist reads. Saved-recording reads now best-effort
   fetch `/album?id=<albumId>` once per distinct album id to populate
   platform-neutral `canonicalHints.releaseDate` and
-  `canonicalHints.trackPosition`; failed album enrichment does not fail the
-  saved-recording read.
+  `canonicalHints.trackPosition`. Saved-release reads now use the same album
+  detail endpoint to populate `canonicalHints.releaseDate` and a structured
+  release `tracklist`; failed album enrichment does not fail the read.
   `preview` reports readable availability, counts, bounded lightweight samples,
   and unsupported discovery areas. `readItems` now reports complete, failed,
   partial, and unavailable per-area statuses so one area failure does not erase
