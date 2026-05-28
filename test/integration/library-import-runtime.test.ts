@@ -6,7 +6,6 @@ import type {
   CanonicalRecord,
   CollectionItem,
   ConfirmedCanonicalBinding,
-  LibraryImportPreview,
   LibraryImportReport,
   PlatformLibraryItem,
   PlatformLibraryPreviewArea,
@@ -300,32 +299,14 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
       ]),
     ];
 
-    const discovery = await assertOk(
-      stageCore.stageInterface.tools["library.import.preview"]({
-        providerId: platformLibraryProvider.id,
-        scopes: ["discovery"],
-      }) as Promise<Result<LibraryImportPreview>>,
+    assert(
+      !("library.import.preview" in stageCore.stageInterface.tools),
+      "Stage Interface should keep library import preview internal",
     );
     assert(
-      providerState.readCalls.length === 0,
-      "discovery preview should not read platform-library items",
+      !("library.update.preview" in stageCore.stageInterface.tools),
+      "Stage Interface should keep library update preview internal",
     );
-    assert(
-      discovery.areas.some((area) => area.area === "playlists" && area.availability === "unsupported"),
-      "discovery preview should expose unsupported provider areas",
-    );
-
-    const preview = await assertOk(
-      stageCore.stageInterface.tools["library.import.preview"]({
-        providerId: platformLibraryProvider.id,
-        scopes: ["saved_source_tracks"],
-      }) as Promise<Result<LibraryImportPreview>>,
-    );
-    const previewArea = preview.areas[0];
-
-    assert(preview.ownerScope === "local_profile:default", "Stage Interface should default Library Import owner scope");
-    assert(previewArea?.sourceLibraryEstimates.alreadyPresent === 0, "preview should estimate Source Library presence, not canonical state");
-    assert(previewArea?.sourceLibraryEstimates.wouldImport === 4, "preview should count all unseen source items as importable");
 
     const firstImport = await assertOk(
       stageCore.stageInterface.tools["library.import.start"]({
@@ -387,21 +368,6 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     );
     await putRuntimeConfirmedBinding(stageCore, sourceRef("new-update-track"), newUpdateCanonical.ref);
 
-    const updatePreview = await assertOk(
-      stageCore.stageInterface.tools["library.update.preview"]({
-        providerId: platformLibraryProvider.id,
-        scopes: ["saved_source_tracks"],
-      }) as Promise<Result<LibraryImportPreview>>,
-    );
-    const updatePreviewArea = updatePreview.areas[0];
-
-    assert(updatePreviewArea?.updateEstimates?.alreadyPresent === 2, "update preview should classify still-present source items");
-    assert(updatePreviewArea?.updateEstimates?.newlyObserved === 2, "update preview should classify newly observed items");
-    assert(
-      updatePreviewArea?.updateEstimates?.noLongerReturned === 2,
-      "update preview should classify baseline items no longer returned",
-    );
-
     const updateReport = await assertOk(
       stageCore.stageInterface.tools["library.update.start"]({
         providerId: platformLibraryProvider.id,
@@ -443,9 +409,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
 
     const mcpToolNames = createMineMusicMcpToolDefinitions(stageCore).map((definition) => definition.name);
     const libraryImportToolNames = [
-      "library.import.preview",
       "library.import.start",
-      "library.update.preview",
       "library.update.start",
       "library.import.status",
       "library.import.summary",
@@ -512,12 +476,6 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
       },
     ];
 
-    const partialPreview = await assertOk(
-      stageCore.stageInterface.tools["library.update.preview"]({
-        providerId: platformLibraryProvider.id,
-        scopes: ["saved_source_tracks"],
-      }) as Promise<Result<LibraryImportPreview>>,
-    );
     const partialReport = await assertOk(
       stageCore.stageInterface.tools["library.update.start"]({
         providerId: platformLibraryProvider.id,
@@ -530,10 +488,6 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
       }),
     );
 
-    assert(
-      partialPreview.areas[0]?.updateEstimates?.noLongerReturned === 0,
-      "partial update preview should not derive absences",
-    );
     assert(partialReport.counts.absentItems === 0, "partial update start should not count absences");
     assert(absences.length === 0, "partial update start should not store absence records");
   } finally {

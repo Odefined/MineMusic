@@ -5,15 +5,9 @@ import type {
   LibraryImportContinueInput,
   LibraryImportItemsListInput,
   InstrumentDescriptor,
-  SourceEntity,
-  SourceLibraryEntry,
-  SourceLibraryItem,
-  SourceLibraryListInput,
-  LibraryImportPreviewInput,
   LibraryImportStartInput,
   LibraryImportStatusInput,
   LibraryImportSummaryInput,
-  LibraryUpdatePreviewInput,
   LibraryUpdateStartInput,
   KnowledgeQuery,
   MaterialResolveRequest,
@@ -27,6 +21,10 @@ import type {
   Result,
   StageError,
   StageEvent,
+  SourceEntity,
+  SourceLibraryEntry,
+  SourceLibraryItem,
+  SourceLibraryListInput,
   ToolName,
 } from "../contracts/index.js";
 import {
@@ -385,18 +383,6 @@ export function createToolDispatch({
           return page.ok ? ok(compactSourceLibraryList(page.value)) : page;
         }
 
-        case "library.import.preview": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          return availableLibraryImport.value.previewImport(
-            readPayload<LibraryImportPreviewInput>(payload, { ownerScope: defaultOwnerScope }),
-          );
-        }
-
         case "library.import.start": {
           const availableLibraryImport = readLibraryImport(libraryImport);
 
@@ -420,18 +406,6 @@ export function createToolDispatch({
 
           return availableLibraryImport.value.continueImport(
             readPayload<LibraryImportContinueInput>(payload),
-          );
-        }
-
-        case "library.update.preview": {
-          const availableLibraryImport = readLibraryImport(libraryImport);
-
-          if (!availableLibraryImport.ok) {
-            return availableLibraryImport;
-          }
-
-          return availableLibraryImport.value.previewUpdate(
-            readPayload<LibraryUpdatePreviewInput>(payload, { ownerScope: defaultOwnerScope }),
           );
         }
 

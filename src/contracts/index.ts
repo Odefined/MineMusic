@@ -1012,6 +1012,37 @@ export type LibraryImportPreview = {
   issues?: PlatformLibraryIssue[];
 };
 
+export type LibraryImportPreviewSampleView = {
+  label: string;
+  subtitle?: string;
+};
+
+export type LibraryImportPreviewAreaView = {
+  scope: LibraryImportScope;
+  area: PlatformLibraryArea;
+  availability: PlatformLibraryAvailability;
+  count?: PlatformLibraryCount;
+  samples?: LibraryImportPreviewSampleView[];
+  issues?: PlatformLibraryIssue[];
+  wouldImport?: number;
+  newlyObserved?: number;
+  absentItems?: number;
+  absenceExamples?: Array<{
+    sourceRef: Ref;
+    label: string;
+  }>;
+};
+
+export type LibraryImportPreviewView = {
+  providerId: string;
+  ownerScope: string;
+  scopes: LibraryImportScope[];
+  mode?: LibraryUpdateMode;
+  account?: PlatformLibraryAccountIdentity;
+  areas: LibraryImportPreviewAreaView[];
+  issues?: PlatformLibraryIssue[];
+};
+
 export type LibraryImportItemStatus =
   | "imported"
   | "already_present"
@@ -1449,10 +1480,8 @@ export type ToolName =
   | "music.collection.delete"
   | "music.collection.list"
   | "library.source.list"
-  | "library.import.preview"
   | "library.import.start"
   | "library.import.continue"
-  | "library.update.preview"
   | "library.update.start"
   | "library.update.continue"
   | "library.import.status"

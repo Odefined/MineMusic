@@ -4,7 +4,6 @@ import { join } from "node:path";
 
 import type {
   KnowledgeProvider,
-  LibraryImportPreview,
   MusicMaterial,
   PlatformLibraryProvider,
   Result,
@@ -67,10 +66,6 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
   assert(
     codexToolNameFor("music.collection.save") === "minemusic.music.collection.save",
     "MCP should expose collection tools with the MineMusic prefix",
-  );
-  assert(
-    codexToolNameFor("library.import.preview") === "minemusic.library.import.preview",
-    "MCP should expose library import tools with the MineMusic prefix",
   );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
 }
@@ -182,12 +177,8 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "source library list schema should declare filtering and paging inputs",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.library.import.preview"), "providerId"),
-    "library import preview schema should declare provider id input",
-  );
-  assert(
-    hasSchemaKey(schemasByName.get("minemusic.library.import.preview"), "scopes"),
-    "library import preview schema should declare scopes input",
+    !schemasByName.has("minemusic.library.import.preview"),
+    "library import preview should not have an MCP schema because it is not exposed",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.library.import.continue"), "batchId"),
@@ -385,25 +376,8 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
   const importPreviewTool = definitions.find(
     (definition) => definition.name === "minemusic.library.import.preview",
   );
-  assert(importPreviewTool !== undefined, "library import preview tool should be exposed through MCP");
-
-  const response = await importPreviewTool.handler({
-    providerId: platformLibraryProvider.id,
-    scopes: ["saved_source_tracks"],
-  });
-  const firstContent = response.content[0];
-  assert(firstContent?.type === "text", "MCP handler should return text content");
-
-  const result = JSON.parse(firstContent.text) as Result<LibraryImportPreview>;
-  assert(result.ok, "MCP handler should return the Library Import preview result");
-  assert(
-    result.value.ownerScope === "local_profile:default",
-    "MCP Library Import tool should preserve Stage Interface owner-scope default",
-  );
-  assert(
-    previewCalls[0]?.areas?.includes("saved_source_tracks"),
-    "MCP Library Import tool should route requested scopes through Stage Interface dispatch",
-  );
+  assert(importPreviewTool === undefined, "library import preview should stay internal to the runtime");
+  assert(previewCalls.length === 0, "MCP should not route preview reads when preview is not exposed");
 }
 
 async function defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary(): Promise<void> {

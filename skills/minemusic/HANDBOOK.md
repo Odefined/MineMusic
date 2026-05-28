@@ -170,11 +170,6 @@ Output: `CollectionListOutput`
 Description: List Source Library items in bounded pages as short cards.
 Input: `SourceLibraryListInput`
 Output: `SourceLibraryListOutput`
-#### `library.import.preview`
-
-Description: Preview importing saved platform library facts into MineMusic state.
-Input: `LibraryImportPreviewInput`
-Output: `LibraryImportPreview`
 #### `library.import.start`
 
 Description: Start importing saved platform library facts into MineMusic state.
@@ -185,11 +180,6 @@ Output: `LibraryImportStatus`
 Description: Continue an existing saved platform library import batch.
 Input: `LibraryImportContinueInput`
 Output: `LibraryImportStatus`
-#### `library.update.preview`
-
-Description: Preview a platform library update against MineMusic's latest complete baseline.
-Input: `LibraryUpdatePreviewInput`
-Output: `LibraryImportPreview`
 #### `library.update.start`
 
 Description: Start a platform library update against MineMusic's latest complete baseline.
@@ -222,4 +212,3 @@ Output: `LibraryImportItemsListOutput`
 Description: Create an evidence-backed memory proposal.
 Input: `MemoryProposalDraft`
 Output: `MemoryProposal`
-

@@ -25,10 +25,8 @@ export const stableToolNames = [
   "music.collection.delete",
   "music.collection.list",
   "library.source.list",
-  "library.import.preview",
   "library.import.start",
   "library.import.continue",
-  "library.update.preview",
   "library.update.start",
   "library.update.continue",
   "library.import.status",
@@ -206,12 +204,6 @@ export const libraryToolDescriptors: StableToolDescriptor[] = [
     outputSchemaRef: "SourceLibraryListOutput",
   },
   {
-    name: "library.import.preview",
-    description: "Preview importing saved platform library facts into MineMusic state.",
-    inputSchemaRef: "LibraryImportPreviewInput",
-    outputSchemaRef: "LibraryImportPreview",
-  },
-  {
     name: "library.import.start",
     description: "Start importing saved platform library facts into MineMusic state.",
     inputSchemaRef: "LibraryImportStartInput",
@@ -222,12 +214,6 @@ export const libraryToolDescriptors: StableToolDescriptor[] = [
     description: "Continue an existing saved platform library import batch.",
     inputSchemaRef: "LibraryImportContinueInput",
     outputSchemaRef: "LibraryImportStatus",
-  },
-  {
-    name: "library.update.preview",
-    description: "Preview a platform library update against MineMusic's latest complete baseline.",
-    inputSchemaRef: "LibraryUpdatePreviewInput",
-    outputSchemaRef: "LibraryImportPreview",
   },
   {
     name: "library.update.start",

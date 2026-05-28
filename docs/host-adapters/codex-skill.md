@@ -95,8 +95,19 @@ npm run mcp:minemusic:dev
 The live Handbook is exposed through MCP:
 
 - `minemusic.handbook.overview.read`
-- `minemusic.handbook.instrument.read`
-- `minemusic.handbook.tool.read`
+- `minemusic.handbook.instrument.read({ instrumentId })`
+- `minemusic.handbook.tool.read({ toolName })`
+
+Lookup keys are not interchangeable:
+
+- `instrumentId` must be an instrument id such as `minemusic.library` or
+  `minemusic.music`.
+- `toolName` must be an exact tool name such as `library.source.list` or
+  `music.material.resolve`.
+
+If a caller needs the current input/output contract for one operation, prefer
+`handbook.tool.read({ toolName })` instead of trying to look up a tool through
+`instrument.read`.
 
 The file `skills/minemusic/HANDBOOK.md` is a skill-local snapshot used for
 progressive disclosure when the skill loads. Stage Core must not default to

@@ -61,6 +61,8 @@ import type {
   LibraryImportPreview,
   LibraryImportPreviewArea,
   LibraryImportPreviewInput,
+  LibraryImportPreviewView,
+  LibraryImportPreviewAreaView,
   LibraryImportContinueInput,
   LibraryImportReport,
   LibraryImportProgress,
@@ -816,6 +818,26 @@ type _libraryImportPreviewAreaKeys = Expect<
 
 type _libraryImportPreviewKeys = Expect<
   Equal<keyof LibraryImportPreview, "providerId" | "ownerScope" | "scopes" | "account" | "areas" | "issues">
+>;
+
+type _libraryImportPreviewAreaViewKeys = Expect<
+  Equal<
+    keyof LibraryImportPreviewAreaView,
+    | "scope"
+    | "area"
+    | "availability"
+    | "count"
+    | "samples"
+    | "issues"
+    | "wouldImport"
+    | "newlyObserved"
+    | "absentItems"
+    | "absenceExamples"
+  >
+>;
+
+type _libraryImportPreviewViewKeys = Expect<
+  Equal<keyof LibraryImportPreviewView, "providerId" | "ownerScope" | "scopes" | "mode" | "account" | "areas" | "issues">
 >;
 
 type _libraryImportReportKeys = Expect<
@@ -1706,7 +1728,7 @@ const instrumentCatalog: InstrumentCatalogPort = {
 
 const toolName: ToolName = "music.material.resolve";
 const collectionToolName: ToolName = "music.collection.save";
-const libraryImportToolName: ToolName = "library.import.preview";
+const libraryImportToolName: ToolName = "library.import.start";
 const libraryUpdateToolName: ToolName = "library.update.start";
 const canonicalReviewToolName: ToolName = "canonical.review.apply";
 const canonicalReviewAutoUpdateToolName: ToolName = "canonical.review.auto_update";

@@ -3,10 +3,6 @@ import type {
   KnowledgeItem,
   KnowledgeNode,
   KnowledgeRelation,
-  SourceEntity,
-  SourceLibraryEntry,
-  SourceLibraryItem,
-  SourceLibraryListItemView,
   LibraryImportItemsListOutput,
   LibraryImportReport,
   LibraryImportStatus,
@@ -18,6 +14,10 @@ import type {
   ProvisionalReviewInspection,
   ProvisionalReviewListOutput,
   Ref,
+  SourceEntity,
+  SourceLibraryEntry,
+  SourceLibraryItem,
+  SourceLibraryListItemView,
 } from "../contracts/index.js";
 
 export function reviewSubjectRef(subjectId: string): Ref {

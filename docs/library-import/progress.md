@@ -40,10 +40,10 @@ This file tracks Library Import implementation progress.
   canonical and Source Entity Store state, while `libraryImportDatabasePath` /
   `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` persists import/update batch working state.
 - Stage Interface exposes Source Library read tools plus import/update
-  preview/start/continue tools through `minemusic.library` with stable external
+  start/continue tools through `minemusic.library` with stable external
   names: `library.source.list`,
-  `library.import.preview`, `library.import.start`,
-  `library.import.continue`, `library.update.preview`,
+  `library.import.start`,
+  `library.import.continue`,
   `library.update.start`, `library.update.continue`,
   `library.import.status`, `library.import.summary`, and
   `library.import.items.list`.
@@ -55,6 +55,10 @@ This file tracks Library Import implementation progress.
   instead of full item arrays. `library.import.summary` returns a compact
   summary view with aggregate counts and `itemCount`, and item-level detail is
   paged through `library.import.items.list`.
+- Preview tools now also return compact agent-facing views. They keep
+  provider/account/scope facts, short samples, and the change counts needed for
+  the next decision, but they no longer expose raw nested estimate buckets such
+  as `sourceLibraryEstimates` or `updateEstimates`.
 - Library Import continuation is implemented as MineMusic-owned batch
   continuation. Callers continue an existing batch with `batchId` plus an
   optional MineMusic `pageSize`; provider cursors, offsets, and page tokens

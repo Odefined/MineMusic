@@ -131,8 +131,10 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
   assert(toolNames.includes("music.collection.save"), "catalog should expose collection save tool");
   assert(toolNames.includes("music.collection.create"), "catalog should expose custom collection create tool");
   assert(toolNames.includes("music.collection.list"), "catalog should expose collection list tool");
-  assert(toolNames.includes("library.import.preview"), "catalog should expose library import preview");
   assert(toolNames.includes("library.update.start"), "catalog should expose library update start");
+  const exposedToolNames = toolNames.map((toolName) => String(toolName));
+  assert(!exposedToolNames.includes("library.import.preview"), "catalog should keep library import preview internal");
+  assert(!exposedToolNames.includes("library.update.preview"), "catalog should keep library update preview internal");
 }
 
 async function exposesCanonicalReviewToolsOnlyInReviewPosture(): Promise<void> {
@@ -208,7 +210,8 @@ async function treatsActiveInstrumentsAsSessionMetadataOnly(): Promise<void> {
     instrumentIds.join(",") === "minemusic.handbook,minemusic.stage,minemusic.knowledge,minemusic.music,minemusic.library,minemusic.memory",
     "activeInstruments should not filter the instrument catalog",
   );
-  assert(toolNames.includes("library.import.preview"), "catalog should still expose library tools");
+  const activeToolNames = toolNames.map((toolName) => String(toolName));
+  assert(!activeToolNames.includes("library.import.preview"), "catalog should keep preview tools internal");
   assert(toolNames.includes("music.material.resolve"), "catalog should still expose music tools");
   assert(toolNames.includes("stage.events.record"), "catalog should still expose stage tools");
 }
@@ -956,18 +959,10 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     activeInstruments: ["minemusic.canonical_review"],
   };
   const libraryImport: LibraryImportPort = {
-    previewImport: async ({ providerId, ownerScope, scopes }) => {
-      calls.push(`previewImport:${providerId}:${ownerScope}:${scopes.join("+")}`);
-      return {
-        ok: true,
-        value: {
-          providerId,
-          ownerScope: ownerScope ?? "missing",
-          scopes,
-          areas: [],
-        },
-      };
-    },
+    previewImport: async () => ({
+      ok: false,
+      error: { code: "unused", message: "unused", retryable: false, module: "stage_interface" },
+    }),
     startImport: async ({ providerId, ownerScope, scopes }) => {
       calls.push(`startImport:${providerId}:${ownerScope}:${scopes.join("+")}`);
       return {
@@ -988,18 +983,10 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
         value: libraryImportStatus({ batchId }),
       };
     },
-    previewUpdate: async ({ providerId, ownerScope, scopes, mode }) => {
-      calls.push(`previewUpdate:${providerId}:${ownerScope}:${scopes.join("+")}:${mode ?? "full"}`);
-      return {
-        ok: true,
-        value: {
-          providerId,
-          ownerScope: ownerScope ?? "missing",
-          scopes,
-          areas: [],
-        },
-      };
-    },
+    previewUpdate: async () => ({
+      ok: false,
+      error: { code: "unused", message: "unused", retryable: false, module: "stage_interface" },
+    }),
     startUpdate: async ({ providerId, ownerScope, scopes, mode }) => {
       calls.push(`startUpdate:${providerId}:${ownerScope}:${scopes.join("+")}:${mode ?? "full"}`);
       return {
@@ -1099,13 +1086,6 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     libraryImport,
   });
 
-  await assertOk(
-    dispatch.call({
-      sessionId: session.id,
-      toolName: "library.import.preview",
-      payload: { providerId: "fixture-library", scopes: ["saved_source_tracks"] },
-    }),
-  );
   const startResult = await assertOk(
     dispatch.call({
       sessionId: session.id,
@@ -1118,13 +1098,6 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
       sessionId: session.id,
       toolName: "library.import.continue",
       payload: { batchId: "import-batch-1", pageSize: 20 },
-    }),
-  );
-  await assertOk(
-    dispatch.call({
-      sessionId: session.id,
-      toolName: "library.update.preview",
-      payload: { providerId: "fixture-library", scopes: ["saved_source_artists"], mode: "latest_until_seen" },
     }),
   );
   const updateStartResult = await assertOk(
@@ -1164,18 +1137,10 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   );
 
   assert(
-    calls.includes("previewImport:fixture-library:local_profile:default:saved_source_tracks"),
-    "library import preview should default missing owner scope",
-  );
-  assert(
     calls.includes("startImport:fixture-library:local_profile:guest:saved_source_releases"),
     "library import start should preserve explicit owner scope",
   );
   assert(calls.includes("continueImport:import-batch-1"), "library import continue should route by batch id");
-  assert(
-    calls.includes("previewUpdate:fixture-library:local_profile:default:saved_source_artists:latest_until_seen"),
-    "library update preview should default missing owner scope and pass mode through",
-  );
   assert(
     calls.includes("startUpdate:fixture-library:local_profile:default:saved_source_tracks:latest_until_seen"),
     "library update start should default missing owner scope and pass mode through",

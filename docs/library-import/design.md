@@ -369,9 +369,9 @@ endpoint behavior.
 followed platform items. It is not a substitute for `full` when the caller needs
 deletion/absence detection or a complete current baseline.
 
-`library.update.preview` and `library.update.start` default to `full` when the
-caller does not provide a mode. `latest_until_seen` must be requested
-explicitly for either preview or start.
+Internal preview/update planning and `library.update.start` default to `full`
+when the caller does not provide a mode. `latest_until_seen` must be requested
+explicitly.
 
 Preview and start should use the same mode semantics. `full` preview may
 estimate newly observed items and possible absences without writing state.
@@ -598,15 +598,13 @@ later recommendation or collection-read flow.
 
 ## Stage Interface Tools
 
-Do not expose database-shaped tools.
+Do not expose database-shaped tools or low-value preview tools to agents.
 
 Expose user-semantic tools:
 
 ```text
-library.import.preview
 library.import.start
 library.import.continue
-library.update.preview
 library.update.start
 library.update.continue
 library.import.status
@@ -614,9 +612,10 @@ library.import.summary
 library.import.items.list
 ```
 
-Import and update use separate preview/start tools because they represent
-different user intents. They share the same Import Batch/report model underneath,
-so continuation, status, and summary can remain batch-id based and shared.
+Agent-facing import and update start tools share the same Import Batch/report
+model underneath, so continuation, status, and summary can remain batch-id
+based and shared. Preview remains an internal service capability and is not part
+of the normal agent tool surface.
 
 Import scope names should be MineMusic-owned and platform-neutral:
 
@@ -640,16 +639,9 @@ Platform Library Provider marks `readable`.
 
 Expected behavior:
 
-- `library.import.preview` checks the requested initial import scope and
-  gives counts when the platform supports counts.
-- `library.import.preview` may also accept a discovery-style scope for
-  "show me what can be imported" and return provider-supported library areas
-  with counts or availability notes.
-- `library.update.preview` checks the requested update scope against the
-  latest eligible Library Import baseline and reports what `library.update.start`
-  would do without writing.
-- `library.update.preview` should report factual update categories:
-  newly observed, already present, and no longer returned by the provider.
+- Internal preview may check the requested import or update scope before
+  execution, but agent-facing workflows should go straight through
+  `library.import.start` or `library.update.start`.
 - Discovery preview may include provider-visible library areas that MineMusic
   does not yet support importing, such as playlists, as structured
   `unsupported` availability facts.
@@ -670,6 +662,9 @@ Expected behavior:
   estimates are aggregate counts.
 - Both preview tools should estimate Source Library outcomes without writing:
   already present in Source Library or would import into Source Library.
+  The default agent-facing preview view should compress those estimates into
+  decision-facing fields such as `wouldImport`, `newlyObserved`, and
+  `absentItems`, rather than exposing raw nested estimate buckets.
 - Preview does not write Canonical Store records, Collection items, import
   events, or import batches. It may read from the platform provider and from
   MineMusic state to estimate what `start` would do.
@@ -828,10 +823,6 @@ The preview result should include:
   as exact, at least, or unknown.
 - bounded lightweight provider samples.
 - estimated Source Library counts: already present or would import.
-- for `library.update.preview`, factual update counts: newly observed, already
-  present, and no longer returned by the provider.
-- for update preview absence estimates, enough baseline-derived item facts to
-  let the LLM explain what would be marked absent.
 - structured provider/account errors such as login required.
 - structured account-selection errors such as `account_selection_required`.
 - structured warnings for partial provider or scope failures.

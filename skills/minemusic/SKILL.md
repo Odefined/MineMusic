@@ -23,12 +23,37 @@ query such as `minemusic knowledge query` or `minemusic handbook`, then use the
 loaded native `mcp__minemusic__.*` tools. Do not treat SDK, curl, or direct MCP
 client calls as a substitute for checking native Codex tool exposure.
 
+## Handbook Lookup
+
+Use the handbook tools by lookup level:
+
+- `minemusic.handbook.overview.read`
+  - Returns the current instrument overview.
+- `minemusic.handbook.instrument.read({ instrumentId })`
+  - Reads one instrument section such as `minemusic.library` or
+    `minemusic.music`.
+- `minemusic.handbook.tool.read({ toolName })`
+  - Reads one exact tool such as `library.source.list` or
+    `music.material.resolve`.
+
+Do not mix these lookup keys:
+
+- `instrumentId` is an instrument id like `minemusic.library`, not a tool name.
+- `toolName` is a tool name like `library.update.start`, not an instrument id.
+
+If you need the exact input/output contract for one operation, prefer
+`minemusic.handbook.tool.read` for that tool instead of guessing from the
+overview snapshot.
+
 ## Required Flow
 
 1. Read `HANDBOOK.md` in this skill directory when you need the packaged
    MineMusic instrument and tool overview.
-2. For current precise tool input/output details, call
-   `minemusic.handbook.tool.read`.
+2. For current live handbook details:
+   - use `minemusic.handbook.instrument.read({ instrumentId: "minemusic.library" })`
+     when you need one instrument section;
+   - use `minemusic.handbook.tool.read({ toolName: "library.update.start" })`
+     when you need one exact tool's current input/output shape.
 3. Call `minemusic.stage.context.read` for dynamic session context.
 4. Interpret the user's listening context yourself. "Writing code", "walking",
    "late night", or "not too sleepy" are listening context, not literal song

@@ -209,16 +209,20 @@ host-facing and LLM-facing surface.
   Source Library items and returns short cards only. It does not expose
   redundant provider/account identity fields, internal item ids, raw provider
   payloads, or full release tracklists. Import tools
-  remain `library.import.preview`, `library.import.start`,
-  `library.import.continue`, `library.update.preview`,
+  remain `library.import.start`,
+  `library.import.continue`,
   `library.update.start`, `library.update.continue`,
   `library.import.status`, `library.import.summary`, and
   `library.import.items.list`. The start tools return compact
   `LibraryImportStatus` payloads instead of full item arrays, summary returns a
   compact aggregate view with `itemCount`, and item-level detail is paged
-  through `library.import.items.list`. Preview estimates Source Library
-  observations without writing canonical identity or Collection state. When
-  the provider supports paged reads, import/update batches default to
+  through `library.import.items.list`. Preview now also returns a compact
+  view: short samples, `wouldImport` for import preview, and
+  `newlyObserved` / `absentItems` for update preview, without exposing raw
+  estimate buckets such as `sourceLibraryEstimates` or `updateEstimates`.
+  Preview estimates Source Library observations without writing canonical
+  identity or Collection state. When the provider supports paged reads,
+  import/update batches default to
   MineMusic-owned continuation batches keyed by `batchId`, using page size
   `50` unless the caller overrides it; provider cursors stay inside Library
   Import working state. Library Update compares complete provider reads with
@@ -439,8 +443,8 @@ host-facing and LLM-facing surface.
   discovery/reference/recovery; other tools require the focused active
   instrument that owns them.
 - Handbook provider capability sections are generated from
-  `InstrumentDescriptor.providers`; live Library Import counts and samples still
-  require `library.import.preview`.
+  `InstrumentDescriptor.providers`; preview remains an internal runtime
+  capability, not an agent-facing tool.
 - The MCP surface is exported from `src/surfaces/mcp/server.ts`.
   It prefixes tool names with `minemusic.` and delegates to
   `MineMusicStageInterface`, not provider or repository internals. Argument-bearing
