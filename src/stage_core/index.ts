@@ -7,13 +7,17 @@ import type {
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
-import { createCanonicalMaintenance, createCanonicalStore, createMaterialStore } from "../material_store/index.js";
+import {
+  createCanonicalMaintenance,
+  createCanonicalStore,
+  createLibraryImportService,
+  createMaterialStore,
+} from "../material_store/index.js";
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { writeInstrumentHandbookFile } from "../handbook/index.js";
 import { createMusicKnowledgeService } from "../knowledge/index.js";
-import { createLibraryImportService } from "../library_import/index.js";
 import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
@@ -252,7 +256,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   });
   const libraryImport = createLibraryImportService({
     pluginRegistry: plugins,
-    canonicalStore: canonical,
+    materialStore,
     collection,
     events,
     repository: libraryImportRepository,

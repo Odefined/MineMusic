@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type {
   CanonicalRecord,
   CollectionItem,
+  ConfirmedCanonicalBinding,
   LibraryImportPreview,
   LibraryImportReport,
   PlatformLibraryItem,
@@ -129,26 +130,16 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
         relationKind: "saved",
       }),
     );
-    const canonicalRecord = await assertOk(
-      stageCore.canonical.resolveSourceRef({
-        ref: importedSourceRef,
+    const sourceEntity = await assertOk(
+      stageCore.materialStore.getSourceEntity({
+        sourceRef: importedSourceRef,
       }),
     );
-    assert(canonicalRecord !== null, "Runtime Library Import should resolve the imported canonical record");
-
-    const relations = await assertOk(
-      stageCore.canonical.listRelations({
-        subjectRef: canonicalRecord.ref,
-      }),
-    );
-    const runtimeArtist = await assertOk(
-      stageCore.canonical.resolveSourceRef({
-        ref: runtimeArtistSourceRef("runtime-artist", "Runtime Artist"),
-      }),
-    );
-    const runtimeRelease = await assertOk(
-      stageCore.canonical.resolveSourceRef({
-        ref: runtimeReleaseSourceRef("runtime-release", "Runtime Release"),
+    const sourceLibraryItems = await assertOk(
+      stageCore.materialStore.listSourceLibraryItems({
+        ownerScope: "local_profile:default",
+        providerId: platformLibraryProvider.id,
+        providerAccountId: "runtime-account",
       }),
     );
     const importEvents = await assertOk(
@@ -163,50 +154,21 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
       "Stage Core should register the platform-library provider separately",
     );
     assert(readInputs[0]?.areas.includes("saved_recordings"), "Library Import should read the requested provider area");
-    assert(report.status === "completed", "Runtime Library Import should complete a clean import");
-    assert(report.counts.importedItems === 1, "Runtime Library Import should import the provider item");
-    assert(report.counts.canonicalRecordsCreated === 1, "Runtime Library Import should create canonical identity");
-    assert(report.counts.collectionItemsAdded === 1, "Runtime Library Import should save imported canonical identity");
+    assert(report.status === "completed_with_warnings", "unbound runtime import should complete with warnings");
+    assert(report.counts.importedItems === 0, "Runtime Library Import should not write Collection without a confirmed binding");
+    assert(report.counts.skippedItems === 1, "Runtime Library Import should report unbound source items as skipped");
+    assert(report.counts.canonicalRecordsCreated === 0, "Runtime Library Import should not create canonical identity");
+    assert(report.counts.collectionItemsAdded === 0, "Runtime Library Import should not save unbound source items");
     assert(
       batches.some((batch) => batch.id === report.batchId),
       "Runtime Library Import should use the injected import repository",
     );
-    assert(
-      savedItems.some((item: CollectionItem) => item.canonicalRef.id === canonicalRecord?.ref.id),
-      "Runtime Library Import should write through the composed Collection Service",
-    );
-    assert(
-      canonicalRecord?.sourceRefs?.some((ref) => ref.id === importedSourceRef.id),
-      "Runtime Library Import should bind the imported source ref through Canonical Store",
-    );
-    assert(runtimeArtist?.kind === "artist", "Runtime Library Import should create linked artist canonical records");
-    assert(runtimeRelease?.kind === "release", "Runtime Library Import should create linked release canonical records");
-    assert(
-      relations.some(
-        (relation) =>
-          relation.status === "provisional" &&
-          relation.predicate === "performed_by" &&
-          relation.objectLabel === "Runtime Artist" &&
-          relation.objectRef?.id === runtimeArtist?.ref.id,
-      ),
-      "Runtime Library Import should record provisional artist relations through Canonical Store",
-    );
-    assert(
-      relations.some(
-        (relation) =>
-          relation.predicate === "appears_on_release" &&
-          relation.objectLabel === "Runtime Release" &&
-          relation.objectRef?.id === runtimeRelease?.ref.id,
-      ),
-      "Runtime Library Import should record provisional release relations through Canonical Store",
-    );
-    assert(
-      relations.some((relation) => relation.predicate === "has_duration_ms" && relation.objectValue === 180000),
-      "Runtime Library Import should record provisional duration relations through Canonical Store",
-    );
+    assert(savedItems.length === 0, "Runtime Library Import should leave Collection unchanged without a binding");
+    assert(sourceEntity?.sourceRef.id === importedSourceRef.id, "Runtime Library Import should upsert a Source Entity");
+    assert(sourceLibraryItems.length === 1, "Runtime Library Import should write Source Library state");
     assert(
       importEvents.map((event) => event.type).join(",") ===
-        "library_import.batch.started,library_import.item.imported,library_import.batch.completed",
+        "library_import.batch.started,library_import.item.skipped,library_import.batch.completed",
       "Runtime Library Import should record factual import events",
     );
   } finally {
@@ -278,7 +240,7 @@ async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise
     const status = await assertOk(recreatedStageCore.libraryImport.getStatus({ batchId: report.batchId }));
     const summary = await assertOk(recreatedStageCore.libraryImport.getSummary({ batchId: report.batchId }));
 
-    assert(status.status === "completed", "recreated Stage Core should read persisted Library Import status");
+    assert(status.status === "completed_with_warnings", "recreated Stage Core should read persisted Library Import status");
     assert(summary.items[0]?.sourceRef.id === importedSourceRef.id, "persisted summary should keep item reports");
     assert(summary.areas[0]?.area === "saved_recordings", "persisted summary should keep area reports");
   } finally {
@@ -305,6 +267,8 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
       handbookPath: join(directory, "HANDBOOK.md"),
     });
     await stageCore.ready;
+    await putRuntimeConfirmedBinding(stageCore, sourceRef("saved-bound-track"), savedBoundRecord.ref);
+    await putRuntimeConfirmedBinding(stageCore, sourceRef("unsaved-bound-track"), unsavedBoundRecord.ref);
     await assertOk(
       stageCore.collection.addItemToSystemCollection({
         ownerScope: "local_profile:default",
@@ -363,18 +327,12 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
 
     assert(preview.ownerScope === "local_profile:default", "Stage Interface should default Library Import owner scope");
     assert(previewArea?.canonicalEstimates.alreadyBound === 2, "preview should estimate existing canonical bindings");
-    assert(
-      previewArea?.canonicalEstimates.wouldCreateProvisional === 1,
-      "preview should estimate provisional canonical creation",
-    );
-    assert(previewArea?.canonicalEstimates.unresolved === 1, "preview should estimate weak metadata as unresolved");
+    assert(previewArea?.canonicalEstimates.wouldCreateProvisional === 0, "preview should not estimate provisional canonical creation");
+    assert(previewArea?.canonicalEstimates.unresolved === 2, "preview should estimate unbound source items as unresolved");
     assert(previewArea?.collectionEstimates.alreadyPresent === 1, "preview should estimate existing Collection item");
     assert(previewArea?.collectionEstimates.wouldAdd === 1, "preview should estimate bound unsaved Collection item");
-    assert(
-      previewArea?.collectionEstimates.wouldAddAfterProvisional === 1,
-      "preview should estimate Collection add after provisional canonical creation",
-    );
-    assert(previewArea?.collectionEstimates.skipped === 1, "preview should estimate skipped weak metadata");
+    assert(previewArea?.collectionEstimates.wouldAddAfterProvisional === 0, "preview should not estimate provisional Collection additions");
+    assert(previewArea?.collectionEstimates.skipped === 2, "preview should estimate skipped unbound source items");
 
     const firstImport = await assertOk(
       stageCore.stageInterface.tools["library.import.start"]({
@@ -397,21 +355,14 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
       }),
     );
     const savedItemsAfterFirstImport = await listSavedRecordingItems(stageCore);
-    const newStrongCanonical = await assertOk(
-      stageCore.canonical.resolveSourceRef({
-        ref: sourceRef("new-strong-track"),
-      }),
-    );
-
     assert(firstImport.status === "completed_with_warnings", "weak metadata should complete import with warnings");
     assert(firstImport.counts.alreadyPresentItems === 1, "initial import should count pre-existing saved items");
-    assert(firstImport.counts.importedItems === 2, "initial import should add bound and provisional items");
-    assert(firstImport.counts.skippedItems === 1, "initial import should skip weak metadata");
+    assert(firstImport.counts.importedItems === 1, "initial import should add bound unsaved items only");
+    assert(firstImport.counts.skippedItems === 2, "initial import should skip unbound source items");
     assert(firstImport.counts.canonicalRecordsReused === 2, "initial import should reuse existing canonical records");
-    assert(firstImport.counts.canonicalRecordsCreated === 1, "initial import should create one provisional record");
-    assert(firstImport.counts.collectionItemsAdded === 2, "initial import should save two new Collection items");
-    assert(savedItemsAfterFirstImport.length === 3, "initial import should save resolvable recordings only");
-    assert(newStrongCanonical !== null, "initial import should bind new provider source refs");
+    assert(firstImport.counts.canonicalRecordsCreated === 0, "initial import should not create provisional records");
+    assert(firstImport.counts.collectionItemsAdded === 1, "initial import should save confirmed bound Collection items only");
+    assert(savedItemsAfterFirstImport.length === 2, "initial import should save confirmed recordings only");
     assert(firstSnapshots[0]?.sourceRefs.length === 4, "initial import should store a complete baseline snapshot");
     assert(firstProvenance.length === 4, "initial import should store provenance for every observed item");
 
@@ -424,7 +375,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     const savedItemsAfterRepeatedImport = await listSavedRecordingItems(stageCore);
 
     assert(repeatedImport.counts.importedItems === 0, "repeated import should not import duplicate items");
-    assert(repeatedImport.counts.alreadyPresentItems === 3, "repeated import should see existing saved items");
+    assert(repeatedImport.counts.alreadyPresentItems === 2, "repeated import should see existing confirmed saved items");
     assert(
       savedItemsAfterRepeatedImport.length === savedItemsAfterFirstImport.length,
       "repeated import should keep Collection membership idempotent",
@@ -439,6 +390,13 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
         runtimeProviderItem("weak-update-track", ""),
       ]),
     ];
+    const newUpdateCanonical = await assertOk(
+      stageCore.canonical.createProvisional({
+        kind: "recording",
+        label: "New Update Track",
+      }),
+    );
+    await putRuntimeConfirmedBinding(stageCore, sourceRef("new-update-track"), newUpdateCanonical.ref);
 
     const updatePreview = await assertOk(
       stageCore.stageInterface.tools["library.update.preview"]({
@@ -448,9 +406,9 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     );
     const updatePreviewArea = updatePreview.areas[0];
 
-    assert(updatePreviewArea?.updateEstimates?.alreadyPresent === 2, "update preview should classify still-present items");
+    assert(updatePreviewArea?.updateEstimates?.alreadyPresent === 1, "update preview should classify still-present bound items");
     assert(updatePreviewArea?.updateEstimates?.wouldAdd === 1, "update preview should classify newly observed items");
-    assert(updatePreviewArea?.updateEstimates?.failedOrSkipped === 1, "update preview should classify skipped items");
+    assert(updatePreviewArea?.updateEstimates?.failedOrSkipped === 2, "update preview should classify unbound skipped items");
     assert(
       updatePreviewArea?.updateEstimates?.noLongerReturned === 2,
       "update preview should classify baseline items no longer returned",
@@ -476,9 +434,9 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
       }),
     );
 
-    assert(updateReport.counts.alreadyPresentItems === 2, "update start should keep still-present items");
+    assert(updateReport.counts.alreadyPresentItems === 1, "update start should keep still-present bound items");
     assert(updateReport.counts.importedItems === 1, "update start should import newly observed items");
-    assert(updateReport.counts.skippedItems === 1, "update start should skip weak update items");
+    assert(updateReport.counts.skippedItems === 2, "update start should skip unbound update items");
     assert(updateReport.counts.absentItems === 2, "update start should record no-longer-returned items");
     assert(absences.length === 2, "update start should store absence records for missing baseline refs");
     assert(
@@ -706,6 +664,21 @@ async function listSavedRecordingItems(
       relationKind: "saved",
     }),
   );
+}
+
+async function putRuntimeConfirmedBinding(
+  stageCore: ReturnType<typeof createMineMusicStageCoreWithSourceProvider>,
+  sourceRefValue: Ref,
+  canonicalRef: Ref,
+): Promise<void> {
+  const binding: ConfirmedCanonicalBinding = {
+    sourceRef: sourceRefValue,
+    canonicalRef,
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z",
+  };
+
+  await assertOk(stageCore.materialStore.putConfirmedCanonicalBinding({ binding }));
 }
 
 function runtimeProviderItem(id: string, label: string): PlatformLibraryItem {

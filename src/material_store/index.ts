@@ -9,6 +9,8 @@ export {
   createCanonicalStore,
 } from "./canonical/index.js";
 
+export { createLibraryImportService } from "./source_entity/library-import.js";
+
 export type MaterialStoreOptions = {
   canonicalStore: Pick<CanonicalStorePort, "get" | "findByLabel">;
   sourceEntityStore: SourceEntityStoreRepository;

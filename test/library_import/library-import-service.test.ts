@@ -1,11 +1,12 @@
 import type {
   CanonicalRecord,
+  ConfirmedCanonicalBinding,
   PlatformLibraryItem,
   PlatformLibraryPreviewInput,
   PlatformLibraryProvider,
   Ref,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
+import { createCanonicalStore, createMaterialStore } from "../../src/material_store/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createLibraryImportService } from "../../src/library_import/index.js";
@@ -15,6 +16,7 @@ import {
   createInMemoryCollectionRepository,
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
+  createInMemorySourceEntityStoreRepository,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -199,7 +201,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
 
   assert(report.batchId === "library-import-batch-1", "start should assign a batch id");
   assert(report.batchKind === "initial_import", "startImport should create an initial import batch");
-  assert(report.status === "completed", "complete provider reads should create a completed skeleton batch");
+  assert(report.status === "completed_with_warnings", "unbound source-library items should complete with warnings");
   assert(report.ownerScope === "local_profile:work", "start should keep explicit owner scope");
   assert(report.startedAt === "2026-05-25T00:00:00.000Z", "start should use the service clock");
   assert(report.account?.providerAccountId === "fixture-account", "start should keep provider account identity");
@@ -208,7 +210,7 @@ async function startsReadableImportBatchAndExposesStatus(): Promise<void> {
   assert(readInputs[0]?.providerAccountId === "fixture-account", "start should pass provider account id");
   assert(readInputs[0]?.sampleLimitPerArea === 200, "start should pass sample limit to provider reads");
   assert(status.batchId === report.batchId, "status should read back the stored batch");
-  assert(status.status === "completed", "status should expose stored batch status");
+  assert(status.status === report.status, "status should expose stored batch status");
 }
 
 async function marksStartedBatchFailedWhenProviderReadFails(): Promise<void> {
@@ -329,6 +331,8 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
   };
   await assertOk(environment.canonicalRepository.put(boundCanonical));
   await assertOk(environment.canonicalRepository.put(unsavedCanonical));
+  await putConfirmedBinding(environment, sourceRef("bound-track"), boundCanonical.ref);
+  await putConfirmedBinding(environment, sourceRef("bound-unsaved-track"), unsavedCanonical.ref);
   await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
   await assertOk(
     environment.collections.addItemToSystemCollection({
@@ -364,18 +368,12 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
   assert(readInputs.length === 1, "readable preview should read provider items for estimates");
   assert(readInputs[0]?.areas.join(",") === "saved_recordings", "preview read should use requested readable areas");
   assert(preview.areas[0]?.canonicalEstimates.alreadyBound === 2, "preview should count exact source-ref bindings");
-  assert(
-    preview.areas[0]?.canonicalEstimates.wouldCreateProvisional === 1,
-    "preview should count importable unbound items as provisional creates",
-  );
-  assert(preview.areas[0]?.canonicalEstimates.unresolved === 1, "preview should count weak metadata as unresolved");
+  assert(preview.areas[0]?.canonicalEstimates.wouldCreateProvisional === 0, "preview should not estimate provisional creates");
+  assert(preview.areas[0]?.canonicalEstimates.unresolved === 2, "preview should count unbound source items as unresolved");
   assert(preview.areas[0]?.collectionEstimates.alreadyPresent === 1, "preview should count existing saved items");
   assert(preview.areas[0]?.collectionEstimates.wouldAdd === 1, "preview should count bound items missing from saved Collection");
-  assert(
-    preview.areas[0]?.collectionEstimates.wouldAddAfterProvisional === 1,
-    "preview should count provisional collection additions separately",
-  );
-  assert(preview.areas[0]?.collectionEstimates.skipped === 1, "preview should count unresolved collection skips");
+  assert(preview.areas[0]?.collectionEstimates.wouldAddAfterProvisional === 0, "preview should not estimate provisional collection additions");
+  assert(preview.areas[0]?.collectionEstimates.skipped === 2, "preview should count unbound source items as collection skips");
   assert(batchesAfterPreview.length === 0, "preview should not create import batches");
   assert(canonicalRecordsAfterPreview.length === 2, "preview should not create canonical records");
   assert(savedItemsAfterPreview.length === 1, "preview should not add collection items");
@@ -506,6 +504,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     sourceRefs: [sourceRef("bound-track")],
   };
   await assertOk(environment.canonicalRepository.put(boundCanonical));
+  await putConfirmedBinding(environment, sourceRef("bound-track"), boundCanonical.ref);
   await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
   await assertOk(
     environment.collections.addItemToSystemCollection({
@@ -551,28 +550,17 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
       complete: true,
     }),
   );
-  const newTrackRelations = await assertOk(
-    environment.canonicalStore.listRelations({
-      subjectRef: {
-        namespace: "minemusic",
-        kind: "recording",
-        id: "canonical-1",
-      },
+  const sourceEntities = await assertOk(
+    environment.materialStore.listSourceEntities({
+      providerId: provider.id,
     }),
   );
-  const provisionalHints = await assertOk(
-    environment.canonicalStore.listProvisionalHints({
-      kind: "source_recording_context",
-    }),
-  );
-  const fixtureArtist = await assertOk(
-    environment.canonicalStore.resolveSourceRef({
-      ref: artistSourceRef("fixture-artist", "Fixture Artist"),
-    }),
-  );
-  const fixtureRelease = await assertOk(
-    environment.canonicalStore.resolveSourceRef({
-      ref: releaseSourceRef("fixture-release", "Fixture Release"),
+  const sourceLibraryItems = await assertOk(
+    environment.materialStore.listSourceLibraryItems({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      status: "present",
     }),
   );
   const importEvents = await assertOk(
@@ -582,87 +570,35 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   assert(report.status === "completed_with_warnings", "skipped items should complete the batch with warnings");
   assert(status.status === report.status, "status should expose the completed batch state");
   assert(report.counts.alreadyPresentItems === 1, "import should count already-present Collection items");
-  assert(report.counts.importedItems === 1, "import should count newly imported Collection items");
-  assert(report.counts.skippedItems === 1, "import should count skipped weak-metadata items");
+  assert(report.counts.importedItems === 0, "import should not import unbound Source Library items into Collection");
+  assert(report.counts.skippedItems === 2, "import should count unbound source items as skipped");
   assert(report.counts.canonicalRecordsReused === 1, "import should count reused canonical bindings");
-  assert(report.counts.canonicalRecordsCreated === 1, "import should count provisional canonical creates");
-  assert(report.counts.canonicalRecordsUnresolved === 1, "import should count unresolved canonical items");
-  assert(report.counts.collectionItemsAdded === 1, "import should count saved Collection additions");
+  assert(report.counts.canonicalRecordsCreated === 0, "import should not create provisional canonical records");
+  assert(report.counts.canonicalRecordsUnresolved === 2, "import should count unbound source items as unresolved canonical items");
+  assert(report.counts.collectionItemsAdded === 0, "import should only write Collection for confirmed bindings");
   assert(report.counts.collectionItemsAlreadyPresent === 1, "import should count existing saved Collection items");
   assert(report.items.length === 3, "import report should include every provider item result");
   assert(summary.items.length === report.items.length, "summary should return the completed item report");
   assert(summary.counts.importedItems === report.counts.importedItems, "summary should preserve completed counts");
   assert(
-    report.items.some((item) => item.sourceRef.id === "new-track" && item.status === "imported"),
-    "import report should include imported item results",
+    report.items.some((item) => item.sourceRef.id === "bound-track" && item.status === "already_present"),
+    "import report should include confirmed binding item results",
+  );
+  assert(
+    report.items.some((item) => item.sourceRef.id === "new-track" && item.status === "skipped"),
+    "import report should include unbound item results",
   );
   assert(
     report.items.some((item) => item.sourceRef.id === "unresolved-track" && item.status === "skipped"),
-    "import report should include skipped item results",
+    "import report should include weak source item results",
   );
+  assert(canonicalRecords.length === 1, "import should not create canonical records for unbound source items");
+  assert(savedItems.length === 1, "import should only keep confirmed canonical Collection items");
+  assert(sourceEntities.length === 3, "import should upsert a Source Entity for every observed provider item");
+  assert(sourceLibraryItems.length === 3, "import should put every observed provider item in Source Library");
   assert(
-    canonicalRecords.some((record) => record.sourceRefs?.some((ref) => ref.id === "new-track")),
-    "import should create a provisional canonical record with the source ref",
-  );
-  assert(
-    canonicalRecords.find((record) => record.sourceRefs?.some((ref) => ref.id === "new-track"))?.label === "New Track",
-    "import should keep recording title separate from provider artist credit in canonical labels",
-  );
-  assert(savedItems.length === 2, "import should add only resolvable items to saved Collection");
-  assert(
-    fixtureArtist?.kind === "artist",
-    "import should create provisional artist canonical records from source-ref hints",
-  );
-  assert(
-    fixtureRelease?.kind === "release",
-    "import should create provisional release canonical records from source-ref hints",
-  );
-  assert(
-    newTrackRelations.some(
-      (relation) =>
-        relation.predicate === "performed_by" &&
-        relation.objectLabel === "Fixture Artist" &&
-        relation.objectRef?.id === fixtureArtist?.ref.id,
-    ),
-    "import should record provisional artist relations from provider hints",
-  );
-  assert(
-    newTrackRelations.some(
-      (relation) =>
-        relation.predicate === "appears_on_release" &&
-        relation.objectLabel === "Fixture Release" &&
-        relation.objectRef?.id === fixtureRelease?.ref.id,
-    ),
-    "import should record provisional release relations from provider hints",
-  );
-  assert(
-    newTrackRelations.some((relation) => relation.predicate === "has_duration_ms" && relation.objectValue === 123456),
-    "import should record provisional duration relations from provider hints",
-  );
-  assert(
-    newTrackRelations.every((relation) => relation.predicate !== "track_position"),
-    "import should not store track position as a canonical relation",
-  );
-  assert(provisionalHints.length === 1, "import should store one source recording context hint");
-  assert(
-    provisionalHints[0]?.subjectRef.id === "canonical-1",
-    "source recording context hints should attach to the provisional recording",
-  );
-  assert(
-    provisionalHints[0]?.sourceRef.id === "new-track",
-    "source recording context hints should attach to the provider source ref",
-  );
-  assert(
-    provisionalHints[0]?.facts.trackPosition?.trackNumber === 5,
-    "source recording context hints should keep provider track position facts",
-  );
-  assert(
-    provisionalHints[0]?.facts.durationMs === 123456,
-    "source recording context hints should keep duration facts",
-  );
-  assert(
-    provisionalHints[0]?.facts.releaseDate === "2015-09-11",
-    "source recording context hints should keep source release date facts",
+    sourceEntities.find((entity) => entity.sourceRef.id === "new-track")?.label === "New Track - Fixture Artist",
+    "Source Entity should keep the provider-facing source label",
   );
   assert(
     provenance.find((item) => item.sourceRef.id === "new-track")?.canonicalHints?.trackPosition?.trackCount === 12,
@@ -673,12 +609,12 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   assert(snapshots[0]?.sourceRefs.length === 3, "complete snapshots should keep the full observed source-ref set");
   assert(
     importEvents.map((event) => event.type).join(",") ===
-      "library_import.batch.started,library_import.item.imported,library_import.item.imported,library_import.item.skipped,library_import.batch.completed",
+      "library_import.batch.started,library_import.item.imported,library_import.item.skipped,library_import.item.skipped,library_import.batch.completed",
     "import should record batch and item facts",
   );
 }
 
-async function importsSameLabelDifferentSourceRefsAsSeparateProvisionalIdentities(): Promise<void> {
+async function importsSameLabelDifferentSourceRefsAsSeparateSourceEntities(): Promise<void> {
   const registry = createPluginRegistry();
   const provider: PlatformLibraryProvider = {
     id: "fixture-library",
@@ -733,14 +669,21 @@ async function importsSameLabelDifferentSourceRefsAsSeparateProvisionalIdentitie
       relationKind: "saved",
     }),
   );
-
-  assert(report.counts.canonicalRecordsCreated === 2, "same labels should not collapse canonical creates");
-  assert(report.counts.collectionItemsAdded === 2, "same labels with different source refs should both save");
-  assert(
-    canonicalRecords.length === 2,
-    "same-label imports should remain separate source-bound provisional identities",
+  const sourceEntities = await assertOk(environment.materialStore.listSourceEntities({ providerId: provider.id }));
+  const sourceLibraryItems = await assertOk(
+    environment.materialStore.listSourceLibraryItems({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+    }),
   );
-  assert(savedItems.length === 2, "Collection should contain both provisional source-bound imports");
+
+  assert(report.counts.canonicalRecordsCreated === 0, "same labels should not create provisional canonical records");
+  assert(report.counts.collectionItemsAdded === 0, "unbound same-label source items should not write Collection");
+  assert(canonicalRecords.length === 0, "unbound same-label imports should not create canonical identities");
+  assert(sourceEntities.length === 2, "same-label imports should remain separate Source Entities by source ref");
+  assert(sourceLibraryItems.length === 2, "Source Library should keep both same-label source refs");
+  assert(savedItems.length === 0, "Collection should stay canonical-only for unbound source imports");
 }
 
 async function cachesSavedCollectionMembershipDuringImportBatch(): Promise<void> {
@@ -783,6 +726,21 @@ async function cachesSavedCollectionMembershipDuringImportBatch(): Promise<void>
   await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
 
   const environment = createTestLibraryImportEnvironment(registry);
+  for (const id of ["cache-track-1", "cache-track-2", "cache-track-3"]) {
+    const canonical: CanonicalRecord = {
+      ref: {
+        namespace: "minemusic",
+        kind: "recording",
+        id: `canonical-${id}`,
+      },
+      kind: "recording",
+      label: id,
+      status: "active",
+    };
+
+    await assertOk(environment.canonicalRepository.put(canonical));
+    await putConfirmedBinding(environment, sourceRef(id), canonical.ref);
+  }
   const listItems = environment.collections.listItems.bind(environment.collections);
   let savedRecordingLookups = 0;
   environment.collections.listItems = (input) => {
@@ -848,11 +806,15 @@ async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
       scopes: ["saved_recordings"],
     }),
   );
+  const recreatedSourceEntityStore = createInMemorySourceEntityStoreRepository();
   const recreatedLibraryImport = createLibraryImportService({
     pluginRegistry: registry,
-    canonicalStore: createCanonicalStore({
-      repository: environment.canonicalRepository,
-      idFactory: createSequence("recreated-canonical"),
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({
+        repository: environment.canonicalRepository,
+        idFactory: createSequence("recreated-canonical"),
+      }),
+      sourceEntityStore: recreatedSourceEntityStore,
     }),
     collection: environment.collections,
     events: environment.events,
@@ -864,8 +826,8 @@ async function returnsStoredSummaryAfterServiceRecreation(): Promise<void> {
   const summary = await assertOk(recreatedLibraryImport.getSummary({ batchId: report.batchId }));
 
   assert(summary.items.length === 1, "summary should survive service-local report cache loss");
-  assert(summary.items[0]?.sourceRef.id === "persisted-track", "stored summary should include item reports");
-  assert(summary.areas[0]?.area === "saved_recordings", "stored summary should include read areas");
+assert(summary.items[0]?.sourceRef.id === "persisted-track", "stored summary should include item reports");
+assert(summary.areas[0]?.area === "saved_recordings", "stored summary should include read areas");
 }
 
 async function doesNotStoreCompleteSnapshotForPartialImportReads(): Promise<void> {
@@ -974,6 +936,18 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
   await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
 
   const environment = createTestLibraryImportEnvironment(registry);
+  const keptCanonical: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "kept-recording",
+    },
+    kind: "recording",
+    label: "Kept Track",
+    status: "active",
+  };
+  await assertOk(environment.canonicalRepository.put(keptCanonical));
+  await putConfirmedBinding(environment, sourceRef("kept-track"), keptCanonical.ref);
   await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
@@ -992,6 +966,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
     sourceRefs: [sourceRef("saved-new-track")],
   };
   await assertOk(environment.canonicalRepository.put(preExistingCanonical));
+  await putConfirmedBinding(environment, sourceRef("saved-new-track"), preExistingCanonical.ref);
   await assertOk(
     environment.collections.addItemToSystemCollection({
       ownerScope: "local_profile:default",
@@ -1100,6 +1075,21 @@ async function doesNotUseStableAccountBaselinesForUnstableUpdateReads(): Promise
   await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
 
   const environment = createTestLibraryImportEnvironment(registry);
+  for (const id of ["kept-track", "missing-track"]) {
+    const canonical: CanonicalRecord = {
+      ref: {
+        namespace: "minemusic",
+        kind: "recording",
+        id: `canonical-${id}`,
+      },
+      kind: "recording",
+      label: id,
+      status: "active",
+    };
+
+    await assertOk(environment.canonicalRepository.put(canonical));
+    await putConfirmedBinding(environment, sourceRef(id), canonical.ref);
+  }
   await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
@@ -1163,6 +1153,21 @@ async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingColle
   await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
 
   const environment = createTestLibraryImportEnvironment(registry);
+  for (const id of ["kept-track", "missing-track"]) {
+    const canonical: CanonicalRecord = {
+      ref: {
+        namespace: "minemusic",
+        kind: "recording",
+        id: `canonical-update-${id}`,
+      },
+      kind: "recording",
+      label: id,
+      status: "active",
+    };
+
+    await assertOk(environment.canonicalRepository.put(canonical));
+    await putConfirmedBinding(environment, sourceRef(id), canonical.ref);
+  }
   await assertOk(
     environment.libraryImport.startImport({
       providerId: provider.id,
@@ -1173,6 +1178,18 @@ async function startsLibraryUpdateAndRecordsPlatformAbsencesWithoutRemovingColle
     providerItem("kept-track", "Kept Track"),
     providerItem("new-track", "New Track"),
   ];
+  const newCanonical: CanonicalRecord = {
+    ref: {
+      namespace: "minemusic",
+      kind: "recording",
+      id: "canonical-new-track",
+    },
+    kind: "recording",
+    label: "New Track",
+    status: "active",
+  };
+  await assertOk(environment.canonicalRepository.put(newCanonical));
+  await putConfirmedBinding(environment, sourceRef("new-track"), newCanonical.ref);
 
   const update = await assertOk(
     environment.libraryImport.startUpdate({
@@ -1301,6 +1318,11 @@ function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPl
     repository: canonicalRepository,
     idFactory: createSequence("canonical"),
   });
+  const sourceEntityStore = createInMemorySourceEntityStoreRepository();
+  const materialStore = createMaterialStore({
+    canonicalStore,
+    sourceEntityStore,
+  });
   const collections = createCollectionService({
     repository: createInMemoryCollectionRepository(),
     events,
@@ -1310,7 +1332,7 @@ function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPl
   const libraryImportRepository = createInMemoryLibraryImportRepository();
   const libraryImport = createLibraryImportService({
     pluginRegistry: registry,
-    canonicalStore,
+    materialStore,
     collection: collections,
     events,
     repository: libraryImportRepository,
@@ -1320,6 +1342,8 @@ function createTestLibraryImportEnvironment(registry: ReturnType<typeof createPl
 
   return {
     libraryImport,
+    materialStore,
+    sourceEntityStore,
     canonicalStore,
     canonicalRepository,
     collections,
@@ -1332,6 +1356,27 @@ function createSequence(prefix: string): () => string {
   let nextId = 1;
 
   return () => `${prefix}-${nextId++}`;
+}
+
+async function putConfirmedBinding(
+  environment: ReturnType<typeof createTestLibraryImportEnvironment>,
+  sourceRef: Ref,
+  canonicalRef: Ref,
+): Promise<void> {
+  await assertOk(
+    environment.sourceEntityStore.putConfirmedCanonicalBinding({
+      binding: confirmedBinding(sourceRef, canonicalRef),
+    }),
+  );
+}
+
+function confirmedBinding(sourceRef: Ref, canonicalRef: Ref): ConfirmedCanonicalBinding {
+  return {
+    sourceRef,
+    canonicalRef,
+    createdAt: "2026-05-25T00:00:00.000Z",
+    updatedAt: "2026-05-25T00:00:00.000Z",
+  };
 }
 
 function providerItem(id: string, label: string, canonicalHints?: PlatformLibraryItem["canonicalHints"]) {
@@ -1379,7 +1424,7 @@ await marksStartedBatchFailedWhenProviderReadFails();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
-await importsSameLabelDifferentSourceRefsAsSeparateProvisionalIdentities();
+await importsSameLabelDifferentSourceRefsAsSeparateSourceEntities();
 await cachesSavedCollectionMembershipDuringImportBatch();
 await returnsStoredSummaryAfterServiceRecreation();
 await doesNotStoreCompleteSnapshotForPartialImportReads();
