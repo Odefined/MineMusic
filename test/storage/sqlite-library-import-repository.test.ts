@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
+  LibraryImportContinuationState,
   LibraryImportItemProvenance,
   LibraryImportReport,
   PlatformLibraryAbsence,
@@ -313,6 +314,84 @@ async function persistsProvenanceAndAbsencesAcrossRepositoryReopen(): Promise<vo
   }
 }
 
+async function persistsContinuationStatesAcrossRepositoryReopen(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-library-import-continuation-"));
+  const databasePath = join(directory, "library-import.sqlite");
+  const first: LibraryImportContinuationState = {
+    batchId: "batch-1",
+    batchKind: "initial_import",
+    ownerScope: "local_profile:default",
+    providerId: "fixture-library",
+    providerAccountId: "fixture-account",
+    providerAccountStable: true,
+    scope: "saved_source_tracks",
+    area: "saved_source_tracks",
+    status: "running",
+    processedItems: 25,
+    expectedItems: 200,
+    sampleLimitRemaining: 175,
+    providerState: {
+      offset: 25,
+    },
+    sourceRefsSeen: [sourceRef("track-1")],
+    createdAt: "2026-05-28T00:00:00.000Z",
+    updatedAt: "2026-05-28T00:01:00.000Z",
+  };
+  const second: LibraryImportContinuationState = {
+    ...first,
+    scope: "saved_source_releases",
+    area: "saved_source_releases",
+    status: "pending",
+    processedItems: 0,
+    expectedItems: 100,
+    sampleLimitRemaining: 100,
+    providerState: {
+      offset: 0,
+    },
+    sourceRefsSeen: [],
+  };
+
+  try {
+    const firstRepository = createSqliteLibraryImportRepository({ path: databasePath });
+    assert(firstRepository.putContinuationState !== undefined, "SQLite repository should expose continuation writes");
+    assert(firstRepository.getContinuationState !== undefined, "SQLite repository should expose continuation reads");
+    assert(firstRepository.listContinuationStates !== undefined, "SQLite repository should expose continuation queries");
+
+    await assertOk(firstRepository.putContinuationState({ state: first }));
+    await assertOk(firstRepository.putContinuationState({ state: second }));
+
+    const reopenedRepository = createSqliteLibraryImportRepository({ path: databasePath });
+    assert(reopenedRepository.getContinuationState !== undefined, "reopened repository should expose continuation reads");
+    assert(reopenedRepository.listContinuationStates !== undefined, "reopened repository should expose continuation queries");
+
+    const loaded = await assertOk(
+      reopenedRepository.getContinuationState({
+        batchId: "batch-1",
+        scope: "saved_source_tracks",
+        area: "saved_source_tracks",
+      }),
+    );
+    const listed = await assertOk(
+      reopenedRepository.listContinuationStates({
+        batchId: "batch-1",
+        status: "pending",
+      }),
+    );
+
+    assert(loaded?.processedItems === 25, "reopened continuation state should keep processed count");
+    assert(
+      Array.isArray(loaded?.sourceRefsSeen) && loaded?.sourceRefsSeen.length === 1,
+      "reopened continuation state should keep source refs",
+    );
+    assert(
+      listed.length === 1 && listed[0]?.area === "saved_source_releases",
+      "reopened continuation query should filter by batch and status",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function areaSnapshot({
   batchId,
   sourceRefId,
@@ -351,3 +430,4 @@ function sourceRef(id: string): Ref {
 await persistsBatchesAndReportsAcrossRepositoryReopen();
 await persistsSnapshotsAndFindsStableLatestBaselineAfterReopen();
 await persistsProvenanceAndAbsencesAcrossRepositoryReopen();
+await persistsContinuationStatesAcrossRepositoryReopen();

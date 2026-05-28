@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import type {
   LibraryImportAreaSnapshot,
   LibraryImportBatch,
+  LibraryImportContinuationState,
   LibraryImportItemProvenance,
   LibraryImportReport,
   PlatformLibraryAbsence,
@@ -51,6 +52,26 @@ type AreaSnapshotRow = {
   source_refs_json: string;
   item_count: number;
   recorded_at: string;
+};
+
+type ContinuationStateRow = {
+  batch_id: string;
+  batch_kind: LibraryImportContinuationState["batchKind"];
+  owner_scope: string;
+  provider_id: string;
+  provider_account_id: string;
+  provider_account_stable: number | null;
+  scope: LibraryImportContinuationState["scope"];
+  area: LibraryImportContinuationState["area"];
+  status: LibraryImportContinuationState["status"];
+  processed_items: number;
+  expected_items: number | null;
+  sample_limit_remaining: number | null;
+  provider_state_json: string | null;
+  source_refs_seen_json: string;
+  issues_json: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type ItemProvenanceRow = {
@@ -258,6 +279,97 @@ export function createSqliteLibraryImportRepository({
         allAreaSnapshots(database)
           .filter((snapshot) => matchesAreaSnapshotQuery(snapshot, query))
           .map((snapshot) => structuredClone(snapshot)),
+      );
+    },
+
+    async getContinuationState(input) {
+      return readResult(() => {
+        const row = database
+          .prepare(`
+            SELECT *
+            FROM library_import_continuation_states
+            WHERE continuation_key = ?
+          `)
+          .get(continuationStateKey(input)) as ContinuationStateRow | undefined;
+
+        return row === undefined ? null : toContinuationState(row);
+      });
+    },
+
+    async putContinuationState({ state }) {
+      return readResult(() => {
+        database
+          .prepare(`
+            INSERT INTO library_import_continuation_states (
+              continuation_key,
+              batch_id,
+              batch_kind,
+              owner_scope,
+              provider_id,
+              provider_account_id,
+              provider_account_stable,
+              scope,
+              area,
+              status,
+              processed_items,
+              expected_items,
+              sample_limit_remaining,
+              provider_state_json,
+              source_refs_seen_json,
+              issues_json,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(continuation_key) DO UPDATE SET
+              batch_id = excluded.batch_id,
+              batch_kind = excluded.batch_kind,
+              owner_scope = excluded.owner_scope,
+              provider_id = excluded.provider_id,
+              provider_account_id = excluded.provider_account_id,
+              provider_account_stable = excluded.provider_account_stable,
+              scope = excluded.scope,
+              area = excluded.area,
+              status = excluded.status,
+              processed_items = excluded.processed_items,
+              expected_items = excluded.expected_items,
+              sample_limit_remaining = excluded.sample_limit_remaining,
+              provider_state_json = excluded.provider_state_json,
+              source_refs_seen_json = excluded.source_refs_seen_json,
+              issues_json = excluded.issues_json,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at
+          `)
+          .run(
+            continuationStateKey(state),
+            state.batchId,
+            state.batchKind,
+            state.ownerScope,
+            state.providerId,
+            state.providerAccountId,
+            optionalBooleanToInteger(state.providerAccountStable),
+            state.scope,
+            state.area,
+            state.status,
+            state.processedItems,
+            state.expectedItems ?? null,
+            state.sampleLimitRemaining ?? null,
+            optionalJson(state.providerState),
+            toJson(state.sourceRefsSeen),
+            optionalJson(state.issues),
+            state.createdAt,
+            state.updatedAt,
+          );
+
+        return structuredClone(state);
+      });
+    },
+
+    async listContinuationStates(query) {
+      return readResult(() =>
+        allContinuationStates(database)
+          .filter((state) => matchesContinuationStateQuery(state, query))
+          .map((state) => structuredClone(state)),
       );
     },
 
@@ -474,6 +586,14 @@ function allItemProvenance(database: DatabaseSync): LibraryImportItemProvenance[
   return rows.map(toItemProvenance);
 }
 
+function allContinuationStates(database: DatabaseSync): LibraryImportContinuationState[] {
+  const rows = database
+    .prepare("SELECT * FROM library_import_continuation_states ORDER BY batch_id, scope, area")
+    .all() as ContinuationStateRow[];
+
+  return rows.map(toContinuationState);
+}
+
 function allAbsences(database: DatabaseSync): PlatformLibraryAbsence[] {
   const rows = database
     .prepare("SELECT * FROM library_import_absences ORDER BY recorded_at, id")
@@ -533,6 +653,45 @@ function toAreaSnapshot(row: AreaSnapshotRow): LibraryImportAreaSnapshot {
   }
 
   return snapshot;
+}
+
+function toContinuationState(row: ContinuationStateRow): LibraryImportContinuationState {
+  const state: LibraryImportContinuationState = {
+    batchId: row.batch_id,
+    batchKind: row.batch_kind,
+    ownerScope: row.owner_scope,
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
+    scope: row.scope,
+    area: row.area,
+    status: row.status,
+    processedItems: row.processed_items,
+    sourceRefsSeen: fromJson(row.source_refs_seen_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+
+  if (row.provider_account_stable !== null) {
+    state.providerAccountStable = integerToBoolean(row.provider_account_stable);
+  }
+
+  if (row.expected_items !== null) {
+    state.expectedItems = row.expected_items;
+  }
+
+  if (row.sample_limit_remaining !== null) {
+    state.sampleLimitRemaining = row.sample_limit_remaining;
+  }
+
+  if (row.provider_state_json !== null) {
+    state.providerState = fromJson(row.provider_state_json);
+  }
+
+  if (row.issues_json !== null) {
+    state.issues = fromJson(row.issues_json);
+  }
+
+  return state;
 }
 
 function toItemProvenance(row: ItemProvenanceRow): LibraryImportItemProvenance {
@@ -648,6 +807,18 @@ function matchesItemProvenanceQuery(
   );
 }
 
+function matchesContinuationStateQuery(
+  state: LibraryImportContinuationState,
+  query: NonNullable<Parameters<NonNullable<LibraryImportRepository["listContinuationStates"]>>[0]>,
+): boolean {
+  return (
+    (query.batchId === undefined || state.batchId === query.batchId) &&
+    (query.scope === undefined || state.scope === query.scope) &&
+    (query.area === undefined || state.area === query.area) &&
+    (query.status === undefined || state.status === query.status)
+  );
+}
+
 function matchesAbsenceQuery(
   absence: PlatformLibraryAbsence,
   query: Parameters<LibraryImportRepository["listAbsences"]>[0],
@@ -672,6 +843,12 @@ function areaSnapshotKey(snapshot: LibraryImportAreaSnapshot): string {
     snapshot.scope,
     snapshot.area,
   ]);
+}
+
+function continuationStateKey(
+  state: Pick<LibraryImportContinuationState, "batchId" | "scope" | "area">,
+): string {
+  return toJson([state.batchId, state.scope, state.area]);
 }
 
 function itemProvenanceKey(

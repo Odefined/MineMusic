@@ -55,6 +55,30 @@ export function initializeLibraryImportSchema(database: DatabaseSync): void {
         recorded_at
       );
 
+    CREATE TABLE IF NOT EXISTS library_import_continuation_states (
+      continuation_key TEXT PRIMARY KEY,
+      batch_id TEXT NOT NULL,
+      batch_kind TEXT NOT NULL,
+      owner_scope TEXT NOT NULL,
+      provider_id TEXT NOT NULL,
+      provider_account_id TEXT NOT NULL,
+      provider_account_stable INTEGER,
+      scope TEXT NOT NULL,
+      area TEXT NOT NULL,
+      status TEXT NOT NULL,
+      processed_items INTEGER NOT NULL,
+      expected_items INTEGER,
+      sample_limit_remaining INTEGER,
+      provider_state_json TEXT,
+      source_refs_seen_json TEXT NOT NULL,
+      issues_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS library_import_continuation_states_query_idx
+      ON library_import_continuation_states(batch_id, scope, area, status);
+
     CREATE TABLE IF NOT EXISTS library_import_item_provenance (
       provenance_key TEXT PRIMARY KEY,
       owner_scope TEXT NOT NULL,
