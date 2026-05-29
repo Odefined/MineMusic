@@ -21,7 +21,6 @@ import type {
   SourceGroundingPort,
   ToolDispatchPort,
 } from "../ports/index.js";
-import { stableToolNames } from "./tools.js";
 import {
   createStageInterfaceToolDefinitionRegistry,
   type BoundStageInterfaceToolDefinition,
@@ -91,16 +90,7 @@ export function createToolDispatch({
 
   return {
     async call({ sessionId, toolName, payload }) {
-      if (!isStableToolName(toolName)) {
-        return fail({
-          code: "stage_interface.tool_not_found",
-          message: `Tool '${String(toolName)}' is not registered.`,
-          module: "stage_interface",
-          retryable: false,
-        });
-      }
-
-      const registryDefinition = toolDefinitionRegistry.get(toolName);
+      const registryDefinition = lookupToolDefinition(toolDefinitionRegistry, toolName);
 
       if (registryDefinition !== undefined) {
         return callToolDefinition({
@@ -199,8 +189,11 @@ function summarizeZodError(error: z.ZodError): string {
     .join("; ");
 }
 
-function isStableToolName(toolName: ToolName | string): toolName is ToolName {
-  return (stableToolNames as readonly string[]).includes(String(toolName));
+function lookupToolDefinition(
+  registry: Map<ToolName, BoundStageInterfaceToolDefinition>,
+  toolName: ToolName | string,
+): BoundStageInterfaceToolDefinition | undefined {
+  return registry.get(String(toolName) as ToolName);
 }
 
 async function ensureToolAvailableForSession(
