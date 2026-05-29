@@ -60,6 +60,12 @@ This index points agents to the current MVP documentation pack.
    - Accepted naming decision: Stage Core means runtime composition and
      lifecycle; current code uses Stage Modules for Session Context and
      Material Gate.
+   - `docs/stage-core/minemusic_stage_core_refactoring_design.md` records the
+     Stage Core Runtime Kit refactoring design.
+   - `docs/stage-core/minemusic_stage_core_refactoring_execution_plan.md`
+     records the phase-by-phase Runtime Kit implementation plan.
+   - `docs/stage-core/progress.md` records current Stage Core implementation
+     progress, verification, and remaining gaps.
    - `docs/adr/0002-material-store-boundary.md` records the accepted Material
      Store boundary: Canonical Store remains the canonical identity subdomain,
      Source Entity Store owns source entities, Source Library, and Library
@@ -327,12 +333,11 @@ This index points agents to the current MVP documentation pack.
       MCP over local streamable HTTP.
 
 70. `src/stage_core/index.ts`
-    - Stage Core composition root that assembles modules, registers providers,
-      initializes the Handbook, exposes the runtime object, composes Material
-      Store, Collection, and Library Import with optional repository/provider
-      injection, and supports optional SQLite database path configuration for
-      Material Store, Collection, Library Import, Provider HTTP Cache, and
-      explicit Knowledge provider registration.
+    - Stage Core public compatibility facade for existing factory entrypoints.
+      Runtime Kit internals now live in `src/stage_core/runtime_kit.ts`,
+      `src/stage_core/repositories.ts`, `src/stage_core/seed.ts`, and
+      `src/stage_core/compose.ts`; fixture source-provider behavior lives in
+      `src/fixtures/source_provider.ts`.
 
 71. `src/surfaces/mcp/server.ts`
     - MCP surface that derives prefixed tools from MineMusic

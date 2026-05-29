@@ -121,7 +121,7 @@ without creating provider-specific environment switches in host adapter config.
 | MineMusic Server | `src/server/runtime.ts`, `src/server/index.ts` |
 | MCP Surface | `src/surfaces/mcp/server.ts` |
 | Codex Skill | `skills/minemusic/**` |
-| Stage Core | `src/stage_core/index.ts` |
+| Stage Core | `src/stage_core/index.ts`, `src/stage_core/runtime_kit.ts`, `src/stage_core/compose.ts`, `src/stage_core/repositories.ts`, `src/stage_core/seed.ts` |
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
@@ -252,6 +252,15 @@ write generated Handbook
 expose runtime.ready
 return a runtime object
 ```
+
+The public Stage Core facade stays narrow and compatibility-oriented:
+`src/stage_core/index.ts` exports the existing factory entrypoints and delegates
+to an internal Runtime Kit. Repository selection lives in
+`src/stage_core/repositories.ts`; provider factory expansion, seed defaults, and
+Handbook output path normalization live in `src/stage_core/runtime_kit.ts`;
+startup side effects live in `src/stage_core/seed.ts`; service graph assembly
+lives in `src/stage_core/compose.ts`; fixture source-provider behavior lives in
+`src/fixtures/source_provider.ts`.
 
 The MineMusic server process creates Stage Core and keeps the returned runtime
 alive for MCP clients and future host transports.

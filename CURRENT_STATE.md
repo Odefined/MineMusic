@@ -43,6 +43,14 @@ inside Material Store as the canonical identity subdomain. Existing repository
 data is test/dev data, so this repo does not carry compatibility repair layers
 for the old provisional import path unless explicitly requested.
 
+The 2026-05-29 Stage Core Runtime Kit refactor keeps the existing public factory
+entrypoints compatible while moving Stage Core internals out of
+`src/stage_core/index.ts`. Repository selection, provider factory expansion,
+runtime seeding, service graph assembly, Handbook path normalization, and
+fixture source-provider behavior now live in focused Stage Core or fixture
+modules. Current Stage Core still returns the full harness shape for existing
+tests and callers.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the
@@ -418,10 +426,11 @@ host-facing and LLM-facing surface.
 - Stage Interface owns stable tool names, instrument catalog, input schemas,
   tool dispatch, and the host-facing callable facade under
   `src/stage_interface/**`.
-- Stage Core runtime composition is exported from `src/stage_core/index.ts` and
-  wires in-memory storage, fixture providers, core ports including Collection
-  Service, Session Context / Material Gate, Stage Interface dispatch, and Stage
-  Interface facade.
+- Stage Core public factory compatibility is exported from
+  `src/stage_core/index.ts`. Internal Runtime Kit code now owns repository
+  selection, options normalization, runtime seeding, service graph composition,
+  Handbook path normalization, and fixture source-provider behavior through
+  focused modules under `src/stage_core/**` and `src/fixtures/source_provider.ts`.
 - Stage Core also exports `createMineMusicStageCoreWithSourceProvider` for
   host surfaces that need to register a concrete source provider without
   fixture source materials.
