@@ -13,7 +13,9 @@ dispatch routes, and output presentation rules now live under
 `src/stage_interface/tool_definitions/`.
 
 Stage Interface dispatch now resolves stable tools through the Tool Definition
-registry. There is no fallback dispatch switch for stable tools.
+registry. There is no fallback dispatch switch for stable tools. The current
+contract refactor makes those same Tool Definitions the runtime payload
+validation boundary and the source for derived aggregate tool facts.
 
 ## Established Decisions
 
@@ -26,9 +28,10 @@ registry. There is no fallback dispatch switch for stable tools.
   declaring its availability rule.
 - Treat compact agent-facing output presentation as part of each tool's
   Interface.
-- Migrate with registry plus fallback dispatch rather than a single large
-  rewrite.
-- Use the Library Tool Group as the first tracer bullet.
+- Preserve MCP as an adapter over Stage Interface definitions, not a separate
+  source of tool contracts.
+- Use passthrough payload validation first. Extra keys remain tolerated while
+  required fields and field types are enforced.
 
 ## Implemented
 
@@ -60,11 +63,14 @@ registry. There is no fallback dispatch switch for stable tools.
   Canonical Review, and Memory descriptors and schemas derived from the
   registry.
 - Co-located compact Canonical Review output presentation rules.
-- Focused registry/fallback dispatch test coverage.
+- Focused registry dispatch test coverage.
 
 ## Not Yet Implemented
 
-- Runtime payload validation for all tools remains a separate future question.
+- Runtime payload validation for all tools.
+- Ordered definition-derived `stableToolNames`, `agentToolDescriptors`, and
+  `stageInterfaceToolInputSchemas`.
+- Low-risk handler cleanup after dispatch validation.
 
 ## Verification
 
@@ -73,5 +79,5 @@ registry. There is no fallback dispatch switch for stable tools.
 
 ## Next Slice
 
-Reassess whether runtime payload validation should be enabled for all tools as a
-separate follow-up.
+Implement the contract refactor plan in
+`docs/stage-interface/minemusic_stage_interface_tool_contract_execution_plan.md`.

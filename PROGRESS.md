@@ -898,10 +898,11 @@
 - Documented the Stage Interface Tool Definition / Tool Group deepening
   direction in architecture and MVP module docs.
 - Added `docs/stage-interface/design.md`,
-  `docs/stage-interface/tool-definition-registry-implementation-plan.md`,
+  `docs/stage-interface/minemusic_stage_interface_tool_contract_design.md`,
+  `docs/stage-interface/minemusic_stage_interface_tool_contract_execution_plan.md`,
   `docs/stage-interface/todo.md`, and `docs/stage-interface/progress.md` as the
-  local documentation set for a Library Tool Group tracer bullet with
-  registry-plus-fallback dispatch.
+  local documentation set for Stage Interface Tool Definitions as the runtime
+  tool contract.
 - Implemented the Library Tool Group tracer bullet under
   `src/stage_interface/tool_definitions/**`: Library descriptors, host input
   schemas, dispatch routes, availability declarations, and compact presentation
@@ -930,6 +931,10 @@
   schema, required Memory dependency, and availability rule.
 - Removed the Stage Interface fallback dispatch switch after every stable tool
   migrated to the Tool Definition registry.
+- Re-aligned the Stage Interface design docs around the next contract refactor:
+  Tool Definitions should own runtime payload validation, derived tool
+  aggregates, registry-primary dispatch, compact presentation, and passthrough
+  validation policy while MCP remains only an adapter.
 - Added the Stage Core Runtime Kit refactoring design, execution plan, and
   module progress file under `docs/stage-core/`.
 - Completed Stage Core Runtime Kit Phases 0-9 with TDD characterization and

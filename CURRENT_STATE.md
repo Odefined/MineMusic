@@ -424,8 +424,8 @@ host-facing and LLM-facing surface.
   `handbook.instrument.read`, and `handbook.tool.read` for on-demand Handbook
   lookup.
 - Stage Interface owns stable tool names, instrument catalog, input schemas,
-  tool dispatch, and the host-facing callable facade under
-  `src/stage_interface/**`.
+  tool dispatch, runtime tool-contract enforcement, and the host-facing
+  callable facade under `src/stage_interface/**`.
 - Stage Core public factory compatibility is exported from
   `src/stage_core/index.ts`. Internal Runtime Kit code now owns repository
   selection, options normalization, runtime seeding, service graph composition,
@@ -525,7 +525,11 @@ host-facing and LLM-facing surface.
   `src/stage_interface/tool_definitions/**`. Stage Interface dispatch resolves
   stable tools through the registry without a fallback switch. Module-local
   design, TODO, progress, and implementation-plan documents live under
-  `docs/stage-interface/`.
+  `docs/stage-interface/`. The current Stage Interface contract refactor plan
+  adds runtime payload validation through those Tool Definitions, derives
+  aggregate tool facts from the ordered definition list, keeps validation
+  passthrough rather than strict, and preserves MCP as an adapter over Stage
+  Interface definitions.
 
 ## Verification
 

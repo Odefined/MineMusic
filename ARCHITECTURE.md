@@ -299,6 +299,7 @@ Tool Definition
   -> host input schema
   -> availability rule
   -> dispatch route
+  -> runtime payload validation
   -> agent-facing presentation
 
 Tool Group
@@ -309,13 +310,18 @@ Tool Group
 `ToolDispatchPort.call({ sessionId, toolName, payload })` remains the narrow
 external Interface for Host Adapters and the Stage Interface facade. The
 deepening happens behind that Interface: dispatch should find a Tool Definition,
-apply the shared availability rule, route to the definition handler, and apply
-the definition's presentation rule before returning to the caller.
+apply the shared availability rule, validate the host payload with that
+definition's input schema, route to the definition handler, and apply the
+definition's presentation rule before returning to the caller.
 
-During migration, Stage Interface may use a registry-plus-fallback shape: Tool
-Groups already moved to Tool Definitions use the registry path, while unmigrated
-tools continue through the existing dispatch implementation. The migration must
-not change host tool names, MCP prefixes, or the public callable facade.
+Stage Interface Tool Definitions are the source of truth for tool names,
+descriptors, host input schemas, availability, dispatch routing, and compact
+agent-facing presentation. Compatibility exports may remain in `tools.ts` and
+`schemas.ts`, but they should derive from the ordered definition list rather
+than duplicate tool facts. First-pass payload validation is passthrough, not
+strict: extra keys are tolerated while required fields and field types are
+enforced. MCP remains an adapter that consumes Stage Interface definitions and
+must not own MineMusic tool contracts.
 
 ## Material State Policy
 

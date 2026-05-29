@@ -1,154 +1,184 @@
-# Stage Interface Tool Definition Registry Design
+# Stage Interface Tool Contract Design
 
 ## Purpose
 
-Stage Interface is the stable callable surface for Host Clients and
-LLM-facing flows. The Tool Definition registry deepens Stage Interface by
-keeping each callable tool's metadata, host input schema, availability rule,
-dispatch route, and agent-facing presentation rule together.
+Stage Interface is the stable callable surface for Host Clients, MCP adapters,
+and LLM-facing flows. Its Tool Definitions are the contract unit for MineMusic
+tools.
 
-This design preserves the public dispatch Interface:
+The current refactor deepens that boundary:
 
-```ts
-ToolDispatchPort.call({ sessionId, toolName, payload })
+```text
+Tool Definition
+  -> stable tool name
+  -> descriptor metadata
+  -> host input schema
+  -> availability rule
+  -> dispatch handler
+  -> agent-facing presentation rule
+  -> runtime payload validation
 ```
 
-The change is behind that Interface. Host Clients, MCP tool names, and the
-Stage Interface facade should not need to learn a new call shape.
+`ToolDispatchPort.call({ sessionId, toolName, payload })` remains the public
+Interface. The change is behind that Interface: dispatch must use the
+registered Tool Definition to validate payloads before invoking a handler.
 
 ## Current Friction
 
-Tool truth is currently split across several places:
+The Tool Definition registry already co-locates tool metadata, schemas,
+availability, handlers, dependency contexts, and compact presentation rules
+under `src/stage_interface/tool_definitions/**`.
 
-- tool names and descriptors in `src/stage_interface/tools.ts`.
-- host input schemas in `src/stage_interface/schemas.ts`.
-- execution routing in `src/stage_interface/dispatch.ts`.
-- compact agent-facing output helpers in `src/stage_interface/outputs.ts`.
-- MCP exposure in `src/surfaces/mcp/server.ts`.
+The remaining contract gap is that dispatch currently treats input schemas as
+metadata. Payloads enter handlers as `unknown`, and handlers often merge
+defaults before casting to the expected payload type. That means malformed tool
+inputs can reach module ports before Stage Interface rejects them.
 
-This makes the Stage Interface shallow for tool maintenance: adding or changing
-one tool requires a maintainer to synchronize several files manually.
+Tool facts also still have multiple aggregate surfaces:
 
-## Target Concepts
+- `src/stage_interface/tools.ts` exports stable tool names and descriptors.
+- `src/stage_interface/schemas.ts` exports host input schemas.
+- `src/stage_interface/tool_definitions/index.ts` creates the bound registry.
+- `src/surfaces/mcp/server.ts` exposes MCP tools from descriptors and schemas.
 
-### Tool Definition
+The target direction is:
 
-A Stage Interface-owned record for one callable MineMusic tool.
+```text
+Tool Definitions
+  -> stable tool names
+  -> descriptors
+  -> input schemas
+  -> dispatch registry
+  -> MCP registration
+  -> Handbook / instrument catalog
+```
 
-It should own:
+## Tool Definition Boundary
 
-- tool name.
-- descriptor metadata.
-- host input schema.
-- availability rule.
-- dispatch route.
-- optional agent-facing presentation rule.
+A Tool Definition owns one callable MineMusic tool:
 
-### Tool Group
+```ts
+type StageInterfaceToolDefinition<TName, TContext> = {
+  name: TName;
+  description: string;
+  inputSchemaRef: string;
+  outputSchemaRef: string;
+  effectKind?: string;
+  inputSchema: StageInterfaceToolInputSchema;
+  availability: StageInterfaceToolAvailability;
+  handler(input: StageInterfaceToolHandlerInput<TContext>): Promise<Result<unknown>> | Result<unknown>;
+  present?: (value: unknown) => unknown;
+};
+```
 
-A Stage Interface-owned group of Tool Definitions matching one instrument or
-agent-facing work area.
-
-Tool Groups keep execution dependencies local. A Library Tool Group should
-receive Material Store and Library Import dependencies. It should not receive
-Session Context, Memory, Effects, or unrelated ports unless a Library tool
-actually needs them.
-
-## Dispatch Flow
-
-Target flow for migrated tools:
+The public call shape stays unchanged. The dispatch flow for every stable tool
+should be:
 
 ```text
 ToolDispatchPort.call(input)
-  -> find Tool Definition by input.toolName
+  -> look up Tool Definition by input.toolName
   -> apply the Tool Definition availability rule
-  -> merge supported defaults, such as sessionId or ownerScope
-  -> call the Tool Definition handler
+  -> parse input.payload with the Tool Definition input schema
+  -> call the Tool Definition handler with parsed payload
   -> apply the Tool Definition presentation rule
   -> return Result<unknown>
 ```
 
-Unmigrated tools may use the existing fallback switch until their Tool Group
-moves into the registry.
+## Runtime Payload Validation
 
-## Availability Rules
+Dispatch validates payloads with the definition's `inputSchema` before handler
+invocation.
 
-Availability should remain a shared dispatch concern. Tool Definitions declare
-which rule applies; they should not each reimplement availability checks.
+Initial validation is intentionally permissive:
 
-Initial rule set:
-
-- `requires_active_instrument`: default for ordinary agent-facing tools.
-- `always_available`: discovery or recovery tools that must be callable before
-  normal instrument availability checks.
-
-## Presentation Rules
-
-Agent-facing output presentation is part of a tool's Interface.
-
-Tool Definitions should bind compact output behavior so a handler does not
-accidentally expose internal storage shape, raw provider payloads, unchanged
-rows, or full records. Existing helpers in `src/stage_interface/outputs.ts` can
-remain the implementation of those presentation rules.
-
-## File Layout
-
-Target first-slice layout:
-
-```text
-src/stage_interface/tool_definitions/
-  types.ts
-  library.ts
-  index.ts
+```ts
+z.object(definition.inputSchema).passthrough()
 ```
 
-Future Tool Groups can add:
+This enforces required fields and field types while preserving compatibility
+with callers that include harmless extra keys. Undefined payloads are
+normalized to `{}`. Strict rejection of unknown keys is a later per-tool
+decision, not the default behavior of this refactor.
 
-```text
-handbook.ts
-stage.ts
-music.ts
-canonical_review.ts
-memory.ts
+Validation failures return a normalized `StageError`:
+
+```ts
+{
+  code: "stage_interface.invalid_payload",
+  module: "stage_interface",
+  retryable: false,
+}
 ```
 
-Compatibility exports should remain during migration:
+Stage Interface must not throw raw Zod errors or expose full schema internals to
+agent-facing callers. Error messages should name the tool and summarize only the
+first few invalid fields.
 
-- `tools.ts` continues exporting stable names and descriptors.
-- `schemas.ts` continues exporting host input schemas.
-- `dispatch.ts` continues exporting `createToolDispatch`.
+Availability checks remain before payload validation so existing
+unavailable-tool behavior is preserved.
 
-Where a Tool Group has moved to the registry, those compatibility exports
-should derive from Tool Definitions rather than duplicate facts.
+## Aggregate Surfaces
 
-## Migration Boundary
+Stable tool names, descriptors, and input schemas should be derived from the
+ordered Tool Definition list, with compatibility exports preserved:
 
-The tracer bullet migrates only the Library Tool Group.
+```text
+src/stage_interface/tool_definitions/index.ts
+  -> stageInterfaceToolDefinitions
+  -> stableToolNames
+  -> agentToolDescriptors
+  -> stageInterfaceToolInputSchemas
 
-The migration must not change:
+src/stage_interface/tools.ts
+  -> compatibility re-exports
 
-- `ToolDispatchPort.call(...)`.
-- `MineMusicStageInterface.tools`.
-- stable tool names.
-- MCP `minemusic.*` names.
-- current host input shapes.
-- current agent-facing output shapes.
-- Core Capability ports.
+src/stage_interface/schemas.ts
+  -> compatibility re-exports
+```
 
-The migration may change:
+Ordering matters because the instrument catalog, Handbook, MCP surface, and
+tests treat the stable tool list as a published surface. The derivation must
+preserve the existing order exactly.
 
-- internal Stage Interface file layout.
-- how descriptors and schemas are derived.
-- how Library tool handlers are routed.
-- how compact Library output rules are attached to handlers.
+MCP remains an adapter. It consumes Stage Interface descriptors and schemas and
+must not become a separate source of tool truth.
+
+## Handler Cleanup
+
+After dispatch owns basic payload validation, handler cleanup can be gradual.
+The first cleanup target is low-risk Stage tools, followed by Memory and
+Knowledge tools. Complex Library, Music, and Canonical Review handlers should
+only be simplified when tests cover the behavior being protected.
+
+Handlers may still merge semantic defaults such as `sessionId` or
+`ownerScope`. The refactor only removes broad unchecked shape assumptions where
+dispatch has already validated the payload.
+
+## Non-Goals
+
+This refactor does not:
+
+- rename tools;
+- change MCP `minemusic.*` names;
+- change `ToolDispatchPort.call(...)`;
+- redesign Stage Core, Material Resolve, provider adapters, or Plugin Slots;
+- make validation strict by default;
+- rewrite every handler in one pass;
+- introduce decorators, classes, or a command framework.
 
 ## Test Strategy
 
-Required coverage for the tracer bullet:
+Required coverage:
 
-- Library tool descriptors and schemas remain visible through existing exports.
-- MCP definitions expose the same Library schemas.
-- At least one Library tool dispatches through the registry path.
-- At least one unmigrated tool still dispatches through the fallback path.
-- Compact Library outputs remain compact.
-- `npm test` passes before implementation is marked complete.
+- stable tool order is explicitly protected;
+- every stable tool has one descriptor and one input schema;
+- definitions, descriptors, schemas, and MCP exposure stay in parity;
+- unknown tool names still return `stage_interface.tool_not_found`;
+- invalid payloads fail with `stage_interface.invalid_payload`;
+- invalid payloads do not call handler dependencies;
+- valid payloads still reach handlers;
+- extra payload keys remain accepted in the first pass;
+- presentation rules still produce compact agent-facing output.
+
+The execution plan for this design is
+`docs/stage-interface/minemusic_stage_interface_tool_contract_execution_plan.md`.
