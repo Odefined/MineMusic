@@ -17,6 +17,7 @@ export const stageErrorCodes = [
   "stage.session_not_found",
   "stage.material_state_invalid",
   "stage_interface.tool_not_found",
+  "stage_interface.invalid_payload",
   "canonical.not_found",
   "canonical.source_ref_conflict",
   "canonical.review_invalid",
