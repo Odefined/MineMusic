@@ -1990,6 +1990,44 @@ async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promi
   assert(prepareMaterialsCalls === 2, "valid payloads should call handler dependencies");
 }
 
+async function stageSessionUpdateDefaultsToDispatchSessionId(): Promise<void> {
+  let updatedSessionId = "";
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ sessionId, patch }) => {
+        updatedSessionId = sessionId;
+        return { ok: true, value: { ...session, ...patch } };
+      },
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {} as MaterialResolvePort,
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+  const result = await dispatch.call({
+    sessionId: "dispatch-session",
+    toolName: "stage.session.update",
+    payload: {
+      patch: {
+        notes: "default session id",
+      },
+    },
+  });
+
+  assert(result.ok, "stage.session.update should accept payloads without explicit sessionId");
+  assert(
+    updatedSessionId === "dispatch-session",
+    "stage.session.update should default missing payload sessionId to the dispatch session id",
+  );
+}
+
 function libraryImportReport({
   batchId,
   batchKind,
@@ -2110,3 +2148,4 @@ await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();
 await invalidStageMaterialsPayloadFailsAtBoundary();
 await validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys();
+await stageSessionUpdateDefaultsToDispatchSessionId();
