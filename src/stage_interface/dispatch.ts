@@ -4,6 +4,7 @@ import type {
   StageError,
   ToolName,
 } from "../contracts/index.js";
+import { z } from "zod/v4";
 import type {
   CollectionPort,
   CanonicalMaintenancePort,
@@ -147,13 +148,55 @@ async function callToolDefinition({
     }
   }
 
-  const result = await definition.handler({ sessionId, payload });
+  const parsedPayload = parseToolPayload({ definition, payload });
+
+  if (!parsedPayload.ok) {
+    return parsedPayload;
+  }
+
+  const result = await definition.handler({ sessionId, payload: parsedPayload.value });
 
   if (!result.ok || definition.present === undefined) {
     return result;
   }
 
   return ok(definition.present(result.value));
+}
+
+function parseToolPayload({
+  definition,
+  payload,
+}: {
+  definition: BoundStageInterfaceToolDefinition;
+  payload: unknown;
+}): Result<unknown> {
+  const payloadObject = payload === undefined ? {} : payload;
+  const parsed = z.object(definition.inputSchema).passthrough().safeParse(payloadObject);
+
+  if (!parsed.success) {
+    return fail(invalidPayloadError(definition.name, summarizeZodError(parsed.error)));
+  }
+
+  return ok(parsed.data);
+}
+
+function invalidPayloadError(toolName: ToolName, message: string): StageError {
+  return {
+    code: "stage_interface.invalid_payload",
+    message: `Invalid payload for tool '${toolName}': ${message}`,
+    module: "stage_interface",
+    retryable: false,
+  };
+}
+
+function summarizeZodError(error: z.ZodError): string {
+  return error.issues
+    .slice(0, 3)
+    .map((issue) => {
+      const path = issue.path.length === 0 ? "payload" : issue.path.join(".");
+      return `${path}: ${issue.message}`;
+    })
+    .join("; ");
 }
 
 function isStableToolName(toolName: ToolName | string): toolName is ToolName {

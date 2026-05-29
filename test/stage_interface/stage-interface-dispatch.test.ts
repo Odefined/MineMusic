@@ -1909,6 +1909,87 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   assert(result.error.code === "stage_interface.tool_not_found", "unknown tools should use stable error code");
 }
 
+async function invalidStageMaterialsPayloadFailsAtBoundary(): Promise<void> {
+  let prepareMaterialsCalls = 0;
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async () => {
+        prepareMaterialsCalls += 1;
+        return { ok: true, value: [] };
+      },
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {} as MaterialResolvePort,
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+  const result = await dispatch.call({
+    sessionId: session.id,
+    toolName: "stage.materials.prepare",
+    payload: { purpose: "recommendation" },
+  });
+
+  assert(!result.ok, "invalid payloads should fail via Result");
+  assert(
+    result.error.code === "stage_interface.invalid_payload",
+    "invalid payloads should fail at the Stage Interface boundary",
+  );
+  assert(result.error.module === "stage_interface", "invalid payload errors should belong to Stage Interface");
+  assert(prepareMaterialsCalls === 0, "invalid payloads should not call handler dependencies");
+}
+
+async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promise<void> {
+  let prepareMaterialsCalls = 0;
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => {
+        prepareMaterialsCalls += 1;
+        return { ok: true, value: materials };
+      },
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {} as MaterialResolvePort,
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+
+  const valid = await dispatch.call({
+    sessionId: session.id,
+    toolName: "stage.materials.prepare",
+    payload: {
+      materials: [],
+      purpose: "recommendation",
+    },
+  });
+  const withExtraKey = await dispatch.call({
+    sessionId: session.id,
+    toolName: "stage.materials.prepare",
+    payload: {
+      materials: [],
+      purpose: "recommendation",
+      extra: "allowed in passthrough mode",
+    },
+  });
+
+  assert(valid.ok, "valid payloads should reach handler dependencies");
+  assert(withExtraKey.ok, "unknown extra keys should be accepted in passthrough mode");
+  assert(prepareMaterialsCalls === 2, "valid payloads should call handler dependencies");
+}
+
 function libraryImportReport({
   batchId,
   batchKind,
@@ -2027,3 +2108,5 @@ await dispatchesLibraryImportToolsWithDefaultOwnerScope();
 await dispatchesSourceLibraryToolsThroughMaterialStore();
 await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();
+await invalidStageMaterialsPayloadFailsAtBoundary();
+await validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys();
