@@ -49,7 +49,6 @@ import {
   createInstrumentCatalog,
   createMineMusicStageInterface,
   createToolDispatch,
-  type MineMusicStageInterface,
 } from "../stage_interface/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
@@ -66,73 +65,19 @@ import {
   createSqliteProviderHttpCacheRepository,
   createSqliteSourceEntityStoreRepository,
 } from "../storage/index.js";
+import type {
+  MineMusicStageCore,
+  MineMusicStageCoreOptions,
+  MineMusicStageCoreWithSourceProviderOptions,
+} from "./types.js";
 
-export type MineMusicStageCore = {
-  ready: Promise<void>;
-  stageInterface: MineMusicStageInterface;
-  dispatch: ToolDispatchPort;
-  sessionContext: SessionContextPort;
-  materialGate: MaterialGatePort;
-  materialStore: MaterialStorePort;
-  canonical: CanonicalStorePort;
-  canonicalMaintenance: CanonicalMaintenancePort;
-  collection: CollectionPort;
-  materialResolve: MaterialResolvePort;
-  source: SourceGroundingPort;
-  knowledge: MusicKnowledgePort;
-  libraryImport: LibraryImportPort;
-  events: EventPort;
-  memory: MemoryPort;
-  effects: EffectBoundaryPort;
-  plugins: PluginRegistryPort;
-  providerHttpCache: ProviderHttpCacheRepository;
-};
-
-export type KnowledgeProviderFactoryContext = {
-  providerHttpCache: ProviderHttpCacheRepository;
-};
-
-export type KnowledgeProviderFactory = (context: KnowledgeProviderFactoryContext) => KnowledgeProvider;
-
-export type MineMusicStageCoreOptions = {
-  session: StageSession;
-  sourceMaterials: MusicMaterial[];
-  canonicalRecords?: CanonicalRecord[];
-  canonicalRepository?: CanonicalRecordRepository;
-  sourceEntityStoreRepository?: SourceEntityStoreRepository;
-  materialStoreDatabasePath?: string;
-  collectionRepository?: CollectionRepository;
-  collectionDatabasePath?: string;
-  libraryImportRepository?: LibraryImportRepository;
-  libraryImportDatabasePath?: string;
-  providerHttpCacheRepository?: ProviderHttpCacheRepository;
-  providerHttpCacheDatabasePath?: string;
-  knowledgeProviders?: KnowledgeProvider[];
-  knowledgeProviderFactories?: KnowledgeProviderFactory[];
-  platformLibraryProvider?: PlatformLibraryProvider;
-  handbookPath?: string;
-  handbookPaths?: string[];
-};
-
-export type MineMusicStageCoreWithSourceProviderOptions = {
-  session: StageSession;
-  sourceProvider: SourceProvider;
-  canonicalRecords?: CanonicalRecord[];
-  canonicalRepository?: CanonicalRecordRepository;
-  sourceEntityStoreRepository?: SourceEntityStoreRepository;
-  materialStoreDatabasePath?: string;
-  collectionRepository?: CollectionRepository;
-  collectionDatabasePath?: string;
-  libraryImportRepository?: LibraryImportRepository;
-  libraryImportDatabasePath?: string;
-  providerHttpCacheRepository?: ProviderHttpCacheRepository;
-  providerHttpCacheDatabasePath?: string;
-  knowledgeProviders?: KnowledgeProvider[];
-  knowledgeProviderFactories?: KnowledgeProviderFactory[];
-  platformLibraryProvider?: PlatformLibraryProvider;
-  handbookPath?: string;
-  handbookPaths?: string[];
-};
+export type {
+  MineMusicStageCore,
+  KnowledgeProviderFactoryContext,
+  KnowledgeProviderFactory,
+  MineMusicStageCoreOptions,
+  MineMusicStageCoreWithSourceProviderOptions,
+} from "./types.js";
 
 export function createMineMusicStageCore({
   session,
