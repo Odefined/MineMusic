@@ -13,7 +13,7 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import { createDefaultMineMusicServerRuntime } from "../../src/server/runtime.js";
-import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
+import { createMineMusicStageRuntimeWithSourceProvider } from "../../src/stage_core/index.js";
 import {
   stableToolNames,
   stageInterfaceToolInputSchemas,
@@ -82,13 +82,13 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
 }
 
 async function exposesStableToolsThroughMcpDefinitions(): Promise<void> {
-  const stageCore = createMineMusicStageCoreWithSourceProvider({
+  const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
     session,
     sourceProvider,
   });
-  await stageCore.ready;
+  await stageRuntime.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(stageCore);
+  const definitions = createMineMusicMcpToolDefinitions(stageRuntime);
   const names = definitions.map((definition) => definition.name);
 
   assert(
@@ -102,13 +102,13 @@ async function exposesStableToolsThroughMcpDefinitions(): Promise<void> {
 }
 
 async function mcpDefinitionsStayInParityWithStageInterfaceSchemas(): Promise<void> {
-  const stageCore = createMineMusicStageCoreWithSourceProvider({
+  const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
     session,
     sourceProvider,
   });
-  await stageCore.ready;
+  await stageRuntime.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(stageCore);
+  const definitions = createMineMusicMcpToolDefinitions(stageRuntime);
   const names = definitions.map((definition) => definition.name);
   const namesByDefinition = new Map(definitions.map((definition) => [definition.name, definition]));
 
@@ -126,13 +126,13 @@ async function mcpDefinitionsStayInParityWithStageInterfaceSchemas(): Promise<vo
 }
 
 async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void> {
-  const stageCore = createMineMusicStageCoreWithSourceProvider({
+  const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
     session,
     sourceProvider,
   });
-  await stageCore.ready;
+  await stageRuntime.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(stageCore);
+  const definitions = createMineMusicMcpToolDefinitions(stageRuntime);
   const schemasByName = new Map(
     definitions.map((definition) => [definition.name, definition.inputSchema] as const),
   );
@@ -291,13 +291,13 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
 }
 
 async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
-  const stageCore = createMineMusicStageCoreWithSourceProvider({
+  const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
     session,
     sourceProvider,
   });
-  await stageCore.ready;
+  await stageRuntime.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(stageCore);
+  const definitions = createMineMusicMcpToolDefinitions(stageRuntime);
   const prepareTool = definitions.find(
     (definition) => definition.name === "minemusic.stage.materials.prepare",
   );
@@ -400,14 +400,14 @@ async function dispatchesLibraryImportMcpPayloadsToStageInterface(): Promise<voi
       };
     },
   };
-  const stageCore = createMineMusicStageCoreWithSourceProvider({
+  const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
     session,
     sourceProvider,
     platformLibraryProvider,
   });
-  await stageCore.ready;
+  await stageRuntime.ready;
 
-  const definitions = createMineMusicMcpToolDefinitions(stageCore);
+  const definitions = createMineMusicMcpToolDefinitions(stageRuntime);
   const importPreviewTool = definitions.find(
     (definition) => definition.name === "minemusic.library.import.preview",
   );

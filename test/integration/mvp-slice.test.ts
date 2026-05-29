@@ -10,7 +10,7 @@ import {
 } from "../../fixtures/integration/mvp-fixture.js";
 import type { Result } from "../../src/contracts/index.js";
 import { runRecommendationTranscript } from "../../src/app/index.js";
-import { createMineMusicStageCore } from "../../src/stage_core/index.js";
+import { createFixtureMineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -26,7 +26,7 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 
 async function provesGroundedRecommendationMvpSlice(): Promise<void> {
   const stageCoreDirectory = await mkdtemp(join(tmpdir(), "minemusic-stage-core-"));
-  const stageCore = createMineMusicStageCore({
+  const stageCore = createFixtureMineMusicStageCoreHarness({
     session: {
       id: "session-integration",
       posture: "recommendation",

@@ -79,23 +79,23 @@ export function createFixtureMineMusicStageRuntime(
   return toMineMusicStageRuntime(createMineMusicStageCore(options));
 }
 
-// Compatibility alias for future test-harness migration.
+// Explicit harness factory for tests and diagnostics that need internal services.
 export function createMineMusicStageCoreHarness(
   options: MineMusicStageCoreWithSourceProviderOptions,
 ): MineMusicStageCoreHarness {
   return createMineMusicStageCoreWithSourceProvider(options);
 }
 
-// Compatibility alias for future fixture test-harness migration.
+// Explicit fixture harness factory for tests and diagnostics that need internal services.
 export function createFixtureMineMusicStageCoreHarness(
   options: MineMusicStageCoreOptions,
 ): MineMusicStageCoreHarness {
   return createMineMusicStageCore(options);
 }
 
-function toMineMusicStageRuntime(stageCore: MineMusicStageCoreHarness): MineMusicStageRuntime {
+function toMineMusicStageRuntime(harness: MineMusicStageCoreHarness): MineMusicStageRuntime {
   return {
-    ready: stageCore.ready,
-    stageInterface: stageCore.stageInterface,
+    ready: harness.ready,
+    stageInterface: harness.stageInterface,
   };
 }

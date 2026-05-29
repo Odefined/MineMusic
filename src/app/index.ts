@@ -7,7 +7,7 @@ import type {
   StageEvent,
   StageSession,
 } from "../contracts/index.js";
-import type { MineMusicStageCore } from "../stage_core/index.js";
+import type { MineMusicStageCoreHarness } from "../stage_core/index.js";
 
 export type RecommendationTranscriptInput = {
   sessionId: string;
@@ -28,7 +28,7 @@ export type RecommendationTranscript = {
 };
 
 export async function runRecommendationTranscript(
-  stageCore: MineMusicStageCore,
+  stageCore: MineMusicStageCoreHarness,
   input: RecommendationTranscriptInput,
 ): Promise<Result<RecommendationTranscript>> {
   await stageCore.ready;

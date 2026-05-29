@@ -11,7 +11,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
-import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
+import { createMineMusicStageRuntimeWithSourceProvider } from "../../src/stage_core/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -88,16 +88,16 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
   ]);
 
   try {
-    const firstStageCore = createMineMusicStageCoreWithSourceProvider({
+    const firstStageRuntime = createMineMusicStageRuntimeWithSourceProvider({
       session,
       sourceProvider,
       materialStoreDatabasePath: databasePath,
       canonicalRecords: [canonicalRecord],
       handbookPath: join(directory, "first-HANDBOOK.md"),
     });
-    await firstStageCore.ready;
+    await firstStageRuntime.ready;
 
-    const firstResolve = await resolveSingleCandidate(firstStageCore, {
+    const firstResolve = await resolveSingleCandidate(firstStageRuntime, {
       id: "first",
       label: "Persisted Canonical Track",
       sourceRef,
@@ -107,15 +107,15 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       "seeded canonical identity should confirm playability before restart",
     );
 
-    const recreatedStageCore = createMineMusicStageCoreWithSourceProvider({
+    const recreatedStageRuntime = createMineMusicStageRuntimeWithSourceProvider({
       session,
       sourceProvider,
       materialStoreDatabasePath: databasePath,
       handbookPath: join(directory, "second-HANDBOOK.md"),
     });
-    await recreatedStageCore.ready;
+    await recreatedStageRuntime.ready;
 
-    const persistedResolve = await resolveSingleCandidate(recreatedStageCore, {
+    const persistedResolve = await resolveSingleCandidate(recreatedStageRuntime, {
       id: "persisted",
       label: "Persisted Canonical Track",
       sourceRef,
@@ -135,7 +135,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       "canonical identity plus source-backed playable link should be confirmed playable after recreation",
     );
 
-    const sourceOnlyResolve = await resolveSingleCandidate(recreatedStageCore, {
+    const sourceOnlyResolve = await resolveSingleCandidate(recreatedStageRuntime, {
       id: "source-only",
       label: "Source Only Track",
       sourceRef: unknownSourceRef,
@@ -197,7 +197,7 @@ function createStaticSourceProvider(materials: MusicMaterial[]): SourceProvider 
 }
 
 async function resolveSingleCandidate(
-  stageCore: ReturnType<typeof createMineMusicStageCoreWithSourceProvider>,
+  stageRuntime: ReturnType<typeof createMineMusicStageRuntimeWithSourceProvider>,
   candidate: {
     id: string;
     label: string;
@@ -205,7 +205,7 @@ async function resolveSingleCandidate(
   },
 ): Promise<Extract<MaterialResolveResult, { kind: "single" }>> {
   const resolveResult = await assertOk(
-    stageCore.stageInterface.tools["music.material.resolve"]({
+    stageRuntime.stageInterface.tools["music.material.resolve"]({
       kind: "single",
       candidate,
     }) as Promise<Result<MaterialResolveResult>>,

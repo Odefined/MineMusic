@@ -20,10 +20,10 @@ import {
 } from "../stage_interface/index.js";
 import type { StageCoreRuntimeKit } from "./runtime_kit.js";
 import { seedStageCoreRuntime } from "./seed.js";
-import type { MineMusicStageCore } from "./types.js";
+import type { MineMusicStageCoreHarness } from "./types.js";
 
 // Assembly only: keep storage selection, provider fallback, owner-scope rules, and tool policy outside compose.
-export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicStageCore {
+export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicStageCoreHarness {
   const { session, repositories } = kit;
   const plugins = createPluginRegistry();
   const canonical = createCanonicalStore({ repository: repositories.canonicalRepository });

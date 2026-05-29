@@ -137,7 +137,7 @@ needs.
 
 | Module | Owns | Does Not Own |
 | --- | --- | --- |
-| MineMusic Server | process lifecycle, server-level provider/repository/cache/session configuration, creating and holding one Stage Core runtime, exposing MCP over local transport | domain logic inside core capabilities, provider internals, final recommendation judgment |
+| MineMusic Server | process lifecycle, server-level provider/repository/cache/session configuration, creating and holding one narrow Stage Runtime backed by Stage Core composition, exposing MCP over local transport | domain logic inside core capabilities, provider internals, Stage Core harness internals, final recommendation judgment |
 | MCP Surface | MCP tool-name prefixing, schema exposure, result formatting | music policy, provider behavior, storage, tool truth, runtime composition, provider/database/cache/session configuration, core capability calls |
 | Stage Core | runtime graph assembly, provider registration, initialization, `runtime.ready`, runtime lifecycle | domain logic inside core capabilities, host protocol, final recommendation judgment |
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
@@ -162,13 +162,14 @@ needs.
 ```text
 1. MineMusic server process starts.
 2. MineMusic server reads server-level runtime configuration and creates a
-   Stage Core runtime.
+   narrow Stage Runtime backed by Stage Core composition.
 3. Stage Core assembles repositories, Plugin Slots, Core Capabilities, Stage
    Modules, and Stage Interface.
 4. Stage Core registers source, platform-library, or other providers and
    initializes runtime artifacts such as the generated Handbook.
-5. MineMusic server exposes MCP over local streamable HTTP for clients such as
-   Codex and OpenClaw. CLI or Web UI can become peer transports later.
+5. MineMusic server exposes MCP over local streamable HTTP from the held Stage
+   Runtime for clients such as Codex and OpenClaw. CLI or Web UI can become
+   peer transports later.
 6. User asks for music naturally through an MCP client or future host surface.
 7. LLM or host client interprets the musical situation.
 8. MCP client calls Stage Interface tools through the server's MCP surface.
@@ -223,7 +224,8 @@ capability implementations directly.
 
 Host/client configuration should cover endpoint concerns only. Provider,
 database, cache, and default-session runtime configuration belongs to the
-MineMusic server process that creates and holds Stage Core.
+MineMusic server process that creates and holds the Stage Runtime backed by
+Stage Core composition.
 For the current local installation, that long-lived process is managed by the
 user `launchd` agent `com.minemusic.server`; operational details are recorded in
 `docs/operations/minemusic-server-launchd.md`. Codex/OpenClaw must remain MCP
@@ -254,16 +256,23 @@ return a runtime object
 ```
 
 The public Stage Core facade stays narrow and compatibility-oriented:
-`src/stage_core/index.ts` exports the existing factory entrypoints and delegates
-to an internal Runtime Kit. Repository selection lives in
+`src/stage_core/index.ts` exports the existing factory entrypoints plus
+`MineMusicStageRuntime` factories, and delegates assembly to an internal Runtime
+Kit. Repository selection lives in
 `src/stage_core/repositories.ts`; provider factory expansion, seed defaults, and
 Handbook output path normalization live in `src/stage_core/runtime_kit.ts`;
 startup side effects live in `src/stage_core/seed.ts`; service graph assembly
 lives in `src/stage_core/compose.ts`; fixture source-provider behavior lives in
 `src/fixtures/source_provider.ts`.
 
-The MineMusic server process creates Stage Core and keeps the returned runtime
-alive for MCP clients and future host transports.
+Production-facing callers should depend on `MineMusicStageRuntime`, which
+contains only `ready` and `stageInterface`. The full Stage Core harness remains
+available through compatibility factories and explicit harness aliases for
+tests, diagnostics, and integration fixtures that need internal services.
+
+The MineMusic server process creates Stage Core through a narrow runtime factory
+and keeps the returned Stage Runtime alive for MCP clients and future host
+transports.
 
 Stage Core may know module factories because its job is composition. It should
 not absorb the internal implementation of Material Resolve, Source Grounding,

@@ -8,13 +8,14 @@ Design intent and task breakdown for the current refactor live in:
 
 - `docs/stage-core/minemusic_stage_core_refactoring_design.md`
 - `docs/stage-core/minemusic_stage_core_refactoring_execution_plan.md`
+- `docs/stage-core/minemusic_stage_runtime_interface_narrowing_plan.md`
 
 Global state files may summarize this document, but should not duplicate the
 fine-grained Stage Core task ledger.
 
 ## Current Snapshot
 
-Date: 2026-05-29
+Date: 2026-05-30
 
 First-wave runtime-kit refactor status:
 
@@ -48,14 +49,25 @@ Implemented:
 - `MineMusicStageRuntime` and `MineMusicStageCoreHarness` type names exist,
   while `MineMusicStageCore` remains compatible with the old harness shape.
 - Explicit harness factory aliases exist for future test-harness migration.
+- Narrow Stage Runtime factory entrypoints now exist:
+  `createFixtureMineMusicStageRuntime(...)` and
+  `createMineMusicStageRuntimeWithSourceProvider(...)`.
+- The default MineMusic server runtime now holds `MineMusicStageRuntime`
+  (`ready` plus `stageInterface`) and does not expose the full Stage Core
+  harness shape.
+- MCP definition and server-runtime tests exercise the Stage Interface through
+  `MineMusicStageRuntime`; tests that need internals use explicit harness
+  aliases.
 
 ## Current Boundaries
 
 - Public factory signatures remain compatible:
   `createMineMusicStageCore(...)` and
   `createMineMusicStageCoreWithSourceProvider(...)`.
-- `MineMusicStageCore` still exposes internal services for existing tests and
-  callers.
+- `MineMusicStageCore` remains a compatibility type for callers that still need
+  the full harness shape.
+- `MineMusicStageRuntime` is the narrow production-facing shape for callers
+  that only need readiness and Stage Interface dispatch.
 - Stage Core does not read `process.env`; server runtime still owns environment
   parsing and production provider wiring.
 - `src/stage_core/index.ts` no longer imports storage implementations, fixture
@@ -63,8 +75,6 @@ Implemented:
 
 ## Not Yet Implemented
 
-- Production callers have not been narrowed to `MineMusicStageRuntime`.
-- Tests have not been migrated to the explicit harness factory aliases.
 - Provider registry wrappers, Stage Interface runtime payload validation,
   Material Resolve pipeline extraction, and storage schema changes remain
   separate future slices.
@@ -77,16 +87,24 @@ Latest checks for the current implementation slice:
 npm run typecheck
 npm run build:test
 node .tmp-test/test/stage_core/stage-core-factory.test.js
-node .tmp-test/test/integration/mvp-slice.test.js
 node .tmp-test/test/server/server-runtime.test.js
-npm test
+node .tmp-test/test/surfaces/mcp-server.test.js
+node .tmp-test/test/integration/canonical-persistence.test.js
+node .tmp-test/test/integration/collection-runtime.test.js
+node .tmp-test/test/integration/library-import-runtime.test.js
+node .tmp-test/test/integration/mvp-slice.test.js
 ```
 
 Results:
 
 - All listed commands pass.
+- `node .tmp-test/test/server/server-http-mcp.test.js` and `npm test` were not
+  completed in this sandbox because binding `127.0.0.1` returned `EPERM`;
+  sandbox escalation was unavailable in this session. The full suite still
+  needs a non-sandbox or approved local-port run.
 
 ## Next Slice
 
-Decide whether production callers should depend on `MineMusicStageRuntime`
-while tests move to explicit harness factory aliases.
+Choose the next architecture slice from the remaining Stage Core backlog:
+Provider Registry wrapper cleanup, Material Resolve pipeline extraction, or a
+storage schema change with explicit migration policy.
