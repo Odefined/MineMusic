@@ -26,11 +26,9 @@ import type {
   CanonicalMaintenancePort,
   CanonicalStorePort,
   CollectionPort,
-  CollectionRepository,
   EffectBoundaryPort,
   EventPort,
   LibraryImportPort,
-  LibraryImportRepository,
   MaterialStorePort,
   MaterialResolvePort,
   MaterialGatePort,
@@ -39,7 +37,6 @@ import type {
   PluginRegistryPort,
   ProviderHttpCacheRepository,
   SessionContextPort,
-  SourceEntityStoreRepository,
   SourceGroundingPort,
   ToolDispatchPort,
 } from "../ports/index.js";
@@ -50,21 +47,7 @@ import {
   createMineMusicStageInterface,
   createToolDispatch,
 } from "../stage_interface/index.js";
-import {
-  createInMemoryCanonicalRecordRepository,
-  createInMemoryCollectionRepository,
-  createInMemoryEffectProposalRepository,
-  createInMemoryEventRepository,
-  createInMemoryLibraryImportRepository,
-  createInMemoryMemoryRepository,
-  createInMemoryProviderHttpCacheRepository,
-  createInMemorySourceEntityStoreRepository,
-  createSqliteCanonicalRecordRepository,
-  createSqliteCollectionRepository,
-  createSqliteLibraryImportRepository,
-  createSqliteProviderHttpCacheRepository,
-  createSqliteSourceEntityStoreRepository,
-} from "../storage/index.js";
+import { createStageCoreRepositories } from "./repositories.js";
 import type {
   MineMusicStageCore,
   MineMusicStageCoreOptions,
@@ -138,52 +121,43 @@ export function createMineMusicStageCoreWithSourceProvider({
   handbookPath,
   handbookPaths,
 }: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
-  const canonicalRepository =
-    injectedCanonicalRepository ??
-    (materialStoreDatabasePath === undefined
-      ? createInMemoryCanonicalRecordRepository()
-      : createSqliteCanonicalRecordRepository({ path: materialStoreDatabasePath }));
-  const sourceEntityStoreRepository =
-    injectedSourceEntityStoreRepository ??
-    (materialStoreDatabasePath === undefined
-      ? createInMemorySourceEntityStoreRepository()
-      : createSqliteSourceEntityStoreRepository({ path: materialStoreDatabasePath }));
-  const collectionRepository =
-    injectedCollectionRepository ??
-    (collectionDatabasePath === undefined
-      ? createInMemoryCollectionRepository()
-      : createSqliteCollectionRepository({ path: collectionDatabasePath }));
-  const libraryImportRepository =
-    injectedLibraryImportRepository ??
-    (libraryImportDatabasePath === undefined
-      ? createInMemoryLibraryImportRepository()
-      : createSqliteLibraryImportRepository({ path: libraryImportDatabasePath }));
-  const providerHttpCache =
-    injectedProviderHttpCacheRepository ??
-    (providerHttpCacheDatabasePath === undefined
-      ? createInMemoryProviderHttpCacheRepository()
-      : createSqliteProviderHttpCacheRepository({ path: providerHttpCacheDatabasePath }));
+  const repositories = createStageCoreRepositories({
+    ...(injectedCanonicalRepository === undefined ? {} : { canonicalRepository: injectedCanonicalRepository }),
+    ...(injectedSourceEntityStoreRepository === undefined
+      ? {}
+      : { sourceEntityStoreRepository: injectedSourceEntityStoreRepository }),
+    ...(materialStoreDatabasePath === undefined ? {} : { materialStoreDatabasePath }),
+    ...(injectedCollectionRepository === undefined ? {} : { collectionRepository: injectedCollectionRepository }),
+    ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
+    ...(injectedLibraryImportRepository === undefined
+      ? {}
+      : { libraryImportRepository: injectedLibraryImportRepository }),
+    ...(libraryImportDatabasePath === undefined ? {} : { libraryImportDatabasePath }),
+    ...(injectedProviderHttpCacheRepository === undefined
+      ? {}
+      : { providerHttpCacheRepository: injectedProviderHttpCacheRepository }),
+    ...(providerHttpCacheDatabasePath === undefined ? {} : { providerHttpCacheDatabasePath }),
+  });
   const knowledgeProviders = [
     ...injectedKnowledgeProviders,
-    ...knowledgeProviderFactories.map((factory) => factory({ providerHttpCache })),
+    ...knowledgeProviderFactories.map((factory) =>
+      factory({ providerHttpCache: repositories.providerHttpCacheRepository }),
+    ),
   ];
-  const eventRepository = createInMemoryEventRepository();
-  const memoryRepository = createInMemoryMemoryRepository();
-  const effectRepository = createInMemoryEffectProposalRepository();
   const resolvedHandbookPaths = normalizeHandbookPaths({
     ...(handbookPath === undefined ? {} : { handbookPath }),
     ...(handbookPaths === undefined ? {} : { handbookPaths }),
   });
 
   const plugins = createPluginRegistry();
-  const canonical = createCanonicalStore({ repository: canonicalRepository });
+  const canonical = createCanonicalStore({ repository: repositories.canonicalRepository });
   const materialStore = createMaterialStore({
     canonicalStore: canonical,
-    sourceEntityStore: sourceEntityStoreRepository,
+    sourceEntityStore: repositories.sourceEntityStoreRepository,
   });
-  const events = createEventService({ repository: eventRepository });
+  const events = createEventService({ repository: repositories.eventRepository });
   const collection = createCollectionService({
-    repository: collectionRepository,
+    repository: repositories.collectionRepository,
     events,
   });
   const source = createSourceGroundingService({
@@ -203,12 +177,12 @@ export function createMineMusicStageCoreWithSourceProvider({
     pluginRegistry: plugins,
     materialStore,
     events,
-    repository: libraryImportRepository,
+    repository: repositories.libraryImportRepository,
   });
-  const effects = createEffectBoundary({ repository: effectRepository });
+  const effects = createEffectBoundary({ repository: repositories.effectRepository });
   const instruments = createInstrumentCatalog({ plugins });
   const memory = createMemoryService({
-    repository: memoryRepository,
+    repository: repositories.memoryRepository,
     events,
     effects,
   });
@@ -222,7 +196,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     events,
   });
   const canonicalMaintenance = createCanonicalMaintenance({
-    repository: canonicalRepository,
+    repository: repositories.canonicalRepository,
     sessionContext,
     knowledge,
     events,
@@ -248,7 +222,7 @@ export function createMineMusicStageCoreWithSourceProvider({
   });
   const ready = seedRuntime({
     canonicalRecords,
-    canonicalRepository,
+    canonicalRepository: repositories.canonicalRepository,
     handbookPaths: resolvedHandbookPaths,
     instruments,
     session,
@@ -277,7 +251,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     memory,
     effects,
     plugins,
-    providerHttpCache,
+    providerHttpCache: repositories.providerHttpCacheRepository,
   };
 }
 
