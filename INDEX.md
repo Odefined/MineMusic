@@ -356,9 +356,9 @@ This index points agents to the current MVP documentation pack.
       dispatch, and callable facade. Tool Definition files under
       `src/stage_interface/tool_definitions/**` now own per-Tool-Group
       descriptors, host input schemas, availability rules, dispatch handlers,
-      dependency contexts, and compact presentation rules. The current
-      stage-interface refactor plan makes those definitions the runtime payload
-      validation boundary and the source for derived tool aggregates.
+      dependency contexts, compact presentation rules, and runtime payload
+      validation. Stable tool names, agent descriptors, and input schemas are
+      derived from the ordered definition list.
 
 73. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,

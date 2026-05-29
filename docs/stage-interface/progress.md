@@ -13,9 +13,9 @@ dispatch routes, and output presentation rules now live under
 `src/stage_interface/tool_definitions/`.
 
 Stage Interface dispatch now resolves stable tools through the Tool Definition
-registry. There is no fallback dispatch switch for stable tools. The current
-contract refactor makes those same Tool Definitions the runtime payload
-validation boundary and the source for derived aggregate tool facts.
+registry. There is no fallback dispatch switch for stable tools. Tool
+Definitions are now also the runtime payload validation boundary and the source
+for derived aggregate tool facts.
 
 ## Established Decisions
 
@@ -32,6 +32,8 @@ validation boundary and the source for derived aggregate tool facts.
   source of tool contracts.
 - Use passthrough payload validation first. Extra keys remain tolerated while
   required fields and field types are enforced.
+- Keep strict payload validation as a future per-tool opt-in decision, not a
+  global default.
 
 ## Implemented
 
@@ -64,20 +66,33 @@ validation boundary and the source for derived aggregate tool facts.
   registry.
 - Co-located compact Canonical Review output presentation rules.
 - Focused registry dispatch test coverage.
+- Runtime payload validation through each Tool Definition's `inputSchema`.
+- `stage_interface.invalid_payload` for schema-boundary failures.
+- Ordered definition-derived `stableToolNames`, `agentToolDescriptors`, and
+  `stageInterfaceToolInputSchemas`.
+- Registry-primary dispatch lookup.
+- Low-risk Stage Tool Group payload handling cleanup after dispatch validation.
+- MCP schema parity and stable tool aggregate tests.
 
 ## Not Yet Implemented
 
-- Runtime payload validation for all tools.
-- Ordered definition-derived `stableToolNames`, `agentToolDescriptors`, and
-  `stageInterfaceToolInputSchemas`.
-- Low-risk handler cleanup after dispatch validation.
+- Per-tool strict payload mode.
+- Gradual handler cleanup for Memory, Knowledge, Handbook, Library, Music, and
+  Canonical Review tool groups.
 
 ## Verification
 
-- `npm run typecheck` passes.
-- `npm test` passes.
+- `npm run typecheck` passes as of the Stage Interface tool contract refactor.
+- `npm run build:test` passes as of the Stage Interface tool contract refactor.
+- `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
+  passes as of the Stage Interface tool contract refactor.
+- `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
+  the Stage Interface tool contract refactor.
+- `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
+  Interface tool contract refactor.
+- `npm test` passes as of the Stage Interface tool contract refactor.
 
 ## Next Slice
 
-Implement the contract refactor plan in
-`docs/stage-interface/minemusic_stage_interface_tool_contract_execution_plan.md`.
+Continue the gradual handler cleanup only when a specific tool group needs
+behavior work or stronger tests.

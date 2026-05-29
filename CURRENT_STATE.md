@@ -426,6 +426,12 @@ host-facing and LLM-facing surface.
 - Stage Interface owns stable tool names, instrument catalog, input schemas,
   tool dispatch, runtime tool-contract enforcement, and the host-facing
   callable facade under `src/stage_interface/**`.
+- Stage Interface Tool Definitions under
+  `src/stage_interface/tool_definitions/**` now own descriptor metadata, host
+  input schemas, availability rules, dispatch handlers, compact presentation
+  rules, and runtime payload validation. Stable tool names, agent descriptors,
+  and input schema aggregates are derived from the ordered definition list; MCP
+  consumes those Stage Interface definitions rather than owning tool contracts.
 - Stage Core public factory compatibility is exported from
   `src/stage_core/index.ts`. Internal Runtime Kit code now owns repository
   selection, options normalization, runtime seeding, service graph composition,
@@ -518,23 +524,18 @@ host-facing and LLM-facing surface.
   remains future work.
 - More host-surface validation for Handbook snapshot refresh when tool
   descriptors change.
-- Stage Interface Tool Definition registry implementation has migrated the
-  Stage, Handbook, Music, Knowledge, Library, Canonical Review, and Memory Tool
-  Groups: their tool descriptors, host input schemas, dispatch routes, and
-  presentation rules now live under
-  `src/stage_interface/tool_definitions/**`. Stage Interface dispatch resolves
-  stable tools through the registry without a fallback switch. Module-local
-  design, TODO, progress, and implementation-plan documents live under
-  `docs/stage-interface/`. The current Stage Interface contract refactor plan
-  adds runtime payload validation through those Tool Definitions, derives
-  aggregate tool facts from the ordered definition list, keeps validation
-  passthrough rather than strict, and preserves MCP as an adapter over Stage
-  Interface definitions.
+- Per-tool strict payload mode for Stage Interface remains future work; current
+  validation is intentionally passthrough.
 
 ## Verification
 
 - `npm run typecheck`, `npm test`, and `git diff --check` pass as of the
   Material Store / Source Entity Store rewrite through Phase 7 on 2026-05-28.
+- `npm run typecheck`, `npm run build:test`,
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface.test.js`,
+  `node .tmp-test/test/surfaces/mcp-server.test.js`, and `npm test` pass as of
+  the Stage Interface tool contract refactor on 2026-05-29.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
   implementation and is covered inside the latest `npm test` run.

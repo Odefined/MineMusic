@@ -35,13 +35,20 @@
 
 ## Contract Refactor
 
-- [ ] Add parity tests for stable tool order, descriptors, schemas, and
+- [x] Add parity tests for stable tool order, descriptors, schemas, and
       registry entries.
-- [ ] Add `stage_interface.invalid_payload`.
-- [ ] Validate payloads through each Tool Definition before handler invocation.
-- [ ] Keep first-pass validation passthrough, not strict.
-- [ ] Derive stable tool names, descriptors, and input schemas from the ordered
+- [x] Add `stage_interface.invalid_payload`.
+- [x] Validate payloads through each Tool Definition before handler invocation.
+- [x] Keep first-pass validation passthrough, not strict.
+- [x] Derive stable tool names, descriptors, and input schemas from the ordered
       definition list.
-- [ ] Make dispatch lookup registry-primary.
-- [ ] Reduce unchecked handler payload casts in low-risk tool groups.
-- [ ] Update state docs after implementation.
+- [x] Make dispatch lookup registry-primary.
+- [x] Reduce unchecked handler payload casts in low-risk tool groups.
+- [x] Update state docs after implementation.
+
+## Future Cleanup
+
+- [ ] Consider per-tool strict payload mode only after a caller compatibility
+      review.
+- [ ] Continue handler cleanup for Memory, Knowledge, Handbook, Library, Music,
+      and Canonical Review tool groups when a scoped behavior change needs it.

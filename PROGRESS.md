@@ -935,6 +935,15 @@
   Tool Definitions should own runtime payload validation, derived tool
   aggregates, registry-primary dispatch, compact presentation, and passthrough
   validation policy while MCP remains only an adapter.
+- Completed the Stage Interface tool contract refactor phases with TDD
+  characterization and phase commits: stable tool aggregate tests,
+  `stage_interface.invalid_payload`, Tool Definition runtime payload
+  validation, MCP schema parity tests, definition-derived aggregate exports,
+  registry-primary dispatch lookup, low-risk Stage Tool Group payload cleanup,
+  and state documentation.
+- Kept first-pass payload validation passthrough rather than strict, so extra
+  caller keys remain tolerated while required fields and field types are
+  enforced before handler invocation.
 - Added the Stage Core Runtime Kit refactoring design, execution plan, and
   module progress file under `docs/stage-core/`.
 - Completed Stage Core Runtime Kit Phases 0-9 with TDD characterization and
