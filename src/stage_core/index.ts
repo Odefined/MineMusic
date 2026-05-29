@@ -1,11 +1,3 @@
-import type {
-  CanonicalRecord,
-  KnowledgeProvider,
-  PlatformLibraryProvider,
-  Result,
-  SourceProvider,
-  StageSession,
-} from "../contracts/index.js";
 import { createFixtureSourceProvider } from "../fixtures/source_provider.js";
 import {
   createCanonicalMaintenance,
@@ -16,30 +8,10 @@ import {
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
-import { writeInstrumentHandbookFile } from "../handbook/index.js";
 import { createMusicKnowledgeService } from "../knowledge/index.js";
 import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
-import type {
-  CanonicalRecordRepository,
-  CanonicalMaintenancePort,
-  CanonicalStorePort,
-  CollectionPort,
-  EffectBoundaryPort,
-  EventPort,
-  LibraryImportPort,
-  MaterialStorePort,
-  MaterialResolvePort,
-  MaterialGatePort,
-  MemoryPort,
-  MusicKnowledgePort,
-  PluginRegistryPort,
-  ProviderHttpCacheRepository,
-  SessionContextPort,
-  SourceGroundingPort,
-  ToolDispatchPort,
-} from "../ports/index.js";
 import { createSourceGroundingService } from "../source/index.js";
 import { createMaterialGate, createSessionContext } from "../stage/index.js";
 import {
@@ -49,6 +21,7 @@ import {
 } from "../stage_interface/index.js";
 import { normalizeHandbookPaths } from "./handbook_paths.js";
 import { createStageCoreRepositories } from "./repositories.js";
+import { seedStageCoreRuntime } from "./seed.js";
 import type {
   MineMusicStageCore,
   MineMusicStageCoreOptions,
@@ -221,7 +194,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     sessionId: session.id,
     dispatch,
   });
-  const ready = seedRuntime({
+  const ready = seedStageCoreRuntime({
     canonicalRecords,
     canonicalRepository: repositories.canonicalRepository,
     handbookPaths: resolvedHandbookPaths,
@@ -232,6 +205,7 @@ export function createMineMusicStageCoreWithSourceProvider({
     knowledgeProviders,
     ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
     collection,
+    ownerScope: "local_profile:default",
   });
 
   return {
@@ -254,84 +228,4 @@ export function createMineMusicStageCoreWithSourceProvider({
     plugins,
     providerHttpCache: repositories.providerHttpCacheRepository,
   };
-}
-
-async function seedRuntime({
-  canonicalRecords,
-  canonicalRepository,
-  handbookPaths,
-  instruments,
-  session,
-  plugins,
-  sourceProvider,
-  knowledgeProviders,
-  platformLibraryProvider,
-  collection,
-}: {
-  canonicalRecords: CanonicalRecord[];
-  canonicalRepository: CanonicalRecordRepository;
-  handbookPaths: string[];
-  instruments: ReturnType<typeof createInstrumentCatalog>;
-  session: StageSession;
-  plugins: PluginRegistryPort;
-  sourceProvider: SourceProvider;
-  knowledgeProviders: KnowledgeProvider[];
-  platformLibraryProvider?: PlatformLibraryProvider;
-  collection: CollectionPort;
-}): Promise<void> {
-  for (const record of canonicalRecords) {
-    const putResult = await canonicalRepository.put(record);
-    throwIfFailed(putResult);
-  }
-
-  const registerResult = await plugins.registerProvider({
-    slot: "source",
-    providerId: sourceProvider.id,
-    provider: sourceProvider,
-  });
-  throwIfFailed(registerResult);
-
-  for (const knowledgeProvider of knowledgeProviders) {
-    const registerKnowledgeResult = await plugins.registerProvider({
-      slot: "knowledge",
-      providerId: knowledgeProvider.id,
-      provider: knowledgeProvider,
-    });
-    throwIfFailed(registerKnowledgeResult);
-  }
-
-  if (platformLibraryProvider !== undefined) {
-    const registerPlatformLibraryResult = await plugins.registerProvider({
-      slot: "platform_library",
-      providerId: platformLibraryProvider.id,
-      provider: platformLibraryProvider,
-    });
-    throwIfFailed(registerPlatformLibraryResult);
-  }
-
-  const initializedCollections = await collection.initializeOwnerCollections({
-    ownerScope: "local_profile:default",
-  });
-  throwIfFailed(initializedCollections);
-
-  if (handbookPaths.length > 0) {
-    const instrumentsResult = await instruments.list({ session });
-    const instrumentDescriptors = throwIfFailed(instrumentsResult);
-
-    for (const handbookPath of handbookPaths) {
-      const handbookResult = await writeInstrumentHandbookFile({
-        path: handbookPath,
-        instruments: instrumentDescriptors,
-      });
-      throwIfFailed(handbookResult);
-    }
-  }
-}
-
-function throwIfFailed<T>(result: Result<T>): T {
-  if (!result.ok) {
-    throw new Error(result.error.message);
-  }
-
-  return result.value;
 }
