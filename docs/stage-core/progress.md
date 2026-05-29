@@ -75,9 +75,8 @@ Implemented:
 
 ## Not Yet Implemented
 
-- Provider registry wrappers, Stage Interface runtime payload validation,
-  Material Resolve pipeline extraction, and storage schema changes remain
-  separate future slices.
+- Provider registry wrappers, Material Resolve pipeline extraction, and
+  storage schema changes remain separate future slices.
 
 ## Verification
 
@@ -88,20 +87,18 @@ npm run typecheck
 npm run build:test
 node .tmp-test/test/stage_core/stage-core-factory.test.js
 node .tmp-test/test/server/server-runtime.test.js
+node .tmp-test/test/server/server-http-mcp.test.js
 node .tmp-test/test/surfaces/mcp-server.test.js
 node .tmp-test/test/integration/canonical-persistence.test.js
 node .tmp-test/test/integration/collection-runtime.test.js
 node .tmp-test/test/integration/library-import-runtime.test.js
 node .tmp-test/test/integration/mvp-slice.test.js
+npm test
 ```
 
 Results:
 
 - All listed commands pass.
-- `node .tmp-test/test/server/server-http-mcp.test.js` and `npm test` were not
-  completed in this sandbox because binding `127.0.0.1` returned `EPERM`;
-  sandbox escalation was unavailable in this session. The full suite still
-  needs a non-sandbox or approved local-port run.
 
 ## Next Slice
 
