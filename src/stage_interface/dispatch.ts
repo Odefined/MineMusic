@@ -4,6 +4,7 @@ import type {
   StageError,
   ToolName,
 } from "../contracts/index.js";
+import { z } from "zod/v4";
 import type {
   CollectionPort,
   CanonicalMaintenancePort,
@@ -20,7 +21,6 @@ import type {
   SourceGroundingPort,
   ToolDispatchPort,
 } from "../ports/index.js";
-import { stableToolNames } from "./tools.js";
 import {
   createStageInterfaceToolDefinitionRegistry,
   type BoundStageInterfaceToolDefinition,
@@ -90,16 +90,7 @@ export function createToolDispatch({
 
   return {
     async call({ sessionId, toolName, payload }) {
-      if (!isStableToolName(toolName)) {
-        return fail({
-          code: "stage_interface.tool_not_found",
-          message: `Tool '${String(toolName)}' is not registered.`,
-          module: "stage_interface",
-          retryable: false,
-        });
-      }
-
-      const registryDefinition = toolDefinitionRegistry.get(toolName);
+      const registryDefinition = lookupToolDefinition(toolDefinitionRegistry, toolName);
 
       if (registryDefinition !== undefined) {
         return callToolDefinition({
@@ -147,7 +138,13 @@ async function callToolDefinition({
     }
   }
 
-  const result = await definition.handler({ sessionId, payload });
+  const parsedPayload = parseToolPayload({ definition, payload });
+
+  if (!parsedPayload.ok) {
+    return parsedPayload;
+  }
+
+  const result = await definition.handler({ sessionId, payload: parsedPayload.value });
 
   if (!result.ok || definition.present === undefined) {
     return result;
@@ -156,8 +153,51 @@ async function callToolDefinition({
   return ok(definition.present(result.value));
 }
 
-function isStableToolName(toolName: ToolName | string): toolName is ToolName {
-  return (stableToolNames as readonly string[]).includes(String(toolName));
+function parseToolPayload({
+  definition,
+  payload,
+}: {
+  definition: BoundStageInterfaceToolDefinition;
+  payload: unknown;
+}): Result<unknown> {
+  const payloadObject = payload === undefined ? {} : payload;
+  const parsed = z.object(definition.inputSchema).passthrough().safeParse(payloadObject);
+
+  if (!parsed.success) {
+    return fail(invalidPayloadError(definition.name, summarizeZodError(parsed.error)));
+  }
+
+  if (definition.validatePayload !== undefined) {
+    return definition.validatePayload(parsed.data);
+  }
+
+  return ok(parsed.data);
+}
+
+function invalidPayloadError(toolName: ToolName, message: string): StageError {
+  return {
+    code: "stage_interface.invalid_payload",
+    message: `Invalid payload for tool '${toolName}': ${message}`,
+    module: "stage_interface",
+    retryable: false,
+  };
+}
+
+function summarizeZodError(error: z.ZodError): string {
+  return error.issues
+    .slice(0, 3)
+    .map((issue) => {
+      const path = issue.path.length === 0 ? "payload" : issue.path.join(".");
+      return `${path}: ${issue.message}`;
+    })
+    .join("; ");
+}
+
+function lookupToolDefinition(
+  registry: Map<ToolName, BoundStageInterfaceToolDefinition>,
+  toolName: ToolName | string,
+): BoundStageInterfaceToolDefinition | undefined {
+  return registry.get(String(toolName) as ToolName);
 }
 
 async function ensureToolAvailableForSession(

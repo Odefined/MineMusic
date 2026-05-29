@@ -12,7 +12,10 @@ import type {
 } from "../../src/contracts/index.js";
 import { createDefaultMineMusicServerRuntime } from "../../src/server/runtime.js";
 import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
-import { stableToolNames } from "../../src/stage_interface/index.js";
+import {
+  stableToolNames,
+  stageInterfaceToolInputSchemas,
+} from "../../src/stage_interface/index.js";
 import {
   codexToolNameFor,
   createMineMusicMcpToolDefinitions,
@@ -88,6 +91,30 @@ async function exposesStableToolsThroughMcpDefinitions(): Promise<void> {
     names.every((name) => name.startsWith("minemusic.")),
     "MCP definitions should not leak unprefixed internal tool names",
   );
+}
+
+async function mcpDefinitionsStayInParityWithStageInterfaceSchemas(): Promise<void> {
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider,
+  });
+  await stageCore.ready;
+
+  const definitions = createMineMusicMcpToolDefinitions(stageCore);
+  const names = definitions.map((definition) => definition.name);
+  const namesByDefinition = new Map(definitions.map((definition) => [definition.name, definition]));
+
+  assert(new Set(names).size === names.length, "MCP definitions should not contain duplicate tool names");
+
+  for (const toolName of stableToolNames) {
+    const definition = namesByDefinition.get(codexToolNameFor(toolName));
+
+    assert(definition !== undefined, `MCP definitions should expose ${toolName}`);
+    assert(
+      definition.inputSchema === stageInterfaceToolInputSchemas[toolName],
+      `MCP schema for ${toolName} should come from Stage Interface schemas`,
+    );
+  }
 }
 
 async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void> {
@@ -579,6 +606,7 @@ function schemaIsEmpty(schema: unknown): boolean {
 
 await mapsInternalToolsToCodexPrefixedMcpTools();
 await exposesStableToolsThroughMcpDefinitions();
+await mcpDefinitionsStayInParityWithStageInterfaceSchemas();
 await exposesUsefulInputSchemasForArgumentBearingTools();
 await dispatchesMcpPayloadsToStageInterface();
 await dispatchesMcpPayloadsThroughInjectedRuntime();

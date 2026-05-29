@@ -65,13 +65,7 @@ export const stageToolDefinitions = [
       purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
     },
     handler({ context, sessionId, payload }) {
-      return context.materialGate.prepareMaterials(
-        readPayload<{
-          sessionId: string;
-          materials: MusicMaterial[];
-          purpose: Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"];
-        }>(payload, { sessionId }),
-      );
+      return context.materialGate.prepareMaterials(materialsPrepareInput(payload, sessionId));
     },
   },
   {
@@ -85,12 +79,7 @@ export const stageToolDefinitions = [
       sessionId: z.string().optional(),
     },
     handler({ context, sessionId, payload }) {
-      return context.sessionContext.updateSession(
-        readPayload<{
-          sessionId: string;
-          patch: Parameters<SessionContextPort["updateSession"]>[0]["patch"];
-        }>(payload, { sessionId }),
-      );
+      return context.sessionContext.updateSession(sessionUpdateInput(payload, sessionId));
     },
   },
   {
@@ -103,9 +92,7 @@ export const stageToolDefinitions = [
       event: z.object({}).passthrough(),
     },
     handler({ context, payload }) {
-      return context.events.record(
-        readPayload<{ event: Omit<StageEvent, "id" | "time"> }>(payload),
-      );
+      return context.events.record(eventRecordInput(payload));
     },
   },
   {
@@ -119,9 +106,7 @@ export const stageToolDefinitions = [
       proposal: z.object({}).passthrough(),
     },
     handler({ context, payload }) {
-      return context.effects.propose(
-        readPayload<{ proposal: Omit<EffectProposal, "id"> }>(payload),
-      );
+      return context.effects.propose(effectProposalInput(payload));
     },
   },
 ] satisfies readonly StageInterfaceToolDefinition<StageToolName, StageToolGroupContext>[];
@@ -134,15 +119,50 @@ export const stageToolInputSchemas = Object.fromEntries(
   stageToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
 ) as unknown as Record<StageToolName, StageInterfaceToolInputSchema>;
 
-function readPayload<TPayload extends object>(
+function materialsPrepareInput(
   payload: unknown,
-  defaults?: Partial<TPayload>,
-): TPayload {
-  const payloadObject =
-    typeof payload === "object" && payload !== null ? (payload as Partial<TPayload>) : {};
+  sessionId: string,
+): Parameters<MaterialGatePort["prepareMaterials"]>[0] {
+  const input = payloadObject(payload);
 
   return {
-    ...(defaults ?? {}),
-    ...payloadObject,
-  } as TPayload;
+    sessionId,
+    materials: input.materials as MusicMaterial[],
+    purpose: input.purpose as Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"],
+  };
+}
+
+function sessionUpdateInput(
+  payload: unknown,
+  sessionId: string,
+): Parameters<SessionContextPort["updateSession"]>[0] {
+  const input = payloadObject(payload);
+
+  return {
+    sessionId: typeof input.sessionId === "string" ? input.sessionId : sessionId,
+    patch: input.patch as Parameters<SessionContextPort["updateSession"]>[0]["patch"],
+  };
+}
+
+function eventRecordInput(payload: unknown): Parameters<EventPort["record"]>[0] {
+  const input = payloadObject(payload);
+
+  return {
+    event: input.event as Omit<StageEvent, "id" | "time">,
+  };
+}
+
+function effectProposalInput(payload: unknown): Parameters<EffectBoundaryPort["propose"]>[0] {
+  const input = payloadObject(payload);
+
+  return {
+    proposal: input.proposal as Omit<EffectProposal, "id">,
+  };
+}
+
+function payloadObject(payload: unknown): Record<string, unknown> {
+  const payloadObject =
+    typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+
+  return payloadObject;
 }

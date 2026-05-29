@@ -1,4 +1,4 @@
-import type { ToolName } from "../../contracts/index.js";
+import type { ToolDescriptor, ToolName } from "../../contracts/index.js";
 import type {
   CanonicalReviewToolGroupContext,
 } from "./canonical_review.js";
@@ -64,9 +64,11 @@ import {
 } from "./stage.js";
 import type {
   BoundStageInterfaceToolDefinition,
+  StageInterfaceToolInputSchema,
 } from "./types.js";
 import {
   bindToolDefinitions,
+  descriptorForToolDefinition,
 } from "./types.js";
 
 export {
@@ -134,6 +136,39 @@ export type {
   StageInterfaceToolHandlerInput,
   StageInterfaceToolInputSchema,
 } from "./types.js";
+
+const orderedStageInterfaceToolDefinitionGroups = [
+  stageToolDefinitions.slice(0, 1),
+  handbookToolDefinitions,
+  stageToolDefinitions.slice(1),
+  musicToolDefinitions.slice(0, 1),
+  knowledgeToolDefinitions,
+  musicToolDefinitions.slice(1),
+  libraryToolDefinitions,
+  canonicalReviewToolDefinitions,
+  memoryToolDefinitions,
+] as const;
+
+export const stageInterfaceToolDefinitions =
+  orderedStageInterfaceToolDefinitionGroups.flat();
+
+export const stableToolNames = stageInterfaceToolDefinitions.map(
+  (definition) => definition.name,
+) as readonly ToolName[];
+
+export type StableToolName = (typeof stableToolNames)[number];
+
+export type StableToolDescriptor = Omit<ToolDescriptor, "name"> & {
+  name: StableToolName;
+};
+
+export const agentToolDescriptors = stageInterfaceToolDefinitions.map(
+  descriptorForToolDefinition,
+) as StableToolDescriptor[];
+
+export const stageInterfaceToolInputSchemas = Object.fromEntries(
+  stageInterfaceToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
+) as Record<StableToolName, StageInterfaceToolInputSchema>;
 
 export type StageInterfaceToolDefinitionRegistryOptions = {
   stage: StageToolGroupContext;

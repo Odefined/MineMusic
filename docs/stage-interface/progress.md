@@ -13,7 +13,9 @@ dispatch routes, and output presentation rules now live under
 `src/stage_interface/tool_definitions/`.
 
 Stage Interface dispatch now resolves stable tools through the Tool Definition
-registry. There is no fallback dispatch switch for stable tools.
+registry. There is no fallback dispatch switch for stable tools. Tool
+Definitions are now also the runtime payload validation boundary and the source
+for derived aggregate tool facts.
 
 ## Established Decisions
 
@@ -26,9 +28,12 @@ registry. There is no fallback dispatch switch for stable tools.
   declaring its availability rule.
 - Treat compact agent-facing output presentation as part of each tool's
   Interface.
-- Migrate with registry plus fallback dispatch rather than a single large
-  rewrite.
-- Use the Library Tool Group as the first tracer bullet.
+- Preserve MCP as an adapter over Stage Interface definitions, not a separate
+  source of tool contracts.
+- Use passthrough payload validation first. Extra keys remain tolerated while
+  required fields and field types are enforced.
+- Keep strict payload validation as a future per-tool opt-in decision, not a
+  global default.
 
 ## Implemented
 
@@ -60,18 +65,39 @@ registry. There is no fallback dispatch switch for stable tools.
   Canonical Review, and Memory descriptors and schemas derived from the
   registry.
 - Co-located compact Canonical Review output presentation rules.
-- Focused registry/fallback dispatch test coverage.
+- Focused registry dispatch test coverage.
+- Runtime payload validation through each Tool Definition's `inputSchema`.
+- `stage_interface.invalid_payload` for schema-boundary failures.
+- Optional per-tool `validatePayload` for conditional contracts that raw host
+  schemas cannot express without changing MCP compatibility.
+- Ordered definition-derived `stableToolNames`, `agentToolDescriptors`, and
+  `stageInterfaceToolInputSchemas`.
+- Registry-primary dispatch lookup.
+- Low-risk Stage Tool Group payload handling cleanup after dispatch validation.
+- `music.material.resolve` conditional validation: `single` requires
+  `candidate`, and `candidate_set` requires `candidates`, before
+  `MaterialResolvePort` is called.
+- MCP schema parity and stable tool aggregate tests.
 
 ## Not Yet Implemented
 
-- Runtime payload validation for all tools remains a separate future question.
+- Per-tool strict payload mode.
+- Gradual handler cleanup for Memory, Knowledge, Handbook, Library, Music, and
+  Canonical Review tool groups.
 
 ## Verification
 
-- `npm run typecheck` passes.
-- `npm test` passes.
+- `npm run typecheck` passes as of the Stage Interface tool contract refactor.
+- `npm run build:test` passes as of the Stage Interface tool contract refactor.
+- `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
+  passes as of the Stage Interface tool contract refactor.
+- `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
+  the Stage Interface tool contract refactor.
+- `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
+  Interface tool contract refactor.
+- `npm test` passes as of the Stage Interface tool contract refactor.
 
 ## Next Slice
 
-Reassess whether runtime payload validation should be enabled for all tools as a
-separate follow-up.
+Continue the gradual handler cleanup only when a specific tool group needs
+behavior work or stronger tests.

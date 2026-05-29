@@ -176,18 +176,24 @@ This index points agents to the current MVP documentation pack.
       facts.
 
 34. `docs/stage-interface/design.md`
-    - Detailed design for Stage Interface Tool Definitions, Tool Groups,
-      registry-first dispatch, availability rules, and presentation rules.
+    - Source design for Stage Interface Tool Definitions as the runtime tool
+      contract: stable names, descriptors, input schemas, availability,
+      dispatch routing, runtime payload validation, and presentation rules.
 
-35. `docs/stage-interface/tool-definition-registry-implementation-plan.md`
-    - Plan for deepening Stage Interface around Tool Definitions and Tool
-      Groups, starting with a Library Tool Group tracer bullet while preserving
-      `ToolDispatchPort.call(...)` and MCP tool names.
+35. `docs/stage-interface/minemusic_stage_interface_tool_contract_design.md`
+    - Refactor design for making Tool Definitions the authoritative runtime
+      contract for tool names, descriptors, input schemas, availability,
+      handler routing, output presentation, and MCP-derived exposure.
 
-36. `docs/stage-interface/todo.md`
+36. `docs/stage-interface/minemusic_stage_interface_tool_contract_execution_plan.md`
+    - Phase plan for adding payload validation, parity tests,
+      definition-derived aggregates, registry-primary dispatch, handler cleanup,
+      strictness policy, and state documentation.
+
+37. `docs/stage-interface/todo.md`
     - Module-local TODO list for the Tool Definition registry migration.
 
-37. `docs/stage-interface/progress.md`
+38. `docs/stage-interface/progress.md`
     - Module-local progress/status ledger for Stage Interface.
 
 38. `src/collection/index.ts`
@@ -347,10 +353,12 @@ This index points agents to the current MVP documentation pack.
 
 72. `src/stage_interface/**`
     - Stage Interface instruments, stable tool metadata, host schemas,
-      dispatch, and callable facade. Tool Definition registry files under
+      dispatch, and callable facade. Tool Definition files under
       `src/stage_interface/tool_definitions/**` now own per-Tool-Group
       descriptors, host input schemas, availability rules, dispatch handlers,
-      dependency contexts, and compact presentation rules.
+      dependency contexts, compact presentation rules, and runtime payload
+      validation. Stable tool names, agent descriptors, and input schemas are
+      derived from the ordered definition list.
 
 73. `src/handbook/index.ts`
     - Instrument-catalog Handbook renderer and lookup helpers for overview,

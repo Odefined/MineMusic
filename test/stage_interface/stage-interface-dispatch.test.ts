@@ -1909,6 +1909,173 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   assert(result.error.code === "stage_interface.tool_not_found", "unknown tools should use stable error code");
 }
 
+async function invalidStageMaterialsPayloadFailsAtBoundary(): Promise<void> {
+  let prepareMaterialsCalls = 0;
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async () => {
+        prepareMaterialsCalls += 1;
+        return { ok: true, value: [] };
+      },
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {} as MaterialResolvePort,
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+  const result = await dispatch.call({
+    sessionId: session.id,
+    toolName: "stage.materials.prepare",
+    payload: { purpose: "recommendation" },
+  });
+
+  assert(!result.ok, "invalid payloads should fail via Result");
+  assert(
+    result.error.code === "stage_interface.invalid_payload",
+    "invalid payloads should fail at the Stage Interface boundary",
+  );
+  assert(result.error.module === "stage_interface", "invalid payload errors should belong to Stage Interface");
+  assert(prepareMaterialsCalls === 0, "invalid payloads should not call handler dependencies");
+}
+
+async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promise<void> {
+  let resolveCalls = 0;
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => {
+        resolveCalls += 1;
+        return { ok: true, value: { kind: "candidate_set", results: [] } };
+      },
+    },
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+
+  const missingCandidate = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { kind: "single" },
+  });
+  const missingCandidates = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { kind: "candidate_set" },
+  });
+
+  assert(!missingCandidate.ok, "single material resolve should require candidate");
+  assert(
+    missingCandidate.error.code === "stage_interface.invalid_payload",
+    "single material resolve should fail at the Stage Interface boundary",
+  );
+  assert(!missingCandidates.ok, "candidate-set material resolve should require candidates");
+  assert(
+    missingCandidates.error.code === "stage_interface.invalid_payload",
+    "candidate-set material resolve should fail at the Stage Interface boundary",
+  );
+  assert(resolveCalls === 0, "invalid material resolve payloads should not call MaterialResolvePort");
+}
+
+async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promise<void> {
+  let prepareMaterialsCalls = 0;
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => {
+        prepareMaterialsCalls += 1;
+        return { ok: true, value: materials };
+      },
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {} as MaterialResolvePort,
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+
+  const valid = await dispatch.call({
+    sessionId: session.id,
+    toolName: "stage.materials.prepare",
+    payload: {
+      materials: [],
+      purpose: "recommendation",
+    },
+  });
+  const withExtraKey = await dispatch.call({
+    sessionId: session.id,
+    toolName: "stage.materials.prepare",
+    payload: {
+      materials: [],
+      purpose: "recommendation",
+      extra: "allowed in passthrough mode",
+    },
+  });
+
+  assert(valid.ok, "valid payloads should reach handler dependencies");
+  assert(withExtraKey.ok, "unknown extra keys should be accepted in passthrough mode");
+  assert(prepareMaterialsCalls === 2, "valid payloads should call handler dependencies");
+}
+
+async function stageSessionUpdateDefaultsToDispatchSessionId(): Promise<void> {
+  let updatedSessionId = "";
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ sessionId, patch }) => {
+        updatedSessionId = sessionId;
+        return { ok: true, value: { ...session, ...patch } };
+      },
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {} as MaterialResolvePort,
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+  const result = await dispatch.call({
+    sessionId: "dispatch-session",
+    toolName: "stage.session.update",
+    payload: {
+      patch: {
+        notes: "default session id",
+      },
+    },
+  });
+
+  assert(result.ok, "stage.session.update should accept payloads without explicit sessionId");
+  assert(
+    updatedSessionId === "dispatch-session",
+    "stage.session.update should default missing payload sessionId to the dispatch session id",
+  );
+}
+
 function libraryImportReport({
   batchId,
   batchKind,
@@ -2027,3 +2194,7 @@ await dispatchesLibraryImportToolsWithDefaultOwnerScope();
 await dispatchesSourceLibraryToolsThroughMaterialStore();
 await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();
+await invalidStageMaterialsPayloadFailsAtBoundary();
+await invalidMaterialResolveConditionalPayloadsFailAtBoundary();
+await validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys();
+await stageSessionUpdateDefaultsToDispatchSessionId();
