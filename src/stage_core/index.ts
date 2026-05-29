@@ -19,8 +19,7 @@ import {
   createMineMusicStageInterface,
   createToolDispatch,
 } from "../stage_interface/index.js";
-import { normalizeHandbookPaths } from "./handbook_paths.js";
-import { createStageCoreRepositories } from "./repositories.js";
+import { createStageCoreRuntimeKitFromOptions } from "./runtime_kit.js";
 import { seedStageCoreRuntime } from "./seed.js";
 import type {
   MineMusicStageCore,
@@ -76,53 +75,11 @@ export function createMineMusicStageCore({
   });
 }
 
-export function createMineMusicStageCoreWithSourceProvider({
-  session,
-  sourceProvider,
-  canonicalRecords = [],
-  canonicalRepository: injectedCanonicalRepository,
-  sourceEntityStoreRepository: injectedSourceEntityStoreRepository,
-  materialStoreDatabasePath,
-  collectionRepository: injectedCollectionRepository,
-  collectionDatabasePath,
-  libraryImportRepository: injectedLibraryImportRepository,
-  libraryImportDatabasePath,
-  providerHttpCacheRepository: injectedProviderHttpCacheRepository,
-  providerHttpCacheDatabasePath,
-  knowledgeProviders: injectedKnowledgeProviders = [],
-  knowledgeProviderFactories = [],
-  platformLibraryProvider,
-  handbookPath,
-  handbookPaths,
-}: MineMusicStageCoreWithSourceProviderOptions): MineMusicStageCore {
-  const repositories = createStageCoreRepositories({
-    ...(injectedCanonicalRepository === undefined ? {} : { canonicalRepository: injectedCanonicalRepository }),
-    ...(injectedSourceEntityStoreRepository === undefined
-      ? {}
-      : { sourceEntityStoreRepository: injectedSourceEntityStoreRepository }),
-    ...(materialStoreDatabasePath === undefined ? {} : { materialStoreDatabasePath }),
-    ...(injectedCollectionRepository === undefined ? {} : { collectionRepository: injectedCollectionRepository }),
-    ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
-    ...(injectedLibraryImportRepository === undefined
-      ? {}
-      : { libraryImportRepository: injectedLibraryImportRepository }),
-    ...(libraryImportDatabasePath === undefined ? {} : { libraryImportDatabasePath }),
-    ...(injectedProviderHttpCacheRepository === undefined
-      ? {}
-      : { providerHttpCacheRepository: injectedProviderHttpCacheRepository }),
-    ...(providerHttpCacheDatabasePath === undefined ? {} : { providerHttpCacheDatabasePath }),
-  });
-  const knowledgeProviders = [
-    ...injectedKnowledgeProviders,
-    ...knowledgeProviderFactories.map((factory) =>
-      factory({ providerHttpCache: repositories.providerHttpCacheRepository }),
-    ),
-  ];
-  const resolvedHandbookPaths = normalizeHandbookPaths({
-    ...(handbookPath === undefined ? {} : { handbookPath }),
-    ...(handbookPaths === undefined ? {} : { handbookPaths }),
-  });
-
+export function createMineMusicStageCoreWithSourceProvider(
+  options: MineMusicStageCoreWithSourceProviderOptions,
+): MineMusicStageCore {
+  const kit = createStageCoreRuntimeKitFromOptions(options);
+  const { session, repositories } = kit;
   const plugins = createPluginRegistry();
   const canonical = createCanonicalStore({ repository: repositories.canonicalRepository });
   const materialStore = createMaterialStore({
@@ -195,17 +152,19 @@ export function createMineMusicStageCoreWithSourceProvider({
     dispatch,
   });
   const ready = seedStageCoreRuntime({
-    canonicalRecords,
+    canonicalRecords: kit.seed.canonicalRecords,
     canonicalRepository: repositories.canonicalRepository,
-    handbookPaths: resolvedHandbookPaths,
+    handbookPaths: kit.outputs.handbookPaths,
     instruments,
     session,
     plugins,
-    sourceProvider,
-    knowledgeProviders,
-    ...(platformLibraryProvider === undefined ? {} : { platformLibraryProvider }),
+    sourceProvider: kit.providers.sourceProvider,
+    knowledgeProviders: kit.providers.knowledgeProviders,
+    ...(kit.providers.platformLibraryProvider === undefined
+      ? {}
+      : { platformLibraryProvider: kit.providers.platformLibraryProvider }),
     collection,
-    ownerScope: "local_profile:default",
+    ownerScope: kit.seed.ownerScope,
   });
 
   return {
