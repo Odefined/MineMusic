@@ -12,6 +12,9 @@ import {
 } from "./repositories.js";
 import type { MineMusicStageCoreWithSourceProviderOptions } from "./types.js";
 
+const defaultOwnerScope = "local_profile:default";
+
+// Internal composition input for Stage Core. Do not re-export from the public facade.
 export type StageCoreRuntimeKit = {
   session: StageSession;
   repositories: StageCoreRepositories;
@@ -52,7 +55,7 @@ export function createStageCoreRuntimeKitFromOptions(
     },
     seed: {
       canonicalRecords: options.canonicalRecords ?? [],
-      ownerScope: "local_profile:default",
+      ownerScope: defaultOwnerScope,
     },
     outputs: {
       handbookPaths: normalizeHandbookPaths({

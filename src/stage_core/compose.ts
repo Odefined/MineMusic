@@ -22,6 +22,7 @@ import type { StageCoreRuntimeKit } from "./runtime_kit.js";
 import { seedStageCoreRuntime } from "./seed.js";
 import type { MineMusicStageCore } from "./types.js";
 
+// Assembly only: keep storage selection, provider fallback, owner-scope rules, and tool policy outside compose.
 export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicStageCore {
   const { session, repositories } = kit;
   const plugins = createPluginRegistry();

@@ -66,12 +66,14 @@ export function createMineMusicStageCoreWithSourceProvider(
   );
 }
 
+// Compatibility alias for future test-harness migration.
 export function createMineMusicStageCoreHarness(
   options: MineMusicStageCoreWithSourceProviderOptions,
 ): MineMusicStageCoreHarness {
   return createMineMusicStageCoreWithSourceProvider(options);
 }
 
+// Compatibility alias for future fixture test-harness migration.
 export function createFixtureMineMusicStageCoreHarness(
   options: MineMusicStageCoreOptions,
 ): MineMusicStageCoreHarness {
