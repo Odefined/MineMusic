@@ -3,6 +3,7 @@ import { composeMineMusicStageCore } from "./compose.js";
 import { createStageCoreRuntimeKitFromOptions } from "./runtime_kit.js";
 import type {
   MineMusicStageCore,
+  MineMusicStageCoreHarness,
   MineMusicStageCoreOptions,
   MineMusicStageCoreWithSourceProviderOptions,
 } from "./types.js";
@@ -63,4 +64,16 @@ export function createMineMusicStageCoreWithSourceProvider(
   return composeMineMusicStageCore(
     createStageCoreRuntimeKitFromOptions(options),
   );
+}
+
+export function createMineMusicStageCoreHarness(
+  options: MineMusicStageCoreWithSourceProviderOptions,
+): MineMusicStageCoreHarness {
+  return createMineMusicStageCoreWithSourceProvider(options);
+}
+
+export function createFixtureMineMusicStageCoreHarness(
+  options: MineMusicStageCoreOptions,
+): MineMusicStageCoreHarness {
+  return createMineMusicStageCore(options);
 }
