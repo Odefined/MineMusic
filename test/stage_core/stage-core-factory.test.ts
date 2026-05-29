@@ -15,7 +15,11 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import { createMusicBrainzKnowledgeProvider } from "../../src/providers/musicbrainz/index.js";
-import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
+import {
+  createMineMusicStageCoreHarness,
+  createMineMusicStageCoreWithSourceProvider,
+  createMineMusicStageRuntimeWithSourceProvider,
+} from "../../src/stage_core/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
@@ -107,6 +111,35 @@ async function createsStageCoreWithInjectedSourceProvider(): Promise<void> {
     materials[0]?.state === "source_only_playable",
     "Stage Core should preserve source-backed playability normalization",
   );
+}
+
+async function createsNarrowStageRuntimeWithInjectedSourceProvider(): Promise<void> {
+  const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
+    session,
+    sourceProvider: emptySourceProvider(),
+  });
+
+  assert(
+    Object.keys(stageRuntime).sort().join(",") === "ready,stageInterface",
+    "narrow Stage Runtime should expose only ready and Stage Interface",
+  );
+  assert(!("plugins" in stageRuntime), "narrow Stage Runtime should not expose Plugin Registry");
+  assert(!("libraryImport" in stageRuntime), "narrow Stage Runtime should not expose Library Import");
+
+  await stageRuntime.ready;
+
+  const handbook = await stageRuntime.stageInterface.tools["handbook.overview.read"]({});
+
+  assert(handbook.ok, "narrow Stage Runtime should still work through Stage Interface");
+
+  const harness = createMineMusicStageCoreHarness({
+    session,
+    sourceProvider: emptySourceProvider(),
+  });
+  await harness.ready;
+
+  assert("plugins" in harness, "Stage Core harness should still expose Plugin Registry for tests");
+  assert("libraryImport" in harness, "Stage Core harness should still expose Library Import for tests");
 }
 
 async function writesInstrumentHandbookOnStageCoreReady(): Promise<void> {
@@ -695,6 +728,7 @@ function providerHttpCacheEntry(cacheKey: string): ProviderHttpCacheEntry {
 }
 
 await createsStageCoreWithInjectedSourceProvider();
+await createsNarrowStageRuntimeWithInjectedSourceProvider();
 await writesInstrumentHandbookOnStageCoreReady();
 await writesProviderCapabilitiesIntoInstrumentHandbook();
 await usesInjectedCanonicalRepositoryForMaterialResolve();

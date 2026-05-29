@@ -16,7 +16,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
-import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
+import { createMineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 import { codexToolNameFor, createMineMusicMcpToolDefinitions } from "../../src/surfaces/mcp/server.js";
 import { createInMemoryLibraryImportRepository } from "../../src/storage/index.js";
 
@@ -94,7 +94,7 @@ async function importsPlatformLibraryThroughComposedStageCore(): Promise<void> {
   };
 
   try {
-    const stageCore = createMineMusicStageCoreWithSourceProvider({
+    const stageCore = createMineMusicStageCoreHarness({
       session,
       sourceProvider,
       platformLibraryProvider,
@@ -210,7 +210,7 @@ async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise
   };
 
   try {
-    const firstStageCore = createMineMusicStageCoreWithSourceProvider({
+    const firstStageCore = createMineMusicStageCoreHarness({
       session,
       sourceProvider: createEmptySourceProvider("sqlite-library-import-source-provider"),
       platformLibraryProvider,
@@ -226,7 +226,7 @@ async function persistsLibraryImportStateThroughStageCoreDatabasePath(): Promise
       }),
     );
 
-    const recreatedStageCore = createMineMusicStageCoreWithSourceProvider({
+    const recreatedStageCore = createMineMusicStageCoreHarness({
       session,
       sourceProvider: createEmptySourceProvider("sqlite-library-import-source-provider"),
       libraryImportDatabasePath: databasePath,
@@ -255,7 +255,7 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
   const unsavedBoundRecord = canonicalRecording("unsaved-bound-recording", "Unsaved Bound Track", "unsaved-bound-track");
 
   try {
-    const stageCore = createMineMusicStageCoreWithSourceProvider({
+    const stageCore = createMineMusicStageCoreHarness({
       session,
       sourceProvider,
       platformLibraryProvider,
@@ -443,7 +443,7 @@ async function doesNotCreateAbsencesForPartialRuntimeUpdates(): Promise<void> {
   ];
 
   try {
-    const stageCore = createMineMusicStageCoreWithSourceProvider({
+    const stageCore = createMineMusicStageCoreHarness({
       session,
       sourceProvider: createEmptySourceProvider("partial-update-source-provider"),
       platformLibraryProvider,
@@ -598,7 +598,7 @@ function completeReadArea(items: PlatformLibraryItem[]): PlatformLibraryReadArea
 }
 
 async function listSavedRecordingItems(
-  stageCore: ReturnType<typeof createMineMusicStageCoreWithSourceProvider>,
+  stageCore: ReturnType<typeof createMineMusicStageCoreHarness>,
 ): Promise<CollectionItem[]> {
   return assertOk(
     stageCore.collection.listItems({
@@ -610,7 +610,7 @@ async function listSavedRecordingItems(
 }
 
 async function putRuntimeConfirmedBinding(
-  stageCore: ReturnType<typeof createMineMusicStageCoreWithSourceProvider>,
+  stageCore: ReturnType<typeof createMineMusicStageCoreHarness>,
   sourceRefValue: Ref,
   canonicalRef: Ref,
 ): Promise<void> {

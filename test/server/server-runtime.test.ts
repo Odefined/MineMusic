@@ -2,12 +2,23 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
+import type {
+  HandbookInstrumentEntry,
+  InstrumentProviderDescriptor,
+  Result,
+} from "../../src/contracts/index.js";
 import { createDefaultMineMusicServerRuntime } from "../../src/server/runtime.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
+  const awaited = await result;
+  assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
+  return awaited.value;
 }
 
 async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
@@ -35,26 +46,31 @@ async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
     );
     await runtime.ready;
 
-    const sourceProviderResult = await runtime.stageCore.plugins.getProvider({
-      slot: "source",
-      providerId: "netease",
-    });
-    const platformLibraryProviderResult = await runtime.stageCore.plugins.getProvider({
-      slot: "platform_library",
-      providerId: "netease",
-    });
-    const knowledgeProviderResult = await runtime.stageCore.plugins.getProvider({
-      slot: "knowledge",
-      providerId: "musicbrainz",
-    });
+    assert(!("stageCore" in runtime), "server runtime should not expose Stage Core harness");
+    assert("stageRuntime" in runtime, "server runtime should expose the narrow Stage Runtime");
+    assert(
+      runtime.stageRuntime.stageInterface === runtime.stageInterface,
+      "server runtime should expose the same Stage Interface as the narrow runtime",
+    );
+
+    const musicProviders = await readInstrumentProviders(runtime, "minemusic.music");
+    const libraryProviders = await readInstrumentProviders(runtime, "minemusic.library");
+    const knowledgeProviders = await readInstrumentProviders(runtime, "minemusic.knowledge");
     const handbook = await runtime.stageInterface.tools["handbook.overview.read"]({});
 
-    assert(sourceProviderResult.ok, "server runtime should read the source provider registry");
-    assert(sourceProviderResult.value !== null, "server runtime should register NetEase source");
-    assert(platformLibraryProviderResult.ok, "server runtime should read the platform-library provider registry");
-    assert(platformLibraryProviderResult.value !== null, "server runtime should register NetEase platform library");
-    assert(knowledgeProviderResult.ok, "server runtime should read the Knowledge provider registry");
-    assert(knowledgeProviderResult.value !== null, "server runtime should register bundled MusicBrainz knowledge");
+    assertProvider(musicProviders, "netease", "source", "server runtime should register NetEase source");
+    assertProvider(
+      libraryProviders,
+      "netease",
+      "platform_library",
+      "server runtime should register NetEase platform library",
+    );
+    assertProvider(
+      knowledgeProviders,
+      "musicbrainz",
+      "knowledge",
+      "server runtime should register bundled MusicBrainz knowledge",
+    );
     assert(handbook.ok, "server runtime should expose the Stage Interface");
     assert((await stat(materialStoreDatabasePath)).isFile(), "server runtime should initialize Material Store storage");
     assert((await stat(collectionDatabasePath)).isFile(), "server runtime should initialize Collection storage");
@@ -69,6 +85,31 @@ async function defaultServerRuntimeOwnsStageCoreConfiguration(): Promise<void> {
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
+}
+
+async function readInstrumentProviders(
+  runtime: ReturnType<typeof createDefaultMineMusicServerRuntime>,
+  instrumentId: string,
+): Promise<InstrumentProviderDescriptor[]> {
+  const entry = await assertOk(
+    runtime.stageInterface.tools["handbook.instrument.read"]({
+      instrumentId,
+    }) as Promise<Result<HandbookInstrumentEntry>>,
+  );
+
+  return entry.instrument.providers ?? [];
+}
+
+function assertProvider(
+  providers: InstrumentProviderDescriptor[],
+  providerId: string,
+  slot: InstrumentProviderDescriptor["slot"],
+  message: string,
+): void {
+  assert(
+    providers.some((provider) => provider.id === providerId && provider.slot === slot),
+    message,
+  );
 }
 
 async function serverRuntimeDispatchesToolCalls(): Promise<void> {

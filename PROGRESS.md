@@ -958,6 +958,17 @@
 - Kept the public Stage Core factory signatures and full harness return shape
   compatible while moving implementation responsibility out of
   `src/stage_core/index.ts`.
+- Added the Stage Runtime interface narrowing plan under `docs/stage-core/`
+  and implemented the next Stage Core slice with TDD phase gates.
+- Added narrow `MineMusicStageRuntime` factory entrypoints for fixture and
+  concrete source-provider composition, while keeping compatibility factories
+  and explicit harness aliases for internals-heavy tests.
+- Narrowed the default MineMusic server runtime to hold `MineMusicStageRuntime`
+  and expose Stage Interface dispatch without returning the full Stage Core
+  harness shape.
+- Migrated MCP/server-facing tests and integration call sites so production
+  paths use the narrow runtime and harness-only tests name the harness
+  dependency explicitly.
 
 ## Next
 

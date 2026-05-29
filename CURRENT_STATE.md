@@ -24,9 +24,9 @@ tools. The 2026-05-23 architecture refactor
 renamed the current code to Stage Core / Stage Interface / Stage Modules.
 The 2026-05-26 server/MCP refactor adds a MineMusic server runtime and
 streamable HTTP MCP server entrypoint. The server startup path creates and
-holds Stage Core, exposes `minemusic.*` tools directly over MCP, and keeps
-provider/database/cache/session configuration out of Codex/OpenClaw client
-config.
+holds the MineMusic runtime, exposes `minemusic.*` tools directly over MCP, and
+keeps provider/database/cache/session configuration out of Codex/OpenClaw
+client config.
 The local machine now runs MineMusic server as a user `launchd` LaunchAgent
 (`com.minemusic.server`), documented in
 `docs/operations/minemusic-server-launchd.md`; it is no longer dependent on any
@@ -51,11 +51,17 @@ fixture source-provider behavior now live in focused Stage Core or fixture
 modules. Current Stage Core still returns the full harness shape for existing
 tests and callers.
 
+The 2026-05-30 Stage Runtime interface narrowing adds production-facing
+`MineMusicStageRuntime` factories that expose only readiness and Stage
+Interface dispatch. The default MineMusic server runtime now holds that narrow
+runtime shape and does not expose the full Stage Core harness; tests or
+integration fixtures that need internals use explicit harness factory aliases.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the
 server URL. CLI and Web UI remain future peer transports over the same
-server-held Stage Core.
+server-held Stage Runtime.
 The phased refactor plan for that change is documented in
 `docs/host-adapters/service-adapter-refactor-plan.md`.
 
@@ -437,9 +443,11 @@ host-facing and LLM-facing surface.
   selection, options normalization, runtime seeding, service graph composition,
   Handbook path normalization, and fixture source-provider behavior through
   focused modules under `src/stage_core/**` and `src/fixtures/source_provider.ts`.
-- Stage Core also exports `createMineMusicStageCoreWithSourceProvider` for
-  host surfaces that need to register a concrete source provider without
-  fixture source materials.
+- Stage Core exports `createFixtureMineMusicStageRuntime` and
+  `createMineMusicStageRuntimeWithSourceProvider` for production-facing callers
+  that only need `ready` plus Stage Interface dispatch.
+- Stage Core keeps full-harness compatibility factories and explicit harness
+  aliases for tests or integration fixtures that need internal services.
 - The fixture transcript runner is exported from `src/app/index.ts`.
 - Fixture integration data lives in `fixtures/integration/mvp-fixture.ts`.
 - Fixture end-to-end verification is documented in
@@ -477,7 +485,8 @@ host-facing and LLM-facing surface.
 - The MineMusic server runtime is exported from `src/server/runtime.ts`, and
   the streamable HTTP MCP server entrypoint is exported from
   `src/server/index.ts`. `npm run server:minemusic` starts the server-held
-  Stage Core and exposes MCP at `http://127.0.0.1:37373/mcp` by default.
+  Stage Runtime backed by Stage Core composition and exposes MCP at
+  `http://127.0.0.1:37373/mcp` by default.
   The HTTP MCP transport is stateless per POST request: stale client
   `mcp-session-id` headers are ignored so Codex/OpenClaw clients can continue
   after a MineMusic server restart without depending on the old in-memory
@@ -519,7 +528,7 @@ host-facing and LLM-facing surface.
   Collection, Library Import, and Provider HTTP Cache adapters and their opt-in
   Stage Core / service runtime database-path wiring.
 - Packaged Plugin Slot adapters beyond the in-repo NetEase adapter.
-- CLI and Web UI peer transports over the server-held Stage Core.
+- CLI and Web UI peer transports over the server-held Stage Runtime.
 - Automatic Knowledge provider activation through future plugin `config.json`
   remains future work.
 - More host-surface validation for Handbook snapshot refresh when tool

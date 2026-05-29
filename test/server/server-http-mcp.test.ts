@@ -12,24 +12,32 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+function createPrepareStageInterface() {
+  return {
+    tools: {
+      "stage.materials.prepare": async (payload: unknown) => {
+        const materialPayload = payload as { materials: unknown[] };
+
+        return {
+          ok: true,
+          value: materialPayload.materials,
+        };
+      },
+    },
+  };
+}
+
 async function serverExposesMcpOverStreamableHttp(): Promise<void> {
   let readyAwaited = false;
+  const stageInterface = createPrepareStageInterface();
   const runtime = {
     ready: Promise.resolve().then(() => {
       readyAwaited = true;
     }),
-    stageCore: {},
-    stageInterface: {
-      tools: {
-        "stage.materials.prepare": async (payload: unknown) => {
-          const materialPayload = payload as { materials: unknown[] };
-
-          return {
-            ok: true,
-            value: materialPayload.materials,
-          };
-        },
-      },
+    stageInterface,
+    stageRuntime: {
+      ready: Promise.resolve(),
+      stageInterface,
     },
     callTool: async () => ({
       ok: true,
@@ -93,20 +101,13 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
 }
 
 async function serverAcceptsStaleClientSessionIds(): Promise<void> {
+  const stageInterface = createPrepareStageInterface();
   const runtime = {
     ready: Promise.resolve(),
-    stageCore: {},
-    stageInterface: {
-      tools: {
-        "stage.materials.prepare": async (payload: unknown) => {
-          const materialPayload = payload as { materials: unknown[] };
-
-          return {
-            ok: true,
-            value: materialPayload.materials,
-          };
-        },
-      },
+    stageInterface,
+    stageRuntime: {
+      ready: Promise.resolve(),
+      stageInterface,
     },
     callTool: async () => ({
       ok: true,

@@ -64,6 +64,9 @@ This index points agents to the current MVP documentation pack.
      Stage Core Runtime Kit refactoring design.
    - `docs/stage-core/minemusic_stage_core_refactoring_execution_plan.md`
      records the phase-by-phase Runtime Kit implementation plan.
+   - `docs/stage-core/minemusic_stage_runtime_interface_narrowing_plan.md`
+     records the TDD phase plan for narrowing production callers to
+     `MineMusicStageRuntime` while keeping explicit harness entrypoints.
    - `docs/stage-core/progress.md` records current Stage Core implementation
      progress, verification, and remaining gaps.
    - `docs/adr/0002-material-store-boundary.md` records the accepted Material
@@ -330,20 +333,20 @@ This index points agents to the current MVP documentation pack.
 
 68. `src/server/runtime.ts`
     - MineMusic server runtime boundary that creates the default server-held
-      Stage Core, registers bundled provider factories, applies
-      provider/database/cache/session runtime configuration, and exposes the
-      server-held Stage Interface.
+      Stage Runtime backed by Stage Core composition, registers bundled provider
+      factories, applies provider/database/cache/session runtime configuration,
+      and exposes the server-held Stage Interface.
 
 69. `src/server/index.ts`
     - MineMusic server entrypoint that waits for the server runtime and exposes
       MCP over local streamable HTTP.
 
 70. `src/stage_core/index.ts`
-    - Stage Core public compatibility facade for existing factory entrypoints.
-      Runtime Kit internals now live in `src/stage_core/runtime_kit.ts`,
-      `src/stage_core/repositories.ts`, `src/stage_core/seed.ts`, and
-      `src/stage_core/compose.ts`; fixture source-provider behavior lives in
-      `src/fixtures/source_provider.ts`.
+    - Stage Core public compatibility facade for existing factory entrypoints
+      plus narrow `MineMusicStageRuntime` factories. Runtime Kit internals now
+      live in `src/stage_core/runtime_kit.ts`, `src/stage_core/repositories.ts`,
+      `src/stage_core/seed.ts`, and `src/stage_core/compose.ts`; fixture
+      source-provider behavior lives in `src/fixtures/source_provider.ts`.
 
 71. `src/surfaces/mcp/server.ts`
     - MCP surface that derives prefixed tools from MineMusic

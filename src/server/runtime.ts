@@ -8,16 +8,16 @@ import {
 } from "../providers/netease/index.js";
 import { createMusicBrainzKnowledgeProvider } from "../providers/musicbrainz/index.js";
 import {
-  createMineMusicStageCoreWithSourceProvider,
+  createMineMusicStageRuntimeWithSourceProvider,
   type KnowledgeProviderFactory,
-  type MineMusicStageCore,
+  type MineMusicStageRuntime,
 } from "../stage_core/index.js";
 import { normalizeHandbookPaths } from "../stage_core/handbook_paths.js";
 import type { MineMusicStageInterface } from "../stage_interface/index.js";
 
 export type MineMusicServerRuntime = {
   ready: Promise<void>;
-  stageCore: MineMusicStageCore;
+  stageRuntime: MineMusicStageRuntime;
   stageInterface: MineMusicStageInterface;
   callTool: (toolName: ToolName, payload: Record<string, unknown>) => Promise<Result<unknown>>;
 };
@@ -45,7 +45,7 @@ export function createDefaultMineMusicServerRuntime(
       : options.knowledgeProviderFactories;
   const handbookPaths = createServerHandbookPaths(env, options);
 
-  const stageCore = createMineMusicStageCoreWithSourceProvider({
+  const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
     session: createDefaultServerSession(env),
     sourceProvider: createNetEaseSourceProvider(netEaseOptions),
     platformLibraryProvider: createNetEasePlatformLibraryProvider(netEaseOptions),
@@ -67,13 +67,13 @@ export function createDefaultMineMusicServerRuntime(
   });
 
   return {
-    ready: stageCore.ready,
-    stageCore,
-    stageInterface: stageCore.stageInterface,
+    ready: stageRuntime.ready,
+    stageRuntime,
+    stageInterface: stageRuntime.stageInterface,
     callTool: async (toolName, payload) => {
-      await stageCore.ready;
+      await stageRuntime.ready;
 
-      const tool = stageCore.stageInterface.tools[toolName];
+      const tool = stageRuntime.stageInterface.tools[toolName];
 
       if (tool === undefined) {
         return {

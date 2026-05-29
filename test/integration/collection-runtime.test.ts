@@ -12,7 +12,7 @@ import type {
   Result,
   StageSession,
 } from "../../src/contracts/index.js";
-import { createMineMusicStageCore } from "../../src/stage_core/index.js";
+import { createFixtureMineMusicStageRuntime } from "../../src/stage_core/index.js";
 
 type CollectionListOutput = {
   collections: Collection[];
@@ -78,27 +78,27 @@ async function createRuntime({
   collectionDatabasePath?: string;
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-collection-runtime-"));
-  const stageCore = createMineMusicStageCore({
+  const stageRuntime = createFixtureMineMusicStageRuntime({
     session,
     sourceMaterials,
     canonicalRecords,
     ...(collectionDatabasePath === undefined ? {} : { collectionDatabasePath }),
     handbookPath: join(directory, "HANDBOOK.md"),
   });
-  await stageCore.ready;
+  await stageRuntime.ready;
 
   return {
     directory,
-    stageCore,
+    stageRuntime,
   };
 }
 
 async function listsDefaultOwnerSystemCollectionsThroughStageInterface(): Promise<void> {
-  const { directory, stageCore } = await createRuntime();
+  const { directory, stageRuntime } = await createRuntime();
 
   try {
     const output = await assertOk(
-      stageCore.stageInterface.tools["music.collection.list"]({}) as Promise<Result<CollectionListOutput>>,
+      stageRuntime.stageInterface.tools["music.collection.list"]({}) as Promise<Result<CollectionListOutput>>,
     );
 
     assert(output.collections.length === 15, "Stage Interface should list the default owner's system collections");
@@ -118,42 +118,42 @@ async function listsDefaultOwnerSystemCollectionsThroughStageInterface(): Promis
 }
 
 async function blocksCanonicalRecordingAndClearsSavedFavoriteMemberships(): Promise<void> {
-  const { directory, stageCore } = await createRuntime();
+  const { directory, stageRuntime } = await createRuntime();
 
   try {
     await assertOk(
-      stageCore.stageInterface.tools["music.collection.save"]({
+      stageRuntime.stageInterface.tools["music.collection.save"]({
         canonicalRef: canonicalRecordingRef,
         label: "Quiet Canonical Recording",
       }) as Promise<Result<CollectionItem>>,
     );
     await assertOk(
-      stageCore.stageInterface.tools["music.collection.favorite"]({
+      stageRuntime.stageInterface.tools["music.collection.favorite"]({
         canonicalRef: canonicalRecordingRef,
         label: "Quiet Canonical Recording",
       }) as Promise<Result<CollectionItem>>,
     );
     await assertOk(
-      stageCore.stageInterface.tools["music.collection.block"]({
+      stageRuntime.stageInterface.tools["music.collection.block"]({
         canonicalRef: canonicalRecordingRef,
         label: "Quiet Canonical Recording",
       }) as Promise<Result<CollectionItem>>,
     );
 
     const saved = await assertOk(
-      stageCore.stageInterface.tools["music.collection.list"]({
+      stageRuntime.stageInterface.tools["music.collection.list"]({
         collectionKind: "recording",
         relationKind: "saved",
       }) as Promise<Result<CollectionListOutput>>,
     );
     const favorites = await assertOk(
-      stageCore.stageInterface.tools["music.collection.list"]({
+      stageRuntime.stageInterface.tools["music.collection.list"]({
         collectionKind: "recording",
         relationKind: "favorite",
       }) as Promise<Result<CollectionListOutput>>,
     );
     const blocked = await assertOk(
-      stageCore.stageInterface.tools["music.collection.list"]({
+      stageRuntime.stageInterface.tools["music.collection.list"]({
         collectionKind: "recording",
         relationKind: "blocked",
       }) as Promise<Result<CollectionListOutput>>,
@@ -171,45 +171,45 @@ async function blocksCanonicalRecordingAndClearsSavedFavoriteMemberships(): Prom
 }
 
 async function managesCustomCollectionLifecycleThroughStageInterface(): Promise<void> {
-  const { directory, stageCore } = await createRuntime();
+  const { directory, stageRuntime } = await createRuntime();
 
   try {
     const created = await assertOk(
-      stageCore.stageInterface.tools["music.collection.create"]({
+      stageRuntime.stageInterface.tools["music.collection.create"]({
         collectionKind: "recording",
         label: "Night coding",
       }) as Promise<Result<Collection>>,
     );
     await assertOk(
-      stageCore.stageInterface.tools["music.collection.item.add"]({
+      stageRuntime.stageInterface.tools["music.collection.item.add"]({
         collectionId: created.id,
         canonicalRef: canonicalRecordingRef,
         label: "Quiet Canonical Recording",
       }) as Promise<Result<CollectionItem>>,
     );
     const withItem = await assertOk(
-      stageCore.stageInterface.tools["music.collection.list"]({
+      stageRuntime.stageInterface.tools["music.collection.list"]({
         collectionId: created.id,
       }) as Promise<Result<CollectionListOutput>>,
     );
     const updated = await assertOk(
-      stageCore.stageInterface.tools["music.collection.update"]({
+      stageRuntime.stageInterface.tools["music.collection.update"]({
         collectionId: created.id,
         label: "Late night coding",
       }) as Promise<Result<Collection>>,
     );
     const removed = await assertOk(
-      stageCore.stageInterface.tools["music.collection.delete"]({
+      stageRuntime.stageInterface.tools["music.collection.delete"]({
         collectionId: created.id,
       }) as Promise<Result<Collection>>,
     );
     const activeCustom = await assertOk(
-      stageCore.stageInterface.tools["music.collection.list"]({
+      stageRuntime.stageInterface.tools["music.collection.list"]({
         relationKind: "custom",
       }) as Promise<Result<CollectionListOutput>>,
     );
     const removedCustom = await assertOk(
-      stageCore.stageInterface.tools["music.collection.list"]({
+      stageRuntime.stageInterface.tools["music.collection.list"]({
         relationKind: "custom",
         includeRemoved: true,
       }) as Promise<Result<CollectionListOutput>>,
@@ -237,21 +237,21 @@ async function managesCustomCollectionLifecycleThroughStageInterface(): Promise<
 }
 
 async function materialResolveReportsBlockedCanonicalCandidateThroughStageInterface(): Promise<void> {
-  const { directory, stageCore } = await createRuntime({
+  const { directory, stageRuntime } = await createRuntime({
     sourceMaterials: [sourceRecordingMaterial],
     canonicalRecords: [canonicalRecording],
   });
 
   try {
     await assertOk(
-      stageCore.stageInterface.tools["music.collection.block"]({
+      stageRuntime.stageInterface.tools["music.collection.block"]({
         canonicalRef: canonicalRecordingRef,
         label: "Quiet Canonical Recording",
       }) as Promise<Result<CollectionItem>>,
     );
 
     const resolveResult = await assertOk(
-      stageCore.stageInterface.tools["music.material.resolve"]({
+      stageRuntime.stageInterface.tools["music.material.resolve"]({
         kind: "single",
         candidate: {
           id: "quiet-canonical-recording",
@@ -272,54 +272,54 @@ async function materialResolveReportsBlockedCanonicalCandidateThroughStageInterf
   }
 }
 
-async function persistsCollectionStateThroughStageCoreDatabasePath(): Promise<void> {
+async function persistsCollectionStateThroughStageRuntimeDatabasePath(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-collection-runtime-sqlite-"));
   const databasePath = join(directory, "collection.sqlite");
 
   try {
-    const firstStageCore = createMineMusicStageCore({
+    const firstStageRuntime = createFixtureMineMusicStageRuntime({
       session,
       sourceMaterials: [],
       collectionDatabasePath: databasePath,
       handbookPath: join(directory, "first-HANDBOOK.md"),
     });
-    await firstStageCore.ready;
+    await firstStageRuntime.ready;
 
     const created = await assertOk(
-      firstStageCore.stageInterface.tools["music.collection.create"]({
+      firstStageRuntime.stageInterface.tools["music.collection.create"]({
         collectionKind: "recording",
         label: "Persistent coding",
       }) as Promise<Result<Collection>>,
     );
     await assertOk(
-      firstStageCore.stageInterface.tools["music.collection.item.add"]({
+      firstStageRuntime.stageInterface.tools["music.collection.item.add"]({
         collectionId: created.id,
         canonicalRef: canonicalRecordingRef,
         label: "Quiet Canonical Recording",
       }) as Promise<Result<CollectionItem>>,
     );
 
-    const recreatedStageCore = createMineMusicStageCore({
+    const recreatedStageRuntime = createFixtureMineMusicStageRuntime({
       session,
       sourceMaterials: [],
       collectionDatabasePath: databasePath,
       handbookPath: join(directory, "second-HANDBOOK.md"),
     });
-    await recreatedStageCore.ready;
+    await recreatedStageRuntime.ready;
 
     const persisted = await assertOk(
-      recreatedStageCore.stageInterface.tools["music.collection.list"]({
+      recreatedStageRuntime.stageInterface.tools["music.collection.list"]({
         relationKind: "custom",
       }) as Promise<Result<CollectionListOutput>>,
     );
 
     assert(
       persisted.collections.some((collection) => collection.id === created.id),
-      "recreated Stage Core should read persisted custom collections",
+      "recreated Stage Runtime should read persisted custom collections",
     );
     assert(
       persisted.items.some((item) => item.collectionId === created.id),
-      "recreated Stage Core should read persisted collection items",
+      "recreated Stage Runtime should read persisted collection items",
     );
   } finally {
     await rm(directory, { force: true, recursive: true });
@@ -330,4 +330,4 @@ await listsDefaultOwnerSystemCollectionsThroughStageInterface();
 await blocksCanonicalRecordingAndClearsSavedFavoriteMemberships();
 await managesCustomCollectionLifecycleThroughStageInterface();
 await materialResolveReportsBlockedCanonicalCandidateThroughStageInterface();
-await persistsCollectionStateThroughStageCoreDatabasePath();
+await persistsCollectionStateThroughStageRuntimeDatabasePath();
