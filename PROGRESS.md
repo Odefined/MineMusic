@@ -930,6 +930,16 @@
   schema, required Memory dependency, and availability rule.
 - Removed the Stage Interface fallback dispatch switch after every stable tool
   migrated to the Tool Definition registry.
+- Added the Stage Core Runtime Kit refactoring design, execution plan, and
+  module progress file under `docs/stage-core/`.
+- Completed Stage Core Runtime Kit Phases 0-9 with TDD characterization and
+  phase commits: type extraction, fixture source-provider extraction,
+  repository selection extraction, shared Handbook path normalization, runtime
+  seed extraction, Runtime Kit normalization, service graph composition
+  extraction, runtime/harness type names, and harness factory aliases.
+- Kept the public Stage Core factory signatures and full harness return shape
+  compatible while moving implementation responsibility out of
+  `src/stage_core/index.ts`.
 
 ## Next
 
