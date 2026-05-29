@@ -30,9 +30,12 @@ import type {
 } from "../ports/index.js";
 import type { MineMusicStageInterface } from "../stage_interface/index.js";
 
-export type MineMusicStageCore = {
+export type MineMusicStageRuntime = {
   ready: Promise<void>;
   stageInterface: MineMusicStageInterface;
+};
+
+export type MineMusicStageCoreHarness = MineMusicStageRuntime & {
   dispatch: ToolDispatchPort;
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
@@ -50,6 +53,8 @@ export type MineMusicStageCore = {
   plugins: PluginRegistryPort;
   providerHttpCache: ProviderHttpCacheRepository;
 };
+
+export type MineMusicStageCore = MineMusicStageCoreHarness;
 
 export type KnowledgeProviderFactoryContext = {
   providerHttpCache: ProviderHttpCacheRepository;

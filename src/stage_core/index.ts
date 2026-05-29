@@ -9,6 +9,8 @@ import type {
 
 export type {
   MineMusicStageCore,
+  MineMusicStageRuntime,
+  MineMusicStageCoreHarness,
   KnowledgeProviderFactoryContext,
   KnowledgeProviderFactory,
   MineMusicStageCoreOptions,
