@@ -376,6 +376,45 @@ async function usesProviderHttpCacheDatabasePath(): Promise<void> {
   }
 }
 
+async function injectedProviderHttpCacheRepositoryBeatsDatabasePath(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-provider-http-cache-priority-"));
+  const databasePath = join(directory, "provider-http-cache.sqlite");
+  const providerHttpCache = createInMemoryProviderHttpCacheRepository();
+  const entry = providerHttpCacheEntry("injected-beats-path-cache");
+
+  try {
+    const stageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider: emptySourceProvider(),
+      providerHttpCacheRepository: providerHttpCache,
+      providerHttpCacheDatabasePath: databasePath,
+    });
+    await stageCore.ready;
+    await assertOk(stageCore.providerHttpCache.put({ entry }));
+
+    const databaseBackedStageCore = createMineMusicStageCoreWithSourceProvider({
+      session,
+      sourceProvider: emptySourceProvider(),
+      providerHttpCacheDatabasePath: databasePath,
+    });
+    await databaseBackedStageCore.ready;
+    const cachedFromDatabasePath = await assertOk(
+      databaseBackedStageCore.providerHttpCache.get({
+        providerId: entry.providerId,
+        cacheKey: entry.cacheKey,
+        now: "2026-05-25T01:00:00.000Z",
+      }),
+    );
+
+    assert(
+      cachedFromDatabasePath === null,
+      "Injected Provider HTTP Cache repository should take priority over the database path",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 async function registersMusicBrainzKnowledgeProviderFactoryWithProviderHttpCache(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-handbook-knowledge-provider-"));
   const handbookPath = join(directory, "HANDBOOK.md");
@@ -662,6 +701,7 @@ await usesInjectedCanonicalRepositoryForMaterialResolve();
 await exposesInitializedCollectionService();
 await exposesInjectedProviderHttpCacheRepository();
 await usesProviderHttpCacheDatabasePath();
+await injectedProviderHttpCacheRepositoryBeatsDatabasePath();
 await registersMusicBrainzKnowledgeProviderFactoryWithProviderHttpCache();
 await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
 await usesInjectedCollectionRepository();
