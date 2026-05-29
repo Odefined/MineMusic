@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type {
+  HandbookInstrumentEntry,
+  InstrumentProviderDescriptor,
   KnowledgeProvider,
   MusicMaterial,
   PlatformLibraryProvider,
@@ -27,6 +29,12 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
+  const awaited = await result;
+  assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
+  return awaited.value;
 }
 
 const session: StageSession = {
@@ -414,22 +422,17 @@ async function defaultMcpStageCoreRegistersNetEaseForSourceAndPlatformLibrary():
   });
   await runtime.ready;
 
-  const sourceProviderResult = await runtime.stageCore.plugins.getProvider({
-    slot: "source",
-    providerId: "netease",
-  });
-  const platformLibraryProviderResult = await runtime.stageCore.plugins.getProvider({
-    slot: "platform_library",
-    providerId: "netease",
-  });
+  assert(!("stageCore" in runtime), "default MCP runtime should not expose Stage Core harness");
 
-  assert(sourceProviderResult.ok, "default MCP runtime should register the NetEase source provider");
-  assert(sourceProviderResult.value !== null, "default MCP runtime should expose source:netease");
-  assert(platformLibraryProviderResult.ok, "default MCP runtime should register the NetEase platform-library provider");
-  assert(platformLibraryProviderResult.value !== null, "default MCP runtime should expose platform_library:netease");
-  assert(
-    sourceProviderResult.value !== platformLibraryProviderResult.value,
-    "default MCP runtime should keep source and platform-library provider objects separate",
+  const musicProviders = await readInstrumentProviders(runtime, "minemusic.music");
+  const libraryProviders = await readInstrumentProviders(runtime, "minemusic.library");
+
+  assertProvider(musicProviders, "netease", "source", "default MCP runtime should expose source:netease");
+  assertProvider(
+    libraryProviders,
+    "netease",
+    "platform_library",
+    "default MCP runtime should expose platform_library:netease",
   );
 }
 
@@ -449,13 +452,14 @@ async function defaultMcpStageCoreRegistersMusicBrainzKnowledgeProvider(): Promi
     );
     await runtime.ready;
 
-    const registeredProvider = await runtime.stageCore.plugins.getProvider({
-      slot: "knowledge",
-      providerId: "musicbrainz",
-    });
+    const knowledgeProviders = await readInstrumentProviders(runtime, "minemusic.knowledge");
 
-    assert(registeredProvider.ok, "default MCP runtime should read the Knowledge provider registry");
-    assert(registeredProvider.value !== null, "default MCP runtime should register MusicBrainz knowledge");
+    assertProvider(
+      knowledgeProviders,
+      "musicbrainz",
+      "knowledge",
+      "default MCP runtime should register MusicBrainz knowledge",
+    );
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
@@ -584,16 +588,42 @@ async function defaultMcpStageCoreAcceptsExplicitKnowledgeProviders(): Promise<v
     );
     await runtime.ready;
 
-    const registeredProvider = await runtime.stageCore.plugins.getProvider({
-      slot: "knowledge",
-      providerId: "fixture-knowledge",
-    });
+    const knowledgeProviders = await readInstrumentProviders(runtime, "minemusic.knowledge");
 
-    assert(registeredProvider.ok, "default MCP runtime should accept explicit Knowledge providers");
-    assert(registeredProvider.ok && registeredProvider.value === knowledgeProvider, "explicit Knowledge provider should be registered");
+    assertProvider(
+      knowledgeProviders,
+      "fixture-knowledge",
+      "knowledge",
+      "default MCP runtime should accept explicit Knowledge providers",
+    );
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
+}
+
+async function readInstrumentProviders(
+  runtime: ReturnType<typeof createDefaultMineMusicServerRuntime>,
+  instrumentId: string,
+): Promise<InstrumentProviderDescriptor[]> {
+  const entry = await assertOk(
+    runtime.stageInterface.tools["handbook.instrument.read"]({
+      instrumentId,
+    }) as Promise<Result<HandbookInstrumentEntry>>,
+  );
+
+  return entry.instrument.providers ?? [];
+}
+
+function assertProvider(
+  providers: InstrumentProviderDescriptor[],
+  providerId: string,
+  slot: InstrumentProviderDescriptor["slot"],
+  message: string,
+): void {
+  assert(
+    providers.some((provider) => provider.id === providerId && provider.slot === slot),
+    message,
+  );
 }
 
 function hasSchemaKey(schema: unknown, key: string): boolean {

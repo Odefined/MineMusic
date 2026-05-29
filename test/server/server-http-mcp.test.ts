@@ -18,7 +18,6 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
     ready: Promise.resolve().then(() => {
       readyAwaited = true;
     }),
-    stageCore: {},
     stageInterface: {
       tools: {
         "stage.materials.prepare": async (payload: unknown) => {
@@ -28,6 +27,21 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
             ok: true,
             value: materialPayload.materials,
           };
+        },
+      },
+    },
+    stageRuntime: {
+      ready: Promise.resolve(),
+      stageInterface: {
+        tools: {
+          "stage.materials.prepare": async (payload: unknown) => {
+            const materialPayload = payload as { materials: unknown[] };
+
+            return {
+              ok: true,
+              value: materialPayload.materials,
+            };
+          },
         },
       },
     },
@@ -95,7 +109,6 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
 async function serverAcceptsStaleClientSessionIds(): Promise<void> {
   const runtime = {
     ready: Promise.resolve(),
-    stageCore: {},
     stageInterface: {
       tools: {
         "stage.materials.prepare": async (payload: unknown) => {
@@ -105,6 +118,21 @@ async function serverAcceptsStaleClientSessionIds(): Promise<void> {
             ok: true,
             value: materialPayload.materials,
           };
+        },
+      },
+    },
+    stageRuntime: {
+      ready: Promise.resolve(),
+      stageInterface: {
+        tools: {
+          "stage.materials.prepare": async (payload: unknown) => {
+            const materialPayload = payload as { materials: unknown[] };
+
+            return {
+              ok: true,
+              value: materialPayload.materials,
+            };
+          },
         },
       },
     },
