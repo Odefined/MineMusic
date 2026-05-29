@@ -47,6 +47,7 @@ import {
   createMineMusicStageInterface,
   createToolDispatch,
 } from "../stage_interface/index.js";
+import { normalizeHandbookPaths } from "./handbook_paths.js";
 import { createStageCoreRepositories } from "./repositories.js";
 import type {
   MineMusicStageCore,
@@ -325,19 +326,6 @@ async function seedRuntime({
       throwIfFailed(handbookResult);
     }
   }
-}
-
-function normalizeHandbookPaths({
-  handbookPath,
-  handbookPaths = [],
-}: {
-  handbookPath?: string;
-  handbookPaths?: string[];
-}): string[] {
-  return [...new Set([
-    ...(handbookPath === undefined ? [] : [handbookPath]),
-    ...handbookPaths,
-  ].map((path) => path.trim()).filter((path) => path.length > 0))];
 }
 
 function throwIfFailed<T>(result: Result<T>): T {

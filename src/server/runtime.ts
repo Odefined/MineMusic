@@ -12,6 +12,7 @@ import {
   type KnowledgeProviderFactory,
   type MineMusicStageCore,
 } from "../stage_core/index.js";
+import { normalizeHandbookPaths } from "../stage_core/handbook_paths.js";
 import type { MineMusicStageInterface } from "../stage_interface/index.js";
 
 export type MineMusicServerRuntime = {
@@ -118,19 +119,6 @@ function parseHandbookPathList(value: string | undefined): string[] {
   return value
     .split(delimiter)
     .flatMap((path) => path.split(","));
-}
-
-function normalizeHandbookPaths({
-  handbookPath,
-  handbookPaths = [],
-}: {
-  handbookPath?: string;
-  handbookPaths?: string[];
-}): string[] {
-  return [...new Set([
-    ...(handbookPath === undefined ? [] : [handbookPath]),
-    ...handbookPaths,
-  ].map((path) => path.trim()).filter((path) => path.length > 0))];
 }
 
 function createNetEaseProviderOptions(env: Record<string, string | undefined>): NetEaseProviderOptions {
