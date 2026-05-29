@@ -1945,6 +1945,54 @@ async function invalidStageMaterialsPayloadFailsAtBoundary(): Promise<void> {
   assert(prepareMaterialsCalls === 0, "invalid payloads should not call handler dependencies");
 }
 
+async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promise<void> {
+  let resolveCalls = 0;
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => {
+        resolveCalls += 1;
+        return { ok: true, value: { kind: "candidate_set", results: [] } };
+      },
+    },
+    source: {} as SourceGroundingPort,
+    events: {} as EventPort,
+    memory: {} as MemoryPort,
+    effects: {} as EffectBoundaryPort,
+  });
+
+  const missingCandidate = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { kind: "single" },
+  });
+  const missingCandidates = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { kind: "candidate_set" },
+  });
+
+  assert(!missingCandidate.ok, "single material resolve should require candidate");
+  assert(
+    missingCandidate.error.code === "stage_interface.invalid_payload",
+    "single material resolve should fail at the Stage Interface boundary",
+  );
+  assert(!missingCandidates.ok, "candidate-set material resolve should require candidates");
+  assert(
+    missingCandidates.error.code === "stage_interface.invalid_payload",
+    "candidate-set material resolve should fail at the Stage Interface boundary",
+  );
+  assert(resolveCalls === 0, "invalid material resolve payloads should not call MaterialResolvePort");
+}
+
 async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promise<void> {
   let prepareMaterialsCalls = 0;
   const dispatch = createToolDispatch({
@@ -2147,5 +2195,6 @@ await dispatchesSourceLibraryToolsThroughMaterialStore();
 await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();
 await invalidStageMaterialsPayloadFailsAtBoundary();
+await invalidMaterialResolveConditionalPayloadsFailAtBoundary();
 await validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys();
 await stageSessionUpdateDefaultsToDispatchSessionId();

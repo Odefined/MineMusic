@@ -29,6 +29,7 @@ export type StageInterfaceToolDefinition<TName extends ToolName, TContext> = {
   handler(
     input: StageInterfaceToolHandlerInput<TContext>,
   ): Promise<Result<unknown>> | Result<unknown>;
+  validatePayload?: (payload: unknown) => Result<unknown>;
   present?: (value: unknown) => unknown;
 };
 

@@ -68,10 +68,15 @@ for derived aggregate tool facts.
 - Focused registry dispatch test coverage.
 - Runtime payload validation through each Tool Definition's `inputSchema`.
 - `stage_interface.invalid_payload` for schema-boundary failures.
+- Optional per-tool `validatePayload` for conditional contracts that raw host
+  schemas cannot express without changing MCP compatibility.
 - Ordered definition-derived `stableToolNames`, `agentToolDescriptors`, and
   `stageInterfaceToolInputSchemas`.
 - Registry-primary dispatch lookup.
 - Low-risk Stage Tool Group payload handling cleanup after dispatch validation.
+- `music.material.resolve` conditional validation: `single` requires
+  `candidate`, and `candidate_set` requires `candidates`, before
+  `MaterialResolvePort` is called.
 - MCP schema parity and stable tool aggregate tests.
 
 ## Not Yet Implemented

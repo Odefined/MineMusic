@@ -944,6 +944,10 @@
 - Kept first-pass payload validation passthrough rather than strict, so extra
   caller keys remain tolerated while required fields and field types are
   enforced before handler invocation.
+- Addressed PR #2 acceptance feedback by adding optional per-tool payload
+  validation and applying it to `music.material.resolve`, so `single` requests
+  without `candidate` and `candidate_set` requests without `candidates` now fail
+  with `stage_interface.invalid_payload` before `MaterialResolvePort` is called.
 - Added the Stage Core Runtime Kit refactoring design, execution plan, and
   module progress file under `docs/stage-core/`.
 - Completed Stage Core Runtime Kit Phases 0-9 with TDD characterization and

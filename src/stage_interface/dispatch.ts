@@ -167,6 +167,10 @@ function parseToolPayload({
     return fail(invalidPayloadError(definition.name, summarizeZodError(parsed.error)));
   }
 
+  if (definition.validatePayload !== undefined) {
+    return definition.validatePayload(parsed.data);
+  }
+
   return ok(parsed.data);
 }
 

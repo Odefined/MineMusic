@@ -67,6 +67,7 @@ type StageInterfaceToolDefinition<TName, TContext> = {
   inputSchema: StageInterfaceToolInputSchema;
   availability: StageInterfaceToolAvailability;
   handler(input: StageInterfaceToolHandlerInput<TContext>): Promise<Result<unknown>> | Result<unknown>;
+  validatePayload?: (payload: unknown) => Result<unknown>;
   present?: (value: unknown) => unknown;
 };
 ```
@@ -79,6 +80,7 @@ ToolDispatchPort.call(input)
   -> look up Tool Definition by input.toolName
   -> apply the Tool Definition availability rule
   -> parse input.payload with the Tool Definition input schema
+  -> apply optional Tool Definition payload validation
   -> call the Tool Definition handler with parsed payload
   -> apply the Tool Definition presentation rule
   -> return Result<unknown>
@@ -99,6 +101,13 @@ This enforces required fields and field types while preserving compatibility
 with callers that include harmless extra keys. Undefined payloads are
 normalized to `{}`. Strict rejection of unknown keys is a later per-tool
 decision, not the default behavior of this refactor.
+
+Some tool contracts need cross-field validation that cannot be represented by
+the public raw shape without changing host schema compatibility. Those tools may
+provide `validatePayload`. Dispatch runs it after the raw schema parse and
+before handler invocation. For example, `music.material.resolve` requires
+`candidate` when `kind` is `single` and `candidates` when `kind` is
+`candidate_set`.
 
 Validation failures return a normalized `StageError`:
 

@@ -159,6 +159,7 @@ export const musicToolDefinitions = [
       }).optional(),
       limitPerCandidate: z.number().int().positive().optional(),
     },
+    validatePayload: validateMaterialResolvePayload,
     handler({ context, sessionId, payload }) {
       return context.materialResolve.resolve(
         readPayload<MaterialResolveRequest>(payload, { sessionId }),
@@ -439,6 +440,20 @@ export const musicToolInputSchemas = Object.fromEntries(
   musicToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
 ) as unknown as Record<MusicToolName, StageInterfaceToolInputSchema>;
 
+function validateMaterialResolvePayload(payload: unknown): Result<unknown> {
+  const input = readPayload<Partial<MaterialResolveRequest>>(payload);
+
+  if (input.kind === "single" && input.candidate === undefined) {
+    return invalidPayload("music.material.resolve requires candidate when kind is single.");
+  }
+
+  if (input.kind === "candidate_set" && input.candidates === undefined) {
+    return invalidPayload("music.material.resolve requires candidates when kind is candidate_set.");
+  }
+
+  return ok(payload);
+}
+
 function dispatchSystemCollectionAdd(
   collection: CollectionPort | undefined,
   payload: unknown,
@@ -485,6 +500,15 @@ function collectionUnavailable(): Result<never> {
   return fail({
     code: "stage_interface.tool_not_found",
     message: "Collection tools are not available.",
+    module: "stage_interface",
+    retryable: false,
+  });
+}
+
+function invalidPayload(message: string): Result<never> {
+  return fail({
+    code: "stage_interface.invalid_payload",
+    message,
     module: "stage_interface",
     retryable: false,
   });
