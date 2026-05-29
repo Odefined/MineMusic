@@ -6,6 +6,7 @@ import type {
   MineMusicStageCoreHarness,
   MineMusicStageCoreOptions,
   MineMusicStageCoreWithSourceProviderOptions,
+  MineMusicStageRuntime,
 } from "./types.js";
 
 export type {
@@ -66,6 +67,18 @@ export function createMineMusicStageCoreWithSourceProvider(
   );
 }
 
+export function createMineMusicStageRuntimeWithSourceProvider(
+  options: MineMusicStageCoreWithSourceProviderOptions,
+): MineMusicStageRuntime {
+  return toMineMusicStageRuntime(createMineMusicStageCoreWithSourceProvider(options));
+}
+
+export function createFixtureMineMusicStageRuntime(
+  options: MineMusicStageCoreOptions,
+): MineMusicStageRuntime {
+  return toMineMusicStageRuntime(createMineMusicStageCore(options));
+}
+
 // Compatibility alias for future test-harness migration.
 export function createMineMusicStageCoreHarness(
   options: MineMusicStageCoreWithSourceProviderOptions,
@@ -78,4 +91,11 @@ export function createFixtureMineMusicStageCoreHarness(
   options: MineMusicStageCoreOptions,
 ): MineMusicStageCoreHarness {
   return createMineMusicStageCore(options);
+}
+
+function toMineMusicStageRuntime(stageCore: MineMusicStageCoreHarness): MineMusicStageRuntime {
+  return {
+    ready: stageCore.ready,
+    stageInterface: stageCore.stageInterface,
+  };
 }
