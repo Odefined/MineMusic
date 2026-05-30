@@ -72,6 +72,7 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
     sourceMaterial("Source Ref Seed Track", sourceRef),
   ]);
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  await putSourceTrack(materialStore, sourceRef, "Source Ref Seed Track");
 
   const output = await assertOk(
     materialQuery.resolveCards({
@@ -83,6 +84,30 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
   assert(output.items.length === 1, "resolve cards should return one card for a source-backed material ref");
   assert(output.items[0]?.title === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the card ref");
   assert(output.items[0]?.status === "playable_unverified", "source-backed material refs should preserve source-backed status");
+}
+
+async function resolveCardsProjectsCanonicalOnlyCardRefs(): Promise<void> {
+  const canonicalRef = ref("minemusic", "recording", "canonical-only-seed");
+  const canonical: CanonicalRecord = {
+    ref: canonicalRef,
+    kind: "recording",
+    label: "Canonical Only Seed",
+    status: "active",
+  };
+  const { canonicalRepository, materialStore, materialQuery } = createMaterialQueryServiceHarness([]);
+  await assertOk(canonicalRepository.put(canonical));
+  const record = await assertOk(materialStore.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording" }));
+
+  const output = await assertOk(
+    materialQuery.resolveCards({
+      ownerScope: "local_profile:default",
+      seeds: [{ ref: materialRefToCardRef(record.materialRef) }],
+    }),
+  );
+
+  assert(output.items.length === 1, "canonical-only material refs should return one card");
+  assert(output.items[0]?.title === "Canonical Only Seed", "canonical-only material refs should use canonical labels");
+  assert(output.items[0]?.status === "found_no_link", "canonical-only material refs should be found without playable links");
 }
 
 async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
@@ -99,6 +124,7 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
   ]);
   await assertOk(canonicalRepository.put(canonical));
   const record = await assertOk(materialStore.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording", sourceRefs: [sourceRef] }));
+  await putSourceTrack(materialStore, sourceRef, "Provider Ref Seed");
 
   const output = await assertOk(
     materialQuery.resolveCards({
@@ -119,6 +145,8 @@ async function resolveCardsFollowsMaterialRedirects(): Promise<void> {
     sourceMaterial("Redirect Loser Track", loserRef),
     sourceMaterial("Redirect Survivor Track", survivorRef),
   ]);
+  await putSourceTrack(materialStore, loserRef, "Redirect Loser Track");
+  await putSourceTrack(materialStore, survivorRef, "Redirect Survivor Track");
   await putLibraryTrack(materialStore, loserRef, "Redirect Loser Track");
   await putLibraryTrack(materialStore, survivorRef, "Redirect Survivor Track");
   const loser = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: loserRef, kind: "recording" }));
@@ -1005,6 +1033,28 @@ function createSequence(prefix: string): () => string {
   return () => `${prefix}-${nextId++}`;
 }
 
+async function putSourceTrack(
+  materialStore: MaterialStorePort,
+  sourceRef: Ref,
+  label: string,
+  providerUrl = `https://example.test/${sourceRef.id}`,
+): Promise<void> {
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label,
+        title: label,
+        providerUrl,
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
+}
+
 async function putLibraryTrack(
   materialStore: MaterialStorePort,
   sourceRef: Ref,
@@ -1218,6 +1268,7 @@ function sameRef(left: Ref, right: Ref): boolean {
 
 await querySavedTracksReturnsOnlySavedTrackMaterials();
 await resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch();
+await resolveCardsProjectsCanonicalOnlyCardRefs();
 await resolveCardsResolvesCanonicalConfirmedCardRefs();
 await resolveCardsFollowsMaterialRedirects();
 await resolveCardsReturnsUnresolvedForUnknownCardRefs();
