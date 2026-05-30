@@ -280,17 +280,18 @@ export const musicToolDefinitions = [
       exclude: materialExcludeSchema.optional(),
       order: z.enum(["relevance", "recently_added", "least_recently_recommended", "random"]).optional(),
       ownerScope: z.string().optional(),
+      sessionId: z.string().optional(),
       limit: z.number().int().positive().optional(),
       cursor: z.string().optional(),
     },
-    handler({ context, payload }) {
+    handler({ context, sessionId, payload }) {
       const materialQuery = readMaterialQuery(context.materialQuery);
 
       if (!materialQuery.ok) {
         return materialQuery;
       }
 
-      return materialQuery.value.query(readPayload<MaterialQueryInput>(payload));
+      return materialQuery.value.query(readPayload<MaterialQueryInput>(payload, { sessionId }));
     },
   },
   {
@@ -305,16 +306,17 @@ export const musicToolDefinitions = [
       exclude: materialExcludeSchema.optional(),
       constraints: materialConstraintsSchema.optional(),
       ownerScope: z.string().optional(),
+      sessionId: z.string().optional(),
       limit: z.number().int().positive().optional(),
     },
-    handler({ context, payload }) {
+    handler({ context, sessionId, payload }) {
       const materialQuery = readMaterialQuery(context.materialQuery);
 
       if (!materialQuery.ok) {
         return materialQuery;
       }
 
-      return materialQuery.value.related(readPayload<MaterialRelatedInput>(payload));
+      return materialQuery.value.related(readPayload<MaterialRelatedInput>(payload, { sessionId }));
     },
   },
   {

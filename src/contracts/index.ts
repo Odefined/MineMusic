@@ -264,9 +264,23 @@ export type MaterialActivity = {
   lastOpenedAt?: string;
   lastPlayedAt?: string;
   lastSkippedAt?: string;
+  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
   recommendedCountSession?: number;
+  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
   openedCountSession?: number;
+  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
   playedCountSession?: number;
+  updatedAt: string;
+};
+
+export type MaterialSessionActivity = {
+  ownerScope: string;
+  sessionId: string;
+  materialRef: Ref;
+  recommendedCount?: number;
+  openedCount?: number;
+  playedCount?: number;
+  skippedCount?: number;
   updatedAt: string;
 };
 
@@ -945,6 +959,7 @@ export type MaterialQueryInput = {
   // deterministic public semantics.
   order?: "relevance" | "recently_added" | "least_recently_recommended" | "random" | "library_order";
   ownerScope?: string;
+  sessionId?: string;
   limit?: number;
   cursor?: string;
 };
@@ -968,6 +983,7 @@ export type MaterialRelatedInput = {
   constraints?: MaterialQueryInput["constraints"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
   ownerScope?: string;
+  sessionId?: string;
   limit?: number;
 };
 

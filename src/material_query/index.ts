@@ -106,6 +106,7 @@ export function createMaterialQueryService({
         constraints: input.constraints,
         preferenceHints: input.preferenceHints,
         exclude: input.exclude,
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
         clock,
       });
 
@@ -1025,6 +1026,7 @@ async function filterMaterials({
   constraints,
   preferenceHints,
   exclude,
+  sessionId,
   clock,
 }: {
   materialStore: MaterialStorePort;
@@ -1034,6 +1036,7 @@ async function filterMaterials({
   constraints?: MaterialQueryInput["constraints"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
   exclude?: MaterialQueryInput["exclude"];
+  sessionId?: string;
   clock: () => string;
 }): Promise<Result<MusicMaterial[]>> {
   const excludedRefs = await excludedCardRefsForInput(materialStore, exclude?.refs ?? []);
@@ -1084,6 +1087,7 @@ async function filterMaterials({
       ownerScope,
       materialRef: material.materialRef,
       recent: exclude?.recent,
+      ...(sessionId === undefined ? {} : { sessionId }),
       now: clock(),
     });
 
@@ -1158,12 +1162,14 @@ async function excludedByRecentActivity({
   ownerScope,
   materialRef,
   recent,
+  sessionId,
   now,
 }: {
   materialStore: MaterialStorePort;
   ownerScope: string;
   materialRef: Ref;
   recent?: NonNullable<MaterialQueryInput["exclude"]>["recent"];
+  sessionId?: string;
   now: string;
 }): Promise<Result<boolean>> {
   if (recent === undefined || recent.mode === "soft") {
@@ -1177,19 +1183,44 @@ async function excludedByRecentActivity({
   }
 
   if (activity.value === null) {
-    return ok(false);
+    if (!recentNeedsSessionActivity(recent) || sessionId === undefined) {
+      return ok(false);
+    }
+  }
+
+  const sessionActivity = sessionId === undefined || !recentNeedsSessionActivity(recent)
+    ? ok(null)
+    : await materialStore.getMaterialSessionActivity({ ownerScope, sessionId, materialRef });
+
+  if (!sessionActivity.ok) {
+    return sessionActivity;
   }
 
   return ok(
-    matchesRecent(activity.value.lastRecommendedAt, activity.value.recommendedCountSession, recent.recommended, now) ||
-      matchesRecent(activity.value.lastOpenedAt, activity.value.openedCountSession, recent.opened, now) ||
-      matchesRecent(activity.value.lastPlayedAt, activity.value.playedCountSession, recent.played, now),
+    matchesRecent(
+      activity.value?.lastRecommendedAt,
+      sessionActivity.value?.recommendedCount,
+      recent.recommended,
+      now,
+    ) ||
+      matchesRecent(
+        activity.value?.lastOpenedAt,
+        sessionActivity.value?.openedCount,
+        recent.opened,
+        now,
+      ) ||
+      matchesRecent(
+        activity.value?.lastPlayedAt,
+        sessionActivity.value?.playedCount,
+        recent.played,
+        now,
+      ),
   );
 }
 
 function matchesRecent(
   timestamp: string | undefined,
-  sessionCount: number | undefined,
+  sessionScopedCount: number | undefined,
   window: "session" | "1h" | "24h" | "7d" | undefined,
   now: string,
 ): boolean {
@@ -1198,7 +1229,7 @@ function matchesRecent(
   }
 
   if (window === "session") {
-    return (sessionCount ?? 0) > 0;
+    return (sessionScopedCount ?? 0) > 0;
   }
 
   if (timestamp === undefined) {
@@ -1206,6 +1237,12 @@ function matchesRecent(
   }
 
   return Date.parse(timestamp) >= Date.parse(now) - recentWindowMs(window);
+}
+
+function recentNeedsSessionActivity(
+  recent: NonNullable<NonNullable<MaterialQueryInput["exclude"]>["recent"]>,
+): boolean {
+  return recent.recommended === "session" || recent.opened === "session" || recent.played === "session";
 }
 
 function recentWindowMs(window: "1h" | "24h" | "7d"): number {
@@ -1271,6 +1308,7 @@ async function relatedForInput({
       ...input.exclude,
       refs: [...(input.exclude?.refs ?? []), input.ref, materialRefToCardRef(currentSeedMaterialRef.value)],
     },
+    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
     clock,
   });
 

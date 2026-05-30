@@ -1,9 +1,15 @@
-import type { MaterialActivity, Ref, Result, StageEvent } from "../contracts/index.js";
-import type { EventPort, EventRepository, MaterialActivityRepository } from "../ports/index.js";
+import type { MaterialActivity, MaterialSessionActivity, Ref, Result, StageEvent } from "../contracts/index.js";
+import type {
+  EventPort,
+  EventRepository,
+  MaterialActivityRepository,
+  MaterialSessionActivityRepository,
+} from "../ports/index.js";
 
 type EventServiceOptions = {
   repository: EventRepository;
   materialActivity?: MaterialActivityRepository;
+  materialSessionActivity?: MaterialSessionActivityRepository;
   idFactory?: () => string;
   clock?: () => string;
 };
@@ -11,6 +17,7 @@ type EventServiceOptions = {
 export function createEventService({
   repository,
   materialActivity,
+  materialSessionActivity,
   idFactory = createDefaultIdFactory("event"),
   clock = () => new Date().toISOString(),
 }: EventServiceOptions): EventPort {
@@ -28,8 +35,12 @@ export function createEventService({
         return stored;
       }
 
-      if (materialActivity !== undefined) {
-        const projected = await updateMaterialActivityForEvent(materialActivity, stored.value);
+      if (materialActivity !== undefined || materialSessionActivity !== undefined) {
+        const projected = await updateMaterialActivityForEvent({
+          ...(materialActivity === undefined ? {} : { materialActivity }),
+          ...(materialSessionActivity === undefined ? {} : { materialSessionActivity }),
+          event: stored.value,
+        });
 
         if (!projected.ok) {
           return projected;
@@ -51,10 +62,15 @@ export function createEventService({
   };
 }
 
-async function updateMaterialActivityForEvent(
-  repository: MaterialActivityRepository,
-  event: StageEvent,
-): Promise<Result<StageEvent>> {
+async function updateMaterialActivityForEvent({
+  materialActivity,
+  materialSessionActivity,
+  event,
+}: {
+  materialActivity?: MaterialActivityRepository;
+  materialSessionActivity?: MaterialSessionActivityRepository;
+  event: StageEvent;
+}): Promise<Result<StageEvent>> {
   const updateKind = activityUpdateKindForEvent(event.type);
 
   if (updateKind === null) {
@@ -65,30 +81,58 @@ async function updateMaterialActivityForEvent(
   const materialRefs = materialRefsForEvent(event);
 
   for (const materialRef of materialRefs) {
-    const existing = await repository.getActivity({ ownerScope, materialRef });
+    if (materialActivity !== undefined) {
+      const existing = await materialActivity.getActivity({ ownerScope, materialRef });
 
-    if (!existing.ok) {
-      return existing;
+      if (!existing.ok) {
+        return existing;
+      }
+
+      const activity = applyAggregateActivityUpdate({
+        current: existing.value,
+        ownerScope,
+        materialRef,
+        updateKind,
+        timestamp: event.time,
+      });
+      const stored = await materialActivity.putActivity({ activity });
+
+      if (!stored.ok) {
+        return stored;
+      }
     }
 
-    const activity = applyActivityUpdate({
-      current: existing.value,
-      ownerScope,
-      materialRef,
-      updateKind,
-      timestamp: event.time,
-    });
-    const stored = await repository.putActivity({ activity });
+    if (materialSessionActivity !== undefined) {
+      const existing = await materialSessionActivity.getSessionActivity({
+        ownerScope,
+        sessionId: event.sessionId,
+        materialRef,
+      });
 
-    if (!stored.ok) {
-      return stored;
+      if (!existing.ok) {
+        return existing;
+      }
+
+      const activity = applySessionActivityUpdate({
+        current: existing.value,
+        ownerScope,
+        sessionId: event.sessionId,
+        materialRef,
+        updateKind,
+        timestamp: event.time,
+      });
+      const stored = await materialSessionActivity.putSessionActivity({ activity });
+
+      if (!stored.ok) {
+        return stored;
+      }
     }
   }
 
   return ok(event);
 }
 
-function applyActivityUpdate({
+function applyAggregateActivityUpdate({
   current,
   ownerScope,
   materialRef,
@@ -112,27 +156,74 @@ function applyActivityUpdate({
       return {
         ...base,
         lastRecommendedAt: timestamp,
-        recommendedCountSession: (base.recommendedCountSession ?? 0) + 1,
         updatedAt: timestamp,
       };
     case "opened":
       return {
         ...base,
         lastOpenedAt: timestamp,
-        openedCountSession: (base.openedCountSession ?? 0) + 1,
         updatedAt: timestamp,
       };
     case "played":
       return {
         ...base,
         lastPlayedAt: timestamp,
-        playedCountSession: (base.playedCountSession ?? 0) + 1,
         updatedAt: timestamp,
       };
     case "skipped":
       return {
         ...base,
         lastSkippedAt: timestamp,
+        updatedAt: timestamp,
+      };
+  }
+}
+
+function applySessionActivityUpdate({
+  current,
+  ownerScope,
+  sessionId,
+  materialRef,
+  updateKind,
+  timestamp,
+}: {
+  current: MaterialSessionActivity | null;
+  ownerScope: string;
+  sessionId: string;
+  materialRef: Ref;
+  updateKind: "recommended" | "opened" | "played" | "skipped";
+  timestamp: string;
+}): MaterialSessionActivity {
+  const base: MaterialSessionActivity = current ?? {
+    ownerScope,
+    sessionId,
+    materialRef,
+    updatedAt: timestamp,
+  };
+
+  switch (updateKind) {
+    case "recommended":
+      return {
+        ...base,
+        recommendedCount: (base.recommendedCount ?? 0) + 1,
+        updatedAt: timestamp,
+      };
+    case "opened":
+      return {
+        ...base,
+        openedCount: (base.openedCount ?? 0) + 1,
+        updatedAt: timestamp,
+      };
+    case "played":
+      return {
+        ...base,
+        playedCount: (base.playedCount ?? 0) + 1,
+        updatedAt: timestamp,
+      };
+    case "skipped":
+      return {
+        ...base,
+        skippedCount: (base.skippedCount ?? 0) + 1,
         updatedAt: timestamp,
       };
   }

@@ -1,5 +1,6 @@
 import type {
   MaterialActivity,
+  MaterialSessionActivity,
   MusicMaterialRelation,
   Ref,
   Result,
@@ -8,6 +9,7 @@ import type {
   CanonicalStorePort,
   MaterialActivityRepository,
   MaterialRegistryPort,
+  MaterialSessionActivityRepository,
   MaterialStorePort,
   MusicMaterialRelationRepository,
   SourceEntityStoreRepository,
@@ -15,6 +17,7 @@ import type {
 import { createInMemoryMaterialRegistry } from "./material_registry/index.js";
 import {
   createInMemoryMaterialActivityRepository,
+  createInMemoryMaterialSessionActivityRepository,
   createInMemoryMusicMaterialRelationRepository,
 } from "../storage/index.js";
 
@@ -32,6 +35,7 @@ export type MaterialStoreOptions = {
   materialRegistry?: MaterialRegistryPort;
   materialRelations?: MusicMaterialRelationRepository;
   materialActivity?: MaterialActivityRepository;
+  materialSessionActivity?: MaterialSessionActivityRepository;
   sourceEntityStore: SourceEntityStoreRepository;
 };
 
@@ -40,11 +44,13 @@ export function createMaterialStore({
   materialRegistry,
   materialRelations,
   materialActivity,
+  materialSessionActivity,
   sourceEntityStore,
 }: MaterialStoreOptions): MaterialStorePort {
   const registry = materialRegistry ?? createInMemoryMaterialRegistry();
   const relations = materialRelations ?? createInMemoryMusicMaterialRelationRepository();
   const activity = materialActivity ?? createInMemoryMaterialActivityRepository();
+  const sessionActivity = materialSessionActivity ?? createInMemoryMaterialSessionActivityRepository();
 
   return {
     getMaterialRecord(input) {
@@ -112,6 +118,16 @@ export function createMaterialStore({
         return migratedActivity;
       }
 
+      const migratedSessionActivity = await migrateMaterialSessionActivity({
+        sessionActivity,
+        from: input.from,
+        into: survivor.value,
+      });
+
+      if (!migratedSessionActivity.ok) {
+        return migratedSessionActivity;
+      }
+
       return merged;
     },
 
@@ -133,6 +149,18 @@ export function createMaterialStore({
 
     listMaterialActivity(input) {
       return activity.listActivity(input);
+    },
+
+    getMaterialSessionActivity(input) {
+      return sessionActivity.getSessionActivity(input);
+    },
+
+    putMaterialSessionActivity(input) {
+      return sessionActivity.putSessionActivity(input);
+    },
+
+    listMaterialSessionActivity(input) {
+      return sessionActivity.listSessionActivity(input);
     },
 
     getCanonical(input) {
@@ -298,6 +326,49 @@ async function migrateMaterialActivity({
   return ok(undefined);
 }
 
+async function migrateMaterialSessionActivity({
+  sessionActivity,
+  from,
+  into,
+}: {
+  sessionActivity: MaterialSessionActivityRepository;
+  from: Ref;
+  into: Ref;
+}): Promise<Result<void>> {
+  const allActivity = await sessionActivity.listSessionActivity({});
+
+  if (!allActivity.ok) {
+    return allActivity;
+  }
+
+  const loserActivities = allActivity.value.filter((entry) => sameRef(entry.materialRef, from));
+
+  for (const loserActivity of loserActivities) {
+    const survivorActivity = await sessionActivity.getSessionActivity({
+      ownerScope: loserActivity.ownerScope,
+      sessionId: loserActivity.sessionId,
+      materialRef: into,
+    });
+
+    if (!survivorActivity.ok) {
+      return survivorActivity;
+    }
+
+    const merged = mergeSessionActivity({
+      loser: loserActivity,
+      survivor: survivorActivity.value,
+      materialRef: into,
+    });
+    const stored = await sessionActivity.putSessionActivity({ activity: merged });
+
+    if (!stored.ok) {
+      return stored;
+    }
+  }
+
+  return ok(undefined);
+}
+
 function mergeActivity({
   loser,
   survivor,
@@ -319,6 +390,37 @@ function mergeActivity({
     ...sumOptional("playedCountSession", loser, survivor),
     updatedAt: latestTimestamp(loser.updatedAt, survivor?.updatedAt) ?? loser.updatedAt,
   };
+}
+
+function mergeSessionActivity({
+  loser,
+  survivor,
+  materialRef,
+}: {
+  loser: MaterialSessionActivity;
+  survivor: MaterialSessionActivity | null;
+  materialRef: Ref;
+}): MaterialSessionActivity {
+  return {
+    ownerScope: loser.ownerScope,
+    sessionId: loser.sessionId,
+    materialRef,
+    ...sumSessionOptional("recommendedCount", loser, survivor),
+    ...sumSessionOptional("openedCount", loser, survivor),
+    ...sumSessionOptional("playedCount", loser, survivor),
+    ...sumSessionOptional("skippedCount", loser, survivor),
+    updatedAt: latestTimestamp(loser.updatedAt, survivor?.updatedAt) ?? loser.updatedAt,
+  };
+}
+
+function sumSessionOptional(
+  key: "recommendedCount" | "openedCount" | "playedCount" | "skippedCount",
+  loser: MaterialSessionActivity,
+  survivor: MaterialSessionActivity | null,
+): Partial<MaterialSessionActivity> {
+  const total = (loser[key] ?? 0) + (survivor?.[key] ?? 0);
+
+  return total === 0 ? {} : { [key]: total };
 }
 
 function latestOptional(

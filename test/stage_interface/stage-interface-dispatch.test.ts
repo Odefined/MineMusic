@@ -25,6 +25,9 @@ import type {
   EffectBoundaryPort,
   EventPort,
   LibraryImportPort,
+  MaterialCardsPort,
+  MaterialQueryPort,
+  MaterialRelatedPort,
   MaterialResolvePort,
   MaterialGatePort,
   MaterialStorePort,
@@ -1192,6 +1195,83 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
   );
 }
 
+async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void> {
+  const calls: string[] = [];
+  const sessionContext: SessionContextPort = {
+    getSession: async ({ sessionId }) => ({ ok: true, value: { ...session, id: sessionId } }),
+    readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
+    updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+  };
+  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort = {
+    query: async ({ sessionId }) => {
+      calls.push(`query:${sessionId ?? "missing"}`);
+      return { ok: true, value: { items: [] } };
+    },
+    related: async ({ sessionId }) => {
+      calls.push(`related:${sessionId ?? "missing"}`);
+      return { ok: true, value: { basis: "fallback_text", items: [] } };
+    },
+    resolveCards: async () => ({ ok: true, value: { items: [] } }),
+  };
+  const dispatch = createToolDispatch({
+    sessionContext,
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    materialQuery,
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "2026-05-17T00:00:00.000Z" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-entry-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+  });
+
+  await assertOk(
+    dispatch.call({
+      sessionId: "session-current",
+      toolName: "music.material.query",
+      payload: { pool: { kind: "all" } },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: "session-current",
+      toolName: "music.material.query",
+      payload: { sessionId: "caller-session", pool: { kind: "all" } },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: "session-current",
+      toolName: "music.material.related",
+      payload: { ref: "mat_seed", relation: "similar" },
+    }),
+  );
+
+  assert(calls.includes("query:session-current"), "material query should receive current dispatch session id by default");
+  assert(calls.includes("query:caller-session"), "material query should preserve explicit caller session id");
+  assert(calls.includes("related:session-current"), "material related should receive current dispatch session id by default");
+}
+
 async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void> {
   const calls: string[] = [];
   const importSession: StageSession = {
@@ -1471,6 +1551,9 @@ async function dispatchesSourceLibraryToolsThroughMaterialStore(): Promise<void>
     getMaterialActivity: async () => ({ ok: true, value: null }),
     putMaterialActivity: async ({ activity }) => ({ ok: true, value: activity }),
     listMaterialActivity: async () => ({ ok: true, value: [] }),
+    getMaterialSessionActivity: async () => ({ ok: true, value: null }),
+    putMaterialSessionActivity: async ({ activity }) => ({ ok: true, value: activity }),
+    listMaterialSessionActivity: async () => ({ ok: true, value: [] }),
   };
   const dispatch = createToolDispatch({
     sessionContext: {
@@ -2305,6 +2388,7 @@ await dispatchesStableToolNamesThroughInjectedPorts();
 await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
 await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
+await dispatchesMaterialQueryToolsWithCurrentSessionId();
 await dispatchesLibraryImportToolsWithDefaultOwnerScope();
 await dispatchesSourceLibraryToolsThroughMaterialStore();
 await dispatchesCanonicalReviewToolsWithCurrentSessionId();

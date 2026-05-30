@@ -22,6 +22,7 @@ import {
   createInMemoryCollectionRepository,
   createInMemoryEventRepository,
   createInMemoryMaterialActivityRepository,
+  createInMemoryMaterialSessionActivityRepository,
   createInMemorySourceEntityStoreRepository,
 } from "../../src/storage/index.js";
 
@@ -632,12 +633,12 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
   await putLibraryTrack(materialStore, keptRef, "Not Recent Track");
   const recentRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: recentRef, kind: "recording" }));
   await assertOk(
-    materialStore.putMaterialActivity({
+    materialStore.putMaterialSessionActivity({
       activity: {
         ownerScope: "local_profile:default",
+        sessionId: "session-1",
         materialRef: recentRecord.materialRef,
-        lastRecommendedAt: "2026-05-30T01:00:00.000Z",
-        recommendedCountSession: 1,
+        recommendedCount: 1,
         updatedAt: "2026-05-30T01:00:00.000Z",
       },
     }),
@@ -646,6 +647,7 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
+      sessionId: "session-1",
       pool: { kind: "source_library", areas: ["saved_tracks"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
@@ -656,9 +658,62 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
   assert(output.items[0]?.title === "Not Recent Track", "recent recommended hard exclude should keep not-recent material");
 }
 
+async function recentRecommendedSessionExcludeUsesMaterialSessionActivity(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "session-scoped-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
+    sourceMaterial("Session Scoped Track", sourceRef),
+  ]);
+  await putLibraryTrack(materialStore, sourceRef, "Session Scoped Track");
+  const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  await assertOk(
+    materialStore.putMaterialActivity({
+      activity: {
+        ownerScope: "local_profile:default",
+        materialRef: record.materialRef,
+        lastRecommendedAt: "2026-05-30T01:00:00.000Z",
+        updatedAt: "2026-05-30T01:00:00.000Z",
+      },
+    }),
+  );
+  await assertOk(
+    materialStore.putMaterialSessionActivity({
+      activity: {
+        ownerScope: "local_profile:default",
+        sessionId: "session-a",
+        materialRef: record.materialRef,
+        recommendedCount: 1,
+        updatedAt: "2026-05-30T01:00:00.000Z",
+      },
+    }),
+  );
+
+  const sessionA = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      sessionId: "session-a",
+      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      exclude: { recent: { recommended: "session", mode: "hard" } },
+      limit: 10,
+    }),
+  );
+  const sessionB = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      sessionId: "session-b",
+      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      exclude: { recent: { recommended: "session", mode: "hard" } },
+      limit: 10,
+    }),
+  );
+
+  assert(sessionA.items.length === 0, "session recent exclusion should exclude material from the same session");
+  assert(sessionB.items.length === 1, "session recent exclusion should not leak across sessions");
+  assert(sessionB.items[0]?.title === "Session Scoped Track", "other sessions should keep the material");
+}
+
 async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<void> {
   const sourceRef = ref("source:fixture", "track", "compact-event-track");
-  const { materialActivity, materialStore, materialQuery } = createMaterialQueryServiceHarness([
+  const { materialActivity, materialSessionActivity, materialStore, materialQuery } = createMaterialQueryServiceHarness([
     sourceMaterial("Compact Event Track", sourceRef),
   ]);
   await putLibraryTrack(materialStore, sourceRef, "Compact Event Track");
@@ -666,6 +721,7 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
   const events = createEventService({
     repository: createInMemoryEventRepository(),
     materialActivity,
+    materialSessionActivity,
     idFactory: () => "event-compact-card",
     clock: () => "2026-05-30T02:00:00.000Z",
   });
@@ -694,16 +750,25 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
       materialRef: record.materialRef,
     }),
   );
+  const sessionActivity = await assertOk(
+    materialSessionActivity.getSessionActivity({
+      ownerScope: "local_profile:default",
+      sessionId: "session-1",
+      materialRef: record.materialRef,
+    }),
+  );
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
+      sessionId: "session-1",
       pool: { kind: "source_library", areas: ["saved_tracks"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
     }),
   );
 
-  assert(activity?.recommendedCountSession === 1, "compact MaterialCard.ref strings should update MaterialActivity");
+  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "compact MaterialCard.ref strings should update aggregate MaterialActivity");
+  assert(sessionActivity?.recommendedCount === 1, "compact MaterialCard.ref strings should update session MaterialActivity");
   assert(output.items.length === 0, "recent exclusion should filter compact-card recommendation events");
 }
 
@@ -842,12 +907,14 @@ async function compactCardsDoNotExposeRawMaterialInternals(): Promise<void> {
 function createMaterialQueryHarness(sourceMaterials: SourceMaterial[]): {
   canonicalRepository: ReturnType<typeof createInMemoryCanonicalRecordRepository>;
   materialActivity: ReturnType<typeof createInMemoryMaterialActivityRepository>;
+  materialSessionActivity: ReturnType<typeof createInMemoryMaterialSessionActivityRepository>;
   materialStore: MaterialStorePort;
   sourceGrounding: SourceGroundingPort;
 } {
   let nextMaterialId = 1;
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const materialActivity = createInMemoryMaterialActivityRepository();
+  const materialSessionActivity = createInMemoryMaterialSessionActivityRepository();
   const materialStore = createMaterialStore({
     canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
     materialRegistry: createInMemoryMaterialRegistry({
@@ -855,6 +922,7 @@ function createMaterialQueryHarness(sourceMaterials: SourceMaterial[]): {
       now: () => "2026-05-30T00:00:00.000Z",
     }),
     materialActivity,
+    materialSessionActivity,
     sourceEntityStore: createInMemorySourceEntityStoreRepository(),
   });
   const sourceGrounding: SourceGroundingPort = {
@@ -871,14 +939,15 @@ function createMaterialQueryHarness(sourceMaterials: SourceMaterial[]): {
     refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
   };
 
-  return { canonicalRepository, materialActivity, materialStore, sourceGrounding };
+  return { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding };
 }
 
 function createMaterialQueryServiceHarness(
   sourceMaterials: SourceMaterial[],
   options: { clock?: () => string; collection?: CollectionPort } = {},
 ) {
-  const { canonicalRepository, materialActivity, materialStore, sourceGrounding } = createMaterialQueryHarness(sourceMaterials);
+  const { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding } =
+    createMaterialQueryHarness(sourceMaterials);
   const materialQuery = createMaterialQueryService({
     materialStore,
     materialResolve: createMaterialResolveService({
@@ -889,7 +958,7 @@ function createMaterialQueryServiceHarness(
     ...(options.clock === undefined ? {} : { clock: options.clock }),
   });
 
-  return { canonicalRepository, materialActivity, materialStore, sourceGrounding, materialQuery };
+  return { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding, materialQuery };
 }
 
 function createCollectionPortStub(collections: Collection[], items: CollectionItem[]): CollectionPort {
@@ -1166,6 +1235,7 @@ await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();
 await relationExclusionsRemoveCollectionBlockedMaterials();
 await recentRecommendedHardExcludeWorks();
+await recentRecommendedSessionExcludeUsesMaterialSessionActivity();
 await compactRecommendationCardEventsUpdateRecentExclusions();
 await contextBriefFieldsSelectArtistAlbumVersionAndStatus();
 await contextBriefStatusFieldReturnsOnlyStatusWarnings();

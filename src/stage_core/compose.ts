@@ -33,11 +33,13 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     materialRegistry: repositories.materialRegistry,
     materialRelations: repositories.materialRelations,
     materialActivity: repositories.materialActivity,
+    materialSessionActivity: repositories.materialSessionActivity,
     sourceEntityStore: repositories.sourceEntityStoreRepository,
   });
   const events = createEventService({
     repository: repositories.eventRepository,
     materialActivity: repositories.materialActivity,
+    materialSessionActivity: repositories.materialSessionActivity,
   });
   const collection = createCollectionService({
     repository: repositories.collectionRepository,

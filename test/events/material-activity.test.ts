@@ -4,6 +4,7 @@ import { materialRefToCardRef } from "../../src/material_query/index.js";
 import {
   createInMemoryEventRepository,
   createInMemoryMaterialActivityRepository,
+  createInMemoryMaterialSessionActivityRepository,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -20,10 +21,12 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 
 async function recommendationEventUpdatesActivityFromPayloadCards(): Promise<void> {
   const materialActivity = createInMemoryMaterialActivityRepository();
+  const materialSessionActivity = createInMemoryMaterialSessionActivityRepository();
   const materialRef = ref("minemusic", "material", "activity-material");
   const events = createEventService({
     repository: createInMemoryEventRepository(),
     materialActivity,
+    materialSessionActivity,
     idFactory: createSequence("event"),
     clock: createClock([
       "2026-05-30T01:00:00.000Z",
@@ -69,17 +72,27 @@ async function recommendationEventUpdatesActivityFromPayloadCards(): Promise<voi
       materialRef,
     }),
   );
+  const sessionActivity = await assertOk(
+    materialSessionActivity.getSessionActivity({
+      ownerScope: "local_profile:night",
+      sessionId: "session-1",
+      materialRef,
+    }),
+  );
 
   assert(activity?.lastRecommendedAt === "2026-05-30T01:05:00.000Z", "recommendation cards should update lastRecommendedAt");
-  assert(activity.recommendedCountSession === 2, "recommendation cards should increment recommendation count");
+  assert(activity?.recommendedCountSession === undefined, "aggregate activity should not store owner-global session counters");
+  assert(sessionActivity?.recommendedCount === 2, "recommendation cards should increment session recommendation count");
 }
 
 async function recommendationEventUpdatesActivityFromCompactCardRefs(): Promise<void> {
   const materialActivity = createInMemoryMaterialActivityRepository();
+  const materialSessionActivity = createInMemoryMaterialSessionActivityRepository();
   const materialRef = ref("minemusic", "material", "compact-card-activity");
   const events = createEventService({
     repository: createInMemoryEventRepository(),
     materialActivity,
+    materialSessionActivity,
     idFactory: createSequence("event"),
     clock: () => "2026-05-30T01:10:00.000Z",
   });
@@ -110,17 +123,26 @@ async function recommendationEventUpdatesActivityFromCompactCardRefs(): Promise<
       materialRef,
     }),
   );
+  const sessionActivity = await assertOk(
+    materialSessionActivity.getSessionActivity({
+      ownerScope: "local_profile:night",
+      sessionId: "session-1",
+      materialRef,
+    }),
+  );
 
   assert(activity?.lastRecommendedAt === "2026-05-30T01:10:00.000Z", "compact card refs should update lastRecommendedAt");
-  assert(activity.recommendedCountSession === 1, "compact card refs should increment recommendation count");
+  assert(sessionActivity?.recommendedCount === 1, "compact card refs should increment session recommendation count");
 }
 
 async function activityIsKeyedByOwnerScopeAndMaterialRef(): Promise<void> {
   const materialActivity = createInMemoryMaterialActivityRepository();
+  const materialSessionActivity = createInMemoryMaterialSessionActivityRepository();
   const materialRef = ref("minemusic", "material", "opened-material");
   const events = createEventService({
     repository: createInMemoryEventRepository(),
     materialActivity,
+    materialSessionActivity,
     idFactory: createSequence("event"),
     clock: () => "2026-05-30T02:00:00.000Z",
   });
@@ -158,10 +180,12 @@ async function activityIsKeyedByOwnerScopeAndMaterialRef(): Promise<void> {
 
 async function eventStoresMaterialSnapshotTargetAndUpdatesActivity(): Promise<void> {
   const materialActivity = createInMemoryMaterialActivityRepository();
+  const materialSessionActivity = createInMemoryMaterialSessionActivityRepository();
   const materialRef = ref("minemusic", "material", "snapshot-target-material");
   const events = createEventService({
     repository: createInMemoryEventRepository(),
     materialActivity,
+    materialSessionActivity,
     idFactory: createSequence("event"),
     clock: () => "2026-05-30T02:30:00.000Z",
   });
@@ -196,6 +220,13 @@ async function eventStoresMaterialSnapshotTargetAndUpdatesActivity(): Promise<vo
       materialRef,
     }),
   );
+  const sessionActivity = await assertOk(
+    materialSessionActivity.getSessionActivity({
+      ownerScope: "local_profile:default",
+      sessionId: "session-1",
+      materialRef,
+    }),
+  );
 
   assert(
     typeof recorded.target === "object" &&
@@ -205,6 +236,7 @@ async function eventStoresMaterialSnapshotTargetAndUpdatesActivity(): Promise<vo
     "event should store the material snapshot target",
   );
   assert(activity?.lastPlayedAt === "2026-05-30T02:30:00.000Z", "material snapshot target should update activity");
+  assert(sessionActivity?.playedCount === 1, "material snapshot target should update session activity");
 }
 
 function createSequence(prefix: string): () => string {

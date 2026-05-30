@@ -6,6 +6,7 @@ import type {
   LibraryImportRepository,
   MaterialActivityRepository,
   MaterialRegistryPort,
+  MaterialSessionActivityRepository,
   MemoryRepository,
   MusicMaterialRelationRepository,
   ProviderHttpCacheRepository,
@@ -18,6 +19,7 @@ import {
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
   createInMemoryMaterialActivityRepository,
+  createInMemoryMaterialSessionActivityRepository,
   createInMemoryMaterialRegistry,
   createInMemoryMusicMaterialRelationRepository,
   createInMemoryMemoryRepository,
@@ -27,6 +29,7 @@ import {
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
   createSqliteMaterialActivityRepository,
+  createSqliteMaterialSessionActivityRepository,
   createSqliteMaterialRegistryRepository,
   createSqliteMusicMaterialRelationRepository,
   createSqliteProviderHttpCacheRepository,
@@ -38,6 +41,7 @@ export type StageCoreRepositories = {
   materialRegistry: MaterialRegistryPort;
   materialRelations: MusicMaterialRelationRepository;
   materialActivity: MaterialActivityRepository;
+  materialSessionActivity: MaterialSessionActivityRepository;
   sourceEntityStoreRepository: SourceEntityStoreRepository;
   collectionRepository: CollectionRepository;
   libraryImportRepository: LibraryImportRepository;
@@ -52,6 +56,7 @@ export type StageCoreRepositoryOptions = {
   materialRegistry?: MaterialRegistryPort;
   materialRelations?: MusicMaterialRelationRepository;
   materialActivity?: MaterialActivityRepository;
+  materialSessionActivity?: MaterialSessionActivityRepository;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
@@ -84,6 +89,11 @@ export function createStageCoreRepositories(options: StageCoreRepositoryOptions)
       (options.materialStoreDatabasePath === undefined
         ? createInMemoryMaterialActivityRepository()
         : createSqliteMaterialActivityRepository({ path: options.materialStoreDatabasePath })),
+    materialSessionActivity:
+      options.materialSessionActivity ??
+      (options.materialStoreDatabasePath === undefined
+        ? createInMemoryMaterialSessionActivityRepository()
+        : createSqliteMaterialSessionActivityRepository({ path: options.materialStoreDatabasePath })),
     sourceEntityStoreRepository:
       options.sourceEntityStoreRepository ??
       (options.materialStoreDatabasePath === undefined

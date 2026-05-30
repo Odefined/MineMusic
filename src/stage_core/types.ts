@@ -18,6 +18,7 @@ import type {
   LibraryImportRepository,
   MaterialActivityRepository,
   MaterialRegistryPort,
+  MaterialSessionActivityRepository,
   MaterialStorePort,
   MaterialQueryPort,
   MaterialResolvePort,
@@ -77,6 +78,7 @@ export type MineMusicStageCoreOptions = {
   materialRegistry?: MaterialRegistryPort;
   materialRelations?: MusicMaterialRelationRepository;
   materialActivity?: MaterialActivityRepository;
+  materialSessionActivity?: MaterialSessionActivityRepository;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
@@ -100,6 +102,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   materialRegistry?: MaterialRegistryPort;
   materialRelations?: MusicMaterialRelationRepository;
   materialActivity?: MaterialActivityRepository;
+  materialSessionActivity?: MaterialSessionActivityRepository;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
