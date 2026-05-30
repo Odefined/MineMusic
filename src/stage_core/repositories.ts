@@ -4,8 +4,10 @@ import type {
   EffectProposalRepository,
   EventRepository,
   LibraryImportRepository,
+  MaterialActivityRepository,
   MaterialRegistryPort,
   MemoryRepository,
+  MusicMaterialRelationRepository,
   ProviderHttpCacheRepository,
   SourceEntityStoreRepository,
 } from "../ports/index.js";
@@ -15,14 +17,18 @@ import {
   createInMemoryEffectProposalRepository,
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
+  createInMemoryMaterialActivityRepository,
   createInMemoryMaterialRegistry,
+  createInMemoryMusicMaterialRelationRepository,
   createInMemoryMemoryRepository,
   createInMemoryProviderHttpCacheRepository,
   createInMemorySourceEntityStoreRepository,
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
+  createSqliteMaterialActivityRepository,
   createSqliteMaterialRegistryRepository,
+  createSqliteMusicMaterialRelationRepository,
   createSqliteProviderHttpCacheRepository,
   createSqliteSourceEntityStoreRepository,
 } from "../storage/index.js";
@@ -30,6 +36,8 @@ import {
 export type StageCoreRepositories = {
   canonicalRepository: CanonicalRecordRepository;
   materialRegistry: MaterialRegistryPort;
+  materialRelations: MusicMaterialRelationRepository;
+  materialActivity: MaterialActivityRepository;
   sourceEntityStoreRepository: SourceEntityStoreRepository;
   collectionRepository: CollectionRepository;
   libraryImportRepository: LibraryImportRepository;
@@ -42,6 +50,8 @@ export type StageCoreRepositories = {
 export type StageCoreRepositoryOptions = {
   canonicalRepository?: CanonicalRecordRepository;
   materialRegistry?: MaterialRegistryPort;
+  materialRelations?: MusicMaterialRelationRepository;
+  materialActivity?: MaterialActivityRepository;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
@@ -64,6 +74,16 @@ export function createStageCoreRepositories(options: StageCoreRepositoryOptions)
       (options.materialStoreDatabasePath === undefined
         ? createInMemoryMaterialRegistry()
         : createSqliteMaterialRegistryRepository({ path: options.materialStoreDatabasePath })),
+    materialRelations:
+      options.materialRelations ??
+      (options.materialStoreDatabasePath === undefined
+        ? createInMemoryMusicMaterialRelationRepository()
+        : createSqliteMusicMaterialRelationRepository({ path: options.materialStoreDatabasePath })),
+    materialActivity:
+      options.materialActivity ??
+      (options.materialStoreDatabasePath === undefined
+        ? createInMemoryMaterialActivityRepository()
+        : createSqliteMaterialActivityRepository({ path: options.materialStoreDatabasePath })),
     sourceEntityStoreRepository:
       options.sourceEntityStoreRepository ??
       (options.materialStoreDatabasePath === undefined

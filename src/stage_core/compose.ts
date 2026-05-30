@@ -30,9 +30,14 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const materialStore = createMaterialStore({
     canonicalStore: canonical,
     materialRegistry: repositories.materialRegistry,
+    materialRelations: repositories.materialRelations,
+    materialActivity: repositories.materialActivity,
     sourceEntityStore: repositories.sourceEntityStoreRepository,
   });
-  const events = createEventService({ repository: repositories.eventRepository });
+  const events = createEventService({
+    repository: repositories.eventRepository,
+    materialActivity: repositories.materialActivity,
+  });
   const collection = createCollectionService({
     repository: repositories.collectionRepository,
     events,

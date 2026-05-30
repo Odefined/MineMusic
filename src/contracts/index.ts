@@ -207,6 +207,49 @@ export type MaterialRecord = {
   updatedAt: string;
 };
 
+export type MusicMaterialRelationScope =
+  | { level: "material" }
+  | { level: "source"; sourceRef: Ref }
+  | { level: "version"; note?: string }
+  | { level: "event"; eventId: string };
+
+export type MusicMaterialRelationKind =
+  | "saved"
+  | "favorite"
+  | "blocked"
+  | "wrong_version"
+  | "not_playable"
+  | "bad_match"
+  | "liked"
+  | "disliked"
+  | "memory_preference";
+
+export type MusicMaterialRelation = {
+  id: string;
+  ownerScope: string;
+  materialRef: Ref;
+  relationKind: MusicMaterialRelationKind;
+  scope: MusicMaterialRelationScope;
+  source: "user_explicit" | "event_derived" | "imported" | "system";
+  evidenceEventIds?: string[];
+  status: "active" | "pending_identity" | "removed" | "rejected";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MaterialActivity = {
+  ownerScope: string;
+  materialRef: Ref;
+  lastRecommendedAt?: string;
+  lastOpenedAt?: string;
+  lastPlayedAt?: string;
+  lastSkippedAt?: string;
+  recommendedCountSession?: number;
+  openedCountSession?: number;
+  playedCountSession?: number;
+  updatedAt: string;
+};
+
 export type CanonicalRecord = {
   ref: Ref;
   kind: CanonicalKind;

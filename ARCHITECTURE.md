@@ -29,9 +29,12 @@ identity and source-material state: Material Registry owns opaque product-level
 after material merges. Canonical Store remains the canonical identity
 subdomain, and Source Entity Store owns Source Track/Release/Artist, Source
 Library, Library Import/Update state, import history, and confirmed
-source-to-canonical bindings. Direct SQLite adapters now cover Material Store,
-Collection Service, Library Import working state, and other opt-in runtime
-storage paths. MineMusic runtime configuration belongs to the long-lived
+source-to-canonical bindings. Material Store also owns material-scoped
+relations and recent activity projections keyed by `materialRef`, so
+source-only material can receive block, wrong-version, and not-playable
+feedback without requiring canonical identity. Direct SQLite adapters now cover
+Material Store, Collection Service, Library Import working state, and other
+opt-in runtime storage paths. MineMusic runtime configuration belongs to the long-lived
 MineMusic server process, not to a particular host adapter such as the Codex
 skill. It does not prove playback control, autonomous DJ behavior, playlist
 editing, music intelligence, or notifications.
@@ -145,16 +148,18 @@ needs.
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
 | Session Context | session identity, session state, `StageVibe`, dynamic context | source matching, memory persistence, effect execution, tool availability policy |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
-| Material Store | MineMusic product-level material identity, canonical identity, source entities, Source Library, Library Import/Update state, import history, and confirmed source-to-canonical bindings | current playability, user taste, final recommendation selection, external write-back |
-| Material Registry inside Material Store | Opaque `materialRef` records, source/canonical lookup indexes, identity state, and material merge redirects | provider source facts, canonical metadata authority, playability, user relations, final recommendation judgment |
+| Material Store | MineMusic product-level material identity, canonical identity, source entities, Source Library, Library Import/Update state, import history, confirmed source-to-canonical bindings, material relations, and material activity projections | current playability, user taste, final recommendation selection, external write-back |
+| Material Registry inside Material Store | Opaque `materialRef` records, source/canonical lookup indexes, identity state, and material merge redirects | provider source facts, canonical metadata authority, playability, final recommendation judgment |
+| Material Relations inside Material Store | Owner/material-scoped relation facts such as blocked, wrong-version, not-playable, liked, disliked, saved, favorite, and event-scoped bad-match feedback | source provider facts, canonical metadata authority, final recommendation judgment |
+| Material Activity inside Material Store | Recent recommendation/open/play/skip projection keyed by owner scope and `materialRef` for future dedupe and ranking | factual event history, platform listening history, final recommendation judgment |
 | Canonical Store inside Material Store | MineMusic-owned canonical records, identity anchors, Canonical Maintenance review/apply policy, provisional review facts, and canonical graph maintenance | provider account library state, Source Library membership, ordinary Library Import source binding |
 | Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
-| Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
+| Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, material relation filtering, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
-| Event Service | factual event history | derived preference claims |
+| Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |
 | Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals | raw event logging, external side effects |
 | Effect Boundary | permission and execution boundary for durable writes and external actions | ordinary text recommendation, musical expression |
 | Plugin Slots | replaceable adapters for capabilities | MineMusic business policy |

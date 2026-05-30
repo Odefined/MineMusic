@@ -2,8 +2,9 @@
 
 ## Current State
 
-PR 2 of the MusicMaterial refactor is implemented. PR 1 added the registry
-foundation, and PR 2 integrates Material Resolve projection onto that registry.
+PR 3 of the MusicMaterial refactor is implemented. PR 1 added the registry
+foundation, PR 2 integrates Material Resolve projection onto that registry, and
+PR 3 adds material-scoped relations plus recent activity projection.
 Material Registry now lives inside Material Store and owns opaque
 `materialRef` records, source/canonical lookup indexes, merge redirects, and
 identity state for future resolved `MusicMaterial` projections.
@@ -19,6 +20,20 @@ source ownership conflicts.
 `materialRef` and `identityState`. Source providers still return
 `SourceMaterial` before materialization and do not create material refs.
 Current recommendation flow and playable-link gating behavior are preserved.
+Material relations are keyed by owner scope plus `materialRef`, can be scoped
+to a whole material, a source ref, a version note, or an event, and are stored
+in memory or in the Material Store SQLite database path. Material Resolve reads
+active relations after materialization: material-level blocks mark direct raw
+resolve output as `blocked`; source-level `blocked` and `wrong_version`
+relations remove matching source results; source-level `not_playable` removes
+matching playable links without blocking the whole material. Existing canonical
+Collection blocked filtering still runs during migration. Material Activity is
+an Event Service projection for recommendation/open/play/skip recency and does
+not replace factual event history.
+Material Store merge now migrates relation rows from the merged loser material
+to the survivor material and merges loser activity into survivor activity, so
+source-only feedback and recent activity survive later canonical confirmation
+or material merge.
 
 ## Implemented
 
@@ -49,6 +64,19 @@ Current recommendation flow and playable-link gating behavior are preserved.
   continuing to gate playable links by material state.
 - NetEase and fixture source providers return source materials and do not
   create or guess `materialRef`.
+- Added `MusicMaterialRelationScope`, `MusicMaterialRelationKind`,
+  `MusicMaterialRelation`, and `MaterialActivity` contracts.
+- Added in-memory and SQLite-backed material relation and activity repositories
+  under the Material Store storage path.
+- Wired relation/activity repositories through Stage Core and Material Store.
+- Material Resolve applies material relation filtering before legacy canonical
+  Collection blocked filtering.
+- Event Service updates recent Material Activity from
+  `recommendation.presented`, `material.opened`, `link.opened`,
+  `material.played`, and `material.skipped` events when material refs are
+  present in the event target or payload cards.
+- Material Store `mergeMaterials` migrates loser material relations to the
+  survivor and combines recent activity timestamps/counts by owner scope.
 
 ## Verification
 
@@ -68,12 +96,19 @@ Current recommendation flow and playable-link gating behavior are preserved.
 - `npm run smoke:netease` skipped successfully by default for PR 2 on
   2026-05-30.
 - `git diff --check` passed on 2026-05-30.
+- PR 3 targeted checks passed on 2026-05-30:
+  `node .tmp-test/test/material_store/material-relations.test.js`,
+  `node .tmp-test/test/material_resolve/material-relation-filtering.test.js`,
+  and `node .tmp-test/test/events/material-activity.test.js`.
+- `npm run typecheck` passed for PR 3 on 2026-05-30.
+- `npm test` passed for PR 3 on 2026-05-30.
+- Review-fix checks for relation/activity merge survival passed on
+  2026-05-30: `npm run typecheck` and `npm test`.
 
 ## Remaining
 
 - Canonical-only materialization when Source Grounding returns no source
   material remains deferred; PR 2 only materializes provider/source-backed
   projection paths.
-- PR 3 will add MusicMaterialRelation and MaterialActivity.
 - PR 4 will add `material.query`, `material.related`, and compact tools.
 - PR 5 will migrate Collection, Memory, and Effect toward material targets.

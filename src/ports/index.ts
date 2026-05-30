@@ -52,11 +52,14 @@ import type {
   LibraryImportSummaryInput,
   LibraryUpdatePreviewInput,
   LibraryUpdateStartInput,
+  MaterialActivity,
   MaterialRecord,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
   MemoryProposal,
+  MusicMaterialRelation,
+  MusicMaterialRelationKind,
   MusicMaterial,
   SourceMaterial,
   PlatformLibraryAbsence,
@@ -230,6 +233,19 @@ export type ConfirmedCanonicalBindingListInput = {
   canonicalRef?: Ref;
 };
 
+export type MusicMaterialRelationListInput = {
+  ownerScope?: string;
+  materialRef?: Ref;
+  relationKind?: MusicMaterialRelationKind;
+  status?: MusicMaterialRelation["status"];
+};
+
+export type MaterialActivityListInput = {
+  ownerScope?: string;
+  since?: string;
+  limit?: number;
+};
+
 export type CanonicalRecordRepositoryFindBySourceRefInput = {
   ref: Ref;
   currentOnly?: boolean;
@@ -329,6 +345,25 @@ export interface MaterialStorePort {
     reason: string;
   }): Promise<Result<MaterialRecord>>;
 
+  putMaterialRelation(input: {
+    relation: MusicMaterialRelation;
+  }): Promise<Result<MusicMaterialRelation>>;
+
+  listMaterialRelations(
+    input: MusicMaterialRelationListInput,
+  ): Promise<Result<MusicMaterialRelation[]>>;
+
+  getMaterialActivity(input: {
+    ownerScope: string;
+    materialRef: Ref;
+  }): Promise<Result<MaterialActivity | null>>;
+
+  putMaterialActivity(input: {
+    activity: MaterialActivity;
+  }): Promise<Result<MaterialActivity>>;
+
+  listMaterialActivity(input: MaterialActivityListInput): Promise<Result<MaterialActivity[]>>;
+
   getCanonical(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;
 
   findCanonicalByLabel(input: {
@@ -381,6 +416,29 @@ export type MaterialRegistryPort = Pick<
   | "promoteToCanonical"
   | "mergeMaterials"
 >;
+
+export interface MusicMaterialRelationRepository {
+  putRelation(input: {
+    relation: MusicMaterialRelation;
+  }): Promise<Result<MusicMaterialRelation>>;
+
+  listRelations(
+    input: MusicMaterialRelationListInput,
+  ): Promise<Result<MusicMaterialRelation[]>>;
+}
+
+export interface MaterialActivityRepository {
+  getActivity(input: {
+    ownerScope: string;
+    materialRef: Ref;
+  }): Promise<Result<MaterialActivity | null>>;
+
+  putActivity(input: {
+    activity: MaterialActivity;
+  }): Promise<Result<MaterialActivity>>;
+
+  listActivity(input: MaterialActivityListInput): Promise<Result<MaterialActivity[]>>;
+}
 
 export interface CanonicalStorePort {
   get(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;

@@ -9,6 +9,11 @@ export { createSqliteLibraryImportRepository } from "./library-import-repository
 export type { SqliteLibraryImportRepositoryOptions } from "./library-import-repository.js";
 export { createSqliteMaterialRegistryRepository } from "./material-repository.js";
 export type { SqliteMaterialRegistryRepositoryOptions } from "./material-repository.js";
+export {
+  createSqliteMaterialActivityRepository,
+  createSqliteMusicMaterialRelationRepository,
+} from "./material-relations-repository.js";
+export type { SqliteMaterialRelationsRepositoryOptions } from "./material-relations-repository.js";
 export { createSqliteProviderHttpCacheRepository } from "./provider-http-cache-repository.js";
 export type { SqliteProviderHttpCacheRepositoryOptions } from "./provider-http-cache-repository.js";
 export { createSqliteSourceEntityStoreRepository } from "./source-entity-repository.js";
