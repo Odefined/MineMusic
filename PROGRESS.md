@@ -969,6 +969,22 @@
 - Migrated MCP/server-facing tests and integration call sites so production
   paths use the narrow runtime and harness-only tests name the harness
   dependency explicitly.
+- Started the MusicMaterial refactor PR sequence with PR 1 on branch
+  `codex/material-01-registry`.
+- Added Material Registry contracts and ports for opaque `materialRef`
+  records, identity state, source/canonical lookup, canonical promotion, and
+  merge redirects while keeping `MusicMaterial` provider/fixture construction
+  compatible through `MusicMaterialBase` and `ResolvedMusicMaterial`.
+- Added in-memory and SQLite-backed Material Registry implementations, exported
+  their factories through existing Material Store/storage boundaries, and wired
+  Stage Core to initialize the registry from `materialStoreDatabasePath`
+  without changing Material Resolve or agent-facing tool behavior.
+- Added `docs/material/progress.md` to track current Material Registry
+  implementation state and the explicitly deferred PR 2-5 work.
+- Addressed PR #4 review feedback by enforcing monotonic canonical promotion,
+  rejecting self-merge before redirect writes, and making Material Registry
+  lookup/get-or-create methods follow merge redirects to the current survivor
+  in both in-memory and SQLite implementations.
 
 ## Next
 

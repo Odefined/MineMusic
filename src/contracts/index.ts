@@ -4,6 +4,7 @@ export type ModuleId =
   | "canonical"
   | "collection"
   | "library_import"
+  | "material_store"
   | "material_resolve"
   | "source"
   | "knowledge"
@@ -46,6 +47,8 @@ export const stageErrorCodes = [
   "library_import.batch_not_found",
   "library_import.provider_read_failed",
   "library_import.canonical_binding_failed",
+  "material_registry.conflict",
+  "material_registry.not_found",
   "plugin.provider_not_found",
   "storage.unavailable",
 ] as const;
@@ -74,7 +77,15 @@ export type Ref = {
   namespace: string;
   kind: string;
   id: string;
+  /**
+   * Non-authoritative display hint only.
+   * Do not use as source of truth for music metadata.
+   */
   label?: string;
+  /**
+   * Non-authoritative convenience URL only.
+   * Playability must come from Source Grounding / PlayableLink.
+   */
   url?: string;
 };
 
@@ -102,7 +113,13 @@ export type MaterialEvidence = {
   confidence?: number;
 };
 
-export type MusicMaterial = {
+export type MusicMaterialIdentityState =
+  | "canonical_confirmed"
+  | "source_backed"
+  | "ambiguous"
+  | "unresolved";
+
+export type MusicMaterialBase = {
   id: string;
   kind: string;
   label: string;
@@ -113,6 +130,13 @@ export type MusicMaterial = {
   notes?: string;
   evidence?: MaterialEvidence[];
 };
+
+export type ResolvedMusicMaterial = MusicMaterialBase & {
+  materialRef: Ref;
+  identityState: MusicMaterialIdentityState;
+};
+
+export type MusicMaterial = MusicMaterialBase;
 
 export type StageSession = {
   id: string;
@@ -162,6 +186,24 @@ export type CanonicalKind =
   | "release_group"
   | "release"
   | (string & {});
+
+export type MaterialRecordStatus =
+  | "active"
+  | "merged"
+  | "rejected";
+
+export type MaterialRecord = {
+  materialRef: Ref;
+  kind: CanonicalKind | "recording" | "release" | "release_group" | "artist" | "work" | string;
+  identityState: MusicMaterialIdentityState;
+  canonicalRef?: Ref;
+  sourceRefs: Ref[];
+  primarySourceRef?: Ref;
+  status: MaterialRecordStatus;
+  mergedIntoMaterialRef?: Ref;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type CanonicalRecord = {
   ref: Ref;
