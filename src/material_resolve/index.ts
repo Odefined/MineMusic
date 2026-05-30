@@ -300,7 +300,6 @@ function applyRelationsToMaterial(
 
   if (
     removedSource &&
-    next.canonicalRef === undefined &&
     (next.sourceRefs?.length ?? 0) === 0 &&
     (next.playableLinks?.length ?? 0) === 0
   ) {

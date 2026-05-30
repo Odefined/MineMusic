@@ -1020,6 +1020,11 @@
   recommendation/open/play/skip material refs into Material Activity.
 - Added PR 3 tests for material relation/activity repositories, resolve
   relation filtering, and event-driven activity projection.
+- Addressed PR #6 review feedback by making Material Store `mergeMaterials`
+  migrate loser material relations to the survivor and combine loser activity
+  into survivor activity, with in-memory/SQLite relation migration coverage and
+  resolve-level merge-survival tests for material-level block and source-scoped
+  wrong-version feedback.
 
 ## Next
 

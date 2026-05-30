@@ -30,6 +30,10 @@ matching playable links without blocking the whole material. Existing canonical
 Collection blocked filtering still runs during migration. Material Activity is
 an Event Service projection for recommendation/open/play/skip recency and does
 not replace factual event history.
+Material Store merge now migrates relation rows from the merged loser material
+to the survivor material and merges loser activity into survivor activity, so
+source-only feedback and recent activity survive later canonical confirmation
+or material merge.
 
 ## Implemented
 
@@ -71,6 +75,8 @@ not replace factual event history.
   `recommendation.presented`, `material.opened`, `link.opened`,
   `material.played`, and `material.skipped` events when material refs are
   present in the event target or payload cards.
+- Material Store `mergeMaterials` migrates loser material relations to the
+  survivor and combines recent activity timestamps/counts by owner scope.
 
 ## Verification
 
@@ -96,6 +102,8 @@ not replace factual event history.
   and `node .tmp-test/test/events/material-activity.test.js`.
 - `npm run typecheck` passed for PR 3 on 2026-05-30.
 - `npm test` passed for PR 3 on 2026-05-30.
+- Review-fix checks for relation/activity merge survival passed on
+  2026-05-30: `npm run typecheck` and `npm test`.
 
 ## Remaining
 

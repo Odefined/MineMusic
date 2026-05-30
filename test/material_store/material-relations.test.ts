@@ -3,9 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { MaterialActivity, MusicMaterialRelation, Ref, Result } from "../../src/contracts/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
 import {
+  createInMemoryCanonicalRecordRepository,
   createInMemoryMaterialActivityRepository,
   createInMemoryMusicMaterialRelationRepository,
+  createInMemorySourceEntityStoreRepository,
+  createSqliteMaterialRegistryRepository,
   createSqliteMaterialActivityRepository,
   createSqliteMusicMaterialRelationRepository,
 } from "../../src/storage/index.js";
@@ -91,6 +95,139 @@ async function activityRepositoryStoresByOwnerAndMaterial(): Promise<void> {
   assert(listed.length === 1 && listed[0]?.materialRef.id === "material-1", "activity repository should list by owner scope");
 }
 
+async function materialStoreMergeMovesRelationsAndActivityToSurvivor(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "merge-source");
+  const canonicalRef = ref("minemusic", "recording", "merge-canonical");
+  const store = createMaterialStore({
+    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+    materialRegistry: createInMemoryMaterialRegistry({
+      generateId: createSequence("material"),
+      now: () => "2026-05-30T00:00:00.000Z",
+    }),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  const loser = await assertOk(store.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  const survivor = await assertOk(store.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording" }));
+  await assertOk(
+    store.putMaterialRelation({
+      relation: {
+        id: "relation-merge",
+        ownerScope: "local_profile:default",
+        materialRef: loser.materialRef,
+        relationKind: "blocked",
+        scope: { level: "material" },
+        source: "user_explicit",
+        status: "active",
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
+  await assertOk(
+    store.putMaterialActivity({
+      activity: {
+        ownerScope: "local_profile:default",
+        materialRef: loser.materialRef,
+        lastRecommendedAt: "2026-05-30T00:01:00.000Z",
+        lastOpenedAt: "2026-05-30T00:02:00.000Z",
+        recommendedCountSession: 2,
+        openedCountSession: 1,
+        updatedAt: "2026-05-30T00:02:00.000Z",
+      },
+    }),
+  );
+
+  await assertOk(
+    store.mergeMaterials({
+      from: loser.materialRef,
+      into: survivor.materialRef,
+      reason: "same recording",
+    }),
+  );
+
+  const survivorRelations = await assertOk(
+    store.listMaterialRelations({
+      ownerScope: "local_profile:default",
+      materialRef: survivor.materialRef,
+      status: "active",
+    }),
+  );
+  const survivorActivity = await assertOk(
+    store.getMaterialActivity({
+      ownerScope: "local_profile:default",
+      materialRef: survivor.materialRef,
+    }),
+  );
+
+  assert(survivorRelations.length === 1, "merge should move active loser relations to the survivor material");
+  assert(survivorRelations[0]?.id === "relation-merge", "relation migration should preserve relation identity");
+  assert(survivorActivity?.lastRecommendedAt === "2026-05-30T00:01:00.000Z", "merge should copy loser recommendation activity to survivor");
+  assert(survivorActivity.openedCountSession === 1, "merge should copy loser activity counters to survivor");
+}
+
+async function materialStoreMergeCombinesSurvivorAndLoserActivity(): Promise<void> {
+  const store = createMaterialStore({
+    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+    materialRegistry: createInMemoryMaterialRegistry({
+      generateId: createSequence("material"),
+      now: () => "2026-05-30T00:00:00.000Z",
+    }),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  const loser = await assertOk(
+    store.getOrCreateBySourceRef({
+      sourceRef: ref("source:fixture", "track", "merge-activity-loser"),
+      kind: "recording",
+    }),
+  );
+  const survivor = await assertOk(
+    store.getOrCreateByCanonicalRef({
+      canonicalRef: ref("minemusic", "recording", "merge-activity-survivor"),
+      kind: "recording",
+    }),
+  );
+  await assertOk(
+    store.putMaterialActivity({
+      activity: {
+        ownerScope: "local_profile:default",
+        materialRef: loser.materialRef,
+        lastRecommendedAt: "2026-05-30T00:03:00.000Z",
+        recommendedCountSession: 2,
+        playedCountSession: 1,
+        updatedAt: "2026-05-30T00:03:00.000Z",
+      },
+    }),
+  );
+  await assertOk(
+    store.putMaterialActivity({
+      activity: {
+        ownerScope: "local_profile:default",
+        materialRef: survivor.materialRef,
+        lastRecommendedAt: "2026-05-30T00:01:00.000Z",
+        lastOpenedAt: "2026-05-30T00:04:00.000Z",
+        recommendedCountSession: 1,
+        openedCountSession: 3,
+        updatedAt: "2026-05-30T00:04:00.000Z",
+      },
+    }),
+  );
+
+  await assertOk(store.mergeMaterials({ from: loser.materialRef, into: survivor.materialRef, reason: "same recording" }));
+
+  const activity = await assertOk(
+    store.getMaterialActivity({
+      ownerScope: "local_profile:default",
+      materialRef: survivor.materialRef,
+    }),
+  );
+
+  assert(activity?.lastRecommendedAt === "2026-05-30T00:03:00.000Z", "merge should keep latest recommendation time");
+  assert(activity.lastOpenedAt === "2026-05-30T00:04:00.000Z", "merge should keep latest survivor-only opened time");
+  assert(activity.recommendedCountSession === 3, "merge should sum recommendation counters");
+  assert(activity.openedCountSession === 3, "merge should preserve survivor counters");
+  assert(activity.playedCountSession === 1, "merge should preserve loser-only counters");
+}
+
 async function sqliteRepositoriesPersistRelationsAndActivityAcrossReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-material-relations-"));
   const databasePath = join(directory, "material-store.sqlite");
@@ -157,10 +294,72 @@ async function sqliteRepositoriesPersistRelationsAndActivityAcrossReopen(): Prom
   }
 }
 
+async function sqliteMaterialStoreMergePersistsRelationMigration(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-material-merge-relations-"));
+  const databasePath = join(directory, "material-store.sqlite");
+  const sourceRef = ref("source:fixture", "track", "sqlite-merge-source");
+  const canonicalRef = ref("minemusic", "recording", "sqlite-merge-canonical");
+
+  try {
+    const store = createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+      materialRegistry: createSqliteMaterialRegistryRepository({
+        path: databasePath,
+        generateId: createSequence("material"),
+        now: () => "2026-05-30T00:00:00.000Z",
+      }),
+      materialRelations: createSqliteMusicMaterialRelationRepository({ path: databasePath }),
+      materialActivity: createSqliteMaterialActivityRepository({ path: databasePath }),
+      sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+    });
+    const loser = await assertOk(store.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+    const survivor = await assertOk(store.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording" }));
+    await assertOk(
+      store.putMaterialRelation({
+        relation: {
+          id: "sqlite-merge-relation",
+          ownerScope: "local_profile:default",
+          materialRef: loser.materialRef,
+          relationKind: "wrong_version",
+          scope: { level: "source", sourceRef },
+          source: "user_explicit",
+          status: "active",
+          createdAt: "2026-05-30T00:00:00.000Z",
+          updatedAt: "2026-05-30T00:00:00.000Z",
+        },
+      }),
+    );
+
+    await assertOk(store.mergeMaterials({ from: loser.materialRef, into: survivor.materialRef, reason: "same recording" }));
+
+    const reopenedRelations = createSqliteMusicMaterialRelationRepository({ path: databasePath });
+    const survivorRelations = await assertOk(
+      reopenedRelations.listRelations({
+        ownerScope: "local_profile:default",
+        materialRef: survivor.materialRef,
+        relationKind: "wrong_version",
+        status: "active",
+      }),
+    );
+
+    assert(survivorRelations.length === 1, "SQLite merge should persist relation migration to survivor material");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+function createSequence(prefix: string): () => string {
+  let next = 1;
+  return () => `${prefix}-${next++}`;
+}
+
 function ref(namespace: string, kind: string, id: string): Ref {
   return { namespace, kind, id };
 }
 
 await relationRepositoryStoresMaterialScopedRelations();
 await activityRepositoryStoresByOwnerAndMaterial();
+await materialStoreMergeMovesRelationsAndActivityToSurvivor();
+await materialStoreMergeCombinesSurvivorAndLoserActivity();
 await sqliteRepositoriesPersistRelationsAndActivityAcrossReopen();
+await sqliteMaterialStoreMergePersistsRelationMigration();

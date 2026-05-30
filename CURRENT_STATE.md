@@ -91,6 +91,9 @@ whole material. Existing canonical Collection blocked filtering remains in
 place during migration. Event Service still records factual events and now also
 updates a recent Material Activity projection from recommendation/open/play/skip
 events when their target or payload cards include material refs.
+Material Store merge migrates loser relations to the survivor material and
+combines loser activity into survivor activity, preserving source-only feedback
+and recentness after later canonical confirmation or material merge.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

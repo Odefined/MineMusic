@@ -40,6 +40,29 @@ async function materialLevelBlockMarksMaterialBlocked(): Promise<void> {
   assert(material.canonicalRef === undefined, "source-only block should not require canonical identity");
 }
 
+async function materialLevelBlockSurvivesMaterialMerge(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "merge-blocked-source");
+  const canonicalRef = ref("minemusic", "recording", "merge-blocked-canonical");
+  const { materialStore, resolve } = createTestResolve([{ ...sourceMaterial("Merged Blocked Source", sourceRef, canonicalRef) }]);
+  const sourceRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  const canonicalRecord = await assertOk(materialStore.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording" }));
+  await assertOk(materialStore.putMaterialRelation({ relation: relation("relation-merge-blocked", sourceRecord.materialRef, "blocked", { level: "material" }) }));
+  await assertOk(
+    materialStore.mergeMaterials({
+      from: sourceRecord.materialRef,
+      into: canonicalRecord.materialRef,
+      reason: "confirmed_source_canonical_binding",
+    }),
+  );
+
+  const resolved = await assertOk(resolve("Merged Blocked Source"));
+  const material = firstMaterial(resolved);
+
+  assert(material.materialRef.id === canonicalRecord.materialRef.id, "resolve should return the merge survivor material ref");
+  assert(material.state === "blocked", "material-level block should survive material merge to survivor");
+  assert(resolved.status === "blocked", "surviving block should keep candidate status blocked");
+}
+
 async function sourceLevelBlockFiltersOnlyThatSource(): Promise<void> {
   const blockedSourceRef = ref("source:fixture", "track", "blocked-source");
   const keptSourceRef = ref("source:fixture", "track", "kept-source");
@@ -109,6 +132,34 @@ async function sourceWrongVersionFiltersMatchingSource(): Promise<void> {
     resolved.materials.length === 1 && resolved.materials[0]?.sourceRefs?.[0]?.id === keptSourceRef.id,
     "source-level wrong_version should filter the matching source result",
   );
+}
+
+async function sourceWrongVersionSurvivesMaterialMerge(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "merge-wrong-version-source");
+  const canonicalRef = ref("minemusic", "recording", "merge-wrong-version-canonical");
+  const { materialStore, resolve } = createTestResolve([sourceMaterial("Merged Wrong Version", sourceRef, canonicalRef)]);
+  const sourceRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  const canonicalRecord = await assertOk(materialStore.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording" }));
+  await assertOk(
+    materialStore.putMaterialRelation({
+      relation: relation("relation-merge-wrong-version", sourceRecord.materialRef, "wrong_version", {
+        level: "source",
+        sourceRef,
+      }),
+    }),
+  );
+  await assertOk(
+    materialStore.mergeMaterials({
+      from: sourceRecord.materialRef,
+      into: canonicalRecord.materialRef,
+      reason: "confirmed_source_canonical_binding",
+    }),
+  );
+
+  const resolved = await assertOk(resolve("Merged Wrong Version"));
+
+  assert(resolved.materials.length === 0, "source-level wrong_version should survive merge and filter the survivor projection");
+  assert(resolved.status === "unresolved", "filtering the only source projection should make the candidate unresolved");
 }
 
 async function canonicalCollectionBlockedFilteringStillWorks(): Promise<void> {
@@ -186,12 +237,13 @@ function createTestResolve(
   };
 }
 
-function sourceMaterial(label: string, sourceRef: Ref): SourceMaterial {
+function sourceMaterial(label: string, sourceRef: Ref, canonicalRef?: Ref): SourceMaterial {
   return {
     id: `source-material-${sourceRef.id}`,
     kind: "recording",
     label,
     state: "source_only_playable",
+    ...(canonicalRef === undefined ? {} : { canonicalRef }),
     sourceRefs: [sourceRef],
     playableLinks: [
       {
@@ -232,7 +284,9 @@ function ref(namespace: string, kind: string, id: string): Ref {
 }
 
 await materialLevelBlockMarksMaterialBlocked();
+await materialLevelBlockSurvivesMaterialMerge();
 await sourceLevelBlockFiltersOnlyThatSource();
 await sourceNotPlayableRemovesPlayableLinkWithoutBlockingMaterial();
 await sourceWrongVersionFiltersMatchingSource();
+await sourceWrongVersionSurvivesMaterialMerge();
 await canonicalCollectionBlockedFilteringStillWorks();
