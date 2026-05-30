@@ -61,6 +61,12 @@ Collection Items now support material targets and legacy canonical
 compatibility. Source-only materials can be blocked through Collection Service
 without waiting for canonical identity, saved/favorite material items can remain
 `pending_identity`, and custom collections can list material-backed items.
+Collection pool query now returns material-only items directly through
+`materialRef`, falls back to `materialSnapshot` when the live registry
+projection is unavailable, and follows material merge redirects before
+returning compact cards. Compact resolve/related/exclude-ref paths also follow
+redirects so old `mat_*` card refs project the current survivor except where
+`music.material.context.brief` explicitly reports merged status.
 Event Service accepts structured material snapshot targets, Memory Service
 accepts evidence-gated structured material targets, and Effect Boundary accepts
 compact material action targets.
@@ -140,6 +146,11 @@ compact material action targets.
   `materialRef` payloads.
 - Preserved Event, Memory, and Effect compatibility while adding structured
   material targets for new consequence flows.
+- Addressed PR #10 review feedback by making collection pool query return
+  material-only collection items, use material snapshots as a fallback, validate
+  material collection kinds through the existing collection-kind schema, and
+  make compact resolve/related/exclude-ref paths follow material merge
+  redirects.
 
 ## Verification
 
@@ -194,6 +205,10 @@ compact material action targets.
   `node .tmp-test/test/effects/effect-boundary.test.js`,
   `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`, and
   `node .tmp-test/test/material_query/material-query.test.js`.
+- PR #10 review-fix targeted checks passed on 2026-05-30:
+  `node .tmp-test/test/material_query/material-query.test.js`,
+  `node .tmp-test/test/material_related/material-related.test.js`, and
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`.
 
 ## Remaining
 

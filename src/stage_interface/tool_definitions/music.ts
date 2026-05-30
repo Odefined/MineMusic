@@ -388,7 +388,7 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       canonicalRef: refSchema.optional(),
       materialRef: refSchema.optional(),
-      collectionKind: z.string().optional(),
+      collectionKind: collectionKindSchema.optional(),
       label: z.string(),
       materialSnapshot: z.object({}).passthrough().optional(),
       relationScope: z.object({}).passthrough().optional(),
@@ -409,7 +409,7 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       canonicalRef: refSchema.optional(),
       materialRef: refSchema.optional(),
-      collectionKind: z.string().optional(),
+      collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
       return dispatchSystemCollectionRemove(context.collection, payload, "saved");
@@ -425,7 +425,7 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       canonicalRef: refSchema.optional(),
       materialRef: refSchema.optional(),
-      collectionKind: z.string().optional(),
+      collectionKind: collectionKindSchema.optional(),
       label: z.string(),
       materialSnapshot: z.object({}).passthrough().optional(),
       relationScope: z.object({}).passthrough().optional(),
@@ -446,7 +446,7 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       canonicalRef: refSchema.optional(),
       materialRef: refSchema.optional(),
-      collectionKind: z.string().optional(),
+      collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
       return dispatchSystemCollectionRemove(context.collection, payload, "favorite");
@@ -462,7 +462,7 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       canonicalRef: refSchema.optional(),
       materialRef: refSchema.optional(),
-      collectionKind: z.string().optional(),
+      collectionKind: collectionKindSchema.optional(),
       label: z.string(),
       materialSnapshot: z.object({}).passthrough().optional(),
       relationScope: z.object({}).passthrough().optional(),
@@ -483,7 +483,7 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       canonicalRef: refSchema.optional(),
       materialRef: refSchema.optional(),
-      collectionKind: z.string().optional(),
+      collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
       return dispatchSystemCollectionRemove(context.collection, payload, "blocked");

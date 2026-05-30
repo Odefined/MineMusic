@@ -38,6 +38,11 @@ opt-in runtime storage paths. MineMusic runtime configuration belongs to the lon
 MineMusic server process, not to a particular host adapter such as the Codex
 skill. It does not prove playback control, autonomous DJ behavior, playlist
 editing, music intelligence, or notifications.
+Compact material retrieval is the default agent-facing material view:
+Material Query returns `MaterialCard` outputs, follows material merge redirects
+for old compact refs, and keeps raw source/canonical/evidence details behind
+internal Material Store and Material Resolve boundaries unless a compatibility
+or diagnostic tool explicitly asks for them.
 
 ## Vocabulary Source
 

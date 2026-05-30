@@ -1071,6 +1071,11 @@
   collections, SQLite material membership persistence, material snapshot event
   targets, evidence-gated material memory, compact material effect targets, and
   Stage Interface materialRef dispatch.
+- Addressed PR #10 review feedback by making Material Query collection pools
+  return material-only collection items, fall back to material snapshots when a
+  live registry projection is unavailable, validate material collection kinds
+  through the existing collection-kind schema, and follow material merge
+  redirects for compact resolve, related, and explicit exclude-ref paths.
 
 ## Next
 

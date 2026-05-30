@@ -129,6 +129,40 @@ async function similarExcludesSeedMaterial(): Promise<void> {
   assert(output.items.some((item) => item.title === "Similar Sibling Track"), "similar should still return related material");
 }
 
+async function relatedFollowsMaterialRedirectsAndExcludesSurvivorSeed(): Promise<void> {
+  const artistSourceRef = ref("source:fixture", "artist", "redirect-related-artist");
+  const loserRef = ref("source:fixture", "track", "redirect-related-loser");
+  const survivorRef = ref("source:fixture", "track", "redirect-related-survivor");
+  const siblingRef = ref("source:fixture", "track", "redirect-related-sibling");
+  const harness = createRelatedHarness([
+    sourceMaterial("Redirect Related Loser", loserRef),
+    sourceMaterial("Redirect Related Survivor", survivorRef),
+    sourceMaterial("Redirect Related Sibling", siblingRef),
+  ]);
+  await putSourceArtist(harness.materialStore, artistSourceRef, "Redirect Related Artist");
+  await putSourceTrack(harness.materialStore, loserRef, "Redirect Related Loser", { artistSourceRefs: [artistSourceRef] });
+  await putSourceTrack(harness.materialStore, survivorRef, "Redirect Related Survivor", { artistSourceRefs: [artistSourceRef] });
+  await putSourceTrack(harness.materialStore, siblingRef, "Redirect Related Sibling", { artistSourceRefs: [artistSourceRef] });
+  const loser = await assertOk(harness.materialStore.getOrCreateBySourceRef({ sourceRef: loserRef, kind: "recording" }));
+  const survivor = await assertOk(harness.materialStore.getOrCreateBySourceRef({ sourceRef: survivorRef, kind: "recording" }));
+  await assertOk(
+    harness.materialStore.mergeMaterials({
+      from: loser.materialRef,
+      into: survivor.materialRef,
+      reason: "duplicate related seed",
+    }),
+  );
+
+  const output = await assertOk(harness.materialQuery.related({
+    ref: materialRefToCardRef(loser.materialRef),
+    relation: "same_artist",
+    ownerScope: "local_profile:default",
+  }));
+
+  assert(output.items.every((item) => item.ref !== materialRefToCardRef(survivor.materialRef)), "related should exclude the redirected survivor seed");
+  assert(output.items.length === 1 && output.items[0]?.title === "Redirect Related Sibling", "related should still return non-seed siblings");
+}
+
 function createRelatedHarness(sourceMaterials: SourceMaterial[]) {
   let nextMaterialId = 1;
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
@@ -275,3 +309,4 @@ await relatedSameArtistUsesCanonicalArtistWhenAvailable();
 await relatedSameArtistFallsBackToSourceArtist();
 await relatedSameAlbumUsesSourceReleaseTracklistWhenCanonicalIsMissing();
 await similarExcludesSeedMaterial();
+await relatedFollowsMaterialRedirectsAndExcludesSurvivorSeed();

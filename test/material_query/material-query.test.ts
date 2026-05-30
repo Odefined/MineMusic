@@ -109,6 +109,37 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
   assert(output.items[0]?.status === "playable", "canonical material refs with source links should become playable cards");
 }
 
+async function resolveCardsFollowsMaterialRedirects(): Promise<void> {
+  const loserRef = ref("source:fixture", "track", "redirect-loser-track");
+  const survivorRef = ref("source:fixture", "track", "redirect-survivor-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
+    sourceMaterial("Redirect Loser Track", loserRef),
+    sourceMaterial("Redirect Survivor Track", survivorRef),
+  ]);
+  await putLibraryTrack(materialStore, loserRef, "Redirect Loser Track");
+  await putLibraryTrack(materialStore, survivorRef, "Redirect Survivor Track");
+  const loser = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: loserRef, kind: "recording" }));
+  const survivor = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: survivorRef, kind: "recording" }));
+  await assertOk(
+    materialStore.mergeMaterials({
+      from: loser.materialRef,
+      into: survivor.materialRef,
+      reason: "duplicate material",
+    }),
+  );
+
+  const output = await assertOk(
+    materialQuery.resolveCards({
+      ownerScope: "local_profile:default",
+      seeds: [{ ref: materialRefToCardRef(loser.materialRef) }],
+    }),
+  );
+
+  assert(output.items.length === 1, "resolve cards should return one card for a redirected material ref");
+  assert(output.items[0]?.ref === materialRefToCardRef(survivor.materialRef), "resolve cards should return the merge survivor card ref");
+  assert(output.items[0]?.title === "Redirect Survivor Track", "resolve cards should project the merge survivor");
+}
+
 async function resolveCardsReturnsUnresolvedForUnknownCardRefs(): Promise<void> {
   const { materialQuery } = createMaterialQueryServiceHarness([]);
 
@@ -382,6 +413,105 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
 
   assert(output.items.length === 1, "collection label pool should resolve matching collection items");
   assert(output.items[0]?.title === "Collection Label Track", "collection label pool should return the collection item card");
+}
+
+async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "collection-material-only-source");
+  const collectionRecord: Collection = {
+    id: "collection-material-only",
+    ownerScope: "local_profile:default",
+    collectionKind: "recording",
+    relationKind: "custom",
+    label: "Material-only collection",
+    createdAt: "2026-05-30T00:00:00.000Z",
+  };
+  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
+    sourceMaterial("Source Only Collection Track", sourceRef),
+  ]);
+  const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  const collectionItem: CollectionItem = {
+    id: "collection-item-material-only",
+    collectionId: collectionRecord.id,
+    materialRef: record.materialRef,
+    identityRequirement: "none",
+    status: "active",
+    label: "Source Only Collection Track",
+    createdAt: "2026-05-30T00:00:00.000Z",
+  };
+  const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
+  const queryWithCollection = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+    }),
+    collection,
+  });
+
+  const output = await assertOk(
+    queryWithCollection.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "collection", ref: collectionRecord.id },
+      returnKind: "recording",
+      limit: 10,
+    }),
+  );
+
+  assert(output.items.length === 1, "collection pool should return material-only collection items");
+  assert(output.items[0]?.ref === materialRefToCardRef(record.materialRef), "returned card should point to the collection materialRef");
+  assert(output.items[0]?.title === "Source Only Collection Track", "material-only collection items should resolve to compact cards");
+}
+
+async function queryCollectionPoolFallsBackToMaterialSnapshot(): Promise<void> {
+  const snapshotRef = ref("minemusic", "material", "snapshot-only-track");
+  const collectionRecord: Collection = {
+    id: "collection-snapshot-only",
+    ownerScope: "local_profile:default",
+    collectionKind: "recording",
+    relationKind: "custom",
+    label: "Snapshot-only collection",
+    createdAt: "2026-05-30T00:00:00.000Z",
+  };
+  const collectionItem: CollectionItem = {
+    id: "collection-item-snapshot-only",
+    collectionId: collectionRecord.id,
+    materialRef: snapshotRef,
+    materialSnapshot: {
+      id: "snapshot-only-track",
+      materialRef: snapshotRef,
+      kind: "recording",
+      label: "Snapshot Only Track",
+      state: "source_only_playable",
+      identityState: "source_backed",
+    },
+    identityRequirement: "none",
+    status: "active",
+    label: "Snapshot Only Track",
+    createdAt: "2026-05-30T00:00:00.000Z",
+  };
+  const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
+  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([]);
+  const queryWithCollection = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+    }),
+    collection,
+  });
+
+  const output = await assertOk(
+    queryWithCollection.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "collection", ref: collectionRecord.id },
+      returnKind: "recording",
+      limit: 10,
+    }),
+  );
+
+  assert(output.items.length === 1, "collection pool should fall back to material snapshots when live projection is absent");
+  assert(output.items[0]?.ref === materialRefToCardRef(snapshotRef), "snapshot fallback should keep the collection material ref");
+  assert(output.items[0]?.title === "Snapshot Only Track", "snapshot fallback should return a compact card");
 }
 
 async function explicitPoolDoesNotFallbackOutsidePool(): Promise<void> {
@@ -956,6 +1086,7 @@ function sameRef(left: Ref, right: Ref): boolean {
 await querySavedTracksReturnsOnlySavedTrackMaterials();
 await resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch();
 await resolveCardsResolvesCanonicalConfirmedCardRefs();
+await resolveCardsFollowsMaterialRedirects();
 await resolveCardsReturnsUnresolvedForUnknownCardRefs();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
 await queryReturnKindFiltersResolvedMaterials();
@@ -965,6 +1096,8 @@ await leastRecentlyRecommendedOrderUsesMaterialActivity();
 await recentlyAddedOrderUsesSourceLibraryTimestamps();
 await queryPreferenceHintsFilterAndRankMaterials();
 await queryCollectionPoolCanResolveByLabel();
+await queryCollectionPoolReturnsMaterialOnlyItems();
+await queryCollectionPoolFallsBackToMaterialSnapshot();
 await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();
 await recentRecommendedHardExcludeWorks();
