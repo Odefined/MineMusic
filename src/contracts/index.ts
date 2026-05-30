@@ -906,6 +906,8 @@ export type MaterialPoolSpec =
   | {
       kind: "related";
       ref: string;
+      // same_release and same_release_group remain internal-only until
+      // distinct deterministic relation semantics are implemented.
       relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
     };
 
@@ -917,6 +919,10 @@ export type MaterialQueryInput = {
     availability?: "playable" | "any";
     identity?: "confirmed_only" | "allow_source_backed";
   };
+  /**
+   * Internal-only lightweight text hints. Not exposed to LLM-facing schemas
+   * until MineMusic owns real tag, genre, mood, audio-feature, or embedding data.
+   */
   preferenceHints?: {
     activity?: string;
     mood?: string[];
@@ -935,6 +941,8 @@ export type MaterialQueryInput = {
       mode?: "hard" | "soft";
     };
   };
+  // library_order remains internal-only until provider library order has
+  // deterministic public semantics.
   order?: "relevance" | "recently_added" | "least_recently_recommended" | "random" | "library_order";
   ownerScope?: string;
   limit?: number;
@@ -952,6 +960,9 @@ export type MaterialQueryOutput = {
 
 export type MaterialRelatedInput = {
   ref: string;
+  // same_release and same_release_group remain internal-only Stage Query
+  // options; the public Stage Interface currently exposes same_artist,
+  // same_album, and similar only.
   relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
   exclude?: MaterialQueryInput["exclude"];
   constraints?: MaterialQueryInput["constraints"];

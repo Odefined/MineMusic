@@ -1401,7 +1401,7 @@ async function storeSourceEntityAndLibraryItem({
     sourceKind: sourceEntity.kind,
     libraryKind: item.itemKind,
     label: item.label,
-    addedAt: existingLibraryItem.value?.addedAt ?? seenAt,
+    addedAt: existingLibraryItem.value?.addedAt ?? item.providerAddedAt ?? seenAt,
     firstImportedBatchId: existingLibraryItem.value?.firstImportedBatchId ?? batchId,
     lastSeenBatchId: batchId,
     lastSeenAt: seenAt,

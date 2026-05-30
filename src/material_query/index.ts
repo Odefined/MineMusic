@@ -1065,6 +1065,10 @@ async function filterMaterials({
       continue;
     }
 
+    if (material.state === "blocked" && exclude?.relations?.includes("blocked")) {
+      continue;
+    }
+
     const relationExcluded = await excludedByRelations(materialStore, ownerScope, material, exclude?.relations);
 
     if (!relationExcluded.ok) {

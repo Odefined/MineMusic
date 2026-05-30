@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+
 import type { Result, ToolName } from "../../src/contracts/index.js";
 import type { ToolDispatchPort } from "../../src/ports/index.js";
 import {
@@ -143,6 +145,8 @@ async function stableToolNamesHaveMatchingSchemasAndDescriptors(): Promise<void>
 async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<void> {
   const querySchema = stageInterfaceToolInputSchemas["music.material.query"];
   const relatedSchema = stageInterfaceToolInputSchemas["music.material.related"];
+  const queryPayloadSchema = z.object(querySchema).passthrough();
+  const relatedPayloadSchema = z.object(relatedSchema).passthrough();
 
   assert(
     !Object.prototype.hasOwnProperty.call(querySchema, "preferenceHints"),
@@ -151,6 +155,34 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
   assert(
     !Object.prototype.hasOwnProperty.call(relatedSchema, "preferenceHints"),
     "material related public schema should not advertise experimental preferenceHints",
+  );
+  assert(
+    !queryPayloadSchema.safeParse({ order: "library_order" }).success,
+    "material query public schema should not advertise library_order",
+  );
+  assert(
+    queryPayloadSchema.safeParse({ order: "recently_added" }).success,
+    "material query public schema should keep supported ordering options",
+  );
+  assert(
+    !relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_release" }).success,
+    "material related public schema should not advertise same_release",
+  );
+  assert(
+    !relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_release_group" }).success,
+    "material related public schema should not advertise same_release_group",
+  );
+  assert(
+    relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_artist" }).success &&
+      relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_album" }).success &&
+      relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "similar" }).success,
+    "material related public schema should keep supported relation options",
+  );
+  assert(
+    !queryPayloadSchema.safeParse({
+      pool: { kind: "related", ref: "mat_seed", relation: "same_release" },
+    }).success,
+    "material query related pool public schema should not advertise same_release",
   );
 }
 

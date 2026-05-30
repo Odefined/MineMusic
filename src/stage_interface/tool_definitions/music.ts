@@ -196,7 +196,7 @@ const materialPoolSchema = z.union([
   z.object({
     kind: z.literal("related"),
     ref: materialCardRefSchema,
-    relation: z.enum(["same_artist", "same_album", "same_release", "same_release_group", "similar"]),
+    relation: z.enum(["same_artist", "same_album", "similar"]),
   }),
 ]);
 const materialConstraintsSchema = z.object({
@@ -278,7 +278,7 @@ export const musicToolDefinitions = [
       pool: materialPoolSchema.optional(),
       constraints: materialConstraintsSchema.optional(),
       exclude: materialExcludeSchema.optional(),
-      order: z.enum(["relevance", "recently_added", "least_recently_recommended", "random", "library_order"]).optional(),
+      order: z.enum(["relevance", "recently_added", "least_recently_recommended", "random"]).optional(),
       ownerScope: z.string().optional(),
       limit: z.number().int().positive().optional(),
       cursor: z.string().optional(),
@@ -301,7 +301,7 @@ export const musicToolDefinitions = [
     availability: "requires_active_instrument",
     inputSchema: {
       ref: materialCardRefSchema,
-      relation: z.enum(["same_artist", "same_album", "same_release", "same_release_group", "similar"]),
+      relation: z.enum(["same_artist", "same_album", "similar"]),
       exclude: materialExcludeSchema.optional(),
       constraints: materialConstraintsSchema.optional(),
       ownerScope: z.string().optional(),

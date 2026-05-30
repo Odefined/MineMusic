@@ -12,12 +12,14 @@ import type {
   SourceReleaseTracklistItem,
   SourceMaterial,
 } from "../../src/contracts/index.js";
+import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
 import { createMaterialQueryService, materialRefToCardRef } from "../../src/material_query/index.js";
 import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
+  createInMemoryCollectionRepository,
   createInMemoryEventRepository,
   createInMemoryMaterialActivityRepository,
   createInMemorySourceEntityStoreRepository,
@@ -563,6 +565,62 @@ async function relationExclusionsRemoveBlockedWrongVersionAndNotPlayable(): Prom
   assert(output.items[0]?.title === "Kept Track", "relation exclusions should keep unrelated material");
 }
 
+async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<void> {
+  const blockedRef = ref("source:fixture", "track", "collection-blocked-track");
+  const keptRef = ref("source:fixture", "track", "collection-kept-track");
+  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
+    sourceMaterial("Collection Blocked Track", blockedRef),
+    sourceMaterial("Collection Kept Track", keptRef),
+  ]);
+  await putLibraryTrack(materialStore, blockedRef, "Collection Blocked Track");
+  await putLibraryTrack(materialStore, keptRef, "Collection Kept Track");
+  const blockedRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: blockedRef, kind: "recording" }));
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-30T00:00:00.000Z",
+  });
+  const collection = createCollectionService({
+    repository: createInMemoryCollectionRepository(),
+    events,
+    materialStore,
+    idFactory: createSequence("collection"),
+    clock: () => "2026-05-30T00:00:00.000Z",
+  });
+  await assertOk(collection.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+  await assertOk(
+    collection.addMaterialToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "blocked",
+      materialRef: blockedRecord.materialRef,
+      collectionKind: "recording",
+      label: "Collection Blocked Track",
+      identityRequirement: "none",
+    }),
+  );
+  const materialQuery = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+      collection,
+    }),
+    collection,
+  });
+
+  const output = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      exclude: { relations: ["blocked"] },
+      limit: 10,
+    }),
+  );
+
+  assert(output.items.length === 1, "blocked relation exclusion should remove Collection-blocked materials");
+  assert(output.items[0]?.title === "Collection Kept Track", "blocked relation exclusion should keep unblocked material");
+}
+
 async function recentRecommendedHardExcludeWorks(): Promise<void> {
   const recentRef = ref("source:fixture", "track", "recent-track");
   const keptRef = ref("source:fixture", "track", "not-recent-track");
@@ -872,6 +930,12 @@ function createCollectionPortStub(collections: Collection[], items: CollectionIt
   };
 }
 
+function createSequence(prefix: string): () => string {
+  let nextId = 1;
+
+  return () => `${prefix}-${nextId++}`;
+}
+
 async function putLibraryTrack(
   materialStore: MaterialStorePort,
   sourceRef: Ref,
@@ -1100,6 +1164,7 @@ await queryCollectionPoolReturnsMaterialOnlyItems();
 await queryCollectionPoolFallsBackToMaterialSnapshot();
 await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();
+await relationExclusionsRemoveCollectionBlockedMaterials();
 await recentRecommendedHardExcludeWorks();
 await compactRecommendationCardEventsUpdateRecentExclusions();
 await contextBriefFieldsSelectArtistAlbumVersionAndStatus();
