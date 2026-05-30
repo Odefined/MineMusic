@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-02-resolve-projection` with the MusicMaterial
-refactor PR 2 resolve projection changes applied locally.
+MineMusic is on `codex/material-03-artist-release-identities` with the
+MusicMaterial refactor PR 3 relation/activity changes applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -79,6 +79,18 @@ promotion and merge invariants are also enforced: canonical promotion rejects
 replacement of an existing different canonical ref, and self-merge is rejected
 before writing a redirect. Canonical-only materialization when Source Grounding
 returns no source material remains deferred.
+
+The 2026-05-30 MusicMaterial PR 3 relation/activity slice adds
+`MusicMaterialRelation` and `MaterialActivity` contracts plus in-memory and
+SQLite-backed repositories in the Material Store storage path. Material Resolve
+now reads active owner/material relations after materialization: material-level
+blocks mark direct raw resolve results as `blocked`, source-level blocks and
+wrong-version feedback filter the matching source result, and source-level
+not-playable feedback removes matching playable links without blocking the
+whole material. Existing canonical Collection blocked filtering remains in
+place during migration. Event Service still records factual events and now also
+updates a recent Material Activity projection from recommendation/open/play/skip
+events when their target or payload cards include material refs.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

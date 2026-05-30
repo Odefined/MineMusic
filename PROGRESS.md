@@ -1004,6 +1004,22 @@
   and by adding repeated source/canonical resolve coverage for the survivor
   ownership invariant. Canonical-only materialization without source grounding
   remains deferred beyond PR 2.
+- Started MusicMaterial PR 3 on branch
+  `codex/material-03-artist-release-identities` from updated `main`.
+- Added `MusicMaterialRelation` and `MaterialActivity` contracts plus
+  in-memory and SQLite-backed repositories in the Material Store storage path.
+- Wired material relation/activity repositories through Stage Core composition
+  and Material Store.
+- Updated Material Resolve so active material relations apply after
+  materialization and before legacy canonical Collection blocked filtering:
+  material-level blocks mark direct resolve results blocked, source-level
+  blocks and wrong-version feedback filter matching source results, and
+  source-level not-playable feedback removes matching playable links without
+  blocking the whole material.
+- Updated Event Service to keep factual event recording while projecting
+  recommendation/open/play/skip material refs into Material Activity.
+- Added PR 3 tests for material relation/activity repositories, resolve
+  relation filtering, and event-driven activity projection.
 
 ## Next
 

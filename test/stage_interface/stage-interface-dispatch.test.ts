@@ -1363,6 +1363,11 @@ async function dispatchesSourceLibraryToolsThroughMaterialStore(): Promise<void>
     getConfirmedCanonicalBinding: async () => ({ ok: true, value: null }),
     putConfirmedCanonicalBinding: async ({ binding }) => ({ ok: true, value: binding }),
     listConfirmedCanonicalBindings: async () => ({ ok: true, value: [] }),
+    putMaterialRelation: async ({ relation }) => ({ ok: true, value: relation }),
+    listMaterialRelations: async () => ({ ok: true, value: [] }),
+    getMaterialActivity: async () => ({ ok: true, value: null }),
+    putMaterialActivity: async ({ activity }) => ({ ok: true, value: activity }),
+    listMaterialActivity: async () => ({ ok: true, value: [] }),
   };
   const dispatch = createToolDispatch({
     sessionContext: {

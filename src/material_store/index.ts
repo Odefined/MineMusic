@@ -1,10 +1,16 @@
 import type {
   CanonicalStorePort,
+  MaterialActivityRepository,
   MaterialRegistryPort,
   MaterialStorePort,
+  MusicMaterialRelationRepository,
   SourceEntityStoreRepository,
 } from "../ports/index.js";
 import { createInMemoryMaterialRegistry } from "./material_registry/index.js";
+import {
+  createInMemoryMaterialActivityRepository,
+  createInMemoryMusicMaterialRelationRepository,
+} from "../storage/index.js";
 
 export {
   createCanonicalMaintenance,
@@ -18,15 +24,21 @@ export { createLibraryImportService } from "./source_entity/library-import.js";
 export type MaterialStoreOptions = {
   canonicalStore: Pick<CanonicalStorePort, "get" | "findByLabel">;
   materialRegistry?: MaterialRegistryPort;
+  materialRelations?: MusicMaterialRelationRepository;
+  materialActivity?: MaterialActivityRepository;
   sourceEntityStore: SourceEntityStoreRepository;
 };
 
 export function createMaterialStore({
   canonicalStore,
   materialRegistry,
+  materialRelations,
+  materialActivity,
   sourceEntityStore,
 }: MaterialStoreOptions): MaterialStorePort {
   const registry = materialRegistry ?? createInMemoryMaterialRegistry();
+  const relations = materialRelations ?? createInMemoryMusicMaterialRelationRepository();
+  const activity = materialActivity ?? createInMemoryMaterialActivityRepository();
 
   return {
     getMaterialRecord(input) {
@@ -63,6 +75,26 @@ export function createMaterialStore({
 
     mergeMaterials(input) {
       return registry.mergeMaterials(input);
+    },
+
+    putMaterialRelation(input) {
+      return relations.putRelation(input);
+    },
+
+    listMaterialRelations(input) {
+      return relations.listRelations(input);
+    },
+
+    getMaterialActivity(input) {
+      return activity.getActivity(input);
+    },
+
+    putMaterialActivity(input) {
+      return activity.putActivity(input);
+    },
+
+    listMaterialActivity(input) {
+      return activity.listActivity(input);
     },
 
     getCanonical(input) {

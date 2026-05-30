@@ -6,6 +6,7 @@ import type {
   MaterialResolveStatus,
   MusicCandidate,
   MusicMaterial,
+  MusicMaterialRelation,
   Ref,
   ResolvedCandidate,
   Result,
@@ -146,8 +147,18 @@ async function resolveCandidate({
       return projectedLibraryMaterials;
     }
 
-    const blockedLibraryMaterials = await applyBlockedFiltering({
+    const relationFilteredLibraryMaterials = await applyMaterialRelationFiltering({
+      materialStore,
       materials: projectedLibraryMaterials.value,
+      ownerScope,
+    });
+
+    if (!relationFilteredLibraryMaterials.ok) {
+      return relationFilteredLibraryMaterials;
+    }
+
+    const blockedLibraryMaterials = await applyBlockedFiltering({
+      materials: relationFilteredLibraryMaterials.value,
       ownerScope,
       ...(collection === undefined ? {} : { collection }),
     });
@@ -193,8 +204,18 @@ async function resolveCandidate({
     return projectedMaterials;
   }
 
-  const blockedFilterResult = await applyBlockedFiltering({
+  const relationFilteredMaterials = await applyMaterialRelationFiltering({
+    materialStore,
     materials: projectedMaterials.value,
+    ownerScope,
+  });
+
+  if (!relationFilteredMaterials.ok) {
+    return relationFilteredMaterials;
+  }
+
+  const blockedFilterResult = await applyBlockedFiltering({
+    materials: relationFilteredMaterials.value,
     ownerScope,
     ...(collection === undefined ? {} : { collection }),
   });
@@ -212,6 +233,113 @@ async function resolveCandidate({
     ...(canonical === null ? {} : { canonicalRef: canonical.ref }),
     ...(materials.length === 0 ? { reason: "No source-backed material matched this candidate." } : {}),
   });
+}
+
+async function applyMaterialRelationFiltering({
+  materialStore,
+  materials,
+  ownerScope,
+}: {
+  materialStore: MaterialStorePort;
+  materials: MusicMaterial[];
+  ownerScope: string;
+}): Promise<Result<MusicMaterial[]>> {
+  const filtered: MusicMaterial[] = [];
+
+  for (const material of materials) {
+    const relations = await materialStore.listMaterialRelations({
+      ownerScope,
+      materialRef: material.materialRef,
+      status: "active",
+    });
+
+    if (!relations.ok) {
+      return relations;
+    }
+
+    const projected = applyRelationsToMaterial(material, relations.value);
+
+    if (projected !== null) {
+      filtered.push(projected);
+    }
+  }
+
+  return ok(filtered);
+}
+
+function applyRelationsToMaterial(
+  material: MusicMaterial,
+  relations: MusicMaterialRelation[],
+): MusicMaterial | null {
+  if (
+    relations.some(
+      (relation) => relation.relationKind === "blocked" && relation.scope.level === "material",
+    )
+  ) {
+    return { ...material, state: "blocked" };
+  }
+
+  let next = material;
+  let removedSource = false;
+
+  for (const relation of relations) {
+    if (relation.scope.level !== "source") {
+      continue;
+    }
+
+    if (relation.relationKind === "not_playable") {
+      next = removePlayableLinksForSource(next, relation.scope.sourceRef);
+      continue;
+    }
+
+    if (relation.relationKind === "blocked" || relation.relationKind === "wrong_version") {
+      next = removeSourceFromMaterial(next, relation.scope.sourceRef);
+      removedSource = true;
+    }
+  }
+
+  if (
+    removedSource &&
+    next.canonicalRef === undefined &&
+    (next.sourceRefs?.length ?? 0) === 0 &&
+    (next.playableLinks?.length ?? 0) === 0
+  ) {
+    return null;
+  }
+
+  return next;
+}
+
+function removePlayableLinksForSource(material: MusicMaterial, sourceRef: Ref): MusicMaterial {
+  const playableLinks = (material.playableLinks ?? []).filter((link) => !sameRef(link.sourceRef, sourceRef));
+  const state =
+    playableLinks.length === 0 &&
+    (material.state === "source_only_playable" || material.state === "confirmed_playable")
+      ? "grounded"
+      : material.state;
+
+  return {
+    ...material,
+    state,
+    ...(playableLinks.length === 0 ? { playableLinks: [] } : { playableLinks }),
+  };
+}
+
+function removeSourceFromMaterial(material: MusicMaterial, sourceRef: Ref): MusicMaterial {
+  const sourceRefs = (material.sourceRefs ?? []).filter((candidate) => !sameRef(candidate, sourceRef));
+  const playableLinks = (material.playableLinks ?? []).filter((link) => !sameRef(link.sourceRef, sourceRef));
+  const state =
+    playableLinks.length === 0 &&
+    (material.state === "source_only_playable" || material.state === "confirmed_playable")
+      ? "grounded"
+      : material.state;
+
+  return {
+    ...material,
+    state,
+    sourceRefs,
+    playableLinks,
+  };
 }
 
 async function applyBlockedFiltering({
@@ -782,6 +910,10 @@ function mergeRefs(left: Ref[], right: Ref[]): Ref[] {
   }
 
   return [...refsByKey.values()];
+}
+
+function sameRef(left: Ref, right: Ref): boolean {
+  return refKey(left) === refKey(right);
 }
 
 function refKey(ref: Ref): string {

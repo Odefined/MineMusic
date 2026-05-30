@@ -12,7 +12,9 @@ import type {
   LibraryImportContinuationState,
   LibraryImportItemProvenance,
   LibraryImportReport,
+  MaterialActivity,
   MemoryEntry,
+  MusicMaterialRelation,
   PlatformLibraryAbsence,
   ProviderHttpCacheEntry,
   Ref,
@@ -30,7 +32,9 @@ import type {
   EffectProposalRepository,
   EventRepository,
   LibraryImportRepository,
+  MaterialActivityRepository,
   MemoryRepository,
+  MusicMaterialRelationRepository,
   ProviderHttpCacheRepository,
   Repository,
   SessionRepository,
@@ -41,7 +45,9 @@ export {
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
+  createSqliteMaterialActivityRepository,
   createSqliteMaterialRegistryRepository,
+  createSqliteMusicMaterialRelationRepository,
   createSqliteProviderHttpCacheRepository,
   createSqliteSourceEntityStoreRepository,
   sqliteCanonicalSourceRefConflictConstraint,
@@ -51,6 +57,7 @@ export type {
   SqliteCanonicalRecordRepositoryOptions,
   SqliteCollectionRepositoryOptions,
   SqliteLibraryImportRepositoryOptions,
+  SqliteMaterialRelationsRepositoryOptions,
   SqliteMaterialRegistryRepositoryOptions,
   SqliteProviderHttpCacheRepositoryOptions,
   SqliteSourceEntityStoreRepositoryOptions,
@@ -302,6 +309,53 @@ export function createInMemorySourceEntityStoreRepository(): SourceEntityStoreRe
           .filter((binding) => matchesConfirmedCanonicalBindingQuery(binding, query))
           .map((binding) => cloneRecord(binding)),
       );
+    },
+  };
+}
+
+export function createInMemoryMusicMaterialRelationRepository(): MusicMaterialRelationRepository {
+  const relations = new Map<string, MusicMaterialRelation>();
+
+  return {
+    async putRelation({ relation }) {
+      relations.set(relation.id, cloneRecord(relation));
+
+      return ok(cloneRecord(relation));
+    },
+
+    async listRelations(query) {
+      return ok(
+        [...relations.values()]
+          .filter((relation) => matchesMusicMaterialRelationQuery(relation, query))
+          .map((relation) => cloneRecord(relation)),
+      );
+    },
+  };
+}
+
+export function createInMemoryMaterialActivityRepository(): MaterialActivityRepository {
+  const activities = new Map<string, MaterialActivity>();
+
+  return {
+    async getActivity({ ownerScope, materialRef }) {
+      const activity = activities.get(materialActivityKey({ ownerScope, materialRef }));
+
+      return ok(activity === undefined ? null : cloneRecord(activity));
+    },
+
+    async putActivity({ activity }) {
+      activities.set(materialActivityKey(activity), cloneRecord(activity));
+
+      return ok(cloneRecord(activity));
+    },
+
+    async listActivity(query) {
+      const matched = [...activities.values()]
+        .filter((activity) => matchesMaterialActivityQuery(activity, query))
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+        .slice(0, query.limit);
+
+      return ok(matched.map((activity) => cloneRecord(activity)));
     },
   };
 }
@@ -722,6 +776,33 @@ function matchesConfirmedCanonicalBindingQuery(
       refToStorageKey(binding.sourceRef) === refToStorageKey(query.sourceRef)) &&
     (query.canonicalRef === undefined ||
       refToStorageKey(binding.canonicalRef) === refToStorageKey(query.canonicalRef))
+  );
+}
+
+function matchesMusicMaterialRelationQuery(
+  relation: MusicMaterialRelation,
+  query: Parameters<MusicMaterialRelationRepository["listRelations"]>[0],
+): boolean {
+  return (
+    (query.ownerScope === undefined || relation.ownerScope === query.ownerScope) &&
+    (query.materialRef === undefined ||
+      refToStorageKey(relation.materialRef) === refToStorageKey(query.materialRef)) &&
+    (query.relationKind === undefined || relation.relationKind === query.relationKind) &&
+    (query.status === undefined || relation.status === query.status)
+  );
+}
+
+function materialActivityKey(input: Pick<MaterialActivity, "ownerScope" | "materialRef">): string {
+  return [input.ownerScope, refToStorageKey(input.materialRef)].join(":");
+}
+
+function matchesMaterialActivityQuery(
+  activity: MaterialActivity,
+  query: Parameters<MaterialActivityRepository["listActivity"]>[0],
+): boolean {
+  return (
+    (query.ownerScope === undefined || activity.ownerScope === query.ownerScope) &&
+    (query.since === undefined || activity.updatedAt >= query.since)
   );
 }
 

@@ -1237,6 +1237,11 @@ type _materialStorePortMethods = Expect<
     | "attachSourceRef"
     | "promoteToCanonical"
     | "mergeMaterials"
+    | "putMaterialRelation"
+    | "listMaterialRelations"
+    | "getMaterialActivity"
+    | "putMaterialActivity"
+    | "listMaterialActivity"
     | "getCanonical"
     | "findCanonicalByLabel"
     | "getSourceEntity"
@@ -1261,6 +1266,11 @@ type _materialStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<MaterialStorePort, "attachSourceRef"> &
     MethodAcceptsSingleObject<MaterialStorePort, "promoteToCanonical"> &
     MethodAcceptsSingleObject<MaterialStorePort, "mergeMaterials"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "putMaterialRelation"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "listMaterialRelations"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getMaterialActivity"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "putMaterialActivity"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "listMaterialActivity"> &
     MethodAcceptsSingleObject<MaterialStorePort, "getCanonical"> &
     MethodAcceptsSingleObject<MaterialStorePort, "findCanonicalByLabel"> &
     MethodAcceptsSingleObject<MaterialStorePort, "getSourceEntity"> &
