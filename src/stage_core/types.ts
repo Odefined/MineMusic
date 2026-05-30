@@ -1,8 +1,8 @@
 import type {
   CanonicalRecord,
   KnowledgeProvider,
-  MusicMaterial,
   PlatformLibraryProvider,
+  SourceMaterial,
   SourceProvider,
   StageSession,
 } from "../contracts/index.js";
@@ -65,7 +65,7 @@ export type KnowledgeProviderFactory = (context: KnowledgeProviderFactoryContext
 
 export type MineMusicStageCoreOptions = {
   session: StageSession;
-  sourceMaterials: MusicMaterial[];
+  sourceMaterials: SourceMaterial[];
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
   materialRegistry?: MaterialRegistryPort;

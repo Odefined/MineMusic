@@ -108,9 +108,11 @@ async function refreshesLinksWithoutPretendingUnlinkedMaterialIsPlayable(): Prom
   const result = await source.refreshPlayableLinks({
     material: {
       id: "material-without-links",
+      materialRef: { namespace: "minemusic", kind: "material", id: "without-links" },
       kind: "recording",
       label: "No Links",
       state: "grounded",
+      identityState: "source_backed",
     },
   });
 
@@ -131,9 +133,11 @@ async function reportsMissingSourceProvider(): Promise<void> {
 
 const refreshTarget: MusicMaterial = {
   id: "material",
+  materialRef: { namespace: "minemusic", kind: "material", id: "material" },
   kind: "recording",
   label: "Material",
   state: "grounded",
+  identityState: "source_backed",
 };
 assert(refreshTarget.state === "grounded", "source grounding fixtures should use material contracts");
 

@@ -239,6 +239,16 @@ export function createInMemoryMaterialRegistry({
       if (survivor === null) {
         return notFound(into);
       }
+      const transferredPrimarySourceRef =
+        survivor.primarySourceRef ?? fromRecord.primarySourceRef ?? fromRecord.sourceRefs[0];
+      const survivorUpdated: MaterialRecord = {
+        ...survivor,
+        sourceRefs: uniqueRefs([...survivor.sourceRefs, ...fromRecord.sourceRefs]),
+        ...(transferredPrimarySourceRef === undefined
+          ? {}
+          : { primarySourceRef: clone(transferredPrimarySourceRef) }),
+        updatedAt: now(),
+      };
 
       const updated: MaterialRecord = {
         ...fromRecord,
@@ -246,7 +256,14 @@ export function createInMemoryMaterialRegistry({
         mergedIntoMaterialRef: clone(survivor.materialRef),
         updatedAt: now(),
       };
+      putRecord(survivorUpdated);
       putRecord(updated);
+      for (const sourceRef of fromRecord.sourceRefs) {
+        sourceRefs.set(refKey(sourceRef), clone(survivor.materialRef));
+      }
+      if (fromRecord.canonicalRef !== undefined) {
+        canonicalRefs.set(refKey(fromRecord.canonicalRef), clone(survivor.materialRef));
+      }
       redirects.set(refKey(fromRecord.materialRef), clone(survivor.materialRef));
       void reason;
 

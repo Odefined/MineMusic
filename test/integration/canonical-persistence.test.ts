@@ -5,9 +5,9 @@ import { join } from "node:path";
 import type {
   CanonicalRecord,
   MaterialResolveResult,
-  MusicMaterial,
   Ref,
   Result,
+  SourceMaterial,
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
@@ -56,7 +56,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     status: "active",
     sourceRefs: [sourceRef],
   };
-  const canonicalMaterial: MusicMaterial = {
+  const canonicalMaterial: SourceMaterial = {
     id: "provider:track:persisted-track",
     kind: "recording",
     label: "Persisted Canonical Track",
@@ -69,7 +69,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       },
     ],
   };
-  const sourceOnlyMaterial: MusicMaterial = {
+  const sourceOnlyMaterial: SourceMaterial = {
     id: "provider:track:source-only-track",
     kind: "recording",
     label: "Source Only Track",
@@ -131,6 +131,15 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       "material should carry the persisted canonical ref after recreation",
     );
     assert(
+      persistedMaterial?.materialRef?.namespace === "minemusic" &&
+        persistedMaterial.materialRef.kind === "material",
+      "material should carry a material ref after recreation",
+    );
+    assert(
+      persistedMaterial?.identityState === "canonical_confirmed",
+      "known persisted source should project canonical-confirmed identity state",
+    );
+    assert(
       persistedMaterial?.state === "confirmed_playable",
       "canonical identity plus source-backed playable link should be confirmed playable after recreation",
     );
@@ -151,6 +160,14 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       "source-only material should not carry a canonical ref",
     );
     assert(
+      sourceOnly?.materialRef?.namespace === "minemusic" && sourceOnly.materialRef.kind === "material",
+      "source-only material should carry a material ref",
+    );
+    assert(
+      sourceOnly?.identityState === "source_backed",
+      "source-only material should project source-backed identity state",
+    );
+    assert(
       sourceOnly?.state === "source_only_playable",
       "source-only playable material should remain source_only_playable",
     );
@@ -159,7 +176,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
   }
 }
 
-function createStaticSourceProvider(materials: MusicMaterial[]): SourceProvider {
+function createStaticSourceProvider(materials: SourceMaterial[]): SourceProvider {
   return {
     id: "canonical-persistence-provider",
 

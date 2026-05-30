@@ -307,9 +307,11 @@ async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
     materials: [
       {
         id: "mcp-material",
+        materialRef: { namespace: "minemusic", kind: "material", id: "mcp-material" },
         kind: "recording",
         label: "MCP Material",
         state: "grounded",
+        identityState: "source_backed",
       } satisfies MusicMaterial,
     ],
     purpose: "recommendation",
@@ -349,9 +351,11 @@ async function dispatchesMcpPayloadsThroughInjectedRuntime(): Promise<void> {
     materials: [
       {
         id: "injected-runtime-material",
+        materialRef: { namespace: "minemusic", kind: "material", id: "injected-runtime-material" },
         kind: "recording",
         label: "Injected Runtime Material",
         state: "grounded",
+        identityState: "source_backed",
       } satisfies MusicMaterial,
     ],
     purpose: "recommendation",

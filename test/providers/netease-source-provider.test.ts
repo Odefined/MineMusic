@@ -51,6 +51,8 @@ async function mapsSearchResultsToSourceBackedMaterials(): Promise<void> {
   assert(material.id === "netease:track:123", "material id should include provider track id");
   assert(material.label === "Coding Track - Quiet Artist", "material label should include artist");
   assert(material.state === "grounded", "provider should leave playability normalization to Source Grounding");
+  assert(!("materialRef" in material), "source provider should not create material refs");
+  assert(!("identityState" in material), "source provider should not create material identity state");
   assert(material.sourceRefs?.[0]?.namespace === "source:netease", "should keep provider source ref");
   assert(material.sourceRefs?.[0]?.kind === "track", "source ref should identify provider track");
   assert(material.sourceRefs?.[0]?.id === "123", "source ref should use NetEase song id");
@@ -165,9 +167,11 @@ async function refreshesLinksFromNeteaseSourceRefs(): Promise<void> {
   });
   const material: MusicMaterial = {
     id: "netease:track:789",
+    materialRef: { namespace: "minemusic", kind: "material", id: "material-789" },
     kind: "recording",
     label: "Known NetEase Track",
     state: "grounded",
+    identityState: "source_backed",
     sourceRefs: [{ namespace: "source:netease", kind: "track", id: "789" }],
   };
 

@@ -117,6 +117,7 @@ import type {
   SourceLibraryListOutput,
   SourceLibraryResolveScope,
   SourceLibraryItemStatus,
+  SourceMaterial,
   SourceProvider,
   SourceRelease,
   SourceReleaseTracklistItem,
@@ -1416,8 +1417,12 @@ type _materialRecordStatusValues = Expect<
   Equal<MaterialRecordStatus, "active" | "merged" | "rejected">
 >;
 
-type _musicMaterialBaseCompatibility = Expect<
-  Equal<MusicMaterial, MusicMaterialBase>
+type _sourceMaterialBaseCompatibility = Expect<
+  Equal<SourceMaterial, MusicMaterialBase>
+>;
+
+type _musicMaterialResolvedShape = Expect<
+  Equal<MusicMaterial, MusicMaterialBase & { materialRef: Ref; identityState: MusicMaterialIdentityState }>
 >;
 
 type _materialRecordShape = Expect<
@@ -1459,9 +1464,15 @@ const playableLink: PlayableLink = {
 
 const material: MusicMaterial = {
   id: "material-1",
+  materialRef: {
+    namespace: "minemusic",
+    kind: "material",
+    id: "material-1",
+  },
   kind: "recording",
   label: "Quiet Track",
   state: "confirmed_playable",
+  identityState: "canonical_confirmed",
   canonicalRef: ref,
   sourceRefs: [playableLink.sourceRef],
   playableLinks: [playableLink],

@@ -6,11 +6,11 @@ import type {
   CanonicalRecord,
   Collection,
   MaterialResolveResult,
-  MusicMaterial,
   PlatformLibraryProvider,
   ProviderHttpCacheEntry,
   Ref,
   Result,
+  SourceMaterial,
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
@@ -46,7 +46,7 @@ const session: StageSession = {
 
 async function createsStageCoreWithInjectedSourceProvider(): Promise<void> {
   const calls: string[] = [];
-  const material: MusicMaterial = {
+  const material: SourceMaterial = {
     id: "provider:track:1",
     kind: "recording",
     label: "Provider Coding Track",
@@ -266,7 +266,7 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
     sourceRefs: [sourceRef],
   };
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
-  const material: MusicMaterial = {
+  const material: SourceMaterial = {
     id: "provider:track:known-track",
     kind: "recording",
     label: "Known Canonical Track",
@@ -520,7 +520,7 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
     label: "Blocked Canonical Track",
     status: "active",
   };
-  const material: MusicMaterial = {
+  const material: SourceMaterial = {
     id: "provider:track:blocked",
     kind: "recording",
     label: "Blocked Canonical Track",

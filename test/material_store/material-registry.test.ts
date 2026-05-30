@@ -292,6 +292,51 @@ async function inMemoryRegistryLookupsFollowMergeRedirects(): Promise<void> {
   );
 }
 
+async function inMemoryRegistryTransfersSourceRefsToMergeSurvivor(): Promise<void> {
+  let id = 0;
+  const registry = createInMemoryMaterialRegistry({
+    generateId: () => `material-${id += 1}`,
+    now: () => "2026-05-30T00:00:00.000Z",
+  });
+  const sourceRef = ref("source:fixture", "track", "track-merge-transfer");
+  const canonicalRef = ref("minemusic", "recording", "canonical-merge-transfer");
+
+  const loser = await assertOk(
+    registry.getOrCreateBySourceRef({
+      sourceRef,
+      kind: "recording",
+    }),
+  );
+  const survivor = await assertOk(
+    registry.getOrCreateByCanonicalRef({
+      canonicalRef,
+      kind: "recording",
+    }),
+  );
+
+  await assertOk(
+    registry.mergeMaterials({
+      from: loser.materialRef,
+      into: survivor.materialRef,
+      reason: "confirmed source canonical binding",
+    }),
+  );
+
+  const attached = await assertOk(
+    registry.attachSourceRef({
+      materialRef: survivor.materialRef,
+      sourceRef,
+    }),
+  );
+  const foundBySource = await assertOk(registry.findMaterialBySourceRef({ sourceRef }));
+
+  assert(foundBySource?.materialRef.id === survivor.materialRef.id, "source lookup should return the survivor");
+  assert(
+    attached.sourceRefs.some((candidate) => sameRef(candidate, sourceRef)),
+    "survivor should own source refs transferred from the merge loser",
+  );
+}
+
 async function materialStoreComposesRegistryMethods(): Promise<void> {
   const registry = createInMemoryMaterialRegistry({
     generateId: () => "material-store-composed",
@@ -328,4 +373,5 @@ await inMemoryRegistryAttachesPromotesMergesAndCopies();
 await inMemoryRegistryEnforcesCanonicalPromotionMonotonicity();
 await inMemoryRegistryRejectsSelfMerge();
 await inMemoryRegistryLookupsFollowMergeRedirects();
+await inMemoryRegistryTransfersSourceRefsToMergeSurvivor();
 await materialStoreComposesRegistryMethods();

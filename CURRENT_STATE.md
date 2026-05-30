@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-01-registry` with the MusicMaterial refactor
-PR 1 registry foundation applied locally.
+MineMusic is on `codex/material-02-resolve-projection` with the MusicMaterial
+refactor PR 2 resolve projection changes applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -62,15 +62,23 @@ inside Material Store. It introduces opaque product-level `materialRef` records,
 source/canonical lookup indexes, identity state, and material merge redirects
 with in-memory and SQLite-backed implementations. Stage Core initializes the
 registry from the same `materialStoreDatabasePath` used by Material Store
-canonical/source-entity storage. Current recommendation behavior and
-agent-facing tool output are unchanged; Material Resolve does not project
-`materialRef` onto returned `MusicMaterial` yet.
+canonical/source-entity storage.
+The 2026-05-30 MusicMaterial PR 2 resolve projection integration makes
+Material Resolve the owner of materialization: source providers return
+`SourceMaterial`, while every `MusicMaterial` returned by
+`music.material.resolve` carries `materialRef` and `identityState`.
+Canonical-confirmed, source-only, and Source Library results are materialized
+through Material Registry, and source-only materials keep stable material refs
+across repeated resolves for the same source ref.
 Material Registry public lookup and get-or-create operations now follow merge
 redirects and return the current survivor record, while direct
-`getMaterialRecord` can still inspect the raw record by material ref. Registry
+`getMaterialRecord` can still inspect the raw record by material ref. Merge now
+transfers loser source refs to the survivor so repeated source/canonical
+resolves can reuse the survivor without source ownership conflicts. Registry
 promotion and merge invariants are also enforced: canonical promotion rejects
 replacement of an existing different canonical ref, and self-merge is rejected
-before writing a redirect.
+before writing a redirect. Canonical-only materialization when Source Grounding
+returns no source material remains deferred.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
@@ -546,8 +554,6 @@ host-facing and LLM-facing surface.
 
 - Stage Interface can still be deepened with richer provider capability
   metadata in `InstrumentDescriptor` / Handbook output.
-- Material Resolve has not yet integrated Material Registry projection, so
-  resolved materials do not carry `materialRef` or `identityState` until PR 2.
 - Durable storage repositories beyond the direct SQLite-backed Material Store,
   Collection, Library Import, and Provider HTTP Cache adapters and their opt-in
   Stage Core / service runtime database-path wiring.

@@ -1,6 +1,6 @@
-import type { MusicMaterial, Result, SourceProvider } from "../contracts/index.js";
+import type { Result, SourceMaterial, SourceProvider } from "../contracts/index.js";
 
-export function createFixtureSourceProvider(sourceMaterials: MusicMaterial[]): SourceProvider {
+export function createFixtureSourceProvider(sourceMaterials: SourceMaterial[]): SourceProvider {
   return {
     id: "fixture-source",
 
