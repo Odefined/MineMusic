@@ -65,6 +65,12 @@ registry from the same `materialStoreDatabasePath` used by Material Store
 canonical/source-entity storage. Current recommendation behavior and
 agent-facing tool output are unchanged; Material Resolve does not project
 `materialRef` onto returned `MusicMaterial` yet.
+Material Registry public lookup and get-or-create operations now follow merge
+redirects and return the current survivor record, while direct
+`getMaterialRecord` can still inspect the raw record by material ref. Registry
+promotion and merge invariants are also enforced: canonical promotion rejects
+replacement of an existing different canonical ref, and self-merge is rejected
+before writing a redirect.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

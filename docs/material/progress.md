@@ -6,6 +6,11 @@ PR 1 of the MusicMaterial refactor is implemented as an additive foundation.
 Material Registry now lives inside Material Store and owns opaque
 `materialRef` records, source/canonical lookup indexes, merge redirects, and
 identity state for future resolved `MusicMaterial` projections.
+Registry lookup and get-or-create methods follow merge redirects and return
+the current survivor record. Canonical promotion is monotonic: a material that
+already has a different canonical ref returns `material_registry.conflict`
+instead of rebinding. Self-merge also returns `material_registry.conflict`
+before a redirect is written.
 
 Current recommendation and agent-facing tool behavior is intentionally
 unchanged. Material Resolve does not materialize `materialRef` yet.
@@ -23,8 +28,10 @@ unchanged. Material Resolve does not materialize `materialRef` yet.
 - Wired Material Registry into Material Store composition and Stage Core
   repository selection without changing Material Resolve behavior.
 - Added tests for idempotent source/canonical creation, source attachment,
-  canonical promotion, merge redirect resolution, SQLite reopen persistence,
-  unique lookup across reopen, and returned-copy behavior.
+  monotonic canonical promotion, self-merge rejection, canonical promotion,
+  merge redirect resolution, redirect-following lookup/get-or-create behavior,
+  SQLite reopen persistence, unique lookup across reopen, and returned-copy
+  behavior.
 
 ## Verification
 

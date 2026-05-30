@@ -59,6 +59,12 @@ export function createInMemoryMaterialRegistry({
     return record === undefined ? null : clone(record);
   }
 
+  function getCurrentRecord(materialRef: Ref): Result<MaterialRecord | null> {
+    const resolved = resolveRedirect(materialRef);
+    if (!resolved.ok) return resolved;
+    return ok(getRecord(resolved.value));
+  }
+
   function resolveRedirect(materialRef: Ref): Result<Ref> {
     let current = clone(materialRef);
     const seen = new Set<string>();
@@ -101,19 +107,26 @@ export function createInMemoryMaterialRegistry({
 
     async findMaterialBySourceRef({ sourceRef }) {
       const materialRef = sourceRefs.get(refKey(sourceRef));
-      return ok(materialRef === undefined ? null : getRecord(materialRef));
+      if (materialRef === undefined) {
+        return ok(null);
+      }
+      return getCurrentRecord(materialRef);
     },
 
     async findMaterialByCanonicalRef({ canonicalRef }) {
       const materialRef = canonicalRefs.get(refKey(canonicalRef));
-      return ok(materialRef === undefined ? null : getRecord(materialRef));
+      if (materialRef === undefined) {
+        return ok(null);
+      }
+      return getCurrentRecord(materialRef);
     },
 
     async getOrCreateBySourceRef({ sourceRef, kind, primarySourceRef }) {
       const existing = sourceRefs.get(refKey(sourceRef));
       if (existing !== undefined) {
-        const record = getRecord(existing);
-        return record === null ? notFound(existing) : ok(record);
+        const current = getCurrentRecord(existing);
+        if (!current.ok) return current;
+        return current.value === null ? notFound(existing) : ok(current.value);
       }
 
       const record = createRecord({
@@ -131,8 +144,9 @@ export function createInMemoryMaterialRegistry({
     async getOrCreateByCanonicalRef({ canonicalRef, kind, sourceRefs: initialSourceRefs }) {
       const existing = canonicalRefs.get(refKey(canonicalRef));
       if (existing !== undefined) {
-        const record = getRecord(existing);
-        return record === null ? notFound(existing) : ok(record);
+        const current = getCurrentRecord(existing);
+        if (!current.ok) return current;
+        return current.value === null ? notFound(existing) : ok(current.value);
       }
 
       for (const sourceRef of initialSourceRefs ?? []) {
@@ -189,6 +203,11 @@ export function createInMemoryMaterialRegistry({
       if (record === null) {
         return notFound(resolved.value);
       }
+      if (record.canonicalRef !== undefined && !sameRef(record.canonicalRef, canonicalRef)) {
+        return conflict(
+          `Material '${refKey(record.materialRef)}' is already promoted to canonical ref '${refKey(record.canonicalRef)}'.`,
+        );
+      }
 
       const canonicalOwner = canonicalRefs.get(refKey(canonicalRef));
       if (canonicalOwner !== undefined && refKey(canonicalOwner) !== refKey(record.materialRef)) {
@@ -208,6 +227,10 @@ export function createInMemoryMaterialRegistry({
     },
 
     async mergeMaterials({ from, into, reason }) {
+      if (sameRef(from, into)) {
+        return conflict(`Cannot merge material '${refKey(from)}' into itself.`);
+      }
+
       const fromRecord = getRecord(from);
       if (fromRecord === null) {
         return notFound(from);
@@ -242,6 +265,10 @@ function uniqueRefs(refs: Ref[]): Ref[] {
 
 function refKey(ref: Ref): string {
   return `${ref.namespace}:${ref.kind}:${ref.id}`;
+}
+
+function sameRef(left: Ref, right: Ref): boolean {
+  return refKey(left) === refKey(right);
 }
 
 function notFound<T>(materialRef: Ref): Result<T> {

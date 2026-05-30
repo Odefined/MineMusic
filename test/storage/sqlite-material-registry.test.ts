@@ -17,6 +17,12 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   return awaited.value;
 }
 
+async function assertError<T>(result: Promise<Result<T>>, code: string): Promise<void> {
+  const awaited = await result;
+  assert(!awaited.ok, `expected ${code} but operation succeeded`);
+  assert(awaited.error.code === code, `expected ${code} but received ${awaited.error.code}`);
+}
+
 async function sqliteRegistryPersistsRecordsAndIndexesAcrossReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-material-registry-"));
   const databasePath = join(directory, "material-store.sqlite");
@@ -106,22 +112,117 @@ async function sqliteRegistryPersistsRecordsAndIndexesAcrossReopen(): Promise<vo
       "SQLite registry should return defensive copies",
     );
     assert(
-      reloadedBySourceRef?.materialRef.id === sourceRecord.materialRef.id,
-      "source ref lookup should survive repository reopen",
+      reloadedBySourceRef?.materialRef.id === survivor.materialRef.id,
+      "source ref lookup should survive repository reopen and follow redirects",
     );
     assert(
-      reloadedByCanonicalRef?.materialRef.id === sourceRecord.materialRef.id,
-      "canonical ref lookup should survive repository reopen",
+      reloadedByCanonicalRef?.materialRef.id === survivor.materialRef.id,
+      "canonical ref lookup should survive repository reopen and follow redirects",
     );
     assert(
-      repeatedSourceRecord.materialRef.id === sourceRecord.materialRef.id,
-      "same source ref should remain unique across repository reopen",
+      repeatedSourceRecord.materialRef.id === survivor.materialRef.id,
+      "same source ref should remain unique across repository reopen and return the survivor",
     );
     assert(
-      repeatedCanonicalRecord.materialRef.id === sourceRecord.materialRef.id,
-      "same canonical ref should remain unique across repository reopen",
+      repeatedCanonicalRecord.materialRef.id === survivor.materialRef.id,
+      "same canonical ref should remain unique across repository reopen and return the survivor",
     );
     assert(redirect.id === survivor.materialRef.id, "redirect should survive repository reopen");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function sqliteRegistryEnforcesCanonicalPromotionMonotonicity(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-material-registry-"));
+  const databasePath = join(directory, "material-store.sqlite");
+  const sourceRef = ref("source:fixture", "track", "track-monotonic");
+  const canonicalRef = ref("minemusic", "recording", "canonical-1");
+  const replacementCanonicalRef = ref("minemusic", "recording", "canonical-2");
+  let id = 0;
+
+  try {
+    const repository = createSqliteMaterialRegistryRepository({
+      path: databasePath,
+      generateId: () => `material-${id += 1}`,
+      now: () => "2026-05-30T00:00:00.000Z",
+    });
+    const sourceRecord = await assertOk(
+      repository.getOrCreateBySourceRef({
+        sourceRef,
+        kind: "recording",
+      }),
+    );
+    await assertOk(
+      repository.promoteToCanonical({
+        materialRef: sourceRecord.materialRef,
+        canonicalRef,
+      }),
+    );
+
+    await assertError(
+      repository.promoteToCanonical({
+        materialRef: sourceRecord.materialRef,
+        canonicalRef: replacementCanonicalRef,
+      }),
+      "material_registry.conflict",
+    );
+
+    const foundByOriginalCanonical = await assertOk(
+      repository.findMaterialByCanonicalRef({
+        canonicalRef,
+      }),
+    );
+    const foundByReplacementCanonical = await assertOk(
+      repository.findMaterialByCanonicalRef({
+        canonicalRef: replacementCanonicalRef,
+      }),
+    );
+
+    assert(
+      foundByOriginalCanonical?.canonicalRef !== undefined &&
+        sameRef(foundByOriginalCanonical.canonicalRef, canonicalRef),
+      "original canonical binding should remain intact",
+    );
+    assert(foundByReplacementCanonical === null, "replacement canonical ref should not be indexed");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function sqliteRegistryRejectsSelfMerge(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-material-registry-"));
+  const databasePath = join(directory, "material-store.sqlite");
+  let id = 0;
+
+  try {
+    const repository = createSqliteMaterialRegistryRepository({
+      path: databasePath,
+      generateId: () => `material-${id += 1}`,
+      now: () => "2026-05-30T00:00:00.000Z",
+    });
+    const sourceRecord = await assertOk(
+      repository.getOrCreateBySourceRef({
+        sourceRef: ref("source:fixture", "track", "track-self-merge"),
+        kind: "recording",
+      }),
+    );
+
+    await assertError(
+      repository.mergeMaterials({
+        from: sourceRecord.materialRef,
+        into: sourceRecord.materialRef,
+        reason: "same material",
+      }),
+      "material_registry.conflict",
+    );
+
+    const redirect = await assertOk(
+      repository.resolveMaterialRedirect({
+        materialRef: sourceRecord.materialRef,
+      }),
+    );
+    assert(sameRef(redirect, sourceRecord.materialRef), "self-merge should not create a redirect");
   } finally {
     await rm(directory, { force: true, recursive: true });
   }
@@ -131,4 +232,10 @@ function ref(namespace: string, kind: string, id: string): Ref {
   return { namespace, kind, id };
 }
 
+function sameRef(left: Ref, right: Ref): boolean {
+  return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
+}
+
 await sqliteRegistryPersistsRecordsAndIndexesAcrossReopen();
+await sqliteRegistryEnforcesCanonicalPromotionMonotonicity();
+await sqliteRegistryRejectsSelfMerge();

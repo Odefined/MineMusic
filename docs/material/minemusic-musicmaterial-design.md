@@ -406,6 +406,14 @@ materialRef -> MaterialRecord
 materialRef redirect -> current materialRef
 ```
 
+Public lookup and get-or-create operations should follow `materialRef`
+redirects and return the current survivor record. Raw merged records remain
+available by direct `getMaterialRecord` for audit or inspection workflows.
+`promoteToCanonical` is a one-way transition from source-backed material to a
+canonical-confirmed material; it must reject attempts to replace an existing
+different canonical ref. `mergeMaterials` must reject self-merge before writing
+a redirect.
+
 ### 8.4 Storage proposal
 
 SQLite tables:

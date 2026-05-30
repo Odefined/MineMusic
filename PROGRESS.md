@@ -981,6 +981,10 @@
   without changing Material Resolve or agent-facing tool behavior.
 - Added `docs/material/progress.md` to track current Material Registry
   implementation state and the explicitly deferred PR 2-5 work.
+- Addressed PR #4 review feedback by enforcing monotonic canonical promotion,
+  rejecting self-merge before redirect writes, and making Material Registry
+  lookup/get-or-create methods follow merge redirects to the current survivor
+  in both in-memory and SQLite implementations.
 
 ## Next
 

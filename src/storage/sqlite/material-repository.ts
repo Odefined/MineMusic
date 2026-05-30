@@ -201,6 +201,15 @@ export function createSqliteMaterialRegistryRepository({
     return pointer === undefined ? null : readRecord(materialRefFromPointer(pointer));
   }
 
+  function readCurrentRecord(materialRef: Ref): MaterialRecord | null {
+    const resolved = resolveRedirect(materialRef);
+    if (!resolved.ok) {
+      throw new RegistryFailure(resolved.error);
+    }
+
+    return readRecord(resolved.value);
+  }
+
   function writeSourceRef(materialRef: Ref, sourceRef: Ref, createdAt: string): void {
     database
       .prepare(`
@@ -316,14 +325,24 @@ export function createSqliteMaterialRegistryRepository({
     async findMaterialBySourceRef({ sourceRef }) {
       return runSqlite(() => {
         const record = readBySourceRef(sourceRef);
-        return record === null ? null : clone(record);
+        if (record === null) {
+          return null;
+        }
+
+        const current = readCurrentRecord(record.materialRef);
+        return current === null ? null : clone(current);
       });
     },
 
     async findMaterialByCanonicalRef({ canonicalRef }) {
       return runSqlite(() => {
         const record = readByCanonicalRef(canonicalRef);
-        return record === null ? null : clone(record);
+        if (record === null) {
+          return null;
+        }
+
+        const current = readCurrentRecord(record.materialRef);
+        return current === null ? null : clone(current);
       });
     },
 
@@ -331,7 +350,11 @@ export function createSqliteMaterialRegistryRepository({
       return runSqlite(() => {
         const existing = readBySourceRef(sourceRef);
         if (existing !== null) {
-          return clone(existing);
+          const current = readCurrentRecord(existing.materialRef);
+          if (current === null) {
+            throw new RegistryFailure(notFoundError(existing.materialRef));
+          }
+          return clone(current);
         }
 
         const record = createRecord({
@@ -351,7 +374,11 @@ export function createSqliteMaterialRegistryRepository({
       return runSqlite(() => {
         const existing = readByCanonicalRef(canonicalRef);
         if (existing !== null) {
-          return clone(existing);
+          const current = readCurrentRecord(existing.materialRef);
+          if (current === null) {
+            throw new RegistryFailure(notFoundError(existing.materialRef));
+          }
+          return clone(current);
         }
 
         for (const sourceRef of sourceRefs ?? []) {
@@ -418,6 +445,13 @@ export function createSqliteMaterialRegistryRepository({
         if (record === null) {
           throw new RegistryFailure(notFoundError(resolved.value));
         }
+        if (record.canonicalRef !== undefined && !sameRef(record.canonicalRef, canonicalRef)) {
+          throw new RegistryFailure(
+            conflictError(
+              `Material '${refKey(record.materialRef)}' is already promoted to canonical ref '${refKey(record.canonicalRef)}'.`,
+            ),
+          );
+        }
 
         const canonicalOwner = readByCanonicalRef(canonicalRef);
         if (canonicalOwner !== null && refKey(canonicalOwner.materialRef) !== refKey(record.materialRef)) {
@@ -441,6 +475,10 @@ export function createSqliteMaterialRegistryRepository({
 
     async mergeMaterials({ from, into, reason }) {
       return runSqlite(() => {
+        if (sameRef(from, into)) {
+          throw new RegistryFailure(conflictError(`Cannot merge material '${refKey(from)}' into itself.`));
+        }
+
         const fromRecord = readRecord(from);
         if (fromRecord === null) {
           throw new RegistryFailure(notFoundError(from));
@@ -533,6 +571,10 @@ function uniqueRefs(refs: Ref[]): Ref[] {
 
 function refKey(ref: Ref): string {
   return `${ref.namespace}:${ref.kind}:${ref.id}`;
+}
+
+function sameRef(left: Ref, right: Ref): boolean {
+  return refKey(left) === refKey(right);
 }
 
 function notFoundError(materialRef: Ref): StageError {
