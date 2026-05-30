@@ -985,6 +985,20 @@
   rejecting self-merge before redirect writes, and making Material Registry
   lookup/get-or-create methods follow merge redirects to the current survivor
   in both in-memory and SQLite implementations.
+- Started MusicMaterial PR 2 on branch `codex/material-02-resolve-projection`
+  from updated `main`.
+- Switched the public material contract so `MusicMaterial` is the resolved
+  shape with `materialRef` and `identityState`, while source providers and
+  source grounding search paths return `SourceMaterial` before Material Resolve
+  materialization.
+- Updated Material Resolve to materialize canonical-confirmed, source-only, and
+  Source Library results through Material Registry, preserving stable
+  source-only material refs across repeated resolves and keeping existing
+  blocked filtering and playable-link behavior.
+- Added PR 2 tests for resolved material identity fields, provider boundary
+  ownership, Stage Materials preparation identity preservation, canonical
+  persistence projection, fixture MVP projection, and `song`/`track`/`album`
+  seed kind normalization.
 
 ## Next
 

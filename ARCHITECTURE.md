@@ -150,7 +150,7 @@ needs.
 | Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
-| Material Resolve | canonical-first candidate-to-material resolution through Material Store, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
+| Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history | derived preference claims |
@@ -179,12 +179,13 @@ needs.
 10. Stage Interface sends music candidates to Material Resolve.
 11. Material Resolve checks Material Store first: canonical lookup stays
    canonical-first, source refs resolve through Confirmed Canonical Bindings,
-   and Source Library is read only for explicit source-library scoped requests.
-   Source Grounding is used as source evidence when needed.
+   Source Library is read only for explicit source-library scoped requests, and
+   Material Registry materializes stable `materialRef` / `identityState`
+   projections. Source Grounding is used as source evidence when needed.
 12. Source Grounding uses Source Slot adapters for source refs and playable
    links.
-13. Material Resolve returns `MusicMaterial` with honest material state and
-   candidate-level resolve status.
+13. Material Resolve returns `MusicMaterial` with stable material identity,
+   honest material state, and candidate-level resolve status.
 14. Stage Interface sends material through Material Gate before presentation.
 15. LLM selects and explains recommendations.
 16. Stage Interface or the LLM records factual events and proposes memory or

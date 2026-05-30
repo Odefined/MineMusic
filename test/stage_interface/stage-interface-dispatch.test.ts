@@ -598,9 +598,11 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       payload: {
         material: {
           id: "material-1",
+          materialRef: { namespace: "minemusic", kind: "material", id: "material-1" },
           kind: "recording",
           label: "Material",
           state: "grounded",
+          identityState: "source_backed",
         } satisfies MusicMaterial,
       },
     }),
@@ -667,9 +669,11 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
         materials: [
           {
             id: "material-for-stage",
+            materialRef: { namespace: "minemusic", kind: "material", id: "material-for-stage" },
             kind: "recording",
             label: "Material For Stage",
             state: "grounded",
+            identityState: "source_backed",
           } satisfies MusicMaterial,
         ],
         purpose: "recommendation",

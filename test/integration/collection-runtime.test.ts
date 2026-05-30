@@ -7,9 +7,9 @@ import type {
   Collection,
   CollectionItem,
   MaterialResolveResult,
-  MusicMaterial,
   Ref,
   Result,
+  SourceMaterial,
   StageSession,
 } from "../../src/contracts/index.js";
 import { createFixtureMineMusicStageRuntime } from "../../src/stage_core/index.js";
@@ -54,7 +54,7 @@ const canonicalRecording: CanonicalRecord = {
   status: "active",
   sourceRefs: [sourceRecordingRef],
 };
-const sourceRecordingMaterial: MusicMaterial = {
+const sourceRecordingMaterial: SourceMaterial = {
   id: "fixture:track:quiet-canonical-recording",
   kind: "recording",
   label: "Quiet Canonical Recording",
@@ -73,7 +73,7 @@ async function createRuntime({
   canonicalRecords = [],
   collectionDatabasePath,
 }: {
-  sourceMaterials?: MusicMaterial[];
+  sourceMaterials?: SourceMaterial[];
   canonicalRecords?: CanonicalRecord[];
   collectionDatabasePath?: string;
 } = {}) {

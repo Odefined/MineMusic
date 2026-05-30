@@ -1,4 +1,4 @@
-import type { MusicMaterial, Ref } from "../../src/contracts/index.js";
+import type { Ref, SourceMaterial } from "../../src/contracts/index.js";
 
 export const fixtureCanonicalRef: Ref = {
   namespace: "minemusic",
@@ -14,7 +14,7 @@ export const fixtureSourceRef: Ref = {
   label: "Quiet Coding Track on Fixture Source",
 };
 
-export const fixtureKnownMaterial: MusicMaterial = {
+export const fixtureKnownMaterial: SourceMaterial = {
   id: "fixture-material-known",
   kind: "recording",
   label: "Quiet Coding Track",
@@ -36,7 +36,7 @@ export const fixtureKnownMaterial: MusicMaterial = {
   ],
 };
 
-export const fixtureExplorationMaterial: MusicMaterial = {
+export const fixtureExplorationMaterial: SourceMaterial = {
   id: "fixture-material-exploration",
   kind: "recording",
   label: "Interesting But Unconfirmed Track",

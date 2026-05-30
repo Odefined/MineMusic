@@ -81,6 +81,10 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       "playable links should appear only on source-backed playable states",
     );
     assert(
+      transcript.presentedMaterials.every((material) => material.materialRef.kind === "material" && material.identityState !== undefined),
+      "presented materials should carry material identity projection fields",
+    );
+    assert(
       transcript.presentedMaterials[0]?.state === "confirmed_playable",
       "known canonical fixture should become confirmed_playable",
     );

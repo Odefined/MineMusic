@@ -136,7 +136,9 @@ export type ResolvedMusicMaterial = MusicMaterialBase & {
   identityState: MusicMaterialIdentityState;
 };
 
-export type MusicMaterial = MusicMaterialBase;
+export type SourceMaterial = MusicMaterialBase;
+
+export type MusicMaterial = ResolvedMusicMaterial;
 
 export type StageSession = {
   id: string;
@@ -774,7 +776,7 @@ export interface SourceProvider {
   search(input: {
     query: SourceQuery;
     sessionId?: string;
-  }): Promise<Result<MusicMaterial[]>>;
+  }): Promise<Result<SourceMaterial[]>>;
   getPlayableLinks(input: {
     material: MusicMaterial;
     sessionId?: string;

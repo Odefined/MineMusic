@@ -3,6 +3,7 @@ import type {
   PlayableLink,
   Ref,
   Result,
+  SourceMaterial,
   SourceProvider,
   StageError,
 } from "../contracts/index.js";
@@ -28,7 +29,7 @@ export function createSourceGroundingService({
       return providers;
     }
 
-    const materials: MusicMaterial[] = [];
+    const materials: SourceMaterial[] = [];
 
     for (const provider of providers.value) {
       const providerResult = await provider.search(input);
@@ -133,10 +134,10 @@ async function getSourceProviders(
   return ok(providers);
 }
 
-async function normalizeMaterialForPlayability(
+async function normalizeMaterialForPlayability<T extends SourceMaterial>(
   canonicalStore: CanonicalStorePort,
-  material: MusicMaterial,
-): Promise<Result<MusicMaterial>> {
+  material: T,
+): Promise<Result<T>> {
   const sourceRefs = mergeRefs(
     material.sourceRefs ?? [],
     (material.playableLinks ?? []).map((link) => link.sourceRef),
@@ -179,11 +180,11 @@ async function resolveCanonicalRef(
   return undefined;
 }
 
-function withOptionalRefs(
-  material: MusicMaterial,
+function withOptionalRefs<T extends SourceMaterial>(
+  material: T,
   canonicalRef: Ref | undefined,
   sourceRefs: Ref[],
-): MusicMaterial {
+): T {
   return {
     ...material,
     ...(canonicalRef === undefined ? {} : { canonicalRef }),

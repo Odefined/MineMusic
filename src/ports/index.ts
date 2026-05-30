@@ -58,6 +58,7 @@ import type {
   MemoryEntry,
   MemoryProposal,
   MusicMaterial,
+  SourceMaterial,
   PlatformLibraryAbsence,
   PlatformLibraryItemKind,
   ProviderHttpCacheEntry,
@@ -555,7 +556,7 @@ export interface SourceGroundingPort {
   ground(input: {
     query: SourceQuery;
     sessionId?: string;
-  }): Promise<Result<MusicMaterial[]>>;
+  }): Promise<Result<SourceMaterial[]>>;
 
   refreshPlayableLinks(input: {
     material: MusicMaterial;

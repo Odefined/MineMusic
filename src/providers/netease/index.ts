@@ -15,6 +15,7 @@ import type {
   PlatformLibraryProvider,
   Ref,
   Result,
+  SourceMaterial,
   SourceProvider,
   SourceReleaseTracklistItem,
   SourceReleaseTrackPosition,
@@ -1738,7 +1739,7 @@ function toPreviewSample(item: PlatformLibraryItem): PlatformLibrarySample {
   };
 }
 
-function toMaterial(song: NetEaseSong): MusicMaterial {
+function toMaterial(song: NetEaseSong): SourceMaterial {
   const sourceRef = toSourceRef(song);
 
   if (sourceRef === undefined) {

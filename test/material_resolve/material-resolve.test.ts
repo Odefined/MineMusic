@@ -133,10 +133,28 @@ async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
     "canonical-first resolve should attach the canonical ref to returned material",
   );
   assert(
+    known.materials[0]?.materialRef?.namespace === "minemusic" &&
+      known.materials[0].materialRef.kind === "material",
+    "canonical-first resolve should materialize a product-level material ref",
+  );
+  assert(
+    known.materials[0]?.identityState === "canonical_confirmed",
+    "canonical-first resolve should return canonical-confirmed identity state",
+  );
+  assert(
     known.materials[0]?.state === "confirmed_playable",
     "canonical target plus source-backed playable link should become confirmed playable",
   );
   assert(unknown?.status === "source_only", "unknown candidates with links should be explicitly source-only");
+  assert(
+    unknown.materials[0]?.materialRef?.namespace === "minemusic" &&
+      unknown.materials[0].materialRef.kind === "material",
+    "source-only resolve should materialize a product-level material ref",
+  );
+  assert(
+    unknown.materials[0]?.identityState === "source_backed",
+    "source-only resolve should return source-backed identity state",
+  );
   assert(
     unknown.materials[0]?.state === "source_only_playable",
     "source-only fallback should only happen after canonical lookup misses",
@@ -380,7 +398,165 @@ async function readsSourceLibraryOnlyWhenExplicitlyScoped(): Promise<void> {
     resolved.result.materials[0]?.sourceRefs?.[0]?.id === librarySourceRef.id,
     "source-library scoped resolve should return the matched Source Library source ref",
   );
+  assert(
+    resolved.result.materials[0]?.materialRef?.namespace === "minemusic" &&
+      resolved.result.materials[0].materialRef.kind === "material",
+    "source-library scoped resolve should materialize a product-level material ref",
+  );
+  assert(
+    resolved.result.materials[0]?.identityState === "source_backed",
+    "source-library scoped resolve should return source-backed identity state",
+  );
   assert(sourceGroundingCalls === 0, "source-library scoped matches should not require provider grounding");
+}
+
+async function normalizesSongTrackAndAlbumSeedKindsForCanonicalLookup(): Promise<void> {
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const songCanonical: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "recording", id: "canonical-song", label: "Kind Song" },
+    kind: "recording",
+    label: "Kind Song",
+    status: "active",
+  };
+  const albumCanonical: CanonicalRecord = {
+    ref: { namespace: "minemusic", kind: "release_group", id: "canonical-album", label: "Kind Album" },
+    kind: "release_group",
+    label: "Kind Album",
+    status: "active",
+  };
+  await assertOk(canonicalRepository.put(songCanonical));
+  await assertOk(canonicalRepository.put(albumCanonical));
+
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => ({ ok: true, value: [] }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialResolve = createMaterialResolveService({
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+      sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+    }),
+    sourceGrounding,
+  });
+
+  const song = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: {
+        id: "candidate-song-kind",
+        label: "Kind Song",
+        expectedKind: "song",
+      },
+    }),
+  );
+  const album = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: {
+        id: "candidate-album-kind",
+        label: "Kind Album",
+        expectedKind: "album",
+      },
+    }),
+  );
+
+  assert(song.kind === "single", "song seed resolve should return a single result");
+  assert(song.result.canonicalRef?.id === songCanonical.ref.id, "song seed kind should normalize to recording");
+  assert(album.kind === "single", "album seed resolve should return a single result");
+  assert(album.result.canonicalRef?.id === albumCanonical.ref.id, "album seed kind should normalize to release_group");
+}
+
+async function keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve(): Promise<void> {
+  const sourceRef: Ref = { namespace: "source:fixture", kind: "track", id: "stable-source-only" };
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => ({
+      ok: true,
+      value: [
+        {
+          id: "source-only-stable-material",
+          kind: "recording",
+          label: "Stable Source Only",
+          state: "source_only_playable",
+          sourceRefs: [sourceRef],
+          playableLinks: [
+            {
+              url: "https://example.test/stable-source-only",
+              sourceRef,
+            },
+          ],
+        },
+      ],
+    }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialResolve = createMaterialResolveService({
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+      sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+    }),
+    sourceGrounding,
+  });
+
+  const first = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: { id: "first", label: "Stable Source Only", sourceRef },
+    }),
+  );
+  const second = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: { id: "second", label: "Stable Source Only", sourceRef },
+    }),
+  );
+
+  assert(first.kind === "single" && second.kind === "single", "repeated source-only resolve should return singles");
+  assert(
+    first.result.materials[0]?.materialRef.id === second.result.materials[0]?.materialRef.id,
+    "same source-only source ref should resolve to the same material ref",
+  );
+}
+
+async function materializesRepresentedUnresolvedMaterials(): Promise<void> {
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => ({
+      ok: true,
+      value: [
+        {
+          id: "provider-unresolved",
+          kind: "recording",
+          label: "Provider Unresolved",
+          state: "unresolved",
+          notes: "Provider returned no usable source identity.",
+        },
+      ],
+    }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialResolve = createMaterialResolveService({
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+      sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+    }),
+    sourceGrounding,
+  });
+
+  const resolved = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: { id: "unresolved", label: "Provider Unresolved" },
+    }),
+  );
+
+  assert(resolved.kind === "single", "represented unresolved material should return a single result");
+  assert(
+    resolved.result.materials[0]?.materialRef.id === "unresolved:provider-unresolved",
+    "represented unresolved material should receive a deterministic unresolved material ref",
+  );
+  assert(
+    resolved.result.materials[0]?.identityState === "unresolved",
+    "represented unresolved material should project unresolved identity state",
+  );
 }
 
 const singleResolveResult: MaterialResolveResult = {
@@ -395,9 +571,11 @@ assert(singleResolveResult.result.status === "unresolved", "resolve result fixtu
 
 const sourceOnlyMaterial: MusicMaterial = {
   id: "source-only",
+  materialRef: { namespace: "minemusic", kind: "material", id: "source-only" },
   kind: "recording",
   label: "Source Only",
   state: "source_only_playable",
+  identityState: "source_backed",
 };
 assert(sourceOnlyMaterial.state === "source_only_playable", "material resolve fixtures should use material contracts");
 
@@ -405,3 +583,6 @@ await resolvesCandidateSetsWithCanonicalFirstLookup();
 await blocksCanonicalResolvedMaterialsThroughCollectionPort();
 await blocksSourceMaterialsAfterSourceRefCanonicalLookup();
 await readsSourceLibraryOnlyWhenExplicitlyScoped();
+await normalizesSongTrackAndAlbumSeedKindsForCanonicalLookup();
+await keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve();
+await materializesRepresentedUnresolvedMaterials();

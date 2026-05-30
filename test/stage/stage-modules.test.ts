@@ -165,23 +165,29 @@ async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
   const materials: MusicMaterial[] = [
     {
       id: "confirmed",
+      materialRef: { namespace: "minemusic", kind: "material", id: "confirmed" },
       kind: "recording",
       label: "Confirmed",
       state: "confirmed_playable",
+      identityState: "canonical_confirmed",
       playableLinks: [{ url: "https://example.test/confirmed", sourceRef }],
     },
     {
       id: "grounded-with-link",
+      materialRef: { namespace: "minemusic", kind: "material", id: "grounded-with-link" },
       kind: "recording",
       label: "Grounded With Link",
       state: "grounded",
+      identityState: "source_backed",
       playableLinks: [{ url: "https://example.test/not-yet", sourceRef }],
     },
     {
       id: "blocked",
+      materialRef: { namespace: "minemusic", kind: "material", id: "blocked" },
       kind: "recording",
       label: "Blocked",
       state: "blocked",
+      identityState: "source_backed",
       playableLinks: [{ url: "https://example.test/blocked", sourceRef }],
     },
   ];
@@ -197,6 +203,10 @@ async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
 
   assert(prepared[0]?.playableLinks?.length === 1, "confirmed playable material should retain links");
   assert(prepared[1]?.playableLinks === undefined, "grounded material must not present playable links");
+  assert(
+    prepared[1]?.materialRef.id === "grounded-with-link" && prepared[1].identityState === "source_backed",
+    "material gate should preserve material identity fields when hiding links",
+  );
   assert(prepared[2]?.playableLinks === undefined, "blocked material must not present playable links");
 }
 
@@ -220,9 +230,11 @@ async function supportsDetachedPublicPortMethods(): Promise<void> {
       materials: [
         {
           id: "grounded",
+          materialRef: { namespace: "minemusic", kind: "material", id: "grounded" },
           kind: "recording",
           label: "Grounded",
           state: "grounded",
+          identityState: "source_backed",
           playableLinks: [
             {
               url: "https://example.test/grounded",
