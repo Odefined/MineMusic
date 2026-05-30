@@ -10,6 +10,7 @@ import type {
   MaterialPoolsListOutput,
   MaterialQueryInput,
   MaterialQueryOutput,
+  MaterialRecord,
   MaterialRelatedInput,
   MaterialRelatedOutput,
   MaterialResolveCardsInput,
@@ -54,19 +55,20 @@ export function createMaterialQueryService({
   const service: MaterialQueryService = {
     async resolveCards(input) {
       const ownerScope = input.ownerScope ?? defaultOwnerScope;
-      const materials = await resolveSeeds({
+      const cards = await resolveSeedCards({
+        materialStore,
         materialResolve,
         ownerScope,
         seeds: input.seeds,
         ...(input.limit === undefined ? {} : { limit: input.limit }),
       });
 
-      if (!materials.ok) {
-        return materials;
+      if (!cards.ok) {
+        return cards;
       }
 
       return ok({
-        items: materials.value.map((material) => toMaterialCard(material)),
+        items: cards.value,
       });
     },
 
@@ -100,7 +102,9 @@ export function createMaterialQueryService({
         materialStore,
         ownerScope,
         materials: resolved.value,
+        returnKind: input.returnKind,
         constraints: input.constraints,
+        preferenceHints: input.preferenceHints,
         exclude: input.exclude,
         clock,
       });
@@ -109,8 +113,22 @@ export function createMaterialQueryService({
         return filtered;
       }
 
-      const ordered = orderMaterials(filtered.value, input.order, ownerScope);
-      const items = ordered.slice(0, limit).map((material) => toMaterialCard(material));
+      const ordered = await orderMaterials({
+        materialStore,
+        materials: filtered.value,
+        order: input.order,
+        preferenceHints: input.preferenceHints,
+        ownerScope,
+      });
+
+      if (!ordered.ok) {
+        return ordered;
+      }
+
+      const offset = parseCursor(input.cursor);
+      const page = ordered.value.slice(offset, offset + limit);
+      const nextCursor = offset + limit < ordered.value.length ? encodeCursor(offset + limit) : undefined;
+      const items = page.map((material) => toMaterialCard(material));
 
       return ok({
         basis: {
@@ -118,6 +136,7 @@ export function createMaterialQueryService({
           applied: appliedLabels(input),
         },
         items,
+        ...(nextCursor === undefined ? {} : { nextCursor }),
       });
     },
 
@@ -152,7 +171,7 @@ export function materialRefToCardRef(materialRef: Ref): string {
 }
 
 export function cardRefToMaterialRef(ref: string): Ref {
-  const id = ref.startsWith("mat_") ? decodeURIComponent(ref.slice("mat_".length)) : ref;
+  const id = ref.startsWith("mat_") ? safeDecodeURIComponent(ref.slice("mat_".length)) : ref;
 
   return {
     namespace: "minemusic",
@@ -290,6 +309,127 @@ async function resolveSeeds({
   return ok(resolved.value);
 }
 
+async function resolveSeedCards({
+  materialStore,
+  materialResolve,
+  ownerScope,
+  seeds,
+  limit,
+}: {
+  materialStore: MaterialStorePort;
+  materialResolve: MaterialResolvePort;
+  ownerScope: string;
+  seeds: ResolveSeed[];
+  limit?: number;
+}): Promise<Result<MaterialCard[]>> {
+  const cards: MaterialCard[] = [];
+
+  for (const [index, seed] of seeds.entries()) {
+    if (seed.ref !== undefined) {
+      const resolved = await resolveMaterialRefSeed({
+        materialStore,
+        materialResolve,
+        ownerScope,
+        seed: { ...seed, ref: seed.ref },
+        ...(limit === undefined ? {} : { limit }),
+      });
+
+      if (!resolved.ok) {
+        return resolved;
+      }
+
+      cards.push(...resolved.value);
+      continue;
+    }
+
+    const resolved = await resolveSeeds({
+      materialResolve,
+      ownerScope,
+      seeds: [seed],
+      ...(limit === undefined ? {} : { limit }),
+    });
+
+    if (!resolved.ok) {
+      return resolved;
+    }
+
+    cards.push(...resolved.value.map((material) => toMaterialCard(material)));
+
+    if (resolved.value.length === 0) {
+      cards.push({
+        ref: `seed:${index + 1}`,
+        title: seed.text ?? `seed-${index + 1}`,
+        status: "unresolved",
+        reason: "material_not_found",
+      });
+    }
+  }
+
+  return ok(cards);
+}
+
+async function resolveMaterialRefSeed({
+  materialStore,
+  materialResolve,
+  ownerScope,
+  seed,
+  limit,
+}: {
+  materialStore: MaterialStorePort;
+  materialResolve: MaterialResolvePort;
+  ownerScope: string;
+  seed: ResolveSeed & { ref: string };
+  limit?: number;
+}): Promise<Result<MaterialCard[]>> {
+  const materialRef = cardRefToMaterialRef(seed.ref);
+  const record = await materialStore.getMaterialRecord({ materialRef });
+
+  if (!record.ok) {
+    return record;
+  }
+
+  if (record.value === null) {
+    return ok([unresolvedMaterialCard(seed.ref, seed.text ?? seed.ref, "material_not_found")]);
+  }
+
+  const candidate = await candidateForMaterialRecord(materialStore, record.value, seed);
+
+  if (!candidate.ok) {
+    return candidate;
+  }
+
+  const resolved = await materialResolve.resolve({
+    kind: "single",
+    ownerScope,
+    candidate: candidate.value,
+    ...(limit === undefined ? {} : { limitPerCandidate: limit }),
+  });
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const materials = resolved.value.kind === "single" ? resolved.value.result.materials : [];
+
+  if (materials.length > 0) {
+    return ok(materials.map(toMaterialCard));
+  }
+
+  const title = await labelForMaterialRecord(materialStore, record.value);
+
+  if (!title.ok) {
+    return title;
+  }
+
+  return ok([
+    {
+      ref: materialRefToCardRef(record.value.materialRef),
+      title: title.value,
+      status: record.value.identityState === "ambiguous" ? "ambiguous" : "found_no_link",
+    },
+  ]);
+}
+
 async function resolveCandidates({
   materialResolve,
   ownerScope,
@@ -389,7 +529,7 @@ async function sourceLibraryCandidates({
       return items;
     }
 
-    for (const item of items.value.filter((item) => matchesQueryText(item.label, q))) {
+    for (const item of items.value) {
       if (area === "saved_albums" && pool.expand === "tracks") {
         const expanded = await tracklistCandidatesForReleaseItem(materialStore, item);
 
@@ -397,7 +537,11 @@ async function sourceLibraryCandidates({
           return expanded;
         }
 
-        candidates.push(...expanded.value);
+        candidates.push(...expanded.value.filter((candidate) => matchesQueryText(candidate.label, q)));
+        continue;
+      }
+
+      if (!matchesQueryText(item.label, q)) {
         continue;
       }
 
@@ -444,9 +588,25 @@ async function collectionCandidates({
     return ok([]);
   }
 
+  let collectionId = pool.ref;
+
+  if (collectionId === undefined && pool.label !== undefined) {
+    const collections = await collection.listCollections({ ownerScope, includeRemoved: false });
+
+    if (!collections.ok) {
+      return collections;
+    }
+
+    collectionId = collections.value.find((entry) => entry.label === pool.label)?.id;
+
+    if (collectionId === undefined) {
+      return ok([]);
+    }
+  }
+
   const items = await collection.listItems({
     ownerScope,
-    ...(pool.ref === undefined ? {} : { collectionId: pool.ref }),
+    ...(collectionId === undefined ? {} : { collectionId }),
     ...(pool.relation === undefined ? {} : { relationKind: pool.relation }),
   });
 
@@ -565,18 +725,93 @@ function seedToCandidate(seed: ResolveSeed, index: number): MusicCandidate {
   };
 }
 
+async function candidateForMaterialRecord(
+  materialStore: MaterialStorePort,
+  record: MaterialRecord,
+  seed: ResolveSeed,
+): Promise<Result<MusicCandidate>> {
+  const label = await labelForMaterialRecord(materialStore, record);
+
+  if (!label.ok) {
+    return label;
+  }
+
+  const sourceRef = record.primarySourceRef ?? record.sourceRefs[0];
+  const canonicalRef = record.canonicalRef;
+
+  return ok({
+    id: `material-ref:${record.materialRef.id}`,
+    label: seed.text ?? label.value,
+    expectedKind: normalizeSeedKind(seed.kind ?? record.kind),
+    ...(sourceRef === undefined ? {} : { sourceRef }),
+    ...(canonicalRef === undefined ? {} : { canonicalRef }),
+    query: {
+      text: seed.text ?? label.value,
+      ...(sourceRef === undefined ? {} : { sourceRef }),
+      ...(canonicalRef === undefined ? {} : { canonicalRef }),
+    },
+    ...(seed.reason === undefined ? {} : { reason: seed.reason }),
+  });
+}
+
+async function labelForMaterialRecord(
+  materialStore: MaterialStorePort,
+  record: MaterialRecord,
+): Promise<Result<string>> {
+  if (record.canonicalRef !== undefined) {
+    const canonical = await materialStore.getCanonical({ ref: record.canonicalRef });
+
+    if (!canonical.ok) {
+      return canonical;
+    }
+
+    if (canonical.value !== null) {
+      return ok(canonical.value.label);
+    }
+  }
+
+  const sourceRef = record.primarySourceRef ?? record.sourceRefs[0];
+
+  if (sourceRef !== undefined) {
+    const source = await materialStore.getSourceEntity({ sourceRef });
+
+    if (!source.ok) {
+      return source;
+    }
+
+    if (source.value !== null) {
+      return ok(source.value.label);
+    }
+  }
+
+  return ok(record.materialRef.label ?? record.materialRef.id);
+}
+
+function unresolvedMaterialCard(ref: string, title: string, reason: string): MaterialCard {
+  return {
+    ref,
+    title,
+    status: "unresolved",
+    reason,
+  };
+}
+
 async function filterMaterials({
   materialStore,
   ownerScope,
   materials,
+  returnKind,
   constraints,
+  preferenceHints,
   exclude,
   clock,
 }: {
   materialStore: MaterialStorePort;
   ownerScope: string;
   materials: MusicMaterial[];
+  returnKind?: MaterialQueryInput["returnKind"];
   constraints?: MaterialQueryInput["constraints"];
+  preferenceHints?: MaterialQueryInput["preferenceHints"];
   exclude?: MaterialQueryInput["exclude"];
   clock: () => string;
 }): Promise<Result<MusicMaterial[]>> {
@@ -584,6 +819,10 @@ async function filterMaterials({
   const filtered: MusicMaterial[] = [];
 
   for (const material of materials) {
+    if (!matchesReturnKind(material, returnKind)) {
+      continue;
+    }
+
     if (excludedRefs.has(materialRefToCardRef(material.materialRef))) {
       continue;
     }
@@ -593,6 +832,10 @@ async function filterMaterials({
     }
 
     if (constraints?.identity === "confirmed_only" && material.identityState !== "canonical_confirmed") {
+      continue;
+    }
+
+    if (matchesAnyHint(material, avoidHints(preferenceHints))) {
       continue;
     }
 
@@ -1179,27 +1422,142 @@ async function listPoolsForInput({
   return ok({ pools });
 }
 
-function orderMaterials(
-  materials: MusicMaterial[],
-  order: MaterialQueryInput["order"],
-  ownerScope: string,
-): MusicMaterial[] {
+async function orderMaterials({
+  materialStore,
+  materials,
+  order,
+  preferenceHints,
+  ownerScope,
+}: {
+  materialStore: MaterialStorePort;
+  materials: MusicMaterial[];
+  order: MaterialQueryInput["order"];
+  preferenceHints?: MaterialQueryInput["preferenceHints"];
+  ownerScope: string;
+}): Promise<Result<MusicMaterial[]>> {
   const deduped = dedupeMaterials(materials);
 
   if (order === "random") {
-    return [...deduped].sort((left, right) => refKey(left.materialRef).localeCompare(refKey(right.materialRef)));
+    return ok([...deduped].sort((left, right) => {
+      const hashDelta = stableHash(refKey(left.materialRef)) - stableHash(refKey(right.materialRef));
+
+      return hashDelta === 0 ? refKey(left.materialRef).localeCompare(refKey(right.materialRef)) : hashDelta;
+    }));
+  }
+
+  if (order === "recently_added") {
+    const addedAtByRef = new Map<string, string | undefined>();
+
+    for (const material of deduped) {
+      const addedAt = await recentlyAddedAtForMaterial(materialStore, ownerScope, material);
+
+      if (!addedAt.ok) {
+        return addedAt;
+      }
+
+      addedAtByRef.set(refKey(material.materialRef), addedAt.value);
+    }
+
+    return ok([...deduped].sort((left, right) => {
+      const leftAddedAt = addedAtByRef.get(refKey(left.materialRef));
+      const rightAddedAt = addedAtByRef.get(refKey(right.materialRef));
+
+      if (leftAddedAt === undefined && rightAddedAt !== undefined) {
+        return 1;
+      }
+
+      if (leftAddedAt !== undefined && rightAddedAt === undefined) {
+        return -1;
+      }
+
+      if (leftAddedAt !== undefined && rightAddedAt !== undefined && leftAddedAt !== rightAddedAt) {
+        return rightAddedAt.localeCompare(leftAddedAt);
+      }
+
+      return refKey(left.materialRef).localeCompare(refKey(right.materialRef));
+    }));
   }
 
   if (order === "least_recently_recommended") {
-    return [...deduped].sort((left, right) => {
-      const leftKey = `${ownerScope}:${left.materialRef.id}`;
-      const rightKey = `${ownerScope}:${right.materialRef.id}`;
+    const activityByRef = new Map<string, MaterialActivity | null>();
 
-      return leftKey.localeCompare(rightKey);
-    });
+    for (const material of deduped) {
+      const activity = await materialStore.getMaterialActivity({ ownerScope, materialRef: material.materialRef });
+
+      if (!activity.ok) {
+        return activity;
+      }
+
+      activityByRef.set(refKey(material.materialRef), activity.value);
+    }
+
+    return ok([...deduped].sort((left, right) => {
+      const leftRecommended = activityByRef.get(refKey(left.materialRef))?.lastRecommendedAt;
+      const rightRecommended = activityByRef.get(refKey(right.materialRef))?.lastRecommendedAt;
+
+      if (leftRecommended === undefined && rightRecommended !== undefined) {
+        return -1;
+      }
+
+      if (leftRecommended !== undefined && rightRecommended === undefined) {
+        return 1;
+      }
+
+      if (leftRecommended !== undefined && rightRecommended !== undefined && leftRecommended !== rightRecommended) {
+        return leftRecommended.localeCompare(rightRecommended);
+      }
+
+      return refKey(left.materialRef).localeCompare(refKey(right.materialRef));
+    }));
   }
 
-  return deduped;
+  const preferHints = preferredHints(preferenceHints);
+
+  if ((order === undefined || order === "relevance") && preferHints.length > 0) {
+    return ok([...deduped].sort((left, right) => {
+      const scoreDelta = hintScore(right, preferHints) - hintScore(left, preferHints);
+
+      return scoreDelta === 0 ? refKey(left.materialRef).localeCompare(refKey(right.materialRef)) : scoreDelta;
+    }));
+  }
+
+  return ok(deduped);
+}
+
+async function recentlyAddedAtForMaterial(
+  materialStore: MaterialStorePort,
+  ownerScope: string,
+  material: MusicMaterial,
+): Promise<Result<string | undefined>> {
+  const sourceTimes: string[] = [];
+
+  for (const sourceRef of material.sourceRefs ?? []) {
+    const items = await materialStore.listSourceLibraryItems({
+      ownerScope,
+      sourceRef,
+      status: "present",
+    });
+
+    if (!items.ok) {
+      return items;
+    }
+
+    sourceTimes.push(...items.value.map((item) => item.addedAt ?? item.lastSeenAt));
+  }
+
+  if (sourceTimes.length > 0) {
+    const sorted = [...sourceTimes].sort();
+
+    return ok(sorted[sorted.length - 1]);
+  }
+
+  const record = await materialStore.getMaterialRecord({ materialRef: material.materialRef });
+
+  if (!record.ok) {
+    return record;
+  }
+
+  return ok(record.value?.createdAt);
 }
 
 function appliedLabels(input: MaterialQueryInput): string[] {
@@ -1213,6 +1571,34 @@ function appliedLabels(input: MaterialQueryInput): string[] {
     applied.push(`identity:${input.constraints.identity}`);
   }
 
+  if (input.returnKind !== undefined) {
+    applied.push(`returnKind:${input.returnKind}`);
+  }
+
+  if (input.preferenceHints?.prefer !== undefined) {
+    applied.push(`prefer:${input.preferenceHints.prefer.join(",")}`);
+  }
+
+  if (input.preferenceHints?.avoid !== undefined) {
+    applied.push(`avoid:${input.preferenceHints.avoid.join(",")}`);
+  }
+
+  if (input.preferenceHints?.activity !== undefined) {
+    applied.push(`activity:${input.preferenceHints.activity}`);
+  }
+
+  if (input.preferenceHints?.mood !== undefined) {
+    applied.push(`mood:${input.preferenceHints.mood.join(",")}`);
+  }
+
+  if (input.preferenceHints?.energy !== undefined) {
+    applied.push(`energy:${input.preferenceHints.energy}`);
+  }
+
+  if (input.preferenceHints?.vocal !== undefined) {
+    applied.push(`vocal:${input.preferenceHints.vocal}`);
+  }
+
   if (input.exclude?.relations !== undefined) {
     applied.push(`exclude_relations:${input.exclude.relations.join(",")}`);
   }
@@ -1222,6 +1608,20 @@ function appliedLabels(input: MaterialQueryInput): string[] {
   }
 
   return applied;
+}
+
+function parseCursor(cursor: string | undefined): number {
+  if (cursor === undefined || !cursor.startsWith("mq_")) {
+    return 0;
+  }
+
+  const offset = Number.parseInt(cursor.slice("mq_".length), 10);
+
+  return Number.isSafeInteger(offset) && offset > 0 ? offset : 0;
+}
+
+function encodeCursor(offset: number): string {
+  return `mq_${offset}`;
 }
 
 function poolLabel(pool: NonNullable<MaterialQueryInput["pool"]>): string {
@@ -1298,12 +1698,113 @@ function matchesQueryText(label: string, q: string | undefined): boolean {
   return q === undefined || label.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase());
 }
 
+function matchesAnyHint(material: MusicMaterial, hints: string[] | undefined): boolean {
+  if (hints === undefined || hints.length === 0) {
+    return false;
+  }
+
+  const text = searchableMaterialText(material);
+
+  return normalizeHints(hints).some((hint) => text.includes(hint));
+}
+
+function preferredHints(preferenceHints: MaterialQueryInput["preferenceHints"]): string[] {
+  if (preferenceHints === undefined) {
+    return [];
+  }
+
+  return [
+    ...(preferenceHints.prefer ?? []),
+    ...(preferenceHints.activity === undefined ? [] : [preferenceHints.activity]),
+    ...(preferenceHints.mood ?? []),
+    ...(preferenceHints.energy === undefined ? [] : [preferenceHints.energy]),
+    ...(preferenceHints.vocal === "prefer" ? vocalHints() : []),
+  ];
+}
+
+function avoidHints(preferenceHints: MaterialQueryInput["preferenceHints"]): string[] {
+  if (preferenceHints === undefined) {
+    return [];
+  }
+
+  return [
+    ...(preferenceHints.avoid ?? []),
+    ...(preferenceHints.vocal === "avoid" ? vocalHints() : []),
+  ];
+}
+
+function vocalHints(): string[] {
+  return ["vocal", "voice", "singing", "lyrics"];
+}
+
+function hintScore(material: MusicMaterial, hints: string[] | undefined): number {
+  if (hints === undefined || hints.length === 0) {
+    return 0;
+  }
+
+  const text = searchableMaterialText(material);
+
+  return normalizeHints(hints).filter((hint) => text.includes(hint)).length;
+}
+
+function searchableMaterialText(material: MusicMaterial): string {
+  return [
+    material.label,
+    material.notes,
+    ...(material.evidence ?? []).map((evidence) => evidence.note),
+  ]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join(" ")
+    .toLocaleLowerCase();
+}
+
+function normalizeHints(hints: string[]): string[] {
+  return hints
+    .map((hint) => hint.trim().toLocaleLowerCase())
+    .filter((hint) => hint.length > 0);
+}
+
+function matchesReturnKind(material: MusicMaterial, returnKind: MaterialQueryInput["returnKind"]): boolean {
+  if (returnKind === undefined) {
+    return true;
+  }
+
+  return normalizedReturnKinds(returnKind).has(material.kind);
+}
+
+function normalizedReturnKinds(returnKind: NonNullable<MaterialQueryInput["returnKind"]>): Set<string> {
+  switch (returnKind) {
+    case "album":
+      return new Set(["release", "release_group"]);
+    default:
+      return new Set([returnKind]);
+  }
+}
+
 function normalizeLimit(limit: number | undefined): number {
   if (limit === undefined || !Number.isFinite(limit)) {
     return defaultLimit;
   }
 
   return Math.max(1, Math.min(50, Math.floor(limit)));
+}
+
+function stableHash(value: string): number {
+  let hash = 0;
+
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+
+  return hash;
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function dedupeMaterials(materials: MusicMaterial[]): MusicMaterial[] {

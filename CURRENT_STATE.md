@@ -100,12 +100,18 @@ agent-facing `MaterialCard` contracts and the Material Query service. Stage
 Interface now exposes `music.material.resolve.cards`, `music.material.query`,
 `music.material.related`, `music.material.context.brief`, and
 `music.pools.list`. Query supports Source Library saved tracks, saved albums
-expanded into tracks, Collection compatibility through canonical refs, relation
-exclusions, and recent-activity exclusions. Related material resolves generated
-candidates through Material Resolve and supports same-artist, same-album, and
-similar flows with canonical-artist preference and source artist/release
-fallback. `stage.context.read` now returns bounded `recentCards` from compact
-recommendation presentation events without exposing raw event payloads.
+expanded into tracks, Collection compatibility through canonical refs or
+collection labels, `returnKind`, relation exclusions, recent-activity
+exclusions, cursor pagination, recently-added and least-recently-recommended
+ordering, and lightweight text matching for `preferenceHints`. Related material
+resolves generated candidates through Material Resolve and supports same-artist,
+same-album, and similar flows with canonical-artist preference and source
+artist/release fallback. `music.material.resolve.cards` resolves opaque `mat_*`
+card refs through Material Registry / Material Resolve rather than treating them
+as search text. `stage.context.read` now returns bounded `recentCards` from
+compact recommendation presentation events without exposing raw event payloads,
+and Event Service projects compact `MaterialCard.ref` strings into Material
+Activity so recent query exclusions work after compact recommendation events.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

@@ -1042,6 +1042,12 @@
 - Added PR 4 tests for query pools, relation/recent exclusions, related basis
   fallback, compact output hygiene, Stage Interface/MCP tool exposure, and
   recent-card context.
+- Addressed PR #7 review feedback by wiring `ResolveSeed.ref` to Material
+  Registry / Material Resolve, decoding compact `MaterialCard.ref` strings in
+  Event Service activity projection, honoring `returnKind`, and adding
+  deterministic cursor pagination, collection-label lookup, saved-album
+  track-level text filtering, lightweight `preferenceHints` matching, and
+  recently-added / least-recently-recommended ordering.
 
 ## Next
 

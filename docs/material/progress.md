@@ -38,14 +38,22 @@ or material merge.
 
 Material Query now exposes compact agent-facing retrieval over material cards.
 `music.material.query` can restrict results to Source Library saved tracks and
-saved albums expanded into tracks, apply relation and recent-activity
-exclusions, and return opaque card refs without raw source/canonical/evidence
-graphs. `music.material.related` resolves related candidates through Material
-Resolve for same-artist, same-album, and similar flows, preferring confirmed
-artist basis when source-artist bindings exist and falling back to source
-artist/release facts when canonical identity is missing. Stage context now
-includes bounded `recentCards` derived from recommendation presentation events
-without exposing raw event payloads.
+saved albums expanded into tracks, apply `returnKind`, relation exclusions,
+recent-activity exclusions, cursor pagination, and least-recently-recommended
+ordering, recently-added ordering, apply lightweight text matching for
+`preferenceHints` fields, and return opaque card refs without raw
+source/canonical/evidence graphs. `music.material.resolve.cards` now resolves
+returned `mat_*` card refs back through Material Registry / Material Resolve
+instead of treating them as text search. `music.material.related` resolves
+related candidates through
+Material Resolve for same-artist,
+same-album, and similar flows, preferring confirmed artist basis when
+source-artist bindings exist and falling back to source artist/release facts
+when canonical identity is missing. Stage context now includes bounded
+`recentCards` derived from recommendation presentation events without exposing
+raw event payloads. Event Service also projects compact `MaterialCard.ref`
+strings in recommendation payloads into Material Activity, so recent exclusion
+works for compact card events.
 
 ## Implemented
 
@@ -101,6 +109,12 @@ without exposing raw event payloads.
   `music.pools.list`.
 - Added bounded `StageContext.recentCards` from compact recommendation card
   payloads.
+- Addressed PR #7 review feedback by making `ResolveSeed.ref` resolve material
+  card refs, decoding compact `MaterialCard.ref` values during activity
+  projection, honoring `MaterialQueryInput.returnKind`, and tightening related
+  public structured fields such as `cursor`, collection `label`, saved-album
+  track-level `q`, lightweight `preferenceHints` matching, and
+  `recently_added` / `least_recently_recommended` ordering.
 
 ## Verification
 
@@ -136,6 +150,14 @@ without exposing raw event payloads.
   `node .tmp-test/test/surfaces/mcp-server.test.js`.
 - `npm run typecheck` passed for PR 4 on 2026-05-30.
 - `npm test` passed for PR 4 on 2026-05-30.
+- PR #7 review-fix targeted checks passed on 2026-05-30:
+  `node .tmp-test/test/material_query/material-query.test.js`,
+  `node .tmp-test/test/events/material-activity.test.js`,
+  `node .tmp-test/test/material_related/material-related.test.js`,
+  `node .tmp-test/test/stage/stage-modules.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface.test.js`, and
+  `node .tmp-test/test/surfaces/mcp-server.test.js`.
+- `npm run typecheck` passed after PR #7 review fixes on 2026-05-30.
 
 ## Remaining
 
