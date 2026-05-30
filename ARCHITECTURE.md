@@ -42,7 +42,10 @@ Compact material retrieval is the default agent-facing material view:
 Material Query returns `MaterialCard` outputs, follows material merge redirects
 for old compact refs, and keeps raw source/canonical/evidence details behind
 internal Material Store and Material Resolve boundaries unless a compatibility
-or diagnostic tool explicitly asks for them.
+or diagnostic tool explicitly asks for them. Stage Interface collection tools
+accept those compact card refs for material actions, and Collection Service
+uses Material Registry redirects when filtering or removing material-backed
+collection items.
 
 ## Vocabulary Source
 

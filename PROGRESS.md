@@ -1076,6 +1076,10 @@
   live registry projection is unavailable, validate material collection kinds
   through the existing collection-kind schema, and follow material merge
   redirects for compact resolve, related, and explicit exclude-ref paths.
+- Addressed the second PR #10 review pass by adding compact `ref` card-string
+  support to public collection tools, keeping raw `materialRef` as
+  compatibility, and making material-backed Collection filter/remove behavior
+  survive material redirects across merges with SQLite-backed service coverage.
 
 ## Next
 

@@ -126,11 +126,13 @@ consequence-bearing modules toward product-level material targets. Collection
 Items now support `materialRef`, material snapshots, relation scope, identity
 requirements, and `pending_identity` status while preserving legacy
 `canonicalRef` collection APIs. Collection Service can block source-only
-materials and filter blocked material refs, and Stage Interface collection tools
-accept either `canonicalRef` or `materialRef` payloads. Material Query collection
-pools return material-only items directly, use snapshots as a fallback when a
-live projection is unavailable, and keep legacy canonical collection items
-working during migration. Event Service accepts
+materials and filter blocked material refs, with material filtering and removal
+following Material Registry redirects after merges. Stage Interface collection
+tools accept compact `ref` card strings as the normal material target path
+while preserving `canonicalRef` and raw `materialRef` compatibility. Material
+Query collection pools return material-only items directly, use snapshots as a
+fallback when a live projection is unavailable, and keep legacy canonical
+collection items working during migration. Event Service accepts
 structured material snapshot targets while preserving old Ref targets. Memory
 entries can carry structured material targets under the existing evidence gate,
 and Effect Boundary accepts compact material action targets.

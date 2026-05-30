@@ -18,10 +18,12 @@ import type {
 export type CollectionServiceOptions = {
   repository: CollectionRepository;
   events: EventPort;
-  materialStore?: Pick<MaterialStorePort, "getOrCreateByCanonicalRef">;
+  materialStore?: Pick<MaterialStorePort, "getOrCreateByCanonicalRef" | "resolveMaterialRedirect">;
   idFactory?: () => string;
   clock?: () => string;
 };
+
+type CollectionMaterialStore = NonNullable<CollectionServiceOptions["materialStore"]>;
 
 const collectionKinds = [
   "recording",
@@ -171,6 +173,12 @@ export function createCollectionService({
       identityRequirement,
       description,
     }) {
+      const currentMaterialRef = await resolveCurrentMaterialRef(materialStore, materialRef);
+
+      if (!currentMaterialRef.ok) {
+        return currentMaterialRef;
+      }
+
       const resolvedCollectionKind = collectionKindForMaterialInput({
         ...(collectionKind === undefined ? {} : { collectionKind }),
         ...(canonicalRef === undefined ? {} : { canonicalRef }),
@@ -189,10 +197,11 @@ export function createCollectionService({
       const exclusions = await removeExcludedSystemMaterialMemberships({
         repository,
         events,
+        materialStore,
         clock,
         ownerScope,
         relationKind,
-        materialRef,
+        materialRef: currentMaterialRef.value,
         collectionKind: resolvedCollectionKind,
       });
 
@@ -203,10 +212,11 @@ export function createCollectionService({
       return addMaterialToResolvedCollection({
         repository,
         events,
+        materialStore,
         idFactory,
         clock,
         collection: collection.value,
-        materialRef,
+        materialRef: currentMaterialRef.value,
         label,
         relationKind,
         ...(canonicalRef === undefined ? {} : { canonicalRef }),
@@ -242,10 +252,43 @@ export function createCollectionService({
     },
 
     async removeMaterialFromSystemCollection({ ownerScope, relationKind, materialRef, collectionKind }) {
+      if (collectionKind === undefined) {
+        const collections = await repository.listCollections({
+          ownerScope,
+          relationKind,
+        });
+
+        if (!collections.ok) {
+          return collections;
+        }
+
+        for (const collection of collections.value) {
+          const removed = await removeMaterialFromResolvedCollection({
+            repository,
+            events,
+            materialStore,
+            clock,
+            collection,
+            materialRef,
+            requireExisting: false,
+          });
+
+          if (!removed.ok) {
+            return removed;
+          }
+
+          if (removed.value !== null) {
+            return ok(removed.value);
+          }
+        }
+
+        return failNotFound("Collection item was not found.");
+      }
+
       const collection = await findSystemCollection(repository, {
         ownerScope,
         relationKind,
-        collectionKind: collectionKind ?? "recording",
+        collectionKind,
       });
 
       if (!collection.ok) {
@@ -255,6 +298,7 @@ export function createCollectionService({
       return removeRequiredMaterialFromResolvedCollection({
         repository,
         events,
+        materialStore,
         clock,
         collection: collection.value,
         materialRef,
@@ -305,13 +349,20 @@ export function createCollectionService({
         return collection;
       }
 
+      const currentMaterialRef = await resolveCurrentMaterialRef(materialStore, materialRef);
+
+      if (!currentMaterialRef.ok) {
+        return currentMaterialRef;
+      }
+
       return addMaterialToResolvedCollection({
         repository,
         events,
+        materialStore,
         idFactory,
         clock,
         collection: collection.value,
-        materialRef,
+        materialRef: currentMaterialRef.value,
         label,
         relationKind: collection.value.relationKind,
         ...(canonicalRef === undefined ? {} : { canonicalRef }),
@@ -351,6 +402,7 @@ export function createCollectionService({
       return removeRequiredMaterialFromResolvedCollection({
         repository,
         events,
+        materialStore,
         clock,
         collection: collection.value,
         materialRef,
@@ -560,10 +612,18 @@ export function createCollectionService({
       }
 
       for (const materialRef of materialRefs) {
+        const currentMaterialRef = await resolveCurrentMaterialRef(materialStore, materialRef);
+
+        if (!currentMaterialRef.ok) {
+          return currentMaterialRef;
+        }
+
         for (const collection of collections.value) {
-          const item = await repository.findItemByMaterialMembership({
+          const item = await findMaterialCollectionItemByCurrentRef({
+            repository,
+            materialStore,
             collectionId: collection.id,
-            materialRef,
+            materialRef: currentMaterialRef.value,
           });
 
           if (!item.ok) {
@@ -732,6 +792,7 @@ async function addItemToResolvedCollection({
 async function addMaterialToResolvedCollection({
   repository,
   events,
+  materialStore,
   idFactory,
   clock,
   collection,
@@ -746,6 +807,7 @@ async function addMaterialToResolvedCollection({
 }: {
   repository: CollectionRepository;
   events: EventPort;
+  materialStore: CollectionMaterialStore | undefined;
   idFactory: () => string;
   clock: () => string;
   collection: Collection;
@@ -758,7 +820,9 @@ async function addMaterialToResolvedCollection({
   label: string;
   description?: string;
 }): Promise<Result<CollectionItem>> {
-  const existing = await repository.findItemByMaterialMembership({
+  const existing = await findMaterialCollectionItemByCurrentRef({
+    repository,
+    materialStore,
     collectionId: collection.id,
     materialRef,
     includeRemoved: true,
@@ -911,6 +975,7 @@ async function removeExcludedSystemMemberships({
 async function removeExcludedSystemMaterialMemberships({
   repository,
   events,
+  materialStore,
   clock,
   ownerScope,
   relationKind,
@@ -919,6 +984,7 @@ async function removeExcludedSystemMaterialMemberships({
 }: {
   repository: CollectionRepository;
   events: EventPort;
+  materialStore: CollectionMaterialStore | undefined;
   clock: () => string;
   ownerScope: string;
   relationKind: SystemCollectionRelationKind;
@@ -944,6 +1010,7 @@ async function removeExcludedSystemMaterialMemberships({
     const removed = await removeMaterialFromResolvedCollection({
       repository,
       events,
+      materialStore,
       clock,
       collection: collection.value,
       materialRef,
@@ -1051,6 +1118,7 @@ async function removeItemFromResolvedCollection({
 async function removeMaterialFromResolvedCollection({
   repository,
   events,
+  materialStore,
   clock,
   collection,
   materialRef,
@@ -1058,12 +1126,15 @@ async function removeMaterialFromResolvedCollection({
 }: {
   repository: CollectionRepository;
   events: EventPort;
+  materialStore: CollectionMaterialStore | undefined;
   clock: () => string;
   collection: Collection;
   materialRef: Ref;
   requireExisting: boolean;
 }): Promise<Result<CollectionItem | null>> {
-  const item = await repository.findItemByMaterialMembership({
+  const item = await findMaterialCollectionItemByCurrentRef({
+    repository,
+    materialStore,
     collectionId: collection.id,
     materialRef,
   });
@@ -1128,6 +1199,80 @@ async function materialRefForCanonicalRef(
   });
 
   return record.ok ? ok(record.value.materialRef) : record;
+}
+
+async function resolveCurrentMaterialRef(
+  materialStore: CollectionMaterialStore | undefined,
+  materialRef: Ref,
+): Promise<Result<Ref>> {
+  return materialStore === undefined
+    ? ok(materialRef)
+    : materialStore.resolveMaterialRedirect({ materialRef });
+}
+
+async function findMaterialCollectionItemByCurrentRef({
+  repository,
+  materialStore,
+  collectionId,
+  materialRef,
+  includeRemoved,
+}: {
+  repository: CollectionRepository;
+  materialStore: CollectionMaterialStore | undefined;
+  collectionId: string;
+  materialRef: Ref;
+  includeRemoved?: boolean;
+}): Promise<Result<CollectionItem | null>> {
+  const currentMaterialRef = await resolveCurrentMaterialRef(materialStore, materialRef);
+
+  if (!currentMaterialRef.ok) {
+    return currentMaterialRef;
+  }
+
+  const exact = await repository.findItemByMaterialMembership({
+    collectionId,
+    materialRef: currentMaterialRef.value,
+    ...(includeRemoved === undefined ? {} : { includeRemoved }),
+  });
+
+  if (!exact.ok || exact.value !== null) {
+    return exact;
+  }
+
+  if (materialStore === undefined) {
+    return ok(null);
+  }
+
+  const items = await repository.listItems({
+    collectionId,
+    ...(includeRemoved === undefined ? {} : { includeRemoved }),
+  });
+
+  if (!items.ok) {
+    return items;
+  }
+
+  for (const item of items.value) {
+    if (item.materialRef === undefined) {
+      continue;
+    }
+
+    const itemCurrentMaterialRef = await resolveCurrentMaterialRef(materialStore, item.materialRef);
+
+    if (!itemCurrentMaterialRef.ok) {
+      return itemCurrentMaterialRef;
+    }
+
+    if (sameRef(itemCurrentMaterialRef.value, currentMaterialRef.value)) {
+      return ok(item);
+    }
+  }
+
+  return ok(null);
+}
+
+function sameRef(left: Ref, right: Ref): boolean {
+  return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
 }
 
 function collectionKindForMaterialInput({

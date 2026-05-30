@@ -927,6 +927,25 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       },
     }),
   );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.block",
+      payload: {
+        ref: "mat_compact-source-only-material",
+        label: "Compact Source Only Material",
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.unblock",
+      payload: {
+        ref: "mat_compact-source-only-material",
+      },
+    }),
+  );
 
   assert(
     calls.includes("add:local_profile:default:saved:quiet-track"),
@@ -960,6 +979,14 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     calls.includes("remove-material:local_profile:default:blocked:source-only-material"),
     "collection unblock should accept materialRef payloads",
   );
+  assert(
+    calls.includes("add-material:local_profile:default:blocked:compact-source-only-material"),
+    "collection block should accept compact card ref payloads",
+  );
+  assert(
+    calls.includes("remove-material:local_profile:default:blocked:compact-source-only-material"),
+    "collection unblock should accept compact card ref payloads",
+  );
 }
 
 async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Promise<void> {
@@ -984,12 +1011,18 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       calls.push(`item.add:${collectionId}:${canonicalRef.id}:${label}`);
       return { ok: true, value: customItem };
     },
-    addMaterialToCollection: async () => ({ ok: true, value: customItem }),
+    addMaterialToCollection: async ({ collectionId, materialRef, label }) => {
+      calls.push(`item.add-material:${collectionId}:${materialRef.id}:${label}`);
+      return { ok: true, value: { ...customItem, materialRef } };
+    },
     removeItemFromCollection: async ({ collectionId, canonicalRef }) => {
       calls.push(`item.remove:${collectionId}:${canonicalRef.id}`);
       return { ok: true, value: customItem };
     },
-    removeMaterialFromCollection: async () => ({ ok: true, value: customItem }),
+    removeMaterialFromCollection: async ({ collectionId, materialRef }) => {
+      calls.push(`item.remove-material:${collectionId}:${materialRef.id}`);
+      return { ok: true, value: { ...customItem, materialRef } };
+    },
     updateItem: async () => ({ ok: true, value: customItem }),
     listItems: async ({ ownerScope, collectionKind, relationKind, includeRemoved, limit, cursor }) => {
       calls.push(
@@ -1082,6 +1115,20 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       payload: { collectionId: customCollection.id, canonicalRef: collectionRef },
     }),
   );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.item.add",
+      payload: { collectionId: customCollection.id, ref: "mat_custom-source-material", label: "Custom Source Material" },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.item.remove",
+      payload: { collectionId: customCollection.id, ref: "mat_custom-source-material" },
+    }),
+  );
   const listed = await assertOk(
     dispatch.call({
       sessionId: session.id,
@@ -1118,6 +1165,14 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
   assert(
     calls.includes("item.remove:collection-night-coding:quiet-track"),
     "collection item remove should use collectionId",
+  );
+  assert(
+    calls.includes("item.add-material:collection-night-coding:custom-source-material:Custom Source Material"),
+    "collection item add should accept compact card ref payloads",
+  );
+  assert(
+    calls.includes("item.remove-material:collection-night-coding:custom-source-material"),
+    "collection item remove should accept compact card ref payloads",
   );
   assert(
     calls.includes("list.collections:local_profile:default:recording:custom:true"),

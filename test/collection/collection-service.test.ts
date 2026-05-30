@@ -1,9 +1,15 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import type { MaterialRecord, Ref } from "../../src/contracts/index.js";
+import { createInMemoryMaterialRegistry } from "../../src/material_store/index.js";
 import {
   createInMemoryCollectionRepository,
   createInMemoryEventRepository,
+  createSqliteCollectionRepository,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -47,6 +53,10 @@ function createTestCollectionServiceWithMaterialBackfill() {
       getOrCreateByCanonicalRef: async ({ canonicalRef }) => ({
         ok: true,
         value: materialRecordForCanonicalRef(canonicalRef),
+      }),
+      resolveMaterialRedirect: async ({ materialRef }) => ({
+        ok: true,
+        value: materialRef,
       }),
     },
     idFactory: createSequence("collection"),
@@ -600,6 +610,86 @@ async function customCollectionsCanListMaterialItems(): Promise<void> {
   assert(listed.length === 1 && listed[0]?.materialRef?.id === materialRef.id, "custom collection should list material items");
 }
 
+async function materialSystemBlockSurvivesMergeAndUnblocksWithSurvivorRefInSqlite(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-collection-service-sqlite-"));
+  const databasePath = join(directory, "collection.sqlite");
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+  const materialRegistry = createInMemoryMaterialRegistry({
+    generateId: createSequence("material"),
+    now: () => "2026-05-24T00:00:00.000Z",
+  });
+  const collections = createCollectionService({
+    repository: createSqliteCollectionRepository({ path: databasePath }),
+    events,
+    materialStore: materialRegistry,
+    idFactory: createSequence("collection"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+  const sourceMaterial = await assertOk(
+    materialRegistry.getOrCreateBySourceRef({
+      sourceRef: { namespace: "source:fixture", kind: "track", id: "merge-source-track" },
+      kind: "recording",
+    }),
+  );
+  const survivorMaterial = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "minemusic", kind: "recording", id: "merge-survivor-track" },
+      kind: "recording",
+    }),
+  );
+
+  try {
+    await assertOk(collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+    await assertOk(
+      collections.addMaterialToSystemCollection({
+        ownerScope: "local_profile:default",
+        relationKind: "blocked",
+        materialRef: sourceMaterial.materialRef,
+        collectionKind: "recording",
+        label: "Merge Source Track",
+        identityRequirement: "none",
+      }),
+    );
+    await assertOk(
+      materialRegistry.mergeMaterials({
+        from: sourceMaterial.materialRef,
+        into: survivorMaterial.materialRef,
+        reason: "canonical confirmation",
+      }),
+    );
+
+    const blockedRefs = await assertOk(
+      collections.filterBlockedMaterials({
+        ownerScope: "local_profile:default",
+        materialRefs: [survivorMaterial.materialRef],
+      }),
+    );
+    const removed = await assertOk(
+      collections.removeMaterialFromSystemCollection({
+        ownerScope: "local_profile:default",
+        relationKind: "blocked",
+        materialRef: survivorMaterial.materialRef,
+      }),
+    );
+    const blockedAfterRemove = await assertOk(
+      collections.filterBlockedMaterials({
+        ownerScope: "local_profile:default",
+        materialRefs: [survivorMaterial.materialRef],
+      }),
+    );
+
+    assert(blockedRefs.length === 1 && blockedRefs[0]?.id === survivorMaterial.materialRef.id, "material block should follow merge survivor refs");
+    assert(removed.materialRef?.id === sourceMaterial.materialRef.id, "unblock with survivor ref should remove item stored under old material ref");
+    assert(blockedAfterRemove.length === 0, "removed merged material block should no longer filter survivor refs");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function materialRecordForCanonicalRef(canonicalRef: Ref): MaterialRecord {
   return {
     materialRef: {
@@ -627,3 +717,4 @@ await blocksSourceOnlyMaterialThroughSystemCollection();
 await backfillsMaterialRefForLegacyCanonicalCollectionItems();
 await materialSystemCollectionsApplyPendingIdentityAndMutualExclusion();
 await customCollectionsCanListMaterialItems();
+await materialSystemBlockSurvivesMergeAndUnblocksWithSurvivorRefInSqlite();

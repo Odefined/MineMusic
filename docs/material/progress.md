@@ -67,6 +67,11 @@ projection is unavailable, and follows material merge redirects before
 returning compact cards. Compact resolve/related/exclude-ref paths also follow
 redirects so old `mat_*` card refs project the current survivor except where
 `music.material.context.brief` explicitly reports merged status.
+Stage Interface collection tools now accept compact `ref` card strings as the
+normal material target path while keeping raw `materialRef` as compatibility.
+Collection material filtering and removal are redirect-aware, so blocks stored
+before a source-only material merges into a survivor still apply and can be
+removed through the current survivor ref.
 Event Service accepts structured material snapshot targets, Memory Service
 accepts evidence-gated structured material targets, and Effect Boundary accepts
 compact material action targets.
@@ -151,6 +156,9 @@ compact material action targets.
   material collection kinds through the existing collection-kind schema, and
   make compact resolve/related/exclude-ref paths follow material merge
   redirects.
+- Addressed the second PR #10 review pass by adding compact `ref` support to
+  public collection tools and making material-backed Collection
+  filter/remove paths follow Material Registry redirects across merges.
 
 ## Verification
 
@@ -209,6 +217,11 @@ compact material action targets.
   `node .tmp-test/test/material_query/material-query.test.js`,
   `node .tmp-test/test/material_related/material-related.test.js`, and
   `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`.
+- Second PR #10 review-fix targeted checks passed on 2026-05-31:
+  `node .tmp-test/test/collection/collection-service.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
+  `node .tmp-test/test/material_query/material-query.test.js`, and
+  `node .tmp-test/test/material_related/material-related.test.js`.
 
 ## Remaining
 
