@@ -85,6 +85,31 @@ Output: `KnowledgeResult`
 Description: Resolve music candidates into material through canonical-first material resolution.
 Input: `MaterialResolveRequest`
 Output: `MaterialResolveResult`
+#### `music.material.resolve.cards`
+
+Description: Resolve material seeds and return compact agent-safe material cards.
+Input: `MaterialResolveCardsInput`
+Output: `MaterialResolveCardsOutput`
+#### `music.material.query`
+
+Description: Query compact material cards from an explicit material pool.
+Input: `MaterialQueryInput`
+Output: `MaterialQueryOutput`
+#### `music.material.related`
+
+Description: Find compact material cards related to one material card ref.
+Input: `MaterialRelatedInput`
+Output: `MaterialRelatedOutput`
+#### `music.material.context.brief`
+
+Description: Read a compact context brief for one material card ref.
+Input: `MaterialContextBriefInput`
+Output: `MaterialContextBriefOutput`
+#### `music.pools.list`
+
+Description: List compact material pools available to query.
+Input: `MaterialPoolsListInput`
+Output: `MaterialPoolsListOutput`
 #### `music.links.refresh`
 
 Description: Refresh source-backed playable links for a material item.

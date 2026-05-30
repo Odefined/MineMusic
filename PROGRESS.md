@@ -1081,6 +1081,34 @@
   compatibility, and making material-backed Collection filter/remove behavior
   survive material redirects across merges with SQLite-backed service coverage.
 
+## 2026-05-31
+
+- Started MusicMaterial post-merge hardening on branch
+  `codex/musicmaterial-post-merge-hardening` from updated `main`.
+- Fixed Source Library import/update `addedAt` normalization so existing
+  `SourceLibraryItem.addedAt` is preserved, provider `providerAddedAt` is used
+  for first import when available, and observation time remains the final
+  fallback.
+- Tightened LLM-facing Stage Interface schemas by hiding unsupported material
+  related/order options and advanced internal collection target fields while
+  keeping compact `ref` inputs and service-level compatibility.
+- Fixed Material Query relation exclusion so
+  `exclude.relations: ["blocked"]` also removes materials already projected as
+  blocked by Collection state.
+- Added `MaterialSessionActivity` with in-memory and SQLite repositories,
+  Event Service projection, Material Store merge migration, and
+  session-scoped query exclusion for the `"session"` recent window.
+- Hardened Collection material writes so compact material refs infer system
+  collection kind from current `MaterialRecord` when possible and fail with
+  `collection.kind_unknown` when kind cannot be inferred without an explicit
+  `collectionKind`.
+- Added direct compact MaterialRecord projection for `music.material.resolve.cards`
+  ref seeds, including canonical-only `found_no_link` cards, source-backed
+  labels/links from Source Entity state, merge-survivor projection, and
+  `material_not_found` unknown-ref handling.
+- Refreshed `skills/minemusic/HANDBOOK.md` from the current Stage Interface
+  instrument catalog.
+
 ## Next
 
 - Add CLI or Web UI peer transports when there is a concrete product workflow.

@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-05-downstream-migration` with the
-MusicMaterial refactor PR 5 downstream migration changes applied locally.
+MineMusic is on `codex/musicmaterial-post-merge-hardening` with the
+MusicMaterial post-merge hardening changes applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -136,6 +136,21 @@ collection items working during migration. Event Service accepts
 structured material snapshot targets while preserving old Ref targets. Memory
 entries can carry structured material targets under the existing evidence gate,
 and Effect Boundary accepts compact material action targets.
+
+The 2026-05-31 MusicMaterial post-merge hardening fixes the follow-up review
+findings from issues #8 and #9 and tightens compact material consequences.
+Library Import now preserves existing Source Library `addedAt` values while
+using provider-supplied `providerAddedAt` before falling back to import
+observation time. Public Stage Interface schemas no longer advertise
+unsupported material related/order options or advanced internal collection
+target fields. Material Query `exclude.relations: ["blocked"]` now also
+excludes materials projected as blocked by Collection state. Recent
+`"session"` exclusions use `MaterialSessionActivity` keyed by owner, session,
+and material, while aggregate `MaterialActivity` remains for timestamp
+windows. Collection material writes infer collection kind from current
+`MaterialRecord` when compact refs are used, and compact material-card ref
+resolution can project current Material Records directly, including
+canonical-only records that have no playable source link yet.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

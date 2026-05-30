@@ -82,8 +82,10 @@ This index points agents to the current MVP documentation pack.
      retrieval.
    - `docs/material/minemusic_musicmaterial_pr_plan.md` is the staged
      implementation plan for the MusicMaterial refactor PR sequence.
+   - `docs/material/minemusic-musicmaterial-post-merge-review.md` records the
+     post-merge MusicMaterial review findings addressed after PR 5.
    - `docs/material/progress.md` records current Material Registry
-     implementation state, verification, and remaining PR 2-5 work.
+     implementation state, verification, and remaining MusicMaterial work.
 
 17. `CURRENT_STATE.md`
    - Current implementation status.

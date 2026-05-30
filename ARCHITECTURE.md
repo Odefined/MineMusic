@@ -30,11 +30,12 @@ after material merges. Canonical Store remains the canonical identity
 subdomain, and Source Entity Store owns Source Track/Release/Artist, Source
 Library, Library Import/Update state, import history, and confirmed
 source-to-canonical bindings. Material Store also owns material-scoped
-relations and recent activity projections keyed by `materialRef`, so
-source-only material can receive block, wrong-version, and not-playable
-feedback without requiring canonical identity. Direct SQLite adapters now cover
-Material Store, Collection Service, Library Import working state, and other
-opt-in runtime storage paths. MineMusic runtime configuration belongs to the long-lived
+relations plus aggregate and session-scoped recent activity projections keyed
+by `materialRef`, so source-only material can receive block, wrong-version,
+not-playable, and session-local recent-exclusion feedback without requiring
+canonical identity. Direct SQLite adapters now cover Material Store, Collection
+Service, Library Import working state, and other opt-in runtime storage paths.
+MineMusic runtime configuration belongs to the long-lived
 MineMusic server process, not to a particular host adapter such as the Codex
 skill. It does not prove playback control, autonomous DJ behavior, playlist
 editing, music intelligence, or notifications.
@@ -43,9 +44,10 @@ Material Query returns `MaterialCard` outputs, follows material merge redirects
 for old compact refs, and keeps raw source/canonical/evidence details behind
 internal Material Store and Material Resolve boundaries unless a compatibility
 or diagnostic tool explicitly asks for them. Stage Interface collection tools
-accept those compact card refs for material actions, and Collection Service
-uses Material Registry redirects when filtering or removing material-backed
-collection items.
+accept those compact card refs for material actions without exposing internal
+snapshot/relation-scope fields in the normal public schemas, and Collection
+Service uses Material Registry redirects plus MaterialRecord kind inference
+when filtering, adding, or removing material-backed collection items.
 
 ## Vocabulary Source
 
