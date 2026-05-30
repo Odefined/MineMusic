@@ -4,6 +4,7 @@ import type {
   EffectProposalRepository,
   EventRepository,
   LibraryImportRepository,
+  MaterialRegistryPort,
   MemoryRepository,
   ProviderHttpCacheRepository,
   SourceEntityStoreRepository,
@@ -14,18 +15,21 @@ import {
   createInMemoryEffectProposalRepository,
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
+  createInMemoryMaterialRegistry,
   createInMemoryMemoryRepository,
   createInMemoryProviderHttpCacheRepository,
   createInMemorySourceEntityStoreRepository,
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
+  createSqliteMaterialRegistryRepository,
   createSqliteProviderHttpCacheRepository,
   createSqliteSourceEntityStoreRepository,
 } from "../storage/index.js";
 
 export type StageCoreRepositories = {
   canonicalRepository: CanonicalRecordRepository;
+  materialRegistry: MaterialRegistryPort;
   sourceEntityStoreRepository: SourceEntityStoreRepository;
   collectionRepository: CollectionRepository;
   libraryImportRepository: LibraryImportRepository;
@@ -37,6 +41,7 @@ export type StageCoreRepositories = {
 
 export type StageCoreRepositoryOptions = {
   canonicalRepository?: CanonicalRecordRepository;
+  materialRegistry?: MaterialRegistryPort;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
@@ -54,6 +59,11 @@ export function createStageCoreRepositories(options: StageCoreRepositoryOptions)
       (options.materialStoreDatabasePath === undefined
         ? createInMemoryCanonicalRecordRepository()
         : createSqliteCanonicalRecordRepository({ path: options.materialStoreDatabasePath })),
+    materialRegistry:
+      options.materialRegistry ??
+      (options.materialStoreDatabasePath === undefined
+        ? createInMemoryMaterialRegistry()
+        : createSqliteMaterialRegistryRepository({ path: options.materialStoreDatabasePath })),
     sourceEntityStoreRepository:
       options.sourceEntityStoreRepository ??
       (options.materialStoreDatabasePath === undefined

@@ -16,6 +16,7 @@ import type {
   EventPort,
   LibraryImportPort,
   LibraryImportRepository,
+  MaterialRegistryPort,
   MaterialStorePort,
   MaterialResolvePort,
   MaterialGatePort,
@@ -67,6 +68,7 @@ export type MineMusicStageCoreOptions = {
   sourceMaterials: MusicMaterial[];
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  materialRegistry?: MaterialRegistryPort;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;
@@ -87,6 +89,7 @@ export type MineMusicStageCoreWithSourceProviderOptions = {
   sourceProvider: SourceProvider;
   canonicalRecords?: CanonicalRecord[];
   canonicalRepository?: CanonicalRecordRepository;
+  materialRegistry?: MaterialRegistryPort;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
   collectionRepository?: CollectionRepository;

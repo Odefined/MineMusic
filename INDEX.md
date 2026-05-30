@@ -77,6 +77,13 @@ This index points agents to the current MVP documentation pack.
      plan for the Source Entity Store and Source Library rewrite.
    - `docs/material-store/progress.md` records current Material Store
      implementation state, verification, and remaining gaps.
+   - `docs/material/minemusic-musicmaterial-design.md` is the MusicMaterial
+     refactor design for product-level material targets and compact material
+     retrieval.
+   - `docs/material/minemusic_musicmaterial_pr_plan.md` is the staged
+     implementation plan for the MusicMaterial refactor PR sequence.
+   - `docs/material/progress.md` records current Material Registry
+     implementation state, verification, and remaining PR 2-5 work.
 
 17. `CURRENT_STATE.md`
    - Current implementation status.
@@ -209,54 +216,68 @@ This index points agents to the current MVP documentation pack.
       collection lifecycle, item membership, blocked filtering, and events.
 
 40. `src/material_store/index.ts`
-    - Material Store composition boundary that combines Canonical Store and
-      Source Entity Store behind `MaterialStorePort`.
+    - Material Store composition boundary that combines Material Registry,
+      Canonical Store, and Source Entity Store behind `MaterialStorePort`.
 
-41. `src/material_store/canonical/index.ts`
+41. `src/material_store/material_registry/index.ts`
+    - In-memory Material Registry implementation for opaque `materialRef`
+      records, source/canonical lookup, canonical promotion, and redirects.
+
+42. `src/material_store/canonical/index.ts`
     - Canonical Store public-port implementation, provisional relation
       recording/listing with optional object refs, and current identity policy.
 
-42. `src/material_store/canonical/normalization.ts`
+43. `src/material_store/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-43. `src/material_store/canonical/storage.ts`
+44. `src/material_store/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics, plus relation persistence delegation.
 
-44. `src/storage/sqlite/canonical-schema.ts`
+45. `src/storage/sqlite/canonical-schema.ts`
     - SQLite schema initialization for Canonical Store durable storage,
       including provisional relations.
 
-45. `src/storage/sqlite/canonical-repository.ts`
+46. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation for records,
       source refs, aliases, and provisional relations.
 
-46. `src/storage/sqlite/source-entity-schema.ts`
+47. `src/storage/sqlite/source-entity-schema.ts`
     - SQLite schema initialization for Source Entity Store durable storage:
       source entities, Source Library items, and Confirmed Canonical Bindings.
 
-47. `src/storage/sqlite/source-entity-repository.ts`
+48. `src/storage/sqlite/source-entity-repository.ts`
     - SQLite-backed Source Entity Store repository implementation.
 
-48. `src/storage/sqlite/collection-schema.ts`
+49. `src/storage/sqlite/material-schema.ts`
+    - SQLite schema initialization for Material Registry durable storage:
+      records, source indexes, canonical indexes, and redirects.
+
+50. `src/storage/sqlite/material-repository.ts`
+    - SQLite-backed Material Registry repository implementation.
+
+51. `src/storage/sqlite/collection-schema.ts`
     - SQLite schema initialization for durable Collection storage.
 
-49. `src/storage/sqlite/collection-repository.ts`
+52. `src/storage/sqlite/collection-repository.ts`
     - SQLite-backed `CollectionRepository` implementation for direct durable
       repository injection.
 
-50. `src/storage/sqlite/index.ts`
+53. `src/storage/sqlite/index.ts`
     - Public SQLite storage exports.
 
-51. `test/storage/sqlite-canonical-store.test.ts`
+54. `test/storage/sqlite-canonical-store.test.ts`
     - Persistence/reopen tests for the SQLite-backed Canonical Store
       repository, including provisional relation persistence.
 
-52. `test/storage/sqlite-source-entity-store.test.ts`
+55. `test/storage/sqlite-source-entity-store.test.ts`
     - Persistence/reopen tests for Source Entity Store source entities, Source
       Library items, and Confirmed Canonical Bindings.
 
-53. `test/storage/sqlite-collection-repository.test.ts`
+56. `test/storage/sqlite-material-registry.test.ts`
+    - Persistence/reopen tests for the SQLite-backed Material Registry.
+
+57. `test/storage/sqlite-collection-repository.test.ts`
     - Persistence/reopen tests for the SQLite-backed Collection repository.
 
 54. `test/integration/canonical-persistence.test.ts`

@@ -18,6 +18,7 @@ import type {
   ToolName,
 } from "../../src/contracts/index.js";
 import { buildInstrumentHandbook } from "../../src/handbook/index.js";
+import { createInMemoryMaterialRegistry } from "../../src/material_store/index.js";
 import type {
   CanonicalMaintenancePort,
   CollectionPort,
@@ -1327,7 +1328,9 @@ async function dispatchesSourceLibraryToolsThroughMaterialStore(): Promise<void>
     },
     sourceEntity,
   };
+  const materialRegistry = createInMemoryMaterialRegistry();
   const materialStore: MaterialStorePort = {
+    ...materialRegistry,
     getCanonical: async () => ({ ok: true, value: null }),
     findCanonicalByLabel: async () => ({ ok: true, value: [] }),
     getSourceEntity: async ({ sourceRef }) => {

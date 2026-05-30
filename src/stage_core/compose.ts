@@ -29,6 +29,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const canonical = createCanonicalStore({ repository: repositories.canonicalRepository });
   const materialStore = createMaterialStore({
     canonicalStore: canonical,
+    materialRegistry: repositories.materialRegistry,
     sourceEntityStore: repositories.sourceEntityStoreRepository,
   });
   const events = createEventService({ repository: repositories.eventRepository });

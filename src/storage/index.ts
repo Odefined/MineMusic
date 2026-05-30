@@ -41,14 +41,17 @@ export {
   createSqliteCanonicalRecordRepository,
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
+  createSqliteMaterialRegistryRepository,
   createSqliteProviderHttpCacheRepository,
   createSqliteSourceEntityStoreRepository,
   sqliteCanonicalSourceRefConflictConstraint,
 } from "./sqlite/index.js";
+export { createInMemoryMaterialRegistry } from "../material_store/material_registry/index.js";
 export type {
   SqliteCanonicalRecordRepositoryOptions,
   SqliteCollectionRepositoryOptions,
   SqliteLibraryImportRepositoryOptions,
+  SqliteMaterialRegistryRepositoryOptions,
   SqliteProviderHttpCacheRepositoryOptions,
   SqliteSourceEntityStoreRepositoryOptions,
 } from "./sqlite/index.js";

@@ -78,11 +78,15 @@ import type {
   LibraryUpdateMode,
   LibraryUpdatePreviewInput,
   LibraryUpdateStartInput,
+  MaterialRecord,
+  MaterialRecordStatus,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
   MemoryProposal,
   ModuleId,
+  MusicMaterialBase,
+  MusicMaterialIdentityState,
   MusicMaterial,
   PlatformLibraryAvailability,
   PlatformLibraryAbsence,
@@ -148,6 +152,7 @@ import type {
   LibraryImportRepository,
   LibraryImportRepositoryContinuationStateInput,
   LibraryImportRepositoryListContinuationStatesInput,
+  MaterialRegistryPort,
   MaterialStorePort,
   MaterialResolvePort,
   MaterialGatePort,
@@ -1222,6 +1227,15 @@ type _confirmedCanonicalBindingListInputKeys = Expect<
 type _materialStorePortMethods = Expect<
   Equal<
     keyof MaterialStorePort,
+    | "getMaterialRecord"
+    | "resolveMaterialRedirect"
+    | "findMaterialBySourceRef"
+    | "findMaterialByCanonicalRef"
+    | "getOrCreateBySourceRef"
+    | "getOrCreateByCanonicalRef"
+    | "attachSourceRef"
+    | "promoteToCanonical"
+    | "mergeMaterials"
     | "getCanonical"
     | "findCanonicalByLabel"
     | "getSourceEntity"
@@ -1237,7 +1251,16 @@ type _materialStorePortMethods = Expect<
 >;
 
 type _materialStorePortMethodsUseSingleObjectInputs = Expect<
-  MethodAcceptsSingleObject<MaterialStorePort, "getCanonical"> &
+  MethodAcceptsSingleObject<MaterialStorePort, "getMaterialRecord"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "resolveMaterialRedirect"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "findMaterialBySourceRef"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "findMaterialByCanonicalRef"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getOrCreateBySourceRef"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getOrCreateByCanonicalRef"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "attachSourceRef"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "promoteToCanonical"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "mergeMaterials"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getCanonical"> &
     MethodAcceptsSingleObject<MaterialStorePort, "findCanonicalByLabel"> &
     MethodAcceptsSingleObject<MaterialStorePort, "getSourceEntity"> &
     MethodAcceptsSingleObject<MaterialStorePort, "upsertSourceEntity"> &
@@ -1248,6 +1271,33 @@ type _materialStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<MaterialStorePort, "getConfirmedCanonicalBinding"> &
     MethodAcceptsSingleObject<MaterialStorePort, "putConfirmedCanonicalBinding"> &
     MethodAcceptsSingleObject<MaterialStorePort, "listConfirmedCanonicalBindings">
+>;
+
+type _materialRegistryPortMethods = Expect<
+  Equal<
+    keyof MaterialRegistryPort,
+    | "getMaterialRecord"
+    | "resolveMaterialRedirect"
+    | "findMaterialBySourceRef"
+    | "findMaterialByCanonicalRef"
+    | "getOrCreateBySourceRef"
+    | "getOrCreateByCanonicalRef"
+    | "attachSourceRef"
+    | "promoteToCanonical"
+    | "mergeMaterials"
+  >
+>;
+
+type _materialRegistryPortMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<MaterialRegistryPort, "getMaterialRecord"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "resolveMaterialRedirect"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "findMaterialBySourceRef"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "findMaterialByCanonicalRef"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "getOrCreateBySourceRef"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "getOrCreateByCanonicalRef"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "attachSourceRef"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "promoteToCanonical"> &
+    MethodAcceptsSingleObject<MaterialRegistryPort, "mergeMaterials">
 >;
 
 type _sourceEntityStoreRepositoryMethods = Expect<
@@ -1355,9 +1405,41 @@ type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CollectionRepository, "listItems">
 >;
 
+type _musicMaterialIdentityStateValues = Expect<
+  Equal<
+    MusicMaterialIdentityState,
+    "canonical_confirmed" | "source_backed" | "ambiguous" | "unresolved"
+  >
+>;
+
+type _materialRecordStatusValues = Expect<
+  Equal<MaterialRecordStatus, "active" | "merged" | "rejected">
+>;
+
+type _musicMaterialBaseCompatibility = Expect<
+  Equal<MusicMaterial, MusicMaterialBase>
+>;
+
+type _materialRecordShape = Expect<
+  Equal<
+    keyof MaterialRecord,
+    | "materialRef"
+    | "kind"
+    | "identityState"
+    | "canonicalRef"
+    | "sourceRefs"
+    | "primarySourceRef"
+    | "status"
+    | "mergedIntoMaterialRef"
+    | "createdAt"
+    | "updatedAt"
+  >
+>;
+
 const moduleId: ModuleId = "stage";
 const collectionModuleId: ModuleId = "collection";
 const libraryImportModuleId: ModuleId = "library_import";
+const materialStoreModuleId: ModuleId = "material_store";
 const ref: Ref = {
   namespace: "minemusic",
   kind: "recording",
@@ -1448,6 +1530,8 @@ const requiredErrorCodes: StageErrorCode[] = [
   "library_import.batch_not_found",
   "library_import.provider_read_failed",
   "library_import.canonical_binding_failed",
+  "material_registry.conflict",
+  "material_registry.not_found",
   "plugin.provider_not_found",
   "storage.unavailable",
 ];
@@ -1983,6 +2067,7 @@ const platformLibraryCapabilitySlot: CapabilitySlot = "platform_library";
 void [
   collectionModuleId,
   libraryImportModuleId,
+  materialStoreModuleId,
   result,
   failure,
   requiredErrorCodes,

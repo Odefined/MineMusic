@@ -52,6 +52,7 @@ import type {
   LibraryImportSummaryInput,
   LibraryUpdatePreviewInput,
   LibraryUpdateStartInput,
+  MaterialRecord,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -283,6 +284,50 @@ export interface ToolDispatchPort {
 }
 
 export interface MaterialStorePort {
+  getMaterialRecord(input: {
+    materialRef: Ref;
+  }): Promise<Result<MaterialRecord | null>>;
+
+  resolveMaterialRedirect(input: {
+    materialRef: Ref;
+  }): Promise<Result<Ref>>;
+
+  findMaterialBySourceRef(input: {
+    sourceRef: Ref;
+  }): Promise<Result<MaterialRecord | null>>;
+
+  findMaterialByCanonicalRef(input: {
+    canonicalRef: Ref;
+  }): Promise<Result<MaterialRecord | null>>;
+
+  getOrCreateBySourceRef(input: {
+    sourceRef: Ref;
+    kind: string;
+    primarySourceRef?: Ref;
+  }): Promise<Result<MaterialRecord>>;
+
+  getOrCreateByCanonicalRef(input: {
+    canonicalRef: Ref;
+    kind: string;
+    sourceRefs?: Ref[];
+  }): Promise<Result<MaterialRecord>>;
+
+  attachSourceRef(input: {
+    materialRef: Ref;
+    sourceRef: Ref;
+  }): Promise<Result<MaterialRecord>>;
+
+  promoteToCanonical(input: {
+    materialRef: Ref;
+    canonicalRef: Ref;
+  }): Promise<Result<MaterialRecord>>;
+
+  mergeMaterials(input: {
+    from: Ref;
+    into: Ref;
+    reason: string;
+  }): Promise<Result<MaterialRecord>>;
+
   getCanonical(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;
 
   findCanonicalByLabel(input: {
@@ -322,6 +367,19 @@ export interface MaterialStorePort {
     input: ConfirmedCanonicalBindingListInput,
   ): Promise<Result<ConfirmedCanonicalBinding[]>>;
 }
+
+export type MaterialRegistryPort = Pick<
+  MaterialStorePort,
+  | "getMaterialRecord"
+  | "resolveMaterialRedirect"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
+  | "getOrCreateBySourceRef"
+  | "getOrCreateByCanonicalRef"
+  | "attachSourceRef"
+  | "promoteToCanonical"
+  | "mergeMaterials"
+>;
 
 export interface CanonicalStorePort {
   get(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;

@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-store-source-entity` with the Material Store /
-Source Entity Store rewrite through Material Resolve applied locally.
+MineMusic is on `codex/material-01-registry` with the MusicMaterial refactor
+PR 1 registry foundation applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -57,6 +57,15 @@ Interface dispatch. The default MineMusic server runtime now holds that narrow
 runtime shape and does not expose the full Stage Core harness; tests or
 integration fixtures that need internals use explicit harness factory aliases.
 
+The 2026-05-30 MusicMaterial PR 1 registry foundation adds Material Registry
+inside Material Store. It introduces opaque product-level `materialRef` records,
+source/canonical lookup indexes, identity state, and material merge redirects
+with in-memory and SQLite-backed implementations. Stage Core initializes the
+registry from the same `materialStoreDatabasePath` used by Material Store
+canonical/source-entity storage. Current recommendation behavior and
+agent-facing tool output are unchanged; Material Resolve does not project
+`materialRef` onto returned `MusicMaterial` yet.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the
@@ -109,8 +118,9 @@ host-facing and LLM-facing surface.
 - The runtime test runner imports compiled test modules sequentially so
   file-writing startup tests do not race Codex skill packaging checks.
 - In-memory repositories are exported from `src/storage/index.ts` for sessions,
-  canonical records, Source Entity Store records, collection records/items,
-  Library Import working state, events, memory entries, and effect proposals.
+  canonical records, Material Registry, Source Entity Store records, collection
+  records/items, Library Import working state, events, memory entries, and
+  effect proposals.
   The same module also exports SQLite-backed repository factories for Material
   Store canonical/source-entity storage, Collection, Library Import,
   Provider HTTP Cache, and related runtime storage.
@@ -174,6 +184,12 @@ host-facing and LLM-facing surface.
   `src/storage/sqlite/source-entity-repository.ts`. It persists source
   entities, Source Library items, and Confirmed Canonical Bindings in the same
   Material Store database path used by canonical storage.
+- SQLite-backed Material Registry storage is implemented under
+  `src/storage/sqlite/material-schema.ts` and
+  `src/storage/sqlite/material-repository.ts`. It persists `material_records`,
+  `material_source_refs`, `material_canonical_refs`, and `material_redirects`
+  in the same Material Store database path used by canonical and source-entity
+  storage.
 - Canonical Store persistence integration is covered by
   `test/integration/canonical-persistence.test.ts`: it recreates Stage Core
   with the same SQLite canonical database path, proves persisted canonical
@@ -524,6 +540,8 @@ host-facing and LLM-facing surface.
 
 - Stage Interface can still be deepened with richer provider capability
   metadata in `InstrumentDescriptor` / Handbook output.
+- Material Resolve has not yet integrated Material Registry projection, so
+  resolved materials do not carry `materialRef` or `identityState` until PR 2.
 - Durable storage repositories beyond the direct SQLite-backed Material Store,
   Collection, Library Import, and Provider HTTP Cache adapters and their opt-in
   Stage Core / service runtime database-path wiring.
@@ -545,6 +563,10 @@ host-facing and LLM-facing surface.
   `node .tmp-test/test/stage_interface/stage-interface.test.js`,
   `node .tmp-test/test/surfaces/mcp-server.test.js`, and `npm test` pass as of
   the Stage Interface tool contract refactor on 2026-05-29.
+- `npm run typecheck`,
+  `npm run build:test && node .tmp-test/test/storage/sqlite-material-registry.test.js && node .tmp-test/test/material_store/material-registry.test.js`,
+  `npm test`, and `git diff --check` pass as of the MusicMaterial PR 1
+  Material Registry foundation on 2026-05-30.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
   implementation and is covered inside the latest `npm test` run.

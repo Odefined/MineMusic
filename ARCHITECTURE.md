@@ -24,8 +24,9 @@ available. The current architecture also includes Material Store, Collection
 Service, Library Import/Update, and the first Canonical Maintenance runtime
 slice for inspection-backed Provisional Review of provisional recordings.
 Material Store is the top-level capability for MineMusic-owned material
-identity and source-material state: Canonical Store remains the canonical
-identity subdomain, while Source Entity Store owns Source Track/Release/Artist,
+identity and source-material state: Material Registry owns opaque product-level
+`materialRef` records and redirects, Canonical Store remains the canonical
+identity subdomain, and Source Entity Store owns Source Track/Release/Artist,
 Source Library, Library Import/Update state, import history, and confirmed
 source-to-canonical bindings. Direct SQLite adapters now cover Material Store,
 Collection Service, Library Import working state, and other opt-in runtime
@@ -143,7 +144,8 @@ needs.
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering | provider internals, storage internals, final recommendation judgment |
 | Session Context | session identity, session state, `StageVibe`, dynamic context | source matching, memory persistence, effect execution, tool availability policy |
 | Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
-| Material Store | MineMusic canonical identity, source entities, Source Library, Library Import/Update state, import history, and confirmed source-to-canonical bindings | current playability, user taste, final recommendation selection, external write-back |
+| Material Store | MineMusic product-level material identity, canonical identity, source entities, Source Library, Library Import/Update state, import history, and confirmed source-to-canonical bindings | current playability, user taste, final recommendation selection, external write-back |
+| Material Registry inside Material Store | Opaque `materialRef` records, source/canonical lookup indexes, identity state, and material merge redirects | provider source facts, canonical metadata authority, playability, user relations, final recommendation judgment |
 | Canonical Store inside Material Store | MineMusic-owned canonical records, identity anchors, Canonical Maintenance review/apply policy, provisional review facts, and canonical graph maintenance | provider account library state, Source Library membership, ordinary Library Import source binding |
 | Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
 | Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
