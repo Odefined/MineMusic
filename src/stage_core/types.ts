@@ -19,7 +19,10 @@ import type {
   MaterialActivityRepository,
   MaterialRegistryPort,
   MaterialStorePort,
+  MaterialQueryPort,
   MaterialResolvePort,
+  MaterialRelatedPort,
+  MaterialCardsPort,
   MaterialGatePort,
   MemoryPort,
   MusicMaterialRelationRepository,
@@ -47,6 +50,7 @@ export type MineMusicStageCoreHarness = MineMusicStageRuntime & {
   canonicalMaintenance: CanonicalMaintenancePort;
   collection: CollectionPort;
   materialResolve: MaterialResolvePort;
+  materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
   source: SourceGroundingPort;
   knowledge: MusicKnowledgePort;
   libraryImport: LibraryImportPort;

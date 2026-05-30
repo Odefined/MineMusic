@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-03-artist-release-identities` with the
-MusicMaterial refactor PR 3 relation/activity changes applied locally.
+MineMusic is on `codex/material-04-query-related-tools` with the
+MusicMaterial refactor PR 4 compact query/related tool changes applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -94,6 +94,18 @@ events when their target or payload cards include material refs.
 Material Store merge migrates loser relations to the survivor material and
 combines loser activity into survivor activity, preserving source-only feedback
 and recentness after later canonical confirmation or material merge.
+
+The 2026-05-30 MusicMaterial PR 4 query/related slice adds compact
+agent-facing `MaterialCard` contracts and the Material Query service. Stage
+Interface now exposes `music.material.resolve.cards`, `music.material.query`,
+`music.material.related`, `music.material.context.brief`, and
+`music.pools.list`. Query supports Source Library saved tracks, saved albums
+expanded into tracks, Collection compatibility through canonical refs, relation
+exclusions, and recent-activity exclusions. Related material resolves generated
+candidates through Material Resolve and supports same-artist, same-album, and
+similar flows with canonical-artist preference and source artist/release
+fallback. `stage.context.read` now returns bounded `recentCards` from compact
+recommendation presentation events without exposing raw event payloads.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

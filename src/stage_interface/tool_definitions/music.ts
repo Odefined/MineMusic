@@ -3,7 +3,12 @@ import { z } from "zod/v4";
 import type {
   CollectionKind,
   CollectionRelationKind,
+  MaterialContextBriefInput,
+  MaterialPoolsListInput,
+  MaterialQueryInput,
+  MaterialRelatedInput,
   MaterialResolveRequest,
+  MaterialResolveCardsInput,
   MusicMaterial,
   Ref,
   Result,
@@ -12,7 +17,10 @@ import type {
 } from "../../contracts/index.js";
 import type {
   CollectionPort,
+  MaterialCardsPort,
+  MaterialQueryPort,
   MaterialResolvePort,
+  MaterialRelatedPort,
   SourceGroundingPort,
   SystemCollectionRelationKind,
 } from "../../ports/index.js";
@@ -24,6 +32,11 @@ import { descriptorForToolDefinition } from "./types.js";
 
 export const musicToolNames = [
   "music.material.resolve",
+  "music.material.resolve.cards",
+  "music.material.query",
+  "music.material.related",
+  "music.material.context.brief",
+  "music.pools.list",
   "music.links.refresh",
   "music.collection.save",
   "music.collection.unsave",
@@ -43,6 +56,7 @@ export type MusicToolName = (typeof musicToolNames)[number];
 
 export type MusicToolGroupContext = {
   materialResolve: MaterialResolvePort;
+  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
   source: SourceGroundingPort;
   collection?: CollectionPort;
 };
@@ -137,6 +151,58 @@ const musicCandidateSchema = z.object({
 
 const collectionKindSchema = z.enum(["recording", "work", "release_group", "release", "artist"]);
 const collectionRelationKindSchema = z.enum(["saved", "favorite", "blocked", "custom"]);
+const materialCardRefSchema = z.string();
+const resolveSeedSchema = z.object({
+  ref: z.string().optional(),
+  text: z.string().optional(),
+  kind: z.string().optional(),
+  sourceRef: refSchema.optional(),
+  canonicalRef: refSchema.optional(),
+  reason: z.string().optional(),
+});
+const materialPoolSchema = z.union([
+  z.object({ kind: z.literal("all") }),
+  z.object({
+    kind: z.literal("source_library"),
+    areas: z.array(z.enum(["saved_tracks", "saved_albums", "followed_artists"])).optional(),
+    providerId: z.string().optional(),
+    expand: z.enum(["none", "tracks"]).optional(),
+  }),
+  z.object({
+    kind: z.literal("collection"),
+    ref: z.string().optional(),
+    label: z.string().optional(),
+    relation: z.enum(["saved", "favorite", "custom", "blocked"]).optional(),
+    expand: z.enum(["none", "tracks"]).optional(),
+  }),
+  z.object({
+    kind: z.literal("related"),
+    ref: materialCardRefSchema,
+    relation: z.enum(["same_artist", "same_album", "same_release", "same_release_group", "similar"]),
+  }),
+]);
+const materialConstraintsSchema = z.object({
+  availability: z.enum(["playable", "any"]).optional(),
+  identity: z.enum(["confirmed_only", "allow_source_backed"]).optional(),
+});
+const materialPreferenceHintsSchema = z.object({
+  activity: z.string().optional(),
+  mood: z.array(z.string()).optional(),
+  energy: z.enum(["low", "medium_low", "medium", "high"]).optional(),
+  vocal: z.enum(["avoid", "allow", "prefer"]).optional(),
+  prefer: z.array(z.string()).optional(),
+  avoid: z.array(z.string()).optional(),
+});
+const materialExcludeSchema = z.object({
+  refs: z.array(z.string()).optional(),
+  relations: z.array(z.enum(["blocked", "wrong_version", "not_playable", "bad_match"])).optional(),
+  recent: z.object({
+    recommended: z.enum(["session", "1h", "24h", "7d"]).optional(),
+    played: z.enum(["session", "1h", "24h", "7d"]).optional(),
+    opened: z.enum(["session", "1h", "24h", "7d"]).optional(),
+    mode: z.enum(["hard", "soft"]).optional(),
+  }).optional(),
+});
 
 export const musicToolDefinitions = [
   {
@@ -164,6 +230,131 @@ export const musicToolDefinitions = [
       return context.materialResolve.resolve(
         readPayload<MaterialResolveRequest>(payload, { sessionId }),
       );
+    },
+  },
+  {
+    name: "music.material.resolve.cards",
+    description: "Resolve material seeds and return compact agent-safe material cards.",
+    inputSchemaRef: "MaterialResolveCardsInput",
+    outputSchemaRef: "MaterialResolveCardsOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      seeds: z.array(resolveSeedSchema),
+      purpose: z.enum(["recommend", "lookup", "play"]).optional(),
+      ownerScope: z.string().optional(),
+      limit: z.number().int().positive().optional(),
+    },
+    handler({ context, payload }) {
+      const materialQuery = readMaterialQuery(context.materialQuery);
+
+      if (!materialQuery.ok) {
+        return materialQuery;
+      }
+
+      return materialQuery.value.resolveCards(
+        readPayload<MaterialResolveCardsInput>(payload),
+      );
+    },
+  },
+  {
+    name: "music.material.query",
+    description: "Query compact material cards from an explicit material pool.",
+    inputSchemaRef: "MaterialQueryInput",
+    outputSchemaRef: "MaterialQueryOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      q: z.string().optional(),
+      returnKind: z.enum(["recording", "artist", "album", "release", "release_group"]).optional(),
+      pool: materialPoolSchema.optional(),
+      constraints: materialConstraintsSchema.optional(),
+      preferenceHints: materialPreferenceHintsSchema.optional(),
+      exclude: materialExcludeSchema.optional(),
+      order: z.enum(["relevance", "recently_added", "least_recently_recommended", "random", "library_order"]).optional(),
+      ownerScope: z.string().optional(),
+      limit: z.number().int().positive().optional(),
+      cursor: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      const materialQuery = readMaterialQuery(context.materialQuery);
+
+      if (!materialQuery.ok) {
+        return materialQuery;
+      }
+
+      return materialQuery.value.query(readPayload<MaterialQueryInput>(payload));
+    },
+  },
+  {
+    name: "music.material.related",
+    description: "Find compact material cards related to one material card ref.",
+    inputSchemaRef: "MaterialRelatedInput",
+    outputSchemaRef: "MaterialRelatedOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ref: materialCardRefSchema,
+      relation: z.enum(["same_artist", "same_album", "same_release", "same_release_group", "similar"]),
+      exclude: materialExcludeSchema.optional(),
+      constraints: materialConstraintsSchema.optional(),
+      preferenceHints: materialPreferenceHintsSchema.optional(),
+      ownerScope: z.string().optional(),
+      limit: z.number().int().positive().optional(),
+    },
+    handler({ context, payload }) {
+      const materialQuery = readMaterialQuery(context.materialQuery);
+
+      if (!materialQuery.ok) {
+        return materialQuery;
+      }
+
+      return materialQuery.value.related(readPayload<MaterialRelatedInput>(payload));
+    },
+  },
+  {
+    name: "music.material.context.brief",
+    description: "Read a compact context brief for one material card ref.",
+    inputSchemaRef: "MaterialContextBriefInput",
+    outputSchemaRef: "MaterialContextBriefOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ref: materialCardRefSchema,
+      fields: z.array(z.enum(["artist", "album", "version", "status"])),
+    },
+    handler({ context, payload }) {
+      const materialQuery = readMaterialQuery(context.materialQuery);
+
+      if (!materialQuery.ok) {
+        return materialQuery;
+      }
+
+      if (materialQuery.value.contextBrief === undefined) {
+        return materialQueryUnavailable("Material context brief is not available.");
+      }
+
+      return materialQuery.value.contextBrief(readPayload<MaterialContextBriefInput>(payload));
+    },
+  },
+  {
+    name: "music.pools.list",
+    description: "List compact material pools available to query.",
+    inputSchemaRef: "MaterialPoolsListInput",
+    outputSchemaRef: "MaterialPoolsListOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      kinds: z.array(z.enum(["source_library", "collection", "dynamic"])).optional(),
+      ownerScope: z.string().optional(),
+    },
+    handler({ context, payload }) {
+      const materialQuery = readMaterialQuery(context.materialQuery);
+
+      if (!materialQuery.ok) {
+        return materialQuery;
+      }
+
+      if (materialQuery.value.listPools === undefined) {
+        return materialQueryUnavailable("Material pool listing is not available.");
+      }
+
+      return materialQuery.value.listPools(readPayload<MaterialPoolsListInput>(payload));
     },
   },
   {
@@ -496,10 +687,29 @@ function readCollection(collection: CollectionPort | undefined): Result<Collecti
   return ok(collection);
 }
 
+function readMaterialQuery(
+  materialQuery: (MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort) | undefined,
+): Result<MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort> {
+  if (materialQuery === undefined) {
+    return materialQueryUnavailable("Material query tools are not available.");
+  }
+
+  return ok(materialQuery);
+}
+
 function collectionUnavailable(): Result<never> {
   return fail({
     code: "stage_interface.tool_not_found",
     message: "Collection tools are not available.",
+    module: "stage_interface",
+    retryable: false,
+  });
+}
+
+function materialQueryUnavailable(message: string): Result<never> {
+  return fail({
+    code: "stage_interface.tool_not_found",
+    message,
     module: "stage_interface",
     retryable: false,
   });

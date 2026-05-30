@@ -140,6 +140,40 @@ async function readsCanonicalReviewGuidanceInReviewPosture(): Promise<void> {
   assert(!guidanceText.includes("anchors"), "canonical review guidance should not mention v1 anchors");
 }
 
+async function readsBoundedRecentCardsFromRecommendationEvents(): Promise<void> {
+  const materialCardEvents: StageEvent[] = [
+    recommendationEvent("event-old", "Old Track"),
+    recommendationEvent("event-latest", "Latest Track", "Second Track"),
+  ];
+  const memory: MemoryPort = {
+    summarizeForSession: async () => ({ ok: true, value: [] }),
+    propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
+    accept: async () => ({
+      ok: true,
+      value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+    }),
+  };
+  const events: EventPort = {
+    record: async ({ event }) => ({
+      ok: true,
+      value: { ...event, id: "event-recorded", time: "2026-05-30T00:00:00.000Z" },
+    }),
+    listBySession: async () => ({ ok: true, value: materialCardEvents }),
+  };
+  const sessionContext = createSessionContext({
+    sessions: [session],
+    memory,
+    events,
+  });
+
+  const context = await assertOk(sessionContext.readContext({ sessionId: session.id }));
+
+  assert(context.recentCards !== undefined, "stage context should expose recent compact cards when available");
+  assert(context.recentCards.length === 3, "stage context should keep a bounded recent-card list");
+  assert(context.recentCards[0]?.title === "Latest Track", "recent cards should be newest first");
+  assert(!("payload" in context.recentCards[0]!), "recent cards should not expose raw event payloads");
+}
+
 async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
   const eventsSeen: string[] = [];
   const { sessionContext } = createTestStageModules(eventsSeen);
@@ -252,7 +286,25 @@ async function supportsDetachedPublicPortMethods(): Promise<void> {
 
 await readsContextWithoutHandbookMaterial();
 await readsCanonicalReviewGuidanceInReviewPosture();
+await readsBoundedRecentCardsFromRecommendationEvents();
 await updatesSessionWithoutOwningToolDispatch();
 await gatesMaterialStatesForRecommendationUse();
 await reportsMissingSessionAsResultError();
 await supportsDetachedPublicPortMethods();
+
+function recommendationEvent(id: string, ...titles: string[]): StageEvent {
+  return {
+    id,
+    time: "2026-05-30T00:00:00.000Z",
+    sessionId: session.id,
+    actor: "llm",
+    type: "recommendation.presented",
+    payload: {
+      cards: titles.map((title, index) => ({
+        ref: `mat_${id}-${index}`,
+        title,
+        status: "playable_unverified",
+      })),
+    },
+  };
+}

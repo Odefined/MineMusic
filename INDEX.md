@@ -219,44 +219,49 @@ This index points agents to the current MVP documentation pack.
     - Material Store composition boundary that combines Material Registry,
       Canonical Store, and Source Entity Store behind `MaterialStorePort`.
 
-41. `src/material_store/material_registry/index.ts`
+41. `src/material_query/index.ts`
+    - Compact Material Query/Related service for `MaterialCard` presentation,
+      Source Library and Collection-compatible retrieval, relation/recent
+      filtering, context brief, and pool listing.
+
+42. `src/material_store/material_registry/index.ts`
     - In-memory Material Registry implementation for opaque `materialRef`
       records, source/canonical lookup, canonical promotion, and redirects.
 
-42. `src/material_store/canonical/index.ts`
+43. `src/material_store/canonical/index.ts`
     - Canonical Store public-port implementation, provisional relation
       recording/listing with optional object refs, and current identity policy.
 
-43. `src/material_store/canonical/normalization.ts`
+44. `src/material_store/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-44. `src/material_store/canonical/storage.ts`
+45. `src/material_store/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics, plus relation persistence delegation.
 
-45. `src/storage/sqlite/canonical-schema.ts`
+46. `src/storage/sqlite/canonical-schema.ts`
     - SQLite schema initialization for Canonical Store durable storage,
       including provisional relations.
 
-46. `src/storage/sqlite/canonical-repository.ts`
+47. `src/storage/sqlite/canonical-repository.ts`
     - SQLite-backed Canonical Store repository implementation for records,
       source refs, aliases, and provisional relations.
 
-47. `src/storage/sqlite/source-entity-schema.ts`
+48. `src/storage/sqlite/source-entity-schema.ts`
     - SQLite schema initialization for Source Entity Store durable storage:
       source entities, Source Library items, and Confirmed Canonical Bindings.
 
-48. `src/storage/sqlite/source-entity-repository.ts`
+49. `src/storage/sqlite/source-entity-repository.ts`
     - SQLite-backed Source Entity Store repository implementation.
 
-49. `src/storage/sqlite/material-schema.ts`
+50. `src/storage/sqlite/material-schema.ts`
     - SQLite schema initialization for Material Registry durable storage:
       records, source indexes, canonical indexes, and redirects.
 
-50. `src/storage/sqlite/material-repository.ts`
+51. `src/storage/sqlite/material-repository.ts`
     - SQLite-backed Material Registry repository implementation.
 
-51. `src/storage/sqlite/collection-schema.ts`
+52. `src/storage/sqlite/collection-schema.ts`
     - SQLite schema initialization for durable Collection storage.
 
 52. `src/storage/sqlite/collection-repository.ts`

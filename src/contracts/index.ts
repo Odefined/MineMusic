@@ -179,6 +179,14 @@ export type StageContext = {
   session: StageSession;
   memorySummaries: string[];
   guidance?: string[];
+  recentCards?: Array<{
+    ref: string;
+    title: string;
+    subtitle?: string;
+    position?: number;
+    eventId: string;
+    status: MaterialCardStatus;
+  }>;
 };
 
 export type CanonicalKind =
@@ -812,6 +820,171 @@ export type MaterialResolveResult =
       kind: "candidate_set";
       results: ResolvedCandidate[];
     };
+
+export type MaterialCardStatus =
+  | "playable"
+  | "playable_unverified"
+  | "found_no_link"
+  | "ambiguous"
+  | "blocked"
+  | "unresolved";
+
+export type MaterialCardAction =
+  | "open"
+  | "more_like_this"
+  | "same_artist"
+  | "same_album"
+  | "not_this_version"
+  | "block"
+  | "remember";
+
+export type MaterialCard = {
+  ref: string;
+  title: string;
+  subtitle?: string;
+  status: MaterialCardStatus;
+  reason?: string;
+  actions?: MaterialCardAction[];
+};
+
+export type ResolveSeed = {
+  ref?: string;
+  text?: string;
+  kind?: "song" | "track" | "recording" | "artist" | "album" | "release" | "release_group" | "work" | string;
+  sourceRef?: Ref;
+  canonicalRef?: Ref;
+  reason?: string;
+};
+
+export type MaterialResolveCardsInput = {
+  seeds: ResolveSeed[];
+  purpose?: "recommend" | "lookup" | "play";
+  ownerScope?: string;
+  limit?: number;
+};
+
+export type MaterialResolveCardsOutput = {
+  items: MaterialCard[];
+  next?: {
+    suggestedAction?: "present" | "ask_clarification" | "choose_one" | "retry";
+    question?: string;
+  };
+};
+
+export type MaterialPoolSpec =
+  | { kind: "all" }
+  | {
+      kind: "source_library";
+      areas?: Array<"saved_tracks" | "saved_albums" | "followed_artists">;
+      providerId?: string;
+      expand?: "none" | "tracks";
+    }
+  | {
+      kind: "collection";
+      ref?: string;
+      label?: string;
+      relation?: "saved" | "favorite" | "custom" | "blocked";
+      expand?: "none" | "tracks";
+    }
+  | {
+      kind: "related";
+      ref: string;
+      relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
+    };
+
+export type MaterialQueryInput = {
+  q?: string;
+  returnKind?: "recording" | "artist" | "album" | "release" | "release_group";
+  pool?: MaterialPoolSpec;
+  constraints?: {
+    availability?: "playable" | "any";
+    identity?: "confirmed_only" | "allow_source_backed";
+  };
+  preferenceHints?: {
+    activity?: string;
+    mood?: string[];
+    energy?: "low" | "medium_low" | "medium" | "high";
+    vocal?: "avoid" | "allow" | "prefer";
+    prefer?: string[];
+    avoid?: string[];
+  };
+  exclude?: {
+    refs?: string[];
+    relations?: Array<"blocked" | "wrong_version" | "not_playable" | "bad_match">;
+    recent?: {
+      recommended?: "session" | "1h" | "24h" | "7d";
+      played?: "session" | "1h" | "24h" | "7d";
+      opened?: "session" | "1h" | "24h" | "7d";
+      mode?: "hard" | "soft";
+    };
+  };
+  order?: "relevance" | "recently_added" | "least_recently_recommended" | "random" | "library_order";
+  ownerScope?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+export type MaterialQueryOutput = {
+  basis?: {
+    pool?: string;
+    applied?: string[];
+  };
+  items: MaterialCard[];
+  nextCursor?: string;
+};
+
+export type MaterialRelatedInput = {
+  ref: string;
+  relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
+  exclude?: MaterialQueryInput["exclude"];
+  constraints?: MaterialQueryInput["constraints"];
+  preferenceHints?: MaterialQueryInput["preferenceHints"];
+  ownerScope?: string;
+  limit?: number;
+};
+
+export type MaterialRelatedOutput = {
+  basis:
+    | "confirmed_artist"
+    | "source_artist"
+    | "confirmed_album"
+    | "source_album"
+    | "knowledge_similarity"
+    | "library_similarity"
+    | "fallback_text";
+  basisLabel?: string;
+  warning?: string;
+  items: MaterialCard[];
+};
+
+export type MaterialContextBriefInput = {
+  ref: string;
+  fields: Array<"artist" | "album" | "version" | "status">;
+};
+
+export type MaterialContextBriefOutput = {
+  ref: string;
+  title: string;
+  artist?: { name: string; confidence: "confirmed" | "source" | "uncertain" };
+  album?: { title: string; confidence: "confirmed" | "source" | "uncertain" };
+  version?: { label?: string; confidence: "confirmed" | "source" | "uncertain" };
+  warnings?: string[];
+};
+
+export type MaterialPoolsListInput = {
+  kinds?: Array<"source_library" | "collection" | "dynamic">;
+  ownerScope?: string;
+};
+
+export type MaterialPoolsListOutput = {
+  pools: Array<{
+    ref: string;
+    label: string;
+    type: "source_library" | "collection" | "dynamic";
+    returnKinds: string[];
+    count?: number;
+  }>;
+};
 
 export interface SourceProvider {
   id: string;
@@ -1553,6 +1726,11 @@ export type ToolName =
   | "stage.events.record"
   | "stage.effects.propose"
   | "music.material.resolve"
+  | "music.material.resolve.cards"
+  | "music.material.query"
+  | "music.material.related"
+  | "music.material.context.brief"
+  | "music.pools.list"
   | "knowledge.query"
   | "music.links.refresh"
   | "music.collection.save"

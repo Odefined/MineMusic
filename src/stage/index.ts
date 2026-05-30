@@ -5,6 +5,7 @@ import type {
   StageError,
   StageSession,
 } from "../contracts/index.js";
+import { recentCardsFromEvents } from "../material_query/index.js";
 import type {
   EventPort,
   MaterialGatePort,
@@ -56,9 +57,18 @@ export function createSessionContext({
         return memoryResult;
       }
 
+      const eventsResult = await events.listBySession({ sessionId });
+
+      if (!eventsResult.ok) {
+        return eventsResult;
+      }
+
+      const recentCards = recentCardsFromEvents(eventsResult.value);
+
       const context: StageContext = {
         session,
         memorySummaries: memoryResult.value,
+        ...(recentCards.length === 0 ? {} : { recentCards }),
         ...(session.posture === "canonical_review"
           ? { guidance: canonicalReviewGuidance() }
           : {}),

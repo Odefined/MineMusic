@@ -71,6 +71,14 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP should expose canonical-first material resolve with the MineMusic prefix",
   );
   assert(
+    codexToolNameFor("music.material.query") === "minemusic.music.material.query",
+    "MCP should expose compact material query with the MineMusic prefix",
+  );
+  assert(
+    codexToolNameFor("music.material.related") === "minemusic.music.material.related",
+    "MCP should expose compact material related with the MineMusic prefix",
+  );
+  assert(
     codexToolNameFor("knowledge.query") === "minemusic.knowledge.query",
     "MCP should expose Knowledge query through the Knowledge instrument prefix",
   );
@@ -148,6 +156,29 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidates"),
     "resolve tool schema should declare candidate-set input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve.cards"), "seeds"),
+    "resolve cards schema should declare material seeds input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "pool") &&
+      hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "exclude") &&
+      hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "constraints"),
+    "material query schema should declare pool, exclusion, and constraint inputs",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "ref") &&
+      hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "relation"),
+    "material related schema should declare ref and relation inputs",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.context.brief"), "fields"),
+    "material context brief schema should declare requested fields",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.pools.list"), "kinds"),
+    "material pools list schema should declare pool kind filters",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "text"),
