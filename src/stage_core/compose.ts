@@ -8,6 +8,7 @@ import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { createMusicKnowledgeService } from "../knowledge/index.js";
+import { createMaterialQueryService } from "../material_query/index.js";
 import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
@@ -55,6 +56,11 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     sourceGrounding: source,
     collection,
   });
+  const materialQuery = createMaterialQueryService({
+    materialStore,
+    materialResolve,
+    collection,
+  });
   const libraryImport = createLibraryImportService({
     pluginRegistry: plugins,
     materialStore,
@@ -88,6 +94,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     materialGate,
     instruments,
     materialResolve,
+    materialQuery,
     source,
     knowledge,
     events,
@@ -129,6 +136,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     canonicalMaintenance,
     collection,
     materialResolve,
+    materialQuery,
     source,
     knowledge,
     libraryImport,

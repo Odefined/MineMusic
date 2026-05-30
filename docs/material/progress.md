@@ -2,9 +2,10 @@
 
 ## Current State
 
-PR 3 of the MusicMaterial refactor is implemented. PR 1 added the registry
-foundation, PR 2 integrates Material Resolve projection onto that registry, and
-PR 3 adds material-scoped relations plus recent activity projection.
+PR 4 of the MusicMaterial refactor is implemented. PR 1 added the registry
+foundation, PR 2 integrates Material Resolve projection onto that registry,
+PR 3 adds material-scoped relations plus recent activity projection, and PR 4
+adds compact material query/related/card tools.
 Material Registry now lives inside Material Store and owns opaque
 `materialRef` records, source/canonical lookup indexes, merge redirects, and
 identity state for future resolved `MusicMaterial` projections.
@@ -34,6 +35,27 @@ Material Store merge now migrates relation rows from the merged loser material
 to the survivor material and merges loser activity into survivor activity, so
 source-only feedback and recent activity survive later canonical confirmation
 or material merge.
+
+Material Query now exposes compact agent-facing retrieval over material cards.
+`music.material.query` can restrict results to Source Library saved tracks and
+saved albums expanded into tracks, apply `returnKind`, relation exclusions,
+recent-activity exclusions, cursor pagination, and least-recently-recommended
+ordering, recently-added ordering, and return opaque card refs without raw
+source/canonical/evidence graphs. Internal query inputs can still use
+lightweight text matching for `preferenceHints`, but Stage Interface tool
+schemas do not advertise those fields until real semantic feature data exists.
+`music.material.resolve.cards` now resolves returned `mat_*` card refs back
+through Material Registry / Material Resolve instead of treating them as text
+search. `music.material.related` resolves related candidates through
+Material Resolve for same-artist,
+same-album, and similar flows, preferring confirmed artist basis when
+source-artist bindings exist and falling back to source artist/release facts
+when canonical identity is missing. `music.material.context.brief` respects its
+requested `fields` when returning artist, album, version, or status details.
+Stage context now includes bounded `recentCards` derived from recommendation
+presentation events without exposing raw event payloads. Event Service also
+projects compact `MaterialCard.ref` strings in recommendation payloads into
+Material Activity, so recent exclusion works for compact card events.
 
 ## Implemented
 
@@ -77,6 +99,28 @@ or material merge.
   present in the event target or payload cards.
 - Material Store `mergeMaterials` migrates loser material relations to the
   survivor and combines recent activity timestamps/counts by owner scope.
+- Added compact card/query/related contracts:
+  `MaterialCard`, `MaterialResolveCardsInput`, `MaterialQueryInput`,
+  `MaterialRelatedInput`, context brief inputs, and pool-list inputs.
+- Added `src/material_query/index.ts` with compact card presentation,
+  source-library pool query, collection compatibility query, related wrappers,
+  relation/recent filtering, context brief, and pool listing.
+- Wired Material Query through Stage Core and Stage Interface as
+  `music.material.resolve.cards`, `music.material.query`,
+  `music.material.related`, `music.material.context.brief`, and
+  `music.pools.list`.
+- Added bounded `StageContext.recentCards` from compact recommendation card
+  payloads.
+- Addressed PR #7 review feedback by making `ResolveSeed.ref` resolve material
+  card refs, decoding compact `MaterialCard.ref` values during activity
+  projection, honoring `MaterialQueryInput.returnKind`, and tightening related
+  public structured fields such as `cursor`, collection `label`, saved-album
+  track-level `q`, lightweight `preferenceHints` matching, and
+  `recently_added` / `least_recently_recommended` ordering.
+- Addressed PR #7 follow-up review by hiding experimental `preferenceHints`
+  from the LLM-facing `music.material.query` and `music.material.related`
+  Stage Interface/MCP schemas while keeping the internal contract, and by
+  making `music.material.context.brief.fields` control output shape.
 
 ## Verification
 
@@ -104,11 +148,26 @@ or material merge.
 - `npm test` passed for PR 3 on 2026-05-30.
 - Review-fix checks for relation/activity merge survival passed on
   2026-05-30: `npm run typecheck` and `npm test`.
+- PR 4 targeted checks passed on 2026-05-30:
+  `node .tmp-test/test/material_query/material-query.test.js`,
+  `node .tmp-test/test/material_related/material-related.test.js`,
+  `node .tmp-test/test/stage/stage-modules.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface.test.js`, and
+  `node .tmp-test/test/surfaces/mcp-server.test.js`.
+- `npm run typecheck` passed for PR 4 on 2026-05-30.
+- `npm test` passed for PR 4 on 2026-05-30.
+- PR #7 review-fix targeted checks passed on 2026-05-30:
+  `node .tmp-test/test/material_query/material-query.test.js`,
+  `node .tmp-test/test/events/material-activity.test.js`,
+  `node .tmp-test/test/material_related/material-related.test.js`,
+  `node .tmp-test/test/stage/stage-modules.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface.test.js`, and
+  `node .tmp-test/test/surfaces/mcp-server.test.js`.
+- `npm run typecheck` passed after PR #7 review fixes on 2026-05-30.
 
 ## Remaining
 
 - Canonical-only materialization when Source Grounding returns no source
   material remains deferred; PR 2 only materializes provider/source-backed
   projection paths.
-- PR 4 will add `material.query`, `material.related`, and compact tools.
 - PR 5 will migrate Collection, Memory, and Effect toward material targets.

@@ -52,8 +52,18 @@ import type {
   LibraryImportSummaryInput,
   LibraryUpdatePreviewInput,
   LibraryUpdateStartInput,
+  MaterialContextBriefInput,
+  MaterialContextBriefOutput,
   MaterialActivity,
+  MaterialPoolsListInput,
+  MaterialPoolsListOutput,
+  MaterialQueryInput,
+  MaterialQueryOutput,
+  MaterialRelatedInput,
+  MaterialRelatedOutput,
   MaterialRecord,
+  MaterialResolveCardsInput,
+  MaterialResolveCardsOutput,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -608,6 +618,22 @@ export interface ProviderHttpCacheRepository {
 
 export interface MaterialResolvePort {
   resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>>;
+}
+
+export interface MaterialQueryPort {
+  query(input: MaterialQueryInput): Promise<Result<MaterialQueryOutput>>;
+}
+
+export interface MaterialRelatedPort {
+  related(input: MaterialRelatedInput): Promise<Result<MaterialRelatedOutput>>;
+}
+
+export interface MaterialCardsPort {
+  resolveCards(input: MaterialResolveCardsInput): Promise<Result<MaterialResolveCardsOutput>>;
+
+  contextBrief?(input: MaterialContextBriefInput): Promise<Result<MaterialContextBriefOutput>>;
+
+  listPools?(input: MaterialPoolsListInput): Promise<Result<MaterialPoolsListOutput>>;
 }
 
 export interface SourceGroundingPort {

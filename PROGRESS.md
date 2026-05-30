@@ -1025,6 +1025,33 @@
   into survivor activity, with in-memory/SQLite relation migration coverage and
   resolve-level merge-survival tests for material-level block and source-scoped
   wrong-version feedback.
+- Started MusicMaterial PR 4 on branch
+  `codex/material-04-query-related-tools` from updated `main`.
+- Added compact `MaterialCard`, resolve-cards, query, related, context brief,
+  and pool-list contracts plus public Material Query/Related/Cards ports.
+- Added `src/material_query/index.ts` for compact material card presentation,
+  Source Library saved-track and saved-album query, Collection compatibility,
+  relation/recent exclusions, related same-artist/same-album/similar flows,
+  context brief, and pool listing.
+- Wired compact material tools through Stage Core and Stage Interface:
+  `music.material.resolve.cards`, `music.material.query`,
+  `music.material.related`, `music.material.context.brief`, and
+  `music.pools.list`.
+- Extended `stage.context.read` with bounded compact `recentCards` from
+  recommendation presentation events without exposing raw event payloads.
+- Added PR 4 tests for query pools, relation/recent exclusions, related basis
+  fallback, compact output hygiene, Stage Interface/MCP tool exposure, and
+  recent-card context.
+- Addressed PR #7 review feedback by wiring `ResolveSeed.ref` to Material
+  Registry / Material Resolve, decoding compact `MaterialCard.ref` strings in
+  Event Service activity projection, honoring `returnKind`, and adding
+  deterministic cursor pagination, collection-label lookup, saved-album
+  track-level text filtering, lightweight `preferenceHints` matching, and
+  recently-added / least-recently-recommended ordering.
+- Addressed PR #7 follow-up review by hiding experimental `preferenceHints`
+  from the LLM-facing `music.material.query` and `music.material.related`
+  Stage Interface/MCP schemas while keeping the internal contract, and by
+  making `music.material.context.brief` respect requested `fields`.
 
 ## Next
 
