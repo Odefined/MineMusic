@@ -11,7 +11,9 @@ Registry lookup and get-or-create methods follow merge redirects and return
 the current survivor record. Canonical promotion is monotonic: a material that
 already has a different canonical ref returns `material_registry.conflict`
 instead of rebinding. Self-merge also returns `material_registry.conflict`
-before a redirect is written.
+before a redirect is written. Merge transfers loser source refs to the
+survivor, so repeated source/canonical resolves keep using the survivor without
+source ownership conflicts.
 
 `music.material.resolve` now returns resolved `MusicMaterial` values with
 `materialRef` and `identityState`. Source providers still return
@@ -41,6 +43,8 @@ Current recommendation flow and playable-link gating behavior are preserved.
 - Material Resolve now materializes canonical-confirmed, source-only, and
   Source Library results through Material Registry, preserving stable
   source-only `materialRef` values across repeated resolves.
+- Material Registry merge projection preserves loser source refs on the
+  survivor in both in-memory and SQLite-backed implementations.
 - `stage.materials.prepare` preserves `materialRef` and `identityState` while
   continuing to gate playable links by material state.
 - NetEase and fixture source providers return source materials and do not
@@ -67,6 +71,9 @@ Current recommendation flow and playable-link gating behavior are preserved.
 
 ## Remaining
 
+- Canonical-only materialization when Source Grounding returns no source
+  material remains deferred; PR 2 only materializes provider/source-backed
+  projection paths.
 - PR 3 will add MusicMaterialRelation and MaterialActivity.
 - PR 4 will add `material.query`, `material.related`, and compact tools.
 - PR 5 will migrate Collection, Memory, and Effect toward material targets.

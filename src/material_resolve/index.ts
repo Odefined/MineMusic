@@ -578,7 +578,7 @@ async function materialRecordForCanonicalSourceMaterial(
         return merged;
       }
 
-      return ok(record);
+      return attachAdditionalSourceRefs(materialStore, record, sourceRefs);
     }
 
     for (const sourceRef of sourceRefs) {

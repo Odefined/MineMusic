@@ -237,6 +237,38 @@ export function createSqliteMaterialRegistryRepository({
       );
   }
 
+  function moveSourceRefToMaterial(materialRef: Ref, sourceRef: Ref, createdAt: string): void {
+    database
+      .prepare(`
+        INSERT INTO material_source_refs (
+          source_namespace,
+          source_kind,
+          source_id,
+          source_ref_json,
+          material_namespace,
+          material_kind,
+          material_id,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_namespace, source_kind, source_id) DO UPDATE SET
+          source_ref_json = excluded.source_ref_json,
+          material_namespace = excluded.material_namespace,
+          material_kind = excluded.material_kind,
+          material_id = excluded.material_id
+      `)
+      .run(
+        sourceRef.namespace,
+        sourceRef.kind,
+        sourceRef.id,
+        toJson(sourceRef),
+        materialRef.namespace,
+        materialRef.kind,
+        materialRef.id,
+        createdAt,
+      );
+  }
+
   function writeCanonicalRef(materialRef: Ref, canonicalRef: Ref, createdAt: string): void {
     database
       .prepare(`
@@ -251,6 +283,38 @@ export function createSqliteMaterialRegistryRepository({
           created_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        canonicalRef.namespace,
+        canonicalRef.kind,
+        canonicalRef.id,
+        toJson(canonicalRef),
+        materialRef.namespace,
+        materialRef.kind,
+        materialRef.id,
+        createdAt,
+      );
+  }
+
+  function moveCanonicalRefToMaterial(materialRef: Ref, canonicalRef: Ref, createdAt: string): void {
+    database
+      .prepare(`
+        INSERT INTO material_canonical_refs (
+          canonical_namespace,
+          canonical_kind,
+          canonical_id,
+          canonical_ref_json,
+          material_namespace,
+          material_kind,
+          material_id,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(canonical_namespace, canonical_kind, canonical_id) DO UPDATE SET
+          canonical_ref_json = excluded.canonical_ref_json,
+          material_namespace = excluded.material_namespace,
+          material_kind = excluded.material_kind,
+          material_id = excluded.material_id
       `)
       .run(
         canonicalRef.namespace,
@@ -487,6 +551,16 @@ export function createSqliteMaterialRegistryRepository({
         if (survivor === null) {
           throw new RegistryFailure(notFoundError(into));
         }
+        const transferredPrimarySourceRef =
+          survivor.primarySourceRef ?? fromRecord.primarySourceRef ?? fromRecord.sourceRefs[0];
+        const survivorUpdated: MaterialRecord = {
+          ...survivor,
+          sourceRefs: uniqueRefs([...survivor.sourceRefs, ...fromRecord.sourceRefs]),
+          ...(transferredPrimarySourceRef === undefined
+            ? {}
+            : { primarySourceRef: clone(transferredPrimarySourceRef) }),
+          updatedAt: now(),
+        };
 
         const updated: MaterialRecord = {
           ...fromRecord,
@@ -494,7 +568,14 @@ export function createSqliteMaterialRegistryRepository({
           mergedIntoMaterialRef: clone(survivor.materialRef),
           updatedAt: now(),
         };
+        writeRecord(survivorUpdated);
         writeRecord(updated);
+        for (const sourceRef of fromRecord.sourceRefs) {
+          moveSourceRefToMaterial(survivor.materialRef, sourceRef, updated.updatedAt);
+        }
+        if (fromRecord.canonicalRef !== undefined) {
+          moveCanonicalRefToMaterial(survivor.materialRef, fromRecord.canonicalRef, updated.updatedAt);
+        }
         database
           .prepare(`
             INSERT INTO material_redirects (

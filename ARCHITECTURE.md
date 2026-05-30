@@ -25,9 +25,10 @@ Service, Library Import/Update, and the first Canonical Maintenance runtime
 slice for inspection-backed Provisional Review of provisional recordings.
 Material Store is the top-level capability for MineMusic-owned material
 identity and source-material state: Material Registry owns opaque product-level
-`materialRef` records and redirects, Canonical Store remains the canonical
-identity subdomain, and Source Entity Store owns Source Track/Release/Artist,
-Source Library, Library Import/Update state, import history, and confirmed
+`materialRef` records and redirects, including survivor source-ref ownership
+after material merges. Canonical Store remains the canonical identity
+subdomain, and Source Entity Store owns Source Track/Release/Artist, Source
+Library, Library Import/Update state, import history, and confirmed
 source-to-canonical bindings. Direct SQLite adapters now cover Material Store,
 Collection Service, Library Import working state, and other opt-in runtime
 storage paths. MineMusic runtime configuration belongs to the long-lived

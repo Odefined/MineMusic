@@ -7,7 +7,7 @@ import type {
   Result,
   SourceQuery,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore, createMaterialStore } from "../../src/material_store/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
 import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
 import {
@@ -34,6 +34,10 @@ function confirmedBinding(sourceRef: Ref, canonicalRef: Ref): ConfirmedCanonical
     createdAt: "2026-05-28T00:00:00.000Z",
     updatedAt: "2026-05-28T00:00:00.000Z",
   };
+}
+
+function sameRef(left: Ref, right: Ref): boolean {
+  return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
 }
 
 async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
@@ -517,6 +521,99 @@ async function keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve(): Promise<
   );
 }
 
+async function repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor(): Promise<void> {
+  let id = 0;
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const materialRegistry = createInMemoryMaterialRegistry({
+    generateId: () => `material-${id += 1}`,
+    now: () => "2026-05-30T00:00:00.000Z",
+  });
+  const sourceRef: Ref = { namespace: "source:fixture", kind: "track", id: "merge-repeat-source" };
+  const canonicalRef: Ref = { namespace: "minemusic", kind: "recording", id: "merge-repeat-canonical" };
+  let includeCanonicalRef = false;
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => ({
+      ok: true,
+      value: [
+        {
+          id: "merge-repeat-material",
+          kind: "recording",
+          label: "Merge Repeat",
+          state: "grounded",
+          ...(includeCanonicalRef ? { canonicalRef } : {}),
+          sourceRefs: [sourceRef],
+          playableLinks: [
+            {
+              url: "https://example.test/merge-repeat-source",
+              sourceRef,
+            },
+          ],
+        },
+      ],
+    }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialStore = createMaterialStore({
+    canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
+    materialRegistry,
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  const materialResolve = createMaterialResolveService({
+    materialStore,
+    sourceGrounding,
+  });
+
+  const sourceOnly = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: { id: "source-only", label: "Merge Repeat", sourceRef },
+    }),
+  );
+  await assertOk(
+    canonicalRepository.put({
+      ref: canonicalRef,
+      kind: "recording",
+      label: "Merge Repeat",
+      status: "active",
+    }),
+  );
+  const canonicalRecord = await assertOk(
+    materialStore.getOrCreateByCanonicalRef({
+      canonicalRef,
+      kind: "recording",
+    }),
+  );
+  includeCanonicalRef = true;
+
+  const merged = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: { id: "merged", label: "Merge Repeat", sourceRef },
+    }),
+  );
+  const repeated = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: { id: "repeated", label: "Merge Repeat", sourceRef },
+    }),
+  );
+
+  assert(sourceOnly.kind === "single", "initial source-only resolve should return a single result");
+  assert(merged.kind === "single" && repeated.kind === "single", "merge and repeated resolve should return singles");
+  assert(
+    merged.result.materials[0]?.materialRef.id === canonicalRecord.materialRef.id,
+    "merge resolve should return the canonical survivor material ref",
+  );
+  assert(
+    repeated.result.materials[0]?.materialRef.id === canonicalRecord.materialRef.id,
+    "repeated resolve should keep returning the canonical survivor material ref",
+  );
+  assert(
+    repeated.result.materials[0]?.sourceRefs?.some((candidate) => sameRef(candidate, sourceRef)),
+    "repeated resolve should keep the transferred source ref on the survivor projection",
+  );
+}
+
 async function materializesRepresentedUnresolvedMaterials(): Promise<void> {
   const sourceGrounding: SourceGroundingPort = {
     ground: async () => ({
@@ -585,4 +682,5 @@ await blocksSourceMaterialsAfterSourceRefCanonicalLookup();
 await readsSourceLibraryOnlyWhenExplicitlyScoped();
 await normalizesSongTrackAndAlbumSeedKindsForCanonicalLookup();
 await keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve();
+await repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor();
 await materializesRepresentedUnresolvedMaterials();

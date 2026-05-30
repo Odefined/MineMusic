@@ -228,6 +228,58 @@ async function sqliteRegistryRejectsSelfMerge(): Promise<void> {
   }
 }
 
+async function sqliteRegistryTransfersSourceRefsToMergeSurvivor(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-material-registry-"));
+  const databasePath = join(directory, "material-store.sqlite");
+  const sourceRef = ref("source:fixture", "track", "track-merge-transfer");
+  const canonicalRef = ref("minemusic", "recording", "canonical-merge-transfer");
+  let id = 0;
+
+  try {
+    const repository = createSqliteMaterialRegistryRepository({
+      path: databasePath,
+      generateId: () => `material-${id += 1}`,
+      now: () => "2026-05-30T00:00:00.000Z",
+    });
+    const loser = await assertOk(
+      repository.getOrCreateBySourceRef({
+        sourceRef,
+        kind: "recording",
+      }),
+    );
+    const survivor = await assertOk(
+      repository.getOrCreateByCanonicalRef({
+        canonicalRef,
+        kind: "recording",
+      }),
+    );
+
+    await assertOk(
+      repository.mergeMaterials({
+        from: loser.materialRef,
+        into: survivor.materialRef,
+        reason: "confirmed source canonical binding",
+      }),
+    );
+
+    const attached = await assertOk(
+      repository.attachSourceRef({
+        materialRef: survivor.materialRef,
+        sourceRef,
+      }),
+    );
+    const foundBySource = await assertOk(repository.findMaterialBySourceRef({ sourceRef }));
+
+    assert(foundBySource?.materialRef.id === survivor.materialRef.id, "source lookup should return the survivor");
+    assert(
+      attached.sourceRefs.some((candidate) => sameRef(candidate, sourceRef)),
+      "survivor should own source refs transferred from the merge loser",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function ref(namespace: string, kind: string, id: string): Ref {
   return { namespace, kind, id };
 }
@@ -239,3 +291,4 @@ function sameRef(left: Ref, right: Ref): boolean {
 await sqliteRegistryPersistsRecordsAndIndexesAcrossReopen();
 await sqliteRegistryEnforcesCanonicalPromotionMonotonicity();
 await sqliteRegistryRejectsSelfMerge();
+await sqliteRegistryTransfersSourceRefsToMergeSurvivor();

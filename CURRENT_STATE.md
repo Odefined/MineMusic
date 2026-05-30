@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-01-registry` with the MusicMaterial refactor
-PR 1 registry foundation applied locally.
+MineMusic is on `codex/material-02-resolve-projection` with the MusicMaterial
+refactor PR 2 resolve projection changes applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -72,10 +72,13 @@ through Material Registry, and source-only materials keep stable material refs
 across repeated resolves for the same source ref.
 Material Registry public lookup and get-or-create operations now follow merge
 redirects and return the current survivor record, while direct
-`getMaterialRecord` can still inspect the raw record by material ref. Registry
+`getMaterialRecord` can still inspect the raw record by material ref. Merge now
+transfers loser source refs to the survivor so repeated source/canonical
+resolves can reuse the survivor without source ownership conflicts. Registry
 promotion and merge invariants are also enforced: canonical promotion rejects
 replacement of an existing different canonical ref, and self-merge is rejected
-before writing a redirect.
+before writing a redirect. Canonical-only materialization when Source Grounding
+returns no source material remains deferred.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

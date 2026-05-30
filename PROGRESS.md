@@ -999,6 +999,11 @@
   ownership, Stage Materials preparation identity preservation, canonical
   persistence projection, fixture MVP projection, and `song`/`track`/`album`
   seed kind normalization.
+- Addressed PR #5 review feedback by transferring merge-loser source refs to
+  the Material Registry survivor in both in-memory and SQLite implementations,
+  and by adding repeated source/canonical resolve coverage for the survivor
+  ownership invariant. Canonical-only materialization without source grounding
+  remains deferred beyond PR 2.
 
 ## Next
 
