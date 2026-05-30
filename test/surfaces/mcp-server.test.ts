@@ -168,9 +168,17 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "material query schema should declare pool, exclusion, and constraint inputs",
   );
   assert(
+    !hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "preferenceHints"),
+    "material query schema should not advertise experimental preferenceHints",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "ref") &&
       hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "relation"),
     "material related schema should declare ref and relation inputs",
+  );
+  assert(
+    !hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "preferenceHints"),
+    "material related schema should not advertise experimental preferenceHints",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.context.brief"), "fields"),

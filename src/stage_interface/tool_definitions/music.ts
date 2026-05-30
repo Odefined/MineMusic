@@ -185,14 +185,6 @@ const materialConstraintsSchema = z.object({
   availability: z.enum(["playable", "any"]).optional(),
   identity: z.enum(["confirmed_only", "allow_source_backed"]).optional(),
 });
-const materialPreferenceHintsSchema = z.object({
-  activity: z.string().optional(),
-  mood: z.array(z.string()).optional(),
-  energy: z.enum(["low", "medium_low", "medium", "high"]).optional(),
-  vocal: z.enum(["avoid", "allow", "prefer"]).optional(),
-  prefer: z.array(z.string()).optional(),
-  avoid: z.array(z.string()).optional(),
-});
 const materialExcludeSchema = z.object({
   refs: z.array(z.string()).optional(),
   relations: z.array(z.enum(["blocked", "wrong_version", "not_playable", "bad_match"])).optional(),
@@ -267,7 +259,6 @@ export const musicToolDefinitions = [
       returnKind: z.enum(["recording", "artist", "album", "release", "release_group"]).optional(),
       pool: materialPoolSchema.optional(),
       constraints: materialConstraintsSchema.optional(),
-      preferenceHints: materialPreferenceHintsSchema.optional(),
       exclude: materialExcludeSchema.optional(),
       order: z.enum(["relevance", "recently_added", "least_recently_recommended", "random", "library_order"]).optional(),
       ownerScope: z.string().optional(),
@@ -295,7 +286,6 @@ export const musicToolDefinitions = [
       relation: z.enum(["same_artist", "same_album", "same_release", "same_release_group", "similar"]),
       exclude: materialExcludeSchema.optional(),
       constraints: materialConstraintsSchema.optional(),
-      preferenceHints: materialPreferenceHintsSchema.optional(),
       ownerScope: z.string().optional(),
       limit: z.number().int().positive().optional(),
     },

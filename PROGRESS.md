@@ -1048,6 +1048,10 @@
   deterministic cursor pagination, collection-label lookup, saved-album
   track-level text filtering, lightweight `preferenceHints` matching, and
   recently-added / least-recently-recommended ordering.
+- Addressed PR #7 follow-up review by hiding experimental `preferenceHints`
+  from the LLM-facing `music.material.query` and `music.material.related`
+  Stage Interface/MCP schemas while keeping the internal contract, and by
+  making `music.material.context.brief` respect requested `fields`.
 
 ## Next
 

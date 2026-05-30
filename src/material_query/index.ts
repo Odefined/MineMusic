@@ -1318,6 +1318,7 @@ async function contextBriefForInput(
   materialStore: MaterialStorePort,
   input: MaterialContextBriefInput,
 ): Promise<Result<MaterialContextBriefOutput>> {
+  const requestedFields = new Set(input.fields);
   const record = await materialStore.getMaterialRecord({ materialRef: cardRefToMaterialRef(input.ref) });
 
   if (!record.ok) {
@@ -1343,17 +1344,26 @@ async function contextBriefForInput(
   }
 
   const sourceTrack = sourceEntities.value.find((entity) => entity.kind === "track");
+  const warnings: string[] = [];
+
+  if (requestedFields.has("status") && record.value.status !== "active") {
+    warnings.push(`material_${record.value.status}`);
+  }
+
+  if (requestedFields.has("version")) {
+    warnings.push("version_unavailable");
+  }
 
   return ok({
     ref: input.ref,
     title: canonical.value?.label ?? sourceTrack?.label ?? record.value.materialRef.id,
-    ...(sourceTrack?.artistLabels?.[0] === undefined
+    ...(!requestedFields.has("artist") || sourceTrack?.artistLabels?.[0] === undefined
       ? {}
       : { artist: { name: sourceTrack.artistLabels.join(", "), confidence: "source" } }),
-    ...(sourceTrack?.releaseLabel === undefined
+    ...(!requestedFields.has("album") || sourceTrack?.releaseLabel === undefined
       ? {}
       : { album: { title: sourceTrack.releaseLabel, confidence: "source" } }),
-    ...(record.value.status === "active" ? {} : { warnings: [`material_${record.value.status}`] }),
+    ...(warnings.length === 0 ? {} : { warnings }),
   });
 }
 

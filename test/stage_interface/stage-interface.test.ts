@@ -140,6 +140,21 @@ async function stableToolNamesHaveMatchingSchemasAndDescriptors(): Promise<void>
   );
 }
 
+async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<void> {
+  const querySchema = stageInterfaceToolInputSchemas["music.material.query"];
+  const relatedSchema = stageInterfaceToolInputSchemas["music.material.related"];
+
+  assert(
+    !Object.prototype.hasOwnProperty.call(querySchema, "preferenceHints"),
+    "material query public schema should not advertise experimental preferenceHints",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(relatedSchema, "preferenceHints"),
+    "material related public schema should not advertise experimental preferenceHints",
+  );
+}
+
 await exposesEveryStableToolNameThroughStageInterface();
 await stableToolNamesRemainInPublishedOrder();
 await stableToolNamesHaveMatchingSchemasAndDescriptors();
+await materialQuerySchemasHideExperimentalPreferenceHints();

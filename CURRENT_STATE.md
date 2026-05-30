@@ -103,14 +103,18 @@ Interface now exposes `music.material.resolve.cards`, `music.material.query`,
 expanded into tracks, Collection compatibility through canonical refs or
 collection labels, `returnKind`, relation exclusions, recent-activity
 exclusions, cursor pagination, recently-added and least-recently-recommended
-ordering, and lightweight text matching for `preferenceHints`. Related material
-resolves generated candidates through Material Resolve and supports same-artist,
-same-album, and similar flows with canonical-artist preference and source
-artist/release fallback. `music.material.resolve.cards` resolves opaque `mat_*`
-card refs through Material Registry / Material Resolve rather than treating them
-as search text. `stage.context.read` now returns bounded `recentCards` from
-compact recommendation presentation events without exposing raw event payloads,
-and Event Service projects compact `MaterialCard.ref` strings into Material
+ordering, while internal query inputs can still use lightweight text matching
+for `preferenceHints`; Stage Interface tool schemas intentionally do not
+advertise `preferenceHints` until real semantic feature data exists. Related
+material resolves generated candidates through Material Resolve and supports
+same-artist, same-album, and similar flows with canonical-artist preference and
+source artist/release fallback. `music.material.context.brief` respects its
+requested `fields` when returning artist, album, version, or status details.
+`music.material.resolve.cards` resolves opaque `mat_*` card refs through
+Material Registry / Material Resolve rather than treating them as search text.
+`stage.context.read` now returns bounded `recentCards` from compact
+recommendation presentation events without exposing raw event payloads, and
+Event Service projects compact `MaterialCard.ref` strings into Material
 Activity so recent query exclusions work after compact recommendation events.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns

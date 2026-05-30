@@ -40,20 +40,22 @@ Material Query now exposes compact agent-facing retrieval over material cards.
 `music.material.query` can restrict results to Source Library saved tracks and
 saved albums expanded into tracks, apply `returnKind`, relation exclusions,
 recent-activity exclusions, cursor pagination, and least-recently-recommended
-ordering, recently-added ordering, apply lightweight text matching for
-`preferenceHints` fields, and return opaque card refs without raw
-source/canonical/evidence graphs. `music.material.resolve.cards` now resolves
-returned `mat_*` card refs back through Material Registry / Material Resolve
-instead of treating them as text search. `music.material.related` resolves
-related candidates through
+ordering, recently-added ordering, and return opaque card refs without raw
+source/canonical/evidence graphs. Internal query inputs can still use
+lightweight text matching for `preferenceHints`, but Stage Interface tool
+schemas do not advertise those fields until real semantic feature data exists.
+`music.material.resolve.cards` now resolves returned `mat_*` card refs back
+through Material Registry / Material Resolve instead of treating them as text
+search. `music.material.related` resolves related candidates through
 Material Resolve for same-artist,
 same-album, and similar flows, preferring confirmed artist basis when
 source-artist bindings exist and falling back to source artist/release facts
-when canonical identity is missing. Stage context now includes bounded
-`recentCards` derived from recommendation presentation events without exposing
-raw event payloads. Event Service also projects compact `MaterialCard.ref`
-strings in recommendation payloads into Material Activity, so recent exclusion
-works for compact card events.
+when canonical identity is missing. `music.material.context.brief` respects its
+requested `fields` when returning artist, album, version, or status details.
+Stage context now includes bounded `recentCards` derived from recommendation
+presentation events without exposing raw event payloads. Event Service also
+projects compact `MaterialCard.ref` strings in recommendation payloads into
+Material Activity, so recent exclusion works for compact card events.
 
 ## Implemented
 
@@ -115,6 +117,10 @@ works for compact card events.
   public structured fields such as `cursor`, collection `label`, saved-album
   track-level `q`, lightweight `preferenceHints` matching, and
   `recently_added` / `least_recently_recommended` ordering.
+- Addressed PR #7 follow-up review by hiding experimental `preferenceHints`
+  from the LLM-facing `music.material.query` and `music.material.related`
+  Stage Interface/MCP schemas while keeping the internal contract, and by
+  making `music.material.context.brief.fields` control output shape.
 
 ## Verification
 

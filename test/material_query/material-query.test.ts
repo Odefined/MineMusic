@@ -519,6 +519,77 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
   assert(output.items.length === 0, "recent exclusion should filter compact-card recommendation events");
 }
 
+async function contextBriefFieldsSelectArtistAlbumVersionAndStatus(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "context-brief-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([]);
+  await putLibraryTrack(materialStore, sourceRef, "Context Brief Track", "2026-05-30T00:00:00.000Z", {
+    artistLabels: ["Context Artist"],
+    releaseLabel: "Context Album",
+  });
+  const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  const cardRef = materialRefToCardRef(record.materialRef);
+  assert(materialQuery.contextBrief !== undefined, "material query service should expose contextBrief");
+
+  const artistOnly = await assertOk(
+    materialQuery.contextBrief({
+      ref: cardRef,
+      fields: ["artist"],
+    }),
+  );
+  const albumOnly = await assertOk(
+    materialQuery.contextBrief({
+      ref: cardRef,
+      fields: ["album"],
+    }),
+  );
+  const versionOnly = await assertOk(
+    materialQuery.contextBrief({
+      ref: cardRef,
+      fields: ["version"],
+    }),
+  );
+
+  assert(artistOnly.artist?.name === "Context Artist", "artist field should include source artist info");
+  assert(!("album" in artistOnly), "artist-only context brief should not include album info");
+  assert(!("warnings" in artistOnly), "artist-only context brief should not include status/version warnings");
+  assert(albumOnly.album?.title === "Context Album", "album field should include source album info");
+  assert(!("artist" in albumOnly), "album-only context brief should not include artist info");
+  assert(versionOnly.warnings?.includes("version_unavailable"), "version field should report missing version data");
+  assert(!("artist" in versionOnly) && !("album" in versionOnly), "version-only context brief should not include artist or album info");
+}
+
+async function contextBriefStatusFieldReturnsOnlyStatusWarnings(): Promise<void> {
+  const mergedRef = ref("source:fixture", "track", "context-brief-merged-track");
+  const survivorRef = ref("source:fixture", "track", "context-brief-survivor-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([]);
+  await putLibraryTrack(materialStore, mergedRef, "Merged Context Track", "2026-05-30T00:00:00.000Z", {
+    artistLabels: ["Merged Artist"],
+    releaseLabel: "Merged Album",
+  });
+  await putLibraryTrack(materialStore, survivorRef, "Survivor Context Track");
+  const mergedRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: mergedRef, kind: "recording" }));
+  const survivorRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: survivorRef, kind: "recording" }));
+  await assertOk(
+    materialStore.mergeMaterials({
+      from: mergedRecord.materialRef,
+      into: survivorRecord.materialRef,
+      reason: "test duplicate merge",
+    }),
+  );
+  assert(materialQuery.contextBrief !== undefined, "material query service should expose contextBrief");
+
+  const statusOnly = await assertOk(
+    materialQuery.contextBrief({
+      ref: materialRefToCardRef(mergedRecord.materialRef),
+      fields: ["status"],
+    }),
+  );
+
+  assert(statusOnly.warnings?.includes("material_merged"), "status field should include material status warnings");
+  assert(!("artist" in statusOnly), "status-only context brief should not include artist info");
+  assert(!("album" in statusOnly), "status-only context brief should not include album info");
+}
+
 async function recentOpenedAndPlayedHardExcludeWorksByWindow(): Promise<void> {
   const openedRef = ref("source:fixture", "track", "opened-track");
   const playedRef = ref("source:fixture", "track", "played-track");
@@ -671,6 +742,10 @@ async function putLibraryTrack(
   sourceRef: Ref,
   label: string,
   addedAt = "2026-05-30T00:00:00.000Z",
+  context: {
+    artistLabels?: string[];
+    releaseLabel?: string;
+  } = {},
 ): Promise<void> {
   await assertOk(
     materialStore.upsertSourceEntity({
@@ -680,6 +755,8 @@ async function putLibraryTrack(
         kind: "track",
         label,
         title: label,
+        ...(context.artistLabels === undefined ? {} : { artistLabels: context.artistLabels }),
+        ...(context.releaseLabel === undefined ? {} : { releaseLabel: context.releaseLabel }),
         createdAt: "2026-05-30T00:00:00.000Z",
         updatedAt: "2026-05-30T00:00:00.000Z",
       },
@@ -887,5 +964,7 @@ await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();
 await recentRecommendedHardExcludeWorks();
 await compactRecommendationCardEventsUpdateRecentExclusions();
+await contextBriefFieldsSelectArtistAlbumVersionAndStatus();
+await contextBriefStatusFieldReturnsOnlyStatusWarnings();
 await recentOpenedAndPlayedHardExcludeWorksByWindow();
 await compactCardsDoNotExposeRawMaterialInternals();
