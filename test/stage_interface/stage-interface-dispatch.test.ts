@@ -805,12 +805,22 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       calls.push(`add:${ownerScope}:${relationKind}:${canonicalRef.id}`);
       return { ok: true, value: collectionItem };
     },
+    addMaterialToSystemCollection: async ({ ownerScope, relationKind, materialRef }) => {
+      calls.push(`add-material:${ownerScope}:${relationKind}:${materialRef.id}`);
+      return { ok: true, value: { ...collectionItem, materialRef } };
+    },
     removeItemFromSystemCollection: async ({ ownerScope, relationKind, canonicalRef }) => {
       calls.push(`remove:${ownerScope}:${relationKind}:${canonicalRef.id}`);
       return { ok: true, value: collectionItem };
     },
+    removeMaterialFromSystemCollection: async ({ ownerScope, relationKind, materialRef }) => {
+      calls.push(`remove-material:${ownerScope}:${relationKind}:${materialRef.id}`);
+      return { ok: true, value: { ...collectionItem, materialRef } };
+    },
     addItemToCollection: async () => ({ ok: true, value: collectionItem }),
+    addMaterialToCollection: async () => ({ ok: true, value: collectionItem }),
     removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
+    removeMaterialFromCollection: async () => ({ ok: true, value: collectionItem }),
     updateItem: async () => ({ ok: true, value: collectionItem }),
     listItems: async () => ({ ok: true, value: [] }),
     listCollections: async () => ({ ok: true, value: [] }),
@@ -818,6 +828,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     updateCollection: async () => ({ ok: true, value: collectionRecord }),
     removeCollection: async () => ({ ok: true, value: collectionRecord }),
     filterBlocked: async () => ({ ok: true, value: [] }),
+    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
   const dispatch = createToolDispatch({
     sessionContext: {
@@ -897,6 +908,25 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       payload: { canonicalRef: collectionRef },
     }),
   );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.block",
+      payload: {
+        materialRef: { namespace: "minemusic", kind: "material", id: "source-only-material" },
+        label: "Source Only Material",
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "music.collection.unblock",
+      payload: {
+        materialRef: { namespace: "minemusic", kind: "material", id: "source-only-material" },
+      },
+    }),
+  );
 
   assert(
     calls.includes("add:local_profile:default:saved:quiet-track"),
@@ -922,6 +952,14 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     calls.includes("remove:local_profile:default:blocked:quiet-track"),
     "collection unblock should call blocked system collection removal",
   );
+  assert(
+    calls.includes("add-material:local_profile:default:blocked:source-only-material"),
+    "collection block should accept materialRef payloads",
+  );
+  assert(
+    calls.includes("remove-material:local_profile:default:blocked:source-only-material"),
+    "collection unblock should accept materialRef payloads",
+  );
 }
 
 async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Promise<void> {
@@ -939,15 +977,19 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
   const collection: CollectionPort = {
     initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
     addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
+    addMaterialToSystemCollection: async () => ({ ok: true, value: collectionItem }),
     removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
+    removeMaterialFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
     addItemToCollection: async ({ collectionId, canonicalRef, label }) => {
       calls.push(`item.add:${collectionId}:${canonicalRef.id}:${label}`);
       return { ok: true, value: customItem };
     },
+    addMaterialToCollection: async () => ({ ok: true, value: customItem }),
     removeItemFromCollection: async ({ collectionId, canonicalRef }) => {
       calls.push(`item.remove:${collectionId}:${canonicalRef.id}`);
       return { ok: true, value: customItem };
     },
+    removeMaterialFromCollection: async () => ({ ok: true, value: customItem }),
     updateItem: async () => ({ ok: true, value: customItem }),
     listItems: async ({ ownerScope, collectionKind, relationKind, includeRemoved, limit, cursor }) => {
       calls.push(
@@ -974,6 +1016,7 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       return { ok: true, value: customCollection };
     },
     filterBlocked: async () => ({ ok: true, value: [] }),
+    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
   const dispatch = createToolDispatch({
     sessionContext: {
@@ -1215,9 +1258,13 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     collection: {
       initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
       addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
+      addMaterialToSystemCollection: async () => ({ ok: true, value: collectionItem }),
       removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
+      removeMaterialFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
       addItemToCollection: async () => ({ ok: true, value: collectionItem }),
+      addMaterialToCollection: async () => ({ ok: true, value: collectionItem }),
       removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
+      removeMaterialFromCollection: async () => ({ ok: true, value: collectionItem }),
       updateItem: async () => ({ ok: true, value: collectionItem }),
       listItems: async () => ({ ok: true, value: [] }),
       listCollections: async () => ({ ok: true, value: [] }),
@@ -1225,6 +1272,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
       updateCollection: async () => ({ ok: true, value: collectionRecord }),
       removeCollection: async () => ({ ok: true, value: collectionRecord }),
       filterBlocked: async () => ({ ok: true, value: [] }),
+      filterBlockedMaterials: async () => ({ ok: true, value: [] }),
     },
     libraryImport,
   });

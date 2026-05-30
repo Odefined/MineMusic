@@ -425,7 +425,21 @@ export function createInMemoryCollectionRepository(): CollectionRepository {
         [...items.values()].find(
           (candidate) =>
             candidate.collectionId === collectionId &&
+            candidate.canonicalRef !== undefined &&
             refToStorageKey(candidate.canonicalRef) === refToStorageKey(canonicalRef) &&
+            (includeRemoved === true || candidate.removedAt === undefined),
+        ) ?? null;
+
+      return ok(item === null ? null : cloneRecord(item));
+    },
+
+    async findItemByMaterialMembership({ collectionId, materialRef, includeRemoved }) {
+      const item =
+        [...items.values()].find(
+          (candidate) =>
+            candidate.collectionId === collectionId &&
+            candidate.materialRef !== undefined &&
+            refToStorageKey(candidate.materialRef) === refToStorageKey(materialRef) &&
             (includeRemoved === true || candidate.removedAt === undefined),
         ) ?? null;
 

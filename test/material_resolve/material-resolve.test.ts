@@ -184,13 +184,14 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
   const ownerScopes: string[] = [];
   const blockedRefs: Ref[][] = [];
   const collection = {
-    filterBlocked: async ({ ownerScope, canonicalRefs }) => {
+    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
+    filterBlocked: async ({ ownerScope, canonicalRefs }: { ownerScope: string; canonicalRefs: Ref[] }) => {
       ownerScopes.push(ownerScope);
       blockedRefs.push(canonicalRefs);
 
       return { ok: true, value: [canonical.ref] };
     },
-  } as CollectionPort;
+  } as unknown as CollectionPort;
   const sourceGrounding: SourceGroundingPort = {
     ground: async () => ({
       ok: true,
@@ -275,15 +276,16 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
 
   const ownerScopes: string[] = [];
   const collection = {
-    filterBlocked: async ({ ownerScope, canonicalRefs }) => {
+    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
+    filterBlocked: async ({ ownerScope, canonicalRefs }: { ownerScope: string; canonicalRefs: Ref[] }) => {
       ownerScopes.push(ownerScope);
 
       return {
         ok: true,
-        value: canonicalRefs.filter((ref) => ref.id === canonical.ref.id),
+        value: canonicalRefs.filter((ref: Ref) => ref.id === canonical.ref.id),
       };
     },
-  } as CollectionPort;
+  } as unknown as CollectionPort;
   const sourceGrounding: SourceGroundingPort = {
     ground: async () => ({
       ok: true,

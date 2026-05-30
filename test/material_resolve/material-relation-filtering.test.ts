@@ -173,6 +173,7 @@ async function canonicalCollectionBlockedFilteringStillWorks(): Promise<void> {
   await assertOk(canonicalRepository.put(canonical));
   const sourceRef = ref("source:fixture", "track", "canonical-source");
   const collection = {
+    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
     filterBlocked: async () => ({ ok: true, value: [canonical.ref] }),
   } as unknown as CollectionPort;
   const { resolve } = createTestResolve([sourceMaterial("Canonical Blocked", sourceRef)], {

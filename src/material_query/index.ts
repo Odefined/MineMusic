@@ -616,6 +616,7 @@ async function collectionCandidates({
 
   return ok(
     items.value
+      .filter((item) => item.canonicalRef !== undefined)
       .filter((item) => matchesQueryText(item.label, q))
       .map((item) => candidateForCollectionItem(item)),
   );
@@ -693,14 +694,20 @@ function candidateForSourceLibraryItem(item: SourceLibraryItem): MusicCandidate 
 }
 
 function candidateForCollectionItem(item: CollectionItem): MusicCandidate {
+  const canonicalRef = item.canonicalRef;
+
+  if (canonicalRef === undefined) {
+    throw new Error("Collection material-only items cannot be resolved through canonical collection compatibility.");
+  }
+
   return {
     id: `collection:${item.id}`,
     label: item.label,
-    expectedKind: item.canonicalRef.kind,
-    canonicalRef: item.canonicalRef,
+    expectedKind: canonicalRef.kind,
+    canonicalRef,
     query: {
       text: item.label,
-      canonicalRef: item.canonicalRef,
+      canonicalRef,
     },
   };
 }

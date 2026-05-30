@@ -100,5 +100,72 @@ async function acceptsEvidenceBackedProposalsThroughEffectBoundary(): Promise<vo
   assert(summaries.includes(accepted.text), "accepted memory should be summarized");
 }
 
+async function materialStructuredTargetKeepsEvidenceGateAndEffectTarget(): Promise<void> {
+  const effectTargets: unknown[] = [];
+  const memory = createMemoryService({
+    repository: createInMemoryMemoryRepository(),
+    events,
+    effects: {
+      propose: async ({ proposal }) => {
+        effectTargets.push(proposal.target);
+        return { ok: true, value: { ...proposal, id: "effect-material-memory" } };
+      },
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+    idFactory: () => "memory-proposal-material",
+  });
+
+  const weak = await memory.propose({
+    proposal: {
+      entry: {
+        text: "Likes this source-only material for coding.",
+        kind: "contextual_preference",
+        structuredTarget: {
+          kind: "material",
+          materialRef: { namespace: "minemusic", kind: "material", id: "memory-material" },
+          scope: { level: "material" },
+        },
+      },
+      reason: "No evidence yet.",
+      requiresEffectApproval: true,
+    },
+  });
+  const proposal = await assertOk(
+    memory.propose({
+      proposal: {
+        entry: {
+          text: "Likes this source-only material for coding.",
+          kind: "contextual_preference",
+          structuredTarget: {
+            kind: "material",
+            materialRef: { namespace: "minemusic", kind: "material", id: "memory-material" },
+            scope: { level: "material" },
+          },
+          evidenceEventIds: ["event-1"],
+        },
+        reason: "User gave feedback on the material.",
+        requiresEffectApproval: true,
+      },
+    }),
+  );
+  const accepted = await assertOk(memory.accept({ proposalId: proposal.id }));
+
+  assert(!weak.ok, "material memory still needs explicit rule status or evidence");
+  assert(accepted.structuredTarget?.kind === "material", "accepted memory should retain structured material target");
+  assert(
+    effectTargets.some(
+      (target) =>
+        typeof target === "object" &&
+        target !== null &&
+        "kind" in target &&
+        target.kind === "material" &&
+        "actionScope" in target &&
+        target.actionScope === "remember_preference",
+    ),
+    "accepted material memory should propose a compact material effect target",
+  );
+}
+
 await rejectsWeakMemoryProposals();
 await acceptsEvidenceBackedProposalsThroughEffectBoundary();
+await materialStructuredTargetKeepsEvidenceGateAndEffectTarget();

@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-04-query-related-tools` with the
-MusicMaterial refactor PR 4 compact query/related tool changes applied locally.
+MineMusic is on `codex/material-05-downstream-migration` with the
+MusicMaterial refactor PR 5 downstream migration changes applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -116,6 +116,17 @@ Material Registry / Material Resolve rather than treating them as search text.
 recommendation presentation events without exposing raw event payloads, and
 Event Service projects compact `MaterialCard.ref` strings into Material
 Activity so recent query exclusions work after compact recommendation events.
+
+The 2026-05-30 MusicMaterial PR 5 downstream migration slice moves
+consequence-bearing modules toward product-level material targets. Collection
+Items now support `materialRef`, material snapshots, relation scope, identity
+requirements, and `pending_identity` status while preserving legacy
+`canonicalRef` collection APIs. Collection Service can block source-only
+materials and filter blocked material refs, and Stage Interface collection tools
+accept either `canonicalRef` or `materialRef` payloads. Event Service accepts
+structured material snapshot targets while preserving old Ref targets. Memory
+entries can carry structured material targets under the existing evidence gate,
+and Effect Boundary accepts compact material action targets.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

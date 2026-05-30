@@ -2,10 +2,11 @@
 
 ## Current State
 
-PR 4 of the MusicMaterial refactor is implemented. PR 1 added the registry
+PR 5 of the MusicMaterial refactor is implemented. PR 1 added the registry
 foundation, PR 2 integrates Material Resolve projection onto that registry,
-PR 3 adds material-scoped relations plus recent activity projection, and PR 4
-adds compact material query/related/card tools.
+PR 3 adds material-scoped relations plus recent activity projection, PR 4
+adds compact material query/related/card tools, and PR 5 migrates downstream
+Collection, Event, Memory, and Effect targets toward `materialRef`.
 Material Registry now lives inside Material Store and owns opaque
 `materialRef` records, source/canonical lookup indexes, merge redirects, and
 identity state for future resolved `MusicMaterial` projections.
@@ -56,6 +57,13 @@ Stage context now includes bounded `recentCards` derived from recommendation
 presentation events without exposing raw event payloads. Event Service also
 projects compact `MaterialCard.ref` strings in recommendation payloads into
 Material Activity, so recent exclusion works for compact card events.
+Collection Items now support material targets and legacy canonical
+compatibility. Source-only materials can be blocked through Collection Service
+without waiting for canonical identity, saved/favorite material items can remain
+`pending_identity`, and custom collections can list material-backed items.
+Event Service accepts structured material snapshot targets, Memory Service
+accepts evidence-gated structured material targets, and Effect Boundary accepts
+compact material action targets.
 
 ## Implemented
 
@@ -121,6 +129,17 @@ Material Activity, so recent exclusion works for compact card events.
   from the LLM-facing `music.material.query` and `music.material.related`
   Stage Interface/MCP schemas while keeping the internal contract, and by
   making `music.material.context.brief.fields` control output shape.
+- Added PR 5 downstream target contracts:
+  `MusicMaterialSnapshot`, `MaterialEventTarget`, `MemoryTarget`, and compact
+  `MusicMaterialActionTarget`.
+- Extended Collection Service with materialRef-based add/remove/filter methods
+  while keeping canonicalRef methods as compatibility adapters.
+- Extended in-memory and SQLite Collection repositories with materialRef
+  membership lookup and persistence.
+- Updated Stage Interface collection tools to accept either `canonicalRef` or
+  `materialRef` payloads.
+- Preserved Event, Memory, and Effect compatibility while adding structured
+  material targets for new consequence flows.
 
 ## Verification
 
@@ -164,10 +183,22 @@ Material Activity, so recent exclusion works for compact card events.
   `node .tmp-test/test/stage_interface/stage-interface.test.js`, and
   `node .tmp-test/test/surfaces/mcp-server.test.js`.
 - `npm run typecheck` passed after PR #7 review fixes on 2026-05-30.
+- PR 5 targeted checks passed on 2026-05-30:
+  `node .tmp-test/test/collection/collection-service.test.js`,
+  `node .tmp-test/test/storage/in-memory-repositories.test.js`,
+  `node .tmp-test/test/storage/sqlite-collection-repository.test.js`,
+  `node .tmp-test/test/material_resolve/material-resolve.test.js`,
+  `node .tmp-test/test/material_resolve/material-relation-filtering.test.js`,
+  `node .tmp-test/test/events/material-activity.test.js`,
+  `node .tmp-test/test/memory/memory-service.test.js`,
+  `node .tmp-test/test/effects/effect-boundary.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`, and
+  `node .tmp-test/test/material_query/material-query.test.js`.
 
 ## Remaining
 
 - Canonical-only materialization when Source Grounding returns no source
   material remains deferred; PR 2 only materializes provider/source-backed
   projection paths.
-- PR 5 will migrate Collection, Memory, and Effect toward material targets.
+- Removing legacy raw/canonical target variants remains deferred until explicit
+  cleanup approval.

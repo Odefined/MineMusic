@@ -708,9 +708,13 @@ function createCollectionPortStub(collections: Collection[], items: CollectionIt
   return {
     initializeOwnerCollections: async () => ({ ok: true, value: [] }),
     addItemToSystemCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
+    addMaterialToSystemCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
     removeItemFromSystemCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
+    removeMaterialFromSystemCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
     addItemToCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
+    addMaterialToCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
     removeItemFromCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
+    removeMaterialFromCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
     updateItem: async () => ({ ok: true, value: items[0] as CollectionItem }),
     listItems: async ({ ownerScope, collectionId, relationKind }) => ({
       ok: true,
@@ -734,6 +738,7 @@ function createCollectionPortStub(collections: Collection[], items: CollectionIt
     updateCollection: async () => ({ ok: true, value: collections[0] as Collection }),
     removeCollection: async () => ({ ok: true, value: collections[0] as Collection }),
     filterBlocked: async () => ({ ok: true, value: [] }),
+    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
 }
 

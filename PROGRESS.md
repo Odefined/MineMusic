@@ -1052,6 +1052,25 @@
   from the LLM-facing `music.material.query` and `music.material.related`
   Stage Interface/MCP schemas while keeping the internal contract, and by
   making `music.material.context.brief` respect requested `fields`.
+- Started MusicMaterial PR 5 on branch
+  `codex/material-05-downstream-migration` from updated `main`.
+- Added downstream material target contracts for snapshots, event targets,
+  structured memory targets, and compact material action targets.
+- Extended Collection Service and repositories so CollectionItems can carry
+  `materialRef`, optional snapshots, relation scope, identity requirements, and
+  `pending_identity` status while preserving legacy `canonicalRef` APIs.
+- Updated Material Resolve to prefer materialRef blocked filtering through
+  Collection Service before falling back to legacy canonical blocked filtering.
+- Updated Stage Interface collection tools to accept `materialRef` payloads for
+  system and custom collection item actions while keeping existing canonicalRef
+  payloads working.
+- Extended Event, Memory, and Effect flows so consequence-bearing outputs can
+  target material refs without removing legacy Ref compatibility.
+- Added PR 5 tests for source-only material blocking, material collection
+  pending identity, canonical compatibility backfill, custom material
+  collections, SQLite material membership persistence, material snapshot event
+  targets, evidence-gated material memory, compact material effect targets, and
+  Stage Interface materialRef dispatch.
 
 ## Next
 

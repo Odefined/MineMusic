@@ -519,10 +519,30 @@ export interface CollectionPort {
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
+  addMaterialToSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    materialRef: Ref;
+    label: string;
+    collectionKind?: CollectionKind;
+    canonicalRef?: Ref;
+    materialSnapshot?: CollectionItem["materialSnapshot"];
+    relationScope?: CollectionItem["relationScope"];
+    identityRequirement?: CollectionItem["identityRequirement"];
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
   removeItemFromSystemCollection(input: {
     ownerScope: string;
     relationKind: SystemCollectionRelationKind;
     canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  removeMaterialFromSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    materialRef: Ref;
+    collectionKind?: CollectionKind;
   }): Promise<Result<CollectionItem>>;
 
   addItemToCollection(input: {
@@ -532,9 +552,25 @@ export interface CollectionPort {
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
+  addMaterialToCollection(input: {
+    collectionId: string;
+    materialRef: Ref;
+    label: string;
+    canonicalRef?: Ref;
+    materialSnapshot?: CollectionItem["materialSnapshot"];
+    relationScope?: CollectionItem["relationScope"];
+    identityRequirement?: CollectionItem["identityRequirement"];
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
   removeItemFromCollection(input: {
     collectionId: string;
     canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  removeMaterialFromCollection(input: {
+    collectionId: string;
+    materialRef: Ref;
   }): Promise<Result<CollectionItem>>;
 
   updateItem(input: {
@@ -568,6 +604,11 @@ export interface CollectionPort {
   filterBlocked(input: {
     ownerScope: string;
     canonicalRefs: Ref[];
+  }): Promise<Result<Ref[]>>;
+
+  filterBlockedMaterials(input: {
+    ownerScope: string;
+    materialRefs: Ref[];
   }): Promise<Result<Ref[]>>;
 }
 
@@ -728,6 +769,12 @@ export interface CollectionRepository {
   findItemByMembership(input: {
     collectionId: string;
     canonicalRef: Ref;
+    includeRemoved?: boolean;
+  }): Promise<Result<CollectionItem | null>>;
+
+  findItemByMaterialMembership(input: {
+    collectionId: string;
+    materialRef: Ref;
     includeRemoved?: boolean;
   }): Promise<Result<CollectionItem | null>>;
 

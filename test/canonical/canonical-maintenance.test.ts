@@ -1526,7 +1526,12 @@ async function cannotConfirmRecordsEventStateAndLeavesIdentityUnchanged(): Promi
   assert(loaded?.status === "provisional", "cannot_confirm should leave canonical identity state unchanged");
   assert(recordedEvents.length === 1, "cannot_confirm should record exactly one event");
   assert(recordedEvents[0]?.type === "provisional_review.cannot_confirm_identity", "cannot_confirm event type should be stable");
-  assert(recordedEvents[0]?.target?.id === subject.ref.id, "cannot_confirm event should target the subject");
+  assert(
+    recordedEvents[0]?.target !== undefined &&
+      "id" in recordedEvents[0].target &&
+      recordedEvents[0].target.id === subject.ref.id,
+    "cannot_confirm event should target the subject",
+  );
   assert(reviewStates[0]?.outcome === "cannot_confirm", "cannot_confirm should write review state");
 }
 

@@ -354,15 +354,34 @@ async function applyBlockedFiltering({
     return ok(materials);
   }
 
+  const materialRefs = mergeRefs(
+    [],
+    materials.map((material) => material.materialRef),
+  );
+  const blockedMaterials = await collection.filterBlockedMaterials({
+    ownerScope,
+    materialRefs,
+  });
+
+  if (!blockedMaterials.ok) {
+    return blockedMaterials;
+  }
+
+  const blockedMaterialRefKeys = new Set(blockedMaterials.value.map(refKey));
+  const materialFiltered = materials.map((material) =>
+    blockedMaterialRefKeys.has(refKey(material.materialRef))
+      ? { ...material, state: "blocked" as const }
+      : material,
+  );
   const canonicalRefs = mergeRefs(
     [],
-    materials
+    materialFiltered
       .map((material) => material.canonicalRef)
       .filter((ref): ref is Ref => ref !== undefined),
   );
 
   if (canonicalRefs.length === 0) {
-    return ok(materials);
+    return ok(materialFiltered);
   }
 
   const blocked = await collection.filterBlocked({
@@ -377,7 +396,7 @@ async function applyBlockedFiltering({
   const blockedRefKeys = new Set(blocked.value.map(refKey));
 
   return ok(
-    materials.map((material) =>
+    materialFiltered.map((material) =>
       material.canonicalRef !== undefined && blockedRefKeys.has(refKey(material.canonicalRef))
         ? { ...material, state: "blocked" }
         : material,

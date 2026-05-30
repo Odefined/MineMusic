@@ -41,9 +41,11 @@ User-facing actions are ordinary music actions:
 Internally, Collection Service preserves explicit collections and their items so
 those actions are listable, removable, sortable, and syncable later.
 
-Collection Service does not own the music object itself. Canonical Store owns
-the identity of the music object; Collection owns user-scoped collections and
-their members.
+Collection Service does not own the music object itself. Material Store owns
+the product-level material target and Canonical Store owns accepted canonical
+identity; Collection owns user-scoped collections and their members. New
+Collection writes should prefer `materialRef`; legacy `canonicalRef` item
+methods remain compatibility adapters during migration.
 
 ## Collection Kinds
 
@@ -67,9 +69,10 @@ Canonical Store supports `artist`, `work`, `recording`, `release_group`, and
 `release` so users can save both album-level groupings and concrete editions,
 remasters, regions, formats, or deluxe versions.
 
-`collectionKind` is the type of music object in the collection. It matches
-`canonicalRef.kind`; Collection Service does not maintain an independent object
-taxonomy.
+`collectionKind` is the type of music object in the collection. For canonical
+compatibility it matches `canonicalRef.kind`; for material-backed items it is
+the collection view kind chosen by the caller or inferred from the material
+snapshot. Collection Service does not maintain an independent object taxonomy.
 
 ## Layer Placement
 
@@ -133,7 +136,8 @@ without making Collection ownership session-scoped.
 Collection Service owns:
 
 - collections for long-lived owner-to-music-object relationships.
-- collection items as members of those collections.
+- collection items as members of those collections, preferably keyed by
+  `materialRef` and optionally carrying a material snapshot.
 - list/remove semantics for collection items.
 - collection and collection item lifecycle state.
 - local durable collection repository.

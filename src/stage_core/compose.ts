@@ -42,6 +42,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const collection = createCollectionService({
     repository: repositories.collectionRepository,
     events,
+    materialStore,
   });
   const source = createSourceGroundingService({
     canonicalStore: canonical,
