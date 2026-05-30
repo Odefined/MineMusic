@@ -460,10 +460,30 @@ export interface CollectionPort {
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
+  addMaterialToSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    materialRef: Ref;
+    label: string;
+    collectionKind?: CollectionKind;
+    canonicalRef?: Ref;
+    materialSnapshot?: MusicMaterialSnapshot;
+    relationScope?: MusicMaterialRelationScope;
+    identityRequirement?: "none" | "source_backed" | "canonical_confirmed";
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
   removeItemFromSystemCollection(input: {
     ownerScope: string;
     relationKind: SystemCollectionRelationKind;
     canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  removeMaterialFromSystemCollection(input: {
+    ownerScope: string;
+    relationKind: SystemCollectionRelationKind;
+    materialRef: Ref;
+    collectionKind?: CollectionKind;
   }): Promise<Result<CollectionItem>>;
 
   addItemToCollection(input: {
@@ -473,9 +493,25 @@ export interface CollectionPort {
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
+  addMaterialToCollection(input: {
+    collectionId: string;
+    materialRef: Ref;
+    label: string;
+    canonicalRef?: Ref;
+    materialSnapshot?: MusicMaterialSnapshot;
+    relationScope?: MusicMaterialRelationScope;
+    identityRequirement?: "none" | "source_backed" | "canonical_confirmed";
+    description?: string;
+  }): Promise<Result<CollectionItem>>;
+
   removeItemFromCollection(input: {
     collectionId: string;
     canonicalRef: Ref;
+  }): Promise<Result<CollectionItem>>;
+
+  removeMaterialFromCollection(input: {
+    collectionId: string;
+    materialRef: Ref;
   }): Promise<Result<CollectionItem>>;
 
   updateItem(input: {
@@ -508,6 +544,11 @@ export interface CollectionPort {
   filterBlocked(input: {
     ownerScope: string;
     canonicalRefs: Ref[];
+  }): Promise<Result<Ref[]>>;
+
+  filterBlockedMaterials(input: {
+    ownerScope: string;
+    materialRefs: Ref[];
   }): Promise<Result<Ref[]>>;
 }
 ```
@@ -684,10 +725,9 @@ Must not expose:
 
 Targeting rule:
 
-- For `source_only_playable` material, `EventPort.record` should target a
-  canonical or provisional canonical ref when one exists. If only a source ref
-  exists, the event may target that source ref, but the payload must preserve the
-  source-only material state and must not imply durable identity.
+- New material events should use structured material targets with
+  `materialRef` and a `MusicMaterialSnapshot`.
+- Legacy Ref targets remain accepted during migration.
 
 ## Memory Port
 

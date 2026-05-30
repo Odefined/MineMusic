@@ -63,5 +63,41 @@ async function decidesOnlyKnownProposals(): Promise<void> {
   assert(missing.error.code === "effect.rejected", "missing decisions should use a stable effect error");
 }
 
+async function acceptsCompactMaterialActionTargets(): Promise<void> {
+  const boundary = createEffectBoundary({
+    repository: createInMemoryEffectProposalRepository(),
+    idFactory: () => "effect-material",
+  });
+
+  const proposal = await assertOk(
+    boundary.propose({
+      proposal: {
+        kind: "block_material",
+        target: {
+          kind: "material",
+          ref: "mat_source-only-material",
+          actionScope: "block_material",
+        },
+        preview: "Block this material.",
+        requiresConfirmation: true,
+        reversible: true,
+      },
+    }),
+  );
+
+  assert(proposal.id === "effect-material", "effect boundary should store compact material target proposals");
+  assert(
+    typeof proposal.target === "object" &&
+      proposal.target !== null &&
+      "kind" in proposal.target &&
+      proposal.target.kind === "material" &&
+      "actionScope" in proposal.target &&
+      proposal.target.actionScope === "block_material",
+    "compact material action target should round-trip through Effect Boundary",
+  );
+  assert(proposal.requiresConfirmation, "material consequences should remain confirmation-gated");
+}
+
 await proposesEffectsBeforeExternalActions();
 await decidesOnlyKnownProposals();
+await acceptsCompactMaterialActionTargets();

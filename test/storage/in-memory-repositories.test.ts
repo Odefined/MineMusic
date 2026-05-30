@@ -471,6 +471,7 @@ async function collectionRepositoryStoresItemsByIdAndMembership(): Promise<void>
     id: "collection-item-1",
     collectionId: "collection-1",
     canonicalRef,
+    materialRef: { namespace: "minemusic", kind: "material", id: "material-quiet-track" },
     label: "Quiet Track",
     createdAt: "2026-05-24T00:00:00.000Z",
   };
@@ -492,7 +493,14 @@ async function collectionRepositoryStoresItemsByIdAndMembership(): Promise<void>
       canonicalRef,
     }),
   );
+  const materialMembership = await assertOk(
+    repository.findItemByMaterialMembership({
+      collectionId: item.collectionId,
+      materialRef: { namespace: "minemusic", kind: "material", id: "material-quiet-track" },
+    }),
+  );
   assert(membership?.id === item.id, "collection repository should find items by collection id and canonical ref");
+  assert(materialMembership?.id === item.id, "collection repository should find items by collection id and material ref");
 }
 
 async function collectionRepositoryQueriesItemsByCollectionAndCollectionState(): Promise<void> {
@@ -552,6 +560,8 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
   await assertOk(repository.putItem({ item: removedItem }));
   await assertOk(repository.putItem({ item: artistItem }));
   await assertOk(repository.putItem({ item: guestItem }));
+  const removedCanonicalRef = removedItem.canonicalRef;
+  assert(removedCanonicalRef !== undefined, "removed fixture item should keep canonicalRef");
 
   const activeSavedItems = await assertOk(
     repository.listItems({
@@ -580,7 +590,7 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
   const removedMembership = await assertOk(
     repository.findItemByMembership({
       collectionId: removedItem.collectionId,
-      canonicalRef: removedItem.canonicalRef,
+      canonicalRef: removedCanonicalRef,
     }),
   );
   assert(removedMembership === null, "membership lookup should hide removed items by default");
@@ -588,7 +598,7 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
   const includedRemovedMembership = await assertOk(
     repository.findItemByMembership({
       collectionId: removedItem.collectionId,
-      canonicalRef: removedItem.canonicalRef,
+      canonicalRef: removedCanonicalRef,
       includeRemoved: true,
     }),
   );

@@ -140,6 +140,18 @@ export type SourceMaterial = MusicMaterialBase;
 
 export type MusicMaterial = ResolvedMusicMaterial;
 
+export type MusicMaterialSnapshot = {
+  materialRef: Ref;
+  id: string;
+  kind: string;
+  label: string;
+  state: MaterialState;
+  identityState: MusicMaterialIdentityState;
+  canonicalRef?: Ref;
+  sourceRefs?: Ref[];
+  playableLinks?: PlayableLink[];
+};
+
 export type StageSession = {
   id: string;
   posture: "conversation" | "recommendation" | "dj_stub" | "research" | string;
@@ -754,7 +766,12 @@ export type Collection = {
 export type CollectionItem = {
   id: string;
   collectionId: string;
-  canonicalRef: Ref;
+  materialRef?: Ref;
+  materialSnapshot?: MusicMaterialSnapshot;
+  relationScope?: MusicMaterialRelationScope;
+  identityRequirement?: "none" | "source_backed" | "canonical_confirmed";
+  status?: "active" | "pending_identity" | "removed";
+  canonicalRef?: Ref;
   label: string;
   description?: string;
   position?: number;
@@ -1680,14 +1697,33 @@ export type StageEvent = {
   sessionId: string;
   actor: "user" | "llm" | "stage" | "instrument" | "plugin";
   type: string;
-  target?: Ref;
+  target?: Ref | MaterialEventTarget;
   payload: unknown;
 };
+
+export type MaterialEventTarget = {
+  kind: "material";
+  materialRef: Ref;
+  snapshot: MusicMaterialSnapshot;
+};
+
+export type MemoryTarget =
+  | {
+      kind: "material";
+      materialRef: Ref;
+      scope: MusicMaterialRelationScope;
+    }
+  | {
+      kind: "pattern";
+      text: string;
+      scope: "session" | "long_term";
+    };
 
 export type MemoryEntry = {
   id: string;
   text: string;
   target?: Ref;
+  structuredTarget?: MemoryTarget;
   kind: "explicit_rule" | "contextual_preference" | "version_correction" | string;
   evidenceEventIds?: string[];
   confidence?: number;
@@ -1705,11 +1741,24 @@ export type MemoryProposal = {
 export type EffectProposal = {
   id: string;
   kind: string;
-  target?: Ref | MusicMaterial | MusicMaterial[];
+  target?: Ref | MusicMaterial | MusicMaterial[] | MusicMaterialActionTarget | MusicMaterialActionTarget[];
   preview?: string;
   reason?: string;
   requiresConfirmation: boolean;
   reversible?: boolean;
+};
+
+export type MusicMaterialActionTarget = {
+  kind: "material";
+  ref: string;
+  actionScope:
+    | "open_source_link"
+    | "play_source_link"
+    | "save_material"
+    | "block_material"
+    | "block_source"
+    | "remember_preference"
+    | "review_identity";
 };
 
 export type EffectDecision =

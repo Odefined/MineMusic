@@ -79,14 +79,28 @@ export type MaterialEvidence = {
 
 export type MusicMaterial = {
   id: string;
+  materialRef: Ref;
   kind: string;
   label: string;
   state: MaterialState;
+  identityState: "canonical_confirmed" | "source_backed" | "ambiguous" | "unresolved";
   canonicalRef?: Ref;
   sourceRefs?: Ref[];
   playableLinks?: PlayableLink[];
   notes?: string;
   evidence?: MaterialEvidence[];
+};
+
+export type MusicMaterialSnapshot = {
+  materialRef: Ref;
+  id: string;
+  kind: string;
+  label: string;
+  state: MaterialState;
+  identityState: "canonical_confirmed" | "source_backed" | "ambiguous" | "unresolved";
+  canonicalRef?: Ref;
+  sourceRefs?: Ref[];
+  playableLinks?: PlayableLink[];
 };
 ```
 
@@ -240,7 +254,16 @@ export type Collection = {
 export type CollectionItem = {
   id: string;
   collectionId: string;
-  canonicalRef: Ref;
+  materialRef?: Ref;
+  materialSnapshot?: MusicMaterialSnapshot;
+  relationScope?:
+    | { level: "material" }
+    | { level: "source"; sourceRef: Ref }
+    | { level: "version"; note?: string }
+    | { level: "event"; eventId: string };
+  identityRequirement?: "none" | "source_backed" | "canonical_confirmed";
+  status?: "active" | "pending_identity" | "removed";
+  canonicalRef?: Ref;
   label: string;
   description?: string;
   position?: number;
@@ -540,7 +563,11 @@ export type StageEvent = {
   sessionId: string;
   actor: "user" | "llm" | "stage" | "instrument" | "plugin";
   type: string;
-  target?: Ref;
+  target?: Ref | {
+    kind: "material";
+    materialRef: Ref;
+    snapshot: MusicMaterialSnapshot;
+  };
   payload: unknown;
 };
 ```
@@ -549,10 +576,8 @@ Rules:
 
 - Events are factual records.
 - Events are not memory entries.
-- For `source_only_playable` material, event targets should prefer canonical or
-  provisional canonical refs. If unavailable, the event may target a source ref,
-  but its payload must preserve `materialState: "source_only_playable"` and must
-  not imply durable canonical identity.
+- Material events should prefer structured material targets with a
+  `MusicMaterialSnapshot`; old Ref targets remain accepted during migration.
 
 ## Memory Types
 
@@ -561,6 +586,21 @@ export type MemoryEntry = {
   id: string;
   text: string;
   target?: Ref;
+  structuredTarget?:
+    | {
+        kind: "material";
+        materialRef: Ref;
+        scope:
+          | { level: "material" }
+          | { level: "source"; sourceRef: Ref }
+          | { level: "version"; note?: string }
+          | { level: "event"; eventId: string };
+      }
+    | {
+        kind: "pattern";
+        text: string;
+        scope: "session" | "long_term";
+      };
   kind: "explicit_rule" | "contextual_preference" | "version_correction" | string;
   evidenceEventIds?: string[];
   confidence?: number;
@@ -588,7 +628,18 @@ Rules:
 export type EffectProposal = {
   id: string;
   kind: string;
-  target?: Ref | MusicMaterial | MusicMaterial[];
+  target?: Ref | MusicMaterial | MusicMaterial[] | {
+    kind: "material";
+    ref: string;
+    actionScope:
+      | "open_source_link"
+      | "play_source_link"
+      | "save_material"
+      | "block_material"
+      | "block_source"
+      | "remember_preference"
+      | "review_identity";
+  };
   preview?: string;
   reason?: string;
   requiresConfirmation: boolean;

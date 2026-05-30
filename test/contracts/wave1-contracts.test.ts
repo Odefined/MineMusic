@@ -274,7 +274,10 @@ type _collectionRelationKindsMatchDesignedRelations = Expect<
   Equal<CollectionRelationKind, "saved" | "favorite" | "blocked" | "custom">
 >;
 
-type _collectionItemStoresCanonicalRef = Expect<Equal<CollectionItem["canonicalRef"], Ref>>;
+type _collectionItemSupportsMaterialAndLegacyCanonicalRefs = Expect<
+  Equal<CollectionItem["materialRef"], Ref | undefined> &
+    Equal<CollectionItem["canonicalRef"], Ref | undefined>
+>;
 
 type _materialResolveRequestCarriesOwnerScope = Expect<
   Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
@@ -1039,15 +1042,20 @@ type _collectionPortMethods = Expect<
     keyof CollectionPort,
     | "initializeOwnerCollections"
     | "addItemToSystemCollection"
+    | "addMaterialToSystemCollection"
     | "removeItemFromSystemCollection"
+    | "removeMaterialFromSystemCollection"
     | "addItemToCollection"
+    | "addMaterialToCollection"
     | "removeItemFromCollection"
+    | "removeMaterialFromCollection"
     | "updateItem"
     | "listItems"
     | "listCollections"
     | "createCollection"
     | "updateCollection"
     | "removeCollection"
+    | "filterBlockedMaterials"
     | "filterBlocked"
   >
 >;
@@ -1055,16 +1063,21 @@ type _collectionPortMethods = Expect<
 type _collectionPortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CollectionPort, "initializeOwnerCollections"> &
     MethodAcceptsSingleObject<CollectionPort, "addItemToSystemCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "addMaterialToSystemCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "removeItemFromSystemCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "removeMaterialFromSystemCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "addItemToCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "addMaterialToCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "removeItemFromCollection"> &
+    MethodAcceptsSingleObject<CollectionPort, "removeMaterialFromCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "updateItem"> &
     MethodAcceptsSingleObject<CollectionPort, "listItems"> &
     MethodAcceptsSingleObject<CollectionPort, "listCollections"> &
     MethodAcceptsSingleObject<CollectionPort, "createCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "updateCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "removeCollection"> &
-    MethodAcceptsSingleObject<CollectionPort, "filterBlocked">
+    MethodAcceptsSingleObject<CollectionPort, "filterBlocked"> &
+    MethodAcceptsSingleObject<CollectionPort, "filterBlockedMaterials">
 >;
 
 type _libraryImportPortMethods = Expect<
@@ -1401,6 +1414,7 @@ type _collectionRepositoryMethods = Expect<
     | "getItem"
     | "putItem"
     | "findItemByMembership"
+    | "findItemByMaterialMembership"
     | "listItems"
   >
 >;
@@ -1413,6 +1427,7 @@ type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CollectionRepository, "getItem"> &
     MethodAcceptsSingleObject<CollectionRepository, "putItem"> &
     MethodAcceptsSingleObject<CollectionRepository, "findItemByMembership"> &
+    MethodAcceptsSingleObject<CollectionRepository, "findItemByMaterialMembership"> &
     MethodAcceptsSingleObject<CollectionRepository, "listItems">
 >;
 
@@ -1962,9 +1977,13 @@ const canonicalMaintenance: CanonicalMaintenancePort = {
 const collectionPort: CollectionPort = {
   initializeOwnerCollections: async () => ({ ok: true, value: [collection] }),
   addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
+  addMaterialToSystemCollection: async () => ({ ok: true, value: collectionItem }),
   removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
+  removeMaterialFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
   addItemToCollection: async () => ({ ok: true, value: collectionItem }),
+  addMaterialToCollection: async () => ({ ok: true, value: collectionItem }),
   removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
+  removeMaterialFromCollection: async () => ({ ok: true, value: collectionItem }),
   updateItem: async () => ({ ok: true, value: collectionItem }),
   listItems: async () => ({ ok: true, value: [collectionItem] }),
   listCollections: async () => ({ ok: true, value: [collection] }),
@@ -1972,6 +1991,7 @@ const collectionPort: CollectionPort = {
   updateCollection: async () => ({ ok: true, value: collection }),
   removeCollection: async () => ({ ok: true, value: collection }),
   filterBlocked: async ({ canonicalRefs }) => ({ ok: true, value: canonicalRefs }),
+  filterBlockedMaterials: async ({ materialRefs }) => ({ ok: true, value: materialRefs }),
 };
 
 const materialResolve: MaterialResolvePort = {
@@ -2059,6 +2079,7 @@ const collectionRepository: CollectionRepository = {
   getItem: async () => ({ ok: true, value: collectionItem }),
   putItem: async ({ item }) => ({ ok: true, value: item }),
   findItemByMembership: async () => ({ ok: true, value: collectionItem }),
+  findItemByMaterialMembership: async () => ({ ok: true, value: collectionItem }),
   listItems: async () => ({ ok: true, value: [collectionItem] }),
 };
 

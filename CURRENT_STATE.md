@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/material-04-query-related-tools` with the
-MusicMaterial refactor PR 4 compact query/related tool changes applied locally.
+MineMusic is on `codex/material-05-downstream-migration` with the
+MusicMaterial refactor PR 5 downstream migration changes applied locally.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -112,10 +112,30 @@ source artist/release fallback. `music.material.context.brief` respects its
 requested `fields` when returning artist, album, version, or status details.
 `music.material.resolve.cards` resolves opaque `mat_*` card refs through
 Material Registry / Material Resolve rather than treating them as search text.
+Compact resolve, related, collection query, and explicit exclude-ref paths
+follow material merge redirects so older `mat_*` refs project or exclude the
+current survivor. `music.material.context.brief` still supports explicit merged
+status reporting when the caller asks for the `status` field on an old ref.
 `stage.context.read` now returns bounded `recentCards` from compact
 recommendation presentation events without exposing raw event payloads, and
 Event Service projects compact `MaterialCard.ref` strings into Material
 Activity so recent query exclusions work after compact recommendation events.
+
+The 2026-05-30 MusicMaterial PR 5 downstream migration slice moves
+consequence-bearing modules toward product-level material targets. Collection
+Items now support `materialRef`, material snapshots, relation scope, identity
+requirements, and `pending_identity` status while preserving legacy
+`canonicalRef` collection APIs. Collection Service can block source-only
+materials and filter blocked material refs, with material filtering and removal
+following Material Registry redirects after merges. Stage Interface collection
+tools accept compact `ref` card strings as the normal material target path
+while preserving `canonicalRef` and raw `materialRef` compatibility. Material
+Query collection pools return material-only items directly, use snapshots as a
+fallback when a live projection is unavailable, and keep legacy canonical
+collection items working during migration. Event Service accepts
+structured material snapshot targets while preserving old Ref targets. Memory
+entries can carry structured material targets under the existing evidence gate,
+and Effect Boundary accepts compact material action targets.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

@@ -162,7 +162,7 @@ async function blocksCanonicalRecordingAndClearsSavedFavoriteMemberships(): Prom
     assert(saved.items.length === 0, "Blocking a recording should remove saved system membership");
     assert(favorites.items.length === 0, "Blocking a recording should remove favorite system membership");
     assert(
-      blocked.items.some((item) => item.canonicalRef.id === canonicalRecordingRef.id),
+      blocked.items.some((item) => item.canonicalRef?.id === canonicalRecordingRef.id),
       "Blocking a recording should keep blocked system membership",
     );
   } finally {
@@ -218,7 +218,7 @@ async function managesCustomCollectionLifecycleThroughStageInterface(): Promise<
     assert(created.ownerScope === "local_profile:default", "Custom collection create should default owner scope");
     assert(created.relationKind === "custom", "Custom collection create should use custom relation kind");
     assert(
-      withItem.items.some((item) => item.collectionId === created.id && item.canonicalRef.id === canonicalRecordingRef.id),
+      withItem.items.some((item) => item.collectionId === created.id && item.canonicalRef?.id === canonicalRecordingRef.id),
       "Custom collection list should include the added item",
     );
     assert(updated.label === "Late night coding", "Custom collection update should change label");

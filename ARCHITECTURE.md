@@ -38,6 +38,14 @@ opt-in runtime storage paths. MineMusic runtime configuration belongs to the lon
 MineMusic server process, not to a particular host adapter such as the Codex
 skill. It does not prove playback control, autonomous DJ behavior, playlist
 editing, music intelligence, or notifications.
+Compact material retrieval is the default agent-facing material view:
+Material Query returns `MaterialCard` outputs, follows material merge redirects
+for old compact refs, and keeps raw source/canonical/evidence details behind
+internal Material Store and Material Resolve boundaries unless a compatibility
+or diagnostic tool explicitly asks for them. Stage Interface collection tools
+accept those compact card refs for material actions, and Collection Service
+uses Material Registry redirects when filtering or removing material-backed
+collection items.
 
 ## Vocabulary Source
 
@@ -154,15 +162,15 @@ needs.
 | Material Activity inside Material Store | Recent recommendation/open/play/skip projection keyed by owner scope and `materialRef` for future dedupe and ranking | factual event history, platform listening history, final recommendation judgment |
 | Canonical Store inside Material Store | MineMusic-owned canonical records, identity anchors, Canonical Maintenance review/apply policy, provisional review facts, and canonical graph maintenance | provider account library state, Source Library membership, ordinary Library Import source binding |
 | Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
-| Collection Service | owner-scoped Collections, CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup | canonical identity, source refs, provider search, final recommendation selection |
+| Collection Service | owner-scoped Collections, materialRef-backed CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup, and legacy canonicalRef compatibility during migration | canonical identity, source refs, provider search, final recommendation selection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, material relation filtering, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
 | Material Query / Related | compact agent-facing material retrieval, pool-restricted query, relation/recent filtering, related candidate generation, and `MaterialCard` presentation over Material Resolve output | raw source/canonical graph exposure, provider internals, canonical writes, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |
-| Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals | raw event logging, external side effects |
-| Effect Boundary | permission and execution boundary for durable writes and external actions | ordinary text recommendation, musical expression |
+| Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals, and structured material memory targets | raw event logging, external side effects |
+| Effect Boundary | permission and execution boundary for durable writes and external actions, including compact material action targets | ordinary text recommendation, musical expression |
 | Plugin Slots | replaceable adapters for capabilities | MineMusic business policy |
 | Storage Layer | persistence implementations behind repositories | domain decisions |
 

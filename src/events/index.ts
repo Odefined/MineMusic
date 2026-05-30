@@ -162,8 +162,12 @@ function activityUpdateKindForEvent(type: string): "recommended" | "opened" | "p
 function materialRefsForEvent(event: StageEvent): Ref[] {
   const refs = new Map<string, Ref>();
 
-  if (event.target !== undefined && isMaterialRef(event.target)) {
-    refs.set(refKey(event.target), event.target);
+  if (event.target !== undefined) {
+    const targetRefs = refValue(event.target);
+
+    for (const ref of targetRefs.filter(isMaterialRef)) {
+      refs.set(refKey(ref), ref);
+    }
   }
 
   for (const ref of materialRefsFromPayload(event.payload)) {

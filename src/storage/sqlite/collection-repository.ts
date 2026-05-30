@@ -30,7 +30,12 @@ type CollectionRow = {
 type CollectionItemRow = {
   id: string;
   collection_id: string;
-  canonical_ref_json: string;
+  canonical_ref_json: string | null;
+  material_ref_json: string | null;
+  material_snapshot_json: string | null;
+  relation_scope_json: string | null;
+  identity_requirement: CollectionItem["identityRequirement"] | null;
+  status: CollectionItem["status"] | null;
   label: string;
   description: string | null;
   position: number | null;
@@ -149,6 +154,14 @@ export function createSqliteCollectionRepository({
               canonical_kind,
               canonical_id,
               canonical_ref_json,
+              material_namespace,
+              material_kind,
+              material_id,
+              material_ref_json,
+              material_snapshot_json,
+              relation_scope_json,
+              identity_requirement,
+              status,
               label,
               description,
               position,
@@ -156,13 +169,21 @@ export function createSqliteCollectionRepository({
               removed_at,
               updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               collection_id = excluded.collection_id,
               canonical_namespace = excluded.canonical_namespace,
               canonical_kind = excluded.canonical_kind,
               canonical_id = excluded.canonical_id,
               canonical_ref_json = excluded.canonical_ref_json,
+              material_namespace = excluded.material_namespace,
+              material_kind = excluded.material_kind,
+              material_id = excluded.material_id,
+              material_ref_json = excluded.material_ref_json,
+              material_snapshot_json = excluded.material_snapshot_json,
+              relation_scope_json = excluded.relation_scope_json,
+              identity_requirement = excluded.identity_requirement,
+              status = excluded.status,
               label = excluded.label,
               description = excluded.description,
               position = excluded.position,
@@ -173,10 +194,18 @@ export function createSqliteCollectionRepository({
           .run(
             item.id,
             item.collectionId,
-            item.canonicalRef.namespace,
-            item.canonicalRef.kind,
-            item.canonicalRef.id,
-            toJson(item.canonicalRef),
+            item.canonicalRef?.namespace ?? null,
+            item.canonicalRef?.kind ?? null,
+            item.canonicalRef?.id ?? null,
+            item.canonicalRef === undefined ? null : toJson(item.canonicalRef),
+            item.materialRef?.namespace ?? null,
+            item.materialRef?.kind ?? null,
+            item.materialRef?.id ?? null,
+            item.materialRef === undefined ? null : toJson(item.materialRef),
+            item.materialSnapshot === undefined ? null : toJson(item.materialSnapshot),
+            item.relationScope === undefined ? null : toJson(item.relationScope),
+            item.identityRequirement ?? null,
+            item.status ?? null,
             item.label,
             item.description ?? null,
             item.position ?? null,
@@ -208,6 +237,31 @@ export function createSqliteCollectionRepository({
             canonicalRef.namespace,
             canonicalRef.kind,
             canonicalRef.id,
+          ) as CollectionItemRow | undefined;
+
+        return row === undefined ? null : toCollectionItem(row);
+      });
+    },
+
+    async findItemByMaterialMembership({ collectionId, materialRef, includeRemoved }) {
+      return readResult(() => {
+        const row = database
+          .prepare(`
+            SELECT *
+            FROM collection_items
+            WHERE collection_id = ?
+              AND material_namespace = ?
+              AND material_kind = ?
+              AND material_id = ?
+              ${includeRemoved === true ? "" : "AND removed_at IS NULL"}
+            ORDER BY created_at, id
+            LIMIT 1
+          `)
+          .get(
+            collectionId,
+            materialRef.namespace,
+            materialRef.kind,
+            materialRef.id,
           ) as CollectionItemRow | undefined;
 
         return row === undefined ? null : toCollectionItem(row);
@@ -304,10 +358,33 @@ function toCollectionItem(row: CollectionItemRow): CollectionItem {
   const item: CollectionItem = {
     id: row.id,
     collectionId: row.collection_id,
-    canonicalRef: fromJson(row.canonical_ref_json),
     label: row.label,
     createdAt: row.created_at,
   };
+
+  if (row.canonical_ref_json !== null) {
+    item.canonicalRef = fromJson(row.canonical_ref_json);
+  }
+
+  if (row.material_ref_json !== null) {
+    item.materialRef = fromJson(row.material_ref_json);
+  }
+
+  if (row.material_snapshot_json !== null) {
+    item.materialSnapshot = fromJson(row.material_snapshot_json);
+  }
+
+  if (row.relation_scope_json !== null) {
+    item.relationScope = fromJson(row.relation_scope_json);
+  }
+
+  if (row.identity_requirement !== null && row.identity_requirement !== undefined) {
+    item.identityRequirement = row.identity_requirement;
+  }
+
+  if (row.status !== null && row.status !== undefined) {
+    item.status = row.status;
+  }
 
   if (row.description !== null) {
     item.description = row.description;

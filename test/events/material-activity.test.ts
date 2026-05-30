@@ -156,6 +156,57 @@ async function activityIsKeyedByOwnerScopeAndMaterialRef(): Promise<void> {
   assert(otherOwnerActivity === null, "activity should be stored by ownerScope and materialRef together");
 }
 
+async function eventStoresMaterialSnapshotTargetAndUpdatesActivity(): Promise<void> {
+  const materialActivity = createInMemoryMaterialActivityRepository();
+  const materialRef = ref("minemusic", "material", "snapshot-target-material");
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    materialActivity,
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-30T02:30:00.000Z",
+  });
+
+  const recorded = await assertOk(
+    events.record({
+      event: {
+        sessionId: "session-1",
+        actor: "stage",
+        type: "material.played",
+        target: {
+          kind: "material",
+          materialRef,
+          snapshot: {
+            materialRef,
+            id: "resolved-material-1",
+            kind: "recording",
+            label: "Snapshot Material",
+            state: "source_only_playable",
+            identityState: "source_backed",
+          },
+        },
+        payload: {
+          ownerScope: "local_profile:default",
+        },
+      },
+    }),
+  );
+  const activity = await assertOk(
+    materialActivity.getActivity({
+      ownerScope: "local_profile:default",
+      materialRef,
+    }),
+  );
+
+  assert(
+    typeof recorded.target === "object" &&
+      recorded.target !== null &&
+      "snapshot" in recorded.target &&
+      recorded.target.snapshot.label === "Snapshot Material",
+    "event should store the material snapshot target",
+  );
+  assert(activity?.lastPlayedAt === "2026-05-30T02:30:00.000Z", "material snapshot target should update activity");
+}
+
 function createSequence(prefix: string): () => string {
   let next = 1;
   return () => `${prefix}-${next++}`;
@@ -173,3 +224,4 @@ function ref(namespace: string, kind: string, id: string): Ref {
 await recommendationEventUpdatesActivityFromPayloadCards();
 await recommendationEventUpdatesActivityFromCompactCardRefs();
 await activityIsKeyedByOwnerScopeAndMaterialRef();
+await eventStoresMaterialSnapshotTargetAndUpdatesActivity();

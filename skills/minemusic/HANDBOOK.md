@@ -92,42 +92,42 @@ Input: `MusicMaterial`
 Output: `MusicMaterial`
 #### `music.collection.save`
 
-Description: Save a canonical music object to the owner's saved system collection.
+Description: Save a canonical or material music object to the owner's saved system collection.
 Input: `CollectionSystemItemInput`
 Output: `CollectionItem`
 #### `music.collection.unsave`
 
-Description: Remove a canonical music object from the owner's saved system collection.
+Description: Remove a canonical or material music object from the owner's saved system collection.
 Input: `CollectionSystemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.favorite`
 
-Description: Favorite a canonical music object in the owner's favorite system collection.
+Description: Favorite a canonical or material music object in the owner's favorite system collection.
 Input: `CollectionSystemItemInput`
 Output: `CollectionItem`
 #### `music.collection.unfavorite`
 
-Description: Remove a canonical music object from the owner's favorite system collection.
+Description: Remove a canonical or material music object from the owner's favorite system collection.
 Input: `CollectionSystemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.block`
 
-Description: Block a canonical music object from future recommendations for the owner.
+Description: Block a canonical or material music object from future recommendations for the owner.
 Input: `CollectionSystemItemInput`
 Output: `CollectionItem`
 #### `music.collection.unblock`
 
-Description: Remove a canonical music object from the owner's blocked system collection.
+Description: Remove a canonical or material music object from the owner's blocked system collection.
 Input: `CollectionSystemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.item.add`
 
-Description: Add a canonical music object to a custom collection by collection id.
+Description: Add a canonical or material music object to a custom collection by collection id.
 Input: `CollectionItemAddInput`
 Output: `CollectionItem`
 #### `music.collection.item.remove`
 
-Description: Remove a canonical music object from a custom collection by collection id.
+Description: Remove a canonical or material music object from a custom collection by collection id.
 Input: `CollectionItemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.create`

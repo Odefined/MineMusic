@@ -1,8 +1,15 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
+import type { MaterialRecord, Ref } from "../../src/contracts/index.js";
+import { createInMemoryMaterialRegistry } from "../../src/material_store/index.js";
 import {
   createInMemoryCollectionRepository,
   createInMemoryEventRepository,
+  createSqliteCollectionRepository,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -26,6 +33,32 @@ function createTestCollectionService() {
   const collections = createCollectionService({
     repository: createInMemoryCollectionRepository(),
     events,
+    idFactory: createSequence("collection"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+
+  return { collections, events };
+}
+
+function createTestCollectionServiceWithMaterialBackfill() {
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+  const collections = createCollectionService({
+    repository: createInMemoryCollectionRepository(),
+    events,
+    materialStore: {
+      getOrCreateByCanonicalRef: async ({ canonicalRef }) => ({
+        ok: true,
+        value: materialRecordForCanonicalRef(canonicalRef),
+      }),
+      resolveMaterialRedirect: async ({ materialRef }) => ({
+        ok: true,
+        value: materialRef,
+      }),
+    },
     idFactory: createSequence("collection"),
     clock: () => "2026-05-24T00:00:00.000Z",
   });
@@ -181,6 +214,7 @@ async function addsCustomCollectionItemsWithKindChecksAndIdempotency(): Promise<
       description: "Original note.",
     }),
   );
+  assert(added.canonicalRef !== undefined, "canonical collection add should keep canonicalRef");
   const readded = await assertOk(
     collections.addItemToCollection({
       collectionId: custom.id,
@@ -244,6 +278,7 @@ async function updatesAndRemovesActiveCollectionItems(): Promise<void> {
       label: "Quiet Track",
     }),
   );
+  assert(added.canonicalRef !== undefined, "canonical collection add should keep canonicalRef");
   const updated = await assertOk(
     collections.updateItem({
       collectionId: custom.id,
@@ -417,9 +452,269 @@ async function systemCollectionsApplyMutualExclusionAndBlockedFiltering(): Promi
   assert(customItems.length === 1, "system mutual exclusion should not remove custom collection membership");
 }
 
+async function blocksSourceOnlyMaterialThroughSystemCollection(): Promise<void> {
+  const { collections } = createTestCollectionService();
+  const materialRef = {
+    namespace: "minemusic",
+    kind: "material",
+    id: "source-only-material",
+  };
+  await assertOk(collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+
+  const blocked = await assertOk(
+    collections.addMaterialToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "blocked",
+      materialRef,
+      label: "Source Only Material",
+      relationScope: { level: "material" },
+      identityRequirement: "none",
+    }),
+  );
+  const blockedRefs = await assertOk(
+    collections.filterBlockedMaterials({
+      ownerScope: "local_profile:default",
+      materialRefs: [materialRef],
+    }),
+  );
+
+  assert(blocked.materialRef?.id === materialRef.id, "material collection item should store materialRef");
+  assert(blocked.status === "active", "blocked source-only material should be active immediately");
+  assert(blockedRefs.length === 1 && blockedRefs[0]?.id === materialRef.id, "materialRef block should filter blocked material");
+  assert(blocked.canonicalRef === undefined, "source-only material block should not invent canonical identity");
+}
+
+async function backfillsMaterialRefForLegacyCanonicalCollectionItems(): Promise<void> {
+  const { collections } = createTestCollectionServiceWithMaterialBackfill();
+  const canonicalRef = {
+    namespace: "minemusic",
+    kind: "recording",
+    id: "canonical-quiet-track",
+  };
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Canonical compatibility",
+    }),
+  );
+
+  const added = await assertOk(
+    collections.addItemToCollection({
+      collectionId: custom.id,
+      canonicalRef,
+      label: "Canonical Quiet Track",
+    }),
+  );
+  const listed = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionId: custom.id,
+    }),
+  );
+
+  assert(added.canonicalRef?.id === canonicalRef.id, "legacy canonical item should keep canonicalRef");
+  assert(added.materialRef?.id === "mat-canonical-quiet-track", "legacy canonical item should get materialRef from registry");
+  assert(listed[0]?.materialRef?.id === added.materialRef?.id, "listed legacy item should include backfilled materialRef");
+}
+
+async function materialSystemCollectionsApplyPendingIdentityAndMutualExclusion(): Promise<void> {
+  const { collections } = createTestCollectionService();
+  const materialRef = {
+    namespace: "minemusic",
+    kind: "material",
+    id: "pending-source-material",
+  };
+  await assertOk(collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+
+  const saved = await assertOk(
+    collections.addMaterialToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      materialRef,
+      label: "Pending Source Material",
+      relationScope: { level: "material" },
+    }),
+  );
+  await assertOk(
+    collections.addMaterialToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "favorite",
+      materialRef,
+      label: "Pending Source Material",
+      relationScope: { level: "material" },
+    }),
+  );
+  const blocked = await assertOk(
+    collections.addMaterialToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "blocked",
+      materialRef,
+      label: "Pending Source Material",
+    }),
+  );
+  const savedAfterBlock = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "saved",
+    }),
+  );
+  const favoriteAfterBlock = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "favorite",
+    }),
+  );
+
+  assert(saved.status === "pending_identity", "saved source-backed material should wait for stronger identity");
+  assert(blocked.status === "active", "blocked material should not wait for canonical identity");
+  assert(savedAfterBlock.length === 0, "blocking material should remove saved material membership");
+  assert(favoriteAfterBlock.length === 0, "blocking material should remove favorite material membership");
+}
+
+async function customCollectionsCanListMaterialItems(): Promise<void> {
+  const { collections } = createTestCollectionService();
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Source picks",
+    }),
+  );
+  const materialRef = {
+    namespace: "minemusic",
+    kind: "material",
+    id: "custom-source-material",
+  };
+
+  const added = await assertOk(
+    collections.addMaterialToCollection({
+      collectionId: custom.id,
+      materialRef,
+      label: "Custom Source Material",
+      identityRequirement: "none",
+    }),
+  );
+  const listed = await assertOk(
+    collections.listItems({
+      ownerScope: "local_profile:default",
+      collectionId: custom.id,
+    }),
+  );
+
+  assert(added.materialRef?.id === materialRef.id, "custom collection material add should store materialRef");
+  assert(listed.length === 1 && listed[0]?.materialRef?.id === materialRef.id, "custom collection should list material items");
+}
+
+async function materialSystemBlockSurvivesMergeAndUnblocksWithSurvivorRefInSqlite(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-collection-service-sqlite-"));
+  const databasePath = join(directory, "collection.sqlite");
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+  const materialRegistry = createInMemoryMaterialRegistry({
+    generateId: createSequence("material"),
+    now: () => "2026-05-24T00:00:00.000Z",
+  });
+  const collections = createCollectionService({
+    repository: createSqliteCollectionRepository({ path: databasePath }),
+    events,
+    materialStore: materialRegistry,
+    idFactory: createSequence("collection"),
+    clock: () => "2026-05-24T00:00:00.000Z",
+  });
+  const sourceMaterial = await assertOk(
+    materialRegistry.getOrCreateBySourceRef({
+      sourceRef: { namespace: "source:fixture", kind: "track", id: "merge-source-track" },
+      kind: "recording",
+    }),
+  );
+  const survivorMaterial = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "minemusic", kind: "recording", id: "merge-survivor-track" },
+      kind: "recording",
+    }),
+  );
+
+  try {
+    await assertOk(collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+    await assertOk(
+      collections.addMaterialToSystemCollection({
+        ownerScope: "local_profile:default",
+        relationKind: "blocked",
+        materialRef: sourceMaterial.materialRef,
+        collectionKind: "recording",
+        label: "Merge Source Track",
+        identityRequirement: "none",
+      }),
+    );
+    await assertOk(
+      materialRegistry.mergeMaterials({
+        from: sourceMaterial.materialRef,
+        into: survivorMaterial.materialRef,
+        reason: "canonical confirmation",
+      }),
+    );
+
+    const blockedRefs = await assertOk(
+      collections.filterBlockedMaterials({
+        ownerScope: "local_profile:default",
+        materialRefs: [survivorMaterial.materialRef],
+      }),
+    );
+    const removed = await assertOk(
+      collections.removeMaterialFromSystemCollection({
+        ownerScope: "local_profile:default",
+        relationKind: "blocked",
+        materialRef: survivorMaterial.materialRef,
+      }),
+    );
+    const blockedAfterRemove = await assertOk(
+      collections.filterBlockedMaterials({
+        ownerScope: "local_profile:default",
+        materialRefs: [survivorMaterial.materialRef],
+      }),
+    );
+
+    assert(blockedRefs.length === 1 && blockedRefs[0]?.id === survivorMaterial.materialRef.id, "material block should follow merge survivor refs");
+    assert(removed.materialRef?.id === sourceMaterial.materialRef.id, "unblock with survivor ref should remove item stored under old material ref");
+    assert(blockedAfterRemove.length === 0, "removed merged material block should no longer filter survivor refs");
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+function materialRecordForCanonicalRef(canonicalRef: Ref): MaterialRecord {
+  return {
+    materialRef: {
+      namespace: "minemusic",
+      kind: "material",
+      id: `mat-${canonicalRef.id}`,
+    },
+    kind: canonicalRef.kind,
+    identityState: "canonical_confirmed",
+    canonicalRef,
+    sourceRefs: [],
+    status: "active",
+    createdAt: "2026-05-24T00:00:00.000Z",
+    updatedAt: "2026-05-24T00:00:00.000Z",
+  };
+}
+
 await initializesSystemCollectionsForOwner();
 await createsCustomCollectionsAndRecordsEvents();
 await updatesAndRemovesCustomCollectionsButKeepsSystemCollectionsImmutable();
 await addsCustomCollectionItemsWithKindChecksAndIdempotency();
 await updatesAndRemovesActiveCollectionItems();
 await systemCollectionsApplyMutualExclusionAndBlockedFiltering();
+await blocksSourceOnlyMaterialThroughSystemCollection();
+await backfillsMaterialRefForLegacyCanonicalCollectionItems();
+await materialSystemCollectionsApplyPendingIdentityAndMutualExclusion();
+await customCollectionsCanListMaterialItems();
+await materialSystemBlockSurvivesMergeAndUnblocksWithSurvivorRefInSqlite();

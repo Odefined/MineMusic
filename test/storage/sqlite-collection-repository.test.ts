@@ -35,6 +35,7 @@ async function persistsCollectionsAndItemsAcrossRepositoryReopen(): Promise<void
     id: "collection-item-1",
     collectionId: savedRecordings.id,
     canonicalRef: canonicalRef("recording", "quiet-track"),
+    materialRef: materialRef("quiet-track-material"),
     label: "Quiet Track",
     description: "Persist me",
     position: 1,
@@ -60,10 +61,18 @@ async function persistsCollectionsAndItemsAcrossRepositoryReopen(): Promise<void
         canonicalRef: canonicalRef("recording", "quiet-track"),
       }),
     );
+    const materialMembership = await assertOk(
+      reopenedRepository.findItemByMaterialMembership({
+        collectionId: "collection-saved-recordings",
+        materialRef: materialRef("quiet-track-material"),
+      }),
+    );
 
     assert(loadedCollection?.label === "Saved recordings", "SQLite collection repository should persist collections");
     assert(loadedItem?.label === "Quiet Track", "SQLite collection repository should persist items");
+    assert(loadedItem?.materialRef?.id === "quiet-track-material", "SQLite collection repository should persist materialRef");
     assert(membership?.id === item.id, "SQLite collection repository should find persisted membership");
+    assert(materialMembership?.id === item.id, "SQLite collection repository should find persisted material membership");
 
     loadedItem.label = "Mutated after get";
     const rereadItem = await assertOk(reopenedRepository.getItem({ itemId: "collection-item-1" }));
@@ -225,13 +234,13 @@ async function queriesItemsByCollectionAndCollectionStateAfterReopen(): Promise<
     const removedMembership = await assertOk(
       reopenedRepository.findItemByMembership({
         collectionId: removedItem.collectionId,
-        canonicalRef: removedItem.canonicalRef,
+        canonicalRef: removedItem.canonicalRef ?? canonicalRef("recording", "removed-track"),
       }),
     );
     const includedRemovedMembership = await assertOk(
       reopenedRepository.findItemByMembership({
         collectionId: removedItem.collectionId,
-        canonicalRef: removedItem.canonicalRef,
+        canonicalRef: removedItem.canonicalRef ?? canonicalRef("recording", "removed-track"),
         includeRemoved: true,
       }),
     );
@@ -292,6 +301,14 @@ function canonicalRef(kind: Ref["kind"], id: string): Ref {
   return {
     namespace: "minemusic",
     kind,
+    id,
+  };
+}
+
+function materialRef(id: string): Ref {
+  return {
+    namespace: "minemusic",
+    kind: "material",
     id,
   };
 }
