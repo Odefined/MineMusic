@@ -1574,6 +1574,7 @@ const requiredErrorCodes: StageErrorCode[] = [
   "collection.duplicate_label",
   "collection.system_collection_immutable",
   "collection.kind_mismatch",
+  "collection.kind_unknown",
   "source.no_provider",
   "source.no_playable_link",
   "source.unresolved_match",

@@ -18,7 +18,10 @@ import type {
 export type CollectionServiceOptions = {
   repository: CollectionRepository;
   events: EventPort;
-  materialStore?: Pick<MaterialStorePort, "getOrCreateByCanonicalRef" | "resolveMaterialRedirect">;
+  materialStore?: Pick<
+    MaterialStorePort,
+    "getMaterialRecord" | "getOrCreateByCanonicalRef" | "resolveMaterialRedirect"
+  >;
   idFactory?: () => string;
   clock?: () => string;
 };
@@ -179,15 +182,22 @@ export function createCollectionService({
         return currentMaterialRef;
       }
 
-      const resolvedCollectionKind = collectionKindForMaterialInput({
+      const resolvedCollectionKind = await collectionKindForMaterialInput({
+        materialStore,
+        materialRef: currentMaterialRef.value,
         ...(collectionKind === undefined ? {} : { collectionKind }),
         ...(canonicalRef === undefined ? {} : { canonicalRef }),
         ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
       });
+
+      if (!resolvedCollectionKind.ok) {
+        return resolvedCollectionKind;
+      }
+
       const collection = await findSystemCollection(repository, {
         ownerScope,
         relationKind,
-        collectionKind: resolvedCollectionKind,
+        collectionKind: resolvedCollectionKind.value,
       });
 
       if (!collection.ok) {
@@ -202,7 +212,7 @@ export function createCollectionService({
         ownerScope,
         relationKind,
         materialRef: currentMaterialRef.value,
-        collectionKind: resolvedCollectionKind,
+        collectionKind: resolvedCollectionKind.value,
       });
 
       if (!exclusions.ok) {
@@ -1275,28 +1285,54 @@ function sameRef(left: Ref, right: Ref): boolean {
   return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
 }
 
-function collectionKindForMaterialInput({
+async function collectionKindForMaterialInput({
+  materialStore,
+  materialRef,
   collectionKind,
   canonicalRef,
   materialSnapshot,
 }: {
+  materialStore: CollectionMaterialStore | undefined;
+  materialRef: Ref;
   collectionKind?: CollectionKind;
   canonicalRef?: Ref;
   materialSnapshot?: CollectionItem["materialSnapshot"];
-}): CollectionKind {
+}): Promise<Result<CollectionKind>> {
   if (collectionKind !== undefined) {
-    return collectionKind;
+    return ok(collectionKind);
   }
 
-  if (canonicalRef !== undefined && isCollectionKind(canonicalRef.kind)) {
-    return canonicalRef.kind;
+  if (canonicalRef !== undefined) {
+    return isCollectionKind(canonicalRef.kind)
+      ? ok(canonicalRef.kind)
+      : failKindMismatch(`Unsupported collection kind '${canonicalRef.kind}'.`);
   }
 
   if (materialSnapshot !== undefined && isCollectionKind(materialSnapshot.kind)) {
-    return materialSnapshot.kind;
+    return ok(materialSnapshot.kind);
   }
 
-  return "recording";
+  if (materialStore !== undefined) {
+    const record = await materialStore.getMaterialRecord({ materialRef });
+
+    if (!record.ok) {
+      return record;
+    }
+
+    if (record.value === null) {
+      return failKindUnknown(
+        `Material '${materialRef.id}' was not found; pass collectionKind explicitly to classify it.`,
+      );
+    }
+
+    if (!isCollectionKind(record.value.kind)) {
+      return failKindMismatch(`Unsupported collection kind '${record.value.kind}'.`);
+    }
+
+    return ok(record.value.kind);
+  }
+
+  return ok("recording");
 }
 
 function identityRequirementForMaterialRelation(
@@ -1403,6 +1439,15 @@ function failNotFound(message: string): Result<never> {
 function failKindMismatch(message: string): Result<never> {
   return fail({
     code: "collection.kind_mismatch",
+    message,
+    module: "collection",
+    retryable: false,
+  });
+}
+
+function failKindUnknown(message: string): Result<never> {
+  return fail({
+    code: "collection.kind_unknown",
     message,
     module: "collection",
     retryable: false,

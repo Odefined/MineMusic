@@ -395,12 +395,8 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
       collectionKind: collectionKindSchema.optional(),
       label: z.string(),
-      materialSnapshot: z.object({}).passthrough().optional(),
-      relationScope: z.object({}).passthrough().optional(),
-      identityRequirement: z.enum(["none", "source_backed", "canonical_confirmed"]).optional(),
       description: z.string().optional(),
     },
     handler({ context, payload }) {
@@ -417,7 +413,6 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
       collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
@@ -434,12 +429,8 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
       collectionKind: collectionKindSchema.optional(),
       label: z.string(),
-      materialSnapshot: z.object({}).passthrough().optional(),
-      relationScope: z.object({}).passthrough().optional(),
-      identityRequirement: z.enum(["none", "source_backed", "canonical_confirmed"]).optional(),
       description: z.string().optional(),
     },
     handler({ context, payload }) {
@@ -456,7 +447,6 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
       collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
@@ -473,12 +463,8 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
       collectionKind: collectionKindSchema.optional(),
       label: z.string(),
-      materialSnapshot: z.object({}).passthrough().optional(),
-      relationScope: z.object({}).passthrough().optional(),
-      identityRequirement: z.enum(["none", "source_backed", "canonical_confirmed"]).optional(),
       description: z.string().optional(),
     },
     handler({ context, payload }) {
@@ -495,7 +481,6 @@ export const musicToolDefinitions = [
       ownerScope: z.string().optional(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
       collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
@@ -512,11 +497,7 @@ export const musicToolDefinitions = [
       collectionId: z.string(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
       label: z.string(),
-      materialSnapshot: z.object({}).passthrough().optional(),
-      relationScope: z.object({}).passthrough().optional(),
-      identityRequirement: z.enum(["none", "source_backed", "canonical_confirmed"]).optional(),
       description: z.string().optional(),
     },
     handler({ context, payload }) {
@@ -556,7 +537,6 @@ export const musicToolDefinitions = [
       collectionId: z.string(),
       ref: z.string().optional(),
       canonicalRef: refSchema.optional(),
-      materialRef: refSchema.optional(),
     },
     handler({ context, payload }) {
       const availableCollection = readCollection(context.collection);

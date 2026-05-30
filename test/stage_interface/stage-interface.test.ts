@@ -186,7 +186,40 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
   );
 }
 
+async function collectionSchemasHideAdvancedMaterialTargetFields(): Promise<void> {
+  const systemAddSchema = stageInterfaceToolInputSchemas["music.collection.favorite"];
+  const systemRemoveSchema = stageInterfaceToolInputSchemas["music.collection.unfavorite"];
+  const customAddSchema = stageInterfaceToolInputSchemas["music.collection.item.add"];
+  const customRemoveSchema = stageInterfaceToolInputSchemas["music.collection.item.remove"];
+  const hiddenFields = ["materialRef", "materialSnapshot", "relationScope", "identityRequirement"];
+
+  for (const field of hiddenFields) {
+    assert(
+      !Object.prototype.hasOwnProperty.call(systemAddSchema, field),
+      `system collection add public schema should not advertise ${field}`,
+    );
+    assert(
+      !Object.prototype.hasOwnProperty.call(customAddSchema, field),
+      `custom collection add public schema should not advertise ${field}`,
+    );
+  }
+  assert(
+    !Object.prototype.hasOwnProperty.call(systemRemoveSchema, "materialRef"),
+    "system collection remove public schema should not advertise materialRef",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(customRemoveSchema, "materialRef"),
+    "custom collection remove public schema should not advertise materialRef",
+  );
+  assert(
+    Object.prototype.hasOwnProperty.call(systemAddSchema, "ref") &&
+      Object.prototype.hasOwnProperty.call(customAddSchema, "ref"),
+    "collection public schemas should expose compact material refs",
+  );
+}
+
 await exposesEveryStableToolNameThroughStageInterface();
 await stableToolNamesRemainInPublishedOrder();
 await stableToolNamesHaveMatchingSchemasAndDescriptors();
 await materialQuerySchemasHideExperimentalPreferenceHints();
+await collectionSchemasHideAdvancedMaterialTargetFields();
