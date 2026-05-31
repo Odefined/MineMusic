@@ -1275,14 +1275,15 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
     payload: {
       collectionId: custom.id,
       ref: `mat_${artist.materialRef.id}`,
+      canonicalRef: { namespace: "minemusic", kind: "recording", id: "fake-recording" },
       label: "Artist One",
     },
   });
 
-  assert(!added.ok, "compact custom collection add should reject mismatched material kind");
+  assert(!added.ok, "compact custom collection add should reject mismatched material kind even with a fake canonical hint");
   assert(
     added.ok === false && added.error.code === "collection.kind_mismatch",
-    "compact custom collection add should surface collection.kind_mismatch",
+    "compact custom collection add should surface collection.kind_mismatch for inconsistent target hints",
   );
 }
 

@@ -671,6 +671,37 @@ async function customCollectionRejectsMismatchedKnownMaterialKind(): Promise<voi
   );
 }
 
+async function customCollectionRejectsCanonicalHintThatContradictsKnownMaterialKind(): Promise<void> {
+  const { collections, materialRegistry } = createTestCollectionServiceWithMaterialRegistry();
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Recording picks",
+    }),
+  );
+  const artist = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "custom-artist-conflict" },
+      kind: "artist",
+    }),
+  );
+
+  const added = await collections.addMaterialToCollection({
+    collectionId: custom.id,
+    materialRef: artist.materialRef,
+    canonicalRef: { namespace: "minemusic", kind: "recording", id: "fake-recording" },
+    label: "Artist One",
+  });
+
+  assert(!added.ok, "custom collection should reject canonical hints that contradict a known material kind");
+  assert(
+    added.ok === false && added.error.code === "collection.kind_mismatch",
+    "canonical hint conflict should use collection.kind_mismatch",
+  );
+}
+
 async function unknownCustomCollectionMaterialTargetsFailClearly(): Promise<void> {
   const { collections } = createTestCollectionServiceWithMaterialRegistry();
   const custom = await assertOk(
@@ -697,6 +728,8 @@ async function unknownCustomCollectionMaterialTargetsFailClearly(): Promise<void
 
 async function customCollectionAcceptsMatchingKnownMaterialKinds(): Promise<void> {
   const { collections, materialRegistry } = createTestCollectionServiceWithMaterialRegistry();
+  const recordingCanonicalRef: Ref = { namespace: "musicbrainz", kind: "recording", id: "custom-recording-1" };
+  const artistCanonicalRef: Ref = { namespace: "musicbrainz", kind: "artist", id: "custom-artist-2" };
   const recordingCollection = await assertOk(
     collections.createCollection({
       ownerScope: "local_profile:default",
@@ -715,13 +748,13 @@ async function customCollectionAcceptsMatchingKnownMaterialKinds(): Promise<void
   );
   const recording = await assertOk(
     materialRegistry.getOrCreateByCanonicalRef({
-      canonicalRef: { namespace: "musicbrainz", kind: "recording", id: "custom-recording-1" },
+      canonicalRef: recordingCanonicalRef,
       kind: "recording",
     }),
   );
   const artist = await assertOk(
     materialRegistry.getOrCreateByCanonicalRef({
-      canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "custom-artist-2" },
+      canonicalRef: artistCanonicalRef,
       kind: "artist",
     }),
   );
@@ -730,6 +763,7 @@ async function customCollectionAcceptsMatchingKnownMaterialKinds(): Promise<void
     collections.addMaterialToCollection({
       collectionId: recordingCollection.id,
       materialRef: recording.materialRef,
+      canonicalRef: recordingCanonicalRef,
       label: "Recording One",
     }),
   );
@@ -737,6 +771,7 @@ async function customCollectionAcceptsMatchingKnownMaterialKinds(): Promise<void
     collections.addMaterialToCollection({
       collectionId: artistCollection.id,
       materialRef: artist.materialRef,
+      canonicalRef: artistCanonicalRef,
       label: "Artist Two",
     }),
   );
@@ -760,6 +795,7 @@ async function systemCollectionRejectsExplicitKindThatContradictsKnownMaterial()
     relationKind: "favorite",
     materialRef: artist.materialRef,
     collectionKind: "recording",
+    canonicalRef: { namespace: "minemusic", kind: "recording", id: "fake-system-recording" },
     label: "Artist One",
   });
 
@@ -969,6 +1005,7 @@ await backfillsMaterialRefForLegacyCanonicalCollectionItems();
 await materialSystemCollectionsInferKindFromMaterialRecords();
 await unknownMaterialSystemCollectionTargetsRequireExplicitKind();
 await customCollectionRejectsMismatchedKnownMaterialKind();
+await customCollectionRejectsCanonicalHintThatContradictsKnownMaterialKind();
 await unknownCustomCollectionMaterialTargetsFailClearly();
 await customCollectionAcceptsMatchingKnownMaterialKinds();
 await systemCollectionRejectsExplicitKindThatContradictsKnownMaterial();

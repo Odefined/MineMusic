@@ -88,8 +88,9 @@ Collection-blocked. Recent `"session"` exclusion is backed by
 `MaterialSessionActivity` keyed by owner, session, and material; aggregate
 `MaterialActivity` remains for timestamp windows. Collection material writes
 infer or validate collection kind from current `MaterialRecord` for compact
-refs, including custom collection writes, and compact `resolve.cards` can
-project current Material Records directly, including canonical-only records
+refs, require canonical/snapshot/target kind hints to agree with known
+Material Records, and include custom collection writes. Compact `resolve.cards`
+can project current Material Records directly, including canonical-only records
 with `found_no_link` status.
 
 ## Implemented
@@ -179,8 +180,9 @@ with `found_no_link` status.
   `addedAt` provenance from `providerAddedAt`, hiding unsupported public
   material schema options, filtering Collection-blocked material query output,
   adding session-keyed material activity, inferring and validating Collection
-  target kind from Material Records for compact refs, tightening public
-  collection schemas, and projecting compact MaterialRecord refs directly.
+  target kind from Material Records for compact refs, rejecting inconsistent
+  canonical/snapshot/target kind hints, tightening public collection schemas,
+  and projecting compact MaterialRecord refs directly.
 
 ## Verification
 

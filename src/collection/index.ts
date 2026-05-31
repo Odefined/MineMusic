@@ -1398,14 +1398,18 @@ async function materialKindForCollectionTarget({
   rejectUnknownMaterial: boolean;
   fallbackKind?: CollectionKind;
 }): Promise<Result<CollectionKind | null>> {
+  const hints: CollectionKind[] = [];
+
   if (canonicalRef !== undefined) {
-    return isCollectionKind(canonicalRef.kind)
-      ? ok(canonicalRef.kind)
-      : failKindMismatch(`Unsupported collection kind '${canonicalRef.kind}'.`);
+    if (!isCollectionKind(canonicalRef.kind)) {
+      return failKindMismatch(`Unsupported collection kind '${canonicalRef.kind}'.`);
+    }
+
+    hints.push(canonicalRef.kind);
   }
 
   if (materialSnapshot !== undefined && isCollectionKind(materialSnapshot.kind)) {
-    return ok(materialSnapshot.kind);
+    hints.push(materialSnapshot.kind);
   }
 
   if (materialStore !== undefined) {
@@ -1415,17 +1419,35 @@ async function materialKindForCollectionTarget({
       return record;
     }
 
-    if (record.value === null) {
-      return rejectUnknownMaterial
-        ? failKindUnknown(`Material '${materialRef.id}' was not found; pass collectionKind explicitly to classify it.`)
-        : ok(null);
+    if (record.value !== null) {
+      const recordKind = record.value.kind;
+
+      if (!isCollectionKind(recordKind)) {
+        return failKindMismatch(`Unsupported collection kind '${recordKind}'.`);
+      }
+
+      hints.unshift(recordKind);
+    }
+  }
+
+  if (hints.length > 0) {
+    const first = hints[0];
+
+    if (first === undefined) {
+      return ok(null);
     }
 
-    if (!isCollectionKind(record.value.kind)) {
-      return failKindMismatch(`Unsupported collection kind '${record.value.kind}'.`);
+    if (hints.slice(1).some((hint) => hint !== first)) {
+      return failKindMismatch(
+        `Material target kind hints disagree: ${hints.join(", ")}.`,
+      );
     }
 
-    return ok(record.value.kind);
+    return ok(first);
+  }
+
+  if (materialStore !== undefined && rejectUnknownMaterial) {
+    return failKindUnknown(`Material '${materialRef.id}' was not found; pass collectionKind explicitly to classify it.`);
   }
 
   return fallbackKind === undefined ? ok(null) : ok(fallbackKind);

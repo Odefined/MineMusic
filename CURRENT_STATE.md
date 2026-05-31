@@ -148,8 +148,9 @@ excludes materials projected as blocked by Collection state. Recent
 `"session"` exclusions use `MaterialSessionActivity` keyed by owner, session,
 and material, while aggregate `MaterialActivity` remains for timestamp
 windows. Collection material writes infer and validate collection kind from
-current `MaterialRecord` when compact refs are used, including custom
-collection writes, and compact material-card ref resolution can project
+current `MaterialRecord` when compact refs are used, require canonical,
+snapshot, and target collection kind hints to agree, and apply the same rule to
+custom collection writes. Compact material-card ref resolution can project
 current Material Records directly, including canonical-only records that have
 no playable source link yet.
 

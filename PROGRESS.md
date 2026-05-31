@@ -1100,8 +1100,9 @@
   session-scoped query exclusion for the `"session"` recent window.
 - Hardened Collection material writes so compact material refs infer or
   validate collection kind from current `MaterialRecord` when possible and
-  fail with `collection.kind_unknown` when kind cannot be inferred without an
-  explicit system `collectionKind`.
+  reject inconsistent canonical/snapshot/target kind hints, and fail with
+  `collection.kind_unknown` when kind cannot be inferred without an explicit
+  system `collectionKind`.
 - Added direct compact MaterialRecord projection for `music.material.resolve.cards`
   ref seeds, including canonical-only `found_no_link` cards, source-backed
   labels/links from Source Entity state, merge-survivor projection, and
