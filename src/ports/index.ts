@@ -54,6 +54,8 @@ import type {
   LibraryUpdateStartInput,
   MaterialContextBriefInput,
   MaterialContextBriefOutput,
+  MaterialPolicyDecision,
+  MaterialPolicyEvaluationInput,
   MaterialActivity,
   MaterialSessionActivity,
   MaterialPoolsListInput,
@@ -67,6 +69,8 @@ import type {
   MaterialResolveCardsOutput,
   MaterialResolveRequest,
   MaterialResolveResult,
+  MaterialSortInput,
+  MaterialSortOutput,
   MemoryEntry,
   MemoryProposal,
   MusicMaterialRelation,
@@ -713,6 +717,14 @@ export interface MaterialCardsPort {
   contextBrief?(input: MaterialContextBriefInput): Promise<Result<MaterialContextBriefOutput>>;
 
   listPools?(input: MaterialPoolsListInput): Promise<Result<MaterialPoolsListOutput>>;
+}
+
+export interface MaterialPolicyEvaluatorPort {
+  evaluate(input: MaterialPolicyEvaluationInput): Promise<Result<MaterialPolicyDecision>>;
+}
+
+export interface MaterialSorterPort {
+  sort(input: MaterialSortInput): Promise<Result<MaterialSortOutput>>;
 }
 
 export interface SourceGroundingPort {

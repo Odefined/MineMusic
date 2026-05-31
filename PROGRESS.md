@@ -1121,6 +1121,18 @@
   diagnostic cards do not expose non-existent durable `materialId` handles, and
   added focused resolve/query regression coverage for dropped unbacked provider
   results.
+- Started recommendation-posture PR 2 on branch
+  `codex/recommendation-policy-sorter` from merged `main`.
+- Added service-facing Material Policy and Material Sort contracts/ports plus
+  `src/material_policy/index.ts`, covering per-material allow/degrade/drop
+  policy and non-filtering candidate ordering.
+- Migrated Material Query's relation, recent, availability, identity, and
+  ordering internals to the new evaluator/sorter while preserving the existing
+  query/related tool outputs.
+- Added focused Material Policy tests for missing materials, blocked
+  presentation drops, source-scoped not-playable and wrong-version behavior,
+  freshness policies, and sorter preserve/score/least-recently-recommended
+  behavior.
 
 ## Next
 

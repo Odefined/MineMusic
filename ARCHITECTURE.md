@@ -93,10 +93,11 @@ MineMusic Server Process
      -> Material Gate
      -> Instrument Catalog
      -> Handbook renderer
-  -> Core Capability Layer
+     -> Core Capability Layer
      -> Material Store
      -> Collection Service
      -> Material Resolve
+     -> Material Policy / Sort
      -> Source Grounding
      -> Music Knowledge
      -> Event Service
@@ -140,7 +141,7 @@ without creating provider-specific environment switches in host adapter config.
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
-| Core Capabilities | `src/material_store/**`, `src/collection`, `src/material_resolve`, `src/material_query`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
+| Core Capabilities | `src/material_store/**`, `src/collection`, `src/material_resolve`, `src/material_policy`, `src/material_query`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
@@ -167,7 +168,8 @@ needs.
 | Collection Service | owner-scoped Collections, materialRef-backed CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup, and legacy canonicalRef compatibility during migration | canonical identity, source refs, provider search, final recommendation selection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, material relation filtering, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
-| Material Query / Related | compact agent-facing material retrieval, pool-restricted query, relation/recent filtering, related candidate generation, and `MaterialCard` presentation over Material Resolve output | raw source/canonical graph exposure, provider internals, canonical writes, final recommendation selection |
+| Material Policy / Sort | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy; sorting of already usable material candidates | candidate discovery, hard filtering inside sorter, final presentation, diversity/selection, final recommendation judgment |
+| Material Query / Related | compact agent-facing material retrieval, pool-restricted query, related candidate generation, policy/sort delegation, and `MaterialCard` presentation over Material Resolve output | raw source/canonical graph exposure, provider internals, canonical writes, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |
