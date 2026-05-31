@@ -373,6 +373,78 @@ export type MaterialResolveResult =
       results: ResolvedCandidate[];
     };
 
+export type MaterialPolicyPurpose =
+  | "candidate_selection"
+  | "recommendation_presentation"
+  | "feedback_target";
+
+export type MaterialFreshnessPolicy = {
+  recommended?: "session" | "1h" | "24h" | "7d";
+  played?: "session" | "1h" | "24h" | "7d";
+  opened?: "session" | "1h" | "24h" | "7d";
+  mode?: "hard" | "soft" | "off";
+};
+
+export type MaterialPolicyInput = {
+  purpose: MaterialPolicyPurpose;
+  availability?: "playable" | "any";
+  identity?: "confirmed_only" | "allow_source_backed";
+  excludeRelations?: Array<"blocked" | "wrong_version" | "not_playable" | "bad_match">;
+  freshness?: MaterialFreshnessPolicy;
+};
+
+export type MaterialPolicyDecision =
+  | { decision: "allow"; material: MusicMaterial; warnings?: string[] }
+  | { decision: "degrade"; material: MusicMaterial; warnings: string[] }
+  | {
+      decision: "drop";
+      code:
+        | "material_not_found"
+        | "blocked"
+        | "wrong_version"
+        | "not_playable"
+        | "bad_match"
+        | "recently_recommended"
+        | "recently_played"
+        | "recently_opened"
+        | "not_available"
+        | "identity_not_confirmed";
+      reason: string;
+    };
+
+export type MaterialPolicyEvaluationInput = {
+  ownerScope: string;
+  sessionId?: string;
+  materialId: string;
+  material?: MusicMaterial;
+  policy: MaterialPolicyInput;
+};
+
+export type MaterialSortPolicy = {
+  order:
+    | "preserve"
+    | "score"
+    | "least_recently_recommended"
+    | "recently_added"
+    | "random";
+};
+
+export type MaterialSortCandidate = {
+  material: MusicMaterial;
+  score?: number;
+  reason?: string;
+};
+
+export type MaterialSortInput = {
+  ownerScope: string;
+  candidates: MaterialSortCandidate[];
+  policy?: MaterialSortPolicy;
+};
+
+export type MaterialSortOutput = {
+  candidates: MaterialSortCandidate[];
+};
+
 export interface SourceProvider {
   id: string;
   search(input: {

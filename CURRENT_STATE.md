@@ -2,8 +2,8 @@
 
 ## Status
 
-MineMusic is on `codex/musicmaterial-post-merge-hardening` with the
-MusicMaterial post-merge hardening changes applied locally.
+MineMusic has the MusicMaterial post-merge hardening and materialId migration
+changes applied.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
@@ -166,6 +166,16 @@ through structured `ResolvedCandidate.issues`, while empty provider matches
 return retryable `provider_no_match` diagnostics. Compact resolve cards now
 return unresolved diagnostic cards without `materialId` when no Material
 Store-backed material exists.
+
+The 2026-05-31 recommendation-posture PR 2 policy/sort substrate adds
+service-facing `MaterialPolicyEvaluatorPort` and `MaterialSorterPort`.
+Material Policy evaluates one material at a time for relation, collection
+block, availability, identity, and freshness outcomes, returning
+allow/degrade/drop without ranking. Material Sort reorders already usable
+candidates for preserve, score, least-recently-recommended, recently-added, and
+random policies without filtering. Material Query now delegates relation,
+recent, availability, identity, and ordering behavior to these services while
+preserving its agent-facing output shape.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

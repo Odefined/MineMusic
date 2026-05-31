@@ -97,6 +97,15 @@ Material Records, and include custom collection writes. Compact `resolve.cards`
 can project current Material Records directly, including canonical-only records
 with `found_no_link` status.
 
+Recommendation-posture PR 2 is now implemented. `src/material_policy/index.ts`
+provides a reusable per-material policy evaluator and a non-filtering material
+sorter. The evaluator centralizes relation, collection block, availability,
+identity, and freshness checks for one material at a time; the sorter handles
+preserve, score, least-recently-recommended, recently-added, and deterministic
+random ordering over already usable candidates. Material Query delegates its
+policy and ordering internals to these services without exposing new public
+tools or changing compact card output shape.
+
 ## Implemented
 
 - Added material identity contracts:
@@ -123,6 +132,9 @@ with `found_no_link` status.
 - Material Resolve drops unbacked provider results instead of manufacturing
   ghost material refs, and returns structured retry/missing-grounding
   diagnostics on `ResolvedCandidate.issues`.
+- Added Material Policy / Sort contracts, ports, implementation, and focused
+  tests, then migrated Material Query filtering and ordering internals to use
+  the new services while keeping query behavior stable.
 - Material Registry merge projection preserves loser source refs on the
   survivor in both in-memory and SQLite-backed implementations.
 - `stage.materials.prepare` preserves `materialRef` and `identityState` while

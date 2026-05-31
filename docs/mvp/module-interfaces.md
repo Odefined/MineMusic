@@ -612,6 +612,40 @@ Must not expose:
 - final recommendation ranking.
 - source refs as canonical authority.
 
+## Material Policy / Sort Ports
+
+Purpose:
+
+- Evaluate one Material Store-backed material at a time for reusable
+  allow/degrade/drop policy.
+- Apply relation, collection-block, availability, identity, and freshness
+  checks without ranking or selecting candidates.
+- Sort already evaluated usable material candidates without filtering them.
+
+Service-facing ports:
+
+```ts
+export interface MaterialPolicyEvaluatorPort {
+  evaluate(input: MaterialPolicyEvaluationInput): Promise<Result<MaterialPolicyDecision>>;
+}
+
+export interface MaterialSorterPort {
+  sort(input: MaterialSortInput): Promise<Result<MaterialSortOutput>>;
+}
+```
+
+Consumes:
+
+- `MaterialStorePort`
+- optional `CollectionPort`
+
+Must not expose:
+
+- final recommendation judgment.
+- selection or diversity logic.
+- presentation event recording.
+- source provider internals.
+
 ## Source Grounding Port
 
 Purpose:

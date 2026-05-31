@@ -1,6 +1,5 @@
 import type {
   CollectionItem,
-  MaterialActivity,
   MaterialCard,
   MaterialCardAction,
   MaterialCardStatus,
@@ -29,11 +28,17 @@ import type {
 import type {
   CollectionPort,
   MaterialCardsPort,
+  MaterialPolicyEvaluatorPort,
   MaterialQueryPort,
   MaterialRelatedPort,
   MaterialResolvePort,
+  MaterialSorterPort,
   MaterialStorePort,
 } from "../ports/index.js";
+import {
+  createMaterialPolicyEvaluator,
+  createMaterialSorter,
+} from "../material_policy/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
@@ -59,6 +64,12 @@ export function createMaterialQueryService({
   collection,
   clock = () => new Date().toISOString(),
 }: MaterialQueryServiceOptions): MaterialQueryService {
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({
+    materialStore,
+    ...(collection === undefined ? {} : { collection }),
+    clock,
+  });
+  const materialSorter = createMaterialSorter({ materialStore });
   const service: MaterialQueryService = {
     async resolveCards(input) {
       const ownerScope = input.ownerScope ?? defaultOwnerScope;
@@ -106,6 +117,7 @@ export function createMaterialQueryService({
       }
 
       const filtered = await filterMaterials({
+        materialPolicyEvaluator,
         materialStore,
         ownerScope,
         materials: resolved.value,
@@ -114,7 +126,6 @@ export function createMaterialQueryService({
         preferenceHints: input.preferenceHints,
         exclude: input.exclude,
         ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-        clock,
       });
 
       if (!filtered.ok) {
@@ -122,7 +133,7 @@ export function createMaterialQueryService({
       }
 
       const ordered = await orderMaterials({
-        materialStore,
+        materialSorter,
         materials: filtered.value,
         order: input.order,
         preferenceHints: input.preferenceHints,
@@ -152,9 +163,9 @@ export function createMaterialQueryService({
       return relatedForInput({
         materialStore,
         materialResolve,
+        materialPolicyEvaluator,
         ownerScope: input.ownerScope ?? defaultOwnerScope,
         input,
-        clock,
       });
     },
 
@@ -1154,6 +1165,7 @@ function unresolvedMaterialCard({
 
 async function filterMaterials({
   materialStore,
+  materialPolicyEvaluator,
   ownerScope,
   materials,
   returnKind,
@@ -1161,9 +1173,9 @@ async function filterMaterials({
   preferenceHints,
   exclude,
   sessionId,
-  clock,
 }: {
   materialStore: MaterialStorePort;
+  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   ownerScope: string;
   materials: MusicMaterial[];
   returnKind?: MaterialQueryInput["returnKind"];
@@ -1171,7 +1183,6 @@ async function filterMaterials({
   preferenceHints?: MaterialQueryInput["preferenceHints"];
   exclude?: MaterialQueryInput["exclude"];
   sessionId?: string;
-  clock: () => string;
 }): Promise<Result<MusicMaterial[]>> {
   const excludedMaterialIds = await excludedMaterialIdsForInput({
     materialStore,
@@ -1193,50 +1204,33 @@ async function filterMaterials({
       continue;
     }
 
-    if (constraints?.availability === "playable" && (material.playableLinks?.length ?? 0) === 0) {
-      continue;
-    }
-
-    if (constraints?.identity === "confirmed_only" && material.identityState !== "canonical_confirmed") {
-      continue;
-    }
-
     if (matchesAnyHint(material, avoidHints(preferenceHints))) {
       continue;
     }
 
-    if (material.state === "blocked" && exclude?.relations?.includes("blocked")) {
-      continue;
-    }
-
-    const relationExcluded = await excludedByRelations(materialStore, ownerScope, material, exclude?.relations);
-
-    if (!relationExcluded.ok) {
-      return relationExcluded;
-    }
-
-    if (relationExcluded.value) {
-      continue;
-    }
-
-    const recentExcluded = await excludedByRecentActivity({
-      materialStore,
+    const decision = await materialPolicyEvaluator.evaluate({
       ownerScope,
-      materialRef: material.materialRef,
-      recent: exclude?.recent,
+      materialId: materialRefToMaterialId(material.materialRef),
+      material,
+      policy: {
+        purpose: "candidate_selection",
+        ...(constraints?.availability === undefined ? {} : { availability: constraints.availability }),
+        ...(constraints?.identity === undefined ? {} : { identity: constraints.identity }),
+        ...(exclude?.relations === undefined ? {} : { excludeRelations: exclude.relations }),
+        ...(exclude?.recent === undefined ? {} : { freshness: exclude.recent }),
+      },
       ...(sessionId === undefined ? {} : { sessionId }),
-      now: clock(),
     });
 
-    if (!recentExcluded.ok) {
-      return recentExcluded;
+    if (!decision.ok) {
+      return decision;
     }
 
-    if (recentExcluded.value) {
+    if (decision.value.decision === "drop") {
       continue;
     }
 
-    filtered.push(material);
+    filtered.push(decision.value.material);
   }
 
   return ok(filtered);
@@ -1264,150 +1258,18 @@ async function excludedMaterialIdsForInput({
   return ok(excludedMaterialIds);
 }
 
-async function excludedByRelations(
-  materialStore: MaterialStorePort,
-  ownerScope: string,
-  material: MusicMaterial,
-  excludedRelations: NonNullable<NonNullable<MaterialQueryInput["exclude"]>["relations"]> | undefined,
-): Promise<Result<boolean>> {
-  if (excludedRelations === undefined || excludedRelations.length === 0) {
-    return ok(false);
-  }
-
-  const relations = await materialStore.listMaterialRelations({
-    ownerScope,
-    materialRef: material.materialRef,
-    status: "active",
-  });
-
-  if (!relations.ok) {
-    return relations;
-  }
-
-  const sourceRefKeys = new Set((material.sourceRefs ?? []).map(refKey));
-
-  return ok(
-    relations.value.some((relation) => {
-      if (!excludedRelations.includes(relation.relationKind as never)) {
-        return false;
-      }
-
-      return relation.scope.level !== "source" || sourceRefKeys.has(refKey(relation.scope.sourceRef));
-    }),
-  );
-}
-
-async function excludedByRecentActivity({
-  materialStore,
-  ownerScope,
-  materialRef,
-  recent,
-  sessionId,
-  now,
-}: {
-  materialStore: MaterialStorePort;
-  ownerScope: string;
-  materialRef: Ref;
-  recent?: NonNullable<MaterialQueryInput["exclude"]>["recent"];
-  sessionId?: string;
-  now: string;
-}): Promise<Result<boolean>> {
-  if (recent === undefined || recent.mode === "soft") {
-    return ok(false);
-  }
-
-  const activity = await materialStore.getMaterialActivity({ ownerScope, materialRef });
-
-  if (!activity.ok) {
-    return activity;
-  }
-
-  if (activity.value === null) {
-    if (!recentNeedsSessionActivity(recent) || sessionId === undefined) {
-      return ok(false);
-    }
-  }
-
-  const sessionActivity = sessionId === undefined || !recentNeedsSessionActivity(recent)
-    ? ok(null)
-    : await materialStore.getMaterialSessionActivity({ ownerScope, sessionId, materialRef });
-
-  if (!sessionActivity.ok) {
-    return sessionActivity;
-  }
-
-  return ok(
-    matchesRecent(
-      activity.value?.lastRecommendedAt,
-      sessionActivity.value?.recommendedCount,
-      recent.recommended,
-      now,
-    ) ||
-      matchesRecent(
-        activity.value?.lastOpenedAt,
-        sessionActivity.value?.openedCount,
-        recent.opened,
-        now,
-      ) ||
-      matchesRecent(
-        activity.value?.lastPlayedAt,
-        sessionActivity.value?.playedCount,
-        recent.played,
-        now,
-      ),
-  );
-}
-
-function matchesRecent(
-  timestamp: string | undefined,
-  sessionScopedCount: number | undefined,
-  window: "session" | "1h" | "24h" | "7d" | undefined,
-  now: string,
-): boolean {
-  if (window === undefined) {
-    return false;
-  }
-
-  if (window === "session") {
-    return (sessionScopedCount ?? 0) > 0;
-  }
-
-  if (timestamp === undefined) {
-    return false;
-  }
-
-  return Date.parse(timestamp) >= Date.parse(now) - recentWindowMs(window);
-}
-
-function recentNeedsSessionActivity(
-  recent: NonNullable<NonNullable<MaterialQueryInput["exclude"]>["recent"]>,
-): boolean {
-  return recent.recommended === "session" || recent.opened === "session" || recent.played === "session";
-}
-
-function recentWindowMs(window: "1h" | "24h" | "7d"): number {
-  switch (window) {
-    case "1h":
-      return 60 * 60 * 1000;
-    case "24h":
-      return 24 * 60 * 60 * 1000;
-    case "7d":
-      return 7 * 24 * 60 * 60 * 1000;
-  }
-}
-
 async function relatedForInput({
   materialStore,
   materialResolve,
+  materialPolicyEvaluator,
   ownerScope,
   input,
-  clock,
 }: {
   materialStore: MaterialStorePort;
   materialResolve: MaterialResolvePort;
+  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   ownerScope: string;
   input: MaterialRelatedInput;
-  clock: () => string;
 }): Promise<Result<MaterialRelatedOutput>> {
   const related = await relatedCandidates({
     materialStore,
@@ -1439,6 +1301,7 @@ async function relatedForInput({
 
   const filtered = await filterMaterials({
     materialStore,
+    materialPolicyEvaluator,
     ownerScope,
     materials: resolved.value.filter((material) =>
       !sameRef(material.materialRef, seedMaterialRef) && !sameRef(material.materialRef, currentSeedMaterialRef.value)
@@ -1453,7 +1316,6 @@ async function relatedForInput({
       ],
     },
     ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-    clock,
   });
 
   if (!filtered.ok) {
@@ -1889,13 +1751,13 @@ async function listPoolsForInput({
 }
 
 async function orderMaterials({
-  materialStore,
+  materialSorter,
   materials,
   order,
   preferenceHints,
   ownerScope,
 }: {
-  materialStore: MaterialStorePort;
+  materialSorter: MaterialSorterPort;
   materials: MusicMaterial[];
   order: MaterialQueryInput["order"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
@@ -1903,129 +1765,37 @@ async function orderMaterials({
 }): Promise<Result<MusicMaterial[]>> {
   const deduped = dedupeMaterials(materials);
 
-  if (order === "random") {
-    return ok([...deduped].sort((left, right) => {
-      const hashDelta = stableHash(refKey(left.materialRef)) - stableHash(refKey(right.materialRef));
-
-      return hashDelta === 0 ? refKey(left.materialRef).localeCompare(refKey(right.materialRef)) : hashDelta;
-    }));
-  }
-
-  if (order === "recently_added") {
-    const addedAtByRef = new Map<string, string | undefined>();
-
-    for (const material of deduped) {
-      const addedAt = await recentlyAddedAtForMaterial(materialStore, ownerScope, material);
-
-      if (!addedAt.ok) {
-        return addedAt;
-      }
-
-      addedAtByRef.set(refKey(material.materialRef), addedAt.value);
-    }
-
-    return ok([...deduped].sort((left, right) => {
-      const leftAddedAt = addedAtByRef.get(refKey(left.materialRef));
-      const rightAddedAt = addedAtByRef.get(refKey(right.materialRef));
-
-      if (leftAddedAt === undefined && rightAddedAt !== undefined) {
-        return 1;
-      }
-
-      if (leftAddedAt !== undefined && rightAddedAt === undefined) {
-        return -1;
-      }
-
-      if (leftAddedAt !== undefined && rightAddedAt !== undefined && leftAddedAt !== rightAddedAt) {
-        return rightAddedAt.localeCompare(leftAddedAt);
-      }
-
-      return refKey(left.materialRef).localeCompare(refKey(right.materialRef));
-    }));
-  }
-
-  if (order === "least_recently_recommended") {
-    const activityByRef = new Map<string, MaterialActivity | null>();
-
-    for (const material of deduped) {
-      const activity = await materialStore.getMaterialActivity({ ownerScope, materialRef: material.materialRef });
-
-      if (!activity.ok) {
-        return activity;
-      }
-
-      activityByRef.set(refKey(material.materialRef), activity.value);
-    }
-
-    return ok([...deduped].sort((left, right) => {
-      const leftRecommended = activityByRef.get(refKey(left.materialRef))?.lastRecommendedAt;
-      const rightRecommended = activityByRef.get(refKey(right.materialRef))?.lastRecommendedAt;
-
-      if (leftRecommended === undefined && rightRecommended !== undefined) {
-        return -1;
-      }
-
-      if (leftRecommended !== undefined && rightRecommended === undefined) {
-        return 1;
-      }
-
-      if (leftRecommended !== undefined && rightRecommended !== undefined && leftRecommended !== rightRecommended) {
-        return leftRecommended.localeCompare(rightRecommended);
-      }
-
-      return refKey(left.materialRef).localeCompare(refKey(right.materialRef));
-    }));
-  }
-
   const preferHints = preferredHints(preferenceHints);
 
   if ((order === undefined || order === "relevance") && preferHints.length > 0) {
-    return ok([...deduped].sort((left, right) => {
-      const scoreDelta = hintScore(right, preferHints) - hintScore(left, preferHints);
-
-      return scoreDelta === 0 ? refKey(left.materialRef).localeCompare(refKey(right.materialRef)) : scoreDelta;
-    }));
-  }
-
-  return ok(deduped);
-}
-
-async function recentlyAddedAtForMaterial(
-  materialStore: MaterialStorePort,
-  ownerScope: string,
-  material: MusicMaterial,
-): Promise<Result<string | undefined>> {
-  const sourceTimes: string[] = [];
-
-  for (const sourceRef of material.sourceRefs ?? []) {
-    const items = await materialStore.listSourceLibraryItems({
+    const sorted = await materialSorter.sort({
       ownerScope,
-      sourceRef,
-      status: "present",
+      candidates: deduped.map((material) => ({
+        material,
+        score: hintScore(material, preferHints),
+      })),
+      policy: { order: "score" },
     });
 
-    if (!items.ok) {
-      return items;
-    }
-
-    sourceTimes.push(...items.value.map((item) => item.addedAt ?? item.lastSeenAt));
+    return sorted.ok ? ok(sorted.value.candidates.map((candidate) => candidate.material)) : sorted;
   }
 
-  if (sourceTimes.length > 0) {
-    const sorted = [...sourceTimes].sort();
+  const sortOrder =
+    order === "random" ||
+    order === "recently_added" ||
+    order === "least_recently_recommended"
+      ? order
+      : "preserve";
+  const sorted = await materialSorter.sort({
+    ownerScope,
+    candidates: deduped.map((material) => ({ material })),
+    policy: {
+      order: sortOrder,
+    },
+  });
 
-    return ok(sorted[sorted.length - 1]);
-  }
-
-  const record = await materialStore.getMaterialRecord({ materialRef: material.materialRef });
-
-  if (!record.ok) {
-    return record;
-  }
-
-  return ok(record.value?.createdAt);
+  return sorted.ok ? ok(sorted.value.candidates.map((candidate) => candidate.material)) : sorted;
 }
-
 function appliedLabels(input: MaterialQueryInput): string[] {
   const applied: string[] = [];
 
@@ -2253,16 +2023,6 @@ function normalizeLimit(limit: number | undefined): number {
   }
 
   return Math.max(1, Math.min(50, Math.floor(limit)));
-}
-
-function stableHash(value: string): number {
-  let hash = 0;
-
-  for (const char of value) {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-
-  return hash;
 }
 
 function dedupeMaterials(materials: MusicMaterial[]): MusicMaterial[] {
