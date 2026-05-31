@@ -847,6 +847,46 @@ export type MemoryProposal = {
   reason: string;
   requiresEffectApproval: boolean;
 };
+
+export type MemoryFeedbackRecordInput = {
+  ownerScope?: string;
+  sessionId?: string;
+  feedbackText: string;
+  target:
+    | { recentCardIndex: number }
+    | { eventId: string; position: number }
+    | { materialId: string };
+  interpretation:
+    | { kind: "wrong_version"; scope?: "source" | "version" }
+    | { kind: "not_playable"; scope?: "source" }
+    | { kind: "block"; scope?: "material" | "source" }
+    | { kind: "like"; scope?: "material" }
+    | { kind: "dislike"; scope?: "material" }
+    | { kind: "remember_preference"; text: string; scope?: "session" | "long_term" };
+  note?: string;
+};
+
+export type MemoryFeedbackRecordOutput = {
+  feedbackEventId: string;
+  target?: {
+    materialId: string;
+    title?: string;
+    eventId?: string;
+    position?: number;
+    sourceRef?: Ref;
+    linkRefs?: RecommendationPresentedLinkRef[];
+  };
+  applied: Array<
+    | {
+        kind: "relation";
+        relationId: string;
+        relationKind: MusicMaterialRelationKind;
+        scope: MusicMaterialRelationScope;
+      }
+    | { kind: "memory_proposal"; proposalId: string }
+  >;
+  warnings?: Array<{ code: string; message: string }>;
+};
 ```
 
 Rules:
@@ -854,6 +894,8 @@ Rules:
 - Durable memory should be explicit or evidence-backed.
 - Weak LLM inference remains a proposal.
 - Wrong-version rules should target stable identity when possible.
+- Feedback recording binds agent-interpreted feedback to typed presented cards;
+  it records a factual feedback event even when consequences partially fail.
 
 ## Effect Types
 
@@ -932,6 +974,7 @@ export type ToolName =
   | "canonical.review.list"
   | "canonical.review.inspect"
   | "canonical.review.apply"
+  | "memory.feedback.record"
   | "memory.propose";
 
 export type InstrumentDescriptor = {

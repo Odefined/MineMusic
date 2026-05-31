@@ -242,6 +242,11 @@ Input: `LibraryImportItemsListInput`
 Output: `LibraryImportItemsListOutput`
 ### MineMusic Memory (`minemusic.memory`)
 
+#### `memory.feedback.record`
+
+Description: Record interpreted user feedback against recent presented recommendation cards.
+Input: `MemoryFeedbackRecordInput`
+Output: `MemoryFeedbackRecordOutput`
 #### `memory.propose`
 
 Description: Create an evidence-backed memory proposal.

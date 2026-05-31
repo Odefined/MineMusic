@@ -1194,6 +1194,24 @@
   surfacing as playable cards, compact recentCards plus event snapshot binding,
   and continued rejection of manual `recommendation.presented` event writes.
 
+- Started recommendation-posture PR 6 on branch
+  `codex/recommendation-feedback-record-v2` from merged PR 1-5 hardening
+  `main`.
+- Added `MemoryFeedbackRecordInput` / `MemoryFeedbackRecordOutput`,
+  `MemoryPort.recordFeedback`, and the `memory.feedback.record` Stage Interface
+  tool.
+- Implemented feedback target binding for recent card index,
+  `{ eventId, position }`, and direct `materialId` targets. Presented-card
+  feedback now recovers source/link context from persisted
+  `recommendation.presented` `linkRefs`, then records a typed
+  `recommendation.feedback` event.
+- Added scoped feedback consequences: source/version relations for wrong
+  version when possible, source-scoped not-playable/source block warnings when
+  source context is missing, material block/like/dislike relations, and
+  remember-preference memory proposals without auto-acceptance.
+- Added memory service, Stage Interface, MCP schema, skill/handbook, and
+  contract regression coverage for feedback binding and consequence behavior.
+
 ## Next
 
 - Add CLI or Web UI peer transports when there is a concrete product workflow.

@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 import type {
+  MemoryFeedbackRecordInput,
   MemoryProposal,
   ToolDescriptor,
 } from "../../contracts/index.js";
@@ -14,6 +15,7 @@ import type {
 import { descriptorForToolDefinition } from "./types.js";
 
 export const memoryToolNames = [
+  "memory.feedback.record",
   "memory.propose",
 ] as const;
 
@@ -24,6 +26,36 @@ export type MemoryToolGroupContext = {
 };
 
 export const memoryToolDefinitions = [
+  {
+    name: "memory.feedback.record",
+    description: "Record interpreted user feedback against recent presented recommendation cards.",
+    inputSchemaRef: "MemoryFeedbackRecordInput",
+    outputSchemaRef: "MemoryFeedbackRecordOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      feedbackText: z.string(),
+      target: z.union([
+        z.object({ recentCardIndex: z.number().int().positive() }),
+        z.object({ eventId: z.string(), position: z.number().int().positive() }),
+        z.object({ materialId: z.string() }),
+      ]),
+      interpretation: z.union([
+        z.object({ kind: z.literal("wrong_version"), scope: z.enum(["source", "version"]).optional() }),
+        z.object({ kind: z.literal("not_playable"), scope: z.enum(["source"]).optional() }),
+        z.object({ kind: z.literal("block"), scope: z.enum(["material", "source"]).optional() }),
+        z.object({ kind: z.literal("like"), scope: z.enum(["material"]).optional() }),
+        z.object({ kind: z.literal("dislike"), scope: z.enum(["material"]).optional() }),
+        z.object({ kind: z.literal("remember_preference"), text: z.string(), scope: z.enum(["session", "long_term"]).optional() }),
+      ]),
+      note: z.string().optional(),
+    },
+    handler({ context, sessionId, payload }) {
+      return context.memory.recordFeedback(
+        readPayload<MemoryFeedbackRecordInput & { sessionId: string }>(payload, { sessionId }),
+      );
+    },
+  },
   {
     name: "memory.propose",
     description: "Create an evidence-backed memory proposal.",
@@ -49,6 +81,14 @@ export const memoryToolInputSchemas = Object.fromEntries(
   memoryToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
 ) as unknown as Record<MemoryToolName, StageInterfaceToolInputSchema>;
 
-function readPayload<TPayload extends object>(payload: unknown): TPayload {
-  return typeof payload === "object" && payload !== null ? (payload as TPayload) : ({} as TPayload);
+function readPayload<TPayload extends object>(
+  payload: unknown,
+  defaults?: Partial<TPayload>,
+): TPayload {
+  const input = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+
+  return {
+    ...(defaults ?? {}),
+    ...input,
+  } as TPayload;
 }

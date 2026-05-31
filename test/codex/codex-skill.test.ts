@@ -53,6 +53,7 @@ async function packagesRepoLocalCodexSkill(): Promise<void> {
   assert(!skillText.includes("session handbook"), "MineMusic skill should not mention session handbook files");
   assert(handbookText.includes("# MineMusic Instrument Handbook"), "skill should ship a generated handbook overview");
   assert(handbookText.includes("`music.material.resolve`"), "handbook should document the resolve tool");
+  assert(handbookText.includes("`memory.feedback.record`"), "handbook should document the feedback tool");
   assert(handbookText.includes("Input: `MaterialResolveRequest`"), "handbook should document tool input schema refs");
   assert(handbookText.includes("Output: `MaterialResolveResult`"), "handbook should document tool output schema refs");
   assert(

@@ -179,7 +179,7 @@ needs.
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |
-| Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals, and structured material memory targets | raw event logging, external side effects |
+| Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals, structured material memory targets, and interpreted feedback binding to presented recommendation cards | raw event logging, external side effects, blind relation writes without resolved feedback targets |
 | Effect Boundary | permission and execution boundary for durable writes and external actions, including compact material action targets | ordinary text recommendation, musical expression |
 | Plugin Slots | replaceable adapters for capabilities | MineMusic business policy |
 | Storage Layer | persistence implementations behind repositories | domain decisions |

@@ -78,6 +78,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     repository: repositories.memoryRepository,
     events,
     effects,
+    materialStore,
   });
   const sessionContext = createSessionContext({
     sessions: [session],

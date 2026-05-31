@@ -220,6 +220,17 @@ display cards from persisted feedback-binding snapshots:
 display context; future feedback flows must recover source/link/version facts
 from the corresponding typed presentation event payload.
 
+The 2026-05-31 recommendation-posture PR 6 feedback boundary adds
+`memory.feedback.record`. Memory now records agent-interpreted user feedback
+as typed `recommendation.feedback` events, binds targets through recent
+presented cards, `{ eventId, position }`, or direct `materialId`, and recovers
+source/link context from persisted `recommendation.presented` `linkRefs`.
+Wrong-version, not-playable, and source block feedback require source context;
+material block and like/dislike write material-scoped relations;
+remember-preference creates a memory proposal without auto-accepting durable
+memory. Unbound or under-scoped feedback returns warnings and does not write
+blind relation consequences.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the
@@ -721,6 +732,8 @@ host-facing and LLM-facing surface.
   `npm test`, and `git diff --check` pass as of the MusicMaterial PR 1
   Material Registry foundation on 2026-05-30.
 - `npm test` and `git diff --check` pass as of recommendation-posture PR 5 on
+  2026-05-31.
+- `npm test` and `git diff --check` pass as of recommendation-posture PR 6 on
   2026-05-31.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill

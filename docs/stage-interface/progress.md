@@ -31,6 +31,11 @@ only public presentation boundary, and it records compact feedback-binding
 snapshots rather than persisting the full display card links returned to the
 caller.
 
+The Memory Tool Group now exposes `memory.feedback.record` for interpreted
+feedback on presented recommendation cards. Its target resolver binds through
+recent card handles or exact event positions and reads persisted presentation
+`linkRefs` for source/link-scoped consequences.
+
 ## Established Decisions
 
 - Keep `ToolDispatchPort.call({ sessionId, toolName, payload })` as the public
@@ -96,6 +101,8 @@ caller.
 - Manual recommendation presentation event rejection in `stage.events.record`.
 - `stage.materials.prepare` descriptor guidance that points recommendation
   flows to `stage.recommendation.present`.
+- `memory.feedback.record` descriptor, schema, and dispatch to
+  `MemoryPort.recordFeedback`.
 
 ## Not Yet Implemented
 
@@ -105,15 +112,15 @@ caller.
 
 ## Verification
 
-- `npm run typecheck` passes as of recommendation-posture PR 5.
-- `npm run build:test` passes as of recommendation-posture PR 5.
+- `npm run typecheck` passes as of recommendation-posture PR 6.
+- `npm run build:test` passes as of recommendation-posture PR 6.
 - `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
-  passes as of recommendation-posture PR 5.
+  passes as of recommendation-posture PR 6.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
-  recommendation-posture PR 5.
+  recommendation-posture PR 6.
 - `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
-  Interface recommendation presentation schema coverage.
-- `npm test` passes as of recommendation-posture PR 5.
+  Interface recommendation presentation and feedback schema coverage.
+- `npm test` passes as of recommendation-posture PR 6.
 
 ## Next Slice
 
