@@ -83,7 +83,8 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
 
   assert(output.items.length === 1, "resolve cards should return one card for a source-backed material ref");
   assert(output.items[0]?.title === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the material id");
-  assert(output.items[0]?.status === "playable_unverified", "source-backed material refs should preserve source-backed status");
+  assert(output.items[0]?.status === "playable", "source-backed material refs with links should be playable");
+  assert(output.items[0]?.identityConfidence === "source_backed", "source-backed material refs should preserve identity confidence");
 }
 
 async function resolveCardsProjectsCanonicalOnlyCardRefs(): Promise<void> {
@@ -136,6 +137,7 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
   assert(output.items.length === 1, "resolve cards should return one card for a canonical material ref");
   assert(output.items[0]?.title === "Canonical Ref Seed", "canonical material refs should project canonical display labels");
   assert(output.items[0]?.status === "playable", "canonical material refs with source links should become playable cards");
+  assert(output.items[0]?.identityConfidence === "canonical_confirmed", "canonical material refs should expose confirmed identity confidence");
 }
 
 async function resolveCardsFollowsMaterialRedirects(): Promise<void> {
@@ -316,7 +318,7 @@ async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<
   );
 
   assert(output.items.length === 2, "expanded saved albums should return track cards");
-  assert(output.items.every((item) => item.status === "playable_unverified"), "expanded album tracks should resolve as recording cards");
+  assert(output.items.every((item) => item.status === "playable"), "expanded album tracks should resolve as recording cards");
   assert(
     output.items.map((item) => item.title).join(",") === "Album Track One,Album Track Two",
     "expanded album query should preserve release tracklist order",
@@ -871,7 +873,7 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
             {
               materialId: materialRefToMaterialId(record.materialRef),
               title: "Compact Event Track",
-              status: "playable_unverified",
+              status: "playable",
             },
           ],
         },
@@ -941,7 +943,8 @@ async function contextBriefFieldsSelectArtistAlbumVersionAndStatus(): Promise<vo
   assert(!("warnings" in artistOnly), "artist-only context brief should not include status/version warnings");
   assert(albumOnly.album?.title === "Context Album", "album field should include source album info");
   assert(!("artist" in albumOnly), "album-only context brief should not include artist info");
-  assert(versionOnly.warnings?.includes("version_unavailable"), "version field should report missing version data");
+  assert(versionOnly.version?.status === "not_checked", "version field should report neutral unchecked status");
+  assert(versionOnly.warnings === undefined, "version field should not warn during ordinary context checks");
   assert(!("artist" in versionOnly) && !("album" in versionOnly), "version-only context brief should not include artist or album info");
 }
 

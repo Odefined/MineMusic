@@ -2,6 +2,7 @@ import type {
   CollectionItem,
   MaterialCard,
   MaterialCardAction,
+  MaterialCardIdentityConfidence,
   MaterialCardStatus,
   MaterialContextBriefInput,
   MaterialContextBriefOutput,
@@ -258,7 +259,10 @@ export function recentCardsFromEvents(
         position: typeof card.position === "number" ? card.position : index + 1,
         presentedAt: typeof card.presentedAt === "string" ? card.presentedAt : event.payload.presentedAt,
         eventId: event.id,
-        status: isMaterialCardStatus(card.status) ? card.status : "unresolved",
+        status: materialCardStatusFromEventValue(card.status),
+        ...(isMaterialCardIdentityConfidence(card.identityConfidence)
+          ? { identityConfidence: card.identityConfidence }
+          : {}),
         ...(typeof card.reason === "string" ? { reason: card.reason } : {}),
         ...(isMaterialCardActionArray(card.actions) ? { actions: card.actions } : {}),
       });
@@ -1631,7 +1635,18 @@ async function contextBriefForInput(
   }
 
   if (requestedFields.has("version")) {
-    warnings.push("version_unavailable");
+    return ok({
+      materialId: materialRefToMaterialId(record.value.materialRef),
+      title: canonical.value?.label ?? sourceTrack?.label ?? record.value.materialRef.id,
+      ...(!requestedFields.has("artist") || sourceTrack?.artistLabels?.[0] === undefined
+        ? {}
+        : { artist: { name: sourceTrack.artistLabels.join(", "), confidence: "source" as const } }),
+      ...(!requestedFields.has("album") || sourceTrack?.releaseLabel === undefined
+        ? {}
+        : { album: { title: sourceTrack.releaseLabel, confidence: "source" as const } }),
+      version: { status: "not_checked", confidence: "uncertain" },
+      ...(warnings.length === 0 ? {} : { warnings }),
+    });
   }
 
   return ok({
@@ -1944,10 +1959,24 @@ function dedupeRefs(refs: Ref[]): Ref[] {
 function isMaterialCardStatus(value: unknown): value is MaterialCardStatus {
   return (
     value === "playable" ||
-    value === "playable_unverified" ||
     value === "found_no_link" ||
     value === "ambiguous" ||
     value === "blocked" ||
+    value === "unresolved"
+  );
+}
+
+function materialCardStatusFromEventValue(value: unknown): MaterialCardStatus {
+  return value === "playable_unverified"
+    ? "playable"
+    : isMaterialCardStatus(value) ? value : "unresolved";
+}
+
+function isMaterialCardIdentityConfidence(value: unknown): value is MaterialCardIdentityConfidence {
+  return (
+    value === "canonical_confirmed" ||
+    value === "source_backed" ||
+    value === "ambiguous" ||
     value === "unresolved"
   );
 }

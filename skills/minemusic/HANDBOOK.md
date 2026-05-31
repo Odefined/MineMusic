@@ -97,7 +97,7 @@ Input: `MaterialResolveCardsInput`
 Output: `MaterialResolveCardsOutput`
 #### `music.material.query`
 
-Description: Query compact material cards from an explicit material pool.
+Description: Retrieve compact material cards from pools, collections, source library, related pools, or all available material.
 Input: `MaterialQueryInput`
 Output: `MaterialQueryOutput`
 #### `music.material.related`
@@ -107,12 +107,12 @@ Input: `MaterialRelatedInput`
 Output: `MaterialRelatedOutput`
 #### `music.material.select`
 
-Description: Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids; pass policy.availability='playable' when preparing recommendation candidates.
+Description: Apply reusable material policy, sorting, diversity, and limit after material ids have already been retrieved; use music.material.query to retrieve from pools or collections.
 Input: `MaterialSelectInput`
 Output: `MaterialSelectOutput`
 #### `music.material.context.brief`
 
-Description: Read a compact context brief for one material id.
+Description: Read a compact context brief for one material id; do not request version during ordinary recommendations.
 Input: `MaterialContextBriefInput`
 Output: `MaterialContextBriefOutput`
 #### `music.pools.list`
@@ -122,8 +122,8 @@ Input: `MaterialPoolsListInput`
 Output: `MaterialPoolsListOutput`
 #### `music.links.refresh`
 
-Description: Refresh source-backed playable links for a material item.
-Input: `MusicMaterial`
+Description: Refresh source-backed playable links by material id after the user reports a link problem.
+Input: `MusicLinksRefreshInput`
 Output: `MusicMaterial`
 #### `music.collection.save`
 
@@ -249,7 +249,6 @@ Input: `MemoryFeedbackRecordInput`
 Output: `MemoryFeedbackRecordOutput`
 #### `memory.propose`
 
-Description: Create an evidence-backed memory proposal.
+Description: Advanced memory proposal tool; for user feedback on shown recommendations, use memory.feedback.record with remember_preference.
 Input: `MemoryProposalDraft`
 Output: `MemoryProposal`
-

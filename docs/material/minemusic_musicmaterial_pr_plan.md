@@ -870,10 +870,15 @@ Add compact agent-facing types.
 ```ts
 export type MaterialCardStatus =
   | "playable"
-  | "playable_unverified"
   | "found_no_link"
   | "ambiguous"
   | "blocked"
+  | "unresolved";
+
+export type MaterialCardIdentityConfidence =
+  | "canonical_confirmed"
+  | "source_backed"
+  | "ambiguous"
   | "unresolved";
 
 export type MaterialCardAction =
@@ -890,6 +895,7 @@ export type MaterialCard = {
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
+  identityConfidence?: MaterialCardIdentityConfidence;
   reason?: string;
   actions?: MaterialCardAction[];
 };

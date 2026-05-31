@@ -1112,10 +1112,15 @@ export type MaterialResolveResult =
 
 export type MaterialCardStatus =
   | "playable"
-  | "playable_unverified"
   | "found_no_link"
   | "ambiguous"
   | "blocked"
+  | "unresolved";
+
+export type MaterialCardIdentityConfidence =
+  | "canonical_confirmed"
+  | "source_backed"
+  | "ambiguous"
   | "unresolved";
 
 export type MaterialCardAction =
@@ -1136,6 +1141,7 @@ export type MaterialCard = {
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
+  identityConfidence?: MaterialCardIdentityConfidence;
   reason?: string;
   actions?: MaterialCardAction[];
 };
@@ -1273,7 +1279,11 @@ export type MaterialContextBriefOutput = {
   title: string;
   artist?: { name: string; confidence: "confirmed" | "source" | "uncertain" };
   album?: { title: string; confidence: "confirmed" | "source" | "uncertain" };
-  version?: { label?: string; confidence: "confirmed" | "source" | "uncertain" };
+  version?: {
+    label?: string;
+    confidence?: "confirmed" | "source" | "uncertain";
+    status?: "not_checked" | "not_tracked";
+  };
   warnings?: string[];
 };
 

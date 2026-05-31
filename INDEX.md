@@ -86,6 +86,9 @@ This index points agents to the current MVP documentation pack.
      post-merge MusicMaterial review findings addressed after PR 5.
    - `docs/material/progress.md` records current Material Registry
      implementation state, verification, and remaining MusicMaterial work.
+   - `docs/recommendation/minemusic_recommendation_posture_design_final.md`
+     records the recommendation posture boundaries for material selection,
+     presentation, and feedback handling.
 
 17. `CURRENT_STATE.md`
    - Current implementation status.

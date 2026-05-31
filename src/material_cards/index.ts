@@ -2,6 +2,7 @@ import type {
   CandidateMaterialCard,
   MaterialCard,
   MaterialCardAction,
+  MaterialCardIdentityConfidence,
   MaterialCardStatus,
   MusicMaterial,
   Ref,
@@ -16,6 +17,7 @@ export function toMaterialCard(material: MusicMaterial): MaterialCard {
     title: material.label,
     ...(subtitle === undefined ? {} : { subtitle }),
     status: toMaterialCardStatus(material),
+    identityConfidence: toMaterialCardIdentityConfidence(material),
     ...(material.notes === undefined ? {} : { reason: material.notes }),
     ...(actions.length === 0 ? {} : { actions }),
   };
@@ -29,15 +31,10 @@ export function toCandidateMaterialCard(material: MusicMaterial): CandidateMater
 }
 
 export function toMaterialCardStatus(material: MusicMaterial): MaterialCardStatus {
-  if (material.identityState === "ambiguous") {
-    return "ambiguous";
-  }
-
   switch (material.state) {
     case "confirmed_playable":
-      return material.identityState === "canonical_confirmed" ? "playable" : "playable_unverified";
     case "source_only_playable":
-      return "playable_unverified";
+      return "playable";
     case "grounded":
       return "found_no_link";
     case "blocked":
@@ -47,6 +44,10 @@ export function toMaterialCardStatus(material: MusicMaterial): MaterialCardStatu
     case "verbal_only":
       return "unresolved";
   }
+}
+
+export function toMaterialCardIdentityConfidence(material: MusicMaterial): MaterialCardIdentityConfidence {
+  return material.identityState;
 }
 
 export function toMaterialCardActions(material: MusicMaterial): MaterialCardAction[] {

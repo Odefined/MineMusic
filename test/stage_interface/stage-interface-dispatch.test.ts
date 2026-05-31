@@ -20,7 +20,7 @@ import type {
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { buildInstrumentHandbook } from "../../src/handbook/index.js";
-import { createInMemoryMaterialRegistry } from "../../src/material_store/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
 import type {
   CanonicalMaintenancePort,
   CollectionPort,
@@ -58,6 +58,10 @@ import {
 import {
   createInMemoryCollectionRepository,
   createInMemoryEventRepository,
+  createInMemoryCanonicalRecordRepository,
+  createInMemoryMaterialActivityRepository,
+  createInMemoryMaterialSessionActivityRepository,
+  createInMemorySourceEntityStoreRepository,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -506,7 +510,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
           cards: [{
             materialId: "material-presented",
             title: "Presented Track",
-            status: "playable_unverified",
+            status: "playable",
             position: 1,
             presentedAt: "2026-05-31T00:00:00.000Z",
           }],
@@ -599,6 +603,34 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     },
     decide: async () => ({ ok: true, value: undefined }),
   };
+  const materialStore = createMaterialStore({
+    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+    materialRegistry: createInMemoryMaterialRegistry({
+      generateId: () => "refresh-material",
+      now: () => "2026-05-31T00:00:00.000Z",
+    }),
+    materialActivity: createInMemoryMaterialActivityRepository(),
+    materialSessionActivity: createInMemoryMaterialSessionActivityRepository(),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  const refreshSourceRef: Ref = { namespace: "source:fixture", kind: "track", id: "refresh-track" };
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef: refreshSourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label: "Refresh Track",
+        title: "Refresh Track",
+        providerUrl: "https://example.test/refresh-track",
+        createdAt: "2026-05-31T00:00:00.000Z",
+        updatedAt: "2026-05-31T00:00:00.000Z",
+      },
+    }),
+  );
+  const refreshRecord = await assertOk(
+    materialStore.getOrCreateBySourceRef({ sourceRef: refreshSourceRef, kind: "recording" }),
+  );
   const dispatch = createToolDispatch({
     sessionContext,
     materialGate,
@@ -610,6 +642,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     events,
     memory,
     effects,
+    materialStore,
   });
 
   await assertOk(dispatch.call({ sessionId: session.id, toolName: "stage.context.read", payload: {} }));
@@ -636,14 +669,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       sessionId: session.id,
       toolName: "music.links.refresh",
       payload: {
-        material: {
-          id: "material-1",
-          materialRef: { namespace: "minemusic", kind: "material", id: "material-1" },
-          kind: "recording",
-          label: "Material",
-          state: "grounded",
-          identityState: "source_backed",
-        } satisfies MusicMaterial,
+        materialId: refreshRecord.materialRef.id,
       },
     }),
   );

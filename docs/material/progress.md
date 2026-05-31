@@ -62,6 +62,13 @@ Stage context now includes bounded `recentCards` derived from recommendation
 presentation events without exposing raw event payloads. Event Service also
 projects `MaterialCard.materialId` strings in recommendation payloads into
 Material Activity, so recent exclusion works for compact card events.
+Compact material cards now separate playable-link availability from identity
+confidence. Source-backed cards with playable links return `status:
+"playable"` plus `identityConfidence: "source_backed"` rather than encoding
+identity uncertainty into playability. `music.material.context.brief` reports
+ordinary version requests as neutral `version.status: "not_checked"` instead
+of a warning, so normal recommendation flow does not treat missing version
+inspection as a user-visible risk.
 Collection Items now support material targets and legacy canonical
 compatibility. Source-only materials can be blocked through Collection Service
 without waiting for canonical identity, saved/favorite material items can remain

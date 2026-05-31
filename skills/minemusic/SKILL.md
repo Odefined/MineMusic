@@ -63,10 +63,13 @@ overview snapshot.
    Do not send environment words like "coding", "study", or "sleepy" as
    literal provider searches unless the user actually asked for a song/title
    with that word.
-6. For recommendations or playable-link requests, obtain intended
-   `materialId` values from any available material source, such as
-   `minemusic.music.material.resolve`, `minemusic.music.material.query`,
-   `minemusic.music.material.related`, a collection, or recent context.
+6. For recommendations from a pool, collection, source library, related pool,
+   or all available material, use `minemusic.music.material.query` with the
+   requested `pool`, `constraints`, `exclude`, `order`, and `limit`.
+   For open-ended recommendations or playable-link requests, obtain intended
+   `materialId` values from compact material sources such as
+   `minemusic.music.material.resolve.cards`, `minemusic.music.material.query`,
+   `minemusic.music.material.related`, or recent context.
    Resolve is a grounding operation; source grounding is an internal evidence
    step and should not be driven one candidate at a time by the agent:
 
@@ -87,8 +90,10 @@ overview snapshot.
 }
 ```
 
-7. Optionally call `minemusic.music.material.select` when you want reusable
-   policy, sorting, diversity, or limit behavior over candidate materialIds.
+7. Optionally call `minemusic.music.material.select` only after you already
+   have materialIds and want reusable policy, sorting, diversity, or limit
+   behavior across that set. Do not use select as the way to retrieve from a
+   collection, source library, or all-material pool; use query for that.
    For recommendation candidate prep, pass `policy.availability: "playable"`
    unless you are intentionally collecting non-playable context.
 8. Call `minemusic.stage.recommendation.present` with the intended ordered
@@ -110,6 +115,9 @@ overview snapshot.
 9. If `presented: true`, answer with exactly the returned cards and links. If
    `presented: false`, retry with better grounded materialIds or say plainly
    that no presentable grounded recommendation survived.
+   A returned card with `status: "playable"` and links is usable for normal
+   recommendations even when `identityConfidence` is `source_backed`; do not
+   refresh or disclaim links unless the user reports a link problem.
 10. Do not create `recommendation.presented` manually with
    `minemusic.stage.events.record`; presentation events come from
    `minemusic.stage.recommendation.present`.
@@ -119,8 +127,10 @@ overview snapshot.
    bind the feedback to recent presentation cards with
    `minemusic.memory.feedback.record`. Do not fabricate a recommendation event
    for feedback.
-13. For durable preference learning, call `minemusic.memory.propose`; do not
-   write memory directly.
+13. For feedback like "remember this style", use
+   `minemusic.memory.feedback.record` with `remember_preference` bound to the
+   recent recommendation when possible. Use `minemusic.memory.propose` only for
+   advanced evidence-backed proposals.
 14. For external actions such as open, play, queue, save, source writeback, or
    notification, call `minemusic.stage.effects.propose`; do not execute the action
    directly.
@@ -130,5 +140,8 @@ overview snapshot.
 - Keep provider details behind MineMusic tools.
 - Keep final prose human and music-facing; do not expose internal buckets or
   raw JSON unless the user asks.
+- Do not call `minemusic.music.material.context.brief` with `version` during
+  ordinary recommendations. Inspect version only after the user says the shown
+  version is wrong.
 - If tools return an error or no prepared playable link, say that plainly and
   offer the grounded non-playable result only as such.

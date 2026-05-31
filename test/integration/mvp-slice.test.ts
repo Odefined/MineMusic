@@ -120,10 +120,11 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     assert(
       transcript.presentedCards.some((card) =>
         card.materialId === transcript.presentedMaterials.find((material) => material.id === fixtureSourceOnlyPlayableMaterial.id)?.materialRef.id &&
-        card.status === "playable_unverified" &&
+        card.status === "playable" &&
+        card.identityConfidence === "source_backed" &&
         card.links?.some((link) => link.url === "https://fixture.example/play/source-only-track")
       ),
-      "source-backed playable material should be surfaced as a typed playable_unverified card",
+      "source-backed playable material should be surfaced as a typed playable card",
     );
     assert(
       !transcript.presentedCards.some((card) => card.title === fixtureUnresolvedExplorationMaterial.label),

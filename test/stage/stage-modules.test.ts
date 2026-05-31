@@ -319,7 +319,7 @@ function recommendationEvent(id: string, ...titles: string[]): StageEvent {
       cards: titles.map((title, index) => ({
         materialId: `${id}-${index}`,
         title,
-        status: "playable_unverified",
+        status: "playable",
         position: index + 1,
         presentedAt: "2026-05-30T00:00:00.000Z",
       })),
@@ -358,7 +358,7 @@ function legacyUnderscoreRecommendationEvent(): StageEvent {
       cards: [{
         materialId: "legacy-underscore-track",
         title: "Legacy Underscore Track",
-        status: "playable_unverified",
+        status: "playable",
         position: 1,
         presentedAt: "2026-05-31T00:00:00.000Z",
       }],

@@ -232,6 +232,16 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     }).success,
     "material query related pool public schema should not advertise same_release",
   );
+
+  const linksRefreshSchema = stageInterfaceToolInputSchemas["music.links.refresh"];
+  assert(
+    Object.prototype.hasOwnProperty.call(linksRefreshSchema, "materialId"),
+    "links refresh public schema should expose materialId",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(linksRefreshSchema, "material"),
+    "links refresh public schema should not expose full material input",
+  );
 }
 
 async function collectionSchemasHideAdvancedMaterialTargetFields(): Promise<void> {

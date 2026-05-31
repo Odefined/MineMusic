@@ -584,7 +584,7 @@ export type MusicMaterialRelation = {
 ### 9.5 Filtering semantics
 
 | Relation | Scope | Behavior |
-| --- | --- | --- |
+| --- | --- | --- | --- |
 | `blocked` | `material` | material state becomes `blocked` or is excluded by query |
 | `blocked` | `source` | matching source is excluded or downranked |
 | `not_playable` | `source` | source playable link is removed |
@@ -776,10 +776,15 @@ Agent-facing output should not mirror the internal model. The agent does not nee
 ```ts
 export type MaterialCardStatus =
   | "playable"
-  | "playable_unverified"
   | "found_no_link"
   | "ambiguous"
   | "blocked"
+  | "unresolved";
+
+export type MaterialCardIdentityConfidence =
+  | "canonical_confirmed"
+  | "source_backed"
+  | "ambiguous"
   | "unresolved";
 
 export type MaterialCardAction =
@@ -797,6 +802,7 @@ export type MaterialCard = {
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
+  identityConfidence?: MaterialCardIdentityConfidence;
   reason?: string;
   actions?: MaterialCardAction[];
 };
@@ -809,17 +815,20 @@ Agent-facing material tools should use `materialId`, which is the
 relations, events, and collection writes still use full `Ref` values at module
 boundaries. Compact `mat_*` refs are not retained as a compatibility handle.
 
-### 12.3 Status mapping
+### 12.3 Status and identity mapping
 
-| Internal material state | Identity state | Card status |
+Playability and identity certainty are separate. A source-backed playable link
+is still playable unless user feedback says otherwise.
+
+| Internal material state | Identity state | Card status | Identity confidence |
 | --- | --- | --- |
-| `confirmed_playable` | `canonical_confirmed` | `playable` |
-| `confirmed_playable` | `source_backed` | `playable_unverified` |
-| `source_only_playable` | any non-confirmed | `playable_unverified` |
-| `grounded` | any | `found_no_link` |
-| `blocked` | any | `blocked` |
-| `unresolved` / `exploration` / `verbal_only` | any | `unresolved` |
-| multiple likely identities | `ambiguous` | `ambiguous` |
+| `confirmed_playable` | `canonical_confirmed` | `playable` | `canonical_confirmed` |
+| `confirmed_playable` | `source_backed` | `playable` | `source_backed` |
+| `source_only_playable` | any non-confirmed | `playable` | source identity state |
+| `grounded` | any | `found_no_link` | source identity state |
+| `blocked` | any | `blocked` | source identity state |
+| `unresolved` / `exploration` / `verbal_only` | any | `unresolved` | source identity state |
+| multiple likely identities | `ambiguous` | state-derived status | `ambiguous` |
 
 ### 12.4 Actions
 
@@ -1380,24 +1389,15 @@ No raw canonical/source objects by default.
 
 ## 17. Stage Interface Tool Set
 
-### 17.1 New tools
+### 17.1 Agent-facing tools
 
-Add to `ToolName`:
-
-```ts
-| "music.material.cards"
-| "music.material.query"
-| "music.material.related"
-| "music.material.brief"
-```
-
-Alternative names if preserving current naming style:
+Current compact material tools:
 
 ```ts
 | "music.material.resolve.cards"
 | "music.material.query"
-| "music.material.related.find"
-| "music.material.brief.read"
+| "music.material.related"
+| "music.material.context.brief"
 ```
 
 ### 17.2 Keep raw tools
@@ -1410,7 +1410,7 @@ Agent-facing documentation should prefer:
 
 - `music.material.query` for pool-restricted retrieval;
 - `music.material.related` for same-artist/same-album/similar flows;
-- `music.material.cards` for text/ref seed resolution;
+- `music.material.resolve.cards` for text/ref seed resolution;
 - `music.material.brief` for fact questions.
 
 ### 17.4 Existing tool groups
@@ -1562,7 +1562,7 @@ Allow old `target?: Ref` payloads to be recorded, but new code should record mat
 
 1. User: "Recommend quiet but not sleepy writing music."
 2. Agent translates intent into structured seeds or material query:
-   - If no explicit pool: use `music.material.cards` with LLM-generated seeds.
+   - If no explicit pool: use `music.material.resolve.cards` with LLM-generated seeds.
    - If user says "from my saved songs": use `music.material.query` with Source Library pool.
 3. MineMusic returns compact cards.
 4. Agent presents 3 cards.
@@ -1666,7 +1666,8 @@ MineMusic expands saved source releases through stored SourceRelease tracklists 
 - Resolve by sourceRef creates source-backed material.
 - Resolve by canonicalRef creates canonical-confirmed material.
 - Text seed dedupes source and canonical hits.
-- Source-backed material with playable link returns `playable_unverified` card.
+- Source-backed material with playable link returns `status: "playable"` and
+  `identityConfidence: "source_backed"`.
 - Canonical-confirmed playable material returns `playable` card.
 - Not-playable source relation removes source playable link.
 - Material-level block returns `blocked` or excludes based on query purpose.

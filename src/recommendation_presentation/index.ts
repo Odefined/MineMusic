@@ -22,6 +22,7 @@ import type {
 import {
   subtitleForMaterial,
   toMaterialCardActions,
+  toMaterialCardIdentityConfidence,
   toMaterialCardStatus,
 } from "../material_cards/index.js";
 
@@ -205,6 +206,7 @@ function toPresentedMaterialCard({
     title: item.material.label,
     ...(subtitle === undefined ? {} : { subtitle }),
     status: toMaterialCardStatus(item.material),
+    identityConfidence: toMaterialCardIdentityConfidence(item.material),
     ...(reason === undefined ? {} : { reason }),
     ...(links.length === 0 ? {} : { links }),
     ...(actions.length === 0 ? {} : { actions }),

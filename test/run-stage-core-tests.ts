@@ -31,6 +31,7 @@ const testModules = [
   "./material_related/material-related.test.js",
   "./providers/netease-source-provider.test.js",
   "./providers/netease-platform-library-provider.test.js",
+  "./providers/recommendation-fixture-provider.test.js",
   "./providers/musicbrainz-knowledge-provider.test.js",
   "./codex/codex-skill.test.js",
   "./server/server-http-mcp.test.js",
