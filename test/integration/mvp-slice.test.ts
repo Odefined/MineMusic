@@ -6,6 +6,7 @@ import {
   fixtureCanonicalRef,
   fixtureKnownMaterial,
   fixtureSourceOnlyPlayableMaterial,
+  fixtureSourceOnlyPlayableRef,
   fixtureSourceRef,
   fixtureUnresolvedExplorationMaterial,
 } from "../../fixtures/integration/mvp-fixture.js";
@@ -211,6 +212,61 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
   }
 }
 
+async function presentsJustResolvedProviderLinksWithoutManualSourceEntitySeed(): Promise<void> {
+  const stageCoreDirectory = await mkdtemp(join(tmpdir(), "minemusic-stage-core-"));
+  const stageCore = createFixtureMineMusicStageCoreHarness({
+    session: {
+      id: "session-resolve-present",
+      posture: "recommendation",
+      activeInstruments: [],
+      vibe: {
+        text: "source backed coding track",
+        tone: "focused",
+      },
+    },
+    sourceMaterials: [fixtureSourceOnlyPlayableMaterial],
+    handbookPath: join(stageCoreDirectory, "HANDBOOK.md"),
+  });
+
+  try {
+    const transcript = await assertOk(
+      runRecommendationTranscript(stageCore, {
+        sessionId: "session-resolve-present",
+        request: "I need one source-backed coding track.",
+        memoryText: "User wants a source-backed playable track.",
+        effectKind: "open_link",
+      }),
+    );
+    const storedSourceEntity = await assertOk(
+      Promise.resolve(stageCore.materialStore.getSourceEntity({ sourceRef: fixtureSourceOnlyPlayableRef })),
+    );
+    const recommendationEvent = transcript.recordedEvents.find((event) => event.type === "recommendation.presented");
+    const payload = recommendationEvent?.payload as {
+      cards?: Array<{ linkRefs?: Array<{ sourceRef?: Ref; url?: string }> }>;
+    } | undefined;
+
+    assert(
+      transcript.response.includes("https://fixture.example/play/source-only-track"),
+      "resolve -> present should keep provider playable links without manual SourceEntity seeding",
+    );
+    assert(
+      storedSourceEntity?.providerUrl === "https://fixture.example/play/source-only-track",
+      "Source Grounding should persist provider playable link evidence for later material projection",
+    );
+    assert(
+      payload?.cards?.some((card) =>
+        card.linkRefs?.some((link) =>
+          link.url === "https://fixture.example/play/source-only-track" &&
+          link.sourceRef?.id === fixtureSourceOnlyPlayableRef.id
+        )
+      ),
+      "presentation event should retain persisted source/link binding refs",
+    );
+  } finally {
+    await rm(stageCoreDirectory, { force: true, recursive: true });
+  }
+}
+
 function spyStageTools(
   stageCore: MineMusicStageCoreHarness,
   toolNames: string[],
@@ -284,3 +340,4 @@ function sourceEntityFromPlayableLink(
 }
 
 await provesGroundedRecommendationMvpSlice();
+await presentsJustResolvedProviderLinksWithoutManualSourceEntitySeed();

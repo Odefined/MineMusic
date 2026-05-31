@@ -366,7 +366,7 @@ export const musicToolDefinitions = [
     PublicMaterialSelectInput
   >({
     name: "music.material.select",
-    description: "Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids.",
+    description: "Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids; pass policy.availability='playable' when preparing recommendation candidates.",
     inputSchemaRef: "MaterialSelectInput",
     outputSchemaRef: "MaterialSelectOutput",
     availability: "requires_active_instrument",

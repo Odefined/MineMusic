@@ -3,6 +3,7 @@ import type {
   PlayableLink,
   Ref,
   Result,
+  SourceEntity,
   SourceMaterial,
   SourceProvider,
   StageError,
@@ -13,14 +14,23 @@ import type {
   SourceGroundingPort,
 } from "../ports/index.js";
 
+type SourceEvidenceWriterPort = {
+  getSourceEntity(input: { sourceRef: Ref }): Promise<Result<SourceEntity | null>>;
+  upsertSourceEntity(input: { entity: SourceEntity }): Promise<Result<SourceEntity>>;
+};
+
 type SourceGroundingServiceOptions = {
   canonicalStore: CanonicalStorePort;
   pluginRegistry: PluginRegistryPort;
+  sourceEvidenceWriter?: SourceEvidenceWriterPort;
+  clock?: () => string;
 };
 
 export function createSourceGroundingService({
   canonicalStore,
   pluginRegistry,
+  sourceEvidenceWriter,
+  clock = () => new Date().toISOString(),
 }: SourceGroundingServiceOptions): SourceGroundingPort {
   const ground: SourceGroundingPort["ground"] = async (input) => {
     const providers = await getSourceProviders(pluginRegistry);
@@ -43,6 +53,17 @@ export function createSourceGroundingService({
 
         if (!normalized.ok) {
           return normalized;
+        }
+
+        const persisted = await persistSourceEvidence({
+          sourceEvidenceWriter,
+          providerId: provider.id,
+          material: normalized.value,
+          now: clock(),
+        });
+
+        if (!persisted.ok) {
+          return persisted;
         }
 
         materials.push(normalized.value);
@@ -71,6 +92,21 @@ export function createSourceGroundingService({
         return providerResult;
       }
 
+      const persisted = await persistSourceEvidence({
+        sourceEvidenceWriter,
+        providerId: provider.id,
+        material: {
+          ...material,
+          playableLinks: providerResult.value,
+          sourceRefs: mergeRefs(material.sourceRefs ?? [], providerResult.value.map((link) => link.sourceRef)),
+        },
+        now: clock(),
+      });
+
+      if (!persisted.ok) {
+        return persisted;
+      }
+
       playableLinks.push(...providerResult.value);
     }
 
@@ -94,6 +130,127 @@ export function createSourceGroundingService({
     ground,
     refreshPlayableLinks,
   };
+}
+
+async function persistSourceEvidence({
+  sourceEvidenceWriter,
+  providerId,
+  material,
+  now,
+}: {
+  sourceEvidenceWriter: SourceEvidenceWriterPort | undefined;
+  providerId: string;
+  material: SourceMaterial;
+  now: string;
+}): Promise<Result<void>> {
+  if (sourceEvidenceWriter === undefined) {
+    return ok(undefined);
+  }
+
+  if (isTerminalState(material.state)) {
+    return ok(undefined);
+  }
+
+  const linkByRef = new Map(
+    (material.playableLinks ?? []).map((link) => [refKey(link.sourceRef), link]),
+  );
+  const sourceRefs = mergeRefs(
+    material.sourceRefs ?? [],
+    (material.playableLinks ?? []).map((link) => link.sourceRef),
+  );
+
+  for (const sourceRef of sourceRefs) {
+    const entityKind = sourceEntityKindForRef(sourceRef);
+
+    if (entityKind === undefined) {
+      continue;
+    }
+
+    const existing = await sourceEvidenceWriter.getSourceEntity({ sourceRef });
+
+    if (!existing.ok) {
+      return existing;
+    }
+
+    const entity = sourceEntityForProviderResult({
+      existing: existing.value,
+      providerId,
+      material,
+      sourceRef,
+      playableLink: linkByRef.get(refKey(sourceRef)),
+      now,
+      entityKind,
+    });
+    const stored = await sourceEvidenceWriter.upsertSourceEntity({ entity });
+
+    if (!stored.ok) {
+      return stored;
+    }
+  }
+
+  return ok(undefined);
+}
+
+function sourceEntityForProviderResult({
+  existing,
+  providerId,
+  material,
+  sourceRef,
+  playableLink,
+  now,
+  entityKind,
+}: {
+  existing: SourceEntity | null;
+  providerId: string;
+  material: SourceMaterial;
+  sourceRef: Ref;
+  playableLink: PlayableLink | undefined;
+  now: string;
+  entityKind: SourceEntity["kind"];
+}): SourceEntity {
+  const base = {
+    ...(existing ?? {}),
+    sourceRef,
+    providerId: existing?.providerId ?? providerId,
+    label: existing?.label ?? sourceRef.label ?? material.label,
+    ...(playableLink?.url === undefined && sourceRef.url === undefined
+      ? {}
+      : { providerUrl: playableLink?.url ?? sourceRef.url }),
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  switch (entityKind) {
+    case "track":
+      return {
+        ...base,
+        kind: "track",
+        title: existing?.kind === "track" ? existing.title ?? material.label : material.label,
+      };
+    case "release":
+      return {
+        ...base,
+        kind: "release",
+        title: existing?.kind === "release" ? existing.title ?? material.label : material.label,
+      };
+    case "artist":
+      return {
+        ...base,
+        kind: "artist",
+        name: existing?.kind === "artist" ? existing.name ?? material.label : material.label,
+      };
+  }
+}
+
+function sourceEntityKindForRef(sourceRef: Ref): SourceEntity["kind"] | undefined {
+  switch (sourceRef.kind) {
+    case "track":
+    case "release":
+    case "artist":
+      return sourceRef.kind;
+    default:
+      return undefined;
+  }
 }
 
 async function getSourceProviders(

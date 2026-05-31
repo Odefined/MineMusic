@@ -176,7 +176,7 @@ needs.
 | Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy; sorting of already usable material candidates; optional compact materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment |
 | Recommendation Presentation | final presentation gate for intended ordered materialId recommendations, typed `recommendation.presented` event creation, compact presented/recent card snapshots, min/max card enforcement | candidate discovery, sorting, selector delegation, final recommendation judgment |
 | Material Query / Related | compact agent-facing material retrieval, pool-restricted query, related candidate generation, selector delegation, and `MaterialCard` presentation over Material Resolve output | raw source/canonical graph exposure, provider internals, canonical writes, final recommendation selection |
-| Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
+| Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization, and persistence of provider-returned source evidence into Source Entity Store through a narrow writer | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |
 | Memory Service | preferences, rules, contextual taste, evidence-backed memory proposals, structured material memory targets, and interpreted feedback binding to presented recommendation cards | raw event logging, external side effects, blind relation writes without resolved feedback targets |
@@ -210,7 +210,8 @@ needs.
    Provider results without stable source or canonical grounding are reported
    as resolve diagnostics rather than ghost material identities.
 12. Source Grounding uses Source Slot adapters for source refs and playable
-   links.
+   links, and persists source-backed provider evidence so later Material Store
+   projections can reconstruct playable links from `materialId`.
 13. Material Resolve returns `MusicMaterial` with stable material identity,
    honest material state, and candidate-level resolve status.
 14. Stage Interface sends material through Material Gate before presentation

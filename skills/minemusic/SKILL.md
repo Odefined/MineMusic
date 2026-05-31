@@ -89,6 +89,8 @@ overview snapshot.
 
 7. Optionally call `minemusic.music.material.select` when you want reusable
    policy, sorting, diversity, or limit behavior over candidate materialIds.
+   For recommendation candidate prep, pass `policy.availability: "playable"`
+   unless you are intentionally collecting non-playable context.
 8. Call `minemusic.stage.recommendation.present` with the intended ordered
    items before answering with user-visible recommendations:
 

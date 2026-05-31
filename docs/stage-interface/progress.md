@@ -35,12 +35,17 @@ The Memory Tool Group now exposes `memory.feedback.record` for interpreted
 feedback on presented recommendation cards. Its target resolver binds through
 recent card handles or exact event positions and reads persisted presentation
 `linkRefs` for source/link-scoped consequences.
+Displayed `PresentedMaterialCard.links` keep only link display fields and a
+compact source handle; raw `sourceRef` objects stay in the persisted
+`recommendation.presented` snapshot for internal feedback binding.
 
 Tool Definitions now support optional typed input parsers in addition to their
 raw host-facing schema shapes. `music.material.select`,
 `stage.recommendation.present`, and `memory.feedback.record` use typed parsers
 so their handlers receive typed payloads from shared dispatch validation rather
-than re-casting `unknown` payloads locally.
+than re-casting `unknown` payloads locally. The migrated tools have a schema
+drift regression that proves their typed parsers and raw public schemas accept
+the same passthrough payload shape.
 
 ## Established Decisions
 
@@ -114,6 +119,10 @@ than re-casting `unknown` payloads locally.
   `MemoryPort.recordFeedback`.
 - Typed input parsers for `music.material.select`,
   `stage.recommendation.present`, and `memory.feedback.record`.
+- Typed parser/raw schema drift regression for the migrated recommendation
+  tools.
+- Public presentation links without raw `sourceRef` exposure; feedback binding
+  source refs remain in persisted presentation snapshots.
 
 ## Not Yet Implemented
 
@@ -132,6 +141,8 @@ than re-casting `unknown` payloads locally.
 - `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
   Interface recommendation presentation, feedback, and typed parser coverage.
 - `npm test` passes as of recommendation-posture PR 7.
+- `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
+  the recommendation-posture follow-up schema drift regression.
 
 ## Next Slice
 

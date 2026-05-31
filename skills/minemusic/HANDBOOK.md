@@ -107,7 +107,7 @@ Input: `MaterialRelatedInput`
 Output: `MaterialRelatedOutput`
 #### `music.material.select`
 
-Description: Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids.
+Description: Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids; pass policy.availability='playable' when preparing recommendation candidates.
 Input: `MaterialSelectInput`
 Output: `MaterialSelectOutput`
 #### `music.material.context.brief`

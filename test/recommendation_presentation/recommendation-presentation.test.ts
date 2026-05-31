@@ -178,6 +178,12 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
     output.cards[0]?.links?.some((link) => link.url === "https://example.test/first"),
     "presented output cards should keep display links",
   );
+  const firstOutputLink = output.cards[0]?.links?.[0] as Record<string, unknown> | undefined;
+  assert(firstOutputLink?.sourceHandle === "link:1", "display links should expose only compact source handles");
+  assert(
+    firstOutputLink !== undefined && !("sourceRef" in firstOutputLink),
+    "presented output links should not expose raw source refs",
+  );
   assert(output.dropped?.[0]?.code === "blocked", "blocked material should be reported as dropped");
 
   const events = await assertOk(eventRepository.list());

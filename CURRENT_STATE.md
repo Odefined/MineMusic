@@ -231,6 +231,22 @@ remember-preference creates a memory proposal without auto-accepting durable
 memory. Unbound or under-scoped feedback returns warnings and does not write
 blind relation consequences.
 
+The 2026-05-31 recommendation-posture follow-up hardening persists
+provider-returned playable source evidence during Source Grounding so a
+resolved source-backed `materialId` can later be presented without manual
+Source Entity seeding. Collection snapshot fallbacks no longer create
+recommendation candidates when the current Material Store record is missing,
+and Material Policy evaluation now requires a live Material Record even when an
+internal material snapshot is supplied. Relation projection for resolve and
+presentation policy shares one source/material relation projector. Version
+scoped `wrong_version` feedback now warns instead of writing an unenforceable
+durable relation, and relation storage failures return a partial-success
+warning after the factual feedback event is recorded. Stage context
+`recentCards` only reads dotted `recommendation.presented` events, and
+presented display links no longer expose raw `sourceRef` objects while the
+persisted presentation snapshot still keeps internal `linkRefs` for feedback
+binding.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the
@@ -743,6 +759,11 @@ host-facing and LLM-facing surface.
   2026-05-31.
 - `npm test` and `git diff --check` pass as of recommendation-posture PR 7 on
   2026-05-31.
+- Focused hardening tests pass as of the recommendation-posture follow-up on
+  2026-05-31:
+  `npm run build:test && node .tmp-test/test/source/source-grounding.test.js && node .tmp-test/test/material_resolve/material-relation-filtering.test.js && node .tmp-test/test/material_policy/material-policy.test.js && node .tmp-test/test/material_query/material-query.test.js && node .tmp-test/test/material_selection/material-selection.test.js && node .tmp-test/test/recommendation_presentation/recommendation-presentation.test.js && node .tmp-test/test/memory/memory-service.test.js && node .tmp-test/test/stage/stage-modules.test.js && node .tmp-test/test/stage_interface/stage-interface.test.js && node .tmp-test/test/integration/mvp-slice.test.js`.
+- `npm test` and `git diff --check` pass as of the recommendation-posture
+  follow-up hardening on 2026-05-31.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
   implementation and is covered inside the latest `npm test` run.

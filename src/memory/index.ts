@@ -369,7 +369,15 @@ async function applyFeedbackConsequence({
   const stored = await materialStore.putMaterialRelation({ relation: relation.relation });
 
   if (!stored.ok) {
-    return stored;
+    return ok({
+      applied: [],
+      warnings: [
+        warning(
+          "feedback_consequence_unavailable",
+          `Feedback event was recorded, but relation consequence could not be stored: ${stored.error.message}`,
+        ),
+      ],
+    });
   }
 
   return ok({
@@ -459,11 +467,9 @@ function relationScopeForFeedback(
       return { scope: { level: "source", sourceRef: target.sourceRef } };
     }
 
-    if (interpretation.scope === "version") {
-      return { scope: { level: "version", note } };
-    }
-
-    return { warning: warning("feedback_source_not_found", "Wrong-version feedback needs a source or version target.") };
+    return interpretation.scope === "version"
+      ? { warning: warning("feedback_consequence_unavailable", "Version-scoped wrong-version feedback is not enforceable yet.") }
+      : { warning: warning("feedback_source_not_found", "Wrong-version feedback needs a source or version target.") };
   }
 
   if (interpretation.kind === "not_playable" || (interpretation.kind === "block" && interpretation.scope === "source")) {
