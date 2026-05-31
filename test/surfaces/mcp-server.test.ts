@@ -195,6 +195,11 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "material pools list schema should declare pool kind filters",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.links.refresh"), "materialId") &&
+      !hasSchemaKey(schemasByName.get("minemusic.music.links.refresh"), "material"),
+    "links refresh schema should expose materialId rather than full material input",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.knowledge.query"), "text"),
     "knowledge query schema should declare text input",
   );

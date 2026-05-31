@@ -85,6 +85,7 @@ export function createToolDispatch({
       materialResolve,
       ...(materialQuery === undefined ? {} : { materialQuery }),
       ...(materialSelector === undefined ? {} : { materialSelector }),
+      ...(materialStore === undefined ? {} : { materialStore }),
       source,
       ...(collection === undefined ? {} : { collection }),
     },

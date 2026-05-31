@@ -31,7 +31,7 @@ presentation is strict
 feedback binds to presented cards
 ```
 
-The user-facing recommendation flow must not depend on `query` being called first. `query`, `related`, `resolve.cards`, collections, recent context, direct link resolution, DJ logic, or prior context may all yield candidate `materialId`s.
+The user-facing recommendation flow must not depend on `query` being called first. `query` for pools/collections/source-library/all-material retrieval, `related`, `resolve.cards`, recent context, direct link resolution, DJ logic, or prior context may all yield candidate `materialId`s.
 
 The system must enforce strict final presentation through a single boundary:
 
@@ -138,9 +138,9 @@ instead of a `cards` snapshot. That cannot reliably feed `recentCards` or activi
 
 The target design is that `MusicMaterial` only means store-backed material. If a provider result has no stable `sourceRef` or `canonicalRef`, the resolver should not create a fake `minemusic/material/unresolved:*` ref. It should drop the result and emit diagnostic issues such as `provider_no_match` or `provider_result_missing_source_ref`.
 
-#### 3.2.5 `memory.feedback.record` is missing
+#### 3.2.5 Preference memory must go through feedback first
 
-Current memory service supports `memory.propose` and `memory.accept`, but does not yet provide the feedback boundary that can bind recent recommendation cards and write consequence records.
+Current memory service exposes both `memory.feedback.record` and advanced `memory.propose`. User feedback on shown recommendations should bind to recent cards through `memory.feedback.record`; direct `memory.propose` is reserved for advanced explicit memory proposals.
 
 ---
 
@@ -305,10 +305,15 @@ Use one shared snapshot base.
 ```ts
 export type MaterialCardStatus =
   | "playable"
-  | "playable_unverified"
   | "found_no_link"
   | "ambiguous"
   | "blocked"
+  | "unresolved";
+
+export type MaterialCardIdentityConfidence =
+  | "canonical_confirmed"
+  | "source_backed"
+  | "ambiguous"
   | "unresolved";
 
 export type MaterialCardSnapshot = {
@@ -316,6 +321,7 @@ export type MaterialCardSnapshot = {
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
+  identityConfidence?: MaterialCardIdentityConfidence;
 };
 ```
 
@@ -334,7 +340,7 @@ Presented card:
 export type PresentedMaterialLink = {
   label?: string;
   url: string;
-  sourceRef?: Ref;
+  sourceHandle?: string;
 };
 
 export type PresentedMaterialCard = MaterialCardSnapshot & {
@@ -1001,7 +1007,8 @@ like/dislike:
   material-scoped relation by default
 
 remember_preference:
-  memory.propose only
+  memory.feedback.record with remember_preference
+  creates a memory proposal consequence
   do not directly accept long-term memory
 ```
 
@@ -1066,7 +1073,7 @@ Update Required Flow to:
 
 ```text
 1. Read stage.context.read.
-2. Obtain intended materialIds from any source.
+2. Obtain intended materialIds from query/related/resolve/cards/context.
 3. Optionally call music.material.select for reusable policy/sort/select.
 4. Call stage.recommendation.present with the intended ordered items.
 5. If presented=true, answer with exactly returned cards.
@@ -1123,8 +1130,8 @@ manual agent-written recommendation.presented
 ```text
 stage.context.read
 → agent interprets user context
-→ agent obtains materialIds from query / related / resolve / collection / recent / context
-→ optional music.material.select for reusable policy + sort + cut
+→ agent obtains materialIds from query / related / resolve.cards / recent / context
+→ optional music.material.select for reusable policy + sort + cut after ids exist
 → agent chooses final ordered intended items
 → stage.recommendation.present
    → evaluator hard/degrade/drop

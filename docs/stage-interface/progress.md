@@ -38,6 +38,11 @@ recent card handles or exact event positions and reads persisted presentation
 Displayed `PresentedMaterialCard.links` keep only link display fields and a
 compact source handle; raw `sourceRef` objects stay in the persisted
 `recommendation.presented` snapshot for internal feedback binding.
+Displayed cards now treat `status: "playable"` as playable-link availability
+and carry identity certainty separately through `identityConfidence`, so
+source-backed playable recommendations do not ask the agent to second-guess
+normal links. `music.links.refresh` now takes `materialId` as its public input
+and projects the full material internally before calling Source Grounding.
 
 Tool Definitions now support optional typed input parsers in addition to their
 raw host-facing schema shapes. `music.material.select`,

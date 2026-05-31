@@ -12,7 +12,6 @@ import type {
   MaterialResolveRequest,
   MaterialResolveCardsInput,
   MaterialSelectInput,
-  MusicMaterial,
   Ref,
   Result,
   StageError,
@@ -25,6 +24,7 @@ import type {
   MaterialResolvePort,
   MaterialRelatedPort,
   MaterialSelectorPort,
+  MaterialStorePort,
   SourceGroundingPort,
   SystemCollectionRelationKind,
 } from "../../ports/index.js";
@@ -32,7 +32,7 @@ import type {
   StageInterfaceToolDefinition,
   StageInterfaceToolInputSchema,
 } from "./types.js";
-import { materialIdToRef } from "../../material_query/index.js";
+import { materialForMaterialId, materialIdToRef } from "../../material_query/index.js";
 import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
 
 export const musicToolNames = [
@@ -64,6 +64,7 @@ export type MusicToolGroupContext = {
   materialResolve: MaterialResolvePort;
   materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
   materialSelector?: MaterialSelectorPort;
+  materialStore?: MaterialStorePort;
   source: SourceGroundingPort;
   collection?: CollectionPort;
 };
@@ -131,6 +132,12 @@ type CollectionListPayload = {
   cursor?: string;
 };
 
+type MusicLinksRefreshPayload = {
+  ownerScope?: string;
+  materialId: string;
+  sessionId?: string;
+};
+
 const defaultOwnerScope = "local_profile:default";
 
 const refSchema = z.object({
@@ -140,13 +147,6 @@ const refSchema = z.object({
   label: z.string().optional(),
   url: z.string().optional(),
 });
-
-const musicMaterialSchema = z.object({
-  id: z.string(),
-  kind: z.string(),
-  label: z.string(),
-  state: z.string(),
-}).passthrough();
 
 const sourceQuerySchema = z.object({
   text: z.string().optional(),
@@ -309,7 +309,7 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.material.query",
-    description: "Query compact material cards from an explicit material pool.",
+    description: "Retrieve compact material cards from pools, collections, source library, related pools, or all available material.",
     inputSchemaRef: "MaterialQueryInput",
     outputSchemaRef: "MaterialQueryOutput",
     availability: "requires_active_instrument",
@@ -366,7 +366,7 @@ export const musicToolDefinitions = [
     PublicMaterialSelectInput
   >({
     name: "music.material.select",
-    description: "Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids; pass policy.availability='playable' when preparing recommendation candidates.",
+    description: "Apply reusable material policy, sorting, diversity, and limit after material ids have already been retrieved; use music.material.query to retrieve from pools or collections.",
     inputSchemaRef: "MaterialSelectInput",
     outputSchemaRef: "MaterialSelectOutput",
     availability: "requires_active_instrument",
@@ -386,7 +386,7 @@ export const musicToolDefinitions = [
   }),
   {
     name: "music.material.context.brief",
-    description: "Read a compact context brief for one material id.",
+    description: "Read a compact context brief for one material id; do not request version during ordinary recommendations.",
     inputSchemaRef: "MaterialContextBriefInput",
     outputSchemaRef: "MaterialContextBriefOutput",
     availability: "requires_active_instrument",
@@ -434,20 +434,47 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.links.refresh",
-    description: "Refresh source-backed playable links for a material item.",
-    inputSchemaRef: "MusicMaterial",
+    description: "Refresh source-backed playable links by material id after the user reports a link problem.",
+    inputSchemaRef: "MusicLinksRefreshInput",
     outputSchemaRef: "MusicMaterial",
     availability: "requires_active_instrument",
     inputSchema: {
-      material: musicMaterialSchema,
+      ownerScope: z.string().optional(),
+      materialId: materialIdSchema,
+      sessionId: z.string().optional(),
     },
-    handler({ context, sessionId, payload }) {
-      return context.source.refreshPlayableLinks(
-        readPayload<{
-          material: MusicMaterial;
-          sessionId?: string;
-        }>(payload, { sessionId }),
-      );
+    async handler({ context, sessionId, payload }) {
+      const input = readPayload<MusicLinksRefreshPayload>(payload, { sessionId });
+      const availableMaterialStore = readMaterialStore(context.materialStore);
+
+      if (!availableMaterialStore.ok) {
+        return availableMaterialStore;
+      }
+
+      const material = await materialForMaterialId({
+        materialStore: availableMaterialStore.value,
+        materialId: input.materialId,
+        ownerScope: input.ownerScope ?? defaultOwnerScope,
+        purpose: "resolve.cards",
+      });
+
+      if (!material.ok) {
+        return material;
+      }
+
+      if (material.value === null) {
+        return fail({
+          code: "material_registry.not_found",
+          message: `Material '${input.materialId}' was not found.`,
+          module: "material_store",
+          retryable: false,
+        });
+      }
+
+      return context.source.refreshPlayableLinks({
+        material: material.value,
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      });
     },
   },
   {
@@ -868,6 +895,14 @@ function readMaterialSelector(materialSelector: MaterialSelectorPort | undefined
   }
 
   return ok(materialSelector);
+}
+
+function readMaterialStore(materialStore: MaterialStorePort | undefined): Result<MaterialStorePort> {
+  if (materialStore === undefined) {
+    return materialQueryUnavailable("Material Store is not available.");
+  }
+
+  return ok(materialStore);
 }
 
 type PublicMaterialSelectInput = Omit<MaterialSelectInput, "policy"> & {

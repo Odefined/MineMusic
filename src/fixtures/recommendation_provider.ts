@@ -52,7 +52,7 @@ export const recommendationFixtureTracks: RecommendationFixtureTrack[] = [
   track("glass-keystrokes", "Glass Keystrokes", "Distant Merge", "Small Diffs", ["minimal", "focus", "quiet"], 44),
   track("small-diffs", "Small Diffs", "Distant Merge", "Small Diffs", ["coding", "soft", "groove"], 60),
   track("review-lamp", "Review Lamp", "Distant Merge", "Small Diffs", ["calm", "late", "focus"], 38),
-  track("page-window", "Page Window", "Broken Link Lab", "Unsafe Page URLs", ["page-url-only", "negative"], 40, undefined),
+  track("page-window", "Page Window", "Broken Link Lab", "Unsafe Page URLs", ["page-url-only", "negative"], 40, null),
   track("loud-stacktrace", "Loud Stacktrace", "Crash Lantern", "Too Much Coffee", ["loud", "noisy", "high-energy"], 96),
 ];
 
@@ -92,9 +92,11 @@ function track(
   album: string,
   tags: string[],
   energy: number,
-  link = `https://fixture.example/play/${id}`,
+  link?: string | null,
 ): RecommendationFixtureTrack {
-  return { id, title, artist, album, tags, energy, ...(link === undefined ? {} : { link }) };
+  const playableLink = link === null ? undefined : link ?? `https://fixture.example/play/${id}`;
+
+  return { id, title, artist, album, tags, energy, ...(playableLink === undefined ? {} : { link: playableLink }) };
 }
 
 function rankTracks(text: string | undefined): RecommendationFixtureTrack[] {

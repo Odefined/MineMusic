@@ -1241,6 +1241,21 @@
   only, removed raw `sourceRef` exposure from displayed presentation links, and
   added typed-parser/raw-schema drift coverage for the migrated recommendation
   tools.
+- Started recommendation agent-facing surface hardening on branch
+  `codex/recommendation-agent-surfaces`.
+- Split compact card playability from identity certainty:
+  source-backed playable cards now return `status: "playable"` with
+  `identityConfidence: "source_backed"` instead of overloading link status with
+  identity certainty.
+- Changed `music.links.refresh` to accept public `materialId` input and
+  project the full material internally before Source Grounding refresh.
+- Tightened MineMusic skill/Handbook guidance so pool and collection
+  recommendations retrieve through `music.material.query`, `music.material.select`
+  remains a post-materialId helper, ordinary memory preferences use
+  `memory.feedback.record`, and version context is not requested during normal
+  recommendations.
+- Fixed the recommendation fixture `Page Window` track to be explicitly
+  page-url-only with no playable links, with regression coverage.
 
 ## Next
 

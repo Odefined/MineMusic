@@ -203,5 +203,5 @@ function buildRecommendationResponse(cards: PresentedMaterialCard[]): string {
 }
 
 function cardTitleForResponse(card: PresentedMaterialCard): string {
-  return card.status === "playable_unverified" ? `${card.title} (unverified source)` : card.title;
+  return card.title;
 }

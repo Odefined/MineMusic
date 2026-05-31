@@ -597,7 +597,7 @@ async function seedRecommendationEventWithLinkRefs(
           cards: cards.map((card, index) => ({
             materialId: card.materialId,
             title: card.title,
-            status: "playable_unverified",
+            status: "playable",
             position: index + 1,
             presentedAt: "2026-05-31T02:00:00.000Z",
             linkRefs: card.sourceRefs.map((sourceRef) => ({
@@ -625,7 +625,7 @@ async function seedCardShapedNonPresentationEvent(
           cards: [{
             materialId: card.materialId,
             title: card.title,
-            status: "playable_unverified",
+            status: "playable",
             position: 1,
             presentedAt: "2026-05-31T02:00:00.000Z",
             linkRefs: [{

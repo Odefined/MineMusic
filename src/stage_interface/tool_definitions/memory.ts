@@ -72,7 +72,7 @@ export const memoryToolDefinitions = [
   }),
   {
     name: "memory.propose",
-    description: "Create an evidence-backed memory proposal.",
+    description: "Advanced memory proposal tool; for user feedback on shown recommendations, use memory.feedback.record with remember_preference.",
     inputSchemaRef: "MemoryProposalDraft",
     outputSchemaRef: "MemoryProposal",
     availability: "requires_active_instrument",
