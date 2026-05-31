@@ -241,6 +241,36 @@ async function feedbackOutOfRangeRecordsEventWithoutBlindRelation(): Promise<voi
   assert(relations.length === 0, "out-of-range feedback should not write blind relations");
 }
 
+async function feedbackEventPositionRejectsNonPresentationCardEvents(): Promise<void> {
+  const { events, materialStore, memory } = await createFeedbackHarness();
+  const track = await putTrack(materialStore, "Not Presentation Track", ref("source:fixture", "track", "not-presentation"));
+  await seedCardShapedNonPresentationEvent(events, {
+    materialId: track.materialRef.id,
+    title: "Not Presentation Track",
+    sourceRef: ref("source:fixture", "track", "not-presentation"),
+  });
+
+  const output = await assertOk(
+    memory.recordFeedback({
+      sessionId: "session-1",
+      feedbackText: "this card-shaped event should not bind",
+      target: { eventId: "feedback-event-1", position: 1 },
+      interpretation: { kind: "block" },
+    }),
+  );
+  const relations = await assertOk(materialStore.listMaterialRelations({
+    ownerScope: "local_profile:default",
+    materialRef: track.materialRef,
+    status: "active",
+  }));
+
+  assert(output.feedbackEventId === "feedback-event-2", "non-presentation feedback should still record the fact");
+  assert(output.target === undefined, "non-presentation events should not bind as recommendation cards");
+  assert(output.warnings?.[0]?.code === "feedback_target_not_found", "non-presentation binding should warn");
+  assert(output.applied.length === 0, "non-presentation binding should not apply consequences");
+  assert(relations.length === 0, "non-presentation binding should not write relations");
+}
+
 async function feedbackEventPositionBindsExactCardAndNotPlayableAffectsPolicy(): Promise<void> {
   const { events, materialStore, memory } = await createFeedbackHarness();
   const first = await putTrack(materialStore, "First Track", ref("source:fixture", "track", "first"));
@@ -276,6 +306,39 @@ async function feedbackEventPositionBindsExactCardAndNotPlayableAffectsPolicy():
 
   assert(output.target?.materialId === second.materialRef.id, "eventId+position should bind the exact card");
   assert(decision.decision === "drop" && decision.code === "not_playable", "not_playable feedback should affect later presentation policy");
+}
+
+async function feedbackMultiLinkCardDoesNotGuessSourceRelation(): Promise<void> {
+  const { events, materialStore, memory } = await createFeedbackHarness();
+  const primary = ref("source:fixture", "track", "multi-primary");
+  const alternate = ref("source:fixture", "track", "multi-alternate");
+  const track = await putTrack(materialStore, "Multi Link Track", primary);
+  await seedRecommendationEventWithLinkRefs(events, [{
+    materialId: track.materialRef.id,
+    title: "Multi Link Track",
+    sourceRefs: [primary, alternate],
+  }]);
+
+  const output = await assertOk(
+    memory.recordFeedback({
+      sessionId: "session-1",
+      feedbackText: "this one will not play",
+      target: { eventId: "feedback-event-1", position: 1 },
+      interpretation: { kind: "not_playable" },
+    }),
+  );
+  const relations = await assertOk(materialStore.listMaterialRelations({
+    ownerScope: "local_profile:default",
+    materialRef: track.materialRef,
+    status: "active",
+  }));
+
+  assert(output.target?.materialId === track.materialRef.id, "multi-link card should still bind the material target");
+  assert(output.target?.sourceRef === undefined, "multi-link card should not choose a sourceRef implicitly");
+  assert(output.target?.linkRefs?.length === 2, "multi-link card should retain ambiguous link refs for the caller");
+  assert(output.warnings?.[0]?.code === "feedback_source_not_found", "multi-link source feedback should warn");
+  assert(output.applied.length === 0, "multi-link source feedback should not apply a guessed source consequence");
+  assert(relations.length === 0, "multi-link source feedback should not write a blind relation");
 }
 
 async function feedbackBlockMaterialDropsLaterPresentationPolicy(): Promise<void> {
@@ -439,6 +502,17 @@ async function seedRecommendationEvent(
   events: EventPort,
   cards: Array<{ materialId: string; title: string; sourceRef: Ref }>,
 ): Promise<void> {
+  return seedRecommendationEventWithLinkRefs(events, cards.map((card) => ({
+    materialId: card.materialId,
+    title: card.title,
+    sourceRefs: [card.sourceRef],
+  })));
+}
+
+async function seedRecommendationEventWithLinkRefs(
+  events: EventPort,
+  cards: Array<{ materialId: string; title: string; sourceRefs: Ref[] }>,
+): Promise<void> {
   await assertOk(
     events.record({
       event: {
@@ -453,11 +527,39 @@ async function seedRecommendationEvent(
             status: "playable_unverified",
             position: index + 1,
             presentedAt: "2026-05-31T02:00:00.000Z",
+            linkRefs: card.sourceRefs.map((sourceRef) => ({
+              url: `https://example.test/${sourceRef.id}`,
+              sourceRef,
+            })),
+          })),
+        },
+      },
+    }),
+  );
+}
+
+async function seedCardShapedNonPresentationEvent(
+  events: EventPort,
+  card: { materialId: string; title: string; sourceRef: Ref },
+): Promise<void> {
+  await assertOk(
+    events.record({
+      event: {
+        sessionId: "session-1",
+        actor: "stage",
+        type: "recommendation.feedback",
+        payload: {
+          cards: [{
+            materialId: card.materialId,
+            title: card.title,
+            status: "playable_unverified",
+            position: 1,
+            presentedAt: "2026-05-31T02:00:00.000Z",
             linkRefs: [{
               url: `https://example.test/${card.sourceRef.id}`,
               sourceRef: card.sourceRef,
             }],
-          })),
+          }],
         },
       },
     }),
@@ -473,7 +575,9 @@ await acceptsEvidenceBackedProposalsThroughEffectBoundary();
 await materialStructuredTargetKeepsEvidenceGateAndEffectTarget();
 await feedbackRecentCardIndexWritesScopedWrongVersionRelation();
 await feedbackOutOfRangeRecordsEventWithoutBlindRelation();
+await feedbackEventPositionRejectsNonPresentationCardEvents();
 await feedbackEventPositionBindsExactCardAndNotPlayableAffectsPolicy();
+await feedbackMultiLinkCardDoesNotGuessSourceRelation();
 await feedbackBlockMaterialDropsLaterPresentationPolicy();
 await feedbackMaterialTargetsFollowMergeRedirects();
 await feedbackRememberPreferenceCreatesProposalOnly();

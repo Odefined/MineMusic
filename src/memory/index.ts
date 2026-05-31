@@ -251,6 +251,10 @@ function boundTargetForEventPosition(
   event: StageEvent,
   position: number,
 ): MemoryFeedbackBoundTarget | undefined {
+  if (event.type !== "recommendation.presented") {
+    return undefined;
+  }
+
   if (!isRecord(event.payload) || !Array.isArray(event.payload.cards)) {
     return undefined;
   }
@@ -265,7 +269,7 @@ function boundTargetForEventPosition(
   }
 
   const linkRefs = linkRefsFromPresentedCardSnapshot(card);
-  const sourceRef = linkRefs[0]?.sourceRef;
+  const sourceRef = linkRefs.length === 1 ? linkRefs[0]?.sourceRef : undefined;
 
   return {
     materialId: card.materialId,
