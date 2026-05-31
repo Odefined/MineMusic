@@ -165,22 +165,22 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     "material query public schema should keep supported ordering options",
   );
   assert(
-    !relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_release" }).success,
+    !relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_release" }).success,
     "material related public schema should not advertise same_release",
   );
   assert(
-    !relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_release_group" }).success,
+    !relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_release_group" }).success,
     "material related public schema should not advertise same_release_group",
   );
   assert(
-    relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_artist" }).success &&
-      relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_album" }).success &&
-      relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "similar" }).success,
+    relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_artist" }).success &&
+      relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_album" }).success &&
+      relatedPayloadSchema.safeParse({ materialId: "seed", relation: "similar" }).success,
     "material related public schema should keep supported relation options",
   );
   assert(
     !queryPayloadSchema.safeParse({
-      pool: { kind: "related", ref: "mat_seed", relation: "same_release" },
+      pool: { kind: "related", materialId: "seed", relation: "same_release" },
     }).success,
     "material query related pool public schema should not advertise same_release",
   );
@@ -212,9 +212,9 @@ async function collectionSchemasHideAdvancedMaterialTargetFields(): Promise<void
     "custom collection remove public schema should not advertise materialRef",
   );
   assert(
-    Object.prototype.hasOwnProperty.call(systemAddSchema, "ref") &&
-      Object.prototype.hasOwnProperty.call(customAddSchema, "ref"),
-    "collection public schemas should expose compact material refs",
+    Object.prototype.hasOwnProperty.call(systemAddSchema, "materialId") &&
+      Object.prototype.hasOwnProperty.call(customAddSchema, "materialId"),
+    "collection public schemas should expose materialId inputs",
   );
 }
 

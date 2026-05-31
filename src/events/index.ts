@@ -276,6 +276,7 @@ function materialRefsFromPayload(payload: unknown): Ref[] {
   const refs: Ref[] = [];
 
   refs.push(...refValue(payload.materialRef));
+  refs.push(...materialIdValue(payload.materialId));
   refs.push(...refValue(payload.ref));
   refs.push(...refValue(payload.material));
 
@@ -286,6 +287,7 @@ function materialRefsFromPayload(payload: unknown): Ref[] {
       }
 
       refs.push(...refValue(card.materialRef));
+      refs.push(...materialIdValue(card.materialId));
       refs.push(...refValue(card.ref));
       refs.push(...refValue(card.material));
     }
@@ -299,15 +301,15 @@ function refValue(value: unknown): Ref[] {
     return [value];
   }
 
-  if (typeof value === "string" && isCompactMaterialCardRef(value)) {
-    return [materialRefFromCompactCardRef(value)];
-  }
-
   if (isRecord(value) && isRef(value.materialRef)) {
     return [value.materialRef];
   }
 
   return [];
+}
+
+function materialIdValue(value: unknown): Ref[] {
+  return typeof value === "string" && value.length > 0 ? [materialIdToRef(value)] : [];
 }
 
 function ownerScopeFromPayload(payload: unknown): string | undefined {
@@ -331,24 +333,12 @@ function isRef(value: unknown): value is Ref {
   );
 }
 
-function isCompactMaterialCardRef(value: string): boolean {
-  return value.startsWith("mat_") && value.length > "mat_".length;
-}
-
-function materialRefFromCompactCardRef(value: string): Ref {
+function materialIdToRef(materialId: string): Ref {
   return {
     namespace: "minemusic",
     kind: "material",
-    id: safeDecodeURIComponent(value.slice("mat_".length)),
+    id: materialId,
   };
-}
-
-function safeDecodeURIComponent(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

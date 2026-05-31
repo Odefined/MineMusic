@@ -66,6 +66,7 @@ export function createToolDispatch({
     stage: {
       sessionContext,
       materialGate,
+      ...(materialStore === undefined ? {} : { materialStore }),
       events,
       effects,
     },

@@ -117,17 +117,13 @@ function memoryProposalToEffectProposal(proposal: MemoryProposal): Omit<EffectPr
       ...effectProposal,
       target: {
         kind: "material",
-        ref: materialRefToCompactRef(proposal.entry.structuredTarget.materialRef),
+        materialId: proposal.entry.structuredTarget.materialRef.id,
         actionScope: "remember_preference",
       },
     };
   }
 
   return effectProposal;
-}
-
-function materialRefToCompactRef(materialRef: { id: string }): string {
-  return `mat_${encodeURIComponent(materialRef.id)}`;
 }
 
 function createDefaultIdFactory(prefix: string): () => string {

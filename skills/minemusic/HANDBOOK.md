@@ -97,12 +97,12 @@ Input: `MaterialQueryInput`
 Output: `MaterialQueryOutput`
 #### `music.material.related`
 
-Description: Find compact material cards related to one material card ref.
+Description: Find compact material cards related to one material id.
 Input: `MaterialRelatedInput`
 Output: `MaterialRelatedOutput`
 #### `music.material.context.brief`
 
-Description: Read a compact context brief for one material card ref.
+Description: Read a compact context brief for one material id.
 Input: `MaterialContextBriefInput`
 Output: `MaterialContextBriefOutput`
 #### `music.pools.list`

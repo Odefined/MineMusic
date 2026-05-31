@@ -10,7 +10,7 @@ import type {
   SourceGroundingPort,
 } from "../../src/ports/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
-import { createMaterialQueryService, materialRefToCardRef } from "../../src/material_query/index.js";
+import { createMaterialQueryService, materialRefToMaterialId } from "../../src/material_query/index.js";
 import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
@@ -44,9 +44,9 @@ async function relatedSameArtistUsesCanonicalArtistWhenAvailable(): Promise<void
   await putSourceTrack(harness.materialStore, seedRef, "Seed Track", { artistSourceRefs: [artistSourceRef] });
   await putSourceTrack(harness.materialStore, siblingRef, "Sibling Track", { artistSourceRefs: [artistSourceRef] });
 
-  const seedCardRef = await materialCardRefForSource(harness.materialStore, seedRef);
+  const seedMaterialId = await materialIdForSource(harness.materialStore, seedRef);
   const output = await assertOk(harness.materialQuery.related({
-    ref: seedCardRef,
+    materialId: seedMaterialId,
     relation: "same_artist",
     ownerScope: "local_profile:default",
   }));
@@ -68,9 +68,9 @@ async function relatedSameArtistFallsBackToSourceArtist(): Promise<void> {
   await putSourceTrack(harness.materialStore, seedRef, "Source Seed Track", { artistSourceRefs: [artistSourceRef] });
   await putSourceTrack(harness.materialStore, siblingRef, "Source Sibling Track", { artistSourceRefs: [artistSourceRef] });
 
-  const seedCardRef = await materialCardRefForSource(harness.materialStore, seedRef);
+  const seedMaterialId = await materialIdForSource(harness.materialStore, seedRef);
   const output = await assertOk(harness.materialQuery.related({
-    ref: seedCardRef,
+    materialId: seedMaterialId,
     relation: "same_artist",
     ownerScope: "local_profile:default",
   }));
@@ -94,9 +94,9 @@ async function relatedSameAlbumUsesSourceReleaseTracklistWhenCanonicalIsMissing(
   await putSourceTrack(harness.materialStore, seedRef, "Album Seed Track", { releaseSourceRef: releaseRef, releaseLabel: "Source Album" });
   await putSourceTrack(harness.materialStore, siblingRef, "Album Sibling Track", { releaseSourceRef: releaseRef, releaseLabel: "Source Album" });
 
-  const seedCardRef = await materialCardRefForSource(harness.materialStore, seedRef);
+  const seedMaterialId = await materialIdForSource(harness.materialStore, seedRef);
   const output = await assertOk(harness.materialQuery.related({
-    ref: seedCardRef,
+    materialId: seedMaterialId,
     relation: "same_album",
     ownerScope: "local_profile:default",
   }));
@@ -118,9 +118,9 @@ async function similarExcludesSeedMaterial(): Promise<void> {
   await putSourceTrack(harness.materialStore, seedRef, "Similar Seed Track", { artistSourceRefs: [artistSourceRef] });
   await putSourceTrack(harness.materialStore, siblingRef, "Similar Sibling Track", { artistSourceRefs: [artistSourceRef] });
 
-  const seedCardRef = await materialCardRefForSource(harness.materialStore, seedRef);
+  const seedMaterialId = await materialIdForSource(harness.materialStore, seedRef);
   const output = await assertOk(harness.materialQuery.related({
-    ref: seedCardRef,
+    materialId: seedMaterialId,
     relation: "similar",
     ownerScope: "local_profile:default",
   }));
@@ -154,12 +154,12 @@ async function relatedFollowsMaterialRedirectsAndExcludesSurvivorSeed(): Promise
   );
 
   const output = await assertOk(harness.materialQuery.related({
-    ref: materialRefToCardRef(loser.materialRef),
+    materialId: materialRefToMaterialId(loser.materialRef),
     relation: "same_artist",
     ownerScope: "local_profile:default",
   }));
 
-  assert(output.items.every((item) => item.ref !== materialRefToCardRef(survivor.materialRef)), "related should exclude the redirected survivor seed");
+  assert(output.items.every((item) => item.materialId !== materialRefToMaterialId(survivor.materialRef)), "related should exclude the redirected survivor seed");
   assert(output.items.length === 1 && output.items[0]?.title === "Redirect Related Sibling", "related should still return non-seed siblings");
 }
 
@@ -280,10 +280,10 @@ async function putBinding(materialStore: MaterialStorePort, sourceRef: Ref, cano
   await assertOk(materialStore.putConfirmedCanonicalBinding({ binding }));
 }
 
-async function materialCardRefForSource(materialStore: MaterialStorePort, sourceRef: Ref): Promise<string> {
+async function materialIdForSource(materialStore: MaterialStorePort, sourceRef: Ref): Promise<string> {
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
 
-  return materialRefToCardRef(record.materialRef);
+  return materialRefToMaterialId(record.materialRef);
 }
 
 function sourceMaterial(label: string, sourceRef: Ref): SourceMaterial {

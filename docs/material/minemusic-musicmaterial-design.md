@@ -792,8 +792,8 @@ export type MaterialCardAction =
   | "remember";
 
 export type MaterialCard = {
-  /** Opaque material handle. Agent passes this back. */
-  ref: string;
+  /** Opaque Material Store id. Agent passes this back. */
+  materialId?: string;
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
@@ -802,15 +802,12 @@ export type MaterialCard = {
 };
 ```
 
-### 12.2 Ref encoding
+### 12.2 Material id handle
 
-Agent-facing `ref` should be an opaque encoded `materialRef`, for example:
-
-```text
-mat_<opaque-id>
-```
-
-The agent must never construct it. It only receives it from MineMusic outputs and passes it back into MineMusic tools.
+Agent-facing material tools should use `materialId`, which is the
+`materialRef.id` owned by Material Store. Internal storage, redirects,
+relations, events, and collection writes still use full `Ref` values at module
+boundaries. Compact `mat_*` refs are not retained as a compatibility handle.
 
 ### 12.3 Status mapping
 
@@ -863,7 +860,7 @@ The current `MusicCandidate` can remain internally. Agent-facing language should
 
 ```ts
 export type ResolveSeed = {
-  ref?: string;
+  materialId?: string;
   text?: string;
   kind?: AgentSeedKind;
 
@@ -1102,7 +1099,7 @@ export type MaterialPoolSpec =
     }
   | {
       kind: "related";
-      ref: string;
+      materialId: string;
       relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
     };
 
@@ -1122,7 +1119,7 @@ export type MaterialQueryInput = {
     avoid?: string[];
   };
   exclude?: {
-    refs?: string[];
+    materialIds?: string[];
     relations?: Array<"blocked" | "wrong_version" | "not_playable" | "bad_match">;
     recent?: {
       recommended?: "session" | "1h" | "24h" | "7d";
@@ -1260,7 +1257,7 @@ It should not expose source/canonical internals to the agent.
 
 ```ts
 export type RelatedInput = {
-  ref: string;
+  materialId: string;
   relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
   ownerScope?: string;
   limit?: number;
@@ -1292,7 +1289,7 @@ export type RelatedCardsOutput = {
 
 ```ts
 async function findRelated(input: RelatedInput): Promise<RelatedCardsOutput> {
-  const seed = await materialFromAgentRef(input.ref, { purpose: "lookup" });
+  const seed = await materialFromMaterialId(input.materialId, { purpose: "lookup" });
   const context = await buildRelatedContext(seed);
   const target = chooseRelationTarget(context, input.relation);
 
@@ -1358,7 +1355,7 @@ Most agent flows should use query/resolve/related, not full context. A compact b
 
 ```ts
 export type MaterialBriefInput = {
-  ref: string;
+  materialId: string;
   fields?: Array<"artist" | "album" | "version" | "source" | "status">;
 };
 ```
@@ -1367,7 +1364,7 @@ export type MaterialBriefInput = {
 
 ```ts
 export type MaterialBriefOutput = {
-  ref: string;
+  materialId?: string;
   title: string;
   subtitle?: string;
   artist?: { name: string; confidence: "confirmed" | "source" | "uncertain" };
@@ -1618,7 +1615,7 @@ Agent calls:
 
 ```ts
 music.material.related({
-  ref: "mat_123",
+  materialId: "material-123",
   relation: "same_artist",
   exclude: { recent: { recommended: "session", mode: "hard" } },
   limit: 5

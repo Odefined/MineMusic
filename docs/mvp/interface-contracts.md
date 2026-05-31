@@ -630,7 +630,7 @@ export type EffectProposal = {
   kind: string;
   target?: Ref | MusicMaterial | MusicMaterial[] | {
     kind: "material";
-    ref: string;
+    materialId: string;
     actionScope:
       | "open_source_link"
       | "play_source_link"

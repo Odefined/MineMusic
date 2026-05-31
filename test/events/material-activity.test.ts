@@ -1,6 +1,5 @@
 import type { Ref, Result } from "../../src/contracts/index.js";
 import { createEventService } from "../../src/events/index.js";
-import { materialRefToCardRef } from "../../src/material_query/index.js";
 import {
   createInMemoryEventRepository,
   createInMemoryMaterialActivityRepository,
@@ -85,7 +84,7 @@ async function recommendationEventUpdatesActivityFromPayloadCards(): Promise<voi
   assert(sessionActivity?.recommendedCount === 2, "recommendation cards should increment session recommendation count");
 }
 
-async function recommendationEventUpdatesActivityFromCompactCardRefs(): Promise<void> {
+async function recommendationEventUpdatesActivityFromMaterialIds(): Promise<void> {
   const materialActivity = createInMemoryMaterialActivityRepository();
   const materialSessionActivity = createInMemoryMaterialSessionActivityRepository();
   const materialRef = ref("minemusic", "material", "compact-card-activity");
@@ -107,7 +106,7 @@ async function recommendationEventUpdatesActivityFromCompactCardRefs(): Promise<
           ownerScope: "local_profile:night",
           cards: [
             {
-              ref: materialRefToCardRef(materialRef),
+              materialId: materialRef.id,
               title: "Compact Card Activity",
               status: "playable_unverified",
             },
@@ -131,8 +130,8 @@ async function recommendationEventUpdatesActivityFromCompactCardRefs(): Promise<
     }),
   );
 
-  assert(activity?.lastRecommendedAt === "2026-05-30T01:10:00.000Z", "compact card refs should update lastRecommendedAt");
-  assert(sessionActivity?.recommendedCount === 1, "compact card refs should increment session recommendation count");
+  assert(activity?.lastRecommendedAt === "2026-05-30T01:10:00.000Z", "material ids should update lastRecommendedAt");
+  assert(sessionActivity?.recommendedCount === 1, "material ids should increment session recommendation count");
 }
 
 async function activityIsKeyedByOwnerScopeAndMaterialRef(): Promise<void> {
@@ -254,6 +253,6 @@ function ref(namespace: string, kind: string, id: string): Ref {
 }
 
 await recommendationEventUpdatesActivityFromPayloadCards();
-await recommendationEventUpdatesActivityFromCompactCardRefs();
+await recommendationEventUpdatesActivityFromMaterialIds();
 await activityIsKeyedByOwnerScopeAndMaterialRef();
 await eventStoresMaterialSnapshotTargetAndUpdatesActivity();

@@ -3,6 +3,8 @@ import { z } from "zod/v4";
 import type {
   EffectProposal,
   MusicMaterial,
+  Result,
+  StageError,
   StageEvent,
   ToolDescriptor,
 } from "../../contracts/index.js";
@@ -10,6 +12,7 @@ import type {
   EffectBoundaryPort,
   EventPort,
   MaterialGatePort,
+  MaterialStorePort,
   SessionContextPort,
 } from "../../ports/index.js";
 import type {
@@ -17,6 +20,7 @@ import type {
   StageInterfaceToolInputSchema,
 } from "./types.js";
 import { descriptorForToolDefinition } from "./types.js";
+import { materialForMaterialId } from "../../material_query/index.js";
 
 export const stageToolNames = [
   "stage.context.read",
@@ -31,6 +35,7 @@ export type StageToolName = (typeof stageToolNames)[number];
 export type StageToolGroupContext = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
+  materialStore?: MaterialStorePort;
   events: EventPort;
   effects: EffectBoundaryPort;
 };
@@ -61,11 +66,18 @@ export const stageToolDefinitions = [
     outputSchemaRef: "MusicMaterial[]",
     availability: "requires_active_instrument",
     inputSchema: {
-      materials: z.array(musicMaterialSchema),
+      materials: z.array(musicMaterialSchema).optional(),
+      materialIds: z.array(z.string()).optional(),
       purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
     },
-    handler({ context, sessionId, payload }) {
-      return context.materialGate.prepareMaterials(materialsPrepareInput(payload, sessionId));
+    async handler({ context, sessionId, payload }) {
+      const input = await materialsPrepareInput(context, payload, sessionId);
+
+      if (!input.ok) {
+        return input;
+      }
+
+      return context.materialGate.prepareMaterials(input.value);
     },
   },
   {
@@ -119,17 +131,83 @@ export const stageToolInputSchemas = Object.fromEntries(
   stageToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
 ) as unknown as Record<StageToolName, StageInterfaceToolInputSchema>;
 
-function materialsPrepareInput(
+async function materialsPrepareInput(
+  context: StageToolGroupContext,
   payload: unknown,
   sessionId: string,
-): Parameters<MaterialGatePort["prepareMaterials"]>[0] {
+): Promise<Result<Parameters<MaterialGatePort["prepareMaterials"]>[0]>> {
   const input = payloadObject(payload);
+  const materials = Array.isArray(input.materials) ? input.materials as MusicMaterial[] : [];
+  const materialIds = Array.isArray(input.materialIds)
+    ? input.materialIds.filter((materialId): materialId is string => typeof materialId === "string")
+    : [];
 
-  return {
+  if (materials.length === 0 && materialIds.length === 0) {
+    return fail({
+      code: "stage_interface.invalid_payload",
+      message: "stage.materials.prepare requires materials or materialIds.",
+      module: "stage_interface",
+      retryable: false,
+    });
+  }
+
+  const resolvedMaterials = await materialsForIds(context, materialIds);
+
+  if (!resolvedMaterials.ok) {
+    return resolvedMaterials;
+  }
+
+  return ok({
     sessionId,
-    materials: input.materials as MusicMaterial[],
+    materials: [...materials, ...resolvedMaterials.value],
     purpose: input.purpose as Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"],
-  };
+  });
+}
+
+async function materialsForIds(
+  context: StageToolGroupContext,
+  materialIds: string[],
+): Promise<Result<MusicMaterial[]>> {
+  if (materialIds.length === 0) {
+    return ok([]);
+  }
+
+  if (context.materialStore === undefined) {
+    return fail({
+      code: "stage_interface.tool_not_found",
+      message: "Material id preparation is not available without Material Store.",
+      module: "stage_interface",
+      retryable: false,
+    });
+  }
+
+  const materials: MusicMaterial[] = [];
+
+  for (const materialId of materialIds) {
+    const material = await materialForMaterialId({
+      materialStore: context.materialStore,
+      materialId,
+      ownerScope: "local_profile:default",
+      purpose: "resolve.cards",
+    });
+
+    if (!material.ok) {
+      return material;
+    }
+
+    if (material.value === null) {
+      return fail({
+        code: "material_registry.not_found",
+        message: `Material '${materialId}' was not found.`,
+        module: "material_store",
+        retryable: false,
+      });
+    }
+
+    materials.push(material.value);
+  }
+
+  return ok(materials);
 }
 
 function sessionUpdateInput(
@@ -165,4 +243,12 @@ function payloadObject(payload: unknown): Record<string, unknown> {
     typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
 
   return payloadObject;
+}
+
+function ok<T>(value: T): Result<T> {
+  return { ok: true, value };
+}
+
+function fail(error: StageError): Result<never> {
+  return { ok: false, error };
 }

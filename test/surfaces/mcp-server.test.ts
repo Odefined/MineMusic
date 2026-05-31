@@ -172,9 +172,9 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "material query schema should not advertise experimental preferenceHints",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "ref") &&
+    hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "materialId") &&
       hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "relation"),
-    "material related schema should declare ref and relation inputs",
+    "material related schema should declare materialId and relation inputs",
   );
   assert(
     !hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "preferenceHints"),
@@ -223,6 +223,10 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materials"),
     "stage materials tool schema should declare materials input",
+  );
+  assert(
+    hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materialIds"),
+    "stage materials tool schema should declare materialIds input",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "purpose"),

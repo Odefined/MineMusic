@@ -110,16 +110,15 @@ material resolves generated candidates through Material Resolve and supports
 same-artist, same-album, and similar flows with canonical-artist preference and
 source artist/release fallback. `music.material.context.brief` respects its
 requested `fields` when returning artist, album, version, or status details.
-`music.material.resolve.cards` resolves opaque `mat_*` card refs through
+`music.material.resolve.cards` resolves explicit `materialId` seeds through
 Material Registry / Material Resolve rather than treating them as search text.
-Compact resolve, related, collection query, and explicit exclude-ref paths
-follow material merge redirects so older `mat_*` refs project or exclude the
-current survivor. `music.material.context.brief` still supports explicit merged
-status reporting when the caller asks for the `status` field on an old ref.
+Compact resolve, related, collection query, and explicit exclude-materialId
+paths follow material merge redirects so merged ids project or exclude the
+current survivor.
 `stage.context.read` now returns bounded `recentCards` from compact
 recommendation presentation events without exposing raw event payloads, and
-Event Service projects compact `MaterialCard.ref` strings into Material
-Activity so recent query exclusions work after compact recommendation events.
+Event Service projects `MaterialCard.materialId` strings into Material Activity
+so recent query exclusions work after compact recommendation events.
 
 The 2026-05-30 MusicMaterial PR 5 downstream migration slice moves
 consequence-bearing modules toward product-level material targets. Collection
@@ -128,8 +127,8 @@ requirements, and `pending_identity` status while preserving legacy
 `canonicalRef` collection APIs. Collection Service can block source-only
 materials and filter blocked material refs, with material filtering and removal
 following Material Registry redirects after merges. Stage Interface collection
-tools accept compact `ref` card strings as the normal material target path
-while preserving `canonicalRef` and raw `materialRef` compatibility. Material
+tools accept `materialId` as the normal material target path while preserving
+`canonicalRef` and raw `materialRef` for internal compatibility. Material
 Query collection pools return material-only items directly, use snapshots as a
 fallback when a live projection is unavailable, and keep legacy canonical
 collection items working during migration. Event Service accepts
@@ -148,11 +147,17 @@ excludes materials projected as blocked by Collection state. Recent
 `"session"` exclusions use `MaterialSessionActivity` keyed by owner, session,
 and material, while aggregate `MaterialActivity` remains for timestamp
 windows. Collection material writes infer and validate collection kind from
-current `MaterialRecord` when compact refs are used, require canonical,
+current `MaterialRecord` when material ids are used, require canonical,
 snapshot, and target collection kind hints to agree, and apply the same rule to
-custom collection writes. Compact material-card ref resolution can project
-current Material Records directly, including canonical-only records that have
-no playable source link yet.
+custom collection writes. Compact materialId resolution can project current
+Material Records directly, including canonical-only records that have no
+playable source link yet.
+
+The 2026-05-31 issue #12 materialId migration makes `materialId` the primary
+agent-facing MaterialCard handle for query, related, context brief, collection,
+recentCards, recommendation presentation, and effect action targets. Internal
+storage and redirect logic still use full `Ref` values, but LLM-facing material
+actions use `materialId` instead of compact `mat_*` refs.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

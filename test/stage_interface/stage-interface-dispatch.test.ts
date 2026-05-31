@@ -729,6 +729,97 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("sessionContext.updateSession"), "stage.session.update should call SessionContextPort");
 }
 
+async function dispatchesStageMaterialsPrepareWithMaterialIds(): Promise<void> {
+  const sourceRef: Ref = { namespace: "source:fixture", kind: "track", id: "prepare-id-track" };
+  const sourceEntity: SourceEntity = {
+    sourceRef,
+    providerId: "fixture",
+    kind: "track",
+    label: "Prepared Id Track",
+    title: "Prepared Id Track",
+    providerUrl: "https://example.test/prepare-id-track",
+    createdAt: "2026-05-31T00:00:00.000Z",
+    updatedAt: "2026-05-31T00:00:00.000Z",
+  };
+  const materialRegistry = createInMemoryMaterialRegistry({
+    generateId: () => "prepared-id-material",
+    now: () => "2026-05-31T00:00:00.000Z",
+  });
+  const record = await assertOk(
+    materialRegistry.getOrCreateBySourceRef({
+      sourceRef,
+      kind: "recording",
+      primarySourceRef: sourceRef,
+    }),
+  );
+  const materialStore = {
+    ...materialRegistry,
+    getCanonical: async () => ({ ok: true, value: null }),
+    getSourceEntity: async ({ sourceRef: requestedRef }: { sourceRef: Ref }) => ({
+      ok: true,
+      value: requestedRef.id === sourceRef.id ? sourceEntity : null,
+    }),
+  } as unknown as MaterialStorePort;
+  const preparedLabels: string[] = [];
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => {
+        preparedLabels.push(...materials.map((material) => material.label));
+
+        return { ok: true, value: materials };
+      },
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "2026-05-31T00:00:00.000Z" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-entry-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+    materialStore,
+  });
+
+  const prepared = await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "stage.materials.prepare",
+      payload: {
+        materialIds: [record.materialRef.id],
+        purpose: "recommendation",
+      },
+    }),
+  );
+
+  assert(preparedLabels[0] === "Prepared Id Track", "stage.materials.prepare should resolve materialIds before Material Gate");
+  assert(
+    Array.isArray(prepared) &&
+      (prepared as MusicMaterial[])[0]?.materialRef.id === "prepared-id-material",
+    "stage.materials.prepare should return prepared materials for materialIds",
+  );
+}
+
 async function dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints(): Promise<void> {
   const restrictedSession: StageSession = {
     ...session,
@@ -941,7 +1032,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       sessionId: session.id,
       toolName: "music.collection.block",
       payload: {
-        ref: "mat_compact-source-only-material",
+        materialId: "compact-source-only-material",
         label: "Compact Source Only Material",
       },
     }),
@@ -951,7 +1042,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       sessionId: session.id,
       toolName: "music.collection.unblock",
       payload: {
-        ref: "mat_compact-source-only-material",
+        materialId: "compact-source-only-material",
       },
     }),
   );
@@ -990,11 +1081,11 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
   );
   assert(
     calls.includes("add-material:local_profile:default:blocked:compact-source-only-material"),
-    "collection block should accept compact card ref payloads",
+    "collection block should accept materialId payloads",
   );
   assert(
     calls.includes("remove-material:local_profile:default:blocked:compact-source-only-material"),
-    "collection unblock should accept compact card ref payloads",
+    "collection unblock should accept materialId payloads",
   );
 }
 
@@ -1128,14 +1219,14 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.item.add",
-      payload: { collectionId: customCollection.id, ref: "mat_custom-source-material", label: "Custom Source Material" },
+      payload: { collectionId: customCollection.id, materialId: "custom-source-material", label: "Custom Source Material" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.item.remove",
-      payload: { collectionId: customCollection.id, ref: "mat_custom-source-material" },
+      payload: { collectionId: customCollection.id, materialId: "custom-source-material" },
     }),
   );
   const listed = await assertOk(
@@ -1177,11 +1268,11 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
   );
   assert(
     calls.includes("item.add-material:collection-night-coding:custom-source-material:Custom Source Material"),
-    "collection item add should accept compact card ref payloads",
+    "collection item add should accept materialId payloads",
   );
   assert(
     calls.includes("item.remove-material:collection-night-coding:custom-source-material"),
-    "collection item remove should accept compact card ref payloads",
+    "collection item remove should accept materialId payloads",
   );
   assert(
     calls.includes("list.collections:local_profile:default:recording:custom:true"),
@@ -1274,7 +1365,7 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
     toolName: "music.collection.item.add",
     payload: {
       collectionId: custom.id,
-      ref: `mat_${artist.materialRef.id}`,
+      materialId: artist.materialRef.id,
       canonicalRef: { namespace: "minemusic", kind: "recording", id: "fake-recording" },
       label: "Artist One",
     },
@@ -1355,7 +1446,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     dispatch.call({
       sessionId: "session-current",
       toolName: "music.material.related",
-      payload: { ref: "mat_seed", relation: "similar" },
+      payload: { materialId: "seed", relation: "similar" },
     }),
   );
 
@@ -2309,7 +2400,7 @@ async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promi
     sessionId: session.id,
     toolName: "stage.materials.prepare",
     payload: {
-      materials: [],
+      materials: [dispatchMaterial("valid-material")],
       purpose: "recommendation",
     },
   });
@@ -2317,7 +2408,7 @@ async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promi
     sessionId: session.id,
     toolName: "stage.materials.prepare",
     payload: {
-      materials: [],
+      materials: [dispatchMaterial("extra-material")],
       purpose: "recommendation",
       extra: "allowed in passthrough mode",
     },
@@ -2326,6 +2417,17 @@ async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promi
   assert(valid.ok, "valid payloads should reach handler dependencies");
   assert(withExtraKey.ok, "unknown extra keys should be accepted in passthrough mode");
   assert(prepareMaterialsCalls === 2, "valid payloads should call handler dependencies");
+}
+
+function dispatchMaterial(id: string): MusicMaterial {
+  return {
+    id,
+    materialRef: { namespace: "minemusic", kind: "material", id },
+    kind: "recording",
+    label: id,
+    state: "grounded",
+    identityState: "source_backed",
+  };
 }
 
 async function stageSessionUpdateDefaultsToDispatchSessionId(): Promise<void> {
@@ -2477,6 +2579,7 @@ await attachesProviderDescriptorsToOwningInstruments();
 await rendersKnowledgeProviderCapabilitiesInHandbook();
 await registersMigratedToolDefinitions();
 await dispatchesStableToolNamesThroughInjectedPorts();
+await dispatchesStageMaterialsPrepareWithMaterialIds();
 await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
 await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
