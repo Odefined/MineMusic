@@ -6,6 +6,7 @@ import {
   createNetEaseSourceProvider,
   type NetEaseProviderOptions,
 } from "../providers/netease/index.js";
+import { createRecommendationFixtureSourceProvider } from "../fixtures/recommendation_provider.js";
 import { createMusicBrainzKnowledgeProvider } from "../providers/musicbrainz/index.js";
 import {
   createMineMusicStageRuntimeWithSourceProvider,
@@ -47,8 +48,8 @@ export function createDefaultMineMusicServerRuntime(
 
   const stageRuntime = createMineMusicStageRuntimeWithSourceProvider({
     session: createDefaultServerSession(env),
-    sourceProvider: createNetEaseSourceProvider(netEaseOptions),
-    platformLibraryProvider: createNetEasePlatformLibraryProvider(netEaseOptions),
+    sourceProvider: createServerSourceProvider(env, netEaseOptions),
+    ...createServerPlatformLibraryProvider(env, netEaseOptions),
     ...(env.MINEMUSIC_MATERIAL_STORE_DB_PATH === undefined
       ? {}
       : { materialStoreDatabasePath: env.MINEMUSIC_MATERIAL_STORE_DB_PATH }),
@@ -90,6 +91,24 @@ export function createDefaultMineMusicServerRuntime(
       return tool(payload);
     },
   };
+}
+
+function createServerSourceProvider(
+  env: Record<string, string | undefined>,
+  netEaseOptions: NetEaseProviderOptions,
+) {
+  return env.MINEMUSIC_SOURCE_PROVIDER === "fixture_recommendation"
+    ? createRecommendationFixtureSourceProvider()
+    : createNetEaseSourceProvider(netEaseOptions);
+}
+
+function createServerPlatformLibraryProvider(
+  env: Record<string, string | undefined>,
+  netEaseOptions: NetEaseProviderOptions,
+) {
+  return env.MINEMUSIC_SOURCE_PROVIDER === "fixture_recommendation"
+    ? {}
+    : { platformLibraryProvider: createNetEasePlatformLibraryProvider(netEaseOptions) };
 }
 
 function createServerHandbookPaths(
