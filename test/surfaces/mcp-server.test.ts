@@ -239,6 +239,12 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "stage materials tool schema should declare purpose input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.stage.recommendation.present"), "items") &&
+      hasSchemaKey(schemasByName.get("minemusic.stage.recommendation.present"), "minCards") &&
+      hasSchemaKey(schemasByName.get("minemusic.stage.recommendation.present"), "maxCards"),
+    "recommendation present schema should declare items and card-count inputs",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.events.record"), "event"),
     "event tool schema should declare event input",
   );

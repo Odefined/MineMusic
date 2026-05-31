@@ -192,14 +192,7 @@ export type StageContext = {
   session: StageSession;
   memorySummaries: string[];
   guidance?: string[];
-  recentCards?: Array<{
-    materialId: string;
-    title: string;
-    subtitle?: string;
-    position?: number;
-    eventId: string;
-    status: MaterialCardStatus;
-  }>;
+  recentCards?: RecentMaterialCard[];
 };
 
 export type CanonicalKind =
@@ -412,6 +405,92 @@ export type MaterialSelectOutput = {
   warnings?: MaterialSelectWarning[];
   applied?: string[];
 };
+
+export type RecommendationBasisKind =
+  | "query"
+  | "related"
+  | "collection"
+  | "recent_context"
+  | "direct_resolve"
+  | "manual_selection"
+  | "mixed";
+
+export type RecommendationPresentItem = {
+  materialId: string;
+  reason?: string;
+  basis?: {
+    kind: RecommendationBasisKind;
+    note?: string;
+  };
+};
+
+export type MaterialCardSnapshot = CandidateMaterialCard & {
+  position: number;
+  presentedAt: string;
+};
+
+export type PresentedMaterialCard = MaterialCardSnapshot;
+
+export type RecentMaterialCard = MaterialCardSnapshot & {
+  eventId: string;
+};
+
+export type DroppedMaterial = {
+  materialId: string;
+  code: MaterialPolicyDropCode | "max_cards";
+  reason: string;
+};
+
+export type RecommendationPresentWarning = {
+  materialId: string;
+  warnings: string[];
+};
+
+export type RecommendationPresentIssue = {
+  code: "not_enough_cards";
+  message: string;
+  required: number;
+  actual: number;
+};
+
+export type RecommendationPresentInput = {
+  ownerScope?: string;
+  request?: string;
+  items: RecommendationPresentItem[];
+  minCards?: number;
+  maxCards?: number;
+  policy?: {
+    freshness?: MaterialFreshnessPolicy;
+  };
+};
+
+export type RecommendationPresentedPayload = {
+  ownerScope?: string;
+  request?: string;
+  presentedAt: string;
+  cards: MaterialCardSnapshot[];
+  basis?: Array<{
+    materialId: string;
+    kind: RecommendationBasisKind;
+    note?: string;
+  }>;
+};
+
+export type RecommendationPresentOutput =
+  | {
+      presented: true;
+      eventId: string;
+      cards: PresentedMaterialCard[];
+      dropped?: DroppedMaterial[];
+      warnings?: RecommendationPresentWarning[];
+    }
+  | {
+      presented: false;
+      cards: PresentedMaterialCard[];
+      dropped?: DroppedMaterial[];
+      issues: RecommendationPresentIssue[];
+      retryable: boolean;
+    };
 
 export type MaterialSessionActivity = {
   ownerScope: string;
@@ -1963,6 +2042,7 @@ export type ToolName =
   | "handbook.instrument.read"
   | "handbook.tool.read"
   | "stage.materials.prepare"
+  | "stage.recommendation.present"
   | "stage.session.update"
   | "stage.events.record"
   | "stage.effects.propose"

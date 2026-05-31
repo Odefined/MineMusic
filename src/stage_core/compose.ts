@@ -8,10 +8,12 @@ import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { createMusicKnowledgeService } from "../knowledge/index.js";
+import { createMaterialPolicyEvaluator } from "../material_policy/index.js";
 import { createMaterialQueryService } from "../material_query/index.js";
 import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
+import { createRecommendationPresentationService } from "../recommendation_presentation/index.js";
 import { createSourceGroundingService } from "../source/index.js";
 import { createMaterialGate, createSessionContext } from "../stage/index.js";
 import {
@@ -86,6 +88,15 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     sessionContext,
     events,
   });
+  const recommendationPolicyEvaluator = createMaterialPolicyEvaluator({
+    materialStore,
+    collection,
+  });
+  const recommendationPresentation = createRecommendationPresentationService({
+    sessionContext,
+    materialPolicyEvaluator: recommendationPolicyEvaluator,
+    events,
+  });
   const canonicalMaintenance = createCanonicalMaintenance({
     repository: repositories.canonicalRepository,
     sessionContext,
@@ -95,6 +106,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const dispatch = createToolDispatch({
     sessionContext,
     materialGate,
+    recommendationPresentation,
     instruments,
     materialResolve,
     materialQuery,
@@ -135,6 +147,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     dispatch,
     sessionContext,
     materialGate,
+    recommendationPresentation,
     materialStore,
     canonical,
     canonicalMaintenance,

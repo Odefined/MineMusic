@@ -26,6 +26,7 @@ const testModules = [
   "./material_resolve/material-relation-filtering.test.js",
   "./material_policy/material-policy.test.js",
   "./material_selection/material-selection.test.js",
+  "./recommendation_presentation/recommendation-presentation.test.js",
   "./material_query/material-query.test.js",
   "./material_related/material-related.test.js",
   "./providers/netease-source-provider.test.js",

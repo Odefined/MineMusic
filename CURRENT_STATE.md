@@ -186,6 +186,17 @@ materialIds and delegate policy, ordering, selection, and cutting to the
 selector. This is still not final recommendation presentation: no
 `recommendation.presented` event behavior changes were made in this slice.
 
+The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
+`RecommendationPresentationPort`, `src/recommendation_presentation/index.ts`,
+and the `stage.recommendation.present` tool. Presentation evaluates the intended
+ordered materialId items with the material policy evaluator, preserves the
+surviving order, applies `maxCards` / `minCards`, records a typed
+`recommendation.presented` event only when enough cards survive, and returns
+the exact compact cards to show. Agent-facing `stage.events.record` now rejects
+manual `recommendation.presented` / `recommendation_presented` events with a
+pointer to `stage.recommendation.present`, and `stage.context.read`
+`recentCards` are derived from the typed presentation payload.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the

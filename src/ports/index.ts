@@ -73,6 +73,8 @@ import type {
   MaterialSelectOutput,
   MaterialSortInput,
   MaterialSortOutput,
+  RecommendationPresentInput,
+  RecommendationPresentOutput,
   MemoryEntry,
   MemoryProposal,
   MusicMaterialRelation,
@@ -731,6 +733,10 @@ export interface MaterialSorterPort {
 
 export interface MaterialSelectorPort {
   select(input: MaterialSelectInput): Promise<Result<MaterialSelectOutput>>;
+}
+
+export interface RecommendationPresentationPort {
+  present(input: RecommendationPresentInput & { sessionId: string }): Promise<Result<RecommendationPresentOutput>>;
 }
 
 export interface SourceGroundingPort {

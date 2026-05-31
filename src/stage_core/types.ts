@@ -31,6 +31,7 @@ import type {
   MusicKnowledgePort,
   PluginRegistryPort,
   ProviderHttpCacheRepository,
+  RecommendationPresentationPort,
   SessionContextPort,
   SourceEntityStoreRepository,
   SourceGroundingPort,
@@ -47,6 +48,7 @@ export type MineMusicStageCoreHarness = MineMusicStageRuntime & {
   dispatch: ToolDispatchPort;
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
+  recommendationPresentation: RecommendationPresentationPort;
   materialStore: MaterialStorePort;
   canonical: CanonicalStorePort;
   canonicalMaintenance: CanonicalMaintenancePort;

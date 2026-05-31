@@ -296,6 +296,10 @@ export function recentCardsFromEvents(
       continue;
     }
 
+    if (typeof event.payload.presentedAt !== "string") {
+      continue;
+    }
+
     for (const [index, card] of event.payload.cards.entries()) {
       if (!isRecord(card) || typeof card.title !== "string") {
         continue;
@@ -311,9 +315,12 @@ export function recentCardsFromEvents(
         materialId,
         title: card.title,
         ...(typeof card.subtitle === "string" ? { subtitle: card.subtitle } : {}),
-        position: index + 1,
+        position: typeof card.position === "number" ? card.position : index + 1,
+        presentedAt: typeof card.presentedAt === "string" ? card.presentedAt : event.payload.presentedAt,
         eventId: event.id,
         status: isMaterialCardStatus(card.status) ? card.status : "unresolved",
+        ...(typeof card.reason === "string" ? { reason: card.reason } : {}),
+        ...(isMaterialCardActionArray(card.actions) ? { actions: card.actions } : {}),
       });
 
       if (recentCards.length >= limit) {
@@ -331,6 +338,10 @@ function materialIdFromCardPayload(card: Record<string, unknown>): string | unde
   }
 
   return undefined;
+}
+
+function isMaterialCardActionArray(value: unknown): value is MaterialCardAction[] {
+  return Array.isArray(value) && value.every(isMaterialCardAction);
 }
 
 async function resolveSeeds({
@@ -2038,6 +2049,18 @@ function isMaterialCardStatus(value: unknown): value is MaterialCardStatus {
     value === "ambiguous" ||
     value === "blocked" ||
     value === "unresolved"
+  );
+}
+
+function isMaterialCardAction(value: unknown): value is MaterialCardAction {
+  return (
+    value === "open" ||
+    value === "more_like_this" ||
+    value === "same_artist" ||
+    value === "same_album" ||
+    value === "not_this_version" ||
+    value === "block" ||
+    value === "remember"
   );
 }
 
