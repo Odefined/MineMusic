@@ -147,10 +147,11 @@ target fields. Material Query `exclude.relations: ["blocked"]` now also
 excludes materials projected as blocked by Collection state. Recent
 `"session"` exclusions use `MaterialSessionActivity` keyed by owner, session,
 and material, while aggregate `MaterialActivity` remains for timestamp
-windows. Collection material writes infer collection kind from current
-`MaterialRecord` when compact refs are used, and compact material-card ref
-resolution can project current Material Records directly, including
-canonical-only records that have no playable source link yet.
+windows. Collection material writes infer and validate collection kind from
+current `MaterialRecord` when compact refs are used, including custom
+collection writes, and compact material-card ref resolution can project
+current Material Records directly, including canonical-only records that have
+no playable source link yet.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

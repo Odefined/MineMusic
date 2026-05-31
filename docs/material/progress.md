@@ -87,9 +87,10 @@ keeping compact `ref` and compatibility passthroughs. Material Query
 Collection-blocked. Recent `"session"` exclusion is backed by
 `MaterialSessionActivity` keyed by owner, session, and material; aggregate
 `MaterialActivity` remains for timestamp windows. Collection material writes
-infer system collection kind from current `MaterialRecord` for compact refs,
-and compact `resolve.cards` can project current Material Records directly,
-including canonical-only records with `found_no_link` status.
+infer or validate collection kind from current `MaterialRecord` for compact
+refs, including custom collection writes, and compact `resolve.cards` can
+project current Material Records directly, including canonical-only records
+with `found_no_link` status.
 
 ## Implemented
 
@@ -177,9 +178,9 @@ including canonical-only records with `found_no_link` status.
 - Addressed the post-merge MusicMaterial review by fixing Source Library
   `addedAt` provenance from `providerAddedAt`, hiding unsupported public
   material schema options, filtering Collection-blocked material query output,
-  adding session-keyed material activity, inferring Collection system kind from
-  Material Records for compact refs, tightening public collection schemas, and
-  projecting compact MaterialRecord refs directly.
+  adding session-keyed material activity, inferring and validating Collection
+  target kind from Material Records for compact refs, tightening public
+  collection schemas, and projecting compact MaterialRecord refs directly.
 
 ## Verification
 

@@ -17,6 +17,8 @@ import type {
   StageSession,
   ToolName,
 } from "../../src/contracts/index.js";
+import { createCollectionService } from "../../src/collection/index.js";
+import { createEventService } from "../../src/events/index.js";
 import { buildInstrumentHandbook } from "../../src/handbook/index.js";
 import { createInMemoryMaterialRegistry } from "../../src/material_store/index.js";
 import type {
@@ -51,6 +53,10 @@ import {
   stageToolNames,
   stageInterfaceToolInputSchemas,
 } from "../../src/stage_interface/index.js";
+import {
+  createInMemoryCollectionRepository,
+  createInMemoryEventRepository,
+} from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -1192,6 +1198,91 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       Array.isArray((listed as { collections?: unknown }).collections) &&
       Array.isArray((listed as { items?: unknown }).items),
     "collection list should return collections and items",
+  );
+}
+
+async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<void> {
+  let nextId = 1;
+  const next = (prefix: string) => `${prefix}-${nextId++}`;
+  const materialRegistry = createInMemoryMaterialRegistry({
+    generateId: () => next("material"),
+    now: () => "2026-05-31T00:00:00.000Z",
+  });
+  const collection = createCollectionService({
+    repository: createInMemoryCollectionRepository(),
+    events: createEventService({
+      repository: createInMemoryEventRepository(),
+      idFactory: () => next("event"),
+      clock: () => "2026-05-31T00:00:00.000Z",
+    }),
+    materialStore: materialRegistry,
+    idFactory: () => next("collection"),
+    clock: () => "2026-05-31T00:00:00.000Z",
+  });
+  const custom = await assertOk(
+    collection.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Recording picks",
+    }),
+  );
+  const artist = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "stage-interface-artist" },
+      kind: "artist",
+    }),
+  );
+  const dispatch = createToolDispatch({
+    sessionContext: {
+      getSession: async () => ({ ok: true, value: session }),
+      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
+      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+    },
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "now" } }),
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+    collection,
+  });
+
+  const added = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.collection.item.add",
+    payload: {
+      collectionId: custom.id,
+      ref: `mat_${artist.materialRef.id}`,
+      label: "Artist One",
+    },
+  });
+
+  assert(!added.ok, "compact custom collection add should reject mismatched material kind");
+  assert(
+    added.ok === false && added.error.code === "collection.kind_mismatch",
+    "compact custom collection add should surface collection.kind_mismatch",
   );
 }
 
@@ -2388,6 +2479,7 @@ await dispatchesStableToolNamesThroughInjectedPorts();
 await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
 await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
+await dispatchRejectsCompactCustomCollectionKindMismatch();
 await dispatchesMaterialQueryToolsWithCurrentSessionId();
 await dispatchesLibraryImportToolsWithDefaultOwnerScope();
 await dispatchesSourceLibraryToolsThroughMaterialStore();

@@ -641,6 +641,135 @@ async function unknownMaterialSystemCollectionTargetsRequireExplicitKind(): Prom
   assert(explicit.materialRef?.id === unknownMaterialRef.id, "explicit collectionKind should preserve compatibility for unknown material refs");
 }
 
+async function customCollectionRejectsMismatchedKnownMaterialKind(): Promise<void> {
+  const { collections, materialRegistry } = createTestCollectionServiceWithMaterialRegistry();
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Recording picks",
+    }),
+  );
+  const artist = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "custom-artist-1" },
+      kind: "artist",
+    }),
+  );
+
+  const added = await collections.addMaterialToCollection({
+    collectionId: custom.id,
+    materialRef: artist.materialRef,
+    label: "Artist One",
+  });
+
+  assert(!added.ok, "custom collection should reject a known material with the wrong kind");
+  assert(
+    added.ok === false && added.error.code === "collection.kind_mismatch",
+    "custom collection material kind mismatch should use collection.kind_mismatch",
+  );
+}
+
+async function unknownCustomCollectionMaterialTargetsFailClearly(): Promise<void> {
+  const { collections } = createTestCollectionServiceWithMaterialRegistry();
+  const custom = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Recording picks",
+    }),
+  );
+
+  const added = await collections.addMaterialToCollection({
+    collectionId: custom.id,
+    materialRef: { namespace: "minemusic", kind: "material", id: "unknown-custom-material" },
+    label: "Unknown Material",
+  });
+
+  assert(!added.ok, "unknown custom collection material target should fail when Material Store is available");
+  assert(
+    added.ok === false && added.error.code === "collection.kind_unknown",
+    "unknown custom collection material target should use collection.kind_unknown",
+  );
+}
+
+async function customCollectionAcceptsMatchingKnownMaterialKinds(): Promise<void> {
+  const { collections, materialRegistry } = createTestCollectionServiceWithMaterialRegistry();
+  const recordingCollection = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "recording",
+      relationKind: "custom",
+      label: "Recording picks",
+    }),
+  );
+  const artistCollection = await assertOk(
+    collections.createCollection({
+      ownerScope: "local_profile:default",
+      collectionKind: "artist",
+      relationKind: "custom",
+      label: "Artist picks",
+    }),
+  );
+  const recording = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "musicbrainz", kind: "recording", id: "custom-recording-1" },
+      kind: "recording",
+    }),
+  );
+  const artist = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "custom-artist-2" },
+      kind: "artist",
+    }),
+  );
+
+  const recordingItem = await assertOk(
+    collections.addMaterialToCollection({
+      collectionId: recordingCollection.id,
+      materialRef: recording.materialRef,
+      label: "Recording One",
+    }),
+  );
+  const artistItem = await assertOk(
+    collections.addMaterialToCollection({
+      collectionId: artistCollection.id,
+      materialRef: artist.materialRef,
+      label: "Artist Two",
+    }),
+  );
+
+  assert(recordingItem.materialRef?.id === recording.materialRef.id, "recording material should enter recording custom collection");
+  assert(artistItem.materialRef?.id === artist.materialRef.id, "artist material should enter artist custom collection");
+}
+
+async function systemCollectionRejectsExplicitKindThatContradictsKnownMaterial(): Promise<void> {
+  const { collections, materialRegistry } = createTestCollectionServiceWithMaterialRegistry();
+  await assertOk(collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+  const artist = await assertOk(
+    materialRegistry.getOrCreateByCanonicalRef({
+      canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "system-artist-explicit" },
+      kind: "artist",
+    }),
+  );
+
+  const added = await collections.addMaterialToSystemCollection({
+    ownerScope: "local_profile:default",
+    relationKind: "favorite",
+    materialRef: artist.materialRef,
+    collectionKind: "recording",
+    label: "Artist One",
+  });
+
+  assert(!added.ok, "system collection should reject explicit collectionKind that contradicts known material kind");
+  assert(
+    added.ok === false && added.error.code === "collection.kind_mismatch",
+    "system explicit-kind mismatch should use collection.kind_mismatch",
+  );
+}
+
 async function materialSystemCollectionsApplyPendingIdentityAndMutualExclusion(): Promise<void> {
   const { collections } = createTestCollectionService();
   const materialRef = {
@@ -839,6 +968,10 @@ await blocksSourceOnlyMaterialThroughSystemCollection();
 await backfillsMaterialRefForLegacyCanonicalCollectionItems();
 await materialSystemCollectionsInferKindFromMaterialRecords();
 await unknownMaterialSystemCollectionTargetsRequireExplicitKind();
+await customCollectionRejectsMismatchedKnownMaterialKind();
+await unknownCustomCollectionMaterialTargetsFailClearly();
+await customCollectionAcceptsMatchingKnownMaterialKinds();
+await systemCollectionRejectsExplicitKindThatContradictsKnownMaterial();
 await materialSystemCollectionsApplyPendingIdentityAndMutualExclusion();
 await customCollectionsCanListMaterialItems();
 await materialSystemBlockSurvivesMergeAndUnblocksWithSurvivorRefInSqlite();
