@@ -202,6 +202,27 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     "material select public schema should accept compact materialId candidates",
   );
   assert(
+    selectPayloadSchema.safeParse({
+      candidates: [{ materialId: "material-1" }],
+      policy: { freshness: { recommended: "session", mode: "hard" } },
+    }).success,
+    "material select public schema should default policy purpose to candidate_selection",
+  );
+  assert(
+    !selectPayloadSchema.safeParse({
+      candidates: [{ materialId: "material-1" }],
+      policy: { purpose: "recommendation_presentation" },
+    }).success,
+    "material select public schema should not expose recommendation presentation policy purpose",
+  );
+  assert(
+    !selectPayloadSchema.safeParse({
+      candidates: [{ materialId: "material-1" }],
+      policy: { purpose: "feedback_target" },
+    }).success,
+    "material select public schema should not expose feedback target policy purpose",
+  );
+  assert(
     !queryPayloadSchema.safeParse({
       pool: { kind: "related", materialId: "seed", relation: "same_release" },
     }).success,

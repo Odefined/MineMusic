@@ -174,6 +174,10 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
   assert(output.cards.map((card) => card.title).join(",") === "First,Third", "presenter should preserve surviving input order");
   assert(output.cards[0]?.position === 1 && output.cards[1]?.position === 2, "presented cards should have display positions");
   assert(output.cards[0]?.reason === "sets the mood", "presenter should carry agent reason");
+  assert(
+    output.cards[0]?.links?.some((link) => link.url === "https://example.test/first"),
+    "presented output cards should keep display links",
+  );
   assert(output.dropped?.[0]?.code === "blocked", "blocked material should be reported as dropped");
 
   const events = await assertOk(eventRepository.list());
@@ -185,7 +189,19 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
   };
   assert(events.length === 1 && events[0]?.type === "recommendation.presented", "presenter should record typed recommendation event");
   assert(payload.presentedAt === "2026-05-31T03:00:00.000Z", "event payload should include presentedAt");
-  assert(JSON.stringify(payload.cards) === JSON.stringify(output.cards), "event payload cards should match returned cards");
+  const payloadCards = payload.cards as Array<{
+    materialId?: string;
+    position?: number;
+    links?: unknown;
+    linkRefs?: Array<{ sourceRef?: Ref; url?: string }>;
+  }>;
+  assert(payloadCards[0]?.materialId === output.cards[0]?.materialId, "event payload cards should preserve card identity");
+  assert(payloadCards[0]?.position === output.cards[0]?.position, "event payload cards should preserve card position");
+  assert(payloadCards[0]?.links === undefined, "event payload cards should not persist display links");
+  assert(
+    payloadCards[0]?.linkRefs?.some((link) => link.url === "https://example.test/first"),
+    "event payload cards should keep compact source/link binding refs",
+  );
   assert(payload.request === "coding music", "event payload should keep request context");
   assert(
     payload.basis?.map((item) => `${item.materialId}:${item.kind}`).join(",") ===

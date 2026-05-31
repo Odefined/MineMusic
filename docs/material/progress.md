@@ -131,6 +131,15 @@ answer from `stage.recommendation.present` output instead of from
 `stage.recommendation.present` as the final recommendation boundary and keeps
 `stage.materials.prepare` only as a legacy non-final material sanitizer.
 
+Recommendation-posture PR 1-5 hardening is now implemented. Public
+`music.material.select` accepts only candidate-selection policy purpose, so
+presentation and feedback policy modes stay service-internal. Recommendation
+presentation now returns display cards with links while recording compact
+`RecommendationPresentedCardSnapshot` payload cards with `linkRefs` for future
+feedback binding. The fixture recommendation transcript no longer writes
+Source Entity records from returned materials; tests seed fixture source state
+before the transcript when source-backed playable cards are expected.
+
 ## Implemented
 
 - Added material identity contracts:

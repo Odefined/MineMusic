@@ -521,6 +521,16 @@ export type PresentedMaterialCard = MaterialCardSnapshot & {
   links?: PresentedMaterialLink[];
 };
 
+export type RecommendationPresentedLinkRef = {
+  sourceRef: Ref;
+  label?: string;
+  url?: string;
+};
+
+export type RecommendationPresentedCardSnapshot = MaterialCardSnapshot & {
+  linkRefs?: RecommendationPresentedLinkRef[];
+};
+
 export type RecentMaterialCard = MaterialCardSnapshot & {
   eventId: string;
 };
@@ -546,7 +556,7 @@ export type RecommendationPresentedPayload = {
   ownerScope?: string;
   request?: string;
   presentedAt: string;
-  cards: PresentedMaterialCard[];
+  cards: RecommendationPresentedCardSnapshot[];
   basis?: Array<{
     materialId: string;
     kind: RecommendationBasisKind;

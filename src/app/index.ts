@@ -6,7 +6,6 @@ import type {
   PresentedMaterialCard,
   RecommendationPresentOutput,
   Result,
-  SourceEntity,
   StageEvent,
   StageSession,
 } from "../contracts/index.js";
@@ -64,11 +63,6 @@ export async function runRecommendationTranscript(
 
   const resolved = resolvedResult.value as MaterialResolveResult;
   const groundedMaterials = resolved.kind === "single" ? resolved.result.materials : [];
-  const syncedSources = await syncPlayableSourceEntities(stageCore, groundedMaterials);
-
-  if (!syncedSources.ok) {
-    return syncedSources;
-  }
 
   const presentResult = await stageCore.stageInterface.tools["stage.recommendation.present"]({
     request: input.request,
@@ -210,62 +204,4 @@ function buildRecommendationResponse(cards: PresentedMaterialCard[]): string {
 
 function cardTitleForResponse(card: PresentedMaterialCard): string {
   return card.status === "playable_unverified" ? `${card.title} (unverified source)` : card.title;
-}
-
-async function syncPlayableSourceEntities(
-  stageCore: MineMusicStageCoreHarness,
-  materials: MusicMaterial[],
-): Promise<Result<void>> {
-  const now = new Date().toISOString();
-
-  for (const material of materials) {
-    for (const link of material.playableLinks ?? []) {
-      const synced = await stageCore.materialStore.upsertSourceEntity({
-        entity: sourceEntityFromPlayableLink(material, link, now),
-      });
-
-      if (!synced.ok) {
-        return synced;
-      }
-    }
-  }
-
-  return { ok: true, value: undefined };
-}
-
-function sourceEntityFromPlayableLink(
-  material: MusicMaterial,
-  link: NonNullable<MusicMaterial["playableLinks"]>[number],
-  timestamp: string,
-): SourceEntity {
-  const base = {
-    sourceRef: link.sourceRef,
-    providerId: link.sourceRef.namespace,
-    label: link.label ?? material.label,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    providerUrl: link.url,
-  };
-
-  if (link.sourceRef.kind === "artist") {
-    return {
-      ...base,
-      kind: "artist",
-      name: material.label,
-    };
-  }
-
-  if (link.sourceRef.kind === "release") {
-    return {
-      ...base,
-      kind: "release",
-      title: material.label,
-    };
-  }
-
-  return {
-    ...base,
-    kind: "track",
-    title: material.label,
-  };
 }

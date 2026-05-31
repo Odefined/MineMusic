@@ -6,6 +6,7 @@ import type {
   MusicMaterial,
   PresentedMaterialLink,
   PresentedMaterialCard,
+  RecommendationPresentedCardSnapshot,
   RecommendationPresentInput,
   RecommendationPresentOutput,
   RecommendationPresentWarning,
@@ -236,8 +237,28 @@ function recommendationPresentedPayload({
     ownerScope,
     ...(input.request === undefined ? {} : { request: input.request }),
     presentedAt,
-    cards,
+    cards: cards.map(toRecommendationPresentedCardSnapshot),
     ...(basis.length === 0 ? {} : { basis }),
+  };
+}
+
+function toRecommendationPresentedCardSnapshot(
+  card: PresentedMaterialCard,
+): RecommendationPresentedCardSnapshot {
+  const { links, ...snapshot } = card;
+  const linkRefs = (links ?? []).flatMap((link) =>
+    link.sourceRef === undefined
+      ? []
+      : [{
+          sourceRef: link.sourceRef,
+          ...(link.label === undefined ? {} : { label: link.label }),
+          url: link.url,
+        }]
+  );
+
+  return {
+    ...snapshot,
+    ...(linkRefs.length === 0 ? {} : { linkRefs }),
   };
 }
 
