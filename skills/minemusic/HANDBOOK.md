@@ -33,6 +33,11 @@ Output: `StageContextReadOutput`
 Description: Prepare grounded materials through the Material Gate before presentation.
 Input: `StageMaterialsPrepareInput`
 Output: `MusicMaterial[]`
+#### `stage.recommendation.present`
+
+Description: Final presentation boundary for user-visible recommendations.
+Input: `RecommendationPresentInput`
+Output: `RecommendationPresentOutput`
 #### `stage.session.update`
 
 Description: Update soft session state through Session Context.

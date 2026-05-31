@@ -488,6 +488,85 @@ export type MaterialSelectOutput = {
   applied?: string[];
 };
 
+export type RecommendationBasisKind =
+  | "query"
+  | "related"
+  | "collection"
+  | "recent_context"
+  | "direct_resolve"
+  | "manual_selection"
+  | "mixed";
+
+export type RecommendationPresentItem = {
+  materialId: string;
+  reason?: string;
+  basis?: {
+    kind: RecommendationBasisKind;
+    note?: string;
+  };
+};
+
+export type MaterialCardSnapshot = CandidateMaterialCard & {
+  position: number;
+  presentedAt: string;
+};
+
+export type PresentedMaterialCard = MaterialCardSnapshot;
+
+export type RecentMaterialCard = MaterialCardSnapshot & {
+  eventId: string;
+};
+
+export type DroppedMaterial = {
+  materialId: string;
+  code: MaterialPolicyDropCode | "max_cards";
+  reason: string;
+};
+
+export type RecommendationPresentInput = {
+  ownerScope?: string;
+  request?: string;
+  items: RecommendationPresentItem[];
+  minCards?: number;
+  maxCards?: number;
+  policy?: {
+    freshness?: MaterialFreshnessPolicy;
+  };
+};
+
+export type RecommendationPresentedPayload = {
+  ownerScope?: string;
+  request?: string;
+  presentedAt: string;
+  cards: MaterialCardSnapshot[];
+  basis?: Array<{
+    materialId: string;
+    kind: RecommendationBasisKind;
+    note?: string;
+  }>;
+};
+
+export type RecommendationPresentOutput =
+  | {
+      presented: true;
+      eventId: string;
+      cards: PresentedMaterialCard[];
+      dropped?: DroppedMaterial[];
+      warnings?: Array<{ materialId: string; warnings: string[] }>;
+    }
+  | {
+      presented: false;
+      cards: PresentedMaterialCard[];
+      dropped?: DroppedMaterial[];
+      issues: Array<{
+        code: "not_enough_cards";
+        message: string;
+        required: number;
+        actual: number;
+      }>;
+      retryable: boolean;
+    };
+
 export interface SourceProvider {
   id: string;
   search(input: {
@@ -801,6 +880,7 @@ export type ToolName =
   | "handbook.instrument.read"
   | "handbook.tool.read"
   | "stage.materials.prepare"
+  | "stage.recommendation.present"
   | "stage.session.update"
   | "stage.events.record"
   | "stage.effects.propose"

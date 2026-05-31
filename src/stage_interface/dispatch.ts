@@ -21,6 +21,7 @@ import type {
   MaterialGatePort,
   MemoryPort,
   MusicKnowledgePort,
+  RecommendationPresentationPort,
   SessionContextPort,
   SourceGroundingPort,
   ToolDispatchPort,
@@ -33,6 +34,7 @@ import {
 type ToolDispatchOptions = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
+  recommendationPresentation?: RecommendationPresentationPort;
   instruments: InstrumentCatalogPort;
   materialResolve: MaterialResolvePort;
   materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
@@ -51,6 +53,7 @@ type ToolDispatchOptions = {
 export function createToolDispatch({
   sessionContext,
   materialGate,
+  recommendationPresentation,
   instruments,
   materialResolve,
   materialQuery,
@@ -69,6 +72,7 @@ export function createToolDispatch({
     stage: {
       sessionContext,
       materialGate,
+      ...(recommendationPresentation === undefined ? {} : { recommendationPresentation }),
       ...(materialStore === undefined ? {} : { materialStore }),
       events,
       effects,

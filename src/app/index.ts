@@ -3,7 +3,9 @@ import type {
   MaterialResolveResult,
   MemoryProposal,
   MusicMaterial,
+  RecommendationPresentOutput,
   Result,
+  SourceEntity,
   StageEvent,
   StageSession,
 } from "../contracts/index.js";
@@ -60,6 +62,12 @@ export async function runRecommendationTranscript(
 
   const resolved = resolvedResult.value as MaterialResolveResult;
   const groundedMaterials = resolved.kind === "single" ? resolved.result.materials : [];
+  const syncedSources = await syncPlayableSourceEntities(stageCore, groundedMaterials);
+
+  if (!syncedSources.ok) {
+    return syncedSources;
+  }
+
   const preparedResult = await stageCore.stageInterface.tools["stage.materials.prepare"]({
     materials: groundedMaterials,
     purpose: "recommendation",
@@ -69,35 +77,54 @@ export async function runRecommendationTranscript(
     return preparedResult;
   }
 
-  const presentedMaterials = preparedResult.value as MusicMaterial[];
-  const response = buildRecommendationResponse(presentedMaterials);
-  const eventResult = await stageCore.stageInterface.tools["stage.events.record"]({
-    event: {
-      sessionId: input.sessionId,
-      actor: "llm",
-      type: "recommendation.presented",
-      payload: {
-        request: input.request,
-        materialStates: presentedMaterials.map((material) => ({
-          id: material.id,
-          state: material.state,
-          hasPlayableLinks: (material.playableLinks?.length ?? 0) > 0,
-        })),
+  const preparedMaterials = preparedResult.value as MusicMaterial[];
+  const presentResult = await stageCore.stageInterface.tools["stage.recommendation.present"]({
+    request: input.request,
+    items: preparedMaterials.map((material) => ({
+      materialId: material.materialRef.id,
+      ...(material.notes === undefined ? {} : { reason: material.notes }),
+      basis: {
+        kind: "direct_resolve",
+        note: "Resolved from recommendation transcript request.",
       },
-    },
+    })),
+    minCards: 1,
   });
 
-  if (!eventResult.ok) {
-    return eventResult;
+  if (!presentResult.ok) {
+    return presentResult;
   }
 
-  const recommendationEvent = eventResult.value as StageEvent;
+  const presentation = presentResult.value as RecommendationPresentOutput;
+
+  if (!presentation.presented) {
+    return {
+      ok: false,
+      error: {
+        code: "stage.material_state_invalid",
+        message: presentation.issues.map((issue) => issue.message).join(" ") ||
+          "No recommendation cards survived final presentation policy.",
+        module: "stage",
+        retryable: presentation.retryable,
+      },
+    };
+  }
+
+  const preparedByMaterialId = new Map(
+    preparedMaterials.map((material) => [material.materialRef.id, material]),
+  );
+  const presentedMaterials = presentation.cards.flatMap((card) => {
+    const material = preparedByMaterialId.get(card.materialId);
+
+    return material === undefined ? [] : [material];
+  });
+  const response = buildRecommendationResponse(presentedMaterials);
   const memoryProposalResult = await stageCore.stageInterface.tools["memory.propose"]({
     proposal: {
       entry: {
         text: input.memoryText,
         kind: "contextual_preference",
-        evidenceEventIds: [recommendationEvent.id],
+        evidenceEventIds: [presentation.eventId],
         confidence: 0.8,
         undoable: true,
       },
@@ -164,4 +191,62 @@ function buildRecommendationResponse(materials: MusicMaterial[]): string {
 
 function canPresentPlayableLinks(material: MusicMaterial): boolean {
   return material.state === "confirmed_playable" || material.state === "source_only_playable";
+}
+
+async function syncPlayableSourceEntities(
+  stageCore: MineMusicStageCoreHarness,
+  materials: MusicMaterial[],
+): Promise<Result<void>> {
+  const now = new Date().toISOString();
+
+  for (const material of materials) {
+    for (const link of material.playableLinks ?? []) {
+      const synced = await stageCore.materialStore.upsertSourceEntity({
+        entity: sourceEntityFromPlayableLink(material, link, now),
+      });
+
+      if (!synced.ok) {
+        return synced;
+      }
+    }
+  }
+
+  return { ok: true, value: undefined };
+}
+
+function sourceEntityFromPlayableLink(
+  material: MusicMaterial,
+  link: NonNullable<MusicMaterial["playableLinks"]>[number],
+  timestamp: string,
+): SourceEntity {
+  const base = {
+    sourceRef: link.sourceRef,
+    providerId: link.sourceRef.namespace,
+    label: link.label ?? material.label,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    providerUrl: link.url,
+  };
+
+  if (link.sourceRef.kind === "artist") {
+    return {
+      ...base,
+      kind: "artist",
+      name: material.label,
+    };
+  }
+
+  if (link.sourceRef.kind === "release") {
+    return {
+      ...base,
+      kind: "release",
+      title: material.label,
+    };
+  }
+
+  return {
+    ...base,
+    kind: "track",
+    title: material.label,
+  };
 }

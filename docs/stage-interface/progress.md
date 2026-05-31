@@ -17,6 +17,11 @@ registry. There is no fallback dispatch switch for stable tools. Tool
 Definitions are now also the runtime payload validation boundary and the source
 for derived aggregate tool facts.
 
+The Stage Tool Group now includes `stage.recommendation.present`, the
+agent-facing final boundary for user-visible recommendations. Manual
+`recommendation.presented` and `recommendation_presented` writes through
+`stage.events.record` are rejected before `EventPort.record` is called.
+
 ## Established Decisions
 
 - Keep `ToolDispatchPort.call({ sessionId, toolName, payload })` as the public
@@ -78,6 +83,8 @@ for derived aggregate tool facts.
   `candidate`, and `candidate_set` requires `candidates`, before
   `MaterialResolvePort` is called.
 - MCP schema parity and stable tool aggregate tests.
+- `stage.recommendation.present` dispatch to `RecommendationPresentationPort`.
+- Manual recommendation presentation event rejection in `stage.events.record`.
 
 ## Not Yet Implemented
 
@@ -87,15 +94,15 @@ for derived aggregate tool facts.
 
 ## Verification
 
-- `npm run typecheck` passes as of the Stage Interface tool contract refactor.
-- `npm run build:test` passes as of the Stage Interface tool contract refactor.
+- `npm run typecheck` passes as of recommendation-posture PR 4.
+- `npm run build:test` passes as of recommendation-posture PR 4.
 - `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
-  passes as of the Stage Interface tool contract refactor.
+  passes as of recommendation-posture PR 4.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
-  the Stage Interface tool contract refactor.
+  recommendation-posture PR 4.
 - `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
-  Interface tool contract refactor.
-- `npm test` passes as of the Stage Interface tool contract refactor.
+  Interface recommendation presentation schema coverage.
+- `npm test` passes as of recommendation-posture PR 4.
 
 ## Next Slice
 

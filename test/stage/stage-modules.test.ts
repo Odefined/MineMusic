@@ -171,6 +171,9 @@ async function readsBoundedRecentCardsFromRecommendationEvents(): Promise<void> 
   assert(context.recentCards !== undefined, "stage context should expose recent compact cards when available");
   assert(context.recentCards.length === 3, "stage context should keep a bounded recent-card list");
   assert(context.recentCards[0]?.title === "Latest Track", "recent cards should be newest first");
+  assert(context.recentCards[0]?.position === 1, "recent cards should preserve 1-based presented position");
+  assert(context.recentCards[0]?.eventId === "event-latest", "recent cards should include the source event id");
+  assert(context.recentCards[0]?.presentedAt === "2026-05-30T00:00:00.000Z", "recent cards should include presentedAt");
   assert(!("payload" in context.recentCards[0]!), "recent cards should not expose raw event payloads");
 }
 
@@ -300,10 +303,13 @@ function recommendationEvent(id: string, ...titles: string[]): StageEvent {
     actor: "llm",
     type: "recommendation.presented",
     payload: {
+      presentedAt: "2026-05-30T00:00:00.000Z",
       cards: titles.map((title, index) => ({
         materialId: `${id}-${index}`,
         title,
         status: "playable_unverified",
+        position: index + 1,
+        presentedAt: "2026-05-30T00:00:00.000Z",
       })),
     },
   };

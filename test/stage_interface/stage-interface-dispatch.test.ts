@@ -36,6 +36,7 @@ import type {
   MaterialStorePort,
   MemoryPort,
   MusicKnowledgePort,
+  RecommendationPresentationPort,
   SessionContextPort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
@@ -489,6 +490,25 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       return { ok: true, value: materials };
     },
   };
+  const recommendationPresentation: RecommendationPresentationPort = {
+    present: async () => {
+      calls.push("stage.recommendation.present");
+      return {
+        ok: true,
+        value: {
+          presented: true,
+          eventId: "event-presented",
+          cards: [{
+            materialId: "material-presented",
+            title: "Presented Track",
+            status: "playable_unverified",
+            position: 1,
+            presentedAt: "2026-05-31T00:00:00.000Z",
+          }],
+        },
+      };
+    },
+  };
   const materialResolve: MaterialResolvePort = {
     resolve: async () => {
       calls.push("materialResolve.resolve");
@@ -573,6 +593,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   const dispatch = createToolDispatch({
     sessionContext,
     materialGate,
+    recommendationPresentation,
     instruments: catalog,
     materialResolve,
     source,
@@ -693,6 +714,15 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   await assertOk(
     dispatch.call({
       sessionId: session.id,
+      toolName: "stage.recommendation.present",
+      payload: {
+        items: [{ materialId: "material-presented", reason: "fits" }],
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
       toolName: "stage.session.update",
       payload: { sessionId: session.id, patch: { notes: "updated" } },
     }),
@@ -712,6 +742,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     "handbook.tool.read should return the requested tool descriptor",
   );
   assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
+  assert(calls.includes("stage.recommendation.present"), "stage.recommendation.present should call RecommendationPresentationPort");
   assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
   assert(calls.includes("musicKnowledge.query"), "knowledge.query should call MusicKnowledgePort");
@@ -728,6 +759,68 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");
   assert(calls.includes("sessionContext.updateSession"), "stage.session.update should call SessionContextPort");
+}
+
+async function rejectsManualRecommendationPresentedEvents(): Promise<void> {
+  let eventRecordCalled = false;
+  const sessionContext: SessionContextPort = {
+    getSession: async ({ sessionId }) => ({ ok: true, value: { ...session, id: sessionId } }),
+    readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
+    updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
+  };
+  const dispatch = createToolDispatch({
+    sessionContext,
+    materialGate: {
+      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
+    },
+    instruments: createInstrumentCatalog(),
+    materialResolve: {
+      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+    },
+    source: {
+      ground: async () => ({ ok: true, value: [] }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+    events: {
+      record: async ({ event }) => {
+        eventRecordCalled = true;
+        return { ok: true, value: { ...event, id: "event-1", time: "2026-05-31T00:00:00.000Z" } };
+      },
+      listBySession: async () => ({ ok: true, value: [] }),
+    },
+    memory: {
+      summarizeForSession: async () => ({ ok: true, value: [] }),
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-proposal-1" } }),
+      accept: async () => ({
+        ok: true,
+        value: { id: "memory-1", text: "memory", kind: "contextual_preference" },
+      }),
+    },
+    effects: {
+      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
+      decide: async () => ({ ok: true, value: undefined }),
+    },
+  });
+
+  const result = await dispatch.call({
+    sessionId: session.id,
+    toolName: "stage.events.record",
+    payload: {
+      event: {
+        sessionId: session.id,
+        actor: "llm",
+        type: "recommendation.presented",
+        payload: { cards: [] },
+      },
+    },
+  });
+
+  assert(!result.ok, "stage.events.record should reject manual recommendation.presented events");
+  assert(!eventRecordCalled, "manual recommendation.presented rejection should happen before EventPort.record");
+  assert(
+    !result.ok && result.error.message.includes("Use stage.recommendation.present"),
+    "manual recommendation.presented rejection should point to the presentation tool",
+  );
 }
 
 async function dispatchesStageMaterialsPrepareWithMaterialIds(): Promise<void> {
@@ -2595,6 +2688,7 @@ await attachesProviderDescriptorsToOwningInstruments();
 await rendersKnowledgeProviderCapabilitiesInHandbook();
 await registersMigratedToolDefinitions();
 await dispatchesStableToolNamesThroughInjectedPorts();
+await rejectsManualRecommendationPresentedEvents();
 await dispatchesStageMaterialsPrepareWithMaterialIds();
 await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();

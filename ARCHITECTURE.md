@@ -48,6 +48,10 @@ for material actions without exposing internal
 snapshot/relation-scope fields in the normal public schemas, and Collection
 Service uses Material Registry redirects plus MaterialRecord kind inference
 when filtering, adding, or removing material-backed collection items.
+Recommendation Presentation is the final user-visible recommendation boundary:
+`stage.recommendation.present` evaluates the intended ordered material ids,
+preserves surviving order, records the typed `recommendation.presented` event,
+and returns the exact compact cards that can be shown.
 
 ## Vocabulary Source
 
@@ -98,6 +102,7 @@ MineMusic Server Process
      -> Collection Service
      -> Material Resolve
      -> Material Policy / Sort / Select
+     -> Recommendation Presentation
      -> Source Grounding
      -> Music Knowledge
      -> Event Service
@@ -141,7 +146,7 @@ without creating provider-specific environment switches in host adapter config.
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
-| Core Capabilities | `src/material_store/**`, `src/collection`, `src/material_resolve`, `src/material_policy`, `src/material_selection`, `src/material_query`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
+| Core Capabilities | `src/material_store/**`, `src/collection`, `src/material_resolve`, `src/material_policy`, `src/material_selection`, `src/recommendation_presentation`, `src/material_query`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
@@ -169,6 +174,7 @@ needs.
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, material relation filtering, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
 | Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy; sorting of already usable material candidates; optional compact materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment |
+| Recommendation Presentation | final presentation gate for intended ordered materialId recommendations, typed `recommendation.presented` event creation, compact presented/recent card snapshots, min/max card enforcement | candidate discovery, sorting, selector delegation, final recommendation judgment |
 | Material Query / Related | compact agent-facing material retrieval, pool-restricted query, related candidate generation, selector delegation, and `MaterialCard` presentation over Material Resolve output | raw source/canonical graph exposure, provider internals, canonical writes, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
@@ -207,11 +213,15 @@ needs.
    links.
 13. Material Resolve returns `MusicMaterial` with stable material identity,
    honest material state, and candidate-level resolve status.
-14. Stage Interface sends material through Material Gate before presentation.
-15. LLM selects and explains recommendations.
-16. Stage Interface or the LLM records factual events and proposes memory or
+14. Stage Interface sends material through Material Gate before presentation
+   where full `MusicMaterial` output is still needed.
+15. LLM chooses the intended recommendation order, then calls
+   `stage.recommendation.present` for the final presentation gate.
+16. Recommendation Presentation records the typed `recommendation.presented`
+   event when enough cards survive and returns the exact cards to show.
+17. Stage Interface or the LLM records other factual events and proposes memory or
    effects when appropriate.
-17. Event Service, Memory Service, and Effect Boundary keep consequences
+18. Event Service, Memory Service, and Effect Boundary keep consequences
    governed through their own ports.
 ```
 

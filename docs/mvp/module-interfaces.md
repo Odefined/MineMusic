@@ -259,6 +259,7 @@ export type ToolName =
   | "handbook.instrument.read"
   | "handbook.tool.read"
   | "stage.materials.prepare"
+  | "stage.recommendation.present"
   | "stage.session.update"
   | "stage.events.record"
   | "stage.effects.propose"
@@ -638,17 +639,24 @@ export interface MaterialSorterPort {
 export interface MaterialSelectorPort {
   select(input: MaterialSelectInput): Promise<Result<MaterialSelectOutput>>;
 }
+
+export interface RecommendationPresentationPort {
+  present(input: RecommendationPresentInput & {
+    sessionId: string;
+  }): Promise<Result<RecommendationPresentOutput>>;
+}
 ```
 
 Consumes:
 
 - `MaterialStorePort`
 - optional `CollectionPort`
+- `RecommendationPresentationPort` additionally consumes
+  `SessionContextPort`, `MaterialPolicyEvaluatorPort`, and `EventPort`.
 
 Must not expose:
 
 - final recommendation judgment.
-- presentation event recording.
 - source provider internals.
 
 Selector responsibility:
@@ -659,6 +667,14 @@ Selector responsibility:
   labels.
 - Remain optional: query/related may delegate to it, but final presentation
   must not call it.
+
+Recommendation presentation responsibility:
+
+- Evaluate the intended ordered materialId items with presentation policy.
+- Preserve surviving input order, apply `maxCards`, and require `minCards`.
+- Record the typed `recommendation.presented` event only when enough cards
+  survive.
+- Return the exact compact cards that can be shown to the user.
 
 ## Source Grounding Port
 

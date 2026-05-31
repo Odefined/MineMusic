@@ -1144,6 +1144,23 @@
 - Added focused selector coverage for preserve order, least-recently-recommended
   sorting, relation/recent hard drops, diversity caps, and compact selected
   cards, plus Stage Interface/MCP schema coverage for `music.material.select`.
+- Started recommendation-posture PR 4 on branch
+  `codex/recommendation-presenter` from merged `main`.
+- Added `RecommendationPresentationPort`, `src/recommendation_presentation`,
+  and `stage.recommendation.present` as the final presentation gate for
+  user-visible recommendations.
+- Implemented presentation evaluation over intended ordered materialId items,
+  preserving surviving order, applying min/max card counts, returning compact
+  presented cards, and recording typed `recommendation.presented` events only
+  after enough cards survive.
+- Updated agent-facing `stage.events.record` to reject manual
+  `recommendation.presented` / `recommendation_presented` writes and point
+  callers to `stage.recommendation.present`.
+- Updated `stage.context.read` recentCards to derive from typed presentation
+  payloads with `eventId`, `position`, and `presentedAt`, and migrated the
+  fixture transcript off manual recommendation event recording.
+- Added focused presenter tests, Stage Interface/MCP schema coverage, recent
+  card coverage, and full `npm test` verification.
 
 ## Next
 

@@ -53,6 +53,7 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
     "handbook.instrument.read",
     "handbook.tool.read",
     "stage.materials.prepare",
+    "stage.recommendation.present",
     "stage.session.update",
     "stage.events.record",
     "stage.effects.propose",

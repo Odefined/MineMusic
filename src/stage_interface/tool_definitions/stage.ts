@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import type {
   EffectProposal,
   MusicMaterial,
+  RecommendationPresentInput,
   Result,
   StageError,
   StageEvent,
@@ -13,6 +14,7 @@ import type {
   EventPort,
   MaterialGatePort,
   MaterialStorePort,
+  RecommendationPresentationPort,
   SessionContextPort,
 } from "../../ports/index.js";
 import type {
@@ -25,6 +27,7 @@ import { materialForMaterialId } from "../../material_query/index.js";
 export const stageToolNames = [
   "stage.context.read",
   "stage.materials.prepare",
+  "stage.recommendation.present",
   "stage.session.update",
   "stage.events.record",
   "stage.effects.propose",
@@ -35,6 +38,7 @@ export type StageToolName = (typeof stageToolNames)[number];
 export type StageToolGroupContext = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
+  recommendationPresentation?: RecommendationPresentationPort;
   materialStore?: MaterialStorePort;
   events: EventPort;
   effects: EffectBoundaryPort;
@@ -46,6 +50,21 @@ const musicMaterialSchema = z.object({
   label: z.string(),
   state: z.string(),
 }).passthrough();
+const recommendationPresentBasisSchema = z.object({
+  kind: z.enum(["query", "related", "collection", "recent_context", "direct_resolve", "manual_selection", "mixed"]),
+  note: z.string().optional(),
+});
+const recommendationPresentItemSchema = z.object({
+  materialId: z.string(),
+  reason: z.string().optional(),
+  basis: recommendationPresentBasisSchema.optional(),
+});
+const recommendationFreshnessPolicySchema = z.object({
+  recommended: z.enum(["session", "1h", "24h", "7d"]).optional(),
+  played: z.enum(["session", "1h", "24h", "7d"]).optional(),
+  opened: z.enum(["session", "1h", "24h", "7d"]).optional(),
+  mode: z.enum(["hard", "soft", "off"]).optional(),
+});
 
 export const stageToolDefinitions = [
   {
@@ -81,6 +100,32 @@ export const stageToolDefinitions = [
     },
   },
   {
+    name: "stage.recommendation.present",
+    description: "Final presentation boundary for user-visible recommendations.",
+    inputSchemaRef: "RecommendationPresentInput",
+    outputSchemaRef: "RecommendationPresentOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      ownerScope: z.string().optional(),
+      request: z.string().optional(),
+      items: z.array(recommendationPresentItemSchema),
+      minCards: z.number().int().positive().optional(),
+      maxCards: z.number().int().positive().optional(),
+      policy: z.object({
+        freshness: recommendationFreshnessPolicySchema.optional(),
+      }).optional(),
+    },
+    handler({ context, sessionId, payload }) {
+      const presenter = readRecommendationPresentation(context.recommendationPresentation);
+
+      if (!presenter.ok) {
+        return presenter;
+      }
+
+      return presenter.value.present(readPayload<RecommendationPresentInput & { sessionId: string }>(payload, { sessionId }));
+    },
+  },
+  {
     name: "stage.session.update",
     description: "Update soft session state through Session Context.",
     inputSchemaRef: "StageSessionPatch",
@@ -104,7 +149,13 @@ export const stageToolDefinitions = [
       event: z.object({}).passthrough(),
     },
     handler({ context, payload }) {
-      return context.events.record(eventRecordInput(payload));
+      const input = eventRecordInput(payload);
+
+      if (!input.ok) {
+        return input;
+      }
+
+      return context.events.record(input.value);
     },
   },
   {
@@ -222,12 +273,20 @@ function sessionUpdateInput(
   };
 }
 
-function eventRecordInput(payload: unknown): Parameters<EventPort["record"]>[0] {
+function eventRecordInput(payload: unknown): Result<Parameters<EventPort["record"]>[0]> {
   const input = payloadObject(payload);
+  const event = input.event as Omit<StageEvent, "id" | "time"> | undefined;
 
-  return {
-    event: input.event as Omit<StageEvent, "id" | "time">,
-  };
+  if (event?.type === "recommendation.presented" || event?.type === "recommendation_presented") {
+    return fail({
+      code: "stage_interface.invalid_payload",
+      message: "Use stage.recommendation.present for recommendation presentation events.",
+      module: "stage_interface",
+      retryable: false,
+    });
+  }
+
+  return ok({ event: event as Omit<StageEvent, "id" | "time"> });
 }
 
 function effectProposalInput(payload: unknown): Parameters<EffectBoundaryPort["propose"]>[0] {
@@ -236,6 +295,33 @@ function effectProposalInput(payload: unknown): Parameters<EffectBoundaryPort["p
   return {
     proposal: input.proposal as Omit<EffectProposal, "id">,
   };
+}
+
+function readRecommendationPresentation(
+  recommendationPresentation: RecommendationPresentationPort | undefined,
+): Result<RecommendationPresentationPort> {
+  if (recommendationPresentation === undefined) {
+    return fail({
+      code: "stage_interface.tool_not_found",
+      message: "Recommendation presentation is not available.",
+      module: "stage_interface",
+      retryable: false,
+    });
+  }
+
+  return ok(recommendationPresentation);
+}
+
+function readPayload<TPayload extends object>(
+  payload: unknown,
+  defaults?: Partial<TPayload>,
+): TPayload {
+  const input = payloadObject(payload);
+
+  return {
+    ...(defaults ?? {}),
+    ...input,
+  } as TPayload;
 }
 
 function payloadObject(payload: unknown): Record<string, unknown> {

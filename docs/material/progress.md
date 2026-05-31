@@ -113,6 +113,17 @@ and limit over compact materialId candidates. The Stage Interface exposes
 delegate policy, sorting, selection, and cutting to the selector. This slice
 does not add final presentation or recommendation event behavior.
 
+Recommendation-posture PR 4 is now implemented. `src/recommendation_presentation/index.ts`
+adds the final presentation boundary behind `RecommendationPresentationPort`
+and `stage.recommendation.present`. The presenter evaluates the intended
+ordered materialId items with presentation policy, preserves surviving order,
+applies `maxCards` and `minCards`, records a typed
+`recommendation.presented` event only when enough cards survive, and returns
+the exact compact presented cards. Agent-facing `stage.events.record` rejects
+manual recommendation presentation events, and `stage.context.read`
+`recentCards` now come from typed presentation payloads with card position and
+presentation time.
+
 ## Implemented
 
 - Added material identity contracts:
@@ -146,6 +157,13 @@ does not add final presentation or recommendation event behavior.
   `music.material.select`, and focused tests, then migrated Material Query /
   Related selection internals to use the selector while keeping compact card
   outputs stable.
+- Added Recommendation Presentation contracts, port, implementation,
+  `stage.recommendation.present`, typed recommendation presentation event
+  recording, and focused tests.
+- Updated `stage.events.record` to reject manual recommendation presentation
+  event writes from agent-facing tools.
+- Updated recentCards projection to read typed `recommendation.presented`
+  payloads with `eventId`, `position`, and `presentedAt`.
 - Material Registry merge projection preserves loser source refs on the
   survivor in both in-memory and SQLite-backed implementations.
 - `stage.materials.prepare` preserves `materialRef` and `identityState` while

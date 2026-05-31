@@ -229,6 +229,9 @@ This index points agents to the current MVP documentation pack.
       evaluation and non-filtering material sorting.
     - `src/material_selection/index.ts` owns optional compact materialId
       selection with evaluator + sorter + diversity + limit.
+    - `src/recommendation_presentation/index.ts` owns the final
+      recommendation presentation gate, typed `recommendation.presented`
+      events, and presented/recent card snapshots.
 
 42. `src/material_store/material_registry/index.ts`
     - In-memory Material Registry implementation for opaque `materialRef`
