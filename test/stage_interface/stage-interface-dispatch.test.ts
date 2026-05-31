@@ -1491,8 +1491,9 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     resolveCards: async () => ({ ok: true, value: { items: [] } }),
   };
   const materialSelector: MaterialSelectorPort = {
-    select: async ({ sessionId }) => {
+    select: async ({ sessionId, policy }) => {
       calls.push(`select:${sessionId ?? "missing"}`);
+      calls.push(`select-purpose:${policy?.purpose ?? "default"}`);
       return { ok: true, value: { items: [] } };
     },
   };
@@ -1557,11 +1558,43 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       payload: { candidates: [{ materialId: "seed" }] },
     }),
   );
+  await assertOk(
+    dispatch.call({
+      sessionId: "session-current",
+      toolName: "music.material.select",
+      payload: {
+        candidates: [{ materialId: "seed" }],
+        policy: { freshness: { recommended: "session", mode: "hard" } },
+      },
+    }),
+  );
+  const presentationPurposeSelect = await dispatch.call({
+    sessionId: "session-current",
+    toolName: "music.material.select",
+    payload: {
+      candidates: [{ materialId: "seed" }],
+      policy: { purpose: "recommendation_presentation" },
+    },
+  });
+  const feedbackPurposeSelect = await dispatch.call({
+    sessionId: "session-current",
+    toolName: "music.material.select",
+    payload: {
+      candidates: [{ materialId: "seed" }],
+      policy: { purpose: "feedback_target" },
+    },
+  });
 
   assert(calls.includes("query:session-current"), "material query should receive current dispatch session id by default");
   assert(calls.includes("query:caller-session"), "material query should preserve explicit caller session id");
   assert(calls.includes("related:session-current"), "material related should receive current dispatch session id by default");
   assert(calls.includes("select:session-current"), "material select should receive current dispatch session id by default");
+  assert(
+    calls.includes("select-purpose:candidate_selection"),
+    "material select should normalize public policy to candidate_selection",
+  );
+  assert(!presentationPurposeSelect.ok, "music.material.select should reject recommendation_presentation policy purpose");
+  assert(!feedbackPurposeSelect.ok, "music.material.select should reject feedback_target policy purpose");
 }
 
 async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void> {

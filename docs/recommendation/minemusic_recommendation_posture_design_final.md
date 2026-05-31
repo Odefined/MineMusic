@@ -231,6 +231,24 @@ It must **not** call full selector logic that can rank or reorder.
 
 Feedback tools must target presented recentCards, not raw query candidates or provider results. "Second song" means the second card in a typed `recommendation.presented` event.
 
+Feedback binding data path:
+
+1. Use `recentCards` for `eventId`, `position`, and `materialId`.
+2. Read the corresponding `recommendation.presented` payload for the compact
+   source/link/version snapshot that was actually shown.
+3. Use Material Store for current material state and redirects, not as the only
+   source of what was presented.
+
+Consequence scoping:
+
+- `wrong_version`: source/link scoped when feedback refers to a specific shown
+  link/version; material scoped only when the user rejects the whole material.
+- `not_playable`: source/link scoped by default.
+- `block` / do not recommend: material scoped by default unless the user says
+  only this source/version.
+- `like` / `dislike`: material scoped unless source/version specificity is
+  explicit.
+
 ---
 
 ## 5. Core Types
@@ -313,15 +331,31 @@ export type CandidateMaterialCard = MaterialCardSnapshot & {
 Presented card:
 
 ```ts
+export type PresentedMaterialLink = {
+  label?: string;
+  url: string;
+  sourceRef?: Ref;
+};
+
 export type PresentedMaterialCard = MaterialCardSnapshot & {
   reason?: string; // agent-supplied user-facing reason, carried through
-  links?: Array<{
-    label: string;
-    url: string;
-    sourceRef?: Ref;
-  }>;
+  links?: PresentedMaterialLink[];
   actions?: MaterialCardAction[];
   warnings?: string[];
+};
+```
+
+Persisted presentation snapshot:
+
+```ts
+export type RecommendationPresentedLinkRef = {
+  sourceRef: Ref;
+  label?: string;
+  url?: string;
+};
+
+export type RecommendationPresentedCardSnapshot = MaterialCardSnapshot & {
+  linkRefs?: RecommendationPresentedLinkRef[];
 };
 ```
 
@@ -335,7 +369,10 @@ export type RecentMaterialCard = MaterialCardSnapshot & {
 };
 ```
 
-Do not define separate incompatible shapes for query cards, prepared cards, presented event cards, and recent cards. Use the shared snapshot shape and add context fields.
+These shapes share `MaterialCardSnapshot`, but they have different
+responsibilities: `PresentedMaterialCard` is display output, the persisted
+`RecommendationPresentedCardSnapshot` is the feedback-binding snapshot, and
+`RecentMaterialCard` is the compact context handle.
 
 ### 5.3 Resolve diagnostics
 
@@ -524,7 +561,8 @@ Event payload:
 export type RecommendationPresentedPayload = {
   ownerScope?: string;
   request?: string;
-  cards: MaterialCardSnapshot[];
+  presentedAt: string;
+  cards: RecommendationPresentedCardSnapshot[];
   basis?: Array<{
     materialId: string;
     kind: string;
@@ -945,8 +983,8 @@ export type MemoryFeedbackRecordInput = {
 
 ```text
 wrong_version:
-  source/version scoped MusicMaterialRelation
-  never material-level block unless user explicitly says whole material is bad
+  source/link scoped MusicMaterialRelation when feedback names a shown version
+  material-scoped only when user rejects the whole material
 
 not_playable:
   source scoped MusicMaterialRelation
@@ -954,13 +992,13 @@ not_playable:
   no whole-material block
 
 block material:
-  Collection blocked / material-level relation as current product policy chooses
+  material-level relation by default
 
 block source:
   source-scoped blocked relation
 
 like/dislike:
-  weak liked/disliked relation
+  material-scoped relation by default
 
 remember_preference:
   memory.propose only

@@ -24,6 +24,12 @@ agent-facing final boundary for user-visible recommendations. Manual
 `stage.materials.prepare` remains available, but its descriptor now frames it
 as a legacy non-final material sanitizer rather than the recommendation
 presentation boundary.
+`music.material.select` remains public only as a candidate-selection helper:
+the Stage Interface schema rejects `recommendation_presentation` and
+`feedback_target` policy purposes. `stage.recommendation.present` is still the
+only public presentation boundary, and it records compact feedback-binding
+snapshots rather than persisting the full display card links returned to the
+caller.
 
 ## Established Decisions
 

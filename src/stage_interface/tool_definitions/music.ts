@@ -5,6 +5,7 @@ import type {
   CollectionKind,
   CollectionRelationKind,
   MaterialContextBriefInput,
+  MaterialPolicyInput,
   MaterialPoolsListInput,
   MaterialQueryInput,
   MaterialRelatedInput,
@@ -224,7 +225,7 @@ const materialFreshnessPolicySchema = z.object({
   mode: z.enum(["hard", "soft", "off"]).optional(),
 });
 const materialPolicySchema = z.object({
-  purpose: z.enum(["candidate_selection", "recommendation_presentation", "feedback_target"]),
+  purpose: z.literal("candidate_selection").optional(),
   availability: z.enum(["playable", "any"]).optional(),
   identity: z.enum(["confirmed_only", "allow_source_backed"]).optional(),
   excludeRelations: z.array(z.enum(["blocked", "wrong_version", "not_playable", "bad_match"])).optional(),
@@ -370,7 +371,9 @@ export const musicToolDefinitions = [
         return materialSelector;
       }
 
-      return materialSelector.value.select(readPayload<MaterialSelectInput>(payload, { sessionId }));
+      return materialSelector.value.select(
+        normalizePublicMaterialSelectInput(readPayload<PublicMaterialSelectInput>(payload, { sessionId })),
+      );
     },
   },
   {
@@ -857,6 +860,28 @@ function readMaterialSelector(materialSelector: MaterialSelectorPort | undefined
   }
 
   return ok(materialSelector);
+}
+
+type PublicMaterialSelectInput = Omit<MaterialSelectInput, "policy"> & {
+  policy?: Omit<MaterialPolicyInput, "purpose"> & {
+    purpose?: "candidate_selection";
+  };
+};
+
+function normalizePublicMaterialSelectInput(input: PublicMaterialSelectInput): MaterialSelectInput {
+  const { policy, ...rest } = input;
+
+  if (policy === undefined) {
+    return rest;
+  }
+
+  return {
+    ...rest,
+    policy: {
+      ...policy,
+      purpose: "candidate_selection",
+    },
+  };
 }
 
 function collectionUnavailable(): Result<never> {

@@ -36,26 +36,41 @@ export const fixtureKnownMaterial: SourceMaterial = {
   ],
 };
 
-export const fixtureExplorationMaterial: SourceMaterial = {
-  id: "fixture-material-exploration",
+export const fixtureSourceOnlyPlayableRef: Ref = {
+  namespace: "source:fixture",
+  kind: "track",
+  id: "fixture-track-source-only",
+  label: "Source-only Coding Track on Fixture Source",
+};
+
+export const fixtureSourceOnlyPlayableMaterial: SourceMaterial = {
+  id: "fixture-material-source-only",
   kind: "recording",
-  label: "Interesting But Unconfirmed Track",
-  state: "exploration",
-  sourceRefs: [
-    {
-      namespace: "source:fixture",
-      kind: "track",
-      id: "fixture-track-exploration",
-    },
-  ],
+  label: "Source-only Coding Track",
+  state: "source_only_playable",
+  sourceRefs: [fixtureSourceOnlyPlayableRef],
   playableLinks: [
     {
-      url: "https://fixture.example/play/unconfirmed-track",
-      label: "Unconfirmed link should not be shown",
+      url: "https://fixture.example/play/source-only-track",
+      label: "Play Source-only Coding Track",
+      sourceRef: fixtureSourceOnlyPlayableRef,
+    },
+  ],
+};
+
+export const fixtureUnresolvedExplorationMaterial: SourceMaterial = {
+  id: "fixture-material-unresolved-exploration",
+  kind: "recording",
+  label: "Unresolved Exploration Track",
+  state: "exploration",
+  playableLinks: [
+    {
+      url: "https://fixture.example/play/unresolved-exploration",
+      label: "Unresolved exploration link should not be shown",
       sourceRef: {
         namespace: "source:fixture",
         kind: "track",
-        id: "fixture-track-exploration",
+        id: "fixture-track-unresolved-exploration",
       },
     },
   ],

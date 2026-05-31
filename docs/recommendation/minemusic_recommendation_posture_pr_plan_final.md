@@ -442,6 +442,7 @@ Define presentation contracts.
 1. Add:
    - `MaterialCardSnapshot`
    - `PresentedMaterialCard`
+   - `RecommendationPresentedCardSnapshot`
    - `RecentMaterialCard`
    - `RecommendationPresentInput`
    - `RecommendationPresentOutput`
@@ -571,8 +572,11 @@ Derive recentCards only from typed presentation snapshots.
 1. Update `recentCardsFromEvents`.
 2. Accept new `RecommendationPresentedPayload`.
 3. Add `presentedAt`.
-4. Keep bounded limit.
-5. Optionally retain temporary legacy compatibility for old `payload.cards` if needed, but do not support `materialStates`.
+4. Project `PresentedMaterialCard.links` into persisted `linkRefs`, so display
+   links stay in presentation output while the event payload carries compact
+   feedback-binding source/link refs.
+5. Keep bounded limit.
+6. Optionally retain temporary legacy compatibility for old `payload.cards` if needed, but do not support `materialStates`.
 
 ### Tests
 
@@ -580,6 +584,8 @@ Derive recentCards only from typed presentation snapshots.
 - position is 1-based;
 - eventId and presentedAt exist;
 - cards preserve event order;
+- present output can include display links while event snapshots carry
+  `linkRefs`;
 - no full event payload exposed.
 
 ### Acceptance
@@ -740,6 +746,11 @@ Define feedback input/output.
    - materialStore
    - collection
    - maybe sessionContext or a recentCards resolver helper
+6. Bind feedback through:
+   - `recentCards` for eventId + position + materialId;
+   - `recommendation.presented` payload for the source/link/version snapshot
+     shown at presentation time;
+   - Material Store for current state and redirects only.
 
 ### Tests
 
@@ -777,6 +788,7 @@ Resolve feedback target reliably.
 - recentCardIndex 2 binds second card;
 - out-of-range returns warning and no relation/collection;
 - eventId+position binds exact card.
+- binding can recover source/link refs from the presentation event snapshot.
 
 ### Acceptance
 

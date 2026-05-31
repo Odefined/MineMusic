@@ -199,12 +199,26 @@ pointer to `stage.recommendation.present`, and `stage.context.read`
 
 The 2026-05-31 recommendation-posture PR 5 workflow migration moves
 `runRecommendationTranscript` and the Codex workflow skill onto the presentation
-boundary. The fixture transcript now resolves grounded materials, syncs fixture
-playable links into Source Entity state, calls `stage.recommendation.present`,
-builds its response from returned `PresentedMaterialCard.links`, and binds
-memory/effect proposals to the typed presentation card/event. The old
+boundary. The fixture transcript now resolves grounded materials, calls
+`stage.recommendation.present`, builds its response from returned
+`PresentedMaterialCard.links`, and binds memory/effect proposals to the typed
+presentation card/event. Fixture tests seed Source Entity state explicitly when
+they need source-backed playable links; the transcript itself does not write
+Source Entity records. The old
 `stage.materials.prepare + manual stage.events.record(recommendation.presented)`
 recommendation path is no longer used by the transcript or skill.
+
+The recommendation-posture PR 1-5 hardening keeps public
+`music.material.select` as a candidate-selection helper by rejecting
+`recommendation_presentation` and `feedback_target` policy purposes at the
+Stage Interface schema boundary. Recommendation presentation now separates
+display cards from persisted feedback-binding snapshots:
+`PresentedMaterialCard.links` remains in the tool output, while
+`recommendation.presented` stores compact
+`RecommendationPresentedCardSnapshot.linkRefs`. `stage.context.read`
+`recentCards` remain compact handles with event id, position, material id, and
+display context; future feedback flows must recover source/link/version facts
+from the corresponding typed presentation event payload.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session

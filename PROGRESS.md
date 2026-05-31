@@ -1176,6 +1176,23 @@
 - Added regression coverage for typed presentation-card response behavior,
   recentCards after transcript, absence of legacy `materialStates`, and
   ignoring legacy materialStates recommendation payloads.
+- Started recommendation-posture PR 1-5 hardening on branch
+  `codex/recommendation-posture-pr1-5-hardening` from merged PR 5 main after
+  PR 6 review identified prerequisite boundary drift.
+- Restricted public `music.material.select` schema to candidate-selection
+  policy purpose while keeping service-internal material policy purposes for
+  presentation and future feedback.
+- Split recommendation presentation display output from persisted event
+  snapshots: returned `PresentedMaterialCard` values may carry display links,
+  while `recommendation.presented` stores compact
+  `RecommendationPresentedCardSnapshot.linkRefs` for later feedback binding.
+- Removed transcript-local Source Entity writes from
+  `runRecommendationTranscript`; integration fixture setup now seeds
+  source-backed playable state explicitly, and the transcript is covered against
+  calling `stage.materials.prepare`.
+- Added regression coverage for unresolved exploration candidates not
+  surfacing as playable cards, compact recentCards plus event snapshot binding,
+  and continued rejection of manual `recommendation.presented` event writes.
 
 ## Next
 
