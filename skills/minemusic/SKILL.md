@@ -63,9 +63,11 @@ overview snapshot.
    Do not send environment words like "coding", "study", or "sleepy" as
    literal provider searches unless the user actually asked for a song/title
    with that word.
-6. For recommendations or playable-link requests, call
-   `minemusic.music.material.resolve` with the candidate or candidate set.
-   Resolve is the primary operation; source grounding is an internal evidence
+6. For recommendations or playable-link requests, obtain intended
+   `materialId` values from any available material source, such as
+   `minemusic.music.material.resolve`, `minemusic.music.material.query`,
+   `minemusic.music.material.related`, a collection, or recent context.
+   Resolve is a grounding operation; source grounding is an internal evidence
    step and should not be driven one candidate at a time by the agent:
 
 ```json
@@ -85,24 +87,38 @@ overview snapshot.
 }
 ```
 
-7. Before presenting any material or link, call
-   `minemusic.stage.materials.prepare`:
+7. Optionally call `minemusic.music.material.select` when you want reusable
+   policy, sorting, diversity, or limit behavior over candidate materialIds.
+8. Call `minemusic.stage.recommendation.present` with the intended ordered
+   items before answering with user-visible recommendations:
 
 ```json
 {
-  "materials": [],
-  "purpose": "recommendation"
+  "request": "short user request summary",
+  "items": [
+    {
+      "materialId": "material-id-from-query-or-resolve",
+      "reason": "why this card fits"
+    }
+  ],
+  "minCards": 1
 }
 ```
 
-8. Present prepared material honestly. A direct playable link needs a prepared
-   material in `confirmed_playable` or `source_only_playable` state with a
-   `playableLinks` entry.
-9. Record user feedback such as liked, disliked, wrong version, not playable,
-   too loud, too boring, or accepted with `minemusic.stage.events.record`.
-10. For durable preference learning, call `minemusic.memory.propose`; do not
+9. If `presented: true`, answer with exactly the returned cards and links. If
+   `presented: false`, retry with better grounded materialIds or say plainly
+   that no presentable grounded recommendation survived.
+10. Do not create `recommendation.presented` manually with
+   `minemusic.stage.events.record`; presentation events come from
+   `minemusic.stage.recommendation.present`.
+11. Use `minemusic.stage.materials.prepare` only as a legacy material sanitizer
+   for non-final material display, not as the final recommendation boundary.
+12. For feedback on shown cards, bind feedback to recent presentation cards
+   with `minemusic.memory.feedback.record` when that tool is available. Until
+   then, keep feedback factual and avoid fabricating a recommendation event.
+13. For durable preference learning, call `minemusic.memory.propose`; do not
    write memory directly.
-11. For external actions such as open, play, queue, save, source writeback, or
+14. For external actions such as open, play, queue, save, source writeback, or
    notification, call `minemusic.stage.effects.propose`; do not execute the action
    directly.
 

@@ -142,6 +142,7 @@ async function readsCanonicalReviewGuidanceInReviewPosture(): Promise<void> {
 
 async function readsBoundedRecentCardsFromRecommendationEvents(): Promise<void> {
   const materialCardEvents: StageEvent[] = [
+    legacyMaterialStatesRecommendationEvent(),
     recommendationEvent("event-old", "Old Track"),
     recommendationEvent("event-latest", "Latest Track", "Second Track"),
   ];
@@ -174,6 +175,10 @@ async function readsBoundedRecentCardsFromRecommendationEvents(): Promise<void> 
   assert(context.recentCards[0]?.position === 1, "recent cards should preserve 1-based presented position");
   assert(context.recentCards[0]?.eventId === "event-latest", "recent cards should include the source event id");
   assert(context.recentCards[0]?.presentedAt === "2026-05-30T00:00:00.000Z", "recent cards should include presentedAt");
+  assert(
+    !context.recentCards.some((card) => card.title === "Legacy Track"),
+    "recent cards should ignore legacy materialStates recommendation payloads",
+  );
   assert(!("payload" in context.recentCards[0]!), "recent cards should not expose raw event payloads");
 }
 
@@ -311,6 +316,25 @@ function recommendationEvent(id: string, ...titles: string[]): StageEvent {
         position: index + 1,
         presentedAt: "2026-05-30T00:00:00.000Z",
       })),
+    },
+  };
+}
+
+function legacyMaterialStatesRecommendationEvent(): StageEvent {
+  return {
+    id: "event-legacy",
+    time: "2026-05-31T00:00:00.000Z",
+    sessionId: session.id,
+    actor: "llm",
+    type: "recommendation.presented",
+    payload: {
+      materialStates: [
+        {
+          id: "legacy-track",
+          label: "Legacy Track",
+          state: "confirmed_playable",
+        },
+      ],
     },
   };
 }

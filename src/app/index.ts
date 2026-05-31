@@ -3,6 +3,7 @@ import type {
   MaterialResolveResult,
   MemoryProposal,
   MusicMaterial,
+  PresentedMaterialCard,
   RecommendationPresentOutput,
   Result,
   SourceEntity,
@@ -22,11 +23,12 @@ export type RecommendationTranscript = {
   request: string;
   response: string;
   session: StageSession;
+  presentedCards: PresentedMaterialCard[];
   presentedMaterials: MusicMaterial[];
   recordedEvents: StageEvent[];
-  memoryProposal: MemoryProposal;
+  memoryProposal?: MemoryProposal;
   memoryAccepted: null;
-  effectProposal: EffectProposal;
+  effectProposal?: EffectProposal;
 };
 
 export async function runRecommendationTranscript(
@@ -68,19 +70,9 @@ export async function runRecommendationTranscript(
     return syncedSources;
   }
 
-  const preparedResult = await stageCore.stageInterface.tools["stage.materials.prepare"]({
-    materials: groundedMaterials,
-    purpose: "recommendation",
-  });
-
-  if (!preparedResult.ok) {
-    return preparedResult;
-  }
-
-  const preparedMaterials = preparedResult.value as MusicMaterial[];
   const presentResult = await stageCore.stageInterface.tools["stage.recommendation.present"]({
     request: input.request,
-    items: preparedMaterials.map((material) => ({
+    items: groundedMaterials.map((material) => ({
       materialId: material.materialRef.id,
       ...(material.notes === undefined ? {} : { reason: material.notes }),
       basis: {
@@ -96,29 +88,51 @@ export async function runRecommendationTranscript(
   }
 
   const presentation = presentResult.value as RecommendationPresentOutput;
+  const groundedByMaterialId = new Map(
+    groundedMaterials.map((material) => [material.materialRef.id, material]),
+  );
 
   if (!presentation.presented) {
+    const eventsResult = await stageCore.events.listBySession({ sessionId: input.sessionId });
+
+    if (!eventsResult.ok) {
+      return eventsResult;
+    }
+
     return {
-      ok: false,
-      error: {
-        code: "stage.material_state_invalid",
-        message: presentation.issues.map((issue) => issue.message).join(" ") ||
-          "No recommendation cards survived final presentation policy.",
-        module: "stage",
-        retryable: presentation.retryable,
+      ok: true,
+      value: {
+        request: input.request,
+        response: buildRecommendationResponse([]),
+        session: context.session,
+        presentedCards: [],
+        presentedMaterials: [],
+        recordedEvents: eventsResult.value,
+        memoryAccepted: null,
       },
     };
   }
 
-  const preparedByMaterialId = new Map(
-    preparedMaterials.map((material) => [material.materialRef.id, material]),
-  );
   const presentedMaterials = presentation.cards.flatMap((card) => {
-    const material = preparedByMaterialId.get(card.materialId);
+    const material = groundedByMaterialId.get(card.materialId);
 
     return material === undefined ? [] : [material];
   });
-  const response = buildRecommendationResponse(presentedMaterials);
+  const response = buildRecommendationResponse(presentation.cards);
+  const firstPresentedCard = presentation.cards[0];
+
+  if (firstPresentedCard === undefined) {
+    return {
+      ok: false,
+      error: {
+        code: "stage.material_state_invalid",
+        message: "Presentation succeeded without a card.",
+        module: "stage",
+        retryable: false,
+      },
+    };
+  }
+
   const memoryProposalResult = await stageCore.stageInterface.tools["memory.propose"]({
     proposal: {
       entry: {
@@ -140,7 +154,11 @@ export async function runRecommendationTranscript(
   const effectProposalResult = await stageCore.stageInterface.tools["stage.effects.propose"]({
     proposal: {
       kind: input.effectKind,
-      target: presentedMaterials[0],
+      target: {
+        kind: "material",
+        materialId: firstPresentedCard.materialId,
+        actionScope: "open_source_link",
+      },
       preview: response,
       reason: "Fixture transcript proposes the external action without executing it.",
       requiresConfirmation: true,
@@ -164,6 +182,7 @@ export async function runRecommendationTranscript(
       request: input.request,
       response,
       session: context.session,
+      presentedCards: presentation.cards,
       presentedMaterials,
       recordedEvents: eventsResult.value,
       memoryProposal: memoryProposalResult.value as MemoryProposal,
@@ -173,24 +192,24 @@ export async function runRecommendationTranscript(
   };
 }
 
-function buildRecommendationResponse(materials: MusicMaterial[]): string {
-  const playableLines = materials.flatMap((material) => {
-    if (!canPresentPlayableLinks(material)) {
-      return [];
-    }
+function buildRecommendationResponse(cards: PresentedMaterialCard[]): string {
+  const playableLines = cards.flatMap((card) =>
+    (card.links ?? []).map((link) => `${cardTitleForResponse(card)}: ${link.url}`)
+  );
 
-    return (material.playableLinks ?? []).map((link) => `${material.label}: ${link.url}`);
-  });
-
-  if (playableLines.length === 0) {
-    return "I found grounded candidates, but no source-backed playable link is available yet.";
+  if (playableLines.length > 0) {
+    return `Try this: ${playableLines.join(" ")}`;
   }
 
-  return `Try this: ${playableLines.join(" ")}`;
+  if (cards.length > 0) {
+    return `I found grounded recommendations: ${cards.map((card) => card.title).join(", ")}, but no source-backed playable link is available yet.`;
+  }
+
+  return "I could not find a grounded recommendation with a presentable playable link yet.";
 }
 
-function canPresentPlayableLinks(material: MusicMaterial): boolean {
-  return material.state === "confirmed_playable" || material.state === "source_only_playable";
+function cardTitleForResponse(card: PresentedMaterialCard): string {
+  return card.status === "playable_unverified" ? `${card.title} (unverified source)` : card.title;
 }
 
 async function syncPlayableSourceEntities(

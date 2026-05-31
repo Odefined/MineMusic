@@ -30,7 +30,7 @@ Input: `StageContextReadInput`
 Output: `StageContextReadOutput`
 #### `stage.materials.prepare`
 
-Description: Prepare grounded materials through the Material Gate before presentation.
+Description: Legacy material sanitizer for non-final material use; use stage.recommendation.present for user-visible recommendations.
 Input: `StageMaterialsPrepareInput`
 Output: `MusicMaterial[]`
 #### `stage.recommendation.present`

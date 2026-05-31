@@ -1161,6 +1161,21 @@
   fixture transcript off manual recommendation event recording.
 - Added focused presenter tests, Stage Interface/MCP schema coverage, recent
   card coverage, and full `npm test` verification.
+- Started recommendation-posture PR 5 on branch
+  `codex/recommendation-workflow-present` from merged `main`.
+- Added presentation links to returned `PresentedMaterialCard` values so
+  user-facing responses can be built from the exact cards returned by
+  `stage.recommendation.present`.
+- Migrated `runRecommendationTranscript` from
+  `stage.materials.prepare + manual recommendation.presented` semantics to
+  resolve -> `stage.recommendation.present` -> response from returned cards,
+  with memory/effect proposals bound to the typed presentation event/card.
+- Updated the MineMusic workflow skill and generated Handbook snapshot so
+  agents use `stage.recommendation.present` as the final recommendation
+  boundary and treat `stage.materials.prepare` as a legacy non-final sanitizer.
+- Added regression coverage for typed presentation-card response behavior,
+  recentCards after transcript, absence of legacy `materialStates`, and
+  ignoring legacy materialStates recommendation payloads.
 
 ## Next
 

@@ -21,6 +21,9 @@ The Stage Tool Group now includes `stage.recommendation.present`, the
 agent-facing final boundary for user-visible recommendations. Manual
 `recommendation.presented` and `recommendation_presented` writes through
 `stage.events.record` are rejected before `EventPort.record` is called.
+`stage.materials.prepare` remains available, but its descriptor now frames it
+as a legacy non-final material sanitizer rather than the recommendation
+presentation boundary.
 
 ## Established Decisions
 
@@ -85,6 +88,8 @@ agent-facing final boundary for user-visible recommendations. Manual
 - MCP schema parity and stable tool aggregate tests.
 - `stage.recommendation.present` dispatch to `RecommendationPresentationPort`.
 - Manual recommendation presentation event rejection in `stage.events.record`.
+- `stage.materials.prepare` descriptor guidance that points recommendation
+  flows to `stage.recommendation.present`.
 
 ## Not Yet Implemented
 
@@ -94,15 +99,15 @@ agent-facing final boundary for user-visible recommendations. Manual
 
 ## Verification
 
-- `npm run typecheck` passes as of recommendation-posture PR 4.
-- `npm run build:test` passes as of recommendation-posture PR 4.
+- `npm run typecheck` passes as of recommendation-posture PR 5.
+- `npm run build:test` passes as of recommendation-posture PR 5.
 - `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
-  passes as of recommendation-posture PR 4.
+  passes as of recommendation-posture PR 5.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
-  recommendation-posture PR 4.
+  recommendation-posture PR 5.
 - `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
   Interface recommendation presentation schema coverage.
-- `npm test` passes as of recommendation-posture PR 4.
+- `npm test` passes as of recommendation-posture PR 5.
 
 ## Next Slice
 

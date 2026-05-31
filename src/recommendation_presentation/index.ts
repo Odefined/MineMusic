@@ -4,6 +4,7 @@ import type {
   MaterialCardStatus,
   MaterialPolicyInput,
   MusicMaterial,
+  PresentedMaterialLink,
   PresentedMaterialCard,
   RecommendationPresentInput,
   RecommendationPresentOutput,
@@ -192,6 +193,7 @@ function toPresentedMaterialCard({
 }): PresentedMaterialCard {
   const subtitle = subtitleForMaterial(item.material);
   const actions = toMaterialCardActions(item.material);
+  const links = toPresentedMaterialLinks(item.material);
   const reason = item.reason ?? item.material.notes;
 
   return {
@@ -200,6 +202,7 @@ function toPresentedMaterialCard({
     ...(subtitle === undefined ? {} : { subtitle }),
     status: toMaterialCardStatus(item.material),
     ...(reason === undefined ? {} : { reason }),
+    ...(links.length === 0 ? {} : { links }),
     ...(actions.length === 0 ? {} : { actions }),
     position,
     presentedAt,
@@ -298,6 +301,14 @@ function toMaterialCardActions(material: MusicMaterial): MaterialCardAction[] {
   actions.push("block", "remember");
 
   return actions;
+}
+
+function toPresentedMaterialLinks(material: MusicMaterial): PresentedMaterialLink[] {
+  return (material.playableLinks ?? []).map((link) => ({
+    ...(link.label === undefined ? {} : { label: link.label }),
+    url: link.url,
+    sourceRef: link.sourceRef,
+  }));
 }
 
 function subtitleForMaterial(material: MusicMaterial): string | undefined {
