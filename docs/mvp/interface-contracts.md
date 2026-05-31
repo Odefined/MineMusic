@@ -445,6 +445,49 @@ export type MaterialSortOutput = {
   candidates: MaterialSortCandidate[];
 };
 
+export type CandidateMaterialCard = MaterialCard & {
+  materialId: string;
+};
+
+export type MaterialSelectCandidate = {
+  materialId: string;
+  score?: number;
+  reason?: string;
+  /** Service-internal; not advertised by agent-facing schemas. */
+  material?: MusicMaterial;
+};
+
+export type MaterialSelectDropped = {
+  materialId: string;
+  code: MaterialPolicyDropCode | "diversity_limit" | "limit";
+  reason: string;
+};
+
+export type MaterialSelectWarning = {
+  materialId: string;
+  warnings: string[];
+};
+
+export type MaterialSelectInput = {
+  ownerScope?: string;
+  sessionId?: string;
+  candidates: MaterialSelectCandidate[];
+  policy?: MaterialPolicyInput;
+  sort?: MaterialSortPolicy;
+  limit?: number;
+  diversity?: {
+    maxPerArtist?: number;
+    maxPerAlbum?: number;
+  };
+};
+
+export type MaterialSelectOutput = {
+  items: CandidateMaterialCard[];
+  dropped?: MaterialSelectDropped[];
+  warnings?: MaterialSelectWarning[];
+  applied?: string[];
+};
+
 export interface SourceProvider {
   id: string;
   search(input: {
@@ -762,6 +805,12 @@ export type ToolName =
   | "stage.events.record"
   | "stage.effects.propose"
   | "music.material.resolve"
+  | "music.material.resolve.cards"
+  | "music.material.query"
+  | "music.material.related"
+  | "music.material.select"
+  | "music.material.context.brief"
+  | "music.pools.list"
   | "knowledge.query"
   | "music.links.refresh"
   | "music.collection.save"

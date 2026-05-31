@@ -61,6 +61,7 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
     "music.material.resolve.cards",
     "music.material.query",
     "music.material.related",
+    "music.material.select",
     "music.material.context.brief",
     "music.pools.list",
     "music.links.refresh",
@@ -145,8 +146,10 @@ async function stableToolNamesHaveMatchingSchemasAndDescriptors(): Promise<void>
 async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<void> {
   const querySchema = stageInterfaceToolInputSchemas["music.material.query"];
   const relatedSchema = stageInterfaceToolInputSchemas["music.material.related"];
+  const selectSchema = stageInterfaceToolInputSchemas["music.material.select"];
   const queryPayloadSchema = z.object(querySchema).passthrough();
   const relatedPayloadSchema = z.object(relatedSchema).passthrough();
+  const selectPayloadSchema = z.object(selectSchema).passthrough();
 
   assert(
     !Object.prototype.hasOwnProperty.call(querySchema, "preferenceHints"),
@@ -177,6 +180,25 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
       relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_album" }).success &&
       relatedPayloadSchema.safeParse({ materialId: "seed", relation: "similar" }).success,
     "material related public schema should keep supported relation options",
+  );
+  assert(
+    Object.prototype.hasOwnProperty.call(selectSchema, "candidates") &&
+      Object.prototype.hasOwnProperty.call(selectSchema, "policy") &&
+      Object.prototype.hasOwnProperty.call(selectSchema, "sort"),
+    "material select public schema should expose compact candidate, policy, and sort inputs",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(selectSchema, "material"),
+    "material select public schema should not expose internal material snapshots",
+  );
+  assert(
+    selectPayloadSchema.safeParse({
+      candidates: [{ materialId: "material-1", reason: "fits the request" }],
+      policy: { purpose: "candidate_selection", freshness: { recommended: "session", mode: "hard" } },
+      sort: { order: "least_recently_recommended" },
+      limit: 5,
+    }).success,
+    "material select public schema should accept compact materialId candidates",
   );
   assert(
     !queryPayloadSchema.safeParse({

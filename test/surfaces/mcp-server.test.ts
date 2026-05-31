@@ -181,6 +181,12 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "material related schema should not advertise experimental preferenceHints",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.music.material.select"), "candidates") &&
+      hasSchemaKey(schemasByName.get("minemusic.music.material.select"), "policy") &&
+      hasSchemaKey(schemasByName.get("minemusic.music.material.select"), "sort"),
+    "material select schema should declare compact candidate, policy, and sort inputs",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.context.brief"), "fields"),
     "material context brief schema should declare requested fields",
   );

@@ -100,6 +100,11 @@ Output: `MaterialQueryOutput`
 Description: Find compact material cards related to one material id.
 Input: `MaterialRelatedInput`
 Output: `MaterialRelatedOutput`
+#### `music.material.select`
+
+Description: Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids.
+Input: `MaterialSelectInput`
+Output: `MaterialSelectOutput`
 #### `music.material.context.brief`
 
 Description: Read a compact context brief for one material id.

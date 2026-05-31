@@ -30,6 +30,7 @@ import type {
   MaterialCardsPort,
   MaterialQueryPort,
   MaterialRelatedPort,
+  MaterialSelectorPort,
   MaterialResolvePort,
   MaterialGatePort,
   MaterialStorePort,
@@ -1396,6 +1397,12 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     },
     resolveCards: async () => ({ ok: true, value: { items: [] } }),
   };
+  const materialSelector: MaterialSelectorPort = {
+    select: async ({ sessionId }) => {
+      calls.push(`select:${sessionId ?? "missing"}`);
+      return { ok: true, value: { items: [] } };
+    },
+  };
   const dispatch = createToolDispatch({
     sessionContext,
     materialGate: {
@@ -1406,6 +1413,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
     },
     materialQuery,
+    materialSelector,
     source: {
       ground: async () => ({ ok: true, value: [] }),
       refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
@@ -1449,10 +1457,18 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       payload: { materialId: "seed", relation: "similar" },
     }),
   );
+  await assertOk(
+    dispatch.call({
+      sessionId: "session-current",
+      toolName: "music.material.select",
+      payload: { candidates: [{ materialId: "seed" }] },
+    }),
+  );
 
   assert(calls.includes("query:session-current"), "material query should receive current dispatch session id by default");
   assert(calls.includes("query:caller-session"), "material query should preserve explicit caller session id");
   assert(calls.includes("related:session-current"), "material related should receive current dispatch session id by default");
+  assert(calls.includes("select:session-current"), "material select should receive current dispatch session id by default");
 }
 
 async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void> {

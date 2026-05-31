@@ -1133,6 +1133,17 @@
   presentation drops, source-scoped not-playable and wrong-version behavior,
   freshness policies, and sorter preserve/score/least-recently-recommended
   behavior.
+- Started recommendation-posture PR 3 on branch
+  `codex/recommendation-material-selector` from merged `main`.
+- Added `MaterialSelectorPort`, `src/material_selection/index.ts`, and optional
+  `music.material.select` for compact materialId candidate selection via
+  evaluator + sorter + diversity + limit.
+- Migrated Material Query / Related to build candidates and delegate reusable
+  policy, ordering, selection, and limit behavior to the selector while
+  preserving their public output shape.
+- Added focused selector coverage for preserve order, least-recently-recommended
+  sorting, relation/recent hard drops, diversity caps, and compact selected
+  cards, plus Stage Interface/MCP schema coverage for `music.material.select`.
 
 ## Next
 

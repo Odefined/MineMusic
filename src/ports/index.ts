@@ -69,6 +69,8 @@ import type {
   MaterialResolveCardsOutput,
   MaterialResolveRequest,
   MaterialResolveResult,
+  MaterialSelectInput,
+  MaterialSelectOutput,
   MaterialSortInput,
   MaterialSortOutput,
   MemoryEntry,
@@ -725,6 +727,10 @@ export interface MaterialPolicyEvaluatorPort {
 
 export interface MaterialSorterPort {
   sort(input: MaterialSortInput): Promise<Result<MaterialSortOutput>>;
+}
+
+export interface MaterialSelectorPort {
+  select(input: MaterialSelectInput): Promise<Result<MaterialSelectOutput>>;
 }
 
 export interface SourceGroundingPort {

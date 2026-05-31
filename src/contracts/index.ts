@@ -362,6 +362,57 @@ export type MaterialSortOutput = {
   candidates: MaterialSortCandidate[];
 };
 
+export type CandidateMaterialCard = MaterialCard & {
+  materialId: string;
+};
+
+export type MaterialSelectCandidate = {
+  materialId: string;
+  score?: number;
+  reason?: string;
+  /**
+   * Service-internal snapshot used by query/related to preserve existing
+   * compact-card projection. This is not advertised by agent-facing schemas.
+   */
+  material?: MusicMaterial;
+};
+
+export type MaterialSelectDropCode =
+  | MaterialPolicyDropCode
+  | "diversity_limit"
+  | "limit";
+
+export type MaterialSelectDropped = {
+  materialId: string;
+  code: MaterialSelectDropCode;
+  reason: string;
+};
+
+export type MaterialSelectWarning = {
+  materialId: string;
+  warnings: string[];
+};
+
+export type MaterialSelectInput = {
+  ownerScope?: string;
+  sessionId?: string;
+  candidates: MaterialSelectCandidate[];
+  policy?: MaterialPolicyInput;
+  sort?: MaterialSortPolicy;
+  limit?: number;
+  diversity?: {
+    maxPerArtist?: number;
+    maxPerAlbum?: number;
+  };
+};
+
+export type MaterialSelectOutput = {
+  items: CandidateMaterialCard[];
+  dropped?: MaterialSelectDropped[];
+  warnings?: MaterialSelectWarning[];
+  applied?: string[];
+};
+
 export type MaterialSessionActivity = {
   ownerScope: string;
   sessionId: string;
@@ -1919,6 +1970,7 @@ export type ToolName =
   | "music.material.resolve.cards"
   | "music.material.query"
   | "music.material.related"
+  | "music.material.select"
   | "music.material.context.brief"
   | "music.pools.list"
   | "knowledge.query"

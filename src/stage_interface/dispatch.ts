@@ -17,6 +17,7 @@ import type {
   MaterialQueryPort,
   MaterialResolvePort,
   MaterialRelatedPort,
+  MaterialSelectorPort,
   MaterialGatePort,
   MemoryPort,
   MusicKnowledgePort,
@@ -35,6 +36,7 @@ type ToolDispatchOptions = {
   instruments: InstrumentCatalogPort;
   materialResolve: MaterialResolvePort;
   materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
+  materialSelector?: MaterialSelectorPort;
   source: SourceGroundingPort;
   knowledge?: MusicKnowledgePort;
   events: EventPort;
@@ -52,6 +54,7 @@ export function createToolDispatch({
   instruments,
   materialResolve,
   materialQuery,
+  materialSelector,
   source,
   knowledge,
   events,
@@ -77,6 +80,7 @@ export function createToolDispatch({
     music: {
       materialResolve,
       ...(materialQuery === undefined ? {} : { materialQuery }),
+      ...(materialSelector === undefined ? {} : { materialSelector }),
       source,
       ...(collection === undefined ? {} : { collection }),
     },

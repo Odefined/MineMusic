@@ -10,6 +10,7 @@ import type {
   MaterialRelatedInput,
   MaterialResolveRequest,
   MaterialResolveCardsInput,
+  MaterialSelectInput,
   MusicMaterial,
   Ref,
   Result,
@@ -22,6 +23,7 @@ import type {
   MaterialQueryPort,
   MaterialResolvePort,
   MaterialRelatedPort,
+  MaterialSelectorPort,
   SourceGroundingPort,
   SystemCollectionRelationKind,
 } from "../../ports/index.js";
@@ -37,6 +39,7 @@ export const musicToolNames = [
   "music.material.resolve.cards",
   "music.material.query",
   "music.material.related",
+  "music.material.select",
   "music.material.context.brief",
   "music.pools.list",
   "music.links.refresh",
@@ -59,6 +62,7 @@ export type MusicToolName = (typeof musicToolNames)[number];
 export type MusicToolGroupContext = {
   materialResolve: MaterialResolvePort;
   materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
+  materialSelector?: MaterialSelectorPort;
   source: SourceGroundingPort;
   collection?: CollectionPort;
 };
@@ -213,6 +217,31 @@ const materialExcludeSchema = z.object({
     mode: z.enum(["hard", "soft"]).optional(),
   }).optional(),
 });
+const materialFreshnessPolicySchema = z.object({
+  recommended: z.enum(["session", "1h", "24h", "7d"]).optional(),
+  played: z.enum(["session", "1h", "24h", "7d"]).optional(),
+  opened: z.enum(["session", "1h", "24h", "7d"]).optional(),
+  mode: z.enum(["hard", "soft", "off"]).optional(),
+});
+const materialPolicySchema = z.object({
+  purpose: z.enum(["candidate_selection", "recommendation_presentation", "feedback_target"]),
+  availability: z.enum(["playable", "any"]).optional(),
+  identity: z.enum(["confirmed_only", "allow_source_backed"]).optional(),
+  excludeRelations: z.array(z.enum(["blocked", "wrong_version", "not_playable", "bad_match"])).optional(),
+  freshness: materialFreshnessPolicySchema.optional(),
+});
+const materialSortSchema = z.object({
+  order: z.enum(["preserve", "score", "least_recently_recommended", "recently_added", "random"]),
+});
+const materialSelectCandidateSchema = z.object({
+  materialId: materialIdSchema,
+  score: z.number().optional(),
+  reason: z.string().optional(),
+});
+const materialSelectDiversitySchema = z.object({
+  maxPerArtist: z.number().int().positive().optional(),
+  maxPerAlbum: z.number().int().positive().optional(),
+});
 
 export const musicToolDefinitions = [
   {
@@ -317,6 +346,31 @@ export const musicToolDefinitions = [
       }
 
       return materialQuery.value.related(readPayload<MaterialRelatedInput>(payload, { sessionId }));
+    },
+  },
+  {
+    name: "music.material.select",
+    description: "Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids.",
+    inputSchemaRef: "MaterialSelectInput",
+    outputSchemaRef: "MaterialSelectOutput",
+    availability: "requires_active_instrument",
+    inputSchema: {
+      candidates: z.array(materialSelectCandidateSchema),
+      policy: materialPolicySchema.optional(),
+      sort: materialSortSchema.optional(),
+      limit: z.number().int().positive().optional(),
+      diversity: materialSelectDiversitySchema.optional(),
+      ownerScope: z.string().optional(),
+      sessionId: z.string().optional(),
+    },
+    handler({ context, sessionId, payload }) {
+      const materialSelector = readMaterialSelector(context.materialSelector);
+
+      if (!materialSelector.ok) {
+        return materialSelector;
+      }
+
+      return materialSelector.value.select(readPayload<MaterialSelectInput>(payload, { sessionId }));
     },
   },
   {
@@ -795,6 +849,14 @@ function readMaterialQuery(
   }
 
   return ok(materialQuery);
+}
+
+function readMaterialSelector(materialSelector: MaterialSelectorPort | undefined): Result<MaterialSelectorPort> {
+  if (materialSelector === undefined) {
+    return materialQueryUnavailable("Material selector tools are not available.");
+  }
+
+  return ok(materialSelector);
 }
 
 function collectionUnavailable(): Result<never> {

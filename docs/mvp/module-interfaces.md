@@ -612,7 +612,7 @@ Must not expose:
 - final recommendation ranking.
 - source refs as canonical authority.
 
-## Material Policy / Sort Ports
+## Material Policy / Sort / Select Ports
 
 Purpose:
 
@@ -621,6 +621,8 @@ Purpose:
 - Apply relation, collection-block, availability, identity, and freshness
   checks without ranking or selecting candidates.
 - Sort already evaluated usable material candidates without filtering them.
+- Optionally select compact materialId candidates by composing evaluator,
+  sorter, diversity, and limit.
 
 Service-facing ports:
 
@@ -632,6 +634,10 @@ export interface MaterialPolicyEvaluatorPort {
 export interface MaterialSorterPort {
   sort(input: MaterialSortInput): Promise<Result<MaterialSortOutput>>;
 }
+
+export interface MaterialSelectorPort {
+  select(input: MaterialSelectInput): Promise<Result<MaterialSelectOutput>>;
+}
 ```
 
 Consumes:
@@ -642,9 +648,17 @@ Consumes:
 Must not expose:
 
 - final recommendation judgment.
-- selection or diversity logic.
 - presentation event recording.
 - source provider internals.
+
+Selector responsibility:
+
+- Orchestrate evaluator + sorter + optional diversity + optional limit over
+  compact materialId candidates.
+- Return compact selected cards plus dropped reasons, warnings, and applied
+  labels.
+- Remain optional: query/related may delegate to it, but final presentation
+  must not call it.
 
 ## Source Grounding Port
 
