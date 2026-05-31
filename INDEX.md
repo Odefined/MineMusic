@@ -223,8 +223,12 @@ This index points agents to the current MVP documentation pack.
 
 41. `src/material_query/index.ts`
     - Compact Material Query/Related service for `MaterialCard` presentation,
-      Source Library and Collection-compatible retrieval, relation/recent
-      filtering, context brief, and pool listing.
+      Source Library and Collection-compatible retrieval, selector delegation,
+      context brief, and pool listing.
+    - `src/material_policy/index.ts` owns reusable per-material policy
+      evaluation and non-filtering material sorting.
+    - `src/material_selection/index.ts` owns optional compact materialId
+      selection with evaluator + sorter + diversity + limit.
 
 42. `src/material_store/material_registry/index.ts`
     - In-memory Material Registry implementation for opaque `materialRef`

@@ -11,6 +11,7 @@ import type {
   MaterialQueryOutput,
   MaterialRecord,
   MaterialResolveIssue,
+  MaterialSelectInput,
   MaterialRelatedInput,
   MaterialRelatedOutput,
   MaterialResolveCardsInput,
@@ -28,23 +29,23 @@ import type {
 import type {
   CollectionPort,
   MaterialCardsPort,
-  MaterialPolicyEvaluatorPort,
   MaterialQueryPort,
   MaterialRelatedPort,
   MaterialResolvePort,
-  MaterialSorterPort,
+  MaterialSelectorPort,
   MaterialStorePort,
 } from "../ports/index.js";
 import {
   createMaterialPolicyEvaluator,
   createMaterialSorter,
 } from "../material_policy/index.js";
+import { createMaterialSelector } from "../material_selection/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
 const defaultRecentCardLimit = 5;
 
-export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
+export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort & MaterialSelectorPort;
 
 export type MaterialQueryServiceOptions = {
   materialStore: MaterialStorePort;
@@ -70,6 +71,11 @@ export function createMaterialQueryService({
     clock,
   });
   const materialSorter = createMaterialSorter({ materialStore });
+  const materialSelector = createMaterialSelector({
+    materialStore,
+    materialPolicyEvaluator,
+    materialSorter,
+  });
   const service: MaterialQueryService = {
     async resolveCards(input) {
       const ownerScope = input.ownerScope ?? defaultOwnerScope;
@@ -116,45 +122,45 @@ export function createMaterialQueryService({
         return resolved;
       }
 
-      const filtered = await filterMaterials({
-        materialPolicyEvaluator,
+      const selectable = await selectableMaterialsForQuery({
         materialStore,
         ownerScope,
         materials: resolved.value,
         returnKind: input.returnKind,
-        constraints: input.constraints,
         preferenceHints: input.preferenceHints,
         exclude: input.exclude,
-        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
       });
 
-      if (!filtered.ok) {
-        return filtered;
-      }
-
-      const ordered = await orderMaterials({
-        materialSorter,
-        materials: filtered.value,
-        order: input.order,
-        preferenceHints: input.preferenceHints,
-        ownerScope,
-      });
-
-      if (!ordered.ok) {
-        return ordered;
+      if (!selectable.ok) {
+        return selectable;
       }
 
       const offset = parseCursor(input.cursor);
-      const page = ordered.value.slice(offset, offset + limit);
-      const nextCursor = offset + limit < ordered.value.length ? encodeCursor(offset + limit) : undefined;
-      const items = page.map((material) => toMaterialCard(material));
+      const selected = await materialSelector.select({
+        ownerScope,
+        candidates: selectable.value.map((candidate) => ({
+          materialId: materialRefToMaterialId(candidate.material.materialRef),
+          material: candidate.material,
+          ...(candidate.score === undefined ? {} : { score: candidate.score }),
+        })),
+        policy: selectorPolicyForQuery(input),
+        sort: selectorSortForQuery(input),
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      });
+
+      if (!selected.ok) {
+        return selected;
+      }
+
+      const page = selected.value.items.slice(offset, offset + limit);
+      const nextCursor = offset + limit < selected.value.items.length ? encodeCursor(offset + limit) : undefined;
 
       return ok({
         basis: {
           pool: poolLabel(pool),
           applied: appliedLabels(input),
         },
-        items,
+        items: page,
         ...(nextCursor === undefined ? {} : { nextCursor }),
       });
     },
@@ -163,10 +169,14 @@ export function createMaterialQueryService({
       return relatedForInput({
         materialStore,
         materialResolve,
-        materialPolicyEvaluator,
+        materialSelector,
         ownerScope: input.ownerScope ?? defaultOwnerScope,
         input,
       });
+    },
+
+    async select(input) {
+      return materialSelector.select(input);
     },
 
     async contextBrief(input) {
@@ -1163,27 +1173,26 @@ function unresolvedMaterialCard({
   };
 }
 
-async function filterMaterials({
+type SelectableMaterialCandidate = {
+  material: MusicMaterial;
+  score?: number;
+};
+
+async function selectableMaterialsForQuery({
   materialStore,
-  materialPolicyEvaluator,
   ownerScope,
   materials,
   returnKind,
-  constraints,
   preferenceHints,
   exclude,
-  sessionId,
 }: {
   materialStore: MaterialStorePort;
-  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   ownerScope: string;
   materials: MusicMaterial[];
   returnKind?: MaterialQueryInput["returnKind"];
-  constraints?: MaterialQueryInput["constraints"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
   exclude?: MaterialQueryInput["exclude"];
-  sessionId?: string;
-}): Promise<Result<MusicMaterial[]>> {
+}): Promise<Result<SelectableMaterialCandidate[]>> {
   const excludedMaterialIds = await excludedMaterialIdsForInput({
     materialStore,
     materialIds: exclude?.materialIds ?? [],
@@ -1193,9 +1202,10 @@ async function filterMaterials({
     return excludedMaterialIds;
   }
 
-  const filtered: MusicMaterial[] = [];
+  const preferHints = preferredHints(preferenceHints);
+  const filtered: SelectableMaterialCandidate[] = [];
 
-  for (const material of materials) {
+  for (const material of dedupeMaterials(materials)) {
     if (!matchesReturnKind(material, returnKind)) {
       continue;
     }
@@ -1208,32 +1218,39 @@ async function filterMaterials({
       continue;
     }
 
-    const decision = await materialPolicyEvaluator.evaluate({
-      ownerScope,
-      materialId: materialRefToMaterialId(material.materialRef),
+    filtered.push({
       material,
-      policy: {
-        purpose: "candidate_selection",
-        ...(constraints?.availability === undefined ? {} : { availability: constraints.availability }),
-        ...(constraints?.identity === undefined ? {} : { identity: constraints.identity }),
-        ...(exclude?.relations === undefined ? {} : { excludeRelations: exclude.relations }),
-        ...(exclude?.recent === undefined ? {} : { freshness: exclude.recent }),
-      },
-      ...(sessionId === undefined ? {} : { sessionId }),
+      ...(preferHints.length === 0 ? {} : { score: hintScore(material, preferHints) }),
     });
-
-    if (!decision.ok) {
-      return decision;
-    }
-
-    if (decision.value.decision === "drop") {
-      continue;
-    }
-
-    filtered.push(decision.value.material);
   }
 
   return ok(filtered);
+}
+
+function selectorPolicyForQuery(input: MaterialQueryInput | MaterialRelatedInput): NonNullable<MaterialSelectInput["policy"]> {
+  return {
+    purpose: "candidate_selection",
+    ...(input.constraints?.availability === undefined ? {} : { availability: input.constraints.availability }),
+    ...(input.constraints?.identity === undefined ? {} : { identity: input.constraints.identity }),
+    ...(input.exclude?.relations === undefined ? {} : { excludeRelations: input.exclude.relations }),
+    ...(input.exclude?.recent === undefined ? {} : { freshness: input.exclude.recent }),
+  };
+}
+
+function selectorSortForQuery(input: MaterialQueryInput): NonNullable<MaterialSelectInput["sort"]> {
+  const preferHints = preferredHints(input.preferenceHints);
+
+  if ((input.order === undefined || input.order === "relevance") && preferHints.length > 0) {
+    return { order: "score" };
+  }
+
+  if (input.order === "random" ||
+    input.order === "recently_added" ||
+    input.order === "least_recently_recommended") {
+    return { order: input.order };
+  }
+
+  return { order: "preserve" };
 }
 
 async function excludedMaterialIdsForInput({
@@ -1261,13 +1278,13 @@ async function excludedMaterialIdsForInput({
 async function relatedForInput({
   materialStore,
   materialResolve,
-  materialPolicyEvaluator,
+  materialSelector,
   ownerScope,
   input,
 }: {
   materialStore: MaterialStorePort;
   materialResolve: MaterialResolvePort;
-  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
+  materialSelector: MaterialSelectorPort;
   ownerScope: string;
   input: MaterialRelatedInput;
 }): Promise<Result<MaterialRelatedOutput>> {
@@ -1299,14 +1316,12 @@ async function relatedForInput({
     return currentSeedMaterialRef;
   }
 
-  const filtered = await filterMaterials({
+  const selectable = await selectableMaterialsForQuery({
     materialStore,
-    materialPolicyEvaluator,
     ownerScope,
     materials: resolved.value.filter((material) =>
       !sameRef(material.materialRef, seedMaterialRef) && !sameRef(material.materialRef, currentSeedMaterialRef.value)
     ),
-    constraints: input.constraints,
     exclude: {
       ...input.exclude,
       materialIds: [
@@ -1315,17 +1330,33 @@ async function relatedForInput({
         materialRefToMaterialId(currentSeedMaterialRef.value),
       ],
     },
+  });
+
+  if (!selectable.ok) {
+    return selectable;
+  }
+
+  const selected = await materialSelector.select({
+    ownerScope,
+    candidates: selectable.value.map((candidate) => ({
+      materialId: materialRefToMaterialId(candidate.material.materialRef),
+      material: candidate.material,
+      ...(candidate.score === undefined ? {} : { score: candidate.score }),
+    })),
+    policy: selectorPolicyForQuery(input),
+    sort: { order: "preserve" },
+    limit: normalizeLimit(input.limit),
     ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
   });
 
-  if (!filtered.ok) {
-    return filtered;
+  if (!selected.ok) {
+    return selected;
   }
 
   return ok({
     basis: related.value.basis,
     ...(related.value.basisLabel === undefined ? {} : { basisLabel: related.value.basisLabel }),
-    items: filtered.value.slice(0, normalizeLimit(input.limit)).map(toMaterialCard),
+    items: selected.value.items,
   });
 }
 
@@ -1750,52 +1781,6 @@ async function listPoolsForInput({
   return ok({ pools });
 }
 
-async function orderMaterials({
-  materialSorter,
-  materials,
-  order,
-  preferenceHints,
-  ownerScope,
-}: {
-  materialSorter: MaterialSorterPort;
-  materials: MusicMaterial[];
-  order: MaterialQueryInput["order"];
-  preferenceHints?: MaterialQueryInput["preferenceHints"];
-  ownerScope: string;
-}): Promise<Result<MusicMaterial[]>> {
-  const deduped = dedupeMaterials(materials);
-
-  const preferHints = preferredHints(preferenceHints);
-
-  if ((order === undefined || order === "relevance") && preferHints.length > 0) {
-    const sorted = await materialSorter.sort({
-      ownerScope,
-      candidates: deduped.map((material) => ({
-        material,
-        score: hintScore(material, preferHints),
-      })),
-      policy: { order: "score" },
-    });
-
-    return sorted.ok ? ok(sorted.value.candidates.map((candidate) => candidate.material)) : sorted;
-  }
-
-  const sortOrder =
-    order === "random" ||
-    order === "recently_added" ||
-    order === "least_recently_recommended"
-      ? order
-      : "preserve";
-  const sorted = await materialSorter.sort({
-    ownerScope,
-    candidates: deduped.map((material) => ({ material })),
-    policy: {
-      order: sortOrder,
-    },
-  });
-
-  return sorted.ok ? ok(sorted.value.candidates.map((candidate) => candidate.material)) : sorted;
-}
 function appliedLabels(input: MaterialQueryInput): string[] {
   const applied: string[] = [];
 

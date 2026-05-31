@@ -177,6 +177,15 @@ random policies without filtering. Material Query now delegates relation,
 recent, availability, identity, and ordering behavior to these services while
 preserving its agent-facing output shape.
 
+The 2026-05-31 recommendation-posture PR 3 selector substrate adds
+`MaterialSelectorPort` and optional `music.material.select`. The selector
+composes evaluator + sorter + optional diversity + optional limit over compact
+materialId candidates, returning compact selected cards, dropped reasons,
+warnings, and applied labels. Material Query / Related now build candidate
+materialIds and delegate policy, ordering, selection, and cutting to the
+selector. This is still not final recommendation presentation: no
+`recommendation.presented` event behavior changes were made in this slice.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the

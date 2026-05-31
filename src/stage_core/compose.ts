@@ -98,6 +98,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     instruments,
     materialResolve,
     materialQuery,
+    materialSelector: materialQuery,
     source,
     knowledge,
     events,

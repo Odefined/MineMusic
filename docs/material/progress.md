@@ -106,6 +106,13 @@ random ordering over already usable candidates. Material Query delegates its
 policy and ordering internals to these services without exposing new public
 tools or changing compact card output shape.
 
+Recommendation-posture PR 3 is now implemented. `src/material_selection/index.ts`
+adds the optional selector that composes policy evaluation, sorting, diversity,
+and limit over compact materialId candidates. The Stage Interface exposes
+`music.material.select` as an optional helper, while Material Query / Related
+delegate policy, sorting, selection, and cutting to the selector. This slice
+does not add final presentation or recommendation event behavior.
+
 ## Implemented
 
 - Added material identity contracts:
@@ -135,6 +142,10 @@ tools or changing compact card output shape.
 - Added Material Policy / Sort contracts, ports, implementation, and focused
   tests, then migrated Material Query filtering and ordering internals to use
   the new services while keeping query behavior stable.
+- Added Material Selector contracts, port, implementation, optional
+  `music.material.select`, and focused tests, then migrated Material Query /
+  Related selection internals to use the selector while keeping compact card
+  outputs stable.
 - Material Registry merge projection preserves loser source refs on the
   survivor in both in-memory and SQLite-backed implementations.
 - `stage.materials.prepare` preserves `materialRef` and `identityState` while
@@ -162,8 +173,8 @@ tools or changing compact card output shape.
   relation/recent filtering, context brief, and pool listing.
 - Wired Material Query through Stage Core and Stage Interface as
   `music.material.resolve.cards`, `music.material.query`,
-  `music.material.related`, `music.material.context.brief`, and
-  `music.pools.list`.
+  `music.material.related`, `music.material.select`,
+  `music.material.context.brief`, and `music.pools.list`.
 - Added bounded `StageContext.recentCards` from compact recommendation card
   payloads.
 - Addressed PR #7 review feedback by honoring `MaterialQueryInput.returnKind`
