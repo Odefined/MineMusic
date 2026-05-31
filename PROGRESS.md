@@ -1042,8 +1042,8 @@
 - Added PR 4 tests for query pools, relation/recent exclusions, related basis
   fallback, compact output hygiene, Stage Interface/MCP tool exposure, and
   recent-card context.
-- Addressed PR #7 review feedback by wiring `ResolveSeed.ref` to Material
-  Registry / Material Resolve, decoding compact `MaterialCard.ref` strings in
+- Addressed PR #7 review feedback by wiring then-current `ResolveSeed.ref` to
+  Material Registry / Material Resolve, decoding compact card strings in
   Event Service activity projection, honoring `returnKind`, and adding
   deterministic cursor pagination, collection-label lookup, saved-album
   track-level text filtering, lightweight `preferenceHints` matching, and
@@ -1109,6 +1109,11 @@
   `material_not_found` unknown-ref handling.
 - Refreshed `skills/minemusic/HANDBOOK.md` from the current Stage Interface
   instrument catalog.
+- Addressed issue #12 by making `materialId` the primary agent-facing
+  MaterialCard handle for query, related, context brief, collection actions,
+  `stage.materials.prepare`, recentCards, recommendation activity projection,
+  and material effect targets while preserving legacy `mat_*` readers for
+  migration compatibility.
 
 ## Next
 

@@ -15,7 +15,7 @@ import type {
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
-import { createMaterialQueryService, materialRefToCardRef } from "../../src/material_query/index.js";
+import { createMaterialQueryService, materialRefToMaterialId } from "../../src/material_query/index.js";
 import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
@@ -77,12 +77,12 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
   const output = await assertOk(
     materialQuery.resolveCards({
       ownerScope: "local_profile:default",
-      seeds: [{ ref: materialRefToCardRef(record.materialRef) }],
+      seeds: [{ materialId: materialRefToMaterialId(record.materialRef) }],
     }),
   );
 
   assert(output.items.length === 1, "resolve cards should return one card for a source-backed material ref");
-  assert(output.items[0]?.title === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the card ref");
+  assert(output.items[0]?.title === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the material id");
   assert(output.items[0]?.status === "playable_unverified", "source-backed material refs should preserve source-backed status");
 }
 
@@ -101,7 +101,7 @@ async function resolveCardsProjectsCanonicalOnlyCardRefs(): Promise<void> {
   const output = await assertOk(
     materialQuery.resolveCards({
       ownerScope: "local_profile:default",
-      seeds: [{ ref: materialRefToCardRef(record.materialRef) }],
+      seeds: [{ materialId: materialRefToMaterialId(record.materialRef) }],
     }),
   );
 
@@ -129,7 +129,7 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
   const output = await assertOk(
     materialQuery.resolveCards({
       ownerScope: "local_profile:default",
-      seeds: [{ ref: materialRefToCardRef(record.materialRef) }],
+      seeds: [{ materialId: materialRefToMaterialId(record.materialRef) }],
     }),
   );
 
@@ -162,28 +162,29 @@ async function resolveCardsFollowsMaterialRedirects(): Promise<void> {
   const output = await assertOk(
     materialQuery.resolveCards({
       ownerScope: "local_profile:default",
-      seeds: [{ ref: materialRefToCardRef(loser.materialRef) }],
+      seeds: [{ materialId: materialRefToMaterialId(loser.materialRef) }],
     }),
   );
 
   assert(output.items.length === 1, "resolve cards should return one card for a redirected material ref");
-  assert(output.items[0]?.ref === materialRefToCardRef(survivor.materialRef), "resolve cards should return the merge survivor card ref");
+  assert(output.items[0]?.materialId === materialRefToMaterialId(survivor.materialRef), "resolve cards should return the merge survivor material id");
   assert(output.items[0]?.title === "Redirect Survivor Track", "resolve cards should project the merge survivor");
 }
 
-async function resolveCardsReturnsUnresolvedForUnknownCardRefs(): Promise<void> {
+async function resolveCardsReturnsUnresolvedForUnknownMaterialIds(): Promise<void> {
   const { materialQuery } = createMaterialQueryServiceHarness([]);
 
   const output = await assertOk(
     materialQuery.resolveCards({
       ownerScope: "local_profile:default",
-      seeds: [{ ref: "mat_missing-material" }],
+      seeds: [{ materialId: "missing-material" }],
     }),
   );
 
-  assert(output.items.length === 1, "unknown material refs should still produce a decision card");
-  assert(output.items[0]?.status === "unresolved", "unknown material refs should be unresolved");
-  assert(output.items[0]?.reason === "material_not_found", "unknown material refs should explain material_not_found");
+  assert(output.items.length === 1, "unknown material ids should still produce a decision card");
+  assert(output.items[0]?.materialId === "missing-material", "unknown material id cards should echo the requested material id");
+  assert(output.items[0]?.status === "unresolved", "unknown material ids should be unresolved");
+  assert(output.items[0]?.reason === "material_not_found", "unknown material ids should explain material_not_found");
 }
 
 async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<void> {
@@ -489,7 +490,7 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
   );
 
   assert(output.items.length === 1, "collection pool should return material-only collection items");
-  assert(output.items[0]?.ref === materialRefToCardRef(record.materialRef), "returned card should point to the collection materialRef");
+  assert(output.items[0]?.materialId === materialRefToMaterialId(record.materialRef), "returned card should point to the collection material id");
   assert(output.items[0]?.title === "Source Only Collection Track", "material-only collection items should resolve to compact cards");
 }
 
@@ -541,7 +542,7 @@ async function queryCollectionPoolFallsBackToMaterialSnapshot(): Promise<void> {
   );
 
   assert(output.items.length === 1, "collection pool should fall back to material snapshots when live projection is absent");
-  assert(output.items[0]?.ref === materialRefToCardRef(snapshotRef), "snapshot fallback should keep the collection material ref");
+  assert(output.items[0]?.materialId === materialRefToMaterialId(snapshotRef), "snapshot fallback should keep the collection material id");
   assert(output.items[0]?.title === "Snapshot Only Track", "snapshot fallback should return a compact card");
 }
 
@@ -763,7 +764,7 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
           ownerScope: "local_profile:default",
           cards: [
             {
-              ref: materialRefToCardRef(record.materialRef),
+              materialId: materialRefToMaterialId(record.materialRef),
               title: "Compact Event Track",
               status: "playable_unverified",
             },
@@ -795,9 +796,9 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
     }),
   );
 
-  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "compact MaterialCard.ref strings should update aggregate MaterialActivity");
-  assert(sessionActivity?.recommendedCount === 1, "compact MaterialCard.ref strings should update session MaterialActivity");
-  assert(output.items.length === 0, "recent exclusion should filter compact-card recommendation events");
+  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "MaterialCard.materialId should update aggregate MaterialActivity");
+  assert(sessionActivity?.recommendedCount === 1, "MaterialCard.materialId should update session MaterialActivity");
+  assert(output.items.length === 0, "recent exclusion should filter material-card recommendation events");
 }
 
 async function contextBriefFieldsSelectArtistAlbumVersionAndStatus(): Promise<void> {
@@ -808,24 +809,24 @@ async function contextBriefFieldsSelectArtistAlbumVersionAndStatus(): Promise<vo
     releaseLabel: "Context Album",
   });
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
-  const cardRef = materialRefToCardRef(record.materialRef);
+  const materialId = materialRefToMaterialId(record.materialRef);
   assert(materialQuery.contextBrief !== undefined, "material query service should expose contextBrief");
 
   const artistOnly = await assertOk(
     materialQuery.contextBrief({
-      ref: cardRef,
+      materialId,
       fields: ["artist"],
     }),
   );
   const albumOnly = await assertOk(
     materialQuery.contextBrief({
-      ref: cardRef,
+      materialId,
       fields: ["album"],
     }),
   );
   const versionOnly = await assertOk(
     materialQuery.contextBrief({
-      ref: cardRef,
+      materialId,
       fields: ["version"],
     }),
   );
@@ -861,7 +862,7 @@ async function contextBriefStatusFieldReturnsOnlyStatusWarnings(): Promise<void>
 
   const statusOnly = await assertOk(
     materialQuery.contextBrief({
-      ref: materialRefToCardRef(mergedRecord.materialRef),
+      materialId: materialRefToMaterialId(mergedRecord.materialRef),
       fields: ["status"],
     }),
   );
@@ -924,7 +925,8 @@ async function compactCardsDoNotExposeRawMaterialInternals(): Promise<void> {
   );
   const card = output.items[0] as unknown as Record<string, unknown>;
 
-  assert(typeof card.ref === "string" && card.ref.startsWith("mat_"), "compact card should expose only an opaque material ref");
+  assert(typeof card.materialId === "string", "compact card should expose a material id");
+  assert(!("ref" in card), "compact card should not expose legacy compact refs");
   assert(!("canonicalRef" in card), "compact card should not expose canonicalRef");
   assert(!("sourceRefs" in card), "compact card should not expose sourceRefs");
   assert(!("evidence" in card), "compact card should not expose raw evidence");
@@ -1271,7 +1273,7 @@ await resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch();
 await resolveCardsProjectsCanonicalOnlyCardRefs();
 await resolveCardsResolvesCanonicalConfirmedCardRefs();
 await resolveCardsFollowsMaterialRedirects();
-await resolveCardsReturnsUnresolvedForUnknownCardRefs();
+await resolveCardsReturnsUnresolvedForUnknownMaterialIds();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
 await queryReturnKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();

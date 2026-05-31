@@ -301,7 +301,7 @@ function recommendationEvent(id: string, ...titles: string[]): StageEvent {
     type: "recommendation.presented",
     payload: {
       cards: titles.map((title, index) => ({
-        ref: `mat_${id}-${index}`,
+        materialId: `${id}-${index}`,
         title,
         status: "playable_unverified",
       })),

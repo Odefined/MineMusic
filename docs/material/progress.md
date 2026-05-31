@@ -41,13 +41,14 @@ Material Query now exposes compact agent-facing retrieval over material cards.
 `music.material.query` can restrict results to Source Library saved tracks and
 saved albums expanded into tracks, apply `returnKind`, relation exclusions,
 recent-activity exclusions, cursor pagination, and least-recently-recommended
-ordering, recently-added ordering, and return opaque card refs without raw
+ordering, recently-added ordering, and return explicit `materialId` handles without raw
 source/canonical/evidence graphs. Internal query inputs can still use
 lightweight text matching for `preferenceHints`, but Stage Interface tool
 schemas do not advertise those fields until real semantic feature data exists.
-`music.material.resolve.cards` now resolves returned `mat_*` card refs back
+`music.material.resolve.cards` now resolves returned `materialId` values back
 through Material Registry / Material Resolve instead of treating them as text
-search. `music.material.related` resolves related candidates through
+search. Legacy `mat_*` refs remain readable in compatibility paths.
+`music.material.related` resolves related candidates through
 Material Resolve for same-artist,
 same-album, and similar flows, preferring confirmed artist basis when
 source-artist bindings exist and falling back to source artist/release facts
@@ -55,7 +56,7 @@ when canonical identity is missing. `music.material.context.brief` respects its
 requested `fields` when returning artist, album, version, or status details.
 Stage context now includes bounded `recentCards` derived from recommendation
 presentation events without exposing raw event payloads. Event Service also
-projects compact `MaterialCard.ref` strings in recommendation payloads into
+projects `MaterialCard.materialId` strings in recommendation payloads into
 Material Activity, so recent exclusion works for compact card events.
 Collection Items now support material targets and legacy canonical
 compatibility. Source-only materials can be blocked through Collection Service
@@ -64,11 +65,10 @@ without waiting for canonical identity, saved/favorite material items can remain
 Collection pool query now returns material-only items directly through
 `materialRef`, falls back to `materialSnapshot` when the live registry
 projection is unavailable, and follows material merge redirects before
-returning compact cards. Compact resolve/related/exclude-ref paths also follow
-redirects so old `mat_*` card refs project the current survivor except where
-`music.material.context.brief` explicitly reports merged status.
-Stage Interface collection tools now accept compact `ref` card strings as the
-normal material target path while keeping raw `materialRef` as compatibility.
+returning compact cards. Compact resolve/related/exclude-materialId paths also
+follow redirects so merged ids project the current survivor. Stage Interface
+collection tools now accept `materialId` as the normal material target path
+while keeping raw `materialRef` and legacy compact `ref` as compatibility.
 Collection material filtering and removal are redirect-aware, so blocks stored
 before a source-only material merges into a survivor still apply and can be
 removed through the current survivor ref.
@@ -147,8 +147,8 @@ with `found_no_link` status.
   `music.pools.list`.
 - Added bounded `StageContext.recentCards` from compact recommendation card
   payloads.
-- Addressed PR #7 review feedback by making `ResolveSeed.ref` resolve material
-  card refs, decoding compact `MaterialCard.ref` values during activity
+- Addressed PR #7 review feedback by making then-current `ResolveSeed.ref`
+  resolve material card refs, decoding legacy compact card values during activity
   projection, honoring `MaterialQueryInput.returnKind`, and tightening related
   public structured fields such as `cursor`, collection `label`, saved-album
   track-level `q`, lightweight `preferenceHints` matching, and
@@ -183,6 +183,10 @@ with `found_no_link` status.
   target kind from Material Records for compact refs, rejecting inconsistent
   canonical/snapshot/target kind hints, tightening public collection schemas,
   and projecting compact MaterialRecord refs directly.
+- Addressed issue #12 by making `materialId` the primary agent-facing
+  MaterialCard handle across query, related, context brief, collection actions,
+  `stage.materials.prepare`, recentCards, recommendation activity projection,
+  and effect action targets while preserving legacy `mat_*` read compatibility.
 
 ## Verification
 

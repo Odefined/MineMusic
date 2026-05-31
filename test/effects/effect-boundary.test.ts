@@ -75,7 +75,7 @@ async function acceptsCompactMaterialActionTargets(): Promise<void> {
         kind: "block_material",
         target: {
           kind: "material",
-          ref: "mat_source-only-material",
+          materialId: "source-only-material",
           actionScope: "block_material",
         },
         preview: "Block this material.",
@@ -93,7 +93,7 @@ async function acceptsCompactMaterialActionTargets(): Promise<void> {
       proposal.target.kind === "material" &&
       "actionScope" in proposal.target &&
       proposal.target.actionScope === "block_material",
-    "compact material action target should round-trip through Effect Boundary",
+    "material id action target should round-trip through Effect Boundary",
   );
   assert(proposal.requiresConfirmation, "material consequences should remain confirmation-gated");
 }

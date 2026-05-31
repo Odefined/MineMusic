@@ -276,6 +276,7 @@ function materialRefsFromPayload(payload: unknown): Ref[] {
   const refs: Ref[] = [];
 
   refs.push(...refValue(payload.materialRef));
+  refs.push(...materialIdValue(payload.materialId));
   refs.push(...refValue(payload.ref));
   refs.push(...refValue(payload.material));
 
@@ -286,6 +287,7 @@ function materialRefsFromPayload(payload: unknown): Ref[] {
       }
 
       refs.push(...refValue(card.materialRef));
+      refs.push(...materialIdValue(card.materialId));
       refs.push(...refValue(card.ref));
       refs.push(...refValue(card.material));
     }
@@ -308,6 +310,10 @@ function refValue(value: unknown): Ref[] {
   }
 
   return [];
+}
+
+function materialIdValue(value: unknown): Ref[] {
+  return typeof value === "string" && value.length > 0 ? [materialIdToRef(value)] : [];
 }
 
 function ownerScopeFromPayload(payload: unknown): string | undefined {
@@ -336,10 +342,14 @@ function isCompactMaterialCardRef(value: string): boolean {
 }
 
 function materialRefFromCompactCardRef(value: string): Ref {
+  return materialIdToRef(safeDecodeURIComponent(value.slice("mat_".length)));
+}
+
+function materialIdToRef(materialId: string): Ref {
   return {
     namespace: "minemusic",
     kind: "material",
-    id: safeDecodeURIComponent(value.slice("mat_".length)),
+    id: materialId,
   };
 }
 
