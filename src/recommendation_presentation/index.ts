@@ -1,7 +1,5 @@
 import type {
   DroppedMaterial,
-  MaterialCardAction,
-  MaterialCardStatus,
   MaterialPolicyInput,
   MusicMaterial,
   PresentedMaterialLink,
@@ -21,6 +19,11 @@ import type {
   RecommendationPresentationPort,
   SessionContextPort,
 } from "../ports/index.js";
+import {
+  subtitleForMaterial,
+  toMaterialCardActions,
+  toMaterialCardStatus,
+} from "../material_cards/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 
@@ -237,24 +240,23 @@ function recommendationPresentedPayload({
     ownerScope,
     ...(input.request === undefined ? {} : { request: input.request }),
     presentedAt,
-    cards: cards.map(toRecommendationPresentedCardSnapshot),
+    cards: cards.map((card, index) =>
+      toRecommendationPresentedCardSnapshot(card, selected[index] as AcceptedPresentationItem)
+    ),
     ...(basis.length === 0 ? {} : { basis }),
   };
 }
 
 function toRecommendationPresentedCardSnapshot(
   card: PresentedMaterialCard,
+  item: AcceptedPresentationItem,
 ): RecommendationPresentedCardSnapshot {
   const { links, ...snapshot } = card;
-  const linkRefs = (links ?? []).flatMap((link) =>
-    link.sourceRef === undefined
-      ? []
-      : [{
-          sourceRef: link.sourceRef,
-          ...(link.label === undefined ? {} : { label: link.label }),
-          url: link.url,
-        }]
-  );
+  const linkRefs = (item.material.playableLinks ?? []).map((link) => ({
+    sourceRef: link.sourceRef,
+    ...(link.label === undefined ? {} : { label: link.label }),
+    url: link.url,
+  }));
 
   return {
     ...snapshot,
@@ -277,79 +279,12 @@ function selectedWarnings(
   });
 }
 
-function toMaterialCardStatus(material: MusicMaterial): MaterialCardStatus {
-  if (material.identityState === "ambiguous") {
-    return "ambiguous";
-  }
-
-  switch (material.state) {
-    case "confirmed_playable":
-      return material.identityState === "canonical_confirmed" ? "playable" : "playable_unverified";
-    case "source_only_playable":
-      return "playable_unverified";
-    case "grounded":
-      return "found_no_link";
-    case "blocked":
-      return "blocked";
-    case "unresolved":
-    case "exploration":
-    case "verbal_only":
-      return "unresolved";
-  }
-}
-
-function toMaterialCardActions(material: MusicMaterial): MaterialCardAction[] {
-  const actions: MaterialCardAction[] = [];
-
-  if ((material.playableLinks ?? []).length > 0 && material.state !== "blocked") {
-    actions.push("open");
-  }
-
-  actions.push("more_like_this");
-
-  if (hasArtistBasis(material)) {
-    actions.push("same_artist");
-  }
-
-  if (hasAlbumBasis(material)) {
-    actions.push("same_album");
-  }
-
-  if (material.identityState !== "canonical_confirmed" || (material.sourceRefs?.length ?? 0) > 0) {
-    actions.push("not_this_version");
-  }
-
-  actions.push("block", "remember");
-
-  return actions;
-}
-
 function toPresentedMaterialLinks(material: MusicMaterial): PresentedMaterialLink[] {
-  return (material.playableLinks ?? []).map((link) => ({
+  return (material.playableLinks ?? []).map((link, index) => ({
     ...(link.label === undefined ? {} : { label: link.label }),
     url: link.url,
-    sourceRef: link.sourceRef,
+    sourceHandle: `link:${index + 1}`,
   }));
-}
-
-function subtitleForMaterial(material: MusicMaterial): string | undefined {
-  const evidenceNote = material.evidence?.find((evidence) => evidence.note !== undefined)?.note;
-
-  if (evidenceNote === undefined || evidenceNote.includes(":")) {
-    return undefined;
-  }
-
-  return evidenceNote;
-}
-
-function hasArtistBasis(material: MusicMaterial): boolean {
-  return (material.evidence ?? []).some((evidence) => evidence.kind.includes("artist")) ||
-    (material.sourceRefs ?? []).some((sourceRef) => sourceRef.kind === "artist" || sourceRef.kind === "track");
-}
-
-function hasAlbumBasis(material: MusicMaterial): boolean {
-  return (material.evidence ?? []).some((evidence) => evidence.kind.includes("album") || evidence.kind.includes("release")) ||
-    (material.sourceRefs ?? []).some((sourceRef) => sourceRef.kind === "release" || sourceRef.kind === "track");
 }
 
 function normalizeOptionalCount(count: number | undefined): number | undefined {

@@ -1221,6 +1221,26 @@
   `readPayload<T>` casts from those new recommendation-posture tools.
 - Added Stage Interface coverage that asserts the migrated tools keep typed
   input parsers, with focused schema/dispatch/MCP tests still passing.
+- Started recommendation-posture follow-up hardening on branch
+  `codex/recommendation-posture-followup-hardening` after review of the final
+  PR 1-7 state.
+- Persisted provider-returned playable source evidence during Source Grounding
+  so resolve -> present can keep just-resolved playable links without
+  transcript-local Source Entity seeding.
+- Removed collection snapshot fallback from the recommendation query/select
+  path and made Material Policy evaluation require a live Material Store record
+  even when an internal material snapshot is supplied.
+- Shared relation projection between Material Resolve and Material Policy so
+  blocked, wrong-version, not-playable, and bad-match source/material
+  consequences do not drift between resolve and presentation evaluation.
+- Changed version-scoped `wrong_version` feedback to return an unenforceable
+  consequence warning instead of writing an active relation that presentation
+  policy cannot consume, and changed relation storage failures to partial
+  feedback warnings after the factual event is recorded.
+- Tightened recent-card extraction to dotted `recommendation.presented` events
+  only, removed raw `sourceRef` exposure from displayed presentation links, and
+  added typed-parser/raw-schema drift coverage for the migrated recommendation
+  tools.
 
 ## Next
 

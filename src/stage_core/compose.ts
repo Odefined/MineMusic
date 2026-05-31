@@ -51,6 +51,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const source = createSourceGroundingService({
     canonicalStore: canonical,
     pluginRegistry: plugins,
+    sourceEvidenceWriter: materialStore,
   });
   const knowledge = createMusicKnowledgeService({
     pluginRegistry: plugins,

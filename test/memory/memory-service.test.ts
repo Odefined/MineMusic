@@ -341,6 +341,79 @@ async function feedbackMultiLinkCardDoesNotGuessSourceRelation(): Promise<void> 
   assert(relations.length === 0, "multi-link source feedback should not write a blind relation");
 }
 
+async function feedbackVersionScopeWarnsWithoutWritingIneffectiveRelation(): Promise<void> {
+  const { materialStore, memory } = await createFeedbackHarness();
+  const track = await putTrack(materialStore, "Version Scope Track", ref("source:fixture", "track", "version-scope"));
+
+  const output = await assertOk(
+    memory.recordFeedback({
+      sessionId: "session-1",
+      feedbackText: "wrong version, but no source link is targeted",
+      target: { materialId: track.materialRef.id },
+      interpretation: { kind: "wrong_version", scope: "version" },
+    }),
+  );
+  const relations = await assertOk(materialStore.listMaterialRelations({
+    ownerScope: "local_profile:default",
+    materialRef: track.materialRef,
+    status: "active",
+  }));
+
+  assert(output.feedbackEventId === "feedback-event-1", "version-scope feedback should still record the fact");
+  assert(output.applied.length === 0, "unenforceable version feedback should not claim an applied relation");
+  assert(
+    output.warnings?.[0]?.code === "feedback_consequence_unavailable",
+    "unenforceable version feedback should warn rather than write an inert relation",
+  );
+  assert(relations.length === 0, "version-scope wrong_version should not write a relation until version identity is enforceable");
+}
+
+async function feedbackRelationStorageFailureReturnsPartialWarning(): Promise<void> {
+  const { events, materialStore } = await createFeedbackHarness();
+  const track = await putTrack(materialStore, "Partial Failure Track", ref("source:fixture", "track", "partial-failure"));
+  const failingStore: MaterialStorePort = {
+    ...materialStore,
+    putMaterialRelation: async () => ({
+      ok: false,
+      error: {
+        code: "storage.unavailable",
+        message: "relation store is unavailable",
+        module: "storage",
+        retryable: true,
+      },
+    }),
+  };
+  const memory = createMemoryService({
+    repository: createInMemoryMemoryRepository(),
+    events,
+    effects: createRecordingEffectBoundary([]),
+    materialStore: failingStore,
+    relationIdFactory: () => "memory-feedback-relation-failure",
+  });
+
+  const output = await assertOk(
+    memory.recordFeedback({
+      sessionId: "session-1",
+      feedbackText: "block this despite relation store failure",
+      target: { materialId: track.materialRef.id },
+      interpretation: { kind: "block" },
+    }),
+  );
+  const relations = await assertOk(materialStore.listMaterialRelations({
+    ownerScope: "local_profile:default",
+    materialRef: track.materialRef,
+    status: "active",
+  }));
+
+  assert(output.feedbackEventId === "feedback-event-1", "feedback fact should be recorded before relation failure is reported");
+  assert(output.applied.length === 0, "failed relation consequence should not be reported as applied");
+  assert(
+    output.warnings?.[0]?.code === "feedback_consequence_unavailable",
+    "relation storage failure should return a partial-success warning",
+  );
+  assert(relations.length === 0, "failed consequence should not leave a relation behind");
+}
+
 async function feedbackBlockMaterialDropsLaterPresentationPolicy(): Promise<void> {
   const { materialStore, memory } = await createFeedbackHarness();
   const track = await putTrack(materialStore, "Blocked Track", ref("source:fixture", "track", "blocked"));
@@ -578,6 +651,8 @@ await feedbackOutOfRangeRecordsEventWithoutBlindRelation();
 await feedbackEventPositionRejectsNonPresentationCardEvents();
 await feedbackEventPositionBindsExactCardAndNotPlayableAffectsPolicy();
 await feedbackMultiLinkCardDoesNotGuessSourceRelation();
+await feedbackVersionScopeWarnsWithoutWritingIneffectiveRelation();
+await feedbackRelationStorageFailureReturnsPartialWarning();
 await feedbackBlockMaterialDropsLaterPresentationPolicy();
 await feedbackMaterialTargetsFollowMergeRedirects();
 await feedbackRememberPreferenceCreatesProposalOnly();

@@ -288,9 +288,60 @@ async function newRecommendationToolsUseTypedInputParsers(): Promise<void> {
   }
 }
 
+async function typedInputParsersStayAlignedWithRawSchemas(): Promise<void> {
+  const definitions = [
+    ...musicToolDefinitions,
+    ...stageToolDefinitions,
+    ...memoryToolDefinitions,
+  ];
+  const fixtures: Array<{ toolName: ToolName; payload: Record<string, unknown> }> = [
+    {
+      toolName: "music.material.select",
+      payload: {
+        candidates: [{ materialId: "material-1", reason: "fits the request" }],
+        extra: "passthrough",
+      },
+    },
+    {
+      toolName: "stage.recommendation.present",
+      payload: {
+        items: [{ materialId: "material-1", reason: "fits the request" }],
+        extra: "passthrough",
+      },
+    },
+    {
+      toolName: "memory.feedback.record",
+      payload: {
+        feedbackText: "do not recommend this",
+        target: { materialId: "material-1" },
+        interpretation: { kind: "block" },
+        extra: "passthrough",
+      },
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    const definition = definitions.find((candidate) => candidate.name === fixture.toolName);
+    const inputParser = definition !== undefined && "inputParser" in definition
+      ? definition.inputParser
+      : undefined;
+
+    assert(definition !== undefined && inputParser !== undefined, `${fixture.toolName} should have a typed parser`);
+    assert(
+      z.object(definition.inputSchema).passthrough().safeParse(fixture.payload).success,
+      `${fixture.toolName} raw input schema should accept the fixture payload`,
+    );
+    assert(
+      inputParser.safeParse(fixture.payload).success,
+      `${fixture.toolName} typed input parser should accept the same passthrough payload`,
+    );
+  }
+}
+
 await exposesEveryStableToolNameThroughStageInterface();
 await stableToolNamesRemainInPublishedOrder();
 await stableToolNamesHaveMatchingSchemasAndDescriptors();
 await materialQuerySchemasHideExperimentalPreferenceHints();
 await collectionSchemasHideAdvancedMaterialTargetFields();
 await newRecommendationToolsUseTypedInputParsers();
+await typedInputParsersStayAlignedWithRawSchemas();

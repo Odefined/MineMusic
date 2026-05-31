@@ -18,6 +18,7 @@ import type {
   MaterialSorterPort,
   MaterialStorePort,
 } from "../ports/index.js";
+import { projectMaterialRelations } from "./relation_projection.js";
 
 type MaterialPolicyEvaluatorOptions = {
   materialStore: MaterialStorePort;
@@ -80,17 +81,13 @@ async function evaluateMaterialPolicy({
     return record;
   }
 
-  if (record.value === null && input.material === undefined) {
+  if (record.value === null) {
     return ok(drop("material_not_found", `Material '${input.materialId}' was not found.`));
   }
 
   const material = input.material === undefined
-    ? await projectMaterialRecord(materialStore, record.value as MaterialRecord)
-    : ok(
-        record.value === null
-          ? input.material
-          : currentMaterialForEvaluation(input.material, currentRef.value, record.value),
-      );
+    ? await projectMaterialRecord(materialStore, record.value)
+    : ok(currentMaterialForEvaluation(input.material, currentRef.value, record.value));
 
   if (!material.ok) {
     return material;
@@ -203,70 +200,35 @@ async function applyRelationPolicy({
     return relations;
   }
 
-  let next = material;
-  const warnings: string[] = [];
-
-  for (const relation of relations.value) {
-    const shouldApply =
+  const projected = projectMaterialRelations({
+    material,
+    relations: relations.value,
+    shouldApplyRelation: (relation) =>
       relation.relationKind === "blocked" && dropBlockedByDefault
         ? true
-        : excludeRelations.includes(relation.relationKind as never);
+        : excludeRelations.includes(relation.relationKind as never),
+    materialBlockedBehavior: "drop",
+    dropWhenNotPlayableLeavesNoLinks: true,
+    dropWhenSourceRemovedToEmpty: true,
+  });
 
-    if (!shouldApply) {
-      continue;
-    }
-
-    if (relation.scope.level === "material") {
-      if (relation.relationKind === "blocked") {
-        return ok(drop("blocked", "Material has an active blocked relation."));
-      }
-
-      if (relation.relationKind === "bad_match") {
-        return ok(drop("bad_match", "Material has an active bad-match relation."));
-      }
-
-      continue;
-    }
-
-    if (relation.scope.level !== "source") {
-      continue;
-    }
-
-    if (!hasSourceRef(next, relation.scope.sourceRef)) {
-      continue;
-    }
-
-    if (relation.relationKind === "not_playable") {
-      next = removePlayableLinksForSource(next, relation.scope.sourceRef);
-      warnings.push("not_playable");
-
-      if ((next.playableLinks?.length ?? 0) === 0) {
-        return ok(drop("not_playable", "The only known source link is marked not playable."));
-      }
-
-      continue;
-    }
-
-    if (relation.relationKind === "wrong_version" || relation.relationKind === "blocked") {
-      next = removeSourceFromMaterial(next, relation.scope.sourceRef);
-      const code: MaterialPolicyDropCode = relation.relationKind === "wrong_version" ? "wrong_version" : "blocked";
-      warnings.push(code);
-
-      if ((next.sourceRefs?.length ?? 0) === 0 && (next.playableLinks?.length ?? 0) === 0) {
-        return ok(drop(code, `Material source is marked ${relation.relationKind}.`));
-      }
-
-      continue;
-    }
-
-    if (relation.relationKind === "bad_match") {
-      return ok(drop("bad_match", "Material source has an active bad-match relation."));
-    }
+  if (projected.decision === "drop") {
+    return ok(drop(projected.code, projected.reason));
   }
 
-  return warnings.length === 0
-    ? ok({ decision: "allow", material: next })
-    : ok({ decision: "degrade", material: next, warnings });
+  if (projected.decision === "degrade") {
+    return ok({
+      decision: "degrade",
+      material: projected.material,
+      warnings: projected.warnings,
+    });
+  }
+
+  return ok({
+    decision: "allow",
+    material: projected.material,
+    ...(projected.warnings.length === 0 ? {} : { warnings: projected.warnings }),
+  });
 }
 
 async function blockedByCollection({
@@ -685,43 +647,6 @@ async function recentlyAddedAtForMaterial(
   }
 
   return ok(record.value?.createdAt);
-}
-
-function removePlayableLinksForSource(material: MusicMaterial, sourceRef: Ref): MusicMaterial {
-  const playableLinks = (material.playableLinks ?? []).filter((link) => !sameRef(link.sourceRef, sourceRef));
-  const state =
-    playableLinks.length === 0 &&
-    (material.state === "source_only_playable" || material.state === "confirmed_playable")
-      ? "grounded"
-      : material.state;
-
-  return {
-    ...material,
-    state,
-    playableLinks,
-  };
-}
-
-function removeSourceFromMaterial(material: MusicMaterial, sourceRef: Ref): MusicMaterial {
-  const sourceRefs = (material.sourceRefs ?? []).filter((candidate) => !sameRef(candidate, sourceRef));
-  const playableLinks = (material.playableLinks ?? []).filter((link) => !sameRef(link.sourceRef, sourceRef));
-  const state =
-    playableLinks.length === 0 &&
-    (material.state === "source_only_playable" || material.state === "confirmed_playable")
-      ? "grounded"
-      : material.state;
-
-  return {
-    ...material,
-    state,
-    sourceRefs,
-    playableLinks,
-  };
-}
-
-function hasSourceRef(material: MusicMaterial, sourceRef: Ref): boolean {
-  return (material.sourceRefs ?? []).some((candidate) => sameRef(candidate, sourceRef)) ||
-    (material.playableLinks ?? []).some((link) => sameRef(link.sourceRef, sourceRef));
 }
 
 function drop(code: MaterialPolicyDropCode, reason: string): Extract<MaterialPolicyDecision, { decision: "drop" }> {

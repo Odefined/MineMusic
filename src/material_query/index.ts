@@ -40,6 +40,7 @@ import {
   createMaterialSorter,
 } from "../material_policy/index.js";
 import { createMaterialSelector } from "../material_selection/index.js";
+import { toMaterialCard } from "../material_cards/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
@@ -220,67 +221,6 @@ async function currentMaterialRecordForRef(
   return materialStore.getMaterialRecord({ materialRef: current.value });
 }
 
-export function toMaterialCard(material: MusicMaterial): MaterialCard {
-  const subtitle = subtitleForMaterial(material);
-  const actions = toMaterialCardActions(material);
-
-  return {
-    materialId: materialRefToMaterialId(material.materialRef),
-    title: material.label,
-    ...(subtitle === undefined ? {} : { subtitle }),
-    status: toMaterialCardStatus(material),
-    ...(material.notes === undefined ? {} : { reason: material.notes }),
-    ...(actions.length === 0 ? {} : { actions }),
-  };
-}
-
-export function toMaterialCardStatus(material: MusicMaterial): MaterialCardStatus {
-  if (material.identityState === "ambiguous") {
-    return "ambiguous";
-  }
-
-  switch (material.state) {
-    case "confirmed_playable":
-      return material.identityState === "canonical_confirmed" ? "playable" : "playable_unverified";
-    case "source_only_playable":
-      return "playable_unverified";
-    case "grounded":
-      return "found_no_link";
-    case "blocked":
-      return "blocked";
-    case "unresolved":
-    case "exploration":
-    case "verbal_only":
-      return "unresolved";
-  }
-}
-
-export function toMaterialCardActions(material: MusicMaterial): MaterialCardAction[] {
-  const actions: MaterialCardAction[] = [];
-
-  if ((material.playableLinks ?? []).length > 0 && material.state !== "blocked") {
-    actions.push("open");
-  }
-
-  actions.push("more_like_this");
-
-  if (hasArtistBasis(material)) {
-    actions.push("same_artist");
-  }
-
-  if (hasAlbumBasis(material)) {
-    actions.push("same_album");
-  }
-
-  if (material.identityState !== "canonical_confirmed" || (material.sourceRefs?.length ?? 0) > 0) {
-    actions.push("not_this_version");
-  }
-
-  actions.push("block", "remember");
-
-  return actions;
-}
-
 export function recentCardsFromEvents(
   events: Array<{ id: string; type: string; payload: unknown }>,
   limit = defaultRecentCardLimit,
@@ -288,7 +228,7 @@ export function recentCardsFromEvents(
   const recentCards: NonNullable<import("../contracts/index.js").StageContext["recentCards"]> = [];
 
   for (const event of [...events].reverse()) {
-    if (event.type !== "recommendation.presented" && event.type !== "recommendation_presented") {
+    if (event.type !== "recommendation.presented") {
       continue;
     }
 
@@ -826,7 +766,7 @@ async function materialForCollectionMaterialRef({
   }
 
   if (record.value === null) {
-    return item.materialSnapshot === undefined ? ok([]) : ok([materialFromSnapshot(item.materialSnapshot)]);
+    return ok([]);
   }
 
   const candidate = await candidateForMaterialRecord(materialStore, record.value, {
@@ -846,27 +786,7 @@ async function materialForCollectionMaterialRef({
     limitPerCandidate: 1,
   });
 
-  if (!resolved.ok || resolved.value.length > 0 || item.materialSnapshot === undefined) {
-    return resolved;
-  }
-
-  return ok([materialFromSnapshot(item.materialSnapshot)]);
-}
-
-function materialFromSnapshot(
-  snapshot: NonNullable<CollectionItem["materialSnapshot"]>,
-): MusicMaterial {
-  return {
-    id: snapshot.id,
-    materialRef: snapshot.materialRef,
-    kind: snapshot.kind,
-    label: snapshot.label,
-    state: snapshot.state,
-    identityState: snapshot.identityState,
-    ...(snapshot.canonicalRef === undefined ? {} : { canonicalRef: snapshot.canonicalRef }),
-    ...(snapshot.sourceRefs === undefined ? {} : { sourceRefs: snapshot.sourceRefs }),
-    ...(snapshot.playableLinks === undefined ? {} : { playableLinks: snapshot.playableLinks }),
-  };
+  return resolved;
 }
 
 async function relatedPoolCandidates({
@@ -1904,26 +1824,6 @@ function normalizeSeedKind(kind: string): string {
     default:
       return kind;
   }
-}
-
-function subtitleForMaterial(material: MusicMaterial): string | undefined {
-  const evidenceNote = material.evidence?.find((evidence) => evidence.note !== undefined)?.note;
-
-  if (evidenceNote === undefined || evidenceNote.includes(":")) {
-    return undefined;
-  }
-
-  return evidenceNote;
-}
-
-function hasArtistBasis(material: MusicMaterial): boolean {
-  return (material.evidence ?? []).some((evidence) => evidence.kind.includes("artist")) ||
-    (material.sourceRefs ?? []).some((sourceRef) => sourceRef.kind === "artist" || sourceRef.kind === "track");
-}
-
-function hasAlbumBasis(material: MusicMaterial): boolean {
-  return (material.evidence ?? []).some((evidence) => evidence.kind.includes("album") || evidence.kind.includes("release")) ||
-    (material.sourceRefs ?? []).some((sourceRef) => sourceRef.kind === "release" || sourceRef.kind === "track");
 }
 
 function matchesQueryText(label: string, q: string | undefined): boolean {

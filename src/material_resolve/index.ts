@@ -7,7 +7,6 @@ import type {
   MaterialResolveStatus,
   MusicCandidate,
   MusicMaterial,
-  MusicMaterialRelation,
   Ref,
   ResolvedCandidate,
   Result,
@@ -21,6 +20,7 @@ import type {
   MaterialResolvePort,
   SourceGroundingPort,
 } from "../ports/index.js";
+import { projectMaterialRelations } from "../material_policy/relation_projection.js";
 
 type ProjectedSourceMaterials = {
   materials: MusicMaterial[];
@@ -279,88 +279,25 @@ async function applyMaterialRelationFiltering({
       return relations;
     }
 
-    const projected = applyRelationsToMaterial(material, relations.value);
+    const projected = projectMaterialRelations({
+      material,
+      relations: relations.value,
+      shouldApplyRelation: (relation) =>
+        relation.relationKind === "blocked" ||
+        relation.relationKind === "wrong_version" ||
+        relation.relationKind === "not_playable" ||
+        relation.relationKind === "bad_match",
+      materialBlockedBehavior: "mark",
+      dropWhenNotPlayableLeavesNoLinks: false,
+      dropWhenSourceRemovedToEmpty: true,
+    });
 
-    if (projected !== null) {
-      filtered.push(projected);
+    if (projected.decision !== "drop") {
+      filtered.push(projected.material);
     }
   }
 
   return ok(filtered);
-}
-
-function applyRelationsToMaterial(
-  material: MusicMaterial,
-  relations: MusicMaterialRelation[],
-): MusicMaterial | null {
-  if (
-    relations.some(
-      (relation) => relation.relationKind === "blocked" && relation.scope.level === "material",
-    )
-  ) {
-    return { ...material, state: "blocked" };
-  }
-
-  let next = material;
-  let removedSource = false;
-
-  for (const relation of relations) {
-    if (relation.scope.level !== "source") {
-      continue;
-    }
-
-    if (relation.relationKind === "not_playable") {
-      next = removePlayableLinksForSource(next, relation.scope.sourceRef);
-      continue;
-    }
-
-    if (relation.relationKind === "blocked" || relation.relationKind === "wrong_version") {
-      next = removeSourceFromMaterial(next, relation.scope.sourceRef);
-      removedSource = true;
-    }
-  }
-
-  if (
-    removedSource &&
-    (next.sourceRefs?.length ?? 0) === 0 &&
-    (next.playableLinks?.length ?? 0) === 0
-  ) {
-    return null;
-  }
-
-  return next;
-}
-
-function removePlayableLinksForSource(material: MusicMaterial, sourceRef: Ref): MusicMaterial {
-  const playableLinks = (material.playableLinks ?? []).filter((link) => !sameRef(link.sourceRef, sourceRef));
-  const state =
-    playableLinks.length === 0 &&
-    (material.state === "source_only_playable" || material.state === "confirmed_playable")
-      ? "grounded"
-      : material.state;
-
-  return {
-    ...material,
-    state,
-    ...(playableLinks.length === 0 ? { playableLinks: [] } : { playableLinks }),
-  };
-}
-
-function removeSourceFromMaterial(material: MusicMaterial, sourceRef: Ref): MusicMaterial {
-  const sourceRefs = (material.sourceRefs ?? []).filter((candidate) => !sameRef(candidate, sourceRef));
-  const playableLinks = (material.playableLinks ?? []).filter((link) => !sameRef(link.sourceRef, sourceRef));
-  const state =
-    playableLinks.length === 0 &&
-    (material.state === "source_only_playable" || material.state === "confirmed_playable")
-      ? "grounded"
-      : material.state;
-
-  return {
-    ...material,
-    state,
-    sourceRefs,
-    playableLinks,
-  };
 }
 
 async function applyBlockedFiltering({

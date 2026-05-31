@@ -601,7 +601,7 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
   assert(output.items[0]?.title === "Source Only Collection Track", "material-only collection items should resolve to compact cards");
 }
 
-async function queryCollectionPoolFallsBackToMaterialSnapshot(): Promise<void> {
+async function queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds(): Promise<void> {
   const snapshotRef = ref("minemusic", "material", "snapshot-only-track");
   const collectionRecord: Collection = {
     id: "collection-snapshot-only",
@@ -648,9 +648,7 @@ async function queryCollectionPoolFallsBackToMaterialSnapshot(): Promise<void> {
     }),
   );
 
-  assert(output.items.length === 1, "collection pool should fall back to material snapshots when live projection is absent");
-  assert(output.items[0]?.materialId === materialRefToMaterialId(snapshotRef), "snapshot fallback should keep the collection material id");
-  assert(output.items[0]?.title === "Snapshot Only Track", "snapshot fallback should return a compact card");
+  assert(output.items.length === 0, "collection pool should not turn snapshot-only items into recommendation candidates");
 }
 
 async function explicitPoolDoesNotFallbackOutsidePool(): Promise<void> {
@@ -1392,7 +1390,7 @@ await recentlyAddedOrderUsesSourceLibraryTimestamps();
 await queryPreferenceHintsFilterAndRankMaterials();
 await queryCollectionPoolCanResolveByLabel();
 await queryCollectionPoolReturnsMaterialOnlyItems();
-await queryCollectionPoolFallsBackToMaterialSnapshot();
+await queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds();
 await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();
 await relationExclusionsRemoveCollectionBlockedMaterials();

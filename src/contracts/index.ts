@@ -432,7 +432,7 @@ export type MaterialCardSnapshot = CandidateMaterialCard & {
 export type PresentedMaterialLink = {
   label?: string;
   url: string;
-  sourceRef?: Ref;
+  sourceHandle?: string;
 };
 
 export type PresentedMaterialCard = MaterialCardSnapshot & {
