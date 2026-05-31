@@ -213,9 +213,7 @@ function sourceEntityForProviderResult({
     sourceRef,
     providerId: existing?.providerId ?? providerId,
     label: existing?.label ?? sourceRef.label ?? material.label,
-    ...(playableLink?.url === undefined && sourceRef.url === undefined
-      ? {}
-      : { providerUrl: playableLink?.url ?? sourceRef.url }),
+    ...(playableLink?.url === undefined ? {} : { providerUrl: playableLink.url }),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

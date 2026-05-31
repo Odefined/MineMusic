@@ -10,7 +10,15 @@ import {
   fixtureSourceRef,
   fixtureUnresolvedExplorationMaterial,
 } from "../../fixtures/integration/mvp-fixture.js";
-import type { MusicMaterial, Ref, Result, SourceEntity, SourceMaterial } from "../../src/contracts/index.js";
+import type {
+  MaterialResolveResult,
+  MusicMaterial,
+  RecommendationPresentOutput,
+  Ref,
+  Result,
+  SourceEntity,
+  SourceMaterial,
+} from "../../src/contracts/index.js";
 import { runRecommendationTranscript } from "../../src/app/index.js";
 import { createFixtureMineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 import type { MineMusicStageCoreHarness } from "../../src/stage_core/index.js";
@@ -267,6 +275,81 @@ async function presentsJustResolvedProviderLinksWithoutManualSourceEntitySeed():
   }
 }
 
+async function doesNotPresentSourceRefPageUrlAsPlayableLink(): Promise<void> {
+  const stageCoreDirectory = await mkdtemp(join(tmpdir(), "minemusic-stage-core-"));
+  const pageUrlSourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "fixture-track-page-url-only",
+    label: "Page URL Only Coding Track on Fixture Source",
+    url: "https://fixture.example/page/page-url-only-track",
+  };
+  const pageUrlOnlyMaterial: SourceMaterial = {
+    id: "fixture-material-page-url-only",
+    kind: "recording",
+    label: "Page URL Only Coding Track",
+    state: "grounded",
+    sourceRefs: [pageUrlSourceRef],
+  };
+  const stageCore = createFixtureMineMusicStageCoreHarness({
+    session: {
+      id: "session-page-url-only",
+      posture: "recommendation",
+      activeInstruments: [],
+      vibe: {
+        text: "page url only coding track",
+        tone: "focused",
+      },
+    },
+    sourceMaterials: [pageUrlOnlyMaterial],
+    handbookPath: join(stageCoreDirectory, "HANDBOOK.md"),
+  });
+
+  try {
+    await stageCore.ready;
+    const resolvedResult = await assertOk(
+      stageCore.stageInterface.tools["music.material.resolve"]({
+        kind: "single",
+        candidate: {
+          id: "page-url-only-request",
+          label: "I need a page url only coding track.",
+          query: {
+            text: "I need a page url only coding track.",
+            limit: 1,
+          },
+        },
+      }),
+    ) as MaterialResolveResult;
+    const material = resolvedResult.kind === "single" ? resolvedResult.result.materials[0] : undefined;
+    const storedSourceEntity = await assertOk(
+      Promise.resolve(stageCore.materialStore.getSourceEntity({ sourceRef: pageUrlSourceRef })),
+    );
+
+    assert(material !== undefined, "resolve should still create a material for page-url-only provider evidence");
+    assert(
+      storedSourceEntity?.providerUrl === undefined,
+      "Source Grounding must not turn sourceRef.url into playable providerUrl",
+    );
+
+    const presentation = await assertOk(
+      stageCore.stageInterface.tools["stage.recommendation.present"]({
+        request: "I need a page url only coding track.",
+        items: [{ materialId: material.materialRef.id }],
+        minCards: 1,
+      }),
+    ) as RecommendationPresentOutput;
+
+    assert(!presentation.presented, "presentation should not present sourceRef.url-only material as playable");
+    assert(presentation.cards.length === 0, "sourceRef.url-only material should not produce a display card");
+    assert(
+      presentation.dropped?.some((dropped) => dropped.code === "not_available"),
+      "presentation should drop sourceRef.url-only material as not available",
+    );
+  } finally {
+    await rm(stageCoreDirectory, { force: true, recursive: true });
+  }
+}
+
 function spyStageTools(
   stageCore: MineMusicStageCoreHarness,
   toolNames: string[],
@@ -341,3 +424,4 @@ function sourceEntityFromPlayableLink(
 
 await provesGroundedRecommendationMvpSlice();
 await presentsJustResolvedProviderLinksWithoutManualSourceEntitySeed();
+await doesNotPresentSourceRefPageUrlAsPlayableLink();
