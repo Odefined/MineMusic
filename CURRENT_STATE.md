@@ -159,6 +159,14 @@ recentCards, recommendation presentation, and effect action targets. Internal
 storage and redirect logic still use full `Ref` values, but LLM-facing material
 actions use `materialId` instead of compact `mat_*` refs.
 
+The 2026-05-31 recommendation-posture PR 1 resolve cleanup removes ghost
+material identities from Material Resolve. Provider results without stable
+`sourceRef` or `canonicalRef` are dropped from returned `materials` and reported
+through structured `ResolvedCandidate.issues`, while empty provider matches
+return retryable `provider_no_match` diagnostics. Compact resolve cards now
+return unresolved diagnostic cards without `materialId` when no Material
+Store-backed material exists.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the

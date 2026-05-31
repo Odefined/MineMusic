@@ -334,12 +334,33 @@ export type MaterialResolveStatus =
   | "unresolved"
   | "blocked";
 
+export type MaterialResolveIssue =
+  | {
+      code: "provider_no_match";
+      message: string;
+      retryable: true;
+      query?: SourceQuery;
+    }
+  | {
+      code: "provider_result_missing_source_ref";
+      message: string;
+      retryable: false;
+      resultLabel?: string;
+    }
+  | {
+      code: "no_source_or_canonical_grounding";
+      message: string;
+      retryable: true;
+      query?: SourceQuery;
+    };
+
 export type ResolvedCandidate = {
   candidate: MusicCandidate;
   materials: MusicMaterial[];
   status: MaterialResolveStatus;
   canonicalRef?: Ref;
   reason?: string;
+  issues?: MaterialResolveIssue[];
 };
 
 export type MaterialResolveResult =

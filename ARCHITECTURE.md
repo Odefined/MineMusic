@@ -199,6 +199,8 @@ needs.
    Source Library is read only for explicit source-library scoped requests, and
    Material Registry materializes stable `materialRef` / `identityState`
    projections. Source Grounding is used as source evidence when needed.
+   Provider results without stable source or canonical grounding are reported
+   as resolve diagnostics rather than ghost material identities.
 12. Source Grounding uses Source Slot adapters for source refs and playable
    links.
 13. Material Resolve returns `MusicMaterial` with stable material identity,

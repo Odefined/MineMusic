@@ -11,6 +11,7 @@ import type {
   MaterialQueryInput,
   MaterialQueryOutput,
   MaterialRecord,
+  MaterialResolveIssue,
   MaterialRelatedInput,
   MaterialRelatedOutput,
   MaterialResolveCardsInput,
@@ -45,6 +46,11 @@ export type MaterialQueryServiceOptions = {
   materialResolve: MaterialResolvePort;
   collection?: CollectionPort;
   clock?: () => string;
+};
+
+type ResolvedSeedMaterials = {
+  materials: MusicMaterial[];
+  issues: MaterialResolveIssue[];
 };
 
 export function createMaterialQueryService({
@@ -316,14 +322,14 @@ async function resolveSeeds({
   ownerScope: string;
   seeds: ResolveSeed[];
   limit?: number;
-}): Promise<Result<MusicMaterial[]>> {
+}): Promise<Result<ResolvedSeedMaterials>> {
   if (seeds.length === 0) {
-    return ok([]);
+    return ok({ materials: [], issues: [] });
   }
 
   const candidates = seeds.map((seed, index) => seedToCandidate(seed, index));
-  const resolved = await resolveCandidates({
-    materialResolve,
+  const resolved = await materialResolve.resolve({
+    kind: "candidate_set",
     ownerScope,
     candidates,
     ...(limit === undefined ? {} : { limitPerCandidate: limit }),
@@ -333,7 +339,16 @@ async function resolveSeeds({
     return resolved;
   }
 
-  return ok(resolved.value);
+  return ok({
+    materials:
+      resolved.value.kind === "candidate_set"
+        ? dedupeMaterials(resolved.value.results.flatMap((result) => result.materials))
+        : resolved.value.result.materials,
+    issues:
+      resolved.value.kind === "candidate_set"
+        ? resolved.value.results.flatMap((result) => result.issues ?? [])
+        : resolved.value.result.issues ?? [],
+  });
 }
 
 async function resolveSeedCards({
@@ -381,13 +396,13 @@ async function resolveSeedCards({
       return resolved;
     }
 
-    cards.push(...resolved.value.map((material) => toMaterialCard(material)));
+    cards.push(...resolved.value.materials.map((material) => toMaterialCard(material)));
 
-    if (resolved.value.length === 0) {
+    if (resolved.value.materials.length === 0) {
       cards.push({
         title: seed.text ?? `seed-${index + 1}`,
         status: "unresolved",
-        reason: "material_not_found",
+        reason: resolved.value.issues[0]?.code ?? "material_not_found",
       });
     }
   }
@@ -415,7 +430,6 @@ async function resolveMaterialRefSeed({
 
   if (record.value === null) {
     return ok([unresolvedMaterialCard({
-      materialId,
       title: seed.text ?? materialId,
       reason: "material_not_found",
     })]);
