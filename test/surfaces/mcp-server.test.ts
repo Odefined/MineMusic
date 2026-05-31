@@ -249,6 +249,12 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "event tool schema should declare event input",
   );
   assert(
+    hasSchemaKey(schemasByName.get("minemusic.memory.feedback.record"), "feedbackText") &&
+      hasSchemaKey(schemasByName.get("minemusic.memory.feedback.record"), "target") &&
+      hasSchemaKey(schemasByName.get("minemusic.memory.feedback.record"), "interpretation"),
+    "memory feedback schema should declare feedback text, target, and interpretation inputs",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "canonicalRef"),
     "collection save schema should declare canonicalRef input",
   );

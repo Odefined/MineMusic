@@ -90,6 +90,7 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
     "canonical.review.inspect",
     "canonical.review.apply",
     "canonical.review.auto_update",
+    "memory.feedback.record",
     "memory.propose",
   ] satisfies ToolName[];
 
