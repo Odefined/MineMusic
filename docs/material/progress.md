@@ -21,6 +21,10 @@ source ownership conflicts.
 `music.material.resolve` now returns resolved `MusicMaterial` values with
 `materialRef` and `identityState`. Source providers still return
 `SourceMaterial` before materialization and do not create material refs.
+Unbacked provider results that have neither a stable source ref nor a canonical
+ref are dropped from `materials` and reported through `MaterialResolveIssue`
+diagnostics; empty provider matches emit retryable `provider_no_match` issues
+instead of creating ghost `unresolved:*` material refs.
 Current recommendation flow and playable-link gating behavior are preserved.
 Material relations are keyed by owner scope plus `materialRef`, can be scoped
 to a whole material, a source ref, a version note, or an event, and are stored
@@ -116,6 +120,9 @@ with `found_no_link` status.
 - Material Resolve now materializes canonical-confirmed, source-only, and
   Source Library results through Material Registry, preserving stable
   source-only `materialRef` values across repeated resolves.
+- Material Resolve drops unbacked provider results instead of manufacturing
+  ghost material refs, and returns structured retry/missing-grounding
+  diagnostics on `ResolvedCandidate.issues`.
 - Material Registry merge projection preserves loser source refs on the
   survivor in both in-memory and SQLite-backed implementations.
 - `stage.materials.prepare` preserves `materialRef` and `identityState` while

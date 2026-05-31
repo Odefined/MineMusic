@@ -1,6 +1,7 @@
 import type {
   CanonicalRecord,
   MaterialRecord,
+  MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
   MaterialResolveStatus,
@@ -20,6 +21,16 @@ import type {
   MaterialResolvePort,
   SourceGroundingPort,
 } from "../ports/index.js";
+
+type ProjectedSourceMaterials = {
+  materials: MusicMaterial[];
+  issues: MaterialResolveIssue[];
+};
+
+type ProjectedSourceMaterial = {
+  material: MusicMaterial | null;
+  issues: MaterialResolveIssue[];
+};
 
 type MaterialResolveServiceOptions = {
   materialStore: MaterialStorePort;
@@ -117,8 +128,8 @@ async function resolveCandidate({
     canonical === null
       ? await findSourceLibraryMaterialsForCandidate({
           materialStore,
-        ownerScope,
-        candidate,
+          ownerScope,
+          candidate,
           ...(sourceLibraryScope === undefined ? {} : { requestScope: sourceLibraryScope }),
           ...(limitPerCandidate === undefined ? {} : { limitPerCandidate }),
         })
@@ -149,7 +160,7 @@ async function resolveCandidate({
 
     const relationFilteredLibraryMaterials = await applyMaterialRelationFiltering({
       materialStore,
-      materials: projectedLibraryMaterials.value,
+      materials: projectedLibraryMaterials.value.materials,
       ownerScope,
     });
 
@@ -174,17 +185,26 @@ async function resolveCandidate({
       ...(blockedLibraryMaterials.value[0]?.canonicalRef === undefined
         ? {}
         : { canonicalRef: blockedLibraryMaterials.value[0].canonicalRef }),
+      ...(projectedLibraryMaterials.value.issues.length === 0
+        ? {}
+        : { issues: projectedLibraryMaterials.value.issues }),
     });
   }
 
+  const sourceQuery = queryForCandidate(candidate, canonical, limitPerCandidate);
   const groundResult = await sourceGrounding.ground({
-    query: queryForCandidate(candidate, canonical, limitPerCandidate),
+    query: sourceQuery,
     ...(sessionId === undefined ? {} : { sessionId }),
   });
 
   if (!groundResult.ok) {
     return groundResult;
   }
+
+  const noMatchIssues =
+    groundResult.value.length === 0
+      ? [providerNoMatchIssue(sourceQuery)]
+      : [];
 
   const materialsResult =
     canonical === null
@@ -206,7 +226,7 @@ async function resolveCandidate({
 
   const relationFilteredMaterials = await applyMaterialRelationFiltering({
     materialStore,
-    materials: projectedMaterials.value,
+    materials: projectedMaterials.value.materials,
     ownerScope,
   });
 
@@ -225,6 +245,7 @@ async function resolveCandidate({
   }
 
   const materials = blockedFilterResult.value;
+  const issues = [...noMatchIssues, ...projectedMaterials.value.issues];
 
   return ok({
     candidate: structuredClone(candidate),
@@ -232,6 +253,7 @@ async function resolveCandidate({
     status: statusForResolvedMaterials(materials),
     ...(canonical === null ? {} : { canonicalRef: canonical.ref }),
     ...(materials.length === 0 ? { reason: "No source-backed material matched this candidate." } : {}),
+    ...(issues.length === 0 ? {} : { issues }),
   });
 }
 
@@ -596,8 +618,9 @@ async function projectSourceMaterials({
 }: {
   materialStore: MaterialStorePort;
   materials: SourceMaterial[];
-}): Promise<Result<MusicMaterial[]>> {
+}): Promise<Result<ProjectedSourceMaterials>> {
   const projected: MusicMaterial[] = [];
+  const issues: MaterialResolveIssue[] = [];
 
   for (const material of materials) {
     const result = await projectSourceMaterial(materialStore, material);
@@ -606,16 +629,20 @@ async function projectSourceMaterials({
       return result;
     }
 
-    projected.push(result.value);
+    issues.push(...result.value.issues);
+
+    if (result.value.material !== null) {
+      projected.push(result.value.material);
+    }
   }
 
-  return ok(projected);
+  return ok({ materials: projected, issues });
 }
 
 async function projectSourceMaterial(
   materialStore: MaterialStorePort,
   material: SourceMaterial,
-): Promise<Result<MusicMaterial>> {
+): Promise<Result<ProjectedSourceMaterial>> {
   const sourceRefs = mergeRefs(
     material.sourceRefs ?? [],
     (material.playableLinks ?? []).map((link) => link.sourceRef),
@@ -632,13 +659,18 @@ async function projectSourceMaterial(
 
   if (recordResult.value === null) {
     return ok({
-      ...sourceMaterial,
-      materialRef: unresolvedMaterialRef(sourceMaterial),
-      identityState: "unresolved",
+      material: null,
+      issues: [providerResultMissingSourceRefIssue(sourceMaterial)],
     });
   }
 
-  return projectMaterialRecord(materialStore, recordResult.value, sourceMaterial);
+  const projected = await projectMaterialRecord(materialStore, recordResult.value, sourceMaterial);
+
+  if (!projected.ok) {
+    return projected;
+  }
+
+  return ok({ material: projected.value, issues: [] });
 }
 
 async function resolveSourceMaterialToRecord(
@@ -904,16 +936,27 @@ function materialKindForMaterial(material: SourceMaterial): string {
   return material.kind;
 }
 
-function unresolvedMaterialRef(material: SourceMaterial): Ref {
+function normalizeLabel(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function providerNoMatchIssue(query: SourceQuery): MaterialResolveIssue {
   return {
-    namespace: "minemusic",
-    kind: "material",
-    id: `unresolved:${material.id}`,
+    code: "provider_no_match",
+    message: "Source provider returned no matches for this candidate.",
+    retryable: true,
+    query: structuredClone(query),
   };
 }
 
-function normalizeLabel(value: string): string {
-  return value.trim().toLocaleLowerCase();
+function providerResultMissingSourceRefIssue(material: SourceMaterial): MaterialResolveIssue {
+  return {
+    code: "provider_result_missing_source_ref",
+    message:
+      "Provider result did not include a stable sourceRef or canonicalRef, so no Material Store-backed material was created.",
+    retryable: false,
+    resultLabel: material.label,
+  };
 }
 
 function isTerminalState(state: MusicMaterial["state"]): boolean {

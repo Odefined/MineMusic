@@ -182,9 +182,116 @@ async function resolveCardsReturnsUnresolvedForUnknownMaterialIds(): Promise<voi
   );
 
   assert(output.items.length === 1, "unknown material ids should still produce a decision card");
-  assert(output.items[0]?.materialId === "missing-material", "unknown material id cards should echo the requested material id");
+  assert(output.items[0]?.materialId === undefined, "unknown material id cards should not expose a durable material id");
   assert(output.items[0]?.status === "unresolved", "unknown material ids should be unresolved");
   assert(output.items[0]?.reason === "material_not_found", "unknown material ids should explain material_not_found");
+}
+
+async function resolveCardsReturnsDiagnosticCardForUnbackedProviderResults(): Promise<void> {
+  const { materialStore } = createMaterialQueryHarness([]);
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => ({
+      ok: true,
+      value: [
+        {
+          id: "unbacked-provider-result",
+          kind: "recording",
+          label: "Unbacked Provider Result",
+          state: "unresolved",
+        },
+      ],
+    }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialQuery = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+    }),
+  });
+
+  const output = await assertOk(
+    materialQuery.resolveCards({
+      ownerScope: "local_profile:default",
+      seeds: [{ text: "Unbacked Provider Result" }],
+    }),
+  );
+
+  assert(output.items.length === 1, "unbacked provider result should produce one diagnostic card");
+  assert(output.items[0]?.materialId === undefined, "unbacked provider result should not expose a material id");
+  assert(output.items[0]?.status === "unresolved", "unbacked provider result should be unresolved");
+  assert(
+    output.items[0]?.reason === "provider_result_missing_source_ref",
+    "unbacked provider result should explain the missing source ref",
+  );
+}
+
+async function querySkipsUnbackedProviderResults(): Promise<void> {
+  const seedRef = ref("source:fixture", "track", "unbacked-query-seed");
+  const relatedRef = ref("source:fixture", "track", "unbacked-query-related");
+  const releaseRef = ref("source:fixture", "release", "unbacked-query-release");
+  const { materialStore } = createMaterialQueryHarness([]);
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef: seedRef,
+        providerId: "fixture",
+        kind: "track",
+        label: "Unbacked Query Seed",
+        title: "Unbacked Query Seed",
+        releaseSourceRef: releaseRef,
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef: releaseRef,
+        providerId: "fixture",
+        kind: "release",
+        label: "Unbacked Query Release",
+        title: "Unbacked Query Release",
+        tracklist: [{ sourceRef: relatedRef, title: "Unbacked Query Track" }],
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
+  const seedRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: seedRef, kind: "recording" }));
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => ({
+      ok: true,
+      value: [
+        {
+          id: "unbacked-query-result",
+          kind: "recording",
+          label: "Unbacked Query Track",
+          state: "unresolved",
+        },
+      ],
+    }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialQuery = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+    }),
+  });
+
+  const output = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "related", materialId: materialRefToMaterialId(seedRecord.materialRef), relation: "same_album" },
+      limit: 10,
+    }),
+  );
+
+  assert(output.items.length === 0, "query should not emit cards for unbacked provider results");
 }
 
 async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<void> {
@@ -1274,6 +1381,8 @@ await resolveCardsProjectsCanonicalOnlyCardRefs();
 await resolveCardsResolvesCanonicalConfirmedCardRefs();
 await resolveCardsFollowsMaterialRedirects();
 await resolveCardsReturnsUnresolvedForUnknownMaterialIds();
+await resolveCardsReturnsDiagnosticCardForUnbackedProviderResults();
+await querySkipsUnbackedProviderResults();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
 await queryReturnKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();

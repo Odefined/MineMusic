@@ -1111,6 +1111,16 @@
   MaterialCard handle for query, related, context brief, collection actions,
   `stage.materials.prepare`, recentCards, recommendation activity projection,
   and material effect targets without preserving legacy `mat_*` readers.
+- Started recommendation-posture PR 1 on branch
+  `codex/recommendation-resolve-diagnostics` from updated `main`.
+- Added `MaterialResolveIssue` diagnostics to `ResolvedCandidate`, stopped
+  Material Resolve from manufacturing ghost `unresolved:*` material refs for
+  unbacked provider results, and made empty provider matches emit retryable
+  `provider_no_match` issues.
+- Updated compact `music.material.resolve.cards` behavior so unresolved
+  diagnostic cards do not expose non-existent durable `materialId` handles, and
+  added focused resolve/query regression coverage for dropped unbacked provider
+  results.
 
 ## Next
 

@@ -521,6 +521,10 @@ async function keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve(): Promise<
     first.result.materials[0]?.materialRef.id === second.result.materials[0]?.materialRef.id,
     "same source-only source ref should resolve to the same material ref",
   );
+  assert(
+    !first.result.materials.some((material) => material.materialRef.id.startsWith("unresolved:")),
+    "source-backed resolve should not create unresolved material refs",
+  );
 }
 
 async function repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor(): Promise<void> {
@@ -616,7 +620,7 @@ async function repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor(): Pr
   );
 }
 
-async function materializesRepresentedUnresolvedMaterials(): Promise<void> {
+async function dropsProviderResultsWithoutStableGrounding(): Promise<void> {
   const sourceGrounding: SourceGroundingPort = {
     ground: async () => ({
       ok: true,
@@ -647,14 +651,55 @@ async function materializesRepresentedUnresolvedMaterials(): Promise<void> {
     }),
   );
 
-  assert(resolved.kind === "single", "represented unresolved material should return a single result");
+  assert(resolved.kind === "single", "unbacked provider result should return a single result");
+  assert(resolved.result.status === "unresolved", "unbacked provider result should stay unresolved");
+  assert(resolved.result.materials.length === 0, "unbacked provider result should not create a material");
   assert(
-    resolved.result.materials[0]?.materialRef.id === "unresolved:provider-unresolved",
-    "represented unresolved material should receive a deterministic unresolved material ref",
+    resolved.result.issues?.some(
+      (issue) =>
+        issue.code === "provider_result_missing_source_ref" &&
+        issue.retryable === false &&
+        issue.resultLabel === "Provider Unresolved",
+    ),
+    "unbacked provider result should emit provider_result_missing_source_ref",
   );
+}
+
+async function emitsRetryableProviderNoMatchIssues(): Promise<void> {
+  const sourceGrounding: SourceGroundingPort = {
+    ground: async () => ({ ok: true, value: [] }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+  const materialResolve = createMaterialResolveService({
+    materialStore: createMaterialStore({
+      canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+      sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+    }),
+    sourceGrounding,
+  });
+
+  const resolved = await assertOk(
+    materialResolve.resolve({
+      kind: "single",
+      candidate: {
+        id: "no-match",
+        label: "No Match",
+        query: { text: "No Match", limit: 1 },
+      },
+    }),
+  );
+
+  assert(resolved.kind === "single", "provider no-match should return a single result");
+  assert(resolved.result.status === "unresolved", "provider no-match should be unresolved");
+  assert(resolved.result.materials.length === 0, "provider no-match should not create materials");
   assert(
-    resolved.result.materials[0]?.identityState === "unresolved",
-    "represented unresolved material should project unresolved identity state",
+    resolved.result.issues?.some(
+      (issue) =>
+        issue.code === "provider_no_match" &&
+        issue.retryable === true &&
+        issue.query?.text === "No Match",
+    ),
+    "provider no-match should emit a retryable provider_no_match issue with the attempted query",
   );
 }
 
@@ -685,4 +730,5 @@ await readsSourceLibraryOnlyWhenExplicitlyScoped();
 await normalizesSongTrackAndAlbumSeedKindsForCanonicalLookup();
 await keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve();
 await repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor();
-await materializesRepresentedUnresolvedMaterials();
+await dropsProviderResultsWithoutStableGrounding();
+await emitsRetryableProviderNoMatchIssues();
