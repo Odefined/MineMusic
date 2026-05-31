@@ -80,7 +80,7 @@ export const stageToolDefinitions = [
   },
   {
     name: "stage.materials.prepare",
-    description: "Prepare grounded materials through the Material Gate before presentation.",
+    description: "Legacy material sanitizer for non-final material use; use stage.recommendation.present for user-visible recommendations.",
     inputSchemaRef: "StageMaterialsPrepareInput",
     outputSchemaRef: "MusicMaterial[]",
     availability: "requires_active_instrument",

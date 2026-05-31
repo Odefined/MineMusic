@@ -56,8 +56,16 @@ async function packagesRepoLocalCodexSkill(): Promise<void> {
   assert(handbookText.includes("Input: `MaterialResolveRequest`"), "handbook should document tool input schema refs");
   assert(handbookText.includes("Output: `MaterialResolveResult`"), "handbook should document tool output schema refs");
   assert(
-    skillText.includes("minemusic.stage.materials.prepare"),
-    "MineMusic skill should require Stage material preparation before presenting links",
+    skillText.includes("minemusic.stage.recommendation.present"),
+    "MineMusic skill should require the recommendation presentation boundary before answering",
+  );
+  assert(
+    skillText.includes("exactly the returned cards"),
+    "MineMusic skill should tell agents to answer from returned presentation cards",
+  );
+  assert(
+    !skillText.includes("Before presenting any material or link, call"),
+    "MineMusic skill should not require the old prepare-first recommendation path",
   );
   assert(
     skillText.includes("minemusic.music.material.resolve"),

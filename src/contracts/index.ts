@@ -429,7 +429,15 @@ export type MaterialCardSnapshot = CandidateMaterialCard & {
   presentedAt: string;
 };
 
-export type PresentedMaterialCard = MaterialCardSnapshot;
+export type PresentedMaterialLink = {
+  label?: string;
+  url: string;
+  sourceRef?: Ref;
+};
+
+export type PresentedMaterialCard = MaterialCardSnapshot & {
+  links?: PresentedMaterialLink[];
+};
 
 export type RecentMaterialCard = MaterialCardSnapshot & {
   eventId: string;
@@ -468,7 +476,7 @@ export type RecommendationPresentedPayload = {
   ownerScope?: string;
   request?: string;
   presentedAt: string;
-  cards: MaterialCardSnapshot[];
+  cards: PresentedMaterialCard[];
   basis?: Array<{
     materialId: string;
     kind: RecommendationBasisKind;

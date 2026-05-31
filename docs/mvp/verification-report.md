@@ -23,9 +23,9 @@ natural request
 -> Material Resolve
 -> Source Grounding fixture provider
 -> Canonical Store identity attachment
--> Stage material preparation through tool-visible `stage.materials.prepare`
--> recommendation response with source-backed link
--> factual event recording
+-> recommendation presentation through tool-visible `stage.recommendation.present`
+-> recommendation response from returned presentation cards and links
+-> typed presentation event recording
 -> memory proposal
 -> effect proposal
 ```
@@ -120,8 +120,10 @@ NetEase provider adapter:
 
 Codex MCP plugin surface:
 
-- `stage.materials.prepare` is included in the stable Stage Interface / instrument
-  tool set.
+- `stage.recommendation.present` is included in the stable Stage Interface /
+  instrument tool set as the final user-visible recommendation boundary.
+- `stage.materials.prepare` remains available as a legacy non-final material
+  sanitizer.
 - Tool Dispatch rejects normal instrument tools when the current instrument
   catalog does not expose them, while `stage.context.read`, `handbook.*` lookup
   tools, and `stage.session.update` remain available.
@@ -140,8 +142,9 @@ Codex MCP plugin surface:
   literal song-title searches.
 - The active Codex session can discover and call the `minemusic.*` MCP tools.
   A real recommendation scenario for quiet, not-sleepy coding music completed
-  through `stage.session.update`, `music.material.resolve`, `stage.materials.prepare`,
-  `stage.events.record`, `memory.propose`, and `stage.effects.propose`.
+  through `stage.session.update`, `music.material.resolve`,
+  `stage.recommendation.present`, `memory.propose`, and
+  `stage.effects.propose`.
 - The live active-session flow returned source-backed NetEase materials such as
   `Aruarian Dance - Nujabes, Fat Jon`
   (`https://music.163.com/#/song?id=22644323`), `Feather ... - Nujabes`
@@ -197,16 +200,16 @@ current session:
 ```text
 session.update
 -> music.material.resolve
--> stage.materials.prepare
--> events.record
+-> stage.recommendation.present
 -> memory.propose
 -> effects.propose
 ```
 
-The flow returned real NetEase links and created inspectable event, memory, and
-effect proposal records. The user also confirmed fresh Codex app MCP tool
-validation in this thread; that host-app check is recorded as user-confirmed
-evidence rather than a repo-command test.
+The flow returned real NetEase links, created a typed recommendation
+presentation event internally, and created inspectable memory and effect
+proposal records. The user also confirmed fresh Codex app MCP tool validation
+in this thread; that host-app check is recorded as user-confirmed evidence
+rather than a repo-command test.
 
 ## Remaining Work
 

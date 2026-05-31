@@ -69,16 +69,12 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       "response should include source-backed playable link",
     );
     assert(
-      !transcript.response.includes("https://fixture.example/play/unconfirmed-track"),
-      "response should not include unconfirmed exploration links",
+      transcript.response.includes("https://fixture.example/play/unconfirmed-track"),
+      "response should use links from returned presentation cards",
     );
     assert(
-      transcript.presentedMaterials.every((material) =>
-        material.playableLinks === undefined ||
-        material.state === "confirmed_playable" ||
-        material.state === "source_only_playable",
-      ),
-      "playable links should appear only on source-backed playable states",
+      transcript.presentedCards.every((card) => card.position > 0 && card.presentedAt.length > 0),
+      "presentation cards should carry typed position and presentedAt fields",
     );
     assert(
       transcript.presentedMaterials.every((material) => material.materialRef.kind === "material" && material.identityState !== undefined),
@@ -90,16 +86,37 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     );
     assert(
       transcript.presentedMaterials.some(
-        (material) => material.id === fixtureExplorationMaterial.id && material.playableLinks === undefined,
+        (material) => material.id === fixtureExplorationMaterial.id,
       ),
-      "exploration material should be presentable only without playable links",
+      "exploration material should be considered through presentation cards, not the old prepare gate",
     );
     assert(
-      transcript.recordedEvents.some((event) => event.type === "recommendation.presented"),
+      transcript.presentedCards.some((card) =>
+        card.materialId === transcript.presentedMaterials.find((material) => material.id === fixtureExplorationMaterial.id)?.materialRef.id &&
+        card.status === "playable_unverified" &&
+        card.links?.some((link) => link.url === "https://fixture.example/play/unconfirmed-track")
+      ),
+      "source-only exploration should be surfaced as a typed playable_unverified card",
+    );
+    const recommendationEvent = transcript.recordedEvents.find((event) => event.type === "recommendation.presented");
+    assert(
+      recommendationEvent !== undefined,
       "integration run should record the recommendation presentation event",
     );
+    const recommendationPayload = recommendationEvent.payload as { cards?: unknown[]; materialStates?: unknown };
+    assert(Array.isArray(recommendationPayload.cards), "recommendation event should carry typed presentation cards");
     assert(
-      transcript.memoryProposal.entry.text === "User likes quiet coding music that still has motion.",
+      recommendationPayload.materialStates === undefined,
+      "recommendation event should not carry legacy materialStates payload",
+    );
+    const contextResult = await assertOk(stageCore.stageInterface.tools["stage.context.read"]({}));
+    const context = contextResult as { recentCards?: Array<{ eventId: string; title: string }> };
+    assert(
+      context.recentCards?.some((card) => card.eventId === recommendationEvent.id && card.title === "Quiet Coding Track"),
+      "stage context should expose recentCards from typed presentation payload",
+    );
+    assert(
+      transcript.memoryProposal?.entry.text === "User likes quiet coding music that still has motion.",
       "memory update should remain inspectable as a proposal",
     );
     assert(
@@ -107,8 +124,13 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       "memory proposal should not become accepted durable memory during recommendation transcript",
     );
     assert(
-      transcript.effectProposal.kind === "open_link",
+      transcript.effectProposal?.kind === "open_link",
       "external action should remain represented as an effect proposal",
+    );
+    assert(
+      (transcript.effectProposal?.target as { materialId?: string } | undefined)?.materialId ===
+        transcript.presentedCards[0]?.materialId,
+      "external action should target the presented material card by materialId",
     );
   } finally {
     await rm(stageCoreDirectory, { force: true, recursive: true });

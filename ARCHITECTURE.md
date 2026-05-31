@@ -226,7 +226,7 @@ needs.
 ```
 
 The LLM still owns the final recommendation. Stage Interface may hide MineMusic
-ordering such as "resolve before prepare" but must not become a recommender.
+ordering such as "resolve before present" but must not become a recommender.
 
 ## Module Port Model
 

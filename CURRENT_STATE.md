@@ -197,6 +197,15 @@ manual `recommendation.presented` / `recommendation_presented` events with a
 pointer to `stage.recommendation.present`, and `stage.context.read`
 `recentCards` are derived from the typed presentation payload.
 
+The 2026-05-31 recommendation-posture PR 5 workflow migration moves
+`runRecommendationTranscript` and the Codex workflow skill onto the presentation
+boundary. The fixture transcript now resolves grounded materials, syncs fixture
+playable links into Source Entity state, calls `stage.recommendation.present`,
+builds its response from returned `PresentedMaterialCard.links`, and binds
+memory/effect proposals to the typed presentation card/event. The old
+`stage.materials.prepare + manual stage.events.record(recommendation.presented)`
+recommendation path is no longer used by the transcript or skill.
+
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the
@@ -652,17 +661,18 @@ host-facing and LLM-facing surface.
   for `http://127.0.0.1:37373/mcp`.
 - The workflow skill triggers on music requests and routes agents through the
   skill-local `HANDBOOK.md`,
-  `handbook.tool.read`, `stage.context.read`, `music.material.resolve`, and
-  `stage.materials.prepare`.
+  `handbook.tool.read`, `stage.context.read`, materialId-producing music tools
+  such as `music.material.resolve`, optional `music.material.select`, and
+  `stage.recommendation.present`.
 - The workflow skill now distinguishes listening context from provider search
   text. Environment terms such as writing code, study, walking, late night, or
   not too sleepy are musical context for the agent to interpret, not literal
   source-search strings.
 - The active Codex session can call the repo-local `minemusic.*` MCP tools for
   a real user scenario: update session vibe, resolve music candidates through
-  NetEase, prepare `source_only_playable` materials for recommendation, record
-  a recommendation event, create an evidence-backed memory proposal, and create
-  an `open_link` effect proposal without executing the effect.
+  NetEase, present returned material cards through
+  `stage.recommendation.present`, create an evidence-backed memory proposal,
+  and create an `open_link` effect proposal without executing the effect.
 - Fresh Codex session validation is reported complete by the user, so Wave 8 is
   no longer blocked on MCP tool visibility. The repository evidence still
   consists of deterministic skill/MCP tests plus active-session MCP tool calls.
@@ -696,6 +706,8 @@ host-facing and LLM-facing surface.
   `npm run build:test && node .tmp-test/test/storage/sqlite-material-registry.test.js && node .tmp-test/test/material_store/material-registry.test.js`,
   `npm test`, and `git diff --check` pass as of the MusicMaterial PR 1
   Material Registry foundation on 2026-05-30.
+- `npm test` and `git diff --check` pass as of recommendation-posture PR 5 on
+  2026-05-31.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
   implementation and is covered inside the latest `npm test` run.
@@ -703,7 +715,7 @@ host-facing and LLM-facing surface.
 - `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
   `http://127.0.0.1:3000` in this session.
 - Active Codex MCP tool calls through `minemusic.music.material.resolve`,
-  `minemusic.stage.materials.prepare`, `minemusic.stage.events.record`,
+  `minemusic.stage.recommendation.present`,
   `minemusic.memory.propose`, and `minemusic.stage.effects.propose` passed for a real
   "quiet but not sleepy coding music" scenario, returning NetEase links such as
   `https://music.163.com/#/song?id=22644323`.

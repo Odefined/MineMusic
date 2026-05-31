@@ -124,6 +124,13 @@ manual recommendation presentation events, and `stage.context.read`
 `recentCards` now come from typed presentation payloads with card position and
 presentation time.
 
+Recommendation-posture PR 5 is now implemented. Presented cards can carry
+source-backed links, and the fixture recommendation transcript now builds its
+answer from `stage.recommendation.present` output instead of from
+`stage.materials.prepare`. The workflow skill points agents at
+`stage.recommendation.present` as the final recommendation boundary and keeps
+`stage.materials.prepare` only as a legacy non-final material sanitizer.
+
 ## Implemented
 
 - Added material identity contracts:
@@ -164,6 +171,10 @@ presentation time.
   event writes from agent-facing tools.
 - Updated recentCards projection to read typed `recommendation.presented`
   payloads with `eventId`, `position`, and `presentedAt`.
+- Added presented-card links and migrated the fixture recommendation workflow
+  to answer from returned `PresentedMaterialCard` values.
+- Updated the MineMusic workflow skill to require
+  `stage.recommendation.present` before answering with recommendations.
 - Material Registry merge projection preserves loser source refs on the
   survivor in both in-memory and SQLite-backed implementations.
 - `stage.materials.prepare` preserves `materialRef` and `identityState` while
@@ -310,6 +321,8 @@ presentation time.
   `node .tmp-test/test/material_resolve/material-relation-filtering.test.js`.
 - `npm run typecheck`, `npm test`, and `git diff --check` passed for each
   post-merge hardening phase on 2026-05-31.
+- Recommendation-posture PR 5 verification passed on 2026-05-31:
+  `npm test` and `git diff --check`.
 
 ## Remaining
 
