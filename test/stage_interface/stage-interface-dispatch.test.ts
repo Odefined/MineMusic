@@ -390,6 +390,7 @@ async function registersMigratedToolDefinitions(): Promise<void> {
     memory: {
       memory: {
         summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
         propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-proposal-1" } }),
         accept: async () => ({
           ok: true,
@@ -454,6 +455,10 @@ async function registersMigratedToolDefinitions(): Promise<void> {
   assert(
     stageInterfaceToolInputSchemas["memory.propose"] === registry.get("memory.propose")?.inputSchema,
     "Memory tool schemas should be derived from Tool Definitions",
+  );
+  assert(
+    stageInterfaceToolInputSchemas["memory.feedback.record"] === registry.get("memory.feedback.record")?.inputSchema,
+    "Memory feedback tool schemas should be derived from Tool Definitions",
   );
   assert(
     stageInterfaceToolInputSchemas["library.import.start"] === registry.get("library.import.start")?.inputSchema,
@@ -574,6 +579,10 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   };
   const memory: MemoryPort = {
     summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => {
+      calls.push("memory.feedback.record");
+      return { ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } };
+    },
     propose: async ({ proposal }) => {
       calls.push("memory.propose");
       return { ok: true, value: { ...proposal, id: "memory-proposal-1" } };
@@ -660,6 +669,17 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
           type: "instrument_test",
           payload: {},
         },
+      },
+    }),
+  );
+  await assertOk(
+    dispatch.call({
+      sessionId: session.id,
+      toolName: "memory.feedback.record",
+      payload: {
+        feedbackText: "the first one is the wrong version",
+        target: { recentCardIndex: 1 },
+        interpretation: { kind: "wrong_version" },
       },
     }),
   );
@@ -756,6 +776,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     "knowledge.query should return continuation cursors unchanged through Stage Interface dispatch",
   );
   assert(calls.includes("stage.events.record"), "stage.events.record should call EventPort");
+  assert(calls.includes("memory.feedback.record"), "memory.feedback.record should call MemoryPort");
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");
   assert(calls.includes("sessionContext.updateSession"), "stage.session.update should call SessionContextPort");
@@ -790,6 +811,7 @@ async function rejectsManualRecommendationPresentedEvents(): Promise<void> {
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-proposal-1" } }),
       accept: async () => ({
         ok: true,
@@ -882,6 +904,7 @@ async function dispatchesStageMaterialsPrepareWithMaterialIds(): Promise<void> {
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-1" } }),
       accept: async () => ({
         ok: true,
@@ -950,6 +973,7 @@ async function dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints(): Pro
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
       accept: async () => ({
         ok: true,
@@ -1047,6 +1071,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
       accept: async () => ({
         ok: true,
@@ -1268,6 +1293,7 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
       accept: async () => ({
         ok: true,
@@ -1441,6 +1467,7 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
       accept: async () => ({
         ok: true,
@@ -1517,6 +1544,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-1" } }),
       accept: async () => ({
         ok: true,
@@ -1672,6 +1700,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
       accept: async () => ({
         ok: true,
@@ -1870,6 +1899,7 @@ async function dispatchesSourceLibraryToolsThroughMaterialStore(): Promise<void>
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "proposal-1" } }),
       accept: async () => ({
         ok: true,
@@ -2171,6 +2201,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     },
     memory: {
       summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-proposal-1" } }),
       accept: async () => ({ ok: true, value: { id: "memory-1", text: "memory", kind: "contextual_preference" } }),
     },

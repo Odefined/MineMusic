@@ -1176,6 +1176,20 @@
 - Added regression coverage for typed presentation-card response behavior,
   recentCards after transcript, absence of legacy `materialStates`, and
   ignoring legacy materialStates recommendation payloads.
+- Started recommendation-posture PR 6 on branch
+  `codex/recommendation-feedback-record` from merged `main`.
+- Added `MemoryFeedbackRecordInput` / `MemoryFeedbackRecordOutput`,
+  `MemoryPort.recordFeedback`, and the `memory.feedback.record` Stage Interface
+  tool.
+- Implemented feedback target binding for recent card index,
+  `{ eventId, position }`, and direct `materialId` targets, with typed
+  `recommendation.feedback` event recording.
+- Added scoped feedback consequences: source/version relations for wrong
+  version when possible, source-scoped not-playable/source block warnings when
+  source context is missing, material block/like/dislike relations, and
+  remember-preference memory proposals without auto-acceptance.
+- Added memory service, Stage Interface, MCP schema, skill/handbook, and
+  contract regression coverage for feedback binding and consequence behavior.
 
 ## Next
 

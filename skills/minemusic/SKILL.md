@@ -113,9 +113,10 @@ overview snapshot.
    `minemusic.stage.recommendation.present`.
 11. Use `minemusic.stage.materials.prepare` only as a legacy material sanitizer
    for non-final material display, not as the final recommendation boundary.
-12. For feedback on shown cards, bind feedback to recent presentation cards
-   with `minemusic.memory.feedback.record` when that tool is available. Until
-   then, keep feedback factual and avoid fabricating a recommendation event.
+12. For feedback on shown cards, interpret the user's wording yourself and
+   bind the feedback to recent presentation cards with
+   `minemusic.memory.feedback.record`. Do not fabricate a recommendation event
+   for feedback.
 13. For durable preference learning, call `minemusic.memory.propose`; do not
    write memory directly.
 14. For external actions such as open, play, queue, save, source writeback, or

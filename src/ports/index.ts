@@ -76,6 +76,8 @@ import type {
   RecommendationPresentInput,
   RecommendationPresentOutput,
   MemoryEntry,
+  MemoryFeedbackRecordInput,
+  MemoryFeedbackRecordOutput,
   MemoryProposal,
   MusicMaterialRelation,
   MusicMaterialRelationKind,
@@ -768,6 +770,8 @@ export interface EventPort {
 
 export interface MemoryPort {
   summarizeForSession(input: { sessionId: string }): Promise<Result<string[]>>;
+
+  recordFeedback(input: MemoryFeedbackRecordInput & { sessionId: string }): Promise<Result<MemoryFeedbackRecordOutput>>;
 
   propose(input: {
     proposal: Omit<MemoryProposal, "id">;

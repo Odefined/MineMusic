@@ -24,6 +24,8 @@ agent-facing final boundary for user-visible recommendations. Manual
 `stage.materials.prepare` remains available, but its descriptor now frames it
 as a legacy non-final material sanitizer rather than the recommendation
 presentation boundary.
+The Memory Tool Group now exposes `memory.feedback.record` for interpreted
+feedback on presented recommendation cards.
 
 ## Established Decisions
 
@@ -90,6 +92,8 @@ presentation boundary.
 - Manual recommendation presentation event rejection in `stage.events.record`.
 - `stage.materials.prepare` descriptor guidance that points recommendation
   flows to `stage.recommendation.present`.
+- `memory.feedback.record` descriptor, schema, and dispatch to
+  `MemoryPort.recordFeedback`.
 
 ## Not Yet Implemented
 
@@ -99,15 +103,15 @@ presentation boundary.
 
 ## Verification
 
-- `npm run typecheck` passes as of recommendation-posture PR 5.
-- `npm run build:test` passes as of recommendation-posture PR 5.
+- `npm run typecheck` passes as of recommendation-posture PR 6.
+- `npm run build:test` passes as of recommendation-posture PR 6.
 - `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
-  passes as of recommendation-posture PR 5.
+  passes as of recommendation-posture PR 6.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
-  recommendation-posture PR 5.
+  recommendation-posture PR 6.
 - `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
-  Interface recommendation presentation schema coverage.
-- `npm test` passes as of recommendation-posture PR 5.
+  Interface recommendation presentation and feedback schema coverage.
+- `npm test` passes as of recommendation-posture PR 6.
 
 ## Next Slice
 

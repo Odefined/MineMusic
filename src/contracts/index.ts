@@ -2017,6 +2017,63 @@ export type MemoryProposal = {
   requiresEffectApproval: boolean;
 };
 
+export type MemoryFeedbackTarget =
+  | { recentCardIndex: number }
+  | { eventId: string; position: number }
+  | { materialId: string };
+
+export type MemoryFeedbackInterpretation =
+  | { kind: "wrong_version"; scope?: "source" | "version" }
+  | { kind: "not_playable"; scope?: "source" }
+  | { kind: "block"; scope?: "material" | "source" }
+  | { kind: "like"; scope?: "material" }
+  | { kind: "dislike"; scope?: "material" }
+  | { kind: "remember_preference"; text: string; scope?: "session" | "long_term" };
+
+export type MemoryFeedbackRecordInput = {
+  ownerScope?: string;
+  sessionId?: string;
+  feedbackText: string;
+  target: MemoryFeedbackTarget;
+  interpretation: MemoryFeedbackInterpretation;
+  note?: string;
+};
+
+export type MemoryFeedbackBoundTarget = {
+  materialId: string;
+  title?: string;
+  eventId?: string;
+  position?: number;
+  sourceRef?: Ref;
+};
+
+export type MemoryFeedbackConsequence =
+  | {
+      kind: "relation";
+      relationId: string;
+      relationKind: MusicMaterialRelationKind;
+      scope: MusicMaterialRelationScope;
+    }
+  | {
+      kind: "memory_proposal";
+      proposalId: string;
+    };
+
+export type MemoryFeedbackWarning = {
+  code:
+    | "feedback_target_not_found"
+    | "feedback_source_not_found"
+    | "feedback_consequence_unavailable";
+  message: string;
+};
+
+export type MemoryFeedbackRecordOutput = {
+  feedbackEventId: string;
+  target?: MemoryFeedbackBoundTarget;
+  applied: MemoryFeedbackConsequence[];
+  warnings?: MemoryFeedbackWarning[];
+};
+
 export type EffectProposal = {
   id: string;
   kind: string;
@@ -2087,6 +2144,7 @@ export type ToolName =
   | "canonical.review.inspect"
   | "canonical.review.apply"
   | "canonical.review.auto_update"
+  | "memory.feedback.record"
   | "memory.propose";
 
 export type InstrumentDescriptor = {

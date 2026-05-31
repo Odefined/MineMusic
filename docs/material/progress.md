@@ -131,6 +131,13 @@ answer from `stage.recommendation.present` output instead of from
 `stage.recommendation.present` as the final recommendation boundary and keeps
 `stage.materials.prepare` only as a legacy non-final material sanitizer.
 
+Recommendation-posture PR 6 is now implemented. `memory.feedback.record`
+binds user feedback to typed recent/presented recommendation cards and writes
+scoped material consequences when safe. Wrong-version and not-playable feedback
+use source or version scope rather than blind whole-material blocks, material
+block/like/dislike write material-scoped relations, and remember-preference
+creates an evidence-backed memory proposal without auto-acceptance.
+
 ## Implemented
 
 - Added material identity contracts:
@@ -175,6 +182,9 @@ answer from `stage.recommendation.present` output instead of from
   to answer from returned `PresentedMaterialCard` values.
 - Updated the MineMusic workflow skill to require
   `stage.recommendation.present` before answering with recommendations.
+- Added `memory.feedback.record`, feedback target binding, typed feedback
+  events, scoped material relation consequences, and memory-proposal
+  consequences.
 - Material Registry merge projection preserves loser source refs on the
   survivor in both in-memory and SQLite-backed implementations.
 - `stage.materials.prepare` preserves `materialRef` and `identityState` while
@@ -322,6 +332,8 @@ answer from `stage.recommendation.present` output instead of from
 - `npm run typecheck`, `npm test`, and `git diff --check` passed for each
   post-merge hardening phase on 2026-05-31.
 - Recommendation-posture PR 5 verification passed on 2026-05-31:
+  `npm test` and `git diff --check`.
+- Recommendation-posture PR 6 verification passed on 2026-05-31:
   `npm test` and `git diff --check`.
 
 ## Remaining

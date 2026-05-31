@@ -2059,6 +2059,7 @@ const events: EventPort = {
 
 const memory: MemoryPort = {
   summarizeForSession: async () => ({ ok: true, value: [memoryEntry.text] }),
+  recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
   propose: async ({ proposal }) => ({
     ok: true,
     value: { ...proposal, id: memoryProposal.id },

@@ -126,6 +126,7 @@ function musicBrainzRecordingKnowledgeItem({
 function createSessionContextFor(session: StageSession): SessionContextPort {
   const memory: MemoryPort = {
     summarizeForSession: async () => ({ ok: true, value: [] }),
+    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
     propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-proposal-1" } }),
     accept: async () => ({
       ok: true,

@@ -287,6 +287,7 @@ export type ToolName =
   | "canonical.review.list"
   | "canonical.review.inspect"
   | "canonical.review.apply"
+  | "memory.feedback.record"
   | "memory.propose";
 
 export type InstrumentDescriptor = {
@@ -799,6 +800,8 @@ Purpose:
 
 - Summarize usable memory.
 - Create and accept evidence-backed memory proposals.
+- Record interpreted user feedback against typed presented recommendation
+  cards and apply scoped relation or memory-proposal consequences.
 
 Public port:
 
@@ -807,6 +810,10 @@ export interface MemoryPort {
   summarizeForSession(input: {
     sessionId: string;
   }): Promise<Result<string[]>>;
+
+  recordFeedback(input: MemoryFeedbackRecordInput & {
+    sessionId: string;
+  }): Promise<Result<MemoryFeedbackRecordOutput>>;
 
   propose(input: {
     proposal: Omit<MemoryProposal, "id">;
@@ -823,6 +830,7 @@ Consumes:
 - memory repository from Storage.
 - `EventPort` for evidence lookup when needed.
 - `EffectBoundaryPort` when acceptance requires durable write approval.
+- optional `MaterialStorePort` for feedback relation consequences.
 
 Publishes domain events:
 
@@ -834,6 +842,8 @@ Must not expose:
 - raw event logging.
 - unsupported LLM guesses as durable memory.
 - external source writeback.
+- blind relation writes when feedback target or source scope cannot be
+  resolved.
 
 ## Effect Boundary Port
 
