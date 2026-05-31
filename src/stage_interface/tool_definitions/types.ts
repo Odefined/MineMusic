@@ -12,23 +12,29 @@ export type StageInterfaceToolAvailability =
   | "always_available"
   | "requires_active_instrument";
 
-export type StageInterfaceToolHandlerInput<TContext> = {
+export type StageInterfaceToolHandlerInput<TContext, TInput = unknown> = {
   context: TContext;
   sessionId: string;
-  payload: unknown;
+  payload: TInput;
 };
 
-export type StageInterfaceToolDefinition<TName extends ToolName, TContext> = {
+export type StageInterfaceToolDefinition<
+  TName extends ToolName,
+  TContext,
+  TInput = unknown,
+  TOutput = unknown,
+> = {
   name: TName;
   description: string;
   inputSchemaRef: string;
   outputSchemaRef: string;
   effectKind?: string;
   inputSchema: StageInterfaceToolInputSchema;
+  inputParser?: z.ZodType<TInput>;
   availability: StageInterfaceToolAvailability;
   handler(
-    input: StageInterfaceToolHandlerInput<TContext>,
-  ): Promise<Result<unknown>> | Result<unknown>;
+    input: StageInterfaceToolHandlerInput<TContext, TInput>,
+  ): Promise<Result<TOutput>> | Result<TOutput>;
   validatePayload?: (payload: unknown) => Result<unknown>;
   present?: (value: unknown) => unknown;
 };
@@ -57,6 +63,17 @@ export function bindToolDefinitions<TName extends ToolName, TContext>({
       });
     },
   }));
+}
+
+export function defineStageInterfaceTool<
+  TName extends ToolName,
+  TContext,
+  TInput,
+  TOutput = unknown,
+>(
+  definition: StageInterfaceToolDefinition<TName, TContext, TInput, TOutput>,
+): StageInterfaceToolDefinition<TName, TContext, TInput, TOutput> {
+  return definition;
 }
 
 export function descriptorForToolDefinition<TName extends ToolName>(

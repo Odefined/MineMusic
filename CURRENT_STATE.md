@@ -619,6 +619,12 @@ host-facing and LLM-facing surface.
   rules, and runtime payload validation. Stable tool names, agent descriptors,
   and input schema aggregates are derived from the ordered definition list; MCP
   consumes those Stage Interface definitions rather than owning tool contracts.
+- Tool Definitions now support optional typed input parsers alongside their
+  host-facing raw input schema shapes. The recommendation-posture tools
+  `music.material.select`, `stage.recommendation.present`, and
+  `memory.feedback.record` use typed parsers so handlers receive typed payloads
+  after shared dispatch validation instead of relying on local
+  `readPayload<T>` casts.
 - Stage Core public factory compatibility is exported from
   `src/stage_core/index.ts`. Internal Runtime Kit code now owns repository
   selection, options normalization, runtime seeding, service graph composition,
@@ -734,6 +740,8 @@ host-facing and LLM-facing surface.
 - `npm test` and `git diff --check` pass as of recommendation-posture PR 5 on
   2026-05-31.
 - `npm test` and `git diff --check` pass as of recommendation-posture PR 6 on
+  2026-05-31.
+- `npm test` and `git diff --check` pass as of recommendation-posture PR 7 on
   2026-05-31.
 - `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
 - `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
