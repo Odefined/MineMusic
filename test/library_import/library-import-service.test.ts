@@ -5,12 +5,16 @@ import type {
   PlatformLibraryPreviewInput,
   PlatformLibraryProvider,
   Ref,
+  SourceMaterial,
 } from "../../src/contracts/index.js";
 import { createCanonicalStore, createMaterialStore } from "../../src/material_store/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createLibraryImportService } from "../../src/library_import/index.js";
+import { createMaterialQueryService } from "../../src/material_query/index.js";
+import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
+import type { SourceGroundingPort } from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
@@ -918,6 +922,118 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     importEvents.map((event) => event.type).join(",") ===
       "library_import.batch.started,library_import.item.imported,library_import.item.imported,library_import.item.imported,library_import.batch.completed",
     "import should record batch and item facts",
+  );
+}
+
+async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Promise<void> {
+  const registry = createPluginRegistry();
+  let providerItems = [
+    providerItemWithProviderAddedAt("older-provider-track", "Older Provider Track", "2024-01-01T00:00:00.000Z"),
+    providerItemWithProviderAddedAt("newer-provider-track", "Newer Provider Track", "2026-01-01T00:00:00.000Z"),
+  ];
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_source_tracks",
+              status: "complete",
+              items: providerItems,
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  const importedItems = await assertOk(
+    environment.materialStore.listSourceLibraryItems({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      status: "present",
+    }),
+  );
+  const materialQuery = createMaterialQueryService({
+    materialStore: environment.materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore: environment.materialStore,
+      sourceGrounding: sourceGroundingForProviderItems(providerItems),
+    }),
+  });
+  const ordered = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "source_library", areas: ["saved_tracks"], providerId: provider.id },
+      order: "recently_added",
+      limit: 10,
+    }),
+  );
+
+  assert(
+    importedItems.find((item) => item.sourceRef.id === "older-provider-track")?.addedAt === "2024-01-01T00:00:00.000Z",
+    "first import should normalize SourceLibraryItem.addedAt from providerAddedAt",
+  );
+  assert(
+    importedItems.find((item) => item.sourceRef.id === "newer-provider-track")?.addedAt === "2026-01-01T00:00:00.000Z",
+    "first import should keep distinct provider-added timestamps",
+  );
+  assert(
+    ordered.items.map((item) => item.title).join(",") === "Newer Provider Track,Older Provider Track",
+    "recently_added query order should use providerAddedAt-derived SourceLibraryItem.addedAt",
+  );
+
+  providerItems = [
+    providerItemWithProviderAddedAt("older-provider-track", "Older Provider Track", "2027-01-01T00:00:00.000Z"),
+    providerItemWithProviderAddedAt("newer-provider-track", "Newer Provider Track", "2027-02-01T00:00:00.000Z"),
+  ];
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  const reimportedItems = await assertOk(
+    environment.materialStore.listSourceLibraryItems({
+      ownerScope: "local_profile:default",
+      providerId: provider.id,
+      providerAccountId: "fixture-account",
+      status: "present",
+    }),
+  );
+
+  assert(
+    reimportedItems.find((item) => item.sourceRef.id === "older-provider-track")?.addedAt === "2024-01-01T00:00:00.000Z",
+    "re-import should preserve existing SourceLibraryItem.addedAt",
+  );
+  assert(
+    reimportedItems.find((item) => item.sourceRef.id === "newer-provider-track")?.addedAt === "2026-01-01T00:00:00.000Z",
+    "re-import should not overwrite addedAt with newer providerAddedAt",
   );
 }
 
@@ -2212,6 +2328,17 @@ function providerItem(id: string, label: string, canonicalHints?: PlatformLibrar
   } as const;
 }
 
+function providerItemWithProviderAddedAt(
+  id: string,
+  label: string,
+  providerAddedAt: string,
+): PlatformLibraryItem {
+  return {
+    ...providerItem(id, label),
+    providerAddedAt,
+  };
+}
+
 function providerReleaseItem(id: string, label: string, canonicalHints?: PlatformLibraryItem["canonicalHints"]) {
   return {
     providerId: "fixture-library",
@@ -2257,6 +2384,44 @@ function releaseSourceRef(id: string, label: string): Ref {
   };
 }
 
+function sourceGroundingForProviderItems(items: PlatformLibraryItem[]): SourceGroundingPort {
+  const materials = items.map(sourceMaterialForProviderItem);
+
+  return {
+    ground: async ({ query }) => ({
+      ok: true,
+      value: structuredClone(
+        query.sourceRef === undefined
+          ? materials
+          : materials.filter((material) =>
+              (material.sourceRefs ?? []).some((sourceRef) => sameRef(sourceRef, query.sourceRef as Ref)),
+            ),
+      ),
+    }),
+    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+  };
+}
+
+function sourceMaterialForProviderItem(item: PlatformLibraryItem): SourceMaterial {
+  return {
+    id: item.sourceRef.id,
+    kind: item.targetKind,
+    label: item.label,
+    state: "source_only_playable",
+    sourceRefs: [item.sourceRef],
+    playableLinks: [
+      {
+        url: `https://example.test/${item.sourceRef.id}`,
+        sourceRef: item.sourceRef,
+      },
+    ],
+  };
+}
+
+function sameRef(left: Ref, right: Ref): boolean {
+  return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
+}
+
 await previewsImportThroughRegisteredPlatformLibraryProvider();
 await mapsMissingPlatformLibraryProviderToLibraryImportError();
 await rejectsDiscoveryScopesForStartCalls();
@@ -2268,6 +2433,7 @@ await marksStartedBatchFailedWhenProviderReadFails();
 await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
+await importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder();
 await importsSameLabelDifferentSourceRefsAsSeparateSourceEntities();
 await importsSavedReleaseTracklistIntoSourceEntityStore();
 await cachesSavedCollectionMembershipDuringImportBatch();

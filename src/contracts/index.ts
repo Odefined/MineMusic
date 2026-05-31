@@ -27,6 +27,7 @@ export const stageErrorCodes = [
   "collection.duplicate_label",
   "collection.system_collection_immutable",
   "collection.kind_mismatch",
+  "collection.kind_unknown",
   "source.no_provider",
   "source.no_playable_link",
   "source.unresolved_match",
@@ -264,9 +265,23 @@ export type MaterialActivity = {
   lastOpenedAt?: string;
   lastPlayedAt?: string;
   lastSkippedAt?: string;
+  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
   recommendedCountSession?: number;
+  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
   openedCountSession?: number;
+  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
   playedCountSession?: number;
+  updatedAt: string;
+};
+
+export type MaterialSessionActivity = {
+  ownerScope: string;
+  sessionId: string;
+  materialRef: Ref;
+  recommendedCount?: number;
+  openedCount?: number;
+  playedCount?: number;
+  skippedCount?: number;
   updatedAt: string;
 };
 
@@ -906,6 +921,8 @@ export type MaterialPoolSpec =
   | {
       kind: "related";
       ref: string;
+      // same_release and same_release_group remain internal-only until
+      // distinct deterministic relation semantics are implemented.
       relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
     };
 
@@ -917,6 +934,10 @@ export type MaterialQueryInput = {
     availability?: "playable" | "any";
     identity?: "confirmed_only" | "allow_source_backed";
   };
+  /**
+   * Internal-only lightweight text hints. Not exposed to LLM-facing schemas
+   * until MineMusic owns real tag, genre, mood, audio-feature, or embedding data.
+   */
   preferenceHints?: {
     activity?: string;
     mood?: string[];
@@ -935,8 +956,11 @@ export type MaterialQueryInput = {
       mode?: "hard" | "soft";
     };
   };
+  // library_order remains internal-only until provider library order has
+  // deterministic public semantics.
   order?: "relevance" | "recently_added" | "least_recently_recommended" | "random" | "library_order";
   ownerScope?: string;
+  sessionId?: string;
   limit?: number;
   cursor?: string;
 };
@@ -952,11 +976,15 @@ export type MaterialQueryOutput = {
 
 export type MaterialRelatedInput = {
   ref: string;
+  // same_release and same_release_group remain internal-only Stage Query
+  // options; the public Stage Interface currently exposes same_artist,
+  // same_album, and similar only.
   relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
   exclude?: MaterialQueryInput["exclude"];
   constraints?: MaterialQueryInput["constraints"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
   ownerScope?: string;
+  sessionId?: string;
   limit?: number;
 };
 

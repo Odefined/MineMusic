@@ -76,6 +76,23 @@ Event Service accepts structured material snapshot targets, Memory Service
 accepts evidence-gated structured material targets, and Effect Boundary accepts
 compact material action targets.
 
+Post-merge hardening is now implemented. Source Library import/update keeps an
+existing item `addedAt`, otherwise uses provider `providerAddedAt`, then falls
+back to observation time. Public Stage Interface material schemas hide
+unsupported `same_release`, `same_release_group`, and `library_order` options,
+and public collection schemas no longer advertise raw `materialRef`,
+`materialSnapshot`, `relationScope`, or `identityRequirement` fields while
+keeping compact `ref` and compatibility passthroughs. Material Query
+`exclude.relations: ["blocked"]` filters materials already projected as
+Collection-blocked. Recent `"session"` exclusion is backed by
+`MaterialSessionActivity` keyed by owner, session, and material; aggregate
+`MaterialActivity` remains for timestamp windows. Collection material writes
+infer or validate collection kind from current `MaterialRecord` for compact
+refs, require canonical/snapshot/target kind hints to agree with known
+Material Records, and include custom collection writes. Compact `resolve.cards`
+can project current Material Records directly, including canonical-only records
+with `found_no_link` status.
+
 ## Implemented
 
 - Added material identity contracts:
@@ -159,6 +176,13 @@ compact material action targets.
 - Addressed the second PR #10 review pass by adding compact `ref` support to
   public collection tools and making material-backed Collection
   filter/remove paths follow Material Registry redirects across merges.
+- Addressed the post-merge MusicMaterial review by fixing Source Library
+  `addedAt` provenance from `providerAddedAt`, hiding unsupported public
+  material schema options, filtering Collection-blocked material query output,
+  adding session-keyed material activity, inferring and validating Collection
+  target kind from Material Records for compact refs, rejecting inconsistent
+  canonical/snapshot/target kind hints, tightening public collection schemas,
+  and projecting compact MaterialRecord refs directly.
 
 ## Verification
 
@@ -222,11 +246,27 @@ compact material action targets.
   `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
   `node .tmp-test/test/material_query/material-query.test.js`, and
   `node .tmp-test/test/material_related/material-related.test.js`.
+- Post-merge hardening targeted checks passed on 2026-05-31:
+  `node .tmp-test/test/library_import/library-import-service.test.js`,
+  `node .tmp-test/test/material_query/material-query.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface.test.js`,
+  `node .tmp-test/test/events/material-activity.test.js`,
+  `node .tmp-test/test/material_store/material-relations.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
+  `node .tmp-test/test/collection/collection-service.test.js`,
+  `node .tmp-test/test/contracts/wave1-contracts.test.js`,
+  `node .tmp-test/test/material_resolve/material-resolve.test.js`, and
+  `node .tmp-test/test/material_resolve/material-relation-filtering.test.js`.
+- `npm run typecheck`, `npm test`, and `git diff --check` passed for each
+  post-merge hardening phase on 2026-05-31.
 
 ## Remaining
 
-- Canonical-only materialization when Source Grounding returns no source
-  material remains deferred; PR 2 only materializes provider/source-backed
-  projection paths.
+- Full `music.material.resolve` canonical-only materialization remains
+  deferred; compact `music.material.resolve.cards` can now project existing
+  canonical-only Material Records as `found_no_link` cards.
 - Removing legacy raw/canonical target variants remains deferred until explicit
   cleanup approval.
+- Canonical relation-based same-release/same-release-group semantics, semantic
+  tag/genre/audio-feature preference scoring, and physical Collection
+  materialRef rewrites after merge remain deferred.

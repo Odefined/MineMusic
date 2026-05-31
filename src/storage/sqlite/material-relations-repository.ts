@@ -4,12 +4,14 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   MaterialActivity,
+  MaterialSessionActivity,
   MusicMaterialRelation,
   Ref,
   Result,
 } from "../../contracts/index.js";
 import type {
   MaterialActivityRepository,
+  MaterialSessionActivityRepository,
   MusicMaterialRelationRepository,
 } from "../../ports/index.js";
 import { initializeMaterialRelationsSchema } from "./material-relations-schema.js";
@@ -206,6 +208,87 @@ export function createSqliteMaterialActivityRepository({
         ) as MaterialActivityRow[];
 
       return ok(rows.map((row) => fromJson<MaterialActivity>(row.activity_json)));
+    },
+  };
+}
+
+export function createSqliteMaterialSessionActivityRepository({
+  path,
+}: SqliteMaterialRelationsRepositoryOptions): MaterialSessionActivityRepository {
+  const database = openDatabase(path);
+
+  return {
+    async getSessionActivity({ ownerScope, sessionId, materialRef }) {
+      const row = database
+        .prepare(`
+          SELECT activity_json
+          FROM material_session_activity
+          WHERE owner_scope = ?
+            AND session_id = ?
+            AND material_namespace = ?
+            AND material_kind = ?
+            AND material_id = ?
+        `)
+        .get(ownerScope, sessionId, materialRef.namespace, materialRef.kind, materialRef.id) as MaterialActivityRow | undefined;
+
+      return ok(row === undefined ? null : fromJson<MaterialSessionActivity>(row.activity_json));
+    },
+
+    async putSessionActivity({ activity }) {
+      database
+        .prepare(`
+          INSERT INTO material_session_activity (
+            owner_scope,
+            session_id,
+            material_namespace,
+            material_kind,
+            material_id,
+            material_ref_json,
+            activity_json,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(owner_scope, session_id, material_namespace, material_kind, material_id) DO UPDATE SET
+            material_ref_json = excluded.material_ref_json,
+            activity_json = excluded.activity_json,
+            updated_at = excluded.updated_at
+        `)
+        .run(
+          activity.ownerScope,
+          activity.sessionId,
+          activity.materialRef.namespace,
+          activity.materialRef.kind,
+          activity.materialRef.id,
+          toJson(activity.materialRef),
+          toJson(activity),
+          activity.updatedAt,
+        );
+
+      return ok(clone(activity));
+    },
+
+    async listSessionActivity(input) {
+      const rows = database
+        .prepare(`
+          SELECT activity_json
+          FROM material_session_activity
+          WHERE (? IS NULL OR owner_scope = ?)
+            AND (? IS NULL OR session_id = ?)
+            AND (? IS NULL OR updated_at >= ?)
+          ORDER BY updated_at DESC
+          LIMIT ?
+        `)
+        .all(
+          input.ownerScope ?? null,
+          input.ownerScope ?? null,
+          input.sessionId ?? null,
+          input.sessionId ?? null,
+          input.since ?? null,
+          input.since ?? null,
+          input.limit ?? -1,
+        ) as MaterialActivityRow[];
+
+      return ok(rows.map((row) => fromJson<MaterialSessionActivity>(row.activity_json)));
     },
   };
 }

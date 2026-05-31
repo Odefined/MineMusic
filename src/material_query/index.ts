@@ -23,6 +23,7 @@ import type {
   Result,
   SourceEntity,
   SourceLibraryItem,
+  StageError,
 } from "../contracts/index.js";
 import type {
   CollectionPort,
@@ -106,6 +107,7 @@ export function createMaterialQueryService({
         constraints: input.constraints,
         preferenceHints: input.preferenceHints,
         exclude: input.exclude,
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
         clock,
       });
 
@@ -348,10 +350,8 @@ async function resolveSeedCards({
     if (seed.ref !== undefined) {
       const resolved = await resolveMaterialRefSeed({
         materialStore,
-        materialResolve,
         ownerScope,
         seed: { ...seed, ref: seed.ref },
-        ...(limit === undefined ? {} : { limit }),
       });
 
       if (!resolved.ok) {
@@ -390,16 +390,12 @@ async function resolveSeedCards({
 
 async function resolveMaterialRefSeed({
   materialStore,
-  materialResolve,
   ownerScope,
   seed,
-  limit,
 }: {
   materialStore: MaterialStorePort;
-  materialResolve: MaterialResolvePort;
   ownerScope: string;
   seed: ResolveSeed & { ref: string };
-  limit?: number;
 }): Promise<Result<MaterialCard[]>> {
   const materialRef = cardRefToMaterialRef(seed.ref);
   const record = await currentMaterialRecordForRef(materialStore, materialRef);
@@ -412,42 +408,12 @@ async function resolveMaterialRefSeed({
     return ok([unresolvedMaterialCard(seed.ref, seed.text ?? seed.ref, "material_not_found")]);
   }
 
-  const candidate = await candidateForMaterialRecord(materialStore, record.value, seed);
-
-  if (!candidate.ok) {
-    return candidate;
-  }
-
-  const resolved = await materialResolve.resolve({
-    kind: "single",
+  const material = await projectMaterialRecord(materialStore, record.value, {
     ownerScope,
-    candidate: candidate.value,
-    ...(limit === undefined ? {} : { limitPerCandidate: limit }),
+    purpose: "resolve.cards",
   });
 
-  if (!resolved.ok) {
-    return resolved;
-  }
-
-  const materials = resolved.value.kind === "single" ? resolved.value.result.materials : [];
-
-  if (materials.length > 0) {
-    return ok(materials.map(toMaterialCard));
-  }
-
-  const title = await labelForMaterialRecord(materialStore, record.value);
-
-  if (!title.ok) {
-    return title;
-  }
-
-  return ok([
-    {
-      ref: materialRefToCardRef(record.value.materialRef),
-      title: title.value,
-      status: record.value.identityState === "ambiguous" ? "ambiguous" : "found_no_link",
-    },
-  ]);
+  return material.ok ? ok([toMaterialCard(material.value)]) : material;
 }
 
 async function resolveCandidates({
@@ -975,6 +941,108 @@ async function candidateForMaterialRecord(
   });
 }
 
+async function projectMaterialRecord(
+  materialStore: MaterialStorePort,
+  record: MaterialRecord,
+  _context: { ownerScope: string; purpose: "resolve.cards" | "context.brief" | "collection.snapshot" },
+): Promise<Result<MusicMaterial>> {
+  const currentRef = await materialStore.resolveMaterialRedirect({ materialRef: record.materialRef });
+
+  if (!currentRef.ok) {
+    return currentRef;
+  }
+
+  const currentRecord = sameRef(currentRef.value, record.materialRef)
+    ? ok(record)
+    : await materialStore.getMaterialRecord({ materialRef: currentRef.value });
+
+  if (!currentRecord.ok) {
+    return currentRecord;
+  }
+
+  if (currentRecord.value === null) {
+    return fail({
+      code: "material_registry.conflict",
+      message: `Material redirect target '${currentRef.value.id}' was not found.`,
+      module: "material_store",
+      retryable: false,
+    });
+  }
+
+  const sourceRefs = sourceRefsForMaterialRecord(currentRecord.value);
+  const sourceEntities = await sourceEntitiesForRefs(materialStore, sourceRefs);
+
+  if (!sourceEntities.ok) {
+    return sourceEntities;
+  }
+
+  const label = await labelForMaterialRecord(materialStore, currentRecord.value);
+
+  if (!label.ok) {
+    return label;
+  }
+
+  const playableLinks = playableLinksForSourceEntities(sourceEntities.value);
+
+  return ok({
+    id: currentRecord.value.materialRef.id,
+    materialRef: currentRecord.value.materialRef,
+    kind: normalizeSeedKind(currentRecord.value.kind),
+    label: label.value,
+    state: projectedStateForMaterialRecord(currentRecord.value, playableLinks),
+    identityState: currentRecord.value.identityState,
+    ...(currentRecord.value.canonicalRef === undefined ? {} : { canonicalRef: currentRecord.value.canonicalRef }),
+    ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
+    ...(playableLinks.length === 0 ? {} : { playableLinks }),
+  });
+}
+
+function sourceRefsForMaterialRecord(record: MaterialRecord): Ref[] {
+  const refs = record.primarySourceRef === undefined
+    ? [...record.sourceRefs]
+    : [record.primarySourceRef, ...record.sourceRefs];
+  const seen = new Set<string>();
+  const uniqueRefs: Ref[] = [];
+
+  for (const ref of refs) {
+    const key = `${ref.namespace}:${ref.kind}:${ref.id}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    uniqueRefs.push(ref);
+  }
+
+  return uniqueRefs;
+}
+
+function playableLinksForSourceEntities(
+  entities: SourceEntity[],
+): NonNullable<MusicMaterial["playableLinks"]> {
+  return entities.flatMap((entity) =>
+    entity.providerUrl === undefined
+      ? []
+      : [{
+          url: entity.providerUrl,
+          label: entity.label,
+          sourceRef: entity.sourceRef,
+        }],
+  );
+}
+
+function projectedStateForMaterialRecord(
+  record: MaterialRecord,
+  playableLinks: NonNullable<MusicMaterial["playableLinks"]>,
+): MusicMaterial["state"] {
+  if (playableLinks.length === 0) {
+    return "grounded";
+  }
+
+  return record.identityState === "canonical_confirmed" ? "confirmed_playable" : "source_only_playable";
+}
+
 async function labelForMaterialRecord(
   materialStore: MaterialStorePort,
   record: MaterialRecord,
@@ -1025,6 +1093,7 @@ async function filterMaterials({
   constraints,
   preferenceHints,
   exclude,
+  sessionId,
   clock,
 }: {
   materialStore: MaterialStorePort;
@@ -1034,6 +1103,7 @@ async function filterMaterials({
   constraints?: MaterialQueryInput["constraints"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
   exclude?: MaterialQueryInput["exclude"];
+  sessionId?: string;
   clock: () => string;
 }): Promise<Result<MusicMaterial[]>> {
   const excludedRefs = await excludedCardRefsForInput(materialStore, exclude?.refs ?? []);
@@ -1065,6 +1135,10 @@ async function filterMaterials({
       continue;
     }
 
+    if (material.state === "blocked" && exclude?.relations?.includes("blocked")) {
+      continue;
+    }
+
     const relationExcluded = await excludedByRelations(materialStore, ownerScope, material, exclude?.relations);
 
     if (!relationExcluded.ok) {
@@ -1080,6 +1154,7 @@ async function filterMaterials({
       ownerScope,
       materialRef: material.materialRef,
       recent: exclude?.recent,
+      ...(sessionId === undefined ? {} : { sessionId }),
       now: clock(),
     });
 
@@ -1154,12 +1229,14 @@ async function excludedByRecentActivity({
   ownerScope,
   materialRef,
   recent,
+  sessionId,
   now,
 }: {
   materialStore: MaterialStorePort;
   ownerScope: string;
   materialRef: Ref;
   recent?: NonNullable<MaterialQueryInput["exclude"]>["recent"];
+  sessionId?: string;
   now: string;
 }): Promise<Result<boolean>> {
   if (recent === undefined || recent.mode === "soft") {
@@ -1173,19 +1250,44 @@ async function excludedByRecentActivity({
   }
 
   if (activity.value === null) {
-    return ok(false);
+    if (!recentNeedsSessionActivity(recent) || sessionId === undefined) {
+      return ok(false);
+    }
+  }
+
+  const sessionActivity = sessionId === undefined || !recentNeedsSessionActivity(recent)
+    ? ok(null)
+    : await materialStore.getMaterialSessionActivity({ ownerScope, sessionId, materialRef });
+
+  if (!sessionActivity.ok) {
+    return sessionActivity;
   }
 
   return ok(
-    matchesRecent(activity.value.lastRecommendedAt, activity.value.recommendedCountSession, recent.recommended, now) ||
-      matchesRecent(activity.value.lastOpenedAt, activity.value.openedCountSession, recent.opened, now) ||
-      matchesRecent(activity.value.lastPlayedAt, activity.value.playedCountSession, recent.played, now),
+    matchesRecent(
+      activity.value?.lastRecommendedAt,
+      sessionActivity.value?.recommendedCount,
+      recent.recommended,
+      now,
+    ) ||
+      matchesRecent(
+        activity.value?.lastOpenedAt,
+        sessionActivity.value?.openedCount,
+        recent.opened,
+        now,
+      ) ||
+      matchesRecent(
+        activity.value?.lastPlayedAt,
+        sessionActivity.value?.playedCount,
+        recent.played,
+        now,
+      ),
   );
 }
 
 function matchesRecent(
   timestamp: string | undefined,
-  sessionCount: number | undefined,
+  sessionScopedCount: number | undefined,
   window: "session" | "1h" | "24h" | "7d" | undefined,
   now: string,
 ): boolean {
@@ -1194,7 +1296,7 @@ function matchesRecent(
   }
 
   if (window === "session") {
-    return (sessionCount ?? 0) > 0;
+    return (sessionScopedCount ?? 0) > 0;
   }
 
   if (timestamp === undefined) {
@@ -1202,6 +1304,12 @@ function matchesRecent(
   }
 
   return Date.parse(timestamp) >= Date.parse(now) - recentWindowMs(window);
+}
+
+function recentNeedsSessionActivity(
+  recent: NonNullable<NonNullable<MaterialQueryInput["exclude"]>["recent"]>,
+): boolean {
+  return recent.recommended === "session" || recent.opened === "session" || recent.played === "session";
 }
 
 function recentWindowMs(window: "1h" | "24h" | "7d"): number {
@@ -1267,6 +1375,7 @@ async function relatedForInput({
       ...input.exclude,
       refs: [...(input.exclude?.refs ?? []), input.ref, materialRefToCardRef(currentSeedMaterialRef.value)],
     },
+    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
     clock,
   });
 
@@ -2115,4 +2224,8 @@ function refKey(ref: Ref): string {
 
 function ok<T>(value: T): Result<T> {
   return { ok: true, value };
+}
+
+function fail(error: StageError): Result<never> {
+  return { ok: false, error };
 }

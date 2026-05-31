@@ -34,5 +34,20 @@ export function initializeMaterialRelationsSchema(database: DatabaseSync): void 
 
     CREATE INDEX IF NOT EXISTS material_activity_owner_updated_idx
       ON material_activity(owner_scope, updated_at);
+
+    CREATE TABLE IF NOT EXISTS material_session_activity (
+      owner_scope TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      material_namespace TEXT NOT NULL,
+      material_kind TEXT NOT NULL,
+      material_id TEXT NOT NULL,
+      material_ref_json TEXT NOT NULL,
+      activity_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (owner_scope, session_id, material_namespace, material_kind, material_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS material_session_activity_owner_session_updated_idx
+      ON material_session_activity(owner_scope, session_id, updated_at);
   `);
 }

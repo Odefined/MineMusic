@@ -13,6 +13,7 @@ import type {
   LibraryImportItemProvenance,
   LibraryImportReport,
   MaterialActivity,
+  MaterialSessionActivity,
   MemoryEntry,
   MusicMaterialRelation,
   PlatformLibraryAbsence,
@@ -33,6 +34,7 @@ import type {
   EventRepository,
   LibraryImportRepository,
   MaterialActivityRepository,
+  MaterialSessionActivityRepository,
   MemoryRepository,
   MusicMaterialRelationRepository,
   ProviderHttpCacheRepository,
@@ -46,6 +48,7 @@ export {
   createSqliteCollectionRepository,
   createSqliteLibraryImportRepository,
   createSqliteMaterialActivityRepository,
+  createSqliteMaterialSessionActivityRepository,
   createSqliteMaterialRegistryRepository,
   createSqliteMusicMaterialRelationRepository,
   createSqliteProviderHttpCacheRepository,
@@ -352,6 +355,33 @@ export function createInMemoryMaterialActivityRepository(): MaterialActivityRepo
     async listActivity(query) {
       const matched = [...activities.values()]
         .filter((activity) => matchesMaterialActivityQuery(activity, query))
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+        .slice(0, query.limit);
+
+      return ok(matched.map((activity) => cloneRecord(activity)));
+    },
+  };
+}
+
+export function createInMemoryMaterialSessionActivityRepository(): MaterialSessionActivityRepository {
+  const activities = new Map<string, MaterialSessionActivity>();
+
+  return {
+    async getSessionActivity({ ownerScope, sessionId, materialRef }) {
+      const activity = activities.get(materialSessionActivityKey({ ownerScope, sessionId, materialRef }));
+
+      return ok(activity === undefined ? null : cloneRecord(activity));
+    },
+
+    async putSessionActivity({ activity }) {
+      activities.set(materialSessionActivityKey(activity), cloneRecord(activity));
+
+      return ok(cloneRecord(activity));
+    },
+
+    async listSessionActivity(query) {
+      const matched = [...activities.values()]
+        .filter((activity) => matchesMaterialSessionActivityQuery(activity, query))
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
         .slice(0, query.limit);
 
@@ -810,12 +840,29 @@ function materialActivityKey(input: Pick<MaterialActivity, "ownerScope" | "mater
   return [input.ownerScope, refToStorageKey(input.materialRef)].join(":");
 }
 
+function materialSessionActivityKey(
+  input: Pick<MaterialSessionActivity, "ownerScope" | "sessionId" | "materialRef">,
+): string {
+  return [input.ownerScope, input.sessionId, refToStorageKey(input.materialRef)].join(":");
+}
+
 function matchesMaterialActivityQuery(
   activity: MaterialActivity,
   query: Parameters<MaterialActivityRepository["listActivity"]>[0],
 ): boolean {
   return (
     (query.ownerScope === undefined || activity.ownerScope === query.ownerScope) &&
+    (query.since === undefined || activity.updatedAt >= query.since)
+  );
+}
+
+function matchesMaterialSessionActivityQuery(
+  activity: MaterialSessionActivity,
+  query: Parameters<MaterialSessionActivityRepository["listSessionActivity"]>[0],
+): boolean {
+  return (
+    (query.ownerScope === undefined || activity.ownerScope === query.ownerScope) &&
+    (query.sessionId === undefined || activity.sessionId === query.sessionId) &&
     (query.since === undefined || activity.updatedAt >= query.since)
   );
 }

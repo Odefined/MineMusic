@@ -12,14 +12,17 @@ import type {
   SourceReleaseTracklistItem,
   SourceMaterial,
 } from "../../src/contracts/index.js";
+import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
 import { createMaterialQueryService, materialRefToCardRef } from "../../src/material_query/index.js";
 import { createMaterialResolveService } from "../../src/material_resolve/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
+  createInMemoryCollectionRepository,
   createInMemoryEventRepository,
   createInMemoryMaterialActivityRepository,
+  createInMemoryMaterialSessionActivityRepository,
   createInMemorySourceEntityStoreRepository,
 } from "../../src/storage/index.js";
 
@@ -69,6 +72,7 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
     sourceMaterial("Source Ref Seed Track", sourceRef),
   ]);
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  await putSourceTrack(materialStore, sourceRef, "Source Ref Seed Track");
 
   const output = await assertOk(
     materialQuery.resolveCards({
@@ -80,6 +84,30 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
   assert(output.items.length === 1, "resolve cards should return one card for a source-backed material ref");
   assert(output.items[0]?.title === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the card ref");
   assert(output.items[0]?.status === "playable_unverified", "source-backed material refs should preserve source-backed status");
+}
+
+async function resolveCardsProjectsCanonicalOnlyCardRefs(): Promise<void> {
+  const canonicalRef = ref("minemusic", "recording", "canonical-only-seed");
+  const canonical: CanonicalRecord = {
+    ref: canonicalRef,
+    kind: "recording",
+    label: "Canonical Only Seed",
+    status: "active",
+  };
+  const { canonicalRepository, materialStore, materialQuery } = createMaterialQueryServiceHarness([]);
+  await assertOk(canonicalRepository.put(canonical));
+  const record = await assertOk(materialStore.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording" }));
+
+  const output = await assertOk(
+    materialQuery.resolveCards({
+      ownerScope: "local_profile:default",
+      seeds: [{ ref: materialRefToCardRef(record.materialRef) }],
+    }),
+  );
+
+  assert(output.items.length === 1, "canonical-only material refs should return one card");
+  assert(output.items[0]?.title === "Canonical Only Seed", "canonical-only material refs should use canonical labels");
+  assert(output.items[0]?.status === "found_no_link", "canonical-only material refs should be found without playable links");
 }
 
 async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
@@ -96,6 +124,7 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
   ]);
   await assertOk(canonicalRepository.put(canonical));
   const record = await assertOk(materialStore.getOrCreateByCanonicalRef({ canonicalRef, kind: "recording", sourceRefs: [sourceRef] }));
+  await putSourceTrack(materialStore, sourceRef, "Provider Ref Seed");
 
   const output = await assertOk(
     materialQuery.resolveCards({
@@ -116,6 +145,8 @@ async function resolveCardsFollowsMaterialRedirects(): Promise<void> {
     sourceMaterial("Redirect Loser Track", loserRef),
     sourceMaterial("Redirect Survivor Track", survivorRef),
   ]);
+  await putSourceTrack(materialStore, loserRef, "Redirect Loser Track");
+  await putSourceTrack(materialStore, survivorRef, "Redirect Survivor Track");
   await putLibraryTrack(materialStore, loserRef, "Redirect Loser Track");
   await putLibraryTrack(materialStore, survivorRef, "Redirect Survivor Track");
   const loser = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: loserRef, kind: "recording" }));
@@ -563,6 +594,62 @@ async function relationExclusionsRemoveBlockedWrongVersionAndNotPlayable(): Prom
   assert(output.items[0]?.title === "Kept Track", "relation exclusions should keep unrelated material");
 }
 
+async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<void> {
+  const blockedRef = ref("source:fixture", "track", "collection-blocked-track");
+  const keptRef = ref("source:fixture", "track", "collection-kept-track");
+  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
+    sourceMaterial("Collection Blocked Track", blockedRef),
+    sourceMaterial("Collection Kept Track", keptRef),
+  ]);
+  await putLibraryTrack(materialStore, blockedRef, "Collection Blocked Track");
+  await putLibraryTrack(materialStore, keptRef, "Collection Kept Track");
+  const blockedRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: blockedRef, kind: "recording" }));
+  const events = createEventService({
+    repository: createInMemoryEventRepository(),
+    idFactory: createSequence("event"),
+    clock: () => "2026-05-30T00:00:00.000Z",
+  });
+  const collection = createCollectionService({
+    repository: createInMemoryCollectionRepository(),
+    events,
+    materialStore,
+    idFactory: createSequence("collection"),
+    clock: () => "2026-05-30T00:00:00.000Z",
+  });
+  await assertOk(collection.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
+  await assertOk(
+    collection.addMaterialToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "blocked",
+      materialRef: blockedRecord.materialRef,
+      collectionKind: "recording",
+      label: "Collection Blocked Track",
+      identityRequirement: "none",
+    }),
+  );
+  const materialQuery = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+      collection,
+    }),
+    collection,
+  });
+
+  const output = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      exclude: { relations: ["blocked"] },
+      limit: 10,
+    }),
+  );
+
+  assert(output.items.length === 1, "blocked relation exclusion should remove Collection-blocked materials");
+  assert(output.items[0]?.title === "Collection Kept Track", "blocked relation exclusion should keep unblocked material");
+}
+
 async function recentRecommendedHardExcludeWorks(): Promise<void> {
   const recentRef = ref("source:fixture", "track", "recent-track");
   const keptRef = ref("source:fixture", "track", "not-recent-track");
@@ -574,12 +661,12 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
   await putLibraryTrack(materialStore, keptRef, "Not Recent Track");
   const recentRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: recentRef, kind: "recording" }));
   await assertOk(
-    materialStore.putMaterialActivity({
+    materialStore.putMaterialSessionActivity({
       activity: {
         ownerScope: "local_profile:default",
+        sessionId: "session-1",
         materialRef: recentRecord.materialRef,
-        lastRecommendedAt: "2026-05-30T01:00:00.000Z",
-        recommendedCountSession: 1,
+        recommendedCount: 1,
         updatedAt: "2026-05-30T01:00:00.000Z",
       },
     }),
@@ -588,6 +675,7 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
+      sessionId: "session-1",
       pool: { kind: "source_library", areas: ["saved_tracks"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
@@ -598,9 +686,62 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
   assert(output.items[0]?.title === "Not Recent Track", "recent recommended hard exclude should keep not-recent material");
 }
 
+async function recentRecommendedSessionExcludeUsesMaterialSessionActivity(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "session-scoped-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
+    sourceMaterial("Session Scoped Track", sourceRef),
+  ]);
+  await putLibraryTrack(materialStore, sourceRef, "Session Scoped Track");
+  const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  await assertOk(
+    materialStore.putMaterialActivity({
+      activity: {
+        ownerScope: "local_profile:default",
+        materialRef: record.materialRef,
+        lastRecommendedAt: "2026-05-30T01:00:00.000Z",
+        updatedAt: "2026-05-30T01:00:00.000Z",
+      },
+    }),
+  );
+  await assertOk(
+    materialStore.putMaterialSessionActivity({
+      activity: {
+        ownerScope: "local_profile:default",
+        sessionId: "session-a",
+        materialRef: record.materialRef,
+        recommendedCount: 1,
+        updatedAt: "2026-05-30T01:00:00.000Z",
+      },
+    }),
+  );
+
+  const sessionA = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      sessionId: "session-a",
+      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      exclude: { recent: { recommended: "session", mode: "hard" } },
+      limit: 10,
+    }),
+  );
+  const sessionB = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      sessionId: "session-b",
+      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      exclude: { recent: { recommended: "session", mode: "hard" } },
+      limit: 10,
+    }),
+  );
+
+  assert(sessionA.items.length === 0, "session recent exclusion should exclude material from the same session");
+  assert(sessionB.items.length === 1, "session recent exclusion should not leak across sessions");
+  assert(sessionB.items[0]?.title === "Session Scoped Track", "other sessions should keep the material");
+}
+
 async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<void> {
   const sourceRef = ref("source:fixture", "track", "compact-event-track");
-  const { materialActivity, materialStore, materialQuery } = createMaterialQueryServiceHarness([
+  const { materialActivity, materialSessionActivity, materialStore, materialQuery } = createMaterialQueryServiceHarness([
     sourceMaterial("Compact Event Track", sourceRef),
   ]);
   await putLibraryTrack(materialStore, sourceRef, "Compact Event Track");
@@ -608,6 +749,7 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
   const events = createEventService({
     repository: createInMemoryEventRepository(),
     materialActivity,
+    materialSessionActivity,
     idFactory: () => "event-compact-card",
     clock: () => "2026-05-30T02:00:00.000Z",
   });
@@ -636,16 +778,25 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
       materialRef: record.materialRef,
     }),
   );
+  const sessionActivity = await assertOk(
+    materialSessionActivity.getSessionActivity({
+      ownerScope: "local_profile:default",
+      sessionId: "session-1",
+      materialRef: record.materialRef,
+    }),
+  );
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
+      sessionId: "session-1",
       pool: { kind: "source_library", areas: ["saved_tracks"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
     }),
   );
 
-  assert(activity?.recommendedCountSession === 1, "compact MaterialCard.ref strings should update MaterialActivity");
+  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "compact MaterialCard.ref strings should update aggregate MaterialActivity");
+  assert(sessionActivity?.recommendedCount === 1, "compact MaterialCard.ref strings should update session MaterialActivity");
   assert(output.items.length === 0, "recent exclusion should filter compact-card recommendation events");
 }
 
@@ -784,12 +935,14 @@ async function compactCardsDoNotExposeRawMaterialInternals(): Promise<void> {
 function createMaterialQueryHarness(sourceMaterials: SourceMaterial[]): {
   canonicalRepository: ReturnType<typeof createInMemoryCanonicalRecordRepository>;
   materialActivity: ReturnType<typeof createInMemoryMaterialActivityRepository>;
+  materialSessionActivity: ReturnType<typeof createInMemoryMaterialSessionActivityRepository>;
   materialStore: MaterialStorePort;
   sourceGrounding: SourceGroundingPort;
 } {
   let nextMaterialId = 1;
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const materialActivity = createInMemoryMaterialActivityRepository();
+  const materialSessionActivity = createInMemoryMaterialSessionActivityRepository();
   const materialStore = createMaterialStore({
     canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
     materialRegistry: createInMemoryMaterialRegistry({
@@ -797,6 +950,7 @@ function createMaterialQueryHarness(sourceMaterials: SourceMaterial[]): {
       now: () => "2026-05-30T00:00:00.000Z",
     }),
     materialActivity,
+    materialSessionActivity,
     sourceEntityStore: createInMemorySourceEntityStoreRepository(),
   });
   const sourceGrounding: SourceGroundingPort = {
@@ -813,14 +967,15 @@ function createMaterialQueryHarness(sourceMaterials: SourceMaterial[]): {
     refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
   };
 
-  return { canonicalRepository, materialActivity, materialStore, sourceGrounding };
+  return { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding };
 }
 
 function createMaterialQueryServiceHarness(
   sourceMaterials: SourceMaterial[],
   options: { clock?: () => string; collection?: CollectionPort } = {},
 ) {
-  const { canonicalRepository, materialActivity, materialStore, sourceGrounding } = createMaterialQueryHarness(sourceMaterials);
+  const { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding } =
+    createMaterialQueryHarness(sourceMaterials);
   const materialQuery = createMaterialQueryService({
     materialStore,
     materialResolve: createMaterialResolveService({
@@ -831,7 +986,7 @@ function createMaterialQueryServiceHarness(
     ...(options.clock === undefined ? {} : { clock: options.clock }),
   });
 
-  return { canonicalRepository, materialActivity, materialStore, sourceGrounding, materialQuery };
+  return { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding, materialQuery };
 }
 
 function createCollectionPortStub(collections: Collection[], items: CollectionItem[]): CollectionPort {
@@ -870,6 +1025,34 @@ function createCollectionPortStub(collections: Collection[], items: CollectionIt
     filterBlocked: async () => ({ ok: true, value: [] }),
     filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
+}
+
+function createSequence(prefix: string): () => string {
+  let nextId = 1;
+
+  return () => `${prefix}-${nextId++}`;
+}
+
+async function putSourceTrack(
+  materialStore: MaterialStorePort,
+  sourceRef: Ref,
+  label: string,
+  providerUrl = `https://example.test/${sourceRef.id}`,
+): Promise<void> {
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label,
+        title: label,
+        providerUrl,
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
 }
 
 async function putLibraryTrack(
@@ -1085,6 +1268,7 @@ function sameRef(left: Ref, right: Ref): boolean {
 
 await querySavedTracksReturnsOnlySavedTrackMaterials();
 await resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch();
+await resolveCardsProjectsCanonicalOnlyCardRefs();
 await resolveCardsResolvesCanonicalConfirmedCardRefs();
 await resolveCardsFollowsMaterialRedirects();
 await resolveCardsReturnsUnresolvedForUnknownCardRefs();
@@ -1100,7 +1284,9 @@ await queryCollectionPoolReturnsMaterialOnlyItems();
 await queryCollectionPoolFallsBackToMaterialSnapshot();
 await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();
+await relationExclusionsRemoveCollectionBlockedMaterials();
 await recentRecommendedHardExcludeWorks();
+await recentRecommendedSessionExcludeUsesMaterialSessionActivity();
 await compactRecommendationCardEventsUpdateRecentExclusions();
 await contextBriefFieldsSelectArtistAlbumVersionAndStatus();
 await contextBriefStatusFieldReturnsOnlyStatusWarnings();

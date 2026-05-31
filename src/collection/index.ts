@@ -18,7 +18,10 @@ import type {
 export type CollectionServiceOptions = {
   repository: CollectionRepository;
   events: EventPort;
-  materialStore?: Pick<MaterialStorePort, "getOrCreateByCanonicalRef" | "resolveMaterialRedirect">;
+  materialStore?: Pick<
+    MaterialStorePort,
+    "getMaterialRecord" | "getOrCreateByCanonicalRef" | "resolveMaterialRedirect"
+  >;
   idFactory?: () => string;
   clock?: () => string;
 };
@@ -179,15 +182,35 @@ export function createCollectionService({
         return currentMaterialRef;
       }
 
-      const resolvedCollectionKind = collectionKindForMaterialInput({
+      const resolvedCollectionKind = await collectionKindForMaterialInput({
+        materialStore,
+        materialRef: currentMaterialRef.value,
         ...(collectionKind === undefined ? {} : { collectionKind }),
         ...(canonicalRef === undefined ? {} : { canonicalRef }),
         ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
       });
+
+      if (!resolvedCollectionKind.ok) {
+        return resolvedCollectionKind;
+      }
+
+      const kindMatch = await ensureMaterialMatchesCollectionKind({
+        materialStore,
+        materialRef: currentMaterialRef.value,
+        collectionKind: resolvedCollectionKind.value,
+        rejectUnknownMaterial: collectionKind === undefined,
+        ...(canonicalRef === undefined ? {} : { canonicalRef }),
+        ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
+      });
+
+      if (!kindMatch.ok) {
+        return kindMatch;
+      }
+
       const collection = await findSystemCollection(repository, {
         ownerScope,
         relationKind,
-        collectionKind: resolvedCollectionKind,
+        collectionKind: resolvedCollectionKind.value,
       });
 
       if (!collection.ok) {
@@ -202,7 +225,7 @@ export function createCollectionService({
         ownerScope,
         relationKind,
         materialRef: currentMaterialRef.value,
-        collectionKind: resolvedCollectionKind,
+        collectionKind: resolvedCollectionKind.value,
       });
 
       if (!exclusions.ok) {
@@ -353,6 +376,19 @@ export function createCollectionService({
 
       if (!currentMaterialRef.ok) {
         return currentMaterialRef;
+      }
+
+      const kindMatch = await ensureMaterialMatchesCollectionKind({
+        materialStore,
+        materialRef: currentMaterialRef.value,
+        collectionKind: collection.value.collectionKind,
+        rejectUnknownMaterial: true,
+        ...(canonicalRef === undefined ? {} : { canonicalRef }),
+        ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
+      });
+
+      if (!kindMatch.ok) {
+        return kindMatch;
       }
 
       return addMaterialToResolvedCollection({
@@ -1275,28 +1311,146 @@ function sameRef(left: Ref, right: Ref): boolean {
   return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
 }
 
-function collectionKindForMaterialInput({
+async function collectionKindForMaterialInput({
+  materialStore,
+  materialRef,
   collectionKind,
   canonicalRef,
   materialSnapshot,
 }: {
+  materialStore: CollectionMaterialStore | undefined;
+  materialRef: Ref;
   collectionKind?: CollectionKind;
   canonicalRef?: Ref;
   materialSnapshot?: CollectionItem["materialSnapshot"];
-}): CollectionKind {
+}): Promise<Result<CollectionKind>> {
   if (collectionKind !== undefined) {
-    return collectionKind;
+    return ok(collectionKind);
   }
 
-  if (canonicalRef !== undefined && isCollectionKind(canonicalRef.kind)) {
-    return canonicalRef.kind;
+  const inferred = await materialKindForCollectionTarget({
+    materialStore,
+    materialRef,
+    rejectUnknownMaterial: true,
+    fallbackKind: "recording",
+    ...(canonicalRef === undefined ? {} : { canonicalRef }),
+    ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
+  });
+
+  if (!inferred.ok) {
+    return inferred;
+  }
+
+  return inferred.value === null
+    ? failKindUnknown(`Material '${materialRef.id}' was not found; pass collectionKind explicitly to classify it.`)
+    : ok(inferred.value);
+}
+
+async function ensureMaterialMatchesCollectionKind({
+  materialStore,
+  materialRef,
+  collectionKind,
+  canonicalRef,
+  materialSnapshot,
+  rejectUnknownMaterial,
+}: {
+  materialStore: CollectionMaterialStore | undefined;
+  materialRef: Ref;
+  collectionKind: CollectionKind;
+  canonicalRef?: Ref;
+  materialSnapshot?: CollectionItem["materialSnapshot"];
+  rejectUnknownMaterial: boolean;
+}): Promise<Result<void>> {
+  const materialKind = await materialKindForCollectionTarget({
+    materialStore,
+    materialRef,
+    rejectUnknownMaterial,
+    ...(rejectUnknownMaterial ? { fallbackKind: "recording" as const } : {}),
+    ...(canonicalRef === undefined ? {} : { canonicalRef }),
+    ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
+  });
+
+  if (!materialKind.ok) {
+    return materialKind;
+  }
+
+  if (materialKind.value === null || materialKind.value === collectionKind) {
+    return ok(undefined);
+  }
+
+  return failKindMismatch(
+    `Collection accepts '${collectionKind}' material refs, not '${materialKind.value}'.`,
+  );
+}
+
+async function materialKindForCollectionTarget({
+  materialStore,
+  materialRef,
+  canonicalRef,
+  materialSnapshot,
+  rejectUnknownMaterial,
+  fallbackKind,
+}: {
+  materialStore: CollectionMaterialStore | undefined;
+  materialRef: Ref;
+  canonicalRef?: Ref;
+  materialSnapshot?: CollectionItem["materialSnapshot"];
+  rejectUnknownMaterial: boolean;
+  fallbackKind?: CollectionKind;
+}): Promise<Result<CollectionKind | null>> {
+  const hints: CollectionKind[] = [];
+
+  if (canonicalRef !== undefined) {
+    if (!isCollectionKind(canonicalRef.kind)) {
+      return failKindMismatch(`Unsupported collection kind '${canonicalRef.kind}'.`);
+    }
+
+    hints.push(canonicalRef.kind);
   }
 
   if (materialSnapshot !== undefined && isCollectionKind(materialSnapshot.kind)) {
-    return materialSnapshot.kind;
+    hints.push(materialSnapshot.kind);
   }
 
-  return "recording";
+  if (materialStore !== undefined) {
+    const record = await materialStore.getMaterialRecord({ materialRef });
+
+    if (!record.ok) {
+      return record;
+    }
+
+    if (record.value !== null) {
+      const recordKind = record.value.kind;
+
+      if (!isCollectionKind(recordKind)) {
+        return failKindMismatch(`Unsupported collection kind '${recordKind}'.`);
+      }
+
+      hints.unshift(recordKind);
+    }
+  }
+
+  if (hints.length > 0) {
+    const first = hints[0];
+
+    if (first === undefined) {
+      return ok(null);
+    }
+
+    if (hints.slice(1).some((hint) => hint !== first)) {
+      return failKindMismatch(
+        `Material target kind hints disagree: ${hints.join(", ")}.`,
+      );
+    }
+
+    return ok(first);
+  }
+
+  if (materialStore !== undefined && rejectUnknownMaterial) {
+    return failKindUnknown(`Material '${materialRef.id}' was not found; pass collectionKind explicitly to classify it.`);
+  }
+
+  return fallbackKind === undefined ? ok(null) : ok(fallbackKind);
 }
 
 function identityRequirementForMaterialRelation(
@@ -1403,6 +1557,15 @@ function failNotFound(message: string): Result<never> {
 function failKindMismatch(message: string): Result<never> {
   return fail({
     code: "collection.kind_mismatch",
+    message,
+    module: "collection",
+    retryable: false,
+  });
+}
+
+function failKindUnknown(message: string): Result<never> {
+  return fail({
+    code: "collection.kind_unknown",
     message,
     module: "collection",
     retryable: false,

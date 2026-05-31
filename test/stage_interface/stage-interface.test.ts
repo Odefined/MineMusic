@@ -1,3 +1,5 @@
+import { z } from "zod/v4";
+
 import type { Result, ToolName } from "../../src/contracts/index.js";
 import type { ToolDispatchPort } from "../../src/ports/index.js";
 import {
@@ -143,6 +145,8 @@ async function stableToolNamesHaveMatchingSchemasAndDescriptors(): Promise<void>
 async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<void> {
   const querySchema = stageInterfaceToolInputSchemas["music.material.query"];
   const relatedSchema = stageInterfaceToolInputSchemas["music.material.related"];
+  const queryPayloadSchema = z.object(querySchema).passthrough();
+  const relatedPayloadSchema = z.object(relatedSchema).passthrough();
 
   assert(
     !Object.prototype.hasOwnProperty.call(querySchema, "preferenceHints"),
@@ -152,9 +156,70 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     !Object.prototype.hasOwnProperty.call(relatedSchema, "preferenceHints"),
     "material related public schema should not advertise experimental preferenceHints",
   );
+  assert(
+    !queryPayloadSchema.safeParse({ order: "library_order" }).success,
+    "material query public schema should not advertise library_order",
+  );
+  assert(
+    queryPayloadSchema.safeParse({ order: "recently_added" }).success,
+    "material query public schema should keep supported ordering options",
+  );
+  assert(
+    !relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_release" }).success,
+    "material related public schema should not advertise same_release",
+  );
+  assert(
+    !relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_release_group" }).success,
+    "material related public schema should not advertise same_release_group",
+  );
+  assert(
+    relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_artist" }).success &&
+      relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "same_album" }).success &&
+      relatedPayloadSchema.safeParse({ ref: "mat_seed", relation: "similar" }).success,
+    "material related public schema should keep supported relation options",
+  );
+  assert(
+    !queryPayloadSchema.safeParse({
+      pool: { kind: "related", ref: "mat_seed", relation: "same_release" },
+    }).success,
+    "material query related pool public schema should not advertise same_release",
+  );
+}
+
+async function collectionSchemasHideAdvancedMaterialTargetFields(): Promise<void> {
+  const systemAddSchema = stageInterfaceToolInputSchemas["music.collection.favorite"];
+  const systemRemoveSchema = stageInterfaceToolInputSchemas["music.collection.unfavorite"];
+  const customAddSchema = stageInterfaceToolInputSchemas["music.collection.item.add"];
+  const customRemoveSchema = stageInterfaceToolInputSchemas["music.collection.item.remove"];
+  const hiddenFields = ["materialRef", "materialSnapshot", "relationScope", "identityRequirement"];
+
+  for (const field of hiddenFields) {
+    assert(
+      !Object.prototype.hasOwnProperty.call(systemAddSchema, field),
+      `system collection add public schema should not advertise ${field}`,
+    );
+    assert(
+      !Object.prototype.hasOwnProperty.call(customAddSchema, field),
+      `custom collection add public schema should not advertise ${field}`,
+    );
+  }
+  assert(
+    !Object.prototype.hasOwnProperty.call(systemRemoveSchema, "materialRef"),
+    "system collection remove public schema should not advertise materialRef",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(customRemoveSchema, "materialRef"),
+    "custom collection remove public schema should not advertise materialRef",
+  );
+  assert(
+    Object.prototype.hasOwnProperty.call(systemAddSchema, "ref") &&
+      Object.prototype.hasOwnProperty.call(customAddSchema, "ref"),
+    "collection public schemas should expose compact material refs",
+  );
 }
 
 await exposesEveryStableToolNameThroughStageInterface();
 await stableToolNamesRemainInPublishedOrder();
 await stableToolNamesHaveMatchingSchemasAndDescriptors();
 await materialQuerySchemasHideExperimentalPreferenceHints();
+await collectionSchemasHideAdvancedMaterialTargetFields();

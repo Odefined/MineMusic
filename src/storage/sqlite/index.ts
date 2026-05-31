@@ -11,6 +11,7 @@ export { createSqliteMaterialRegistryRepository } from "./material-repository.js
 export type { SqliteMaterialRegistryRepositoryOptions } from "./material-repository.js";
 export {
   createSqliteMaterialActivityRepository,
+  createSqliteMaterialSessionActivityRepository,
   createSqliteMusicMaterialRelationRepository,
 } from "./material-relations-repository.js";
 export type { SqliteMaterialRelationsRepositoryOptions } from "./material-relations-repository.js";

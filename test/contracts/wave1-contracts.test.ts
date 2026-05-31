@@ -80,6 +80,7 @@ import type {
   LibraryUpdateStartInput,
   MaterialRecord,
   MaterialRecordStatus,
+  MaterialSessionActivity,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -154,6 +155,7 @@ import type {
   LibraryImportRepositoryContinuationStateInput,
   LibraryImportRepositoryListContinuationStatesInput,
   MaterialRegistryPort,
+  MaterialSessionActivityRepository,
   MaterialStorePort,
   MaterialResolvePort,
   MaterialGatePort,
@@ -1238,6 +1240,20 @@ type _confirmedCanonicalBindingListInputKeys = Expect<
   Equal<keyof ConfirmedCanonicalBindingListInput, "sourceRef" | "canonicalRef">
 >;
 
+type _materialSessionActivityKeys = Expect<
+  Equal<
+    keyof MaterialSessionActivity,
+    | "ownerScope"
+    | "sessionId"
+    | "materialRef"
+    | "recommendedCount"
+    | "openedCount"
+    | "playedCount"
+    | "skippedCount"
+    | "updatedAt"
+  >
+>;
+
 type _materialStorePortMethods = Expect<
   Equal<
     keyof MaterialStorePort,
@@ -1255,6 +1271,9 @@ type _materialStorePortMethods = Expect<
     | "getMaterialActivity"
     | "putMaterialActivity"
     | "listMaterialActivity"
+    | "getMaterialSessionActivity"
+    | "putMaterialSessionActivity"
+    | "listMaterialSessionActivity"
     | "getCanonical"
     | "findCanonicalByLabel"
     | "getSourceEntity"
@@ -1284,6 +1303,9 @@ type _materialStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<MaterialStorePort, "getMaterialActivity"> &
     MethodAcceptsSingleObject<MaterialStorePort, "putMaterialActivity"> &
     MethodAcceptsSingleObject<MaterialStorePort, "listMaterialActivity"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "getMaterialSessionActivity"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "putMaterialSessionActivity"> &
+    MethodAcceptsSingleObject<MaterialStorePort, "listMaterialSessionActivity"> &
     MethodAcceptsSingleObject<MaterialStorePort, "getCanonical"> &
     MethodAcceptsSingleObject<MaterialStorePort, "findCanonicalByLabel"> &
     MethodAcceptsSingleObject<MaterialStorePort, "getSourceEntity"> &
@@ -1295,6 +1317,12 @@ type _materialStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<MaterialStorePort, "getConfirmedCanonicalBinding"> &
     MethodAcceptsSingleObject<MaterialStorePort, "putConfirmedCanonicalBinding"> &
     MethodAcceptsSingleObject<MaterialStorePort, "listConfirmedCanonicalBindings">
+>;
+
+type _materialSessionActivityRepositoryMethodsUseSingleObjectInputs = Expect<
+  MethodAcceptsSingleObject<MaterialSessionActivityRepository, "getSessionActivity"> &
+    MethodAcceptsSingleObject<MaterialSessionActivityRepository, "putSessionActivity"> &
+    MethodAcceptsSingleObject<MaterialSessionActivityRepository, "listSessionActivity">
 >;
 
 type _materialRegistryPortMethods = Expect<
@@ -1546,6 +1574,7 @@ const requiredErrorCodes: StageErrorCode[] = [
   "collection.duplicate_label",
   "collection.system_collection_immutable",
   "collection.kind_mismatch",
+  "collection.kind_unknown",
   "source.no_provider",
   "source.no_playable_link",
   "source.unresolved_match",

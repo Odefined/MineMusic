@@ -55,6 +55,7 @@ import type {
   MaterialContextBriefInput,
   MaterialContextBriefOutput,
   MaterialActivity,
+  MaterialSessionActivity,
   MaterialPoolsListInput,
   MaterialPoolsListOutput,
   MaterialQueryInput,
@@ -256,6 +257,13 @@ export type MaterialActivityListInput = {
   limit?: number;
 };
 
+export type MaterialSessionActivityListInput = {
+  ownerScope?: string;
+  sessionId?: string;
+  since?: string;
+  limit?: number;
+};
+
 export type CanonicalRecordRepositoryFindBySourceRefInput = {
   ref: Ref;
   currentOnly?: boolean;
@@ -374,6 +382,20 @@ export interface MaterialStorePort {
 
   listMaterialActivity(input: MaterialActivityListInput): Promise<Result<MaterialActivity[]>>;
 
+  getMaterialSessionActivity(input: {
+    ownerScope: string;
+    sessionId: string;
+    materialRef: Ref;
+  }): Promise<Result<MaterialSessionActivity | null>>;
+
+  putMaterialSessionActivity(input: {
+    activity: MaterialSessionActivity;
+  }): Promise<Result<MaterialSessionActivity>>;
+
+  listMaterialSessionActivity(
+    input: MaterialSessionActivityListInput,
+  ): Promise<Result<MaterialSessionActivity[]>>;
+
   getCanonical(input: { ref: Ref }): Promise<Result<CanonicalRecord | null>>;
 
   findCanonicalByLabel(input: {
@@ -448,6 +470,22 @@ export interface MaterialActivityRepository {
   }): Promise<Result<MaterialActivity>>;
 
   listActivity(input: MaterialActivityListInput): Promise<Result<MaterialActivity[]>>;
+}
+
+export interface MaterialSessionActivityRepository {
+  getSessionActivity(input: {
+    ownerScope: string;
+    sessionId: string;
+    materialRef: Ref;
+  }): Promise<Result<MaterialSessionActivity | null>>;
+
+  putSessionActivity(input: {
+    activity: MaterialSessionActivity;
+  }): Promise<Result<MaterialSessionActivity>>;
+
+  listSessionActivity(
+    input: MaterialSessionActivityListInput,
+  ): Promise<Result<MaterialSessionActivity[]>>;
 }
 
 export interface CanonicalStorePort {
