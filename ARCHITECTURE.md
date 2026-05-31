@@ -41,10 +41,10 @@ skill. It does not prove playback control, autonomous DJ behavior, playlist
 editing, music intelligence, or notifications.
 Compact material retrieval is the default agent-facing material view:
 Material Query returns `MaterialCard` outputs, follows material merge redirects
-for material ids and old compact refs, and keeps raw source/canonical/evidence details behind
-internal Material Store and Material Resolve boundaries unless a compatibility
-or diagnostic tool explicitly asks for them. Stage Interface collection tools
-accept `materialId` for material actions without exposing internal
+for material ids, and keeps raw source/canonical/evidence details behind
+internal Material Store and Material Resolve boundaries unless a diagnostic tool
+explicitly asks for them. Stage Interface collection tools accept `materialId`
+for material actions without exposing internal
 snapshot/relation-scope fields in the normal public schemas, and Collection
 Service uses Material Registry redirects plus MaterialRecord kind inference
 when filtering, adding, or removing material-backed collection items.

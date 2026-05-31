@@ -926,7 +926,7 @@ async function compactCardsDoNotExposeRawMaterialInternals(): Promise<void> {
   const card = output.items[0] as unknown as Record<string, unknown>;
 
   assert(typeof card.materialId === "string", "compact card should expose a material id");
-  assert(!("ref" in card), "compact card should not expose legacy compact refs");
+  assert(!("ref" in card), "compact card should not expose alternate ref handles");
   assert(!("canonicalRef" in card), "compact card should not expose canonicalRef");
   assert(!("sourceRefs" in card), "compact card should not expose sourceRefs");
   assert(!("evidence" in card), "compact card should not expose raw evidence");

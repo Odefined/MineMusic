@@ -794,8 +794,6 @@ export type MaterialCardAction =
 export type MaterialCard = {
   /** Opaque Material Store id. Agent passes this back. */
   materialId?: string;
-  /** Legacy compact handle accepted during migration; prefer materialId. */
-  ref?: string;
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
@@ -809,8 +807,7 @@ export type MaterialCard = {
 Agent-facing material tools should use `materialId`, which is the
 `materialRef.id` owned by Material Store. Internal storage, redirects,
 relations, events, and collection writes still use full `Ref` values at module
-boundaries. Legacy compact `mat_*` refs are read only for migration
-compatibility and are not the normal handle.
+boundaries. Compact `mat_*` refs are not retained as a compatibility handle.
 
 ### 12.3 Status mapping
 
@@ -864,8 +861,6 @@ The current `MusicCandidate` can remain internally. Agent-facing language should
 ```ts
 export type ResolveSeed = {
   materialId?: string;
-  /** Legacy compact handle; prefer materialId. */
-  ref?: string;
   text?: string;
   kind?: AgentSeedKind;
 
@@ -1105,7 +1100,6 @@ export type MaterialPoolSpec =
   | {
       kind: "related";
       materialId: string;
-      ref?: string;
       relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
     };
 
@@ -1126,8 +1120,6 @@ export type MaterialQueryInput = {
   };
   exclude?: {
     materialIds?: string[];
-    /** Legacy compact handles; prefer materialIds. */
-    refs?: string[];
     relations?: Array<"blocked" | "wrong_version" | "not_playable" | "bad_match">;
     recent?: {
       recommended?: "session" | "1h" | "24h" | "7d";
@@ -1266,7 +1258,6 @@ It should not expose source/canonical internals to the agent.
 ```ts
 export type RelatedInput = {
   materialId: string;
-  ref?: string;
   relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
   ownerScope?: string;
   limit?: number;
@@ -1365,7 +1356,6 @@ Most agent flows should use query/resolve/related, not full context. A compact b
 ```ts
 export type MaterialBriefInput = {
   materialId: string;
-  ref?: string;
   fields?: Array<"artist" | "album" | "version" | "source" | "status">;
 };
 ```

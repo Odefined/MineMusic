@@ -301,10 +301,6 @@ function refValue(value: unknown): Ref[] {
     return [value];
   }
 
-  if (typeof value === "string" && isCompactMaterialCardRef(value)) {
-    return [materialRefFromCompactCardRef(value)];
-  }
-
   if (isRecord(value) && isRef(value.materialRef)) {
     return [value.materialRef];
   }
@@ -337,28 +333,12 @@ function isRef(value: unknown): value is Ref {
   );
 }
 
-function isCompactMaterialCardRef(value: string): boolean {
-  return value.startsWith("mat_") && value.length > "mat_".length;
-}
-
-function materialRefFromCompactCardRef(value: string): Ref {
-  return materialIdToRef(safeDecodeURIComponent(value.slice("mat_".length)));
-}
-
 function materialIdToRef(materialId: string): Ref {
   return {
     namespace: "minemusic",
     kind: "material",
     id: materialId,
   };
-}
-
-function safeDecodeURIComponent(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

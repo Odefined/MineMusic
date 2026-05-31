@@ -631,7 +631,6 @@ export type EffectProposal = {
   target?: Ref | MusicMaterial | MusicMaterial[] | {
     kind: "material";
     materialId: string;
-    ref?: string; // legacy compact ref, prefer materialId
     actionScope:
       | "open_source_link"
       | "play_source_link"

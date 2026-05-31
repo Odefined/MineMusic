@@ -1042,9 +1042,7 @@
 - Added PR 4 tests for query pools, relation/recent exclusions, related basis
   fallback, compact output hygiene, Stage Interface/MCP tool exposure, and
   recent-card context.
-- Addressed PR #7 review feedback by wiring then-current `ResolveSeed.ref` to
-  Material Registry / Material Resolve, decoding compact card strings in
-  Event Service activity projection, honoring `returnKind`, and adding
+- Addressed PR #7 review feedback by honoring `returnKind` and adding
   deterministic cursor pagination, collection-label lookup, saved-album
   track-level text filtering, lightweight `preferenceHints` matching, and
   recently-added / least-recently-recommended ordering.
@@ -1075,11 +1073,11 @@
   return material-only collection items, fall back to material snapshots when a
   live registry projection is unavailable, validate material collection kinds
   through the existing collection-kind schema, and follow material merge
-  redirects for compact resolve, related, and explicit exclude-ref paths.
-- Addressed the second PR #10 review pass by adding compact `ref` card-string
-  support to public collection tools, keeping raw `materialRef` as
-  compatibility, and making material-backed Collection filter/remove behavior
-  survive material redirects across merges with SQLite-backed service coverage.
+  redirects for materialId resolve, related, and explicit exclude-materialId
+  paths.
+- Addressed the second PR #10 review pass by making material-backed Collection
+  filter/remove behavior survive material redirects across merges with
+  SQLite-backed service coverage.
 
 ## 2026-05-31
 
@@ -1091,20 +1089,20 @@
   fallback.
 - Tightened LLM-facing Stage Interface schemas by hiding unsupported material
   related/order options and advanced internal collection target fields while
-  keeping compact `ref` inputs and service-level compatibility.
+  using `materialId` as the public material target.
 - Fixed Material Query relation exclusion so
   `exclude.relations: ["blocked"]` also removes materials already projected as
   blocked by Collection state.
 - Added `MaterialSessionActivity` with in-memory and SQLite repositories,
   Event Service projection, Material Store merge migration, and
   session-scoped query exclusion for the `"session"` recent window.
-- Hardened Collection material writes so compact material refs infer or
+- Hardened Collection material writes so materialId targets infer or
   validate collection kind from current `MaterialRecord` when possible and
   reject inconsistent canonical/snapshot/target kind hints, and fail with
   `collection.kind_unknown` when kind cannot be inferred without an explicit
   system `collectionKind`.
-- Added direct compact MaterialRecord projection for `music.material.resolve.cards`
-  ref seeds, including canonical-only `found_no_link` cards, source-backed
+- Added direct MaterialRecord projection for `music.material.resolve.cards`
+  materialId seeds, including canonical-only `found_no_link` cards, source-backed
   labels/links from Source Entity state, merge-survivor projection, and
   `material_not_found` unknown-ref handling.
 - Refreshed `skills/minemusic/HANDBOOK.md` from the current Stage Interface
@@ -1112,8 +1110,7 @@
 - Addressed issue #12 by making `materialId` the primary agent-facing
   MaterialCard handle for query, related, context brief, collection actions,
   `stage.materials.prepare`, recentCards, recommendation activity projection,
-  and material effect targets while preserving legacy `mat_*` readers for
-  migration compatibility.
+  and material effect targets without preserving legacy `mat_*` readers.
 
 ## Next
 

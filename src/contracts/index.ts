@@ -876,11 +876,6 @@ export type MaterialCard = {
    * can omit this when no backed material exists.
    */
   materialId?: string;
-  /**
-   * Legacy compact card ref accepted by readers during the materialId
-   * migration. Current material query/related outputs should not emit it.
-   */
-  ref?: string;
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
@@ -890,8 +885,6 @@ export type MaterialCard = {
 
 export type ResolveSeed = {
   materialId?: string;
-  /** Legacy compact card ref such as mat_<id>; prefer materialId. */
-  ref?: string;
   text?: string;
   kind?: "song" | "track" | "recording" | "artist" | "album" | "release" | "release_group" | "work" | string;
   sourceRef?: Ref;
@@ -932,8 +925,6 @@ export type MaterialPoolSpec =
   | {
       kind: "related";
       materialId: string;
-      /** Legacy compact card ref such as mat_<id>; prefer materialId. */
-      ref?: string;
       // same_release and same_release_group remain internal-only until
       // distinct deterministic relation semantics are implemented.
       relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
@@ -961,8 +952,6 @@ export type MaterialQueryInput = {
   };
   exclude?: {
     materialIds?: string[];
-    /** Legacy compact card refs such as mat_<id>; prefer materialIds. */
-    refs?: string[];
     relations?: Array<"blocked" | "wrong_version" | "not_playable" | "bad_match">;
     recent?: {
       recommended?: "session" | "1h" | "24h" | "7d";
@@ -990,9 +979,7 @@ export type MaterialQueryOutput = {
 };
 
 export type MaterialRelatedInput = {
-  materialId?: string;
-  /** Legacy compact card ref such as mat_<id>; prefer materialId. */
-  ref?: string;
+  materialId: string;
   // same_release and same_release_group remain internal-only Stage Query
   // options; the public Stage Interface currently exposes same_artist,
   // same_album, and similar only.
@@ -1020,16 +1007,12 @@ export type MaterialRelatedOutput = {
 };
 
 export type MaterialContextBriefInput = {
-  materialId?: string;
-  /** Legacy compact card ref such as mat_<id>; prefer materialId. */
-  ref?: string;
+  materialId: string;
   fields: Array<"artist" | "album" | "version" | "status">;
 };
 
 export type MaterialContextBriefOutput = {
   materialId?: string;
-  /** Legacy compact card ref such as mat_<id>; prefer materialId. */
-  ref?: string;
   title: string;
   artist?: { name: string; confidence: "confirmed" | "source" | "uncertain" };
   album?: { title: string; confidence: "confirmed" | "source" | "uncertain" };
@@ -1800,8 +1783,6 @@ export type EffectProposal = {
 export type MusicMaterialActionTarget = {
   kind: "material";
   materialId: string;
-  /** Legacy compact card ref such as mat_<id>; prefer materialId. */
-  ref?: string;
   actionScope:
     | "open_source_link"
     | "play_source_link"

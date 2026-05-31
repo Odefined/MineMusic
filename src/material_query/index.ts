@@ -180,27 +180,6 @@ export function materialIdToRef(materialId: string): Ref {
   };
 }
 
-export function materialRefToCardRef(materialRef: Ref): string {
-  return `mat_${encodeURIComponent(materialRef.id)}`;
-}
-
-export function cardRefToMaterialRef(ref: string): Ref {
-  const id = materialIdFromAgentHandle(ref);
-
-  return materialIdToRef(id);
-}
-
-function materialIdFromAgentHandle(handle: string): string {
-  return handle.startsWith("mat_") ? safeDecodeURIComponent(handle.slice("mat_".length)) : handle;
-}
-
-async function currentMaterialRefForCardRef(
-  materialStore: MaterialStorePort,
-  cardRef: string,
-): Promise<Result<Ref>> {
-  return materialStore.resolveMaterialRedirect({ materialRef: cardRefToMaterialRef(cardRef) });
-}
-
 async function currentMaterialRecordForRef(
   materialStore: MaterialStorePort,
   materialRef: Ref,
@@ -322,10 +301,6 @@ export function recentCardsFromEvents(
 function materialIdFromCardPayload(card: Record<string, unknown>): string | undefined {
   if (typeof card.materialId === "string" && card.materialId.length > 0) {
     return card.materialId;
-  }
-
-  if (typeof card.ref === "string" && card.ref.length > 0) {
-    return materialIdFromAgentHandle(card.ref);
   }
 
   return undefined;
@@ -457,22 +432,6 @@ async function resolveMaterialRefSeed({
 function materialIdForSeed(seed: ResolveSeed): string | undefined {
   if (seed.materialId !== undefined) {
     return seed.materialId;
-  }
-
-  if (seed.ref !== undefined) {
-    return materialIdFromAgentHandle(seed.ref);
-  }
-
-  return undefined;
-}
-
-function materialIdForMaterialInput(input: { materialId?: string; ref?: string }): string | undefined {
-  if (input.materialId !== undefined) {
-    return input.materialId;
-  }
-
-  if (input.ref !== undefined) {
-    return materialIdFromAgentHandle(input.ref);
   }
 
   return undefined;
@@ -873,16 +832,10 @@ async function relatedPoolCandidates({
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
 }): Promise<Result<MusicCandidate[]>> {
-  const materialId = materialIdForMaterialInput(pool);
-
-  if (materialId === undefined) {
-    return ok([]);
-  }
-
   const related = await relatedCandidates({
     materialStore,
     ownerScope,
-    materialId,
+    materialId: pool.materialId,
     relation: pool.relation,
   });
 
@@ -963,7 +916,7 @@ function candidateForCollectionItem(item: CollectionItem): MusicCandidate {
 function seedToCandidate(seed: ResolveSeed, index: number): MusicCandidate {
   const sourceRef = seed.sourceRef;
   const canonicalRef = seed.canonicalRef;
-  const text = seed.text ?? seed.materialId ?? seed.ref ?? sourceRef?.label ?? canonicalRef?.label ?? `seed-${index + 1}`;
+  const text = seed.text ?? seed.materialId ?? sourceRef?.label ?? canonicalRef?.label ?? `seed-${index + 1}`;
 
   return {
     id: `seed:${index + 1}`,
@@ -1209,7 +1162,6 @@ async function filterMaterials({
   const excludedMaterialIds = await excludedMaterialIdsForInput({
     materialStore,
     materialIds: exclude?.materialIds ?? [],
-    legacyRefs: exclude?.refs ?? [],
   });
 
   if (!excludedMaterialIds.ok) {
@@ -1279,11 +1231,9 @@ async function filterMaterials({
 async function excludedMaterialIdsForInput({
   materialStore,
   materialIds,
-  legacyRefs,
 }: {
   materialStore: MaterialStorePort;
   materialIds: string[];
-  legacyRefs: string[];
 }): Promise<Result<Set<string>>> {
   const excludedMaterialIds = new Set(materialIds);
 
@@ -1294,17 +1244,6 @@ async function excludedMaterialIdsForInput({
       return current;
     }
 
-    excludedMaterialIds.add(materialRefToMaterialId(current.value));
-  }
-
-  for (const cardRef of legacyRefs) {
-    const current = await currentMaterialRefForCardRef(materialStore, cardRef);
-
-    if (!current.ok) {
-      return current;
-    }
-
-    excludedMaterialIds.add(materialIdFromAgentHandle(cardRef));
     excludedMaterialIds.add(materialRefToMaterialId(current.value));
   }
 
@@ -1456,16 +1395,10 @@ async function relatedForInput({
   input: MaterialRelatedInput;
   clock: () => string;
 }): Promise<Result<MaterialRelatedOutput>> {
-  const seedMaterialId = materialIdForMaterialInput(input);
-
-  if (seedMaterialId === undefined) {
-    return ok({ basis: "fallback_text", items: [] });
-  }
-
   const related = await relatedCandidates({
     materialStore,
     ownerScope,
-    materialId: seedMaterialId,
+    materialId: input.materialId,
     relation: input.relation,
   });
 
@@ -1483,7 +1416,7 @@ async function relatedForInput({
     return resolved;
   }
 
-  const seedMaterialRef = materialIdToRef(seedMaterialId);
+  const seedMaterialRef = materialIdToRef(input.materialId);
   const currentSeedMaterialRef = await materialStore.resolveMaterialRedirect({ materialRef: seedMaterialRef });
 
   if (!currentSeedMaterialRef.ok) {
@@ -1501,7 +1434,7 @@ async function relatedForInput({
       ...input.exclude,
       materialIds: [
         ...(input.exclude?.materialIds ?? []),
-        seedMaterialId,
+        input.materialId,
         materialRefToMaterialId(currentSeedMaterialRef.value),
       ],
     },
@@ -1811,11 +1744,7 @@ async function contextBriefForInput(
   input: MaterialContextBriefInput,
 ): Promise<Result<MaterialContextBriefOutput>> {
   const requestedFields = new Set(input.fields);
-  const materialId = materialIdForMaterialInput(input);
-
-  if (materialId === undefined) {
-    return ok({ title: "material", warnings: ["material_not_found"] });
-  }
+  const materialId = input.materialId;
 
   const requestedRef = materialIdToRef(materialId);
   const requestedRecord = await materialStore.getMaterialRecord({ materialRef: requestedRef });
@@ -2320,14 +2249,6 @@ function stableHash(value: string): number {
   }
 
   return hash;
-}
-
-function safeDecodeURIComponent(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }
 
 function dedupeMaterials(materials: MusicMaterial[]): MusicMaterial[] {

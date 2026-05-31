@@ -29,7 +29,7 @@ import type {
   StageInterfaceToolDefinition,
   StageInterfaceToolInputSchema,
 } from "./types.js";
-import { cardRefToMaterialRef, materialIdToRef } from "../../material_query/index.js";
+import { materialIdToRef } from "../../material_query/index.js";
 import { descriptorForToolDefinition } from "./types.js";
 
 export const musicToolNames = [
@@ -66,7 +66,6 @@ export type MusicToolGroupContext = {
 type CollectionSystemAddPayload = {
   ownerScope: string;
   materialId?: string;
-  ref?: string;
   canonicalRef?: Ref;
   materialRef?: Ref;
   collectionKind?: CollectionKind;
@@ -80,7 +79,6 @@ type CollectionSystemAddPayload = {
 type CollectionSystemRemovePayload = {
   ownerScope: string;
   materialId?: string;
-  ref?: string;
   canonicalRef?: Ref;
   materialRef?: Ref;
   collectionKind?: CollectionKind;
@@ -89,7 +87,6 @@ type CollectionSystemRemovePayload = {
 type CollectionItemAddPayload = {
   collectionId: string;
   materialId?: string;
-  ref?: string;
   canonicalRef?: Ref;
   materialRef?: Ref;
   label: string;
@@ -102,7 +99,6 @@ type CollectionItemAddPayload = {
 type CollectionItemRemovePayload = {
   collectionId: string;
   materialId?: string;
-  ref?: string;
   canonicalRef?: Ref;
   materialRef?: Ref;
 };
@@ -181,7 +177,7 @@ const resolveSeedSchema = z.object({
   sourceRef: refSchema.optional(),
   canonicalRef: refSchema.optional(),
   reason: z.string().optional(),
-}).passthrough();
+});
 const materialPoolSchema = z.union([
   z.object({ kind: z.literal("all") }),
   z.object({
@@ -201,7 +197,7 @@ const materialPoolSchema = z.union([
     kind: z.literal("related"),
     materialId: materialIdSchema,
     relation: z.enum(["same_artist", "same_album", "similar"]),
-  }).passthrough(),
+  }),
 ]);
 const materialConstraintsSchema = z.object({
   availability: z.enum(["playable", "any"]).optional(),
@@ -216,7 +212,7 @@ const materialExcludeSchema = z.object({
     opened: z.enum(["session", "1h", "24h", "7d"]).optional(),
     mode: z.enum(["hard", "soft"]).optional(),
   }).optional(),
-}).passthrough();
+});
 
 export const musicToolDefinitions = [
   {
@@ -775,12 +771,12 @@ function dispatchSystemCollectionRemove(
   });
 }
 
-function materialRefFromCollectionPayload(input: { materialId?: string; ref?: string; materialRef?: Ref }): Ref | undefined {
+function materialRefFromCollectionPayload(input: { materialId?: string; materialRef?: Ref }): Ref | undefined {
   if (input.materialId !== undefined) {
     return materialIdToRef(input.materialId);
   }
 
-  return input.ref === undefined ? input.materialRef : cardRefToMaterialRef(input.ref);
+  return input.materialRef;
 }
 
 function readCollection(collection: CollectionPort | undefined): Result<CollectionPort> {

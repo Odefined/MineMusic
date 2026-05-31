@@ -114,8 +114,7 @@ requested `fields` when returning artist, album, version, or status details.
 Material Registry / Material Resolve rather than treating them as search text.
 Compact resolve, related, collection query, and explicit exclude-materialId
 paths follow material merge redirects so merged ids project or exclude the
-current survivor. Legacy `mat_*` refs are still decoded by compatibility
-readers such as older event/card payloads.
+current survivor.
 `stage.context.read` now returns bounded `recentCards` from compact
 recommendation presentation events without exposing raw event payloads, and
 Event Service projects `MaterialCard.materialId` strings into Material Activity
@@ -128,8 +127,8 @@ requirements, and `pending_identity` status while preserving legacy
 `canonicalRef` collection APIs. Collection Service can block source-only
 materials and filter blocked material refs, with material filtering and removal
 following Material Registry redirects after merges. Stage Interface collection
-tools accept compact `ref` card strings as the normal material target path
-while preserving `canonicalRef` and raw `materialRef` compatibility. Material
+tools accept `materialId` as the normal material target path while preserving
+`canonicalRef` and raw `materialRef` for internal compatibility. Material
 Query collection pools return material-only items directly, use snapshots as a
 fallback when a live projection is unavailable, and keep legacy canonical
 collection items working during migration. Event Service accepts
@@ -157,8 +156,8 @@ playable source link yet.
 The 2026-05-31 issue #12 materialId migration makes `materialId` the primary
 agent-facing MaterialCard handle for query, related, context brief, collection,
 recentCards, recommendation presentation, and effect action targets. Internal
-storage and redirect logic still use full `Ref` values, and legacy `mat_*`
-refs remain readable where needed for migration compatibility.
+storage and redirect logic still use full `Ref` values, but LLM-facing material
+actions use `materialId` instead of compact `mat_*` refs.
 
 The host boundary is now implemented for MCP: the MineMusic server process owns
 Stage Core startup and server-level provider/repository/cache/session
