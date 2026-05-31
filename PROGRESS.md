@@ -1211,6 +1211,16 @@
   remember-preference memory proposals without auto-acceptance.
 - Added memory service, Stage Interface, MCP schema, skill/handbook, and
   contract regression coverage for feedback binding and consequence behavior.
+- Started recommendation-posture PR 7 on branch
+  `codex/stage-interface-typed-schema-cleanup` from merged PR 6 `main`.
+- Added optional typed input parsers to Stage Interface Tool Definitions while
+  preserving existing raw input schema aggregates for descriptors, Handbook,
+  and MCP.
+- Migrated `music.material.select`, `stage.recommendation.present`, and
+  `memory.feedback.record` to typed dispatch payloads, removing local
+  `readPayload<T>` casts from those new recommendation-posture tools.
+- Added Stage Interface coverage that asserts the migrated tools keep typed
+  input parsers, with focused schema/dispatch/MCP tests still passing.
 
 ## Next
 

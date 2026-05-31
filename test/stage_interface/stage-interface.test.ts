@@ -10,9 +10,12 @@ import {
   knowledgeToolNames,
   libraryToolNames,
   memoryToolNames,
+  memoryToolDefinitions,
   musicToolNames,
+  musicToolDefinitions,
   stableToolNames,
   stageInterfaceToolInputSchemas,
+  stageToolDefinitions,
   stageToolNames,
 } from "../../src/stage_interface/index.js";
 
@@ -263,8 +266,31 @@ async function collectionSchemasHideAdvancedMaterialTargetFields(): Promise<void
   );
 }
 
+async function newRecommendationToolsUseTypedInputParsers(): Promise<void> {
+  const definitions = [
+    ...musicToolDefinitions,
+    ...stageToolDefinitions,
+    ...memoryToolDefinitions,
+  ];
+  const typedToolNames: ToolName[] = [
+    "music.material.select",
+    "stage.recommendation.present",
+    "memory.feedback.record",
+  ];
+
+  for (const toolName of typedToolNames) {
+    const definition = definitions.find((candidate) => candidate.name === toolName);
+
+    assert(
+      definition !== undefined && "inputParser" in definition && definition.inputParser !== undefined,
+      `${toolName} should have a typed input parser`,
+    );
+  }
+}
+
 await exposesEveryStableToolNameThroughStageInterface();
 await stableToolNamesRemainInPublishedOrder();
 await stableToolNamesHaveMatchingSchemasAndDescriptors();
 await materialQuerySchemasHideExperimentalPreferenceHints();
 await collectionSchemasHideAdvancedMaterialTargetFields();
+await newRecommendationToolsUseTypedInputParsers();

@@ -176,7 +176,8 @@ function parseToolPayload({
   payload: unknown;
 }): Result<unknown> {
   const payloadObject = payload === undefined ? {} : payload;
-  const parsed = z.object(definition.inputSchema).passthrough().safeParse(payloadObject);
+  const parser = definition.inputParser ?? z.object(definition.inputSchema).passthrough();
+  const parsed = parser.safeParse(payloadObject);
 
   if (!parsed.success) {
     return fail(invalidPayloadError(definition.name, summarizeZodError(parsed.error)));

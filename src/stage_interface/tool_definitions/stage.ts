@@ -21,7 +21,7 @@ import type {
   StageInterfaceToolDefinition,
   StageInterfaceToolInputSchema,
 } from "./types.js";
-import { descriptorForToolDefinition } from "./types.js";
+import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
 import { materialForMaterialId } from "../../material_query/index.js";
 
 export const stageToolNames = [
@@ -65,6 +65,21 @@ const recommendationFreshnessPolicySchema = z.object({
   opened: z.enum(["session", "1h", "24h", "7d"]).optional(),
   mode: z.enum(["hard", "soft", "off"]).optional(),
 });
+type RecommendationPresentPayload = RecommendationPresentInput & {
+  sessionId?: string;
+};
+const recommendationPresentInputSchema = {
+  ownerScope: z.string().optional(),
+  request: z.string().optional(),
+  items: z.array(recommendationPresentItemSchema),
+  minCards: z.number().int().positive().optional(),
+  maxCards: z.number().int().positive().optional(),
+  policy: z.object({
+    freshness: recommendationFreshnessPolicySchema.optional(),
+  }).optional(),
+} satisfies StageInterfaceToolInputSchema;
+const recommendationPresentInputParser =
+  z.object(recommendationPresentInputSchema).passthrough() as z.ZodType<RecommendationPresentPayload>;
 
 export const stageToolDefinitions = [
   {
@@ -99,22 +114,18 @@ export const stageToolDefinitions = [
       return context.materialGate.prepareMaterials(input.value);
     },
   },
-  {
+  defineStageInterfaceTool<
+    "stage.recommendation.present",
+    StageToolGroupContext,
+    RecommendationPresentPayload
+  >({
     name: "stage.recommendation.present",
     description: "Final presentation boundary for user-visible recommendations.",
     inputSchemaRef: "RecommendationPresentInput",
     outputSchemaRef: "RecommendationPresentOutput",
     availability: "requires_active_instrument",
-    inputSchema: {
-      ownerScope: z.string().optional(),
-      request: z.string().optional(),
-      items: z.array(recommendationPresentItemSchema),
-      minCards: z.number().int().positive().optional(),
-      maxCards: z.number().int().positive().optional(),
-      policy: z.object({
-        freshness: recommendationFreshnessPolicySchema.optional(),
-      }).optional(),
-    },
+    inputSchema: recommendationPresentInputSchema,
+    inputParser: recommendationPresentInputParser,
     handler({ context, sessionId, payload }) {
       const presenter = readRecommendationPresentation(context.recommendationPresentation);
 
@@ -122,9 +133,9 @@ export const stageToolDefinitions = [
         return presenter;
       }
 
-      return presenter.value.present(readPayload<RecommendationPresentInput & { sessionId: string }>(payload, { sessionId }));
+      return presenter.value.present({ ...payload, sessionId: payload.sessionId ?? sessionId });
     },
-  },
+  }),
   {
     name: "stage.session.update",
     description: "Update soft session state through Session Context.",

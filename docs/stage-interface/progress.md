@@ -36,6 +36,12 @@ feedback on presented recommendation cards. Its target resolver binds through
 recent card handles or exact event positions and reads persisted presentation
 `linkRefs` for source/link-scoped consequences.
 
+Tool Definitions now support optional typed input parsers in addition to their
+raw host-facing schema shapes. `music.material.select`,
+`stage.recommendation.present`, and `memory.feedback.record` use typed parsers
+so their handlers receive typed payloads from shared dispatch validation rather
+than re-casting `unknown` payloads locally.
+
 ## Established Decisions
 
 - Keep `ToolDispatchPort.call({ sessionId, toolName, payload })` as the public
@@ -89,6 +95,9 @@ recent card handles or exact event positions and reads persisted presentation
 - `stage_interface.invalid_payload` for schema-boundary failures.
 - Optional per-tool `validatePayload` for conditional contracts that raw host
   schemas cannot express without changing MCP compatibility.
+- Optional typed `inputParser` support for tools that should receive typed
+  handler payloads after dispatch validation while still exporting raw schema
+  shapes for MCP/Handbook surfaces.
 - Ordered definition-derived `stableToolNames`, `agentToolDescriptors`, and
   `stageInterfaceToolInputSchemas`.
 - Registry-primary dispatch lookup.
@@ -103,24 +112,26 @@ recent card handles or exact event positions and reads persisted presentation
   flows to `stage.recommendation.present`.
 - `memory.feedback.record` descriptor, schema, and dispatch to
   `MemoryPort.recordFeedback`.
+- Typed input parsers for `music.material.select`,
+  `stage.recommendation.present`, and `memory.feedback.record`.
 
 ## Not Yet Implemented
 
 - Per-tool strict payload mode.
-- Gradual handler cleanup for Memory, Knowledge, Handbook, Library, Music, and
-  Canonical Review tool groups.
+- Gradual handler cleanup for remaining Memory, Knowledge, Handbook, Library,
+  Music, Stage, and Canonical Review tools that still use untyped payload casts.
 
 ## Verification
 
-- `npm run typecheck` passes as of recommendation-posture PR 6.
-- `npm run build:test` passes as of recommendation-posture PR 6.
+- `npm run typecheck` passes as of recommendation-posture PR 7.
+- `npm run build:test` passes as of recommendation-posture PR 7.
 - `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
-  passes as of recommendation-posture PR 6.
+  passes as of recommendation-posture PR 7.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
-  recommendation-posture PR 6.
+  recommendation-posture PR 7.
 - `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
-  Interface recommendation presentation and feedback schema coverage.
-- `npm test` passes as of recommendation-posture PR 6.
+  Interface recommendation presentation, feedback, and typed parser coverage.
+- `npm test` passes as of recommendation-posture PR 7.
 
 ## Next Slice
 

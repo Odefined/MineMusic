@@ -33,7 +33,7 @@ import type {
   StageInterfaceToolInputSchema,
 } from "./types.js";
 import { materialIdToRef } from "../../material_query/index.js";
-import { descriptorForToolDefinition } from "./types.js";
+import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
 
 export const musicToolNames = [
   "music.material.resolve",
@@ -243,6 +243,17 @@ const materialSelectDiversitySchema = z.object({
   maxPerArtist: z.number().int().positive().optional(),
   maxPerAlbum: z.number().int().positive().optional(),
 });
+const materialSelectInputSchema = {
+  candidates: z.array(materialSelectCandidateSchema),
+  policy: materialPolicySchema.optional(),
+  sort: materialSortSchema.optional(),
+  limit: z.number().int().positive().optional(),
+  diversity: materialSelectDiversitySchema.optional(),
+  ownerScope: z.string().optional(),
+  sessionId: z.string().optional(),
+} satisfies StageInterfaceToolInputSchema;
+const materialSelectInputParser =
+  z.object(materialSelectInputSchema).passthrough() as z.ZodType<PublicMaterialSelectInput>;
 
 export const musicToolDefinitions = [
   {
@@ -349,21 +360,18 @@ export const musicToolDefinitions = [
       return materialQuery.value.related(readPayload<MaterialRelatedInput>(payload, { sessionId }));
     },
   },
-  {
+  defineStageInterfaceTool<
+    "music.material.select",
+    MusicToolGroupContext,
+    PublicMaterialSelectInput
+  >({
     name: "music.material.select",
     description: "Optionally apply reusable material policy, sorting, diversity, and limit to compact material ids.",
     inputSchemaRef: "MaterialSelectInput",
     outputSchemaRef: "MaterialSelectOutput",
     availability: "requires_active_instrument",
-    inputSchema: {
-      candidates: z.array(materialSelectCandidateSchema),
-      policy: materialPolicySchema.optional(),
-      sort: materialSortSchema.optional(),
-      limit: z.number().int().positive().optional(),
-      diversity: materialSelectDiversitySchema.optional(),
-      ownerScope: z.string().optional(),
-      sessionId: z.string().optional(),
-    },
+    inputSchema: materialSelectInputSchema,
+    inputParser: materialSelectInputParser,
     handler({ context, sessionId, payload }) {
       const materialSelector = readMaterialSelector(context.materialSelector);
 
@@ -372,10 +380,10 @@ export const musicToolDefinitions = [
       }
 
       return materialSelector.value.select(
-        normalizePublicMaterialSelectInput(readPayload<PublicMaterialSelectInput>(payload, { sessionId })),
+        normalizePublicMaterialSelectInput({ ...payload, sessionId: payload.sessionId ?? sessionId }),
       );
     },
-  },
+  }),
   {
     name: "music.material.context.brief",
     description: "Read a compact context brief for one material id.",
