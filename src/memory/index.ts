@@ -10,9 +10,9 @@ import type {
   MusicMaterialRelation,
   MusicMaterialRelationKind,
   MusicMaterialRelationScope,
-  RecentMaterialCard,
   Ref,
   Result,
+  StageRecentMaterialItem,
   StageError,
   StageEvent,
 } from "../contracts/index.js";
@@ -233,7 +233,7 @@ function bindFeedbackTarget(
 }
 
 function boundTargetForRecentCard(
-  recentCard: RecentMaterialCard,
+  recentCard: StageRecentMaterialItem,
   events: StageEvent[],
 ): MemoryFeedbackBoundTarget {
   const event = events.find((candidate) => candidate.id === recentCard.eventId);

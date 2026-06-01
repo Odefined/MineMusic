@@ -8,6 +8,7 @@ const testModules = [
   "./storage/sqlite-material-registry.test.js",
   "./storage/sqlite-provider-http-cache-repository.test.js",
   "./storage/sqlite-source-entity-store.test.js",
+  "./architecture/material-boundary.test.js",
   "./plugins/plugin-registry.test.js",
   "./material_store/material-registry.test.js",
   "./material_store/material-relations.test.js",

@@ -95,8 +95,9 @@ Material Store merge migrates loser relations to the survivor material and
 combines loser activity into survivor activity, preserving source-only feedback
 and recentness after later canonical confirmation or material merge.
 
-The 2026-05-30 MusicMaterial PR 4 query/related slice adds compact
-agent-facing `MaterialCard` contracts and the Material Query service. Stage
+The 2026-05-30 MusicMaterial PR 4 query/related slice adds the Material Query
+service, and the 2026-06-01 Stage Interface output-ownership migration moved
+compact output DTO ownership under Stage Interface. Stage
 Interface now exposes `music.material.resolve.cards`, `music.material.query`,
 `music.material.related`, `music.material.context.brief`, and
 `music.pools.list`. Query supports Source Library saved tracks, saved albums
@@ -115,15 +116,16 @@ requested `fields` when returning artist, album, version, or status details.
 Material Registry / Material Resolve rather than treating them as search text.
 Source Library saved-track, followed-artist, all-material, and materialRef-backed
 Collection pool queries project stored Source Entity / Material Store records
-directly into compact cards before selector policy runs, so already-owned
-playable links are not lost if provider grounding would not re-find them.
+directly into domain material results before Stage Interface projection, so
+already-owned playable links are not lost if provider grounding would not
+re-find them.
 Compact resolve, related, collection query, and explicit exclude-materialId
 paths follow material merge redirects so merged ids project or exclude the
 current survivor.
 `stage.context.read` now returns bounded `recentCards` from compact
 recommendation presentation events without exposing raw event payloads, and
-Event Service projects `MaterialCard.materialId` strings into Material Activity
-so recent query exclusions work after compact recommendation events.
+Event Service projects `materialId` values into Material Activity so recent
+query exclusions work after recommendation events.
 
 The 2026-05-30 MusicMaterial PR 5 downstream migration slice moves
 consequence-bearing modules toward product-level material targets. Collection
@@ -159,7 +161,7 @@ Material Records directly, including canonical-only records that have no
 playable source link yet.
 
 The 2026-05-31 issue #12 materialId migration makes `materialId` the primary
-agent-facing MaterialCard handle for query, related, context brief, collection,
+agent-facing material handle for query, related, context brief, collection,
 recentCards, recommendation presentation, and effect action targets. Internal
 storage and redirect logic still use full `Ref` values, but LLM-facing material
 actions use `materialId` instead of compact `mat_*` refs.
@@ -206,20 +208,21 @@ The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
 and the `stage.recommendation.present` tool. Presentation evaluates the intended
 ordered materialId items with the material policy evaluator, preserves the
 surviving order, applies `maxCards` / `minCards`, records a typed
-`recommendation.presented` event only when enough cards survive, and returns
-the exact compact cards to show. Agent-facing `stage.events.record` now rejects
-manual `recommendation.presented` / `recommendation_presented` events with a
-pointer to `stage.recommendation.present`, and `stage.context.read`
-`recentCards` are derived from the typed presentation payload.
+`recommendation.presented` event only when enough items survive, and returns
+domain presentation items that Stage Interface projects into exact compact
+cards to show. Agent-facing `stage.events.record` now rejects manual
+`recommendation.presented` / `recommendation_presented` events with a pointer
+to `stage.recommendation.present`, and `stage.context.read` `recentCards` are
+derived from the typed presentation payload.
 
 The 2026-05-31 recommendation-posture PR 5 workflow migration moves
 `runRecommendationTranscript` and the Codex workflow skill onto the presentation
 boundary. The fixture transcript now resolves grounded materials, calls
 `stage.recommendation.present`, builds its response from returned
-`PresentedMaterialCard.links`, and binds memory/effect proposals to the typed
-presentation card/event. Fixture tests seed Source Entity state explicitly when
-they need source-backed playable links; the transcript itself does not write
-Source Entity records. The old
+Stage Interface presentation links, and binds memory/effect proposals to the
+typed presentation event. Fixture tests seed Source Entity state explicitly
+when they need source-backed playable links; the transcript itself does not
+write Source Entity records. The old
 `stage.materials.prepare + manual stage.events.record(recommendation.presented)`
 recommendation path is no longer used by the transcript or skill.
 
@@ -227,13 +230,23 @@ The recommendation-posture PR 1-5 hardening keeps public
 `music.material.select` as a candidate-selection helper by rejecting
 `recommendation_presentation` and `feedback_target` policy purposes at the
 Stage Interface schema boundary. Recommendation presentation now separates
-display cards from persisted feedback-binding snapshots:
-`PresentedMaterialCard.links` remains in the tool output, while
-`recommendation.presented` stores compact
-`RecommendationPresentedCardSnapshot.linkRefs`. `stage.context.read`
-`recentCards` remain compact handles with event id, position, material id, and
-display context; future feedback flows must recover source/link/version facts
-from the corresponding typed presentation event payload.
+Stage Interface display cards from persisted feedback-binding domain event
+items. Display links remain in the tool output, while
+`recommendation.presented` stores `linkRefs` on typed event items.
+`stage.context.read` `recentCards` remain compact handles with event id,
+position, material id, and display context; future feedback flows must recover
+source/link/version facts from the corresponding typed presentation event
+payload.
+
+The 2026-06-01 Stage Interface output-ownership PR 4 removes global
+MaterialCard ownership. Material modules return domain results. Stage Interface
+output modules project those results into compact agent-facing outputs.
+MaterialCard-like DTOs are Stage Interface output types, not material service
+communication formats. `recommendation_presentation` remains a core/runtime
+service for final policy and event recording; only compact output projection
+belongs to Stage Interface. `src/material_cards` has been removed, and
+`test/architecture/material-boundary.test.ts` enforces that material modules do
+not import Stage Interface output DTOs or legacy card DTO names.
 
 The 2026-05-31 recommendation-posture PR 6 feedback boundary adds
 `memory.feedback.record`. Memory now records agent-interpreted user feedback
@@ -650,6 +663,8 @@ host-facing and LLM-facing surface.
   rules, and runtime payload validation. Stable tool names, agent descriptors,
   and input schema aggregates are derived from the ordered definition list; MCP
   consumes those Stage Interface definitions rather than owning tool contracts.
+- Stage Interface output modules under `src/stage_interface/outputs/**` now
+  own compact material and recommendation projection rules.
 - Tool Definitions now support optional typed input parsers alongside their
   host-facing raw input schema shapes. The recommendation-posture tools
   `music.material.select`, `stage.recommendation.present`, and
@@ -732,7 +747,7 @@ host-facing and LLM-facing surface.
   source-search strings.
 - The active Codex session can call the repo-local `minemusic.*` MCP tools for
   a real user scenario: update session vibe, resolve music candidates through
-  NetEase, present returned material cards through
+  NetEase, present returned material ids through
   `stage.recommendation.present`, create an evidence-backed memory proposal,
   and create an `open_link` effect proposal without executing the effect.
 - Fresh Codex session validation is reported complete by the user, so Wave 8 is

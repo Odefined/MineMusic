@@ -27,8 +27,8 @@ import type {
 } from "../contracts/index.js";
 import type {
   CollectionPort,
-  MaterialCardsPort,
   MaterialQueryPort,
+  MaterialQuerySupportPort,
   MaterialRelatedPort,
   MaterialResolvePort,
   MaterialSelectorPort,
@@ -44,7 +44,7 @@ const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
 const defaultRecentCardLimit = 5;
 
-export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort & MaterialSelectorPort;
+export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort & MaterialSelectorPort;
 
 export type MaterialQueryServiceOptions = {
   materialStore: MaterialStorePort;
@@ -63,7 +63,7 @@ type ResolvedSeedItems = {
   unresolved: MaterialResolveUnresolvedItem[];
 };
 
-type RecentMaterialCardStatus =
+type RecentPresentationStatus =
   | "playable"
   | "found_no_link"
   | "ambiguous"
@@ -1901,7 +1901,7 @@ function dedupeRefs(refs: Ref[]): Ref[] {
   return [...byKey.values()];
 }
 
-function isMaterialCardStatus(value: unknown): value is RecentMaterialCardStatus {
+function isRecentPresentationStatus(value: unknown): value is RecentPresentationStatus {
   return (
     value === "playable" ||
     value === "found_no_link" ||
@@ -1911,10 +1911,10 @@ function isMaterialCardStatus(value: unknown): value is RecentMaterialCardStatus
   );
 }
 
-function materialCardStatusFromEventValue(value: unknown): RecentMaterialCardStatus {
+function materialCardStatusFromEventValue(value: unknown): RecentPresentationStatus {
   return value === "playable_unverified"
     ? "playable"
-    : isMaterialCardStatus(value) ? value : "unresolved";
+    : isRecentPresentationStatus(value) ? value : "unresolved";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

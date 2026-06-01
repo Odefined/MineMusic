@@ -717,7 +717,7 @@ export interface MaterialRelatedPort {
   related(input: MaterialRelatedInput): Promise<Result<MaterialRelatedOutput>>;
 }
 
-export interface MaterialCardsPort {
+export interface MaterialQuerySupportPort {
   resolveCards(input: MaterialResolveCardsInput): Promise<Result<MaterialResolveCardsOutput>>;
 
   contextBrief?(input: MaterialContextBriefInput): Promise<Result<MaterialContextBriefOutput>>;

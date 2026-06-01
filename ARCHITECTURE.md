@@ -40,10 +40,11 @@ MineMusic server process, not to a particular host adapter such as the Codex
 skill. It does not prove playback control, autonomous DJ behavior, playlist
 editing, music intelligence, or notifications.
 Compact material retrieval is the default agent-facing material view:
-Material Query returns `MaterialCard` outputs, follows material merge redirects
-for material ids, and keeps raw source/canonical/evidence details behind
-internal Material Store and Material Resolve boundaries unless a diagnostic tool
-explicitly asks for them. Stage Interface collection tools accept `materialId`
+Material Query returns domain result items, Stage Interface output modules
+project those results into compact agent-facing outputs, and raw
+source/canonical/evidence details stay behind internal Material Store and
+Material Resolve boundaries unless a diagnostic tool explicitly asks for them.
+Stage Interface collection tools accept `materialId`
 for material actions without exposing internal
 snapshot/relation-scope fields in the normal public schemas, and Collection
 Service uses Material Registry redirects plus MaterialRecord kind inference
@@ -56,7 +57,8 @@ to construct full `MusicMaterial` payloads for ordinary link-problem recovery.
 Recommendation Presentation is the final user-visible recommendation boundary:
 `stage.recommendation.present` evaluates the intended ordered material ids,
 preserves surviving order, records the typed `recommendation.presented` event,
-and returns the exact compact cards that can be shown.
+and returns domain presentation items that Stage Interface projects into the
+exact compact cards that can be shown.
 
 ## Vocabulary Source
 
@@ -178,9 +180,9 @@ needs.
 | Collection Service | owner-scoped Collections, materialRef-backed CollectionItems, saved/favorite/blocked/custom membership, blocked membership lookup, and legacy canonicalRef compatibility during migration | canonical identity, source refs, provider search, final recommendation selection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
 | Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, material relation filtering, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
-| Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy; sorting of already usable material candidates; optional compact materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment |
-| Recommendation Presentation | final presentation gate for intended ordered materialId recommendations, typed `recommendation.presented` event creation, compact presented/recent card snapshots, min/max card enforcement | candidate discovery, sorting, selector delegation, final recommendation judgment |
-| Material Query / Related | compact agent-facing material retrieval, direct Source Library / Collection material-card projection for owned assets, related candidate generation, selector delegation, and `MaterialCard` presentation | raw source/canonical graph exposure, provider internals, canonical writes, tag/style-hint interpretation without real semantic data, final recommendation selection |
+| Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy; sorting of already usable material candidates; materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment, compact output projection |
+| Recommendation Presentation | final presentation gate for intended ordered materialId recommendations, typed `recommendation.presented` event creation with feedback-binding facts, min/max enforcement, accepted/dropped decisions | candidate discovery, sorting, selector delegation, final recommendation judgment, compact output projection |
+| Material Query / Related | domain material retrieval, direct Source Library / Collection material projection for owned assets, related candidate generation, selector delegation, materialId result handles | raw source/canonical graph exposure, provider internals, canonical writes, tag/style-hint interpretation without real semantic data, final recommendation selection, compact output projection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization, and persistence of provider-returned source evidence into Source Entity Store through a narrow writer | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |
@@ -371,6 +373,13 @@ than duplicate tool facts. First-pass payload validation is passthrough, not
 strict: extra keys are tolerated while required fields and field types are
 enforced. MCP remains an adapter that consumes Stage Interface definitions and
 must not own MineMusic tool contracts.
+
+Material modules return domain results. Stage Interface output modules project
+those results into compact agent-facing outputs. MaterialCard-like DTOs are
+Stage Interface output types, not material service communication formats.
+`recommendation_presentation` remains a core/runtime service for final policy
+and event recording; only compact output projection belongs to Stage
+Interface.
 
 ## Material State Policy
 

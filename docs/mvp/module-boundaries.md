@@ -83,6 +83,7 @@ Own:
 - MineMusic-owned ordering for common flows.
 - Tool Definitions for callable MineMusic tools.
 - Tool Groups that match instruments or agent-facing work areas.
+- compact agent-facing output projection for tool results.
 
 Current implementation:
 
@@ -104,6 +105,10 @@ Must not own:
 - Core Capability private implementation.
 - a single all-knowing dispatch implementation once a Tool Group can own its
   own narrow execution dependencies.
+
+Material modules return domain results. Stage Interface output modules project
+those results into compact agent-facing outputs. MaterialCard-like DTOs are
+Stage Interface output types, not material service communication formats.
 
 ## Session Context
 
@@ -250,6 +255,52 @@ Must not own:
 - playable link refresh.
 - durable memory.
 - final recommendation selection.
+- compact card output projection.
+
+## Material Query / Selection
+
+Own:
+
+- material pool retrieval.
+- related candidate generation.
+- per-material policy evaluation, sorting, diversity, and limit decisions.
+- domain result items that carry durable `materialId` handles and
+  `MusicMaterial` values for internal callers.
+
+Public API:
+
+- `MaterialQueryPort.query(input)`
+- `MaterialRelatedPort.related(input)`
+- `MaterialSelectorPort.select(input)`
+
+Must not own:
+
+- agent-facing compact cards.
+- Stage Interface output DTOs.
+- final recommendation presentation.
+
+## Recommendation Presentation
+
+Own:
+
+- final presentation policy for ordered material ids.
+- session validation.
+- accepted and dropped recommendation decisions.
+- `recommendation.presented` event recording with feedback-binding facts.
+
+Public API:
+
+- `RecommendationPresentationPort.present(input)`
+
+Must not own:
+
+- agent-facing compact output projection.
+- provider search.
+- selector implementation.
+
+`recommendation_presentation` remains a core/runtime service for final policy
+and event recording; only compact output projection belongs to Stage
+Interface.
 
 ## Source Grounding
 

@@ -192,7 +192,24 @@ export type StageContext = {
   session: StageSession;
   memorySummaries: string[];
   guidance?: string[];
-  recentCards?: RecentMaterialCard[];
+  recentCards?: StageRecentMaterialItem[];
+};
+
+export type StageRecentMaterialStatus =
+  | "playable"
+  | "found_no_link"
+  | "ambiguous"
+  | "blocked"
+  | "unresolved";
+
+export type StageRecentMaterialItem = {
+  materialId: string;
+  title: string;
+  subtitle?: string;
+  status: StageRecentMaterialStatus;
+  position: number;
+  presentedAt: string;
+  eventId: string;
 };
 
 export type CanonicalKind =
@@ -355,10 +372,6 @@ export type MaterialSortOutput = {
   candidates: MaterialSortCandidate[];
 };
 
-export type CandidateMaterialCard = MaterialCard & {
-  materialId: string;
-};
-
 export type MaterialSelectionItem = {
   materialId: string;
   material: MusicMaterial;
@@ -431,35 +444,10 @@ export type RecommendationPresentItem = {
   };
 };
 
-export type MaterialCardSnapshot = CandidateMaterialCard & {
-  position: number;
-  presentedAt: string;
-};
-
-export type PresentedMaterialLink = {
-  label?: string;
-  url: string;
-  sourceHandle?: string;
-};
-
-export type PresentedMaterialCard = CandidateMaterialCard & {
-  links?: PresentedMaterialLink[];
-};
-
 export type RecommendationPresentedLinkRef = {
   sourceRef: Ref;
   label?: string;
   url?: string;
-};
-
-export type RecommendationPresentedCardSnapshot = MaterialCardSnapshot & {
-  identityConfidence?: MaterialCardIdentityConfidence;
-  reason?: string;
-  linkRefs?: RecommendationPresentedLinkRef[];
-};
-
-export type RecentMaterialCard = MaterialCardSnapshot & {
-  eventId: string;
 };
 
 export type DroppedMaterial = {
@@ -1140,30 +1128,6 @@ export type MaterialResolveResult =
       kind: "candidate_set";
       results: ResolvedCandidate[];
     };
-
-export type MaterialCardStatus =
-  | "playable"
-  | "found_no_link"
-  | "ambiguous"
-  | "blocked"
-  | "unresolved";
-
-export type MaterialCardIdentityConfidence =
-  | "canonical_confirmed"
-  | "source_backed"
-  | "ambiguous"
-  | "unresolved";
-
-export type MaterialCard = {
-  /**
-   * Material Store id for durable material actions. Unresolved decision cards
-   * can omit this when no backed material exists.
-   */
-  materialId?: string;
-  title: string;
-  subtitle?: string;
-  status: MaterialCardStatus;
-};
 
 export type ResolveSeed = {
   materialId?: string;

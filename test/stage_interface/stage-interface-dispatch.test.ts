@@ -27,8 +27,8 @@ import type {
   EffectBoundaryPort,
   EventPort,
   LibraryImportPort,
-  MaterialCardsPort,
   MaterialQueryPort,
+  MaterialQuerySupportPort,
   MaterialRelatedPort,
   MaterialSelectorPort,
   MaterialResolvePort,
@@ -1586,7 +1586,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
   };
-  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort = {
+  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort = {
     query: async (input) => {
       queryPayloads.push(input as Record<string, unknown>);
       const { sessionId } = input;

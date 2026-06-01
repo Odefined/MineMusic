@@ -225,16 +225,16 @@ This index points agents to the current MVP documentation pack.
       Canonical Store, and Source Entity Store behind `MaterialStorePort`.
 
 41. `src/material_query/index.ts`
-    - Compact Material Query/Related service for `MaterialCard` presentation,
-      Source Library and Collection-compatible retrieval, selector delegation,
-      context brief, and pool listing.
+    - Material Query/Related service for domain material retrieval, Source
+      Library and Collection-compatible retrieval, selector delegation, context
+      brief, and pool listing. Stage Interface owns compact output projection.
     - `src/material_policy/index.ts` owns reusable per-material policy
       evaluation and non-filtering material sorting.
-    - `src/material_selection/index.ts` owns optional compact materialId
-      selection with evaluator + sorter + diversity + limit.
+    - `src/material_selection/index.ts` owns optional materialId selection with
+      evaluator + sorter + diversity + limit.
     - `src/recommendation_presentation/index.ts` owns the final
       recommendation presentation gate, typed `recommendation.presented`
-      events, and presented/recent card snapshots.
+      events, and domain feedback-binding event facts.
 
 42. `src/material_store/material_registry/index.ts`
     - In-memory Material Registry implementation for opaque `materialRef`

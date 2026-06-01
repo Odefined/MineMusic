@@ -104,9 +104,9 @@ async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGroundi
   );
 
   assert(output.items.length === 1, "saved-track query should project stored SourceEntity links without provider re-grounding");
-  assert(itemTitle(output.items[0]) === "Stored Playable Track", "stored SourceEntity label should become the material card title");
-  assert(itemCardStatus(output.items[0]) === "playable", "stored SourceEntity providerUrl should become a playable card");
-  assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "material cards should not expose identity confidence");
+  assert(itemTitle(output.items[0]) === "Stored Playable Track", "stored SourceEntity label should become the domain item label");
+  assert(itemCardStatus(output.items[0]) === "playable", "stored SourceEntity providerUrl should become playable material");
+  assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "domain query items should not expose identity confidence");
 }
 
 async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Promise<void> {
@@ -423,7 +423,7 @@ async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<vo
   assert(itemTitle(output.items[0]) === "Bright Lantern", "saved album expansion should find matching track labels");
 }
 
-async function queryCursorPaginatesMaterialCards(): Promise<void> {
+async function queryCursorPaginatesDomainItems(): Promise<void> {
   const firstRef = ref("source:fixture", "track", "cursor-track-1");
   const secondRef = ref("source:fixture", "track", "cursor-track-2");
   const thirdRef = ref("source:fixture", "track", "cursor-track-3");
@@ -965,9 +965,9 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
     }),
   );
 
-  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "MaterialCard.materialId should update aggregate MaterialActivity");
-  assert(sessionActivity?.recommendedCount === 1, "MaterialCard.materialId should update session MaterialActivity");
-  assert(output.items.length === 0, "recent exclusion should filter material-card recommendation events");
+  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "recommendation materialId should update aggregate MaterialActivity");
+  assert(sessionActivity?.recommendedCount === 1, "recommendation materialId should update session MaterialActivity");
+  assert(output.items.length === 0, "recent exclusion should filter recommendation events");
 }
 
 async function contextBriefFieldsSelectArtistAlbumVersionAndStatus(): Promise<void> {
@@ -1494,7 +1494,7 @@ await querySkipsUnbackedProviderResults();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
 await queryReturnKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();
-await queryCursorPaginatesMaterialCards();
+await queryCursorPaginatesDomainItems();
 await leastRecentlyRecommendedOrderUsesMaterialActivity();
 await recentlyAddedOrderUsesSourceLibraryTimestamps();
 await queryPreferenceHintsFilterAndRankMaterials();

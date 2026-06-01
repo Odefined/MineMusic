@@ -24,8 +24,8 @@ import type {
 } from "../../contracts/index.js";
 import type {
   CollectionPort,
-  MaterialCardsPort,
   MaterialQueryPort,
+  MaterialQuerySupportPort,
   MaterialResolvePort,
   MaterialRelatedPort,
   MaterialSelectorPort,
@@ -74,7 +74,7 @@ export type MusicToolName = (typeof musicToolNames)[number];
 
 export type MusicToolGroupContext = {
   materialResolve: MaterialResolvePort;
-  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort;
+  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
   materialSelector?: MaterialSelectorPort;
   materialStore?: MaterialStorePort;
   source: SourceGroundingPort;
@@ -905,8 +905,8 @@ function readCollection(collection: CollectionPort | undefined): Result<Collecti
 }
 
 function readMaterialQuery(
-  materialQuery: (MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort) | undefined,
-): Result<MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort> {
+  materialQuery: (MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort) | undefined,
+): Result<MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort> {
   if (materialQuery === undefined) {
     return materialQueryUnavailable("Material query tools are not available.");
   }
