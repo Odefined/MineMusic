@@ -469,6 +469,30 @@ export type MaterialSelectionStorePort = Pick<
   | "getSourceEntity"
 >;
 
+export type MaterialProjectionStorePort = Pick<
+  MaterialStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
+>;
+
+export type MaterialQueryStorePort =
+  MaterialProjectionStorePort &
+  Pick<
+    MaterialStorePort,
+    | "getOrCreateBySourceRef"
+    | "listSourceLibraryItems"
+    | "listSourceEntities"
+    | "getConfirmedCanonicalBinding"
+  >;
+
+export type SourceLibraryReadStorePort = Pick<
+  MaterialStorePort,
+  | "listSourceLibraryItems"
+  | "getSourceEntity"
+>;
+
 export type MaterialRegistryPort = Pick<
   MaterialStorePort,
   | "getMaterialRecord"

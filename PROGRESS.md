@@ -1282,6 +1282,12 @@
   composes the query-side Material Policy Evaluator, Material Sorter, Material
   Selector, and Material Query, while Material Query requires an injected
   `MaterialSelectorPort` and no longer exposes `select`.
+- Completed the B2 Material Query dependency-narrowing slice on branch
+  `codex/narrow-material-query-projection-store`: added narrow material
+  projection, material query, and Source Library read store aliases; migrated
+  Material Query plus adjacent Stage Interface read contexts away from full
+  `MaterialStorePort`; and added architecture coverage for both direct imports
+  and exact alias method sets.
 
 ## Next
 

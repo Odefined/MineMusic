@@ -29,7 +29,7 @@ import type {
   MaterialResolvePort,
   MaterialRelatedPort,
   MaterialSelectorPort,
-  MaterialStorePort,
+  MaterialProjectionStorePort,
   SourceGroundingPort,
   SystemCollectionRelationKind,
 } from "../../ports/index.js";
@@ -76,7 +76,7 @@ export type MusicToolGroupContext = {
   materialResolve: MaterialResolvePort;
   materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
   materialSelector?: MaterialSelectorPort;
-  materialStore?: MaterialStorePort;
+  materialStore?: MaterialProjectionStorePort;
   source: SourceGroundingPort;
   collection?: CollectionPort;
 };
@@ -931,7 +931,7 @@ function readMaterialSelector(materialSelector: MaterialSelectorPort | undefined
   return ok(materialSelector);
 }
 
-function readMaterialStore(materialStore: MaterialStorePort | undefined): Result<MaterialStorePort> {
+function readMaterialStore(materialStore: MaterialProjectionStorePort | undefined): Result<MaterialProjectionStorePort> {
   if (materialStore === undefined) {
     return materialQueryUnavailable("Material Store is not available.");
   }

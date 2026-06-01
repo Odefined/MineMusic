@@ -86,6 +86,11 @@ This index points agents to the current MVP documentation pack.
      post-merge MusicMaterial review findings addressed after PR 5.
    - `docs/material/progress.md` records current Material Registry
      implementation state, verification, and remaining MusicMaterial work.
+   - `docs/material/minemusic_b2_narrow_material_query_design.md` records the
+     B2 design for narrowing Material Query, projection, and adjacent
+     source-library read dependencies away from full `MaterialStorePort`.
+   - `docs/material/minemusic_b2_narrow_material_query_pr_plan.md` records the
+     execution plan and verification gates for that dependency-narrowing slice.
    - `docs/recommendation/minemusic_recommendation_posture_design_final.md`
      records the recommendation posture boundaries for material selection,
      presentation, and feedback handling.
@@ -227,7 +232,9 @@ This index points agents to the current MVP documentation pack.
 41. `src/material/query/index.ts`
     - Material Query/Related service for domain material retrieval, Source
       Library and Collection-compatible retrieval, selector delegation, context
-      brief, and pool listing. Stage Interface owns compact output projection.
+      brief, and pool listing. It receives a narrow `MaterialQueryStorePort`
+      while projection helpers use `MaterialProjectionStorePort`. Stage
+      Interface owns compact output projection.
     - `src/material/policy/index.ts` owns reusable per-material policy
       evaluation and non-filtering material sorting.
     - `src/material/selection/index.ts` owns optional materialId selection with

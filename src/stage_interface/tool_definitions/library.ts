@@ -19,7 +19,7 @@ import type {
 } from "../../contracts/index.js";
 import type {
   LibraryImportPort,
-  MaterialStorePort,
+  SourceLibraryReadStorePort,
 } from "../../ports/index.js";
 import {
   compactLibraryImportItemsPage,
@@ -47,7 +47,7 @@ export const libraryToolNames = [
 export type LibraryToolName = (typeof libraryToolNames)[number];
 
 export type LibraryToolGroupContext = {
-  materialStore?: MaterialStorePort;
+  materialStore?: SourceLibraryReadStorePort;
   libraryImport?: LibraryImportPort;
 };
 
@@ -296,7 +296,7 @@ type SourceLibraryListPage = {
   nextCursor?: string;
 };
 
-function readMaterialStore(materialStore: MaterialStorePort | undefined): Result<MaterialStorePort> {
+function readMaterialStore(materialStore: SourceLibraryReadStorePort | undefined): Result<SourceLibraryReadStorePort> {
   if (materialStore === undefined) {
     return materialStoreUnavailable();
   }
@@ -334,7 +334,7 @@ const defaultSourceLibraryPageSize = 20;
 const maxSourceLibraryPageSize = 200;
 
 async function pageSourceLibraryEntries(
-  materialStore: MaterialStorePort,
+  materialStore: SourceLibraryReadStorePort,
   items: SourceLibraryItem[],
   input: SourceLibraryListInput,
 ): Promise<Result<SourceLibraryListPage>> {
@@ -364,7 +364,7 @@ async function pageSourceLibraryEntries(
 }
 
 async function buildSourceLibraryEntry(
-  materialStore: MaterialStorePort,
+  materialStore: SourceLibraryReadStorePort,
   item: SourceLibraryItem,
 ): Promise<Result<SourceLibraryEntry>> {
   const sourceEntity = await materialStore.getSourceEntity({ sourceRef: item.sourceRef });
