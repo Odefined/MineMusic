@@ -14,15 +14,15 @@ import type {
 } from "../../contracts/index.js";
 import type {
   MaterialPolicyEvaluatorPort,
+  MaterialSelectionStorePort,
   MaterialSelectorPort,
   MaterialSorterPort,
-  MaterialStorePort,
 } from "../../ports/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 
 type MaterialSelectorOptions = {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialSelectionStorePort;
   materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   materialSorter: MaterialSorterPort;
 };
@@ -55,7 +55,7 @@ async function selectMaterials({
   materialSorter,
   input,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialSelectionStorePort;
   materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   materialSorter: MaterialSorterPort;
   input: MaterialSelectInput;
@@ -144,7 +144,7 @@ async function applyDiversity({
   diversity,
   dropped,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialSelectionStorePort;
   candidates: MaterialSortCandidate[];
   diversity: MaterialSelectInput["diversity"];
   dropped: MaterialSelectDropped[];
@@ -212,7 +212,7 @@ function applyLimit({
 }
 
 async function diversityKeysForMaterial(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialSelectionStorePort,
   material: MusicMaterial,
 ): Promise<Result<DiversityKeys>> {
   const sourceEntities: SourceEntity[] = [];

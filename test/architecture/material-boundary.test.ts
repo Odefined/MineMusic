@@ -11,6 +11,11 @@ const materialRoots = [
   "src/material",
 ];
 
+const materialPolicySelectionRoots = [
+  "src/material/policy",
+  "src/material/selection",
+];
+
 const legacyMaterialRoots = [
   "src/material_store",
   "src/material_resolve",
@@ -85,10 +90,34 @@ async function legacyMaterialRootDirectoriesAreRemoved(): Promise<void> {
   );
 }
 
+async function materialPolicyAndSelectionDoNotImportFullMaterialStorePort(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialPolicySelectionRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bMaterialStorePort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports MaterialStorePort`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material policy/selection modules must use narrow material store ports:\n${failures.join("\n")}`,
+  );
+}
+
 async function materialSourceFiles(): Promise<string[]> {
+  return sourceFilesUnderRoots(materialRoots);
+}
+
+async function sourceFilesUnderRoots(roots: string[]): Promise<string[]> {
   const files: string[] = [];
 
-  for (const root of materialRoots.map((folder) => join(process.cwd(), folder))) {
+  for (const root of roots.map((folder) => join(process.cwd(), folder))) {
     if (!(await pathExists(root))) {
       continue;
     }
@@ -158,3 +187,4 @@ function importStatements(text: string): Array<{ clause: string; source: string 
 
 await materialModulesDoNotImportAgentFacingOutputShapes();
 await legacyMaterialRootDirectoriesAreRemoved();
+await materialPolicyAndSelectionDoNotImportFullMaterialStorePort();

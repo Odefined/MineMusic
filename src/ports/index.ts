@@ -446,6 +446,29 @@ export interface MaterialStorePort {
   ): Promise<Result<ConfirmedCanonicalBinding[]>>;
 }
 
+export type MaterialPolicyStorePort = Pick<
+  MaterialStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
+  | "listMaterialRelations"
+  | "getMaterialActivity"
+  | "getMaterialSessionActivity"
+>;
+
+export type MaterialSorterStorePort = Pick<
+  MaterialStorePort,
+  | "getMaterialActivity"
+  | "listSourceLibraryItems"
+  | "getMaterialRecord"
+>;
+
+export type MaterialSelectionStorePort = Pick<
+  MaterialStorePort,
+  | "getSourceEntity"
+>;
+
 export type MaterialRegistryPort = Pick<
   MaterialStorePort,
   | "getMaterialRecord"

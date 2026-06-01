@@ -9,7 +9,11 @@ import {
   createMaterialPolicyEvaluator,
   createMaterialSorter,
 } from "../../src/material/policy/index.js";
-import type { MaterialStorePort } from "../../src/ports/index.js";
+import type {
+  MaterialPolicyStorePort,
+  MaterialSorterStorePort,
+  MaterialStorePort,
+} from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryMaterialActivityRepository,
@@ -45,6 +49,17 @@ function createHarness(): {
   });
 
   return { materialActivity, materialStore };
+}
+
+function createTestPolicyEvaluator(materialStore: MaterialPolicyStorePort, clock?: () => string) {
+  return createMaterialPolicyEvaluator({
+    materialStore,
+    ...(clock === undefined ? {} : { clock }),
+  });
+}
+
+function createTestSorter(materialStore: MaterialSorterStorePort) {
+  return createMaterialSorter({ materialStore });
 }
 
 async function putSourceBackedMaterial(
@@ -100,7 +115,7 @@ async function putSourceBackedMaterial(
 
 async function evaluatorDropsMissingMaterial(): Promise<void> {
   const { materialStore } = createHarness();
-  const evaluator = createMaterialPolicyEvaluator({ materialStore });
+  const evaluator = createTestPolicyEvaluator(materialStore);
 
   const decision = await assertOk(
     evaluator.evaluate({
@@ -116,7 +131,7 @@ async function evaluatorDropsMissingMaterial(): Promise<void> {
 
 async function evaluatorDoesNotAcceptSnapshotWhenLiveRecordIsMissing(): Promise<void> {
   const { materialStore } = createHarness();
-  const evaluator = createMaterialPolicyEvaluator({ materialStore });
+  const evaluator = createTestPolicyEvaluator(materialStore);
   const materialRef = ref("minemusic", "material", "snapshot-only");
   const decision = await assertOk(
     evaluator.evaluate({
@@ -161,7 +176,7 @@ async function evaluatorDropsMaterialLevelBlockedForPresentation(): Promise<void
       },
     }),
   );
-  const evaluator = createMaterialPolicyEvaluator({ materialStore });
+  const evaluator = createTestPolicyEvaluator(materialStore);
 
   const decision = await assertOk(
     evaluator.evaluate({
@@ -199,7 +214,7 @@ async function evaluatorHidesNotPlayableSourceWhenOtherSourceRemains(): Promise<
       },
     }),
   );
-  const evaluator = createMaterialPolicyEvaluator({ materialStore });
+  const evaluator = createTestPolicyEvaluator(materialStore);
 
   const decision = await assertOk(
     evaluator.evaluate({
@@ -240,7 +255,7 @@ async function evaluatorDropsNotPlayableWhenNoDisplayableSourceRemains(): Promis
       },
     }),
   );
-  const evaluator = createMaterialPolicyEvaluator({ materialStore });
+  const evaluator = createTestPolicyEvaluator(materialStore);
 
   const decision = await assertOk(
     evaluator.evaluate({
@@ -281,7 +296,7 @@ async function evaluatorRemovesWrongVersionSourceWithoutBlockingWholeMaterial():
       },
     }),
   );
-  const evaluator = createMaterialPolicyEvaluator({ materialStore });
+  const evaluator = createTestPolicyEvaluator(materialStore);
 
   const decision = await assertOk(
     evaluator.evaluate({
@@ -314,10 +329,7 @@ async function evaluatorDropsRecentHardButAllowsFreshnessOff(): Promise<void> {
       },
     }),
   );
-  const evaluator = createMaterialPolicyEvaluator({
-    materialStore,
-    clock: () => "2026-05-31T01:30:00.000Z",
-  });
+  const evaluator = createTestPolicyEvaluator(materialStore, () => "2026-05-31T01:30:00.000Z");
 
   const hardDecision = await assertOk(
     evaluator.evaluate({
@@ -351,7 +363,7 @@ async function sorterPreservesOrder(): Promise<void> {
   const { materialStore } = createHarness();
   const first = await putSourceBackedMaterial(materialStore, "First", [ref("source:fixture", "track", "sort-first")]);
   const second = await putSourceBackedMaterial(materialStore, "Second", [ref("source:fixture", "track", "sort-second")]);
-  const sorter = createMaterialSorter({ materialStore });
+  const sorter = createTestSorter(materialStore);
 
   const output = await assertOk(
     sorter.sort({
@@ -372,7 +384,7 @@ async function sorterUsesScoreWithoutDroppingBlockedItems(): Promise<void> {
   const kept = await putSourceBackedMaterial(materialStore, "Kept Low Score", [
     ref("source:fixture", "track", "sort-kept"),
   ]);
-  const sorter = createMaterialSorter({ materialStore });
+  const sorter = createTestSorter(materialStore);
 
   const output = await assertOk(
     sorter.sort({
@@ -420,7 +432,7 @@ async function sorterUsesLeastRecentlyRecommendedActivity(): Promise<void> {
       },
     }),
   );
-  const sorter = createMaterialSorter({ materialStore });
+  const sorter = createTestSorter(materialStore);
 
   const output = await assertOk(
     sorter.sort({
