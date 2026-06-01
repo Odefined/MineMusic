@@ -1,5 +1,5 @@
 import type { CanonicalRecord, Ref } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
+import { createCanonicalStore } from "../../src/material/store/canonical/index.js";
 import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {

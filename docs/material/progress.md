@@ -115,7 +115,7 @@ Material Records, and include custom collection writes. Compact `resolve.cards`
 can project current Material Records directly, including canonical-only records
 with `grounded` state.
 
-Recommendation-posture PR 2 is now implemented. `src/material_policy/index.ts`
+Recommendation-posture PR 2 is now implemented. `src/material/policy/index.ts`
 provides a reusable per-material policy evaluator and a non-filtering material
 sorter. The evaluator centralizes relation, collection block, availability,
 identity, and freshness checks for one material at a time; the sorter handles
@@ -124,14 +124,14 @@ random ordering over already usable candidates. Material Query delegates its
 policy and ordering internals to these services without exposing new public
 tools or changing the compact Stage Interface output shape.
 
-Recommendation-posture PR 3 is now implemented. `src/material_selection/index.ts`
+Recommendation-posture PR 3 is now implemented. `src/material/selection/index.ts`
 adds the optional selector that composes policy evaluation, sorting, diversity,
 and limit over materialId candidates. The Stage Interface exposes
 `music.material.select` as an optional helper, while Material Query / Related
 delegate policy, sorting, selection, and cutting to the selector. Stage
 Interface owns the compact output projection for the helper.
 
-Recommendation-posture PR 4 is now implemented. `src/recommendation_presentation/index.ts`
+Recommendation-posture PR 4 is now implemented. `src/material/presentation/index.ts`
 adds the final presentation boundary behind `RecommendationPresentationPort`
 and `stage.recommendation.present`. The presenter evaluates the intended
 ordered materialId items with presentation policy, preserves surviving order,
@@ -162,12 +162,19 @@ before the transcript when source-backed playable cards are expected.
 Stage Interface output ownership PR 4 is now implemented. Material modules
 return domain results. Stage Interface output modules project those results
 into compact agent-facing outputs. MaterialCard-like DTOs are Stage Interface
-output types, not material service communication formats.
-`recommendation_presentation` remains a core/runtime service for final policy
-and event recording; only compact output projection belongs to Stage Interface.
-The legacy `src/material_cards` module has been removed, and
+output types, not material service communication formats. Material Presentation
+under `src/material/presentation` remains a core/runtime service for final
+policy and event recording; only compact output projection belongs to Stage
+Interface. The legacy `src/material_cards` module has been removed, and
 `test/architecture/material-boundary.test.ts` prevents material modules from
 importing Stage Interface output DTOs or legacy card DTO names.
+
+Stage Interface output ownership PR 5 is now implemented. Store, resolve,
+query, policy, selection, and presentation modules now live under
+`src/material/**`, with `src/material/index.ts` as the public bounded-context
+barrel. Directory consolidation happened after output ownership and domain
+result boundaries were fixed; no root-level material folders remain as primary
+imports or compatibility shims.
 
 Recommendation-posture PR 6 is now implemented. `memory.feedback.record`
 binds user feedback to typed recent/presented recommendation cards, recovers
@@ -247,7 +254,7 @@ creates an evidence-backed memory proposal without auto-acceptance.
 - Added material query/related contracts:
   `MaterialResolveCardsInput`, `MaterialQueryInput`,
   `MaterialRelatedInput`, context brief inputs, and pool-list inputs.
-- Added `src/material_query/index.ts` with domain material result retrieval,
+- Added `src/material/query/index.ts` with domain material result retrieval,
   source-library pool query, collection compatibility query, related wrappers,
   relation/recent filtering, context brief, and pool listing.
 - Wired Material Query through Stage Core and Stage Interface as

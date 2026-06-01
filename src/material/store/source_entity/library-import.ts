@@ -40,14 +40,14 @@ import type {
   SourceRelease,
   SourceTrack,
   StageError,
-} from "../../contracts/index.js";
+} from "../../../contracts/index.js";
 import type {
   EventPort,
   LibraryImportPort,
   LibraryImportRepository,
   MaterialStorePort,
   PluginRegistryPort,
-} from "../../ports/index.js";
+} from "../../../ports/index.js";
 
 type LibraryImportServiceOptions = {
   pluginRegistry: PluginRegistryPort;

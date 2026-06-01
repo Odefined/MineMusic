@@ -7,12 +7,12 @@ import type {
   Ref,
   SourceMaterial,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore, createMaterialStore } from "../../src/material_store/index.js";
+import { createCanonicalStore, createMaterialStore } from "../../src/material/store/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createLibraryImportService } from "../../src/library_import/index.js";
-import { createMaterialQueryService } from "../../src/material_query/index.js";
-import { createMaterialResolveService } from "../../src/material_resolve/index.js";
+import { createMaterialQueryService } from "../../src/material/query/index.js";
+import { createMaterialResolveService } from "../../src/material/resolve/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import type { SourceGroundingPort } from "../../src/ports/index.js";
 import {

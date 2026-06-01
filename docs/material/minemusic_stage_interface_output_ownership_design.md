@@ -1,16 +1,16 @@
 # MineMusic Stage Interface Output Ownership and Material Boundary Design
 
 **Date:** 2026-06-01  
-**Status:** Proposed migration design  
-**Scope:** Stage Interface output ownership, Material domain boundaries, `MaterialCard*` containment, and phased migration of current `material_*` modules.
+**Boundary:** Stage Interface owns compact output projection; Material domain modules live under `src/material/**`.
+**Scope:** Stage Interface output ownership, Material domain boundaries, `MaterialCard*` containment, and phased migration from the former root-level `material_*` modules.
 
 ---
 
 ## 1. Executive Summary
 
-The current issue is not primarily the file location of `MaterialCard`. The deeper issue is that **Stage Interface owns the tool entry points but does not consistently own the external output shape**.
+The boundary issue is not primarily the file location of `MaterialCard`. The deeper issue is that **Stage Interface owns the tool entry points and must consistently own the external output shape**.
 
-Today, tools such as `music.material.resolve`, `music.material.query`, `music.material.related`, `music.material.select`, and `stage.recommendation.present` are registered through Stage Interface, but several handlers return core/domain results or core-generated card shapes directly. As a result, `MaterialCard`, `CandidateMaterialCard`, and `PresentedMaterialCard` have leaked into core material services and are being used as internal communication formats.
+Before this migration, tools such as `music.material.resolve`, `music.material.query`, `music.material.related`, `music.material.select`, and `stage.recommendation.present` were registered through Stage Interface, but several handlers returned core/domain results or core-generated card shapes directly. As a result, `MaterialCard`, `CandidateMaterialCard`, and `PresentedMaterialCard` leaked into core material services and were used as internal communication formats.
 
 The target boundary is:
 
@@ -24,11 +24,11 @@ core/material domain result
   -> agent-facing tool output
 ```
 
-It explicitly avoids moving all recommendation presentation behavior into Stage Interface. `recommendation_presentation` currently performs final policy checks, session validation, accepted/dropped decisions, and event recording. Those are runtime/domain responsibilities. Only the card/output projection should move into Stage Interface.
+It explicitly avoids moving all recommendation presentation behavior into Stage Interface. Material Presentation under `src/material/presentation` performs final policy checks, session validation, accepted/dropped decisions, and event recording. Those are runtime/domain responsibilities. Only the card/output projection belongs in Stage Interface.
 
 ---
 
-## 2. Current State
+## 2. Pre-Migration State
 
 ### 2.1 Stage Interface has a projection hook but many tools do not use it
 
@@ -51,9 +51,9 @@ MCP / host adapter
   -> raw domain/core result returned to agent
 ```
 
-Example: `music.material.resolve` currently declares `outputSchemaRef: "MaterialResolveResult"` and directly returns `context.materialResolve.resolve(...)`.
+Pre-migration example: `music.material.resolve` declared `outputSchemaRef: "MaterialResolveResult"` and directly returned `context.materialResolve.resolve(...)`.
 
-### 2.2 `MaterialCard*` is currently a global/core-visible shape
+### 2.2 `MaterialCard*` was a global/core-visible shape
 
 `src/material_cards/index.ts` is a top-level module that projects `MusicMaterial` into `MaterialCard` and `CandidateMaterialCard`.
 
@@ -67,7 +67,7 @@ This makes `MaterialCard*` effectively an internal service format rather than an
 
 ### 2.3 `material_query` and `material_selection` return cards instead of domain results
 
-`material_selection` currently imports `CandidateMaterialCard`, imports `toCandidateMaterialCard`, and returns `MaterialSelectOutput.items` as cards.
+`material_selection` imported `CandidateMaterialCard`, imported `toCandidateMaterialCard`, and returned `MaterialSelectOutput.items` as cards.
 
 `material_query` calls `materialSelector.select(...)`, slices `selected.value.items`, and returns those items as query output. Since selector output is already card-shaped, query output also becomes card-shaped.
 
@@ -90,7 +90,7 @@ stage_interface/outputs
 
 ### 2.4 `recommendation_presentation` mixes two different responsibilities
 
-`src/recommendation_presentation/index.ts` currently does legitimate core/runtime work:
+`src/recommendation_presentation/index.ts` did legitimate core/runtime work:
 
 - reads the session;
 - evaluates final presentation policy;
@@ -103,7 +103,7 @@ The card-building part should move to Stage Interface. The policy/session/event 
 
 ### 2.5 Material bounded context is physically scattered
 
-Material-related modules are currently root-level peers:
+Material-related modules were root-level peers:
 
 ```text
 src/material_store/
@@ -130,7 +130,7 @@ Directory consolidation should happen only after the dependency direction is cor
    Material services may return `MusicMaterial`, `MaterialRecord`, `Ref`, policy decisions, selection results, query results, and presentation decisions. They must not return `MaterialCard*`.
 
 3. **No core dependency on Stage Interface.**  
-   `src/material/**` and current root material modules must not import `src/stage_interface/**`.
+   `src/material/**` must not import `src/stage_interface/**`.
 
 4. **No material core dependency on `MaterialCard*`.**  
    `MaterialCard`, `CandidateMaterialCard`, `PresentedMaterialCard`, and related compact DTOs must not be imported by material domain modules.
@@ -208,7 +208,9 @@ Responsibilities:
 | `material/selection` | policy application, sorting, diversity, limits | card projection |
 | `material/presentation` | final recommendation presentation policy, accepted/dropped/warnings, event payload domain facts | agent card projection |
 
-During migration, root-level folders may remain as compatibility shims until all production imports use `src/material/**`.
+After consolidation, production imports should use `src/material/**`. If a future
+compatibility shim is needed, it must only re-export from `src/material/**` and
+must not become a primary implementation location.
 
 ### 5.2 Stage Interface outputs
 
@@ -493,7 +495,7 @@ src/material/** must not import PresentedMaterialCard
 src/material/** must not import Compact*
 ```
 
-For the transition period before `src/material/**` exists, the same rule applies to current modules:
+Before consolidation, the same rule applied to the former root-level material modules:
 
 ```text
 src/material_store/**
@@ -618,11 +620,10 @@ Add a lightweight import boundary test that scans `.ts` files.
 Suggested checks:
 
 ```text
-current material modules must not import "../material_cards"
-current material modules must not import "../stage_interface"
-current material modules must not import MaterialCard, CandidateMaterialCard, PresentedMaterialCard
-after reorg, src/material/** must not import stage_interface/**
-after reorg, src/material/** must not import any compact output types
+src/material/** must not import stage_interface/**
+src/material/** must not import material_cards/**
+src/material/** must not import MaterialCard, CandidateMaterialCard, PresentedMaterialCard, or Compact*
+legacy root material directories must not remain as implementation locations
 ```
 
 ### 10.4 Add tool dispatch behavior tests

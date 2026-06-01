@@ -1,5 +1,5 @@
 import type { Ref, Result } from "../../src/contracts/index.js";
-import { createInMemoryMaterialRegistry, createMaterialStore, createCanonicalStore } from "../../src/material_store/index.js";
+import { createInMemoryMaterialRegistry, createMaterialStore, createCanonicalStore } from "../../src/material/store/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemorySourceEntityStoreRepository,

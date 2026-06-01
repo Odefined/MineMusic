@@ -9,6 +9,9 @@ function assert(condition: unknown, message: string): asserts condition {
 
 const materialRoots = [
   "src/material",
+];
+
+const legacyMaterialRoots = [
   "src/material_store",
   "src/material_resolve",
   "src/material_query",
@@ -52,8 +55,10 @@ async function materialModulesDoNotImportAgentFacingOutputShapes(): Promise<void
       const nameFailures = forbiddenImportedNames.filter((name) =>
         new RegExp(`\\b${name}\\b`).test(importStatement.clause)
       );
+      const compactNameFailures = Array.from(importStatement.clause.matchAll(/\bCompact[A-Za-z0-9_]*\b/g))
+        .map((match) => match[0] ?? "");
 
-      for (const name of nameFailures) {
+      for (const name of new Set([...nameFailures, ...compactNameFailures])) {
         failures.push(`${relative(process.cwd(), file)} imports agent-facing output DTO ${name}`);
       }
     }
@@ -62,6 +67,21 @@ async function materialModulesDoNotImportAgentFacingOutputShapes(): Promise<void
   assert(
     failures.length === 0,
     `Material modules must not import Stage Interface output DTOs:\n${failures.join("\n")}`,
+  );
+}
+
+async function legacyMaterialRootDirectoriesAreRemoved(): Promise<void> {
+  const existingLegacyRoots: string[] = [];
+
+  for (const root of legacyMaterialRoots) {
+    if (await pathExists(join(process.cwd(), root))) {
+      existingLegacyRoots.push(root);
+    }
+  }
+
+  assert(
+    existingLegacyRoots.length === 0,
+    `Material bounded context should not keep legacy root directories:\n${existingLegacyRoots.join("\n")}`,
   );
 }
 
@@ -137,3 +157,4 @@ function importStatements(text: string): Array<{ clause: string; source: string 
 }
 
 await materialModulesDoNotImportAgentFacingOutputShapes();
+await legacyMaterialRootDirectoriesAreRemoved();

@@ -153,7 +153,7 @@ without creating provider-specific environment switches in host adapter config.
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
 | Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
-| Core Capabilities | `src/material_store/**`, `src/collection`, `src/material_resolve`, `src/material_policy`, `src/material_selection`, `src/recommendation_presentation`, `src/material_query`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
+| Core Capabilities | `src/material/**`, `src/collection`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
@@ -377,9 +377,9 @@ must not own MineMusic tool contracts.
 Material modules return domain results. Stage Interface output modules project
 those results into compact agent-facing outputs. MaterialCard-like DTOs are
 Stage Interface output types, not material service communication formats.
-`recommendation_presentation` remains a core/runtime service for final policy
-and event recording; only compact output projection belongs to Stage
-Interface.
+Material Presentation under `src/material/presentation` remains a core/runtime
+service for final policy and event recording; only compact output projection
+belongs to Stage Interface.
 
 ## Material State Policy
 

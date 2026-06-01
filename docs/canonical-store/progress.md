@@ -96,9 +96,9 @@ Implemented:
   can carry title, artist labels, release context, duration, and source track
   position without extending `CanonicalRelation`.
 - Canonical label/ref/current-record normalization is isolated in
-  `src/material_store/canonical/normalization.ts`.
-- Canonical Store storage mechanics are isolated in `src/material_store/canonical/storage.ts`,
-  so `src/material_store/canonical/index.ts` no longer scans `repository.list()` directly.
+  `src/material/store/canonical/normalization.ts`.
+- Canonical Store storage mechanics are isolated in `src/material/store/canonical/storage.ts`,
+  so `src/material/store/canonical/index.ts` no longer scans `repository.list()` directly.
 - Stage Core accepts optional `canonicalRepository` injection and
   `materialStoreDatabasePath` SQLite configuration while keeping in-memory
   canonical storage as the default.
@@ -116,7 +116,7 @@ Implemented:
 - Canonical Maintenance is exposed through a separate
   `CanonicalMaintenancePort`; ordinary product-path methods remain on
   `CanonicalStorePort`.
-- `src/material_store/canonical/maintenance.ts` implements Provisional Review v1 for current
+- `src/material/store/canonical/maintenance.ts` implements Provisional Review v1 for current
   provisional recordings:
   - `reviewList` returns maintainable provisional recordings.
   - `reviewInspect` returns local facts, provisional hints, Knowledge facts,
@@ -342,9 +342,9 @@ Pending:
   uniqueness failures to `canonical.source_ref_conflict` at the Canonical
   Store boundary.
 - Completed Task 3 by moving canonical normalization into
-  `src/material_store/canonical/normalization.ts`, moving label/source-ref/current-record
-  lookup mechanics into `src/material_store/canonical/storage.ts`, and keeping
-  `src/material_store/canonical/index.ts` focused on Canonical Store policy flow.
+  `src/material/store/canonical/normalization.ts`, moving label/source-ref/current-record
+  lookup mechanics into `src/material/store/canonical/storage.ts`, and keeping
+  `src/material/store/canonical/index.ts` focused on Canonical Store policy flow.
 - Completed Task 4 by adding optional `canonicalRepository` injection to Stage
   Core factories while preserving the default in-memory runtime.
 - Completed Task 5 by adding

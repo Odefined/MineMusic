@@ -3,7 +3,7 @@ import type {
   MusicMaterial,
   MusicMaterialRelation,
   Ref,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 
 export type MaterialRelationProjection =
   | {

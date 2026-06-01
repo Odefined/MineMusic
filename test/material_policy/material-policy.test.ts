@@ -4,11 +4,11 @@ import type {
   Ref,
   Result,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import {
   createMaterialPolicyEvaluator,
   createMaterialSorter,
-} from "../../src/material_policy/index.js";
+} from "../../src/material/policy/index.js";
 import type { MaterialStorePort } from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,

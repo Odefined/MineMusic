@@ -205,8 +205,8 @@ selector. This is still not final recommendation presentation: no
 `recommendation.presented` event behavior changes were made in this slice.
 
 The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
-`RecommendationPresentationPort`, `src/recommendation_presentation/index.ts`,
-and the `stage.recommendation.present` tool. Presentation evaluates the intended
+`RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the
+`stage.recommendation.present` tool. Presentation evaluates the intended
 ordered materialId items with the material policy evaluator, preserves the
 surviving order, applies `maxCards` / `minCards`, records a typed
 `recommendation.presented` event only when enough items survive, and returns
@@ -243,11 +243,17 @@ The 2026-06-01 Stage Interface output-ownership PR 4 removes global
 MaterialCard ownership. Material modules return domain results. Stage Interface
 output modules project those results into compact agent-facing outputs.
 MaterialCard-like DTOs are Stage Interface output types, not material service
-communication formats. `recommendation_presentation` remains a core/runtime
-service for final policy and event recording; only compact output projection
-belongs to Stage Interface. `src/material_cards` has been removed, and
+communication formats. Material Presentation under `src/material/presentation`
+remains a core/runtime service for final policy and event recording; only
+compact output projection belongs to Stage Interface. `src/material_cards` has
+been removed, and
 `test/architecture/material-boundary.test.ts` enforces that material modules do
 not import Stage Interface output DTOs or legacy card DTO names.
+
+The 2026-06-01 Stage Interface output-ownership PR 5 consolidates the material
+bounded context under `src/material/**`. `src/material/index.ts` is the public
+barrel for store, resolve, query, policy, selection, and presentation exports;
+root-level material folders have been removed rather than kept as shims.
 
 The 2026-05-31 recommendation-posture PR 6 feedback boundary adds
 `memory.feedback.record`. Memory now records agent-interpreted user feedback
@@ -337,7 +343,7 @@ host-facing and LLM-facing surface.
 - Plugin registry infrastructure is exported from `src/plugins/index.ts` with
   slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
   behavior.
-- Canonical Store is exported from `src/material_store/canonical/index.ts` as
+- Canonical Store is exported from `src/material/store/canonical/index.ts` as
   the canonical identity subdomain inside Material Store. It still owns
   canonical records, label/alias lookup, provisional records, provisional
   relations, provisional hints, merge redirects, and Canonical Maintenance
@@ -362,8 +368,8 @@ host-facing and LLM-facing surface.
   `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
   canonical records and Canonical Store kind inputs.
 - Canonical Store identity policy is split from storage mechanics:
-  `src/material_store/canonical/index.ts` owns policy flow, `src/material_store/canonical/normalization.ts`
-  owns label/ref/current-record normalization, and `src/material_store/canonical/storage.ts`
+  `src/material/store/canonical/index.ts` owns policy flow, `src/material/store/canonical/normalization.ts`
+  owns label/ref/current-record normalization, and `src/material/store/canonical/storage.ts`
   owns repository-backed lookup and write-error mapping.
 - Canonical Store durable storage design is documented in
   `docs/canonical-store/storage-model.md`. Responsibility and interface designs
@@ -433,7 +439,7 @@ host-facing and LLM-facing surface.
   status is tracked in `docs/collection-service/progress.md`.
 - Library Import/Update is now a Source Entity Store flow inside Material
   Store. The implementation lives in
-  `src/material_store/source_entity/library-import.ts`; `src/library_import/index.ts`
+  `src/material/store/source_entity/library-import.ts`; `src/library_import/index.ts`
   re-exports it so existing imports and external tool names stay stable.
   Library Import reads `platform_library` providers, writes import/update
   working state through `LibraryImportRepository`, upserts Source Track/Release/
@@ -628,7 +634,7 @@ host-facing and LLM-facing surface.
   but the first service runtime registers bundled MusicBrainz directly and
   does not make a MusicBrainz-specific environment variable decide provider
   activation.
-- Material Resolve is exported from `src/material_resolve/index.ts` with
+- Material Resolve is exported from `src/material/resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution through
   `MaterialStorePort`. It can accept `CollectionPort` for owner-scoped blocked
   filtering, defaults missing `ownerScope` to `local_profile:default`, marks

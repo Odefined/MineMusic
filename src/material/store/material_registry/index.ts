@@ -5,8 +5,8 @@ import type {
   Ref,
   Result,
   StageError,
-} from "../../contracts/index.js";
-import type { MaterialRegistryPort } from "../../ports/index.js";
+} from "../../../contracts/index.js";
+import type { MaterialRegistryPort } from "../../../ports/index.js";
 
 export type InMemoryMaterialRegistryOptions = {
   generateId?: () => string;

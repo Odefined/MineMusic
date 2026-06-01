@@ -27,8 +27,8 @@ src/stage_core/       Stage Core runtime composition
 src/stage_interface/  Stage Interface instruments, tools, schemas, dispatch, facade
 src/stage/            Session Context and Material Gate implementation
 src/handbook/         Handbook renderer and lookup helpers
-src/material_store/canonical/        Canonical Store implementation
-src/material_resolve/ Material Resolve implementation
+src/material/store/canonical/        Canonical Store implementation
+src/material/resolve/ Material Resolve implementation
 src/source/           Source Grounding implementation
 src/knowledge/        Music Knowledge implementation
 src/events/           Event Service implementation

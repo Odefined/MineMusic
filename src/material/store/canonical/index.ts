@@ -8,11 +8,11 @@ import type {
   Ref,
   Result,
   StageError,
-} from "../../contracts/index.js";
+} from "../../../contracts/index.js";
 import type {
   CanonicalRecordRepository,
   CanonicalStorePort,
-} from "../../ports/index.js";
+} from "../../../ports/index.js";
 import { sameRef } from "./normalization.js";
 import { createCanonicalStorage } from "./storage.js";
 

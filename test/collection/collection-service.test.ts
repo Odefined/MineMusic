@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import type { MaterialRecord, Ref } from "../../src/contracts/index.js";
-import { createInMemoryMaterialRegistry } from "../../src/material_store/index.js";
+import { createInMemoryMaterialRegistry } from "../../src/material/store/index.js";
 import {
   createInMemoryCollectionRepository,
   createInMemoryEventRepository,

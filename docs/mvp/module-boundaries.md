@@ -298,9 +298,9 @@ Must not own:
 - provider search.
 - selector implementation.
 
-`recommendation_presentation` remains a core/runtime service for final policy
-and event recording; only compact output projection belongs to Stage
-Interface.
+Material Presentation under `src/material/presentation` remains a core/runtime
+service for final policy and event recording; only compact output projection
+belongs to Stage Interface.
 
 ## Source Grounding
 

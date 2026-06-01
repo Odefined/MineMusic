@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { MaterialActivity, MaterialSessionActivity, MusicMaterialRelation, Ref, Result } from "../../src/contracts/index.js";
-import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryMaterialActivityRepository,

@@ -6,9 +6,9 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import { createEventService } from "../../src/events/index.js";
-import { createMaterialPolicyEvaluator } from "../../src/material_policy/index.js";
-import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
-import { createRecommendationPresentationService } from "../../src/recommendation_presentation/index.js";
+import { createMaterialPolicyEvaluator } from "../../src/material/policy/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
+import { createRecommendationPresentationService } from "../../src/material/presentation/index.js";
 import type {
   EventRepository,
   MaterialStorePort,

@@ -10,13 +10,13 @@ import type {
   Ref,
   Result,
   StageEvent,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 import type {
   EventPort,
   MaterialPolicyEvaluatorPort,
   RecommendationPresentationPort,
   SessionContextPort,
-} from "../ports/index.js";
+} from "../../ports/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 

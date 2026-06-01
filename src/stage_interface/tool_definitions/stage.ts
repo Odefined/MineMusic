@@ -23,7 +23,7 @@ import type {
   StageInterfaceToolInputSchema,
 } from "./types.js";
 import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
-import { materialForMaterialId } from "../../material_query/index.js";
+import { materialForMaterialId } from "../../material/query/index.js";
 import { compactRecommendationPresentOutput } from "../outputs/recommendation.js";
 
 export const stageToolNames = [

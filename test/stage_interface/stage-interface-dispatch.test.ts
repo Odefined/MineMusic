@@ -20,7 +20,7 @@ import type {
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { buildInstrumentHandbook } from "../../src/handbook/index.js";
-import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import type {
   CanonicalMaintenancePort,
   CollectionPort,

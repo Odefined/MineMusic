@@ -13,14 +13,14 @@ import type {
   SourceMaterial,
   SourceLibraryResolveScope,
   SourceQuery,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 import type {
   CollectionPort,
   MaterialStorePort,
   MaterialResolvePort,
   SourceGroundingPort,
-} from "../ports/index.js";
-import { projectMaterialRelations } from "../material_policy/relation_projection.js";
+} from "../../ports/index.js";
+import { projectMaterialRelations } from "../policy/relation_projection.js";
 
 type ProjectedSourceMaterials = {
   materials: MusicMaterial[];
