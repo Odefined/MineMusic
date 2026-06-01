@@ -54,7 +54,8 @@ export type MineMusicStageCoreHarness = MineMusicStageRuntime & {
   canonicalMaintenance: CanonicalMaintenancePort;
   collection: CollectionPort;
   materialResolve: MaterialResolvePort;
-  materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort & MaterialSelectorPort;
+  materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
+  materialSelector: MaterialSelectorPort;
   source: SourceGroundingPort;
   knowledge: MusicKnowledgePort;
   libraryImport: LibraryImportPort;

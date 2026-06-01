@@ -35,23 +35,18 @@ import type {
   MaterialSelectorPort,
   MaterialStorePort,
 } from "../../ports/index.js";
-import {
-  createMaterialPolicyEvaluator,
-  createMaterialSorter,
-} from "../policy/index.js";
-import { createMaterialSelector } from "../selection/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
 const defaultRecentCardLimit = 5;
 
-export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort & MaterialSelectorPort;
+export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
 
 export type MaterialQueryServiceOptions = {
   materialStore: MaterialStorePort;
   materialResolve: MaterialResolvePort;
+  materialSelector: MaterialSelectorPort;
   collection?: CollectionPort;
-  clock?: () => string;
 };
 
 type ResolvedSeedMaterials = {
@@ -67,20 +62,9 @@ type ResolvedSeedItems = {
 export function createMaterialQueryService({
   materialStore,
   materialResolve,
+  materialSelector,
   collection,
-  clock = () => new Date().toISOString(),
 }: MaterialQueryServiceOptions): MaterialQueryService {
-  const materialPolicyEvaluator = createMaterialPolicyEvaluator({
-    materialStore,
-    ...(collection === undefined ? {} : { collection }),
-    clock,
-  });
-  const materialSorter = createMaterialSorter({ materialStore });
-  const materialSelector = createMaterialSelector({
-    materialStore,
-    materialPolicyEvaluator,
-    materialSorter,
-  });
   const service: MaterialQueryService = {
     async resolveCards(input) {
       const ownerScope = input.ownerScope ?? defaultOwnerScope;
@@ -191,10 +175,6 @@ export function createMaterialQueryService({
         ownerScope: input.ownerScope ?? defaultOwnerScope,
         input,
       });
-    },
-
-    async select(input) {
-      return materialSelector.select(input);
     },
 
     async contextBrief(input) {

@@ -140,6 +140,8 @@ async function createsNarrowStageRuntimeWithInjectedSourceProvider(): Promise<vo
 
   assert("plugins" in harness, "Stage Core harness should still expose Plugin Registry for tests");
   assert("libraryImport" in harness, "Stage Core harness should still expose Library Import for tests");
+  assert("materialSelector" in harness, "Stage Core harness should expose Material Selector separately from Material Query");
+  assert(!("select" in harness.materialQuery), "Stage Core harness Material Query should not expose selector capability");
 }
 
 async function writesInstrumentHandbookOnStageCoreReady(): Promise<void> {

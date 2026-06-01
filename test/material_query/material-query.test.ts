@@ -1,5 +1,7 @@
 import type {
   CollectionPort,
+  MaterialResolvePort,
+  MaterialSelectorPort,
   MaterialStorePort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
@@ -16,8 +18,10 @@ import type {
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
-import { createMaterialQueryService, materialRefToMaterialId } from "../../src/material/query/index.js";
+import { createMaterialQueryService as createMaterialQueryServiceBase, materialRefToMaterialId } from "../../src/material/query/index.js";
+import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
 import { createMaterialResolveService } from "../../src/material/resolve/index.js";
+import { createMaterialSelector } from "../../src/material/selection/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
@@ -75,6 +79,12 @@ async function querySavedTracksReturnsOnlySavedTrackMaterials(): Promise<void> {
 
   assert(output.items.length === 1, "saved track query should not return pool-external materials");
   assert(itemTitle(output.items[0]) === "Saved Track", "saved track query should return the saved track card");
+}
+
+async function materialQueryServiceDoesNotExposeSelectorCapability(): Promise<void> {
+  const { materialQuery } = createMaterialQueryServiceHarness([]);
+
+  assert(!("select" in materialQuery), "MaterialQueryService should not expose selector capability");
 }
 
 async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGrounding(): Promise<void> {
@@ -1151,6 +1161,56 @@ function createMaterialQueryServiceHarness(
   return { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding, materialQuery };
 }
 
+function createMaterialQueryService({
+  materialStore,
+  materialResolve,
+  collection,
+  clock,
+  materialSelector,
+}: {
+  materialStore: MaterialStorePort;
+  materialResolve: MaterialResolvePort;
+  collection?: CollectionPort;
+  clock?: () => string;
+  materialSelector?: MaterialSelectorPort;
+}) {
+  const selector = materialSelector ?? createMaterialSelectorForTest({
+    materialStore,
+    ...(collection === undefined ? {} : { collection }),
+    ...(clock === undefined ? {} : { clock }),
+  });
+
+  return createMaterialQueryServiceBase({
+    materialStore,
+    materialResolve,
+    materialSelector: selector,
+    ...(collection === undefined ? {} : { collection }),
+  });
+}
+
+function createMaterialSelectorForTest({
+  materialStore,
+  collection,
+  clock,
+}: {
+  materialStore: MaterialStorePort;
+  collection?: CollectionPort;
+  clock?: () => string;
+}): MaterialSelectorPort {
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({
+    materialStore,
+    ...(collection === undefined ? {} : { collection }),
+    ...(clock === undefined ? {} : { clock }),
+  });
+  const materialSorter = createMaterialSorter({ materialStore });
+
+  return createMaterialSelector({
+    materialStore,
+    materialPolicyEvaluator,
+    materialSorter,
+  });
+}
+
 async function createCollectionMaterialRefFixture({
   sourceId,
   label,
@@ -1473,6 +1533,7 @@ function sameRef(left: Ref, right: Ref): boolean {
 }
 
 await querySavedTracksReturnsOnlySavedTrackMaterials();
+await materialQueryServiceDoesNotExposeSelectorCapability();
 await querySavedTracksProjectsStoredPlayableLinksWithoutProviderGrounding();
 await resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch();
 await resolveCardsProjectsCanonicalOnlyCardRefs();

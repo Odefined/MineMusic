@@ -1715,6 +1715,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     !Object.prototype.hasOwnProperty.call(relatedPayloads[0], "preferenceHints"),
     "material related should strip hidden preferenceHints at the public tool boundary",
   );
+  assert(!("select" in materialQuery), "dispatch material query stub should not expose selector capability");
   assert(calls.includes("select:session-current"), "material select should receive current dispatch session id by default");
   assert(
     calls.includes("select-purpose:candidate_selection"),

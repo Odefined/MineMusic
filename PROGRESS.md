@@ -1277,6 +1277,11 @@
   bounded-context public barrel, updated production/test imports, and tightened
   the material boundary test to scan `src/material/**` and reject legacy root
   material directories.
+- Completed the Material Selector composition cleanup on branch
+  `codex/extract-material-selector-composition`: Stage Core now explicitly
+  composes the query-side Material Policy Evaluator, Material Sorter, Material
+  Selector, and Material Query, while Material Query requires an injected
+  `MaterialSelectorPort` and no longer exposes `select`.
 
 ## Next
 

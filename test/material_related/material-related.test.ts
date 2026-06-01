@@ -6,12 +6,16 @@ import type {
   SourceMaterial,
 } from "../../src/contracts/index.js";
 import type {
+  MaterialResolvePort,
+  MaterialSelectorPort,
   MaterialStorePort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
-import { createMaterialQueryService, materialRefToMaterialId } from "../../src/material/query/index.js";
+import { createMaterialQueryService as createMaterialQueryServiceBase, materialRefToMaterialId } from "../../src/material/query/index.js";
+import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
 import { createMaterialResolveService } from "../../src/material/resolve/index.js";
+import { createMaterialSelector } from "../../src/material/selection/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemorySourceEntityStoreRepository,
@@ -202,6 +206,28 @@ function createRelatedHarness(sourceMaterials: SourceMaterial[]) {
     materialStore,
     materialQuery,
   };
+}
+
+function createMaterialQueryService({
+  materialStore,
+  materialResolve,
+}: {
+  materialStore: MaterialStorePort;
+  materialResolve: MaterialResolvePort;
+}) {
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({ materialStore });
+  const materialSorter = createMaterialSorter({ materialStore });
+  const materialSelector: MaterialSelectorPort = createMaterialSelector({
+    materialStore,
+    materialPolicyEvaluator,
+    materialSorter,
+  });
+
+  return createMaterialQueryServiceBase({
+    materialStore,
+    materialResolve,
+    materialSelector,
+  });
 }
 
 async function putCanonical(

@@ -11,8 +11,10 @@ import { createCanonicalStore, createMaterialStore } from "../../src/material/st
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createLibraryImportService } from "../../src/library_import/index.js";
+import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
 import { createMaterialQueryService } from "../../src/material/query/index.js";
 import { createMaterialResolveService } from "../../src/material/resolve/index.js";
+import { createMaterialSelector } from "../../src/material/selection/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import type { SourceGroundingPort } from "../../src/ports/index.js";
 import {
@@ -979,12 +981,24 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
       status: "present",
     }),
   );
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({
+    materialStore: environment.materialStore,
+  });
+  const materialSorter = createMaterialSorter({
+    materialStore: environment.materialStore,
+  });
+  const materialSelector = createMaterialSelector({
+    materialStore: environment.materialStore,
+    materialPolicyEvaluator,
+    materialSorter,
+  });
   const materialQuery = createMaterialQueryService({
     materialStore: environment.materialStore,
     materialResolve: createMaterialResolveService({
       materialStore: environment.materialStore,
       sourceGrounding: sourceGroundingForProviderItems(providerItems),
     }),
+    materialSelector,
   });
   const ordered = await assertOk(
     materialQuery.query({
