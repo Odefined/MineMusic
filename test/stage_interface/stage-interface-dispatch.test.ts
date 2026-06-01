@@ -70,6 +70,10 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
@@ -1529,6 +1533,19 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
   const calls: string[] = [];
   const queryPayloads: Array<Record<string, unknown>> = [];
   const relatedPayloads: Array<Record<string, unknown>> = [];
+  const material: MusicMaterial = {
+    id: "dispatch-material",
+    materialRef: { namespace: "minemusic", kind: "material", id: "dispatch-material", label: "Dispatch Material" },
+    kind: "recording",
+    label: "Dispatch Material",
+    state: "source_only_playable",
+    identityState: "source_backed",
+    sourceRefs: [{ namespace: "source:fixture", kind: "track", id: "dispatch-track" }],
+    playableLinks: [{
+      url: "https://example.test/dispatch-track",
+      sourceRef: { namespace: "source:fixture", kind: "track", id: "dispatch-track" },
+    }],
+  };
   const sessionContext: SessionContextPort = {
     getSession: async ({ sessionId }) => ({ ok: true, value: { ...session, id: sessionId } }),
     readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
@@ -1539,21 +1556,21 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       queryPayloads.push(input as Record<string, unknown>);
       const { sessionId } = input;
       calls.push(`query:${sessionId ?? "missing"}`);
-      return { ok: true, value: { items: [] } };
+      return { ok: true, value: { items: [{ materialId: material.materialRef.id, material }] } };
     },
     related: async (input) => {
       relatedPayloads.push(input as Record<string, unknown>);
       const { sessionId } = input;
       calls.push(`related:${sessionId ?? "missing"}`);
-      return { ok: true, value: { basis: "fallback_text", items: [] } };
+      return { ok: true, value: { basis: "fallback_text", items: [{ materialId: material.materialRef.id, material }] } };
     },
-    resolveCards: async () => ({ ok: true, value: { items: [] } }),
+    resolveCards: async () => ({ ok: true, value: { items: [{ materialId: material.materialRef.id, material }] } }),
   };
   const materialSelector: MaterialSelectorPort = {
     select: async ({ sessionId, policy }) => {
       calls.push(`select:${sessionId ?? "missing"}`);
       calls.push(`select-purpose:${policy?.purpose ?? "default"}`);
-      return { ok: true, value: { items: [] } };
+      return { ok: true, value: { items: [{ materialId: material.materialRef.id, material }] } };
     },
   };
   const dispatch = createToolDispatch({
@@ -1590,7 +1607,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     },
   });
 
-  await assertOk(
+  const queryOutput = await assertOk(
     dispatch.call({
       sessionId: "session-current",
       toolName: "music.material.query",
@@ -1604,18 +1621,25 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       payload: { sessionId: "caller-session", pool: { kind: "all" } },
     }),
   );
-  await assertOk(
+  const relatedOutput = await assertOk(
     dispatch.call({
       sessionId: "session-current",
       toolName: "music.material.related",
       payload: { materialId: "seed", relation: "similar", preferenceHints: { prefer: ["ambient"] } },
     }),
   );
-  await assertOk(
+  const selectOutput = await assertOk(
     dispatch.call({
       sessionId: "session-current",
       toolName: "music.material.select",
       payload: { candidates: [{ materialId: "seed" }] },
+    }),
+  );
+  const resolveCardsOutput = await assertOk(
+    dispatch.call({
+      sessionId: "session-current",
+      toolName: "music.material.resolve.cards",
+      payload: { seeds: [{ materialId: "seed" }] },
     }),
   );
   await assertOk(
@@ -1661,8 +1685,27 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     calls.includes("select-purpose:candidate_selection"),
     "material select should normalize public policy to candidate_selection",
   );
+  assertCompactMaterialOutput(queryOutput, "material query should compact domain query items at the Stage Interface boundary");
+  assertCompactMaterialOutput(relatedOutput, "material related should compact domain related items at the Stage Interface boundary");
+  assertCompactMaterialOutput(selectOutput, "material select should compact domain selection items at the Stage Interface boundary");
+  assertCompactMaterialOutput(resolveCardsOutput, "material resolve.cards should compact domain resolved seed items at the Stage Interface boundary");
   assert(!presentationPurposeSelect.ok, "music.material.select should reject recommendation_presentation policy purpose");
   assert(!feedbackPurposeSelect.ok, "music.material.select should reject feedback_target policy purpose");
+}
+
+function assertCompactMaterialOutput(output: unknown, message: string): void {
+  assert(isRecord(output), message);
+  assert(Array.isArray(output.items), message);
+  const first = output.items[0] as Record<string, unknown> | undefined;
+
+  assert(first !== undefined, message);
+  assert(first.materialId === "dispatch-material", message);
+  assert(first.title === "Dispatch Material", message);
+  assert(first.status === "playable", message);
+  assert(!("material" in first), "compact Stage Interface output should not expose raw material");
+  assert(!("materialRef" in first), "compact Stage Interface output should not expose materialRef");
+  assert(!("sourceRefs" in first), "compact Stage Interface output should not expose sourceRefs");
+  assert(!("playableLinks" in first), "compact Stage Interface output should not expose playableLinks");
 }
 
 async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void> {

@@ -23,6 +23,10 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+function itemTitle(item: { material: { label: string } } | undefined): string | undefined {
+  return item?.material.label;
+}
+
 async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
@@ -53,7 +57,7 @@ async function relatedSameArtistUsesCanonicalArtistWhenAvailable(): Promise<void
 
   assert(output.basis === "confirmed_artist", "same_artist should prefer confirmed canonical artist basis");
   assert(output.basisLabel === "Canonical Artist", "same_artist should name the canonical artist basis");
-  assert(output.items.length === 1 && output.items[0]?.title === "Sibling Track", "same_artist should return sibling tracks");
+  assert(output.items.length === 1 && itemTitle(output.items[0]) === "Sibling Track", "same_artist should return sibling tracks");
 }
 
 async function relatedSameArtistFallsBackToSourceArtist(): Promise<void> {
@@ -76,7 +80,7 @@ async function relatedSameArtistFallsBackToSourceArtist(): Promise<void> {
   }));
 
   assert(output.basis === "source_artist", "same_artist should fall back to source artist when canonical binding is missing");
-  assert(output.items.length === 1 && output.items[0]?.title === "Source Sibling Track", "source-artist fallback should return sibling tracks");
+  assert(output.items.length === 1 && itemTitle(output.items[0]) === "Source Sibling Track", "source-artist fallback should return sibling tracks");
 }
 
 async function relatedSameAlbumUsesSourceReleaseTracklistWhenCanonicalIsMissing(): Promise<void> {
@@ -103,7 +107,7 @@ async function relatedSameAlbumUsesSourceReleaseTracklistWhenCanonicalIsMissing(
 
   assert(output.basis === "source_album", "same_album should use source release tracklist without canonical identity");
   assert(output.basisLabel === "Source Album", "same_album should name the source album basis");
-  assert(output.items.length === 1 && output.items[0]?.title === "Album Sibling Track", "same_album should return tracklist siblings");
+  assert(output.items.length === 1 && itemTitle(output.items[0]) === "Album Sibling Track", "same_album should return tracklist siblings");
 }
 
 async function similarExcludesSeedMaterial(): Promise<void> {
@@ -125,8 +129,8 @@ async function similarExcludesSeedMaterial(): Promise<void> {
     ownerScope: "local_profile:default",
   }));
 
-  assert(output.items.every((item) => item.title !== "Similar Seed Track"), "similar should not return the seed material");
-  assert(output.items.some((item) => item.title === "Similar Sibling Track"), "similar should still return related material");
+  assert(output.items.every((item) => itemTitle(item) !== "Similar Seed Track"), "similar should not return the seed material");
+  assert(output.items.some((item) => itemTitle(item) === "Similar Sibling Track"), "similar should still return related material");
 }
 
 async function relatedFollowsMaterialRedirectsAndExcludesSurvivorSeed(): Promise<void> {
@@ -160,7 +164,7 @@ async function relatedFollowsMaterialRedirectsAndExcludesSurvivorSeed(): Promise
   }));
 
   assert(output.items.every((item) => item.materialId !== materialRefToMaterialId(survivor.materialRef)), "related should exclude the redirected survivor seed");
-  assert(output.items.length === 1 && output.items[0]?.title === "Redirect Related Sibling", "related should still return non-seed siblings");
+  assert(output.items.length === 1 && itemTitle(output.items[0]) === "Redirect Related Sibling", "related should still return non-seed siblings");
 }
 
 function createRelatedHarness(sourceMaterials: SourceMaterial[]) {

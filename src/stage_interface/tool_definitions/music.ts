@@ -7,11 +7,15 @@ import type {
   MaterialContextBriefInput,
   MaterialPolicyInput,
   MaterialPoolsListInput,
+  MaterialQueryOutput,
   MaterialQueryInput,
+  MaterialRelatedOutput,
   MaterialRelatedInput,
+  MaterialResolveCardsOutput,
   MaterialResolveResult,
   MaterialResolveRequest,
   MaterialResolveCardsInput,
+  MaterialSelectOutput,
   MaterialSelectInput,
   Ref,
   Result,
@@ -34,7 +38,13 @@ import type {
   StageInterfaceToolInputSchema,
 } from "./types.js";
 import { materialForMaterialId, materialIdToRef } from "../../material_query/index.js";
-import { compactMaterialResolveOutput } from "../outputs/material.js";
+import {
+  compactMaterialQueryOutput,
+  compactMaterialRelatedOutput,
+  compactMaterialResolveCardsOutput,
+  compactMaterialResolveOutput,
+  compactMaterialSelectOutput,
+} from "../outputs/material.js";
 import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
 
 export const musicToolNames = [
@@ -290,7 +300,7 @@ export const musicToolDefinitions = [
     name: "music.material.resolve.cards",
     description: "Resolve material seeds and return compact agent-safe material cards.",
     inputSchemaRef: "MaterialResolveCardsInput",
-    outputSchemaRef: "MaterialResolveCardsOutput",
+    outputSchemaRef: "CompactMaterialResolveCardsOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       seeds: z.array(resolveSeedSchema),
@@ -309,12 +319,13 @@ export const musicToolDefinitions = [
         readPayload<MaterialResolveCardsInput>(payload),
       );
     },
+    present: (value) => compactMaterialResolveCardsOutput(value as MaterialResolveCardsOutput),
   },
   {
     name: "music.material.query",
     description: "Retrieve compact material cards from pools, collections, source library, related pools, or all available material.",
     inputSchemaRef: "MaterialQueryInput",
-    outputSchemaRef: "MaterialQueryOutput",
+    outputSchemaRef: "CompactMaterialQueryOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       q: z.string().optional(),
@@ -341,12 +352,13 @@ export const musicToolDefinitions = [
         ),
       );
     },
+    present: (value) => compactMaterialQueryOutput(value as MaterialQueryOutput),
   },
   {
     name: "music.material.related",
     description: "Find compact material cards related to one material id.",
     inputSchemaRef: "MaterialRelatedInput",
-    outputSchemaRef: "MaterialRelatedOutput",
+    outputSchemaRef: "CompactMaterialRelatedOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       materialId: materialIdSchema,
@@ -370,6 +382,7 @@ export const musicToolDefinitions = [
         ),
       );
     },
+    present: (value) => compactMaterialRelatedOutput(value as MaterialRelatedOutput),
   },
   defineStageInterfaceTool<
     "music.material.select",
@@ -379,7 +392,7 @@ export const musicToolDefinitions = [
     name: "music.material.select",
     description: "Apply reusable material policy, sorting, diversity, and limit after material ids have already been retrieved; use music.material.query to retrieve from pools or collections.",
     inputSchemaRef: "MaterialSelectInput",
-    outputSchemaRef: "MaterialSelectOutput",
+    outputSchemaRef: "CompactMaterialSelectOutput",
     availability: "requires_active_instrument",
     inputSchema: materialSelectInputSchema,
     inputParser: materialSelectInputParser,
@@ -394,6 +407,7 @@ export const musicToolDefinitions = [
         normalizePublicMaterialSelectInput({ ...payload, sessionId: payload.sessionId ?? sessionId }),
       );
     },
+    present: (value) => compactMaterialSelectOutput(value as MaterialSelectOutput),
   }),
   {
     name: "music.material.context.brief",

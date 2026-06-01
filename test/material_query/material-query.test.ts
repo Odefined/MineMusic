@@ -10,6 +10,7 @@ import type {
   Ref,
   Result,
   SourceReleaseTracklistItem,
+  MusicMaterial,
   SourceMaterial,
 } from "../../src/contracts/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
@@ -29,6 +30,26 @@ import {
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
+  }
+}
+
+function itemTitle(item: { material: MusicMaterial } | undefined): string | undefined {
+  return item?.material.label;
+}
+
+function itemCardStatus(
+  item: { material: MusicMaterial } | undefined,
+): "playable" | "found_no_link" | "blocked" | "unresolved" {
+  switch (item?.material.state) {
+    case "confirmed_playable":
+    case "source_only_playable":
+      return "playable";
+    case "grounded":
+      return "found_no_link";
+    case "blocked":
+      return "blocked";
+    default:
+      return "unresolved";
   }
 }
 
@@ -63,7 +84,7 @@ async function querySavedTracksReturnsOnlySavedTrackMaterials(): Promise<void> {
   );
 
   assert(output.items.length === 1, "saved track query should not return pool-external materials");
-  assert(output.items[0]?.title === "Saved Track", "saved track query should return the saved track card");
+  assert(itemTitle(output.items[0]) === "Saved Track", "saved track query should return the saved track card");
 }
 
 async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGrounding(): Promise<void> {
@@ -83,8 +104,8 @@ async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGroundi
   );
 
   assert(output.items.length === 1, "saved-track query should project stored SourceEntity links without provider re-grounding");
-  assert(output.items[0]?.title === "Stored Playable Track", "stored SourceEntity label should become the material card title");
-  assert(output.items[0]?.status === "playable", "stored SourceEntity providerUrl should become a playable card");
+  assert(itemTitle(output.items[0]) === "Stored Playable Track", "stored SourceEntity label should become the material card title");
+  assert(itemCardStatus(output.items[0]) === "playable", "stored SourceEntity providerUrl should become a playable card");
   assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "material cards should not expose identity confidence");
 }
 
@@ -104,8 +125,8 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
   );
 
   assert(output.items.length === 1, "resolve cards should return one card for a source-backed material ref");
-  assert(output.items[0]?.title === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the material id");
-  assert(output.items[0]?.status === "playable", "source-backed material refs with links should be playable");
+  assert(itemTitle(output.items[0]) === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the material id");
+  assert(itemCardStatus(output.items[0]) === "playable", "source-backed material refs with links should be playable");
   assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "resolve cards should not expose identity confidence");
 }
 
@@ -129,8 +150,8 @@ async function resolveCardsProjectsCanonicalOnlyCardRefs(): Promise<void> {
   );
 
   assert(output.items.length === 1, "canonical-only material refs should return one card");
-  assert(output.items[0]?.title === "Canonical Only Seed", "canonical-only material refs should use canonical labels");
-  assert(output.items[0]?.status === "found_no_link", "canonical-only material refs should be found without playable links");
+  assert(itemTitle(output.items[0]) === "Canonical Only Seed", "canonical-only material refs should use canonical labels");
+  assert(itemCardStatus(output.items[0]) === "found_no_link", "canonical-only material refs should be found without playable links");
 }
 
 async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
@@ -157,8 +178,8 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
   );
 
   assert(output.items.length === 1, "resolve cards should return one card for a canonical material ref");
-  assert(output.items[0]?.title === "Canonical Ref Seed", "canonical material refs should project canonical display labels");
-  assert(output.items[0]?.status === "playable", "canonical material refs with source links should become playable cards");
+  assert(itemTitle(output.items[0]) === "Canonical Ref Seed", "canonical material refs should project canonical display labels");
+  assert(itemCardStatus(output.items[0]) === "playable", "canonical material refs with source links should become playable cards");
   assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "canonical material refs should not expose identity confidence");
 }
 
@@ -192,7 +213,7 @@ async function resolveCardsFollowsMaterialRedirects(): Promise<void> {
 
   assert(output.items.length === 1, "resolve cards should return one card for a redirected material ref");
   assert(output.items[0]?.materialId === materialRefToMaterialId(survivor.materialRef), "resolve cards should return the merge survivor material id");
-  assert(output.items[0]?.title === "Redirect Survivor Track", "resolve cards should project the merge survivor");
+  assert(itemTitle(output.items[0]) === "Redirect Survivor Track", "resolve cards should project the merge survivor");
 }
 
 async function resolveCardsReturnsUnresolvedForUnknownMaterialIds(): Promise<void> {
@@ -205,10 +226,10 @@ async function resolveCardsReturnsUnresolvedForUnknownMaterialIds(): Promise<voi
     }),
   );
 
-  assert(output.items.length === 1, "unknown material ids should still produce a decision card");
-  assert(output.items[0]?.materialId === undefined, "unknown material id cards should not expose a durable material id");
-  assert(output.items[0]?.status === "unresolved", "unknown material ids should be unresolved");
-  assert(!("reason" in (output.items[0] as Record<string, unknown>)), "unknown material id cards should not expose diagnostic reasons");
+  assert(output.items.length === 0, "unknown material ids should not produce domain material items");
+  assert(output.unresolved?.length === 1, "unknown material ids should still produce an unresolved decision item");
+  assert(output.unresolved[0]?.materialId === undefined, "unknown material id diagnostics should not expose a durable material id");
+  assert(!("reason" in (output.unresolved[0] as Record<string, unknown>)), "unknown material id diagnostics should not expose diagnostic reasons");
 }
 
 async function resolveCardsReturnsDiagnosticCardForUnbackedProviderResults(): Promise<void> {
@@ -242,10 +263,10 @@ async function resolveCardsReturnsDiagnosticCardForUnbackedProviderResults(): Pr
     }),
   );
 
-  assert(output.items.length === 1, "unbacked provider result should produce one diagnostic card");
-  assert(output.items[0]?.materialId === undefined, "unbacked provider result should not expose a material id");
-  assert(output.items[0]?.status === "unresolved", "unbacked provider result should be unresolved");
-  assert(!("reason" in (output.items[0] as Record<string, unknown>)), "unbacked provider result should not expose diagnostic reasons");
+  assert(output.items.length === 0, "unbacked provider result should not produce domain material items");
+  assert(output.unresolved?.length === 1, "unbacked provider result should produce one diagnostic item");
+  assert(output.unresolved[0]?.materialId === undefined, "unbacked provider result should not expose a material id");
+  assert(!("reason" in (output.unresolved[0] as Record<string, unknown>)), "unbacked provider result should not expose diagnostic reasons");
 }
 
 async function querySkipsUnbackedProviderResults(): Promise<void> {
@@ -337,9 +358,9 @@ async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<
   );
 
   assert(output.items.length === 2, "expanded saved albums should return track cards");
-  assert(output.items.every((item) => item.status === "playable"), "expanded album tracks should resolve as recording cards");
+  assert(output.items.every((item) => itemCardStatus(item) === "playable"), "expanded album tracks should resolve as recording cards");
   assert(
-    output.items.map((item) => item.title).join(",") === "Album Track One,Album Track Two",
+    (output.items.map(itemTitle)).join(",") === "Album Track One,Album Track Two",
     "expanded album query should preserve release tracklist order",
   );
 }
@@ -371,8 +392,8 @@ async function queryReturnKindFiltersResolvedMaterials(): Promise<void> {
     }),
   );
 
-  assert(recordings.items.length === 1 && recordings.items[0]?.title === "Return Kind Track", "returnKind recording should keep only recording materials");
-  assert(artists.items.length === 1 && artists.items[0]?.title === "Return Kind Artist", "returnKind artist should keep only artist materials");
+  assert(recordings.items.length === 1 && itemTitle(recordings.items[0]) === "Return Kind Track", "returnKind recording should keep only recording materials");
+  assert(artists.items.length === 1 && itemTitle(artists.items[0]) === "Return Kind Artist", "returnKind artist should keep only artist materials");
 }
 
 async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<void> {
@@ -399,7 +420,7 @@ async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<vo
   );
 
   assert(output.items.length === 1, "saved album expansion should apply q to expanded track labels");
-  assert(output.items[0]?.title === "Bright Lantern", "saved album expansion should find matching track labels");
+  assert(itemTitle(output.items[0]) === "Bright Lantern", "saved album expansion should find matching track labels");
 }
 
 async function queryCursorPaginatesMaterialCards(): Promise<void> {
@@ -434,7 +455,7 @@ async function queryCursorPaginatesMaterialCards(): Promise<void> {
 
   assert(firstPage.items.length === 2, "first cursor page should respect limit");
   assert(secondPage.items.length === 1, "second cursor page should continue after the first page");
-  assert(secondPage.items[0]?.title === "Cursor Track Three", "cursor should preserve deterministic pool order");
+  assert(itemTitle(secondPage.items[0]) === "Cursor Track Three", "cursor should preserve deterministic pool order");
 }
 
 async function leastRecentlyRecommendedOrderUsesMaterialActivity(): Promise<void> {
@@ -462,7 +483,7 @@ async function leastRecentlyRecommendedOrderUsesMaterialActivity(): Promise<void
   );
 
   assert(
-    output.items.map((item) => item.title).join(",") === "Never Recommended,Old Recommended,New Recommended",
+    (output.items.map(itemTitle)).join(",") === "Never Recommended,Old Recommended,New Recommended",
     "least_recently_recommended should use MaterialActivity timestamps",
   );
 }
@@ -487,7 +508,7 @@ async function recentlyAddedOrderUsesSourceLibraryTimestamps(): Promise<void> {
   );
 
   assert(
-    output.items.map((item) => item.title).join(",") === "Newer Library Track,Older Library Track",
+    (output.items.map(itemTitle)).join(",") === "Newer Library Track,Older Library Track",
     "recently_added should order source-library materials by newest library timestamp first",
   );
 }
@@ -522,7 +543,7 @@ async function queryPreferenceHintsFilterAndRankMaterials(): Promise<void> {
   );
 
   assert(
-    output.items.map((item) => item.title).join(",") === "Medium Writing Calm Piano,Ambient Focus",
+    (output.items.map(itemTitle)).join(",") === "Medium Writing Calm Piano,Ambient Focus",
     "preference hints should rank positive text hints while avoid and vocal=avoid hard-filter matching materials",
   );
   assert(output.basis?.applied?.includes("activity:writing"), "preference activity should be reported as applied");
@@ -572,7 +593,7 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
   );
 
   assert(output.items.length === 1, "collection label pool should resolve matching collection items");
-  assert(output.items[0]?.title === "Collection Label Track", "collection label pool should return the collection item card");
+  assert(itemTitle(output.items[0]) === "Collection Label Track", "collection label pool should return the collection item card");
 }
 
 async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
@@ -619,7 +640,7 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
 
   assert(output.items.length === 1, "collection pool should return material-only collection items");
   assert(output.items[0]?.materialId === materialRefToMaterialId(record.materialRef), "returned card should point to the collection material id");
-  assert(output.items[0]?.title === "Source Only Collection Track", "material-only collection items should resolve to compact cards");
+  assert(itemTitle(output.items[0]) === "Source Only Collection Track", "material-only collection items should resolve to compact cards");
 }
 
 async function queryCollectionMaterialRefsUseStoredPlayableLinks(): Promise<void> {
@@ -641,7 +662,7 @@ async function queryCollectionMaterialRefsUseStoredPlayableLinks(): Promise<void
 
   assert(output.items.length === 1, "collection materialRef query should project stored links without provider re-grounding");
   assert(output.items[0]?.materialId === materialRefToMaterialId(fixture.record.materialRef), "collection materialRef query should keep the stored material id");
-  assert(output.items[0]?.status === "playable", "collection materialRef query should return a playable card from stored SourceEntity providerUrl");
+  assert(itemCardStatus(output.items[0]) === "playable", "collection materialRef query should return a playable card from stored SourceEntity providerUrl");
 }
 
 async function queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds(): Promise<void> {
@@ -740,7 +761,7 @@ async function relationExclusionsRemoveBlockedWrongVersionAndNotPlayable(): Prom
   );
 
   assert(output.items.length === 1, "relation exclusions should remove active negative relation materials");
-  assert(output.items[0]?.title === "Kept Track", "relation exclusions should keep unrelated material");
+  assert(itemTitle(output.items[0]) === "Kept Track", "relation exclusions should keep unrelated material");
 }
 
 async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<void> {
@@ -796,7 +817,7 @@ async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<voi
   );
 
   assert(output.items.length === 1, "blocked relation exclusion should remove Collection-blocked materials");
-  assert(output.items[0]?.title === "Collection Kept Track", "blocked relation exclusion should keep unblocked material");
+  assert(itemTitle(output.items[0]) === "Collection Kept Track", "blocked relation exclusion should keep unblocked material");
 }
 
 async function recentRecommendedHardExcludeWorks(): Promise<void> {
@@ -832,7 +853,7 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
   );
 
   assert(output.items.length === 1, "recent recommended hard exclude should remove session-recommended material");
-  assert(output.items[0]?.title === "Not Recent Track", "recent recommended hard exclude should keep not-recent material");
+  assert(itemTitle(output.items[0]) === "Not Recent Track", "recent recommended hard exclude should keep not-recent material");
 }
 
 async function recentRecommendedSessionExcludeUsesMaterialSessionActivity(): Promise<void> {
@@ -885,7 +906,7 @@ async function recentRecommendedSessionExcludeUsesMaterialSessionActivity(): Pro
 
   assert(sessionA.items.length === 0, "session recent exclusion should exclude material from the same session");
   assert(sessionB.items.length === 1, "session recent exclusion should not leak across sessions");
-  assert(sessionB.items[0]?.title === "Session Scoped Track", "other sessions should keep the material");
+  assert(itemTitle(sessionB.items[0]) === "Session Scoped Track", "other sessions should keep the material");
 }
 
 async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<void> {
@@ -1050,7 +1071,7 @@ async function recentOpenedAndPlayedHardExcludeWorksByWindow(): Promise<void> {
   );
 
   assert(output.items.length === 1, "recent opened/played hard exclude should honor the requested window");
-  assert(output.items[0]?.title === "Old Track", "recent opened/played hard exclude should keep older material");
+  assert(itemTitle(output.items[0]) === "Old Track", "recent opened/played hard exclude should keep older material");
 }
 
 async function compactCardsDoNotExposeRawMaterialInternals(): Promise<void> {

@@ -1,11 +1,19 @@
 import type {
+  MaterialQueryOutput,
+  MaterialRelatedOutput,
   MaterialResolveResult,
+  MaterialResolveCardsOutput,
+  MaterialSelectOutput,
   MusicMaterial,
   Ref,
 } from "../../src/contracts/index.js";
 import {
   compactMaterialCard,
+  compactMaterialQueryOutput,
+  compactMaterialRelatedOutput,
+  compactMaterialResolveCardsOutput,
   compactMaterialResolveOutput,
+  compactMaterialSelectOutput,
 } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -112,6 +120,105 @@ function materialResolveOutputCompactsCandidates(): void {
   assert(!("materials" in (output.result as Record<string, unknown>)), "compact result should not expose raw materials");
 }
 
+function materialQueryOutputsCompactDomainItems(): void {
+  const sourceRef = ref("source:fixture", "track", "query-track");
+  const query: MaterialQueryOutput = {
+    basis: { pool: "source_library:saved_tracks", applied: ["availability:playable"] },
+    items: [{
+      materialId: "query-material",
+      material: material("source_only_playable", {
+        label: "Query Track",
+        playableLinks: [{ url: "https://example.test/query-track", sourceRef }],
+      }),
+      score: 2,
+      reason: "fits the request",
+    }],
+    nextCursor: "mq_1",
+  };
+
+  const output = compactMaterialQueryOutput(query);
+  const item = output.items[0] as Record<string, unknown> | undefined;
+
+  assert(output.basis?.pool === "source_library:saved_tracks", "query basis should be preserved");
+  assert(output.nextCursor === "mq_1", "query cursor should be preserved");
+  assert(item?.title === "Query Track", "query domain material should compact to card title");
+  assert(item.status === "playable", "query compact status should be derived from material state");
+  assert(!("material" in item), "query compact item should not expose raw material");
+  assert(!("score" in item), "query compact item should not expose internal score");
+  assert(!("reason" in item), "query compact item should not expose internal reason");
+}
+
+function materialRelatedOutputsCompactDomainItems(): void {
+  const related: MaterialRelatedOutput = {
+    basis: "fallback_text",
+    basisLabel: "Fallback",
+    warning: "weak_relation",
+    items: [{
+      materialId: "related-material",
+      material: material("grounded", { label: "Related Track" }),
+    }],
+  };
+
+  const output = compactMaterialRelatedOutput(related);
+  const item = output.items[0] as Record<string, unknown> | undefined;
+
+  assert(output.basis === "fallback_text", "related basis should be preserved");
+  assert(output.basisLabel === "Fallback", "related basis label should be preserved");
+  assert(output.warning === "weak_relation", "related warning should be preserved");
+  assert(item?.title === "Related Track", "related domain material should compact to card title");
+  assert(item.status === "found_no_link", "related compact status should be derived from material state");
+  assert(!("material" in item), "related compact item should not expose raw material");
+}
+
+function materialSelectOutputCompactsDomainItems(): void {
+  const select: MaterialSelectOutput = {
+    items: [{
+      materialId: "select-material",
+      material: material("blocked", { label: "Blocked Track" }),
+      reason: "candidate reason",
+    }],
+    dropped: [{ materialId: "dropped-material", code: "not_available", reason: "No playable link." }],
+    warnings: [{ materialId: "select-material", warnings: ["soft_recent"] }],
+    applied: ["purpose:candidate_selection"],
+  };
+
+  const output = compactMaterialSelectOutput(select);
+  const item = output.items[0] as Record<string, unknown> | undefined;
+
+  assert(item?.title === "Blocked Track", "selection domain material should compact to card title");
+  assert(item.status === "blocked", "selection compact status should be derived from material state");
+  assert(output.dropped?.[0]?.materialId === "dropped-material", "selection dropped list should be preserved");
+  assert(output.warnings?.[0]?.warnings[0] === "soft_recent", "selection warnings should be preserved");
+  assert(output.applied?.[0] === "purpose:candidate_selection", "selection applied labels should be preserved");
+  assert(!("material" in item), "selection compact item should not expose raw material");
+}
+
+function materialResolveCardsOutputCompactsDomainItemsAndUnresolved(): void {
+  const sourceRef = ref("source:fixture", "track", "seed-track");
+  const resolveCards: MaterialResolveCardsOutput = {
+    items: [{
+      materialId: "seed-material",
+      material: material("source_only_playable", {
+        label: "Seed Track",
+        playableLinks: [{ url: "https://example.test/seed-track", sourceRef }],
+      }),
+    }],
+    unresolved: [{ label: "Missing Seed" }],
+  };
+
+  const output = compactMaterialResolveCardsOutput(resolveCards);
+
+  assert(output.items[0]?.title === "Seed Track", "resolved seed domain item should compact to card title");
+  assert(output.items[0]?.status === "playable", "resolved seed compact status should be derived from material state");
+  assert(output.items[1]?.title === "Missing Seed", "unresolved seed should compact to diagnostic card");
+  assert(output.items[1]?.status === "unresolved", "unresolved seed diagnostic card should be unresolved");
+  assert(output.items[1]?.materialId === undefined, "unresolved seed diagnostic card should not invent a material id");
+}
+
 materialCardMapsMaterialStates();
 materialCardKeepsOnlyCompactFields();
 materialResolveOutputCompactsCandidates();
+materialQueryOutputsCompactDomainItems();
+materialRelatedOutputsCompactDomainItems();
+materialSelectOutputCompactsDomainItems();
+materialResolveCardsOutputCompactsDomainItemsAndUnresolved();
