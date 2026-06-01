@@ -14,7 +14,7 @@ import type {
   EffectBoundaryPort,
   EventPort,
   MaterialGatePort,
-  MaterialStorePort,
+  MaterialProjectionStorePort,
   RecommendationPresentationPort,
   SessionContextPort,
 } from "../../ports/index.js";
@@ -41,7 +41,7 @@ export type StageToolGroupContext = {
   sessionContext: SessionContextPort;
   materialGate: MaterialGatePort;
   recommendationPresentation?: RecommendationPresentationPort;
-  materialStore?: MaterialStorePort;
+  materialStore?: MaterialProjectionStorePort;
   events: EventPort;
   effects: EffectBoundaryPort;
 };

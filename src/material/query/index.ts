@@ -29,11 +29,13 @@ import type {
 import type {
   CollectionPort,
   MaterialQueryPort,
+  MaterialProjectionStorePort,
+  MaterialQueryStorePort,
   MaterialQuerySupportPort,
   MaterialRelatedPort,
   MaterialResolvePort,
   MaterialSelectorPort,
-  MaterialStorePort,
+  SourceLibraryReadStorePort,
 } from "../../ports/index.js";
 
 const defaultOwnerScope = "local_profile:default";
@@ -43,7 +45,7 @@ const defaultRecentCardLimit = 5;
 export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
 
 export type MaterialQueryServiceOptions = {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
   materialSelector: MaterialSelectorPort;
   collection?: CollectionPort;
@@ -206,7 +208,7 @@ export function materialIdToRef(materialId: string): Ref {
 }
 
 async function currentMaterialRecordForRef(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialProjectionStorePort,
   materialRef: Ref,
 ): Promise<Result<MaterialRecord | null>> {
   const current = await materialStore.resolveMaterialRedirect({ materialRef });
@@ -338,7 +340,7 @@ async function resolveSeedItems({
   seeds,
   limit,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   materialResolve: MaterialResolvePort;
   ownerScope: string;
   seeds: ResolveSeed[];
@@ -394,7 +396,7 @@ async function resolveMaterialRefSeed({
   seed,
   materialId,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   ownerScope: string;
   seed: ResolveSeed;
   materialId: string;
@@ -470,7 +472,7 @@ async function materialsForCandidatePool({
   ownerScope,
   pool,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
@@ -499,7 +501,7 @@ async function sourceLibraryMaterials({
   pool,
   q,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>;
@@ -569,7 +571,7 @@ async function allSourceLibraryMaterials({
   ownerScope,
   q,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   ownerScope: string;
   q?: string;
 }): Promise<Result<MusicMaterial[]>> {
@@ -606,7 +608,7 @@ async function projectStoredSourceLibraryItem({
   ownerScope,
   item,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   ownerScope: string;
   item: SourceLibraryItem;
 }): Promise<Result<MusicMaterial>> {
@@ -635,7 +637,7 @@ async function collectionMaterials({
   pool,
   q,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   materialResolve: MaterialResolvePort;
   collection?: CollectionPort;
   ownerScope: string;
@@ -710,7 +712,7 @@ async function materialForCollectionItem({
   ownerScope,
   item,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   materialResolve: MaterialResolvePort;
   ownerScope: string;
   item: CollectionItem;
@@ -745,7 +747,7 @@ async function materialForCollectionMaterialRef({
   item,
   materialRef,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   ownerScope: string;
   item: CollectionItem;
   materialRef: Ref;
@@ -774,7 +776,7 @@ async function relatedPoolCandidates({
   ownerScope,
   pool,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
 }): Promise<Result<MusicCandidate[]>> {
@@ -793,7 +795,7 @@ async function relatedPoolCandidates({
 }
 
 async function tracklistCandidatesForReleaseItem(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialProjectionStorePort,
   item: SourceLibraryItem,
 ): Promise<Result<MusicCandidate[]>> {
   const entity = await materialStore.getSourceEntity({ sourceRef: item.sourceRef });
@@ -861,7 +863,7 @@ function seedToCandidate(seed: ResolveSeed, index: number): MusicCandidate {
 }
 
 async function projectMaterialRecord(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialProjectionStorePort,
   record: MaterialRecord,
   context: {
     ownerScope: string;
@@ -929,7 +931,7 @@ export async function materialForMaterialId({
   ownerScope,
   purpose,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   materialId: string;
   ownerScope: string;
   purpose: "resolve.cards" | "context.brief" | "collection.snapshot";
@@ -994,7 +996,7 @@ function projectedStateForMaterialRecord(
 }
 
 async function labelForMaterialRecord(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialProjectionStorePort,
   record: MaterialRecord,
 ): Promise<Result<string>> {
   if (record.canonicalRef !== undefined) {
@@ -1039,7 +1041,7 @@ async function selectableMaterialsForQuery({
   preferenceHints,
   exclude,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   ownerScope: string;
   materials: MusicMaterial[];
   returnKind?: MaterialQueryInput["returnKind"];
@@ -1110,7 +1112,7 @@ async function excludedMaterialIdsForInput({
   materialStore,
   materialIds,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialProjectionStorePort;
   materialIds: string[];
 }): Promise<Result<Set<string>>> {
   const excludedMaterialIds = new Set(materialIds);
@@ -1135,7 +1137,7 @@ async function relatedForInput({
   ownerScope,
   input,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
   materialSelector: MaterialSelectorPort;
   ownerScope: string;
@@ -1225,7 +1227,7 @@ async function relatedCandidates({
   materialId,
   relation,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialQueryStorePort;
   ownerScope: string;
   materialId: string;
   relation: MaterialRelatedInput["relation"];
@@ -1268,7 +1270,7 @@ async function relatedCandidates({
 }
 
 async function sameArtistCandidates(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialQueryStorePort,
   sourceRefs: Ref[],
 ): Promise<Result<{
   basis: "confirmed_artist" | "source_artist" | "fallback_text";
@@ -1336,7 +1338,7 @@ async function sameArtistCandidates(
 }
 
 async function sameAlbumCandidates(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialProjectionStorePort,
   sourceRefs: Ref[],
 ): Promise<Result<{
   basis: "source_album" | "fallback_text";
@@ -1393,7 +1395,7 @@ async function sameAlbumCandidates(
 }
 
 async function sourceEntitiesForRefs(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialProjectionStorePort,
   sourceRefs: Ref[],
 ): Promise<Result<SourceEntity[]>> {
   const entities: SourceEntity[] = [];
@@ -1414,7 +1416,7 @@ async function sourceEntitiesForRefs(
 }
 
 async function canonicalArtistRefsForSourceArtistRefs(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialQueryStorePort,
   sourceArtistRefs: Ref[],
 ): Promise<Result<Ref[]>> {
   const refs: Ref[] = [];
@@ -1435,7 +1437,7 @@ async function canonicalArtistRefsForSourceArtistRefs(
 }
 
 async function trackCandidatesForCanonicalArtist(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialQueryStorePort,
   canonicalArtistRef: Ref,
   excludeSourceRefs: Ref[],
 ): Promise<Result<MusicCandidate[]>> {
@@ -1469,7 +1471,7 @@ async function trackCandidatesForCanonicalArtist(
 }
 
 async function trackCandidatesForSourceArtist(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialQueryStorePort,
   sourceArtistRef: Ref,
   excludeSourceRefs: Ref[],
 ): Promise<Result<MusicCandidate[]>> {
@@ -1507,7 +1509,7 @@ function candidateForSourceEntity(entity: SourceEntity): MusicCandidate {
 }
 
 async function contextBriefForInput(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialProjectionStorePort,
   input: MaterialContextBriefInput,
 ): Promise<Result<MaterialContextBriefOutput>> {
   const requestedFields = new Set(input.fields);
@@ -1592,7 +1594,7 @@ async function listPoolsForInput({
   collection,
   input,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: SourceLibraryReadStorePort;
   collection?: CollectionPort;
   input: MaterialPoolsListInput;
 }): Promise<Result<MaterialPoolsListOutput>> {

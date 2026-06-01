@@ -209,6 +209,11 @@ query-side Material Policy Evaluator, Material Sorter, Material Selector, and
 Material Query explicitly, then injects Material Query and Material Selector
 into Tool Dispatch as separate capabilities. Material Query no longer exposes
 `select`.
+The 2026-06-01 B2 dependency-narrowing slice keeps runtime behavior and public
+tool shapes unchanged while changing Material Query to receive
+`MaterialQueryStorePort`, projection helpers and adjacent material-id Stage
+Interface reads to use `MaterialProjectionStorePort`, and `library.source.list`
+to use `SourceLibraryReadStorePort`.
 
 The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
 `RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the

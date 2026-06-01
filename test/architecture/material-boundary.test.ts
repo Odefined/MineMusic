@@ -1,6 +1,49 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+import type {
+  MaterialProjectionStorePort,
+  MaterialQueryStorePort,
+  SourceLibraryReadStorePort,
+} from "../../src/ports/index.js";
+
+type IsExact<TActual, TExpected> =
+  (<T>() => T extends TActual ? 1 : 2) extends
+    (<T>() => T extends TExpected ? 1 : 2)
+    ? (<T>() => T extends TExpected ? 1 : 2) extends
+      (<T>() => T extends TActual ? 1 : 2)
+      ? true
+      : false
+    : false;
+
+type Assert<TCondition extends true> = TCondition;
+
+type MaterialProjectionStorePortKeysAreExact = Assert<IsExact<
+  keyof MaterialProjectionStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
+>>;
+
+type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
+  keyof MaterialQueryStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
+  | "getOrCreateBySourceRef"
+  | "listSourceLibraryItems"
+  | "listSourceEntities"
+  | "getConfirmedCanonicalBinding"
+>>;
+
+type SourceLibraryReadStorePortKeysAreExact = Assert<IsExact<
+  keyof SourceLibraryReadStorePort,
+  | "listSourceLibraryItems"
+  | "getSourceEntity"
+>>;
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
@@ -14,6 +57,16 @@ const materialRoots = [
 const materialPolicySelectionRoots = [
   "src/material/policy",
   "src/material/selection",
+];
+
+const materialQueryRoots = [
+  "src/material/query",
+];
+
+const stageInterfaceMaterialStoreNarrowingRoots = [
+  "src/stage_interface/tool_definitions/stage.ts",
+  "src/stage_interface/tool_definitions/music.ts",
+  "src/stage_interface/tool_definitions/library.ts",
 ];
 
 const legacyMaterialRoots = [
@@ -110,6 +163,46 @@ async function materialPolicyAndSelectionDoNotImportFullMaterialStorePort(): Pro
   );
 }
 
+async function materialQueryDoesNotImportFullMaterialStorePort(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialQueryRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bMaterialStorePort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports MaterialStorePort`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material query modules must use narrow material query/projection store ports:\n${failures.join("\n")}`,
+  );
+}
+
+async function stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort(): Promise<void> {
+  const files = await sourceFilesUnderRoots(stageInterfaceMaterialStoreNarrowingRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bMaterialStorePort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports MaterialStorePort`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Stage Interface projection/source-library tools must use narrow material store ports:\n${failures.join("\n")}`,
+  );
+}
+
 async function materialSourceFiles(): Promise<string[]> {
   return sourceFilesUnderRoots(materialRoots);
 }
@@ -188,3 +281,5 @@ function importStatements(text: string): Array<{ clause: string; source: string 
 await materialModulesDoNotImportAgentFacingOutputShapes();
 await legacyMaterialRootDirectoriesAreRemoved();
 await materialPolicyAndSelectionDoNotImportFullMaterialStorePort();
+await materialQueryDoesNotImportFullMaterialStorePort();
+await stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort();

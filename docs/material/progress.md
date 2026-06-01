@@ -58,6 +58,11 @@ Collection pools now project stored Source Entity / Material Store records
 directly into domain material items before Stage Interface presentation, so
 owned playable links do not depend on provider re-grounding during
 recommendation query.
+The B2 dependency-narrowing slice keeps this behavior but changes the type
+boundary: Material Query receives `MaterialQueryStorePort`, projection helpers
+receive `MaterialProjectionStorePort`, adjacent material-id Stage Interface
+reads receive `MaterialProjectionStorePort`, and `library.source.list` receives
+`SourceLibraryReadStorePort` instead of full `MaterialStorePort`.
 `music.material.resolve.cards` now resolves returned `materialId` values back
 through Material Registry / Material Resolve instead of treating them as text
 search.
@@ -225,6 +230,10 @@ creates an evidence-backed memory proposal without auto-acceptance.
 - Moved Material Selector composition out of Material Query and into Stage Core;
   Material Query now requires an injected `MaterialSelectorPort` and no longer
   exposes selector capability.
+- Added narrow Material Query, material projection, and Source Library read store
+  port aliases; migrated Material Query plus adjacent Stage Interface read
+  contexts away from full `MaterialStorePort` without changing runtime behavior
+  or agent-facing output shapes.
 - Added Recommendation Presentation contracts, port, implementation,
   `stage.recommendation.present`, typed recommendation presentation event
   recording, and focused tests.
