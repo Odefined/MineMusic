@@ -377,8 +377,8 @@ export type MaterialSelectCandidate = {
   score?: number;
   reason?: string;
   /**
-   * Service-internal snapshot used by query/related to preserve existing
-   * compact-card projection. This is not advertised by agent-facing schemas.
+   * Service-internal material snapshot used by query/related to avoid reloading
+   * material records after candidate retrieval. Not advertised by agent-facing schemas.
    */
   material?: MusicMaterial;
 };
