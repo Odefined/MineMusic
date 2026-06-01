@@ -171,21 +171,14 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
   );
 
   assert(output.presented, "presenter should present when enough cards survive");
-  assert(output.cards.map((card) => card.title).join(",") === "First,Third", "presenter should preserve surviving input order");
-  assert(!("position" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose display positions");
-  assert(!("presentedAt" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose presentation timestamps");
-  assert(!("reason" in (output.cards[0] as Record<string, unknown>)), "presented cards should not echo agent reasons");
-  assert(!("identityConfidence" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose identity confidence");
-  assert(!("actions" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose action menus");
+  assert(output.items.map((item) => item.material.label).join(",") === "First,Third", "presenter should preserve surviving input order");
+  assert(output.items[0]?.materialRef.kind === "material", "presenter should return domain material refs");
+  assert(output.items[0]?.warnings.length === 0, "presenter should keep domain warning lists on items");
+  assert(!("title" in (output.items[0] as unknown as Record<string, unknown>)), "core presenter output should not expose card titles");
+  assert(!("links" in (output.items[0] as unknown as Record<string, unknown>)), "core presenter output should not expose display links");
   assert(
-    output.cards[0]?.links?.some((link) => link.url === "https://example.test/first"),
-    "presented output cards should keep display links",
-  );
-  const firstOutputLink = output.cards[0]?.links?.[0] as Record<string, unknown> | undefined;
-  assert(firstOutputLink?.sourceHandle === "link:1", "display links should expose only compact source handles");
-  assert(
-    firstOutputLink !== undefined && !("sourceRef" in firstOutputLink),
-    "presented output links should not expose raw source refs",
+    output.items[0]?.material.playableLinks?.some((link) => link.url === "https://example.test/first"),
+    "core presenter domain items should retain material playable links for Stage Interface projection",
   );
   assert(output.dropped?.[0]?.code === "blocked", "blocked material should be reported as dropped");
 
@@ -200,16 +193,18 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
   assert(payload.presentedAt === "2026-05-31T03:00:00.000Z", "event payload should include presentedAt");
   const payloadCards = payload.cards as Array<{
     materialId?: string;
+    label?: string;
     position?: number;
     links?: unknown;
     linkRefs?: Array<{ sourceRef?: Ref; url?: string }>;
     reason?: string;
-    identityConfidence?: string;
+    identityState?: string;
   }>;
-  assert(payloadCards[0]?.materialId === output.cards[0]?.materialId, "event payload cards should preserve card identity");
+  assert(payloadCards[0]?.materialId === output.items[0]?.materialId, "event payload items should preserve material identity");
+  assert(payloadCards[0]?.label === "First", "event payload items should preserve material label");
   assert(payloadCards[0]?.position === 1, "event payload cards should preserve card position");
   assert(payloadCards[0]?.reason === "sets the mood", "event payload cards should preserve recommendation reason internally");
-  assert(payloadCards[0]?.identityConfidence === "source_backed", "event payload cards should preserve identity confidence internally");
+  assert(payloadCards[0]?.identityState === "source_backed", "event payload cards should preserve identity state internally");
   assert(payloadCards[0]?.links === undefined, "event payload cards should not persist display links");
   assert(
     payloadCards[0]?.linkRefs?.some((link) => link.url === "https://example.test/first"),
@@ -249,7 +244,7 @@ async function presenterDegradesNotPlayableSourceWhenAnotherLinkRemains(): Promi
   );
 
   assert(output.presented, "presenter should keep material when another playable source remains");
-  assert(output.cards[0]?.title === "Two Source Track", "degraded material should still be presented");
+  assert(output.items[0]?.material.label === "Two Source Track", "degraded material should still be presented");
   assert(output.warnings?.[0]?.warnings.includes("not_playable"), "not_playable source should be reported as a warning");
 }
 
@@ -268,7 +263,7 @@ async function presenterDegradesWrongVersionSourceWithoutDroppingWholeMaterial()
   );
 
   assert(output.presented, "presenter should keep material when another source version remains");
-  assert(output.cards[0]?.title === "Versioned Track", "wrong_version source should not block the whole material");
+  assert(output.items[0]?.material.label === "Versioned Track", "wrong_version source should not block the whole material");
   assert(output.warnings?.[0]?.warnings.includes("wrong_version"), "wrong_version source should be reported as a warning");
 }
 
@@ -291,7 +286,7 @@ async function presenterDoesNotRecordWhenMinCardsIsNotMet(): Promise<void> {
   const events = await assertOk(eventRepository.list());
 
   assert(!output.presented, "presenter should return presented false when minCards is not met");
-  assert(output.cards.length === 1, "presenter should return surviving cards for retry context");
+  assert(output.items.length === 1, "presenter should return surviving domain items for retry context");
   assert(output.issues[0]?.code === "not_enough_cards", "presenter should explain insufficient surviving cards");
   assert(events.length === 0, "presenter should not record recommendation event on failed presentation");
 }

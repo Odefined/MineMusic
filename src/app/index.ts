@@ -2,15 +2,17 @@ import type {
   EffectProposal,
   MemoryProposal,
   MusicMaterial,
-  PresentedMaterialCard,
-  RecommendationPresentOutput,
   Result,
   StageEvent,
   StageSession,
 } from "../contracts/index.js";
 import { materialForMaterialId } from "../material_query/index.js";
 import type { MineMusicStageCoreHarness } from "../stage_core/index.js";
-import type { CompactMaterialResolveOutput } from "../stage_interface/outputs/index.js";
+import type {
+  CompactMaterialResolveOutput,
+  CompactPresentedMaterialCard,
+  CompactRecommendationPresentOutput,
+} from "../stage_interface/outputs/index.js";
 
 export type RecommendationTranscriptInput = {
   sessionId: string;
@@ -23,7 +25,7 @@ export type RecommendationTranscript = {
   request: string;
   response: string;
   session: StageSession;
-  presentedCards: PresentedMaterialCard[];
+  presentedCards: CompactPresentedMaterialCard[];
   presentedMaterials: MusicMaterial[];
   recordedEvents: StageEvent[];
   memoryProposal?: MemoryProposal;
@@ -82,7 +84,7 @@ export async function runRecommendationTranscript(
     return presentResult;
   }
 
-  const presentation = presentResult.value as RecommendationPresentOutput;
+  const presentation = presentResult.value as CompactRecommendationPresentOutput;
   const groundedByMaterialId = new Map(
     groundedMaterials.map((material) => [material.materialRef.id, material]),
   );
@@ -187,7 +189,7 @@ export async function runRecommendationTranscript(
   };
 }
 
-function buildRecommendationResponse(cards: PresentedMaterialCard[]): string {
+function buildRecommendationResponse(cards: CompactPresentedMaterialCard[]): string {
   const playableLines = cards.flatMap((card) =>
     (card.links ?? []).map((link) => `${cardTitleForResponse(card)}: ${link.url}`)
   );
@@ -203,7 +205,7 @@ function buildRecommendationResponse(cards: PresentedMaterialCard[]): string {
   return "I could not find a grounded recommendation with a presentable playable link yet.";
 }
 
-function cardTitleForResponse(card: PresentedMaterialCard): string {
+function cardTitleForResponse(card: CompactPresentedMaterialCard): string {
   return card.title;
 }
 

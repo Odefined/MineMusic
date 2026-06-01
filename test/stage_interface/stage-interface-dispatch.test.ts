@@ -506,17 +506,30 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   const recommendationPresentation: RecommendationPresentationPort = {
     present: async () => {
       calls.push("stage.recommendation.present");
+      const material: MusicMaterial = {
+        id: "material-presented",
+        materialRef: { namespace: "minemusic", kind: "material", id: "material-presented" },
+        kind: "recording",
+        label: "Presented Track",
+        state: "source_only_playable",
+        identityState: "source_backed",
+        sourceRefs: [{ namespace: "source:fixture", kind: "track", id: "presented-track" }],
+        playableLinks: [{
+          url: "https://example.test/presented-track",
+          sourceRef: { namespace: "source:fixture", kind: "track", id: "presented-track" },
+        }],
+      };
+
       return {
         ok: true,
         value: {
           presented: true,
           eventId: "event-presented",
-          cards: [{
+          items: [{
             materialId: "material-presented",
-            title: "Presented Track",
-            status: "playable",
-            position: 1,
-            presentedAt: "2026-05-31T00:00:00.000Z",
+            materialRef: material.materialRef,
+            material,
+            warnings: [],
           }],
         },
       };
@@ -761,7 +774,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       },
     }),
   );
-  await assertOk(
+  const recommendationOutput = await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "stage.recommendation.present",
@@ -810,6 +823,28 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   assert(calls.includes("memory.propose"), "memory.propose should call MemoryPort");
   assert(calls.includes("stage.effects.propose"), "stage.effects.propose should call EffectBoundaryPort");
   assert(calls.includes("sessionContext.updateSession"), "stage.session.update should call SessionContextPort");
+  assertCompactRecommendationOutput(
+    recommendationOutput,
+    "stage.recommendation.present should compact domain recommendation items at the Stage Interface boundary",
+  );
+}
+
+function assertCompactRecommendationOutput(output: unknown, message: string): void {
+  assert(isRecord(output), message);
+  assert(Array.isArray(output.cards), message);
+  const first = output.cards[0] as Record<string, unknown> | undefined;
+  const firstLink = (first?.links as Array<Record<string, unknown>> | undefined)?.[0];
+
+  assert(first !== undefined, message);
+  assert(first.materialId === "material-presented", message);
+  assert(first.title === "Presented Track", message);
+  assert(first.status === "playable", message);
+  assert(firstLink?.url === "https://example.test/presented-track", message);
+  assert(!("items" in output), "compact Stage Interface recommendation output should not expose core items");
+  assert(!("material" in first), "compact Stage Interface recommendation card should not expose raw material");
+  assert(!("materialRef" in first), "compact Stage Interface recommendation card should not expose materialRef");
+  assert(!("sourceRefs" in first), "compact Stage Interface recommendation card should not expose sourceRefs");
+  assert(!("playableLinks" in first), "compact Stage Interface recommendation card should not expose playableLinks");
 }
 
 async function rejectsManualRecommendationPresentedEvents(): Promise<void> {

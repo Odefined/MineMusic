@@ -264,7 +264,12 @@ export function recentCardsFromEvents(
     }
 
     for (const [index, card] of event.payload.cards.entries()) {
-      if (!isRecord(card) || typeof card.title !== "string") {
+      if (!isRecord(card)) {
+        continue;
+      }
+      const title = titleFromPresentedEventItem(card);
+
+      if (title === undefined) {
         continue;
       }
 
@@ -276,7 +281,7 @@ export function recentCardsFromEvents(
 
       recentCards.push({
         materialId,
-        title: card.title,
+        title,
         ...(typeof card.subtitle === "string" ? { subtitle: card.subtitle } : {}),
         position: typeof card.position === "number" ? card.position : index + 1,
         presentedAt: typeof card.presentedAt === "string" ? card.presentedAt : event.payload.presentedAt,
@@ -291,6 +296,12 @@ export function recentCardsFromEvents(
   }
 
   return recentCards;
+}
+
+function titleFromPresentedEventItem(card: Record<string, unknown>): string | undefined {
+  return typeof card.title === "string"
+    ? card.title
+    : typeof card.label === "string" ? card.label : undefined;
 }
 
 function materialIdFromCardPayload(card: Record<string, unknown>): string | undefined {

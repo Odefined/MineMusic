@@ -4,6 +4,7 @@ import type {
   EffectProposal,
   MusicMaterial,
   RecommendationPresentInput,
+  RecommendationPresentOutput,
   Result,
   StageError,
   StageEvent,
@@ -23,6 +24,7 @@ import type {
 } from "./types.js";
 import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
 import { materialForMaterialId } from "../../material_query/index.js";
+import { compactRecommendationPresentOutput } from "../outputs/recommendation.js";
 
 export const stageToolNames = [
   "stage.context.read",
@@ -122,7 +124,7 @@ export const stageToolDefinitions = [
     name: "stage.recommendation.present",
     description: "Final presentation boundary for user-visible recommendations.",
     inputSchemaRef: "RecommendationPresentInput",
-    outputSchemaRef: "RecommendationPresentOutput",
+    outputSchemaRef: "CompactRecommendationPresentOutput",
     availability: "requires_active_instrument",
     inputSchema: recommendationPresentInputSchema,
     inputParser: recommendationPresentInputParser,
@@ -135,6 +137,7 @@ export const stageToolDefinitions = [
 
       return presenter.value.present({ ...payload, sessionId: payload.sessionId ?? sessionId });
     },
+    present: (value) => compactRecommendationPresentOutput(value as RecommendationPresentOutput),
   }),
   {
     name: "stage.session.update",

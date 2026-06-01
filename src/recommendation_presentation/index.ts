@@ -1,10 +1,8 @@
 import type {
   DroppedMaterial,
   MaterialPolicyInput,
-  MusicMaterial,
-  PresentedMaterialLink,
-  PresentedMaterialCard,
-  RecommendationPresentedCardSnapshot,
+  RecommendationPresentationEventItem,
+  RecommendationPresentationItem,
   RecommendationPresentInput,
   RecommendationPresentOutput,
   RecommendationPresentWarning,
@@ -19,11 +17,6 @@ import type {
   RecommendationPresentationPort,
   SessionContextPort,
 } from "../ports/index.js";
-import {
-  subtitleForMaterial,
-  toMaterialCardIdentityConfidence,
-  toMaterialCardStatus,
-} from "../material_cards/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 
@@ -32,13 +25,6 @@ type RecommendationPresentationOptions = {
   materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   events: EventPort;
   clock?: () => string;
-};
-
-type AcceptedPresentationItem = {
-  material: MusicMaterial;
-  reason?: string;
-  basis?: NonNullable<RecommendationPresentInput["items"][number]["basis"]>;
-  warnings: string[];
 };
 
 export function createRecommendationPresentationService({
@@ -80,7 +66,7 @@ async function presentRecommendation({
   }
 
   const ownerScope = input.ownerScope ?? defaultOwnerScope;
-  const accepted: AcceptedPresentationItem[] = [];
+  const accepted: RecommendationPresentationItem[] = [];
   const dropped: DroppedMaterial[] = [];
   const policy = presentationPolicy(input);
 
@@ -106,6 +92,8 @@ async function presentRecommendation({
     }
 
     accepted.push({
+      materialId: materialRefToMaterialId(decision.value.material.materialRef),
+      materialRef: decision.value.material.materialRef,
       material: decision.value.material,
       ...(item.reason === undefined ? {} : { reason: item.reason }),
       ...(item.basis === undefined ? {} : { basis: item.basis }),
@@ -124,29 +112,27 @@ async function presentRecommendation({
     });
   }
 
-  const cards = selected.map((item) => toPresentedMaterialCard({ item }));
   const minCards = normalizeOptionalCount(input.minCards) ?? 1;
 
-  if (cards.length < minCards) {
+  if (selected.length < minCards) {
     return ok({
       presented: false,
-      cards,
+      items: selected,
       ...(dropped.length === 0 ? {} : { dropped }),
       issues: [{
         code: "not_enough_cards",
-        message: `Only ${cards.length} recommendation card(s) survived final presentation policy; ${minCards} required.`,
+        message: `Only ${selected.length} recommendation item(s) survived final presentation policy; ${minCards} required.`,
         required: minCards,
-        actual: cards.length,
+        actual: selected.length,
       }],
       retryable: true,
     });
   }
 
-  const warnings = selectedWarnings(cards, selected);
+  const warnings = selectedWarnings(selected);
   const payload = recommendationPresentedPayload({
     input,
     ownerScope,
-    cards,
     selected,
     presentedAt,
   });
@@ -166,7 +152,7 @@ async function presentRecommendation({
   return ok({
     presented: true,
     eventId: recorded.value.id,
-    cards,
+    items: selected,
     ...(dropped.length === 0 ? {} : { dropped }),
     ...(warnings.length === 0 ? {} : { warnings }),
   });
@@ -182,41 +168,22 @@ function presentationPolicy(input: RecommendationPresentInput): MaterialPolicyIn
   };
 }
 
-function toPresentedMaterialCard({
-  item,
-}: {
-  item: AcceptedPresentationItem;
-}): PresentedMaterialCard {
-  const subtitle = subtitleForMaterial(item.material);
-  const links = toPresentedMaterialLinks(item.material);
-
-  return {
-    materialId: materialRefToMaterialId(item.material.materialRef),
-    title: item.material.label,
-    ...(subtitle === undefined ? {} : { subtitle }),
-    status: toMaterialCardStatus(item.material),
-    ...(links.length === 0 ? {} : { links }),
-  };
-}
-
 function recommendationPresentedPayload({
   input,
   ownerScope,
-  cards,
   selected,
   presentedAt,
 }: {
   input: RecommendationPresentInput;
   ownerScope: string;
-  cards: PresentedMaterialCard[];
-  selected: AcceptedPresentationItem[];
+  selected: RecommendationPresentationItem[];
   presentedAt: string;
 }): RecommendationPresentedPayload {
   const basis = selected.flatMap((item, index) =>
     item.basis === undefined
       ? []
       : [{
-          materialId: cards[index]?.materialId ?? materialRefToMaterialId(item.material.materialRef),
+          materialId: item.materialId,
           kind: item.basis.kind,
           ...(item.basis.note === undefined ? {} : { note: item.basis.note }),
         }]
@@ -226,25 +193,18 @@ function recommendationPresentedPayload({
     ownerScope,
     ...(input.request === undefined ? {} : { request: input.request }),
     presentedAt,
-    cards: cards.map((card, index) =>
-      toRecommendationPresentedCardSnapshot(
-        card,
-        selected[index] as AcceptedPresentationItem,
-        index + 1,
-        presentedAt,
-      )
+    cards: selected.map((item, index) =>
+      toRecommendationPresentationEventItem(item, index + 1, presentedAt)
     ),
     ...(basis.length === 0 ? {} : { basis }),
   };
 }
 
-function toRecommendationPresentedCardSnapshot(
-  card: PresentedMaterialCard,
-  item: AcceptedPresentationItem,
+function toRecommendationPresentationEventItem(
+  item: RecommendationPresentationItem,
   position: number,
   presentedAt: string,
-): RecommendationPresentedCardSnapshot {
-  const { links, ...snapshot } = card;
+): RecommendationPresentationEventItem {
   const reason = item.reason ?? item.material.notes;
   const linkRefs = (item.material.playableLinks ?? []).map((link) => ({
     sourceRef: link.sourceRef,
@@ -253,36 +213,29 @@ function toRecommendationPresentedCardSnapshot(
   }));
 
   return {
-    ...snapshot,
+    materialId: item.materialId,
+    materialRef: item.materialRef,
+    label: item.material.label,
+    state: item.material.state,
+    identityState: item.material.identityState,
     position,
     presentedAt,
-    identityConfidence: toMaterialCardIdentityConfidence(item.material),
     ...(reason === undefined ? {} : { reason }),
+    ...(item.basis === undefined ? {} : { basis: item.basis }),
     ...(linkRefs.length === 0 ? {} : { linkRefs }),
   };
 }
 
 function selectedWarnings(
-  cards: PresentedMaterialCard[],
-  selected: AcceptedPresentationItem[],
+  selected: RecommendationPresentationItem[],
 ): RecommendationPresentWarning[] {
-  return selected.flatMap((item, index) => {
+  return selected.flatMap((item) => {
     if (item.warnings.length === 0) {
       return [];
     }
 
-    const card = cards[index];
-
-    return card === undefined ? [] : [{ materialId: card.materialId, warnings: item.warnings }];
+    return [{ materialId: item.materialId, warnings: item.warnings }];
   });
-}
-
-function toPresentedMaterialLinks(material: MusicMaterial): PresentedMaterialLink[] {
-  return (material.playableLinks ?? []).map((link, index) => ({
-    ...(link.label === undefined ? {} : { label: link.label }),
-    url: link.url,
-    sourceHandle: `link:${index + 1}`,
-  }));
 }
 
 function normalizeOptionalCount(count: number | undefined): number | undefined {
