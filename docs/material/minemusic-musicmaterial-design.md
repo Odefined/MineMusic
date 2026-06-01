@@ -1068,18 +1068,14 @@ Example user request:
 From my saved albums, recommend a few tracks for writing, not sleepy, and don't repeat what you just recommended.
 ```
 
-Agent translates into:
+Agent first asks MineMusic for the owned playable pool, then uses musical
+judgment over returned cards for the style fit:
 
 ```ts
 {
   returnKind: "recording",
   pool: { kind: "source_library", areas: ["saved_albums"], expand: "tracks" },
   constraints: { availability: "playable", identity: "allow_source_backed" },
-  preferenceHints: {
-    activity: "writing",
-    prefer: ["calm", "steady_motion", "instrumental"],
-    avoid: ["sleepy", "vocal_heavy"]
-  },
   exclude: {
     relations: ["blocked", "wrong_version", "not_playable"],
     recent: { recommended: "session", mode: "hard" }
@@ -1119,14 +1115,6 @@ export type MaterialQueryInput = {
     availability?: "playable" | "any";
     identity?: "confirmed_only" | "allow_source_backed";
   };
-  preferenceHints?: {
-    activity?: string;
-    mood?: string[];
-    energy?: "low" | "medium_low" | "medium" | "high";
-    vocal?: "avoid" | "allow" | "prefer";
-    prefer?: string[];
-    avoid?: string[];
-  };
   exclude?: {
     materialIds?: string[];
     relations?: Array<"blocked" | "wrong_version" | "not_playable" | "bad_match">;
@@ -1142,6 +1130,13 @@ export type MaterialQueryInput = {
   cursor?: string;
 };
 ```
+
+The internal service contract may keep experimental `preferenceHints` for
+local tests, but the Stage Interface and MCP surfaces do not advertise them and
+strip them from public `music.material.query` / `music.material.related`
+payloads. Until MineMusic owns real tag, genre, mood, audio-feature, or
+embedding data, style fit is the agent's judgment over concrete returned cards,
+not a material-query tag interface.
 
 ### 14.4 Output
 
@@ -1159,7 +1154,7 @@ export type MaterialQueryOutput = {
 ### 14.5 Execution plan
 
 ```text
-1. Resolve pool into candidate material refs.
+1. Resolve pool into material refs from owned assets when possible.
 2. Expand pool if needed, e.g. saved albums -> tracklist -> recordings.
 3. Project material refs into MusicMaterial.
 4. Apply constraints: kind, availability, identity certainty.
@@ -1179,6 +1174,8 @@ SourceLibraryItem
   -> sourceRef
   -> MaterialRegistry.getOrCreateBySourceRef
   -> materialRef
+  -> SourceEntity providerUrl, if present
+  -> MaterialCard
 ```
 
 `areas` mapping:
@@ -1193,7 +1190,9 @@ If `expand: "tracks"` on saved albums, use `SourceRelease.tracklist` when availa
 
 #### Collection pool
 
-If Collection has migrated to material refs, use collection item material refs directly. During migration, resolve canonical refs through Material Registry.
+If Collection has migrated to material refs, use collection item material refs
+directly and project through Material Store / Source Entity. During migration,
+resolve canonical refs through Material Registry.
 
 #### Related pool
 
@@ -1201,7 +1200,9 @@ Delegates to Related Service seed generation, then resolves seeds.
 
 #### All pool
 
-Combines canonical lookup, source search, Source Library, and optional Knowledge-derived seeds, subject to constraints.
+Uses Source Library material refs as the owned-asset pool, subject to
+constraints. Provider/source search remains a resolve path for unknown
+candidate text rather than the default path for already-owned library items.
 
 ### 14.7 Recent dedupe
 
@@ -1221,7 +1222,6 @@ music.material.query({
   returnKind: "recording",
   pool: { kind: "source_library", areas: ["saved_tracks"] },
   constraints: { availability: "playable", identity: "allow_source_backed" },
-  preferenceHints: { activity: "writing", prefer: ["calm", "steady_motion"], avoid: ["sleepy"] },
   exclude: {
     relations: ["blocked", "wrong_version", "not_playable"],
     recent: { recommended: "session", mode: "hard" }
@@ -1350,7 +1350,7 @@ Ordinary user wording "album" defaults to `release_group` when canonical identit
 2. same album/release-group neighbors;
 3. Knowledge tags/genres/relations;
 4. user's Source Library adjacency;
-5. source search using artist/style hints.
+5. source search using artist or other concrete identity hints.
 
 Every generated seed must go back through `resolve`.
 

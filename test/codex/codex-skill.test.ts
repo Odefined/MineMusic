@@ -82,9 +82,16 @@ async function packagesRepoLocalCodexSkill(): Promise<void> {
   );
   assert(!skillText.includes("minemusic.music.material.ground"), "MineMusic skill should not route agents to ground directly");
   assert(
-    skillText.includes("Do not send environment words"),
-    "MineMusic skill should forbid using environment terms as literal song searches",
+    skillText.includes("listening context") && skillText.includes("Send provider searches as concrete"),
+    "MineMusic skill should frame context interpretation in positive terms",
   );
+  assert(
+    skillText.includes("Use only fields shown by the live handbook/tool schema") &&
+      skillText.includes("`q` is for concrete"),
+    "MineMusic skill should avoid teaching hidden material style-hint fields to agents",
+  );
+  assert(!skillText.includes("Do not") && !skillText.includes("do not"), "MineMusic skill should avoid unnecessary negative directives");
+  assert(!skillText.includes("preferenceHints"), "MineMusic skill should not name hidden material style-hint fields");
   assert(
     !skillText.includes("with the user's wording"),
     "MineMusic skill should not tell agents to search providers with the raw user request",

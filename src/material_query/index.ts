@@ -111,13 +111,25 @@ export function createMaterialQueryService({
             pool,
             ...(input.q === undefined ? {} : { q: input.q }),
           })
-        : await materialsForCandidatePool({
+        : pool.kind === "source_library"
+        ? await sourceLibraryMaterials({
             materialStore,
             materialResolve,
-            ...(collection === undefined ? {} : { collection }),
             ownerScope,
             pool,
             ...(input.q === undefined ? {} : { q: input.q }),
+          })
+        : pool.kind === "all"
+        ? await allSourceLibraryMaterials({
+            materialStore,
+            ownerScope,
+            ...(input.q === undefined ? {} : { q: input.q }),
+          })
+        : await materialsForCandidatePool({
+            materialStore,
+            materialResolve,
+            ownerScope,
+            pool,
           });
 
       if (!resolved.ok) {
@@ -463,24 +475,18 @@ async function resolveCandidates({
 async function materialsForCandidatePool({
   materialStore,
   materialResolve,
-  collection,
   ownerScope,
   pool,
-  q,
 }: {
   materialStore: MaterialStorePort;
   materialResolve: MaterialResolvePort;
-  collection?: CollectionPort;
   ownerScope: string;
-  pool: NonNullable<MaterialQueryInput["pool"]>;
-  q?: string;
+  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
 }): Promise<Result<MusicMaterial[]>> {
-  const candidates = await candidatesForPool({
+  const candidates = await relatedPoolCandidates({
     materialStore,
-    ...(collection === undefined ? {} : { collection }),
     ownerScope,
     pool,
-    ...(q === undefined ? {} : { q }),
   });
 
   if (!candidates.ok) {
@@ -494,58 +500,21 @@ async function materialsForCandidatePool({
   });
 }
 
-async function candidatesForPool({
+async function sourceLibraryMaterials({
   materialStore,
-  collection,
+  materialResolve,
   ownerScope,
   pool,
   q,
 }: {
   materialStore: MaterialStorePort;
-  collection?: CollectionPort;
-  ownerScope: string;
-  pool: NonNullable<MaterialQueryInput["pool"]>;
-  q?: string;
-}): Promise<Result<MusicCandidate[]>> {
-  switch (pool.kind) {
-    case "source_library":
-      return sourceLibraryCandidates({
-        materialStore,
-        ownerScope,
-        pool,
-        ...(q === undefined ? {} : { q }),
-      });
-    case "collection":
-      return collectionCandidates({
-        ...(collection === undefined ? {} : { collection }),
-        ownerScope,
-        pool,
-        ...(q === undefined ? {} : { q }),
-      });
-    case "related":
-      return relatedPoolCandidates({ materialStore, ownerScope, pool });
-    case "all":
-      return allSourceLibraryCandidates({
-        materialStore,
-        ownerScope,
-        ...(q === undefined ? {} : { q }),
-      });
-  }
-}
-
-async function sourceLibraryCandidates({
-  materialStore,
-  ownerScope,
-  pool,
-  q,
-}: {
-  materialStore: MaterialStorePort;
+  materialResolve: MaterialResolvePort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>;
   q?: string;
-}): Promise<Result<MusicCandidate[]>> {
+}): Promise<Result<MusicMaterial[]>> {
   const areas = pool.areas ?? ["saved_tracks"];
-  const candidates: MusicCandidate[] = [];
+  const materials: MusicMaterial[] = [];
 
   for (const area of areas) {
     const libraryKind = libraryKindForArea(area);
@@ -568,7 +537,17 @@ async function sourceLibraryCandidates({
           return expanded;
         }
 
-        candidates.push(...expanded.value.filter((candidate) => matchesQueryText(candidate.label, q)));
+        const resolved = await resolveCandidates({
+          materialResolve,
+          ownerScope,
+          candidates: expanded.value.filter((candidate) => matchesQueryText(candidate.label, q)),
+        });
+
+        if (!resolved.ok) {
+          return resolved;
+        }
+
+        materials.push(...resolved.value);
         continue;
       }
 
@@ -576,14 +555,24 @@ async function sourceLibraryCandidates({
         continue;
       }
 
-      candidates.push(candidateForSourceLibraryItem(item));
+      const material = await materialForSourceLibraryItem({
+        materialStore,
+        ownerScope,
+        item,
+      });
+
+      if (!material.ok) {
+        return material;
+      }
+
+      materials.push(material.value);
     }
   }
 
-  return ok(candidates);
+  return ok(dedupeMaterials(materials));
 }
 
-async function allSourceLibraryCandidates({
+async function allSourceLibraryMaterials({
   materialStore,
   ownerScope,
   q,
@@ -591,7 +580,7 @@ async function allSourceLibraryCandidates({
   materialStore: MaterialStorePort;
   ownerScope: string;
   q?: string;
-}): Promise<Result<MusicCandidate[]>> {
+}): Promise<Result<MusicMaterial[]>> {
   const items = await materialStore.listSourceLibraryItems({
     ownerScope,
     status: "present",
@@ -601,40 +590,71 @@ async function allSourceLibraryCandidates({
     return items;
   }
 
-  return ok(items.value.filter((item) => matchesQueryText(item.label, q)).map(candidateForSourceLibraryItem));
+  const materials: MusicMaterial[] = [];
+
+  for (const item of items.value.filter((entry) => matchesQueryText(entry.label, q))) {
+    const material = await materialForSourceLibraryItem({
+      materialStore,
+      ownerScope,
+      item,
+    });
+
+    if (!material.ok) {
+      return material;
+    }
+
+    materials.push(material.value);
+  }
+
+  return ok(dedupeMaterials(materials));
 }
 
-async function collectionCandidates({
-  collection,
+async function materialForSourceLibraryItem({
+  materialStore,
   ownerScope,
-  pool,
-  q,
+  item,
 }: {
-  collection?: CollectionPort;
+  materialStore: MaterialStorePort;
   ownerScope: string;
-  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "collection" }>;
-  q?: string;
-}): Promise<Result<MusicCandidate[]>> {
-  if (collection === undefined) {
-    return ok([]);
-  }
-
-  const items = await collectionItemsForPool({
-    collection,
+  item: SourceLibraryItem;
+}): Promise<Result<MusicMaterial>> {
+  return materialForSourceRef({
+    materialStore,
     ownerScope,
-    pool,
+    sourceRef: item.sourceRef,
+    kind: sourceKindToMaterialKind(item.sourceKind),
+    fallbackLabel: item.label,
+  });
+}
+
+async function materialForSourceRef({
+  materialStore,
+  ownerScope,
+  sourceRef,
+  kind,
+  fallbackLabel,
+}: {
+  materialStore: MaterialStorePort;
+  ownerScope: string;
+  sourceRef: Ref;
+  kind: string;
+  fallbackLabel?: string;
+}): Promise<Result<MusicMaterial>> {
+  const record = await materialStore.getOrCreateBySourceRef({
+    sourceRef,
+    kind,
+    primarySourceRef: sourceRef,
   });
 
-  if (!items.ok) {
-    return items;
+  if (!record.ok) {
+    return record;
   }
 
-  return ok(
-    items.value
-      .filter((item) => item.canonicalRef !== undefined)
-      .filter((item) => matchesQueryText(item.label, q))
-      .map((item) => candidateForCollectionItem(item)),
-  );
+  return projectMaterialRecord(materialStore, record.value, {
+    ownerScope,
+    purpose: "resolve.cards",
+    ...(fallbackLabel === undefined ? {} : { fallbackLabel }),
+  });
 }
 
 async function collectionMaterials({
@@ -728,7 +748,6 @@ async function materialForCollectionItem({
   if (item.materialRef !== undefined) {
     const material = await materialForCollectionMaterialRef({
       materialStore,
-      materialResolve,
       ownerScope,
       item,
       materialRef: item.materialRef,
@@ -752,13 +771,11 @@ async function materialForCollectionItem({
 
 async function materialForCollectionMaterialRef({
   materialStore,
-  materialResolve,
   ownerScope,
   item,
   materialRef,
 }: {
   materialStore: MaterialStorePort;
-  materialResolve: MaterialResolvePort;
   ownerScope: string;
   item: CollectionItem;
   materialRef: Ref;
@@ -773,24 +790,13 @@ async function materialForCollectionMaterialRef({
     return ok([]);
   }
 
-  const candidate = await candidateForMaterialRecord(materialStore, record.value, {
-    materialId: materialRefToMaterialId(record.value.materialRef),
-    text: item.label,
-    kind: item.materialSnapshot?.kind ?? record.value.kind,
-  });
-
-  if (!candidate.ok) {
-    return candidate;
-  }
-
-  const resolved = await resolveCandidates({
-    materialResolve,
+  const material = await projectMaterialRecord(materialStore, record.value, {
     ownerScope,
-    candidates: [candidate.value],
-    limitPerCandidate: 1,
+    purpose: "collection.snapshot",
+    fallbackLabel: item.materialSnapshot?.label ?? item.label,
   });
 
-  return resolved;
+  return material.ok ? ok([material.value]) : material;
 }
 
 async function relatedPoolCandidates({
@@ -845,25 +851,6 @@ async function tracklistCandidatesForReleaseItem(
   );
 }
 
-function candidateForSourceLibraryItem(item: SourceLibraryItem): MusicCandidate {
-  return {
-    id: `source-library:${item.id}`,
-    label: item.label,
-    expectedKind: sourceKindToMaterialKind(item.sourceKind),
-    sourceRef: item.sourceRef,
-    query: {
-      text: item.label,
-      sourceRef: item.sourceRef,
-    },
-    sourceLibraryScope: {
-      providerId: item.providerId,
-      providerAccountId: item.providerAccountId,
-      libraryKind: item.libraryKind,
-      status: "present",
-    },
-  };
-}
-
 function candidateForCollectionItem(item: CollectionItem): MusicCandidate {
   const canonicalRef = item.canonicalRef;
 
@@ -903,39 +890,14 @@ function seedToCandidate(seed: ResolveSeed, index: number): MusicCandidate {
   };
 }
 
-async function candidateForMaterialRecord(
-  materialStore: MaterialStorePort,
-  record: MaterialRecord,
-  seed: ResolveSeed,
-): Promise<Result<MusicCandidate>> {
-  const label = await labelForMaterialRecord(materialStore, record);
-
-  if (!label.ok) {
-    return label;
-  }
-
-  const sourceRef = record.primarySourceRef ?? record.sourceRefs[0];
-  const canonicalRef = record.canonicalRef;
-
-  return ok({
-    id: `material-ref:${record.materialRef.id}`,
-    label: seed.text ?? label.value,
-    expectedKind: normalizeSeedKind(seed.kind ?? record.kind),
-    ...(sourceRef === undefined ? {} : { sourceRef }),
-    ...(canonicalRef === undefined ? {} : { canonicalRef }),
-    query: {
-      text: seed.text ?? label.value,
-      ...(sourceRef === undefined ? {} : { sourceRef }),
-      ...(canonicalRef === undefined ? {} : { canonicalRef }),
-    },
-    ...(seed.reason === undefined ? {} : { reason: seed.reason }),
-  });
-}
-
 async function projectMaterialRecord(
   materialStore: MaterialStorePort,
   record: MaterialRecord,
-  _context: { ownerScope: string; purpose: "resolve.cards" | "context.brief" | "collection.snapshot" },
+  context: {
+    ownerScope: string;
+    purpose: "resolve.cards" | "context.brief" | "collection.snapshot";
+    fallbackLabel?: string;
+  },
 ): Promise<Result<MusicMaterial>> {
   const currentRef = await materialStore.resolveMaterialRedirect({ materialRef: record.materialRef });
 
@@ -974,12 +936,15 @@ async function projectMaterialRecord(
   }
 
   const playableLinks = playableLinksForSourceEntities(sourceEntities.value);
+  const displayLabel = label.value === currentRecord.value.materialRef.id && context.fallbackLabel !== undefined
+    ? context.fallbackLabel
+    : label.value;
 
   return ok({
     id: currentRecord.value.materialRef.id,
     materialRef: currentRecord.value.materialRef,
     kind: normalizeSeedKind(currentRecord.value.kind),
-    label: label.value,
+    label: displayLabel,
     state: projectedStateForMaterialRecord(currentRecord.value, playableLinks),
     identityState: currentRecord.value.identityState,
     ...(currentRecord.value.canonicalRef === undefined ? {} : { canonicalRef: currentRecord.value.canonicalRef }),
