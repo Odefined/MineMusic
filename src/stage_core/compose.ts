@@ -5,6 +5,8 @@ import {
   createMaterialPolicyEvaluator,
   createMaterialQueryService,
   createMaterialResolveService,
+  createMaterialSelector,
+  createMaterialSorter,
   createMaterialStore,
   createRecommendationPresentationService,
 } from "../material/index.js";
@@ -62,9 +64,20 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     sourceGrounding: source,
     collection,
   });
+  const materialQueryPolicyEvaluator = createMaterialPolicyEvaluator({
+    materialStore,
+    collection,
+  });
+  const materialSorter = createMaterialSorter({ materialStore });
+  const materialSelector = createMaterialSelector({
+    materialStore,
+    materialPolicyEvaluator: materialQueryPolicyEvaluator,
+    materialSorter,
+  });
   const materialQuery = createMaterialQueryService({
     materialStore,
     materialResolve,
+    materialSelector,
     collection,
   });
   const libraryImport = createLibraryImportService({
@@ -112,7 +125,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     instruments,
     materialResolve,
     materialQuery,
-    materialSelector: materialQuery,
+    materialSelector,
     source,
     knowledge,
     events,
@@ -156,6 +169,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     collection,
     materialResolve,
     materialQuery,
+    materialSelector,
     source,
     knowledge,
     libraryImport,

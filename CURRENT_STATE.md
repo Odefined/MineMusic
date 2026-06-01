@@ -203,6 +203,12 @@ warnings, and applied labels. Material Query / Related now build candidate
 materialIds and delegate policy, ordering, selection, and cutting to the
 selector. This is still not final recommendation presentation: no
 `recommendation.presented` event behavior changes were made in this slice.
+The 2026-06-01 selector composition cleanup moves Material Selector factory
+wiring out of Material Query and into Stage Core. Stage Core now composes the
+query-side Material Policy Evaluator, Material Sorter, Material Selector, and
+Material Query explicitly, then injects Material Query and Material Selector
+into Tool Dispatch as separate capabilities. Material Query no longer exposes
+`select`.
 
 The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
 `RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the

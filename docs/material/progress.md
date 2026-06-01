@@ -130,6 +130,11 @@ and limit over materialId candidates. The Stage Interface exposes
 `music.material.select` as an optional helper, while Material Query / Related
 delegate policy, sorting, selection, and cutting to the selector. Stage
 Interface owns the compact output projection for the helper.
+The 2026-06-01 selector composition cleanup moves selector factory wiring into
+Stage Core: Stage Core now creates Material Policy, Material Sorter, and
+Material Selector separately, injects `MaterialSelectorPort` into Material
+Query, and passes Material Query and Material Selector to Tool Dispatch as
+separate capabilities. Material Query no longer implements or returns `select`.
 
 Recommendation-posture PR 4 is now implemented. `src/material/presentation/index.ts`
 adds the final presentation boundary behind `RecommendationPresentationPort`
@@ -217,6 +222,9 @@ creates an evidence-backed memory proposal without auto-acceptance.
   `music.material.select`, and focused tests, then migrated Material Query /
   Related selection internals to use the selector while keeping domain results
   stable.
+- Moved Material Selector composition out of Material Query and into Stage Core;
+  Material Query now requires an injected `MaterialSelectorPort` and no longer
+  exposes selector capability.
 - Added Recommendation Presentation contracts, port, implementation,
   `stage.recommendation.present`, typed recommendation presentation event
   recording, and focused tests.
@@ -383,6 +391,8 @@ creates an evidence-backed memory proposal without auto-acceptance.
   `npm test` and `git diff --check`.
 - Recommendation-posture PR 6 verification passed on 2026-05-31:
   `npm test` and `git diff --check`.
+- Material Selector composition cleanup verification passed on 2026-06-01:
+  `npm run typecheck`, `npm test`, and `git diff --check`.
 
 ## Remaining
 
