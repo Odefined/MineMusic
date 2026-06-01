@@ -108,7 +108,7 @@ async function recommendationEventUpdatesActivityFromMaterialIds(): Promise<void
             {
               materialId: materialRef.id,
               title: "Compact Card Activity",
-              status: "playable",
+              state: "source_only_playable",
             },
           ],
         },

@@ -154,7 +154,7 @@ export type StageRecentMaterialItem = {
   materialId: string;
   title: string;
   subtitle?: string;
-  status: "playable" | "found_no_link" | "ambiguous" | "blocked" | "unresolved";
+  state: MaterialState;
   position: number;
   presentedAt: string;
   eventId: string;

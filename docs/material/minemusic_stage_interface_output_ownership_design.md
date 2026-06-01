@@ -422,7 +422,7 @@ export type RecommendationPresentationEventItem = {
   materialId: string;
   materialRef: Ref;
   label: string;
-  status: MaterialState;
+  state: MaterialState;
   identityState: MusicMaterialIdentityState;
   position: number;
   presentedAt: string;
@@ -607,7 +607,7 @@ These tests should verify:
 
 - no raw `MusicMaterial` is exposed in compact output;
 - `materialId` is preserved;
-- title/subtitle/status behavior matches legacy behavior where intended;
+- title/subtitle/state behavior matches domain behavior where intended;
 - warnings/dropped/issues are preserved;
 - playable links are only exposed in final presentation output when allowed.
 

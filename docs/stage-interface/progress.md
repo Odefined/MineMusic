@@ -46,7 +46,8 @@ recent card handles or exact event positions and reads persisted presentation
 Displayed recommendation links keep only link display fields and a compact
 source handle; raw `sourceRef` objects stay in the persisted
 `recommendation.presented` event item for internal feedback binding.
-Displayed cards now treat `status: "playable"` as playable-link availability.
+Displayed cards now expose the underlying `MaterialState` as `state`; playable-link
+availability stays visible through display links rather than an extra card field.
 `music.links.refresh` now takes `materialId` as its public input and projects
 the full material internally before calling Source Grounding.
 

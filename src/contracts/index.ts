@@ -195,18 +195,11 @@ export type StageContext = {
   recentCards?: StageRecentMaterialItem[];
 };
 
-export type StageRecentMaterialStatus =
-  | "playable"
-  | "found_no_link"
-  | "ambiguous"
-  | "blocked"
-  | "unresolved";
-
 export type StageRecentMaterialItem = {
   materialId: string;
   title: string;
   subtitle?: string;
-  status: StageRecentMaterialStatus;
+  state: MaterialState;
   position: number;
   presentedAt: string;
   eventId: string;

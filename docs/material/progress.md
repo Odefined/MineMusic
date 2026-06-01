@@ -71,9 +71,9 @@ Stage context now includes bounded `recentCards` derived from recommendation
 presentation events without exposing raw event payloads. Event Service also
 projects `materialId` values in recommendation payloads into Material Activity,
 so recent exclusion works for presentation events.
-Stage Interface compact material cards now separate playable-link availability
-from identity confidence. Source-backed cards with playable links return
-`status: "playable"` while identity certainty stays out of ordinary
+Stage Interface compact material cards now expose the domain `MaterialState`
+directly as `state`. Playable-link availability stays visible through links
+instead of an extra card field, while identity certainty stays out of ordinary
 agent-facing cards.
 `music.material.context.brief` reports
 ordinary version requests as neutral `version.status: "not_checked"` instead
@@ -113,7 +113,7 @@ infer or validate collection kind from current `MaterialRecord` for materialId
 targets, require canonical/snapshot/target kind hints to agree with known
 Material Records, and include custom collection writes. Compact `resolve.cards`
 can project current Material Records directly, including canonical-only records
-with `found_no_link` status.
+with `grounded` state.
 
 Recommendation-posture PR 2 is now implemented. `src/material_policy/index.ts`
 provides a reusable per-material policy evaluator and a non-filtering material
@@ -381,7 +381,7 @@ creates an evidence-backed memory proposal without auto-acceptance.
 
 - Full `music.material.resolve` canonical-only materialization remains
   deferred; compact `music.material.resolve.cards` can now project existing
-  canonical-only Material Records as `found_no_link` cards.
+  canonical-only Material Records as `grounded` cards.
 - Removing legacy raw/canonical target variants remains deferred until explicit
   cleanup approval.
 - Canonical relation-based same-release/same-release-group semantics, semantic

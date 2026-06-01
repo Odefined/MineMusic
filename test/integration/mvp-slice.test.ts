@@ -122,10 +122,10 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     assert(
       transcript.presentedCards.some((card) =>
         card.materialId === transcript.presentedMaterials.find((material) => material.label === fixtureSourceOnlyPlayableMaterial.label)?.materialRef.id &&
-        card.status === "playable" &&
+        card.state === "source_only_playable" &&
         card.links?.some((link) => link.url === "https://fixture.example/play/source-only-track")
       ),
-      "source-backed playable material should be surfaced as a typed playable card",
+      "source-backed playable material should be surfaced as a typed source_only_playable card",
     );
     assert(
       !transcript.presentedCards.some((card) => card.title === fixtureUnresolvedExplorationMaterial.label),
@@ -172,7 +172,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     );
     const contextResult = await assertOk(stageCore.stageInterface.tools["stage.context.read"]({}));
     const context = contextResult as {
-      recentCards?: Array<{ eventId: string; materialId: string; position: number; title: string }>;
+      recentCards?: Array<{ eventId: string; materialId: string; position: number; state: string; title: string }>;
     };
     assert(
       context.recentCards?.some((card) => card.eventId === recommendationEvent.id && card.title === "Quiet Coding Track"),
@@ -188,6 +188,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     assert(
       sourceOnlyRecentCard !== undefined &&
         sourceOnlyRecentCard.eventId === recommendationEvent.id &&
+        sourceOnlyRecentCard.state === "source_only_playable" &&
         sourceOnlyEventSnapshot?.linkRefs?.some((link) => link.url === "https://fixture.example/play/source-only-track"),
       "feedback binding data should be recoverable from recentCards eventId plus card position",
     );

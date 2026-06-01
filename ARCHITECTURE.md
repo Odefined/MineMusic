@@ -49,11 +49,11 @@ for material actions without exposing internal
 snapshot/relation-scope fields in the normal public schemas, and Collection
 Service uses Material Registry redirects plus MaterialRecord kind inference
 when filtering, adding, or removing material-backed collection items.
-Compact card playability is separate from identity confidence: agent-facing
-cards use `status: "playable"` for source-backed playable links, while identity
-certainty stays in internal event snapshots and detail tools. Link refresh is
-also material-id based at the Stage Interface boundary, so callers do not need
-to construct full `MusicMaterial` payloads for ordinary link-problem recovery.
+Compact cards expose the domain `MaterialState` directly as `state`, while
+display links indicate playable-link availability and identity certainty stays
+in internal event snapshots and detail tools. Link refresh is also material-id
+based at the Stage Interface boundary, so callers do not need to construct full
+`MusicMaterial` payloads for ordinary link-problem recovery.
 Recommendation Presentation is the final user-visible recommendation boundary:
 `stage.recommendation.present` evaluates the intended ordered material ids,
 preserves surviving order, records the typed `recommendation.presented` event,

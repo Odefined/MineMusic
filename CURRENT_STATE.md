@@ -167,14 +167,15 @@ storage and redirect logic still use full `Ref` values, but LLM-facing material
 actions use `materialId` instead of compact `mat_*` refs.
 
 The 2026-05-31 recommendation agent-facing surface hardening separates
-playable-link availability from identity confidence. Compact cards now use
-`status: "playable"` when a source-backed playable link is present; identity
-confidence is retained internally and exposed through detail/audit paths rather
-than ordinary recommendation cards. Pool and collection recommendations are
-documented as `music.material.query` flows, `music.links.refresh` accepts a
-`materialId` instead of a full `MusicMaterial`, ordinary version context reads
-return neutral unchecked status, and the fixture recommendation provider has an
-explicit page-url-only/no-playable-link negative track for evaluator tests.
+playable-link availability from identity confidence. Compact cards now expose
+the domain `MaterialState` directly as `state`; displayed links, not an extra
+card field, indicate playable-link availability. Identity confidence is retained
+internally and exposed through detail/audit paths rather than ordinary
+recommendation cards. Pool and collection recommendations are documented as
+`music.material.query` flows, `music.links.refresh` accepts a `materialId`
+instead of a full `MusicMaterial`, ordinary version context reads return neutral
+unchecked status, and the fixture recommendation provider has an explicit
+page-url-only/no-playable-link negative track for evaluator tests.
 
 The 2026-05-31 recommendation-posture PR 1 resolve cleanup removes ghost
 material identities from Material Resolve. Provider results without stable

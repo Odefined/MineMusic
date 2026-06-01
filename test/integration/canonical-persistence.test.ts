@@ -103,7 +103,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       sourceRef,
     });
     assert(
-      firstResolve.result.items[0]?.status === "playable",
+      firstResolve.result.items[0]?.state === "confirmed_playable",
       "seeded canonical identity should confirm playability before restart",
     );
 
@@ -130,7 +130,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       "material should carry a material ref after recreation",
     );
     assert(
-      persistedResolve.result.items[0]?.status === "playable",
+      persistedResolve.result.items[0]?.state === "confirmed_playable",
       "canonical identity plus source-backed playable link should be confirmed playable after recreation",
     );
 
@@ -149,7 +149,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       "source-only material should carry a material ref",
     );
     assert(
-      sourceOnlyResolve.result.items[0]?.status === "playable",
+      sourceOnlyResolve.result.items[0]?.state === "source_only_playable",
       "source-only playable material should remain source_only_playable",
     );
   } finally {

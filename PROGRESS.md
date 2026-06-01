@@ -1103,7 +1103,7 @@
   `collection.kind_unknown` when kind cannot be inferred without an explicit
   system `collectionKind`.
 - Added direct MaterialRecord projection for `music.material.resolve.cards`
-  materialId seeds, including canonical-only `found_no_link` cards, source-backed
+  materialId seeds, including canonical-only `grounded` cards, source-backed
   labels/links from Source Entity state, merge-survivor projection, and
   `material_not_found` unknown-ref handling.
 - Refreshed `skills/minemusic/HANDBOOK.md` from the current Stage Interface
@@ -1244,8 +1244,9 @@
 - Started recommendation agent-facing surface hardening on branch
   `codex/recommendation-agent-surfaces`.
 - Split compact card playability from identity certainty:
-  source-backed playable cards now return `status: "playable"` while identity
-  certainty stays out of ordinary agent-facing cards.
+  compact cards now expose domain `MaterialState` as `state`, while display
+  links indicate playable-link availability and identity certainty stays out of
+  ordinary agent-facing cards.
 - Changed `music.links.refresh` to accept public `materialId` input and
   project the full material internally before Source Grounding refresh.
 - Tightened MineMusic skill/Handbook guidance so pool and collection

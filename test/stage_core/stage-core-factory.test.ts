@@ -108,7 +108,7 @@ async function createsStageCoreWithInjectedSourceProvider(): Promise<void> {
   assert(calls.includes("provider.search"), "Stage Core should route material resolve to injected provider");
   assert(items[0]?.title === "Provider Coding Track", "Stage Core should return compact provider material through Stage Interface");
   assert(
-    items[0]?.status === "playable",
+    items[0]?.state === "source_only_playable",
     "Stage Core should preserve source-backed playability normalization",
   );
 }
@@ -315,7 +315,7 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
     "Stage Core should resolve through the injected canonical repository",
   );
   assert(
-    resolveResult.result.items[0]?.status === "playable",
+    resolveResult.result.items[0]?.state === "confirmed_playable",
     "Injected canonical storage should allow source-backed material to become confirmed playable",
   );
 }
@@ -576,7 +576,7 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
     "Stage Core Material Resolve should use Collection blocked membership",
   );
   assert(
-    resolveResult.result.items[0]?.status === "blocked",
+    resolveResult.result.items[0]?.state === "blocked",
     "Stage Core Material Resolve should return blocked material state",
   );
 }

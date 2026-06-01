@@ -5,6 +5,7 @@ import type {
   MaterialResolveResult,
   MaterialResolveCardsOutput,
   MaterialResolveStatus,
+  MaterialState,
   MaterialSelectDropped,
   MaterialSelectOutput,
   MaterialSelectWarning,
@@ -17,7 +18,7 @@ export type CompactMaterialCard = {
   materialId?: string;
   title: string;
   subtitle?: string;
-  status: "playable" | "found_no_link" | "ambiguous" | "blocked" | "unresolved";
+  state: MaterialState;
 };
 
 export type CompactCandidateMaterialCard = CompactMaterialCard & {
@@ -76,7 +77,7 @@ export function compactMaterialCard(material: MusicMaterial): CompactMaterialCar
     materialId: material.materialRef.id,
     title: material.label,
     ...(subtitle === undefined ? {} : { subtitle }),
-    status: compactMaterialCardStatus(material),
+    state: material.state,
   };
 }
 
@@ -108,7 +109,7 @@ export function compactMaterialResolveCardsOutput(output: MaterialResolveCardsOu
       ...(output.unresolved ?? []).map((item) => ({
         ...(item.materialId === undefined ? {} : { materialId: item.materialId }),
         title: item.label,
-        status: "unresolved" as const,
+        state: "unresolved" as const,
       })),
     ],
     ...(output.next === undefined ? {} : { next: output.next }),
@@ -151,22 +152,6 @@ function compactResolvedCandidate(candidate: ResolvedCandidate): CompactResolved
     ...(candidate.issues === undefined ? {} : { issues: candidate.issues }),
     items: candidate.materials.map(compactMaterialCard),
   };
-}
-
-function compactMaterialCardStatus(material: MusicMaterial): CompactMaterialCard["status"] {
-  switch (material.state) {
-    case "confirmed_playable":
-    case "source_only_playable":
-      return "playable";
-    case "grounded":
-      return "found_no_link";
-    case "blocked":
-      return "blocked";
-    case "unresolved":
-    case "exploration":
-    case "verbal_only":
-      return "unresolved";
-  }
 }
 
 function subtitleForMaterial(material: MusicMaterial): string | undefined {

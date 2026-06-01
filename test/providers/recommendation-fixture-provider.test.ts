@@ -42,7 +42,7 @@ async function pageWindowFixtureIsPageUrlOnly(): Promise<void> {
 
   const card = compactMaterialCard(toResolvedMaterial(material, material.sourceRefs?.[0] as Ref));
 
-  assert(card.status === "found_no_link", "page-url-only fixture should project as found_no_link");
+  assert(card.state === "grounded", "page-url-only fixture should project as grounded");
   assert(!("actions" in card), "fixture material cards should not expose action menus");
 }
 

@@ -15,6 +15,7 @@ import type {
   MaterialRelatedOutput,
   MaterialResolveCardsInput,
   MaterialResolveCardsOutput,
+  MaterialState,
   MusicCandidate,
   MusicMaterial,
   PlatformLibraryItemKind,
@@ -62,13 +63,6 @@ type ResolvedSeedItems = {
   items: MaterialQueryItem[];
   unresolved: MaterialResolveUnresolvedItem[];
 };
-
-type RecentPresentationStatus =
-  | "playable"
-  | "found_no_link"
-  | "ambiguous"
-  | "blocked"
-  | "unresolved";
 
 export function createMaterialQueryService({
   materialStore,
@@ -279,6 +273,12 @@ export function recentCardsFromEvents(
         continue;
       }
 
+      const state = materialStateFromEventValue(card.state);
+
+      if (state === undefined) {
+        continue;
+      }
+
       recentCards.push({
         materialId,
         title,
@@ -286,7 +286,7 @@ export function recentCardsFromEvents(
         position: typeof card.position === "number" ? card.position : index + 1,
         presentedAt: typeof card.presentedAt === "string" ? card.presentedAt : event.payload.presentedAt,
         eventId: event.id,
-        status: materialCardStatusFromEventValue(card.status),
+        state,
       });
 
       if (recentCards.length >= limit) {
@@ -1901,20 +1901,20 @@ function dedupeRefs(refs: Ref[]): Ref[] {
   return [...byKey.values()];
 }
 
-function isRecentPresentationStatus(value: unknown): value is RecentPresentationStatus {
-  return (
-    value === "playable" ||
-    value === "found_no_link" ||
-    value === "ambiguous" ||
-    value === "blocked" ||
-    value === "unresolved"
-  );
+function materialStateFromEventValue(value: unknown): MaterialState | undefined {
+  return isMaterialState(value) ? value : undefined;
 }
 
-function materialCardStatusFromEventValue(value: unknown): RecentPresentationStatus {
-  return value === "playable_unverified"
-    ? "playable"
-    : isRecentPresentationStatus(value) ? value : "unresolved";
+function isMaterialState(value: unknown): value is MaterialState {
+  return (
+    value === "grounded" ||
+    value === "confirmed_playable" ||
+    value === "source_only_playable" ||
+    value === "exploration" ||
+    value === "unresolved" ||
+    value === "blocked" ||
+    value === "verbal_only"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
