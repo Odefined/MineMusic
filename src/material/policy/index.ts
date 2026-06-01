@@ -15,19 +15,20 @@ import type {
 import type {
   CollectionPort,
   MaterialPolicyEvaluatorPort,
+  MaterialPolicyStorePort,
   MaterialSorterPort,
-  MaterialStorePort,
+  MaterialSorterStorePort,
 } from "../../ports/index.js";
 import { projectMaterialRelations } from "./relation_projection.js";
 
 type MaterialPolicyEvaluatorOptions = {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialPolicyStorePort;
   collection?: CollectionPort;
   clock?: () => string;
 };
 
 type MaterialSorterOptions = {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialSorterStorePort;
   clock?: () => string;
 };
 
@@ -64,7 +65,7 @@ async function evaluateMaterialPolicy({
   input,
   now,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialPolicyStorePort;
   collection?: CollectionPort;
   input: MaterialPolicyEvaluationInput;
   now: string;
@@ -176,7 +177,7 @@ async function applyRelationPolicy({
   excludeRelations,
   dropBlockedByDefault,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialPolicyStorePort;
   ownerScope: string;
   material: MusicMaterial;
   excludeRelations: NonNullable<MaterialPolicyEvaluationInput["policy"]["excludeRelations"]>;
@@ -283,7 +284,7 @@ async function evaluateFreshness({
   input,
   now,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialPolicyStorePort;
   ownerScope: string;
   sessionId?: string;
   materialRef: Ref;
@@ -362,7 +363,7 @@ async function sortMaterials({
   materialStore,
   input,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialSorterStorePort;
   input: MaterialSortInput;
 }): Promise<Result<MaterialSortOutput>> {
   const candidates = [...input.candidates];
@@ -463,7 +464,7 @@ async function sortMaterials({
 }
 
 async function projectMaterialRecord(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialPolicyStorePort,
   record: MaterialRecord,
 ): Promise<Result<MusicMaterial>> {
   const sourceRefs = sourceRefsForMaterialRecord(record);
@@ -531,7 +532,7 @@ function sourceRefsForMaterialRecord(record: MaterialRecord): Ref[] {
 }
 
 async function sourceEntitiesForRefs(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialPolicyStorePort,
   sourceRefs: Ref[],
 ): Promise<Result<SourceEntity[]>> {
   const entities: SourceEntity[] = [];
@@ -581,7 +582,7 @@ function projectedStateForMaterialRecord(
 }
 
 async function labelForMaterialRecord(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialPolicyStorePort,
   record: MaterialRecord,
 ): Promise<Result<string>> {
   if (record.canonicalRef !== undefined) {
@@ -614,7 +615,7 @@ async function labelForMaterialRecord(
 }
 
 async function recentlyAddedAtForMaterial(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialSorterStorePort,
   ownerScope: string,
   material: MusicMaterial,
 ): Promise<Result<string | undefined>> {

@@ -8,7 +8,10 @@ import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/m
 import { createMaterialSelector } from "../../src/material/selection/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import type {
+  MaterialPolicyStorePort,
+  MaterialSelectionStorePort,
   MaterialSelectorPort,
+  MaterialSorterStorePort,
   MaterialStorePort,
 } from "../../src/ports/index.js";
 import {
@@ -48,13 +51,16 @@ function createHarness(): {
     materialActivity,
     sourceEntityStore: createInMemorySourceEntityStoreRepository(),
   });
+  const policyStore: MaterialPolicyStorePort = materialStore;
+  const sorterStore: MaterialSorterStorePort = materialStore;
+  const selectionStore: MaterialSelectionStorePort = materialStore;
   const materialPolicyEvaluator = createMaterialPolicyEvaluator({
-    materialStore,
+    materialStore: policyStore,
     clock: () => "2026-05-31T02:30:00.000Z",
   });
-  const materialSorter = createMaterialSorter({ materialStore });
+  const materialSorter = createMaterialSorter({ materialStore: sorterStore });
   const materialSelector = createMaterialSelector({
-    materialStore,
+    materialStore: selectionStore,
     materialPolicyEvaluator,
     materialSorter,
   });
