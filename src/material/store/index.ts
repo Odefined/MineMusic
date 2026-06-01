@@ -4,7 +4,7 @@ import type {
   MusicMaterialRelation,
   Ref,
   Result,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 import type {
   CanonicalStorePort,
   MaterialActivityRepository,
@@ -13,13 +13,13 @@ import type {
   MaterialStorePort,
   MusicMaterialRelationRepository,
   SourceEntityStoreRepository,
-} from "../ports/index.js";
+} from "../../ports/index.js";
 import { createInMemoryMaterialRegistry } from "./material_registry/index.js";
 import {
   createInMemoryMaterialActivityRepository,
   createInMemoryMaterialSessionActivityRepository,
   createInMemoryMusicMaterialRelationRepository,
-} from "../storage/index.js";
+} from "../../storage/index.js";
 
 export {
   createCanonicalMaintenance,

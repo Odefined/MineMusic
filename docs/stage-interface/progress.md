@@ -35,9 +35,9 @@ to the caller.
 Material modules return domain results. Stage Interface output modules project
 those results into compact agent-facing outputs. MaterialCard-like DTOs are
 Stage Interface output types, not material service communication formats.
-`recommendation_presentation` remains a core/runtime service for final policy
-and event recording; only compact output projection belongs to Stage
-Interface.
+Material Presentation under `src/material/presentation` remains a core/runtime
+service for final policy and event recording; only compact output projection
+belongs to Stage Interface.
 
 The Memory Tool Group now exposes `memory.feedback.record` for interpreted
 feedback on presented recommendation cards. Its target resolver binds through

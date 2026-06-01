@@ -142,7 +142,7 @@ Purpose:
 
 Owns:
 
-- `src/material_store/canonical/**`
+- `src/material/store/canonical/**`
 - canonical repository interface and default implementation.
 
 Inputs:
@@ -168,7 +168,7 @@ Purpose:
 
 Owns:
 
-- `src/material_resolve/**`
+- `src/material/resolve/**`
 - `src/source/**`
 - Source Slot provider interface.
 - fixture or minimal source provider.

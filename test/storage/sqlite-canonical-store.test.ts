@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
+import { createCanonicalStore } from "../../src/material/store/canonical/index.js";
 import type { CanonicalProviderIdentity, CanonicalRecord, Ref, Result } from "../../src/contracts/index.js";
 import type { CanonicalRecordRepository } from "../../src/ports/index.js";
 import { createSqliteCanonicalRecordRepository } from "../../src/storage/index.js";

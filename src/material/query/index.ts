@@ -25,7 +25,7 @@ import type {
   SourceEntity,
   SourceLibraryItem,
   StageError,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 import type {
   CollectionPort,
   MaterialQueryPort,
@@ -34,12 +34,12 @@ import type {
   MaterialResolvePort,
   MaterialSelectorPort,
   MaterialStorePort,
-} from "../ports/index.js";
+} from "../../ports/index.js";
 import {
   createMaterialPolicyEvaluator,
   createMaterialSorter,
-} from "../material_policy/index.js";
-import { createMaterialSelector } from "../material_selection/index.js";
+} from "../policy/index.js";
+import { createMaterialSelector } from "../selection/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
@@ -241,8 +241,8 @@ async function currentMaterialRecordForRef(
 export function recentCardsFromEvents(
   events: Array<{ id: string; type: string; payload: unknown }>,
   limit = defaultRecentCardLimit,
-): NonNullable<import("../contracts/index.js").StageContext["recentCards"]> {
-  const recentCards: NonNullable<import("../contracts/index.js").StageContext["recentCards"]> = [];
+): NonNullable<import("../../contracts/index.js").StageContext["recentCards"]> {
+  const recentCards: NonNullable<import("../../contracts/index.js").StageContext["recentCards"]> = [];
 
   for (const event of [...events].reverse()) {
     if (event.type !== "recommendation.presented") {

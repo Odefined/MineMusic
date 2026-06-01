@@ -7,7 +7,7 @@ This file tracks Library Import implementation progress.
 - Library Import initial import and update orchestration are implemented for the
   first synchronous slice.
 - Library Import is now owned by Source Entity Store inside Material Store. The
-  implementation lives in `src/material_store/source_entity/library-import.ts`.
+  implementation lives in `src/material/store/source_entity/library-import.ts`.
   `src/library_import/index.ts` is a compatibility export path for existing
   imports and tests, not a separate ownership boundary.
 - Public contracts still expose `LibraryImportPort` and

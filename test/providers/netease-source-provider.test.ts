@@ -1,5 +1,5 @@
 import type { CanonicalRecord, MusicMaterial } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/material_store/canonical/index.js";
+import { createCanonicalStore } from "../../src/material/store/canonical/index.js";
 import { createNetEaseSourceProvider, type NetEaseProviderOptions } from "../../src/providers/netease/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import { createSourceGroundingService } from "../../src/source/index.js";

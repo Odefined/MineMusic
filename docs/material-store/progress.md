@@ -5,10 +5,10 @@ This file tracks implementation progress for Material Store.
 ## Current State
 
 - Material Store is the top-level capability for canonical identity and
-  source-material state. `src/material_store/index.ts` composes the Canonical
+  source-material state. `src/material/store/index.ts` composes the Canonical
   Store subdomain and Source Entity Store behind `MaterialStorePort`.
 - Canonical Store remains the canonical identity subdomain under
-  `src/material_store/canonical/**`. It owns canonical records, canonical
+  `src/material/store/canonical/**`. It owns canonical records, canonical
   maintenance, provisional review facts, and canonical graph maintenance.
 - Source Entity Store contracts are defined in `src/contracts/index.ts` and
   `src/ports/index.ts`. It owns Source Track/Release/Artist, Source Library
@@ -24,7 +24,7 @@ This file tracks implementation progress for Material Store.
   repositories. `materialStoreDatabasePath` /
   `MINEMUSIC_MATERIAL_STORE_DB_PATH` initializes both subdomains.
 - Library Import/Update lives under
-  `src/material_store/source_entity/library-import.ts`. The old
+  `src/material/store/source_entity/library-import.ts`. The old
   `src/library_import/index.ts` path re-exports that implementation to preserve
   public imports and external tool names.
 - Library Import writes every observed provider item into Source Entity Store

@@ -1,8 +1,8 @@
 import type { Ref } from "../../src/contracts/index.js";
 import type { EffectBoundaryPort, EventPort, MaterialStorePort } from "../../src/ports/index.js";
 import { createEventService } from "../../src/events/index.js";
-import { createMaterialPolicyEvaluator } from "../../src/material_policy/index.js";
-import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
+import { createMaterialPolicyEvaluator } from "../../src/material/policy/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { createMemoryService } from "../../src/memory/index.js";
 import {
   createInMemoryCanonicalRecordRepository,

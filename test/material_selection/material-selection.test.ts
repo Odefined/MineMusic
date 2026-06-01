@@ -4,9 +4,9 @@ import type {
   Ref,
   Result,
 } from "../../src/contracts/index.js";
-import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material_policy/index.js";
-import { createMaterialSelector } from "../../src/material_selection/index.js";
-import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
+import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
+import { createMaterialSelector } from "../../src/material/selection/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import type {
   MaterialSelectorPort,
   MaterialStorePort,

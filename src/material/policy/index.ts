@@ -11,13 +11,13 @@ import type {
   Ref,
   Result,
   SourceEntity,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 import type {
   CollectionPort,
   MaterialPolicyEvaluatorPort,
   MaterialSorterPort,
   MaterialStorePort,
-} from "../ports/index.js";
+} from "../../ports/index.js";
 import { projectMaterialRelations } from "./relation_projection.js";
 
 type MaterialPolicyEvaluatorOptions = {

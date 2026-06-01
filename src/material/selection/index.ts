@@ -11,13 +11,13 @@ import type {
   Ref,
   Result,
   SourceEntity,
-} from "../contracts/index.js";
+} from "../../contracts/index.js";
 import type {
   MaterialPolicyEvaluatorPort,
   MaterialSelectorPort,
   MaterialSorterPort,
   MaterialStorePort,
-} from "../ports/index.js";
+} from "../../ports/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 

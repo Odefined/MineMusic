@@ -21,14 +21,14 @@ import type {
   Result,
   StageError,
   StageWarning,
-} from "../../contracts/index.js";
+} from "../../../contracts/index.js";
 import type {
   CanonicalMaintenancePort,
   CanonicalRecordRepository,
   EventPort,
   MusicKnowledgePort,
   SessionContextPort,
-} from "../../ports/index.js";
+} from "../../../ports/index.js";
 import {
   isCurrentCanonicalRecord,
   sameRef,

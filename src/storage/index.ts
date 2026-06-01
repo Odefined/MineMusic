@@ -55,7 +55,7 @@ export {
   createSqliteSourceEntityStoreRepository,
   sqliteCanonicalSourceRefConflictConstraint,
 } from "./sqlite/index.js";
-export { createInMemoryMaterialRegistry } from "../material_store/material_registry/index.js";
+export { createInMemoryMaterialRegistry } from "../material/store/material_registry/index.js";
 export type {
   SqliteCanonicalRecordRepositoryOptions,
   SqliteCollectionRepositoryOptions,

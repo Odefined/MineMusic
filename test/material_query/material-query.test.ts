@@ -15,9 +15,9 @@ import type {
 } from "../../src/contracts/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
-import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material_store/index.js";
-import { createMaterialQueryService, materialRefToMaterialId } from "../../src/material_query/index.js";
-import { createMaterialResolveService } from "../../src/material_resolve/index.js";
+import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
+import { createMaterialQueryService, materialRefToMaterialId } from "../../src/material/query/index.js";
+import { createMaterialResolveService } from "../../src/material/resolve/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,

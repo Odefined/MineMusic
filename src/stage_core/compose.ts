@@ -2,18 +2,18 @@ import {
   createCanonicalMaintenance,
   createCanonicalStore,
   createLibraryImportService,
+  createMaterialPolicyEvaluator,
+  createMaterialQueryService,
+  createMaterialResolveService,
   createMaterialStore,
-} from "../material_store/index.js";
+  createRecommendationPresentationService,
+} from "../material/index.js";
 import { createCollectionService } from "../collection/index.js";
 import { createEffectBoundary } from "../effects/index.js";
 import { createEventService } from "../events/index.js";
 import { createMusicKnowledgeService } from "../knowledge/index.js";
-import { createMaterialPolicyEvaluator } from "../material_policy/index.js";
-import { createMaterialQueryService } from "../material_query/index.js";
-import { createMaterialResolveService } from "../material_resolve/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
-import { createRecommendationPresentationService } from "../recommendation_presentation/index.js";
 import { createSourceGroundingService } from "../source/index.js";
 import { createMaterialGate, createSessionContext } from "../stage/index.js";
 import {

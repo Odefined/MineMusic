@@ -220,34 +220,34 @@ This index points agents to the current MVP documentation pack.
     - Collection Service behavior tests for system initialization, custom
       collection lifecycle, item membership, blocked filtering, and events.
 
-40. `src/material_store/index.ts`
-    - Material Store composition boundary that combines Material Registry,
-      Canonical Store, and Source Entity Store behind `MaterialStorePort`.
+40. `src/material/index.ts`
+    - Material bounded context public barrel for store, resolve, query, policy,
+      selection, and presentation exports.
 
-41. `src/material_query/index.ts`
+41. `src/material/query/index.ts`
     - Material Query/Related service for domain material retrieval, Source
       Library and Collection-compatible retrieval, selector delegation, context
       brief, and pool listing. Stage Interface owns compact output projection.
-    - `src/material_policy/index.ts` owns reusable per-material policy
+    - `src/material/policy/index.ts` owns reusable per-material policy
       evaluation and non-filtering material sorting.
-    - `src/material_selection/index.ts` owns optional materialId selection with
+    - `src/material/selection/index.ts` owns optional materialId selection with
       evaluator + sorter + diversity + limit.
-    - `src/recommendation_presentation/index.ts` owns the final
+    - `src/material/presentation/index.ts` owns the final
       recommendation presentation gate, typed `recommendation.presented`
       events, and domain feedback-binding event facts.
 
-42. `src/material_store/material_registry/index.ts`
+42. `src/material/store/material_registry/index.ts`
     - In-memory Material Registry implementation for opaque `materialRef`
       records, source/canonical lookup, canonical promotion, and redirects.
 
-43. `src/material_store/canonical/index.ts`
+43. `src/material/store/canonical/index.ts`
     - Canonical Store public-port implementation, provisional relation
       recording/listing with optional object refs, and current identity policy.
 
-44. `src/material_store/canonical/normalization.ts`
+44. `src/material/store/canonical/normalization.ts`
     - Canonical label, ref, and current-record normalization helpers.
 
-45. `src/material_store/canonical/storage.ts`
+45. `src/material/store/canonical/storage.ts`
     - Canonical Store repository-backed lookup and write-error mapping
       mechanics, plus relation persistence delegation.
 
@@ -306,7 +306,7 @@ This index points agents to the current MVP documentation pack.
       Interface tools, Material Resolve blocked filtering, and durable
       Collection database path reuse.
 
-56. `src/material_resolve/index.ts`
+56. `src/material/resolve/index.ts`
     - Material Resolve service for canonical-first `MusicCandidate` to
       `MusicMaterial` resolution through `MaterialStorePort`, including
       Confirmed Canonical Binding lookup and explicit Source Library scoped
@@ -441,7 +441,7 @@ This index points agents to the current MVP documentation pack.
     - SQLite Library Import repository persistence tests for batch/report,
       snapshot baseline, item provenance, and absence records across reopen.
 
-82. `src/material_store/source_entity/library-import.ts`
+82. `src/material/store/source_entity/library-import.ts`
     - Library Import/Update implementation owned by Source Entity Store:
       platform-library provider lookup, Source Entity and Source Library
       upserts, confirmed-binding Collection writes, update diffing, Platform

@@ -1270,6 +1270,13 @@
   `src/stage_interface/outputs/**`, and added
   `test/architecture/material-boundary.test.ts` to prevent material modules
   from importing Stage Interface output DTOs or legacy card DTO names.
+- Completed Stage Interface output ownership PR 5 on branch
+  `codex/material-bounded-context-pr5`: consolidated Material Store, Material
+  Resolve, Material Query, Material Policy, Material Selection, and Material
+  Presentation under `src/material/**`, added `src/material/index.ts` as the
+  bounded-context public barrel, updated production/test imports, and tightened
+  the material boundary test to scan `src/material/**` and reject legacy root
+  material directories.
 
 ## Next
 
