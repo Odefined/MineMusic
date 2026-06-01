@@ -282,7 +282,6 @@ function toCandidateMaterialCard(candidate: MaterialSortCandidate): CandidateMat
   return {
     ...card,
     materialId: materialRefToMaterialId(candidate.material.materialRef),
-    ...(candidate.reason === undefined ? {} : { reason: candidate.reason }),
   };
 }
 

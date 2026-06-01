@@ -1245,9 +1245,8 @@
 - Started recommendation agent-facing surface hardening on branch
   `codex/recommendation-agent-surfaces`.
 - Split compact card playability from identity certainty:
-  source-backed playable cards now return `status: "playable"` with
-  `identityConfidence: "source_backed"` instead of overloading link status with
-  identity certainty.
+  source-backed playable cards now return `status: "playable"` while identity
+  certainty stays out of ordinary agent-facing cards.
 - Changed `music.links.refresh` to accept public `materialId` input and
   project the full material internally before Source Grounding refresh.
 - Tightened MineMusic skill/Handbook guidance so pool and collection

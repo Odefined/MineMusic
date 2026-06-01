@@ -172,8 +172,11 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
 
   assert(output.presented, "presenter should present when enough cards survive");
   assert(output.cards.map((card) => card.title).join(",") === "First,Third", "presenter should preserve surviving input order");
-  assert(output.cards[0]?.position === 1 && output.cards[1]?.position === 2, "presented cards should have display positions");
-  assert(output.cards[0]?.reason === "sets the mood", "presenter should carry agent reason");
+  assert(!("position" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose display positions");
+  assert(!("presentedAt" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose presentation timestamps");
+  assert(!("reason" in (output.cards[0] as Record<string, unknown>)), "presented cards should not echo agent reasons");
+  assert(!("identityConfidence" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose identity confidence");
+  assert(!("actions" in (output.cards[0] as Record<string, unknown>)), "presented cards should not expose action menus");
   assert(
     output.cards[0]?.links?.some((link) => link.url === "https://example.test/first"),
     "presented output cards should keep display links",
@@ -200,9 +203,13 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
     position?: number;
     links?: unknown;
     linkRefs?: Array<{ sourceRef?: Ref; url?: string }>;
+    reason?: string;
+    identityConfidence?: string;
   }>;
   assert(payloadCards[0]?.materialId === output.cards[0]?.materialId, "event payload cards should preserve card identity");
-  assert(payloadCards[0]?.position === output.cards[0]?.position, "event payload cards should preserve card position");
+  assert(payloadCards[0]?.position === 1, "event payload cards should preserve card position");
+  assert(payloadCards[0]?.reason === "sets the mood", "event payload cards should preserve recommendation reason internally");
+  assert(payloadCards[0]?.identityConfidence === "source_backed", "event payload cards should preserve identity confidence internally");
   assert(payloadCards[0]?.links === undefined, "event payload cards should not persist display links");
   assert(
     payloadCards[0]?.linkRefs?.some((link) => link.url === "https://example.test/first"),

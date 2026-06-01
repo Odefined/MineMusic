@@ -1,8 +1,6 @@
 import type {
   CollectionItem,
   MaterialCard,
-  MaterialCardAction,
-  MaterialCardIdentityConfidence,
   MaterialCardStatus,
   MaterialContextBriefInput,
   MaterialContextBriefOutput,
@@ -272,11 +270,6 @@ export function recentCardsFromEvents(
         presentedAt: typeof card.presentedAt === "string" ? card.presentedAt : event.payload.presentedAt,
         eventId: event.id,
         status: materialCardStatusFromEventValue(card.status),
-        ...(isMaterialCardIdentityConfidence(card.identityConfidence)
-          ? { identityConfidence: card.identityConfidence }
-          : {}),
-        ...(typeof card.reason === "string" ? { reason: card.reason } : {}),
-        ...(isMaterialCardActionArray(card.actions) ? { actions: card.actions } : {}),
       });
 
       if (recentCards.length >= limit) {
@@ -294,10 +287,6 @@ function materialIdFromCardPayload(card: Record<string, unknown>): string | unde
   }
 
   return undefined;
-}
-
-function isMaterialCardActionArray(value: unknown): value is MaterialCardAction[] {
-  return Array.isArray(value) && value.every(isMaterialCardAction);
 }
 
 async function resolveSeeds({
@@ -390,7 +379,6 @@ async function resolveSeedCards({
       cards.push({
         title: seed.text ?? `seed-${index + 1}`,
         status: "unresolved",
-        reason: resolved.value.issues[0]?.code ?? "material_not_found",
       });
     }
   }
@@ -419,7 +407,6 @@ async function resolveMaterialRefSeed({
   if (record.value === null) {
     return ok([unresolvedMaterialCard({
       title: seed.text ?? materialId,
-      reason: "material_not_found",
     })]);
   }
 
@@ -555,7 +542,7 @@ async function sourceLibraryMaterials({
         continue;
       }
 
-      const material = await materialForSourceLibraryItem({
+      const material = await projectStoredSourceLibraryItem({
         materialStore,
         ownerScope,
         item,
@@ -593,7 +580,7 @@ async function allSourceLibraryMaterials({
   const materials: MusicMaterial[] = [];
 
   for (const item of items.value.filter((entry) => matchesQueryText(entry.label, q))) {
-    const material = await materialForSourceLibraryItem({
+    const material = await projectStoredSourceLibraryItem({
       materialStore,
       ownerScope,
       item,
@@ -609,7 +596,7 @@ async function allSourceLibraryMaterials({
   return ok(dedupeMaterials(materials));
 }
 
-async function materialForSourceLibraryItem({
+async function projectStoredSourceLibraryItem({
   materialStore,
   ownerScope,
   item,
@@ -618,32 +605,10 @@ async function materialForSourceLibraryItem({
   ownerScope: string;
   item: SourceLibraryItem;
 }): Promise<Result<MusicMaterial>> {
-  return materialForSourceRef({
-    materialStore,
-    ownerScope,
+  const record = await materialStore.getOrCreateBySourceRef({
     sourceRef: item.sourceRef,
     kind: sourceKindToMaterialKind(item.sourceKind),
-    fallbackLabel: item.label,
-  });
-}
-
-async function materialForSourceRef({
-  materialStore,
-  ownerScope,
-  sourceRef,
-  kind,
-  fallbackLabel,
-}: {
-  materialStore: MaterialStorePort;
-  ownerScope: string;
-  sourceRef: Ref;
-  kind: string;
-  fallbackLabel?: string;
-}): Promise<Result<MusicMaterial>> {
-  const record = await materialStore.getOrCreateBySourceRef({
-    sourceRef,
-    kind,
-    primarySourceRef: sourceRef,
+    primarySourceRef: item.sourceRef,
   });
 
   if (!record.ok) {
@@ -653,7 +618,7 @@ async function materialForSourceRef({
   return projectMaterialRecord(materialStore, record.value, {
     ownerScope,
     purpose: "resolve.cards",
-    ...(fallbackLabel === undefined ? {} : { fallbackLabel }),
+    fallbackLabel: item.label,
   });
 }
 
@@ -1059,17 +1024,14 @@ async function labelForMaterialRecord(
 function unresolvedMaterialCard({
   materialId,
   title,
-  reason,
 }: {
   materialId?: string;
   title: string;
-  reason: string;
 }): MaterialCard {
   return {
     ...(materialId === undefined ? {} : { materialId }),
     title,
     status: "unresolved",
-    reason,
   };
 }
 
@@ -1935,27 +1897,6 @@ function materialCardStatusFromEventValue(value: unknown): MaterialCardStatus {
   return value === "playable_unverified"
     ? "playable"
     : isMaterialCardStatus(value) ? value : "unresolved";
-}
-
-function isMaterialCardIdentityConfidence(value: unknown): value is MaterialCardIdentityConfidence {
-  return (
-    value === "canonical_confirmed" ||
-    value === "source_backed" ||
-    value === "ambiguous" ||
-    value === "unresolved"
-  );
-}
-
-function isMaterialCardAction(value: unknown): value is MaterialCardAction {
-  return (
-    value === "open" ||
-    value === "more_like_this" ||
-    value === "same_artist" ||
-    value === "same_album" ||
-    value === "not_this_version" ||
-    value === "block" ||
-    value === "remember"
-  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

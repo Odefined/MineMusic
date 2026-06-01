@@ -21,7 +21,6 @@ import type {
 } from "../ports/index.js";
 import {
   subtitleForMaterial,
-  toMaterialCardActions,
   toMaterialCardIdentityConfidence,
   toMaterialCardStatus,
 } from "../material_cards/index.js";
@@ -125,11 +124,7 @@ async function presentRecommendation({
     });
   }
 
-  const cards = selected.map((item, index) => toPresentedMaterialCard({
-    item,
-    position: index + 1,
-    presentedAt,
-  }));
+  const cards = selected.map((item) => toPresentedMaterialCard({ item }));
   const minCards = normalizeOptionalCount(input.minCards) ?? 1;
 
   if (cards.length < minCards) {
@@ -189,29 +184,18 @@ function presentationPolicy(input: RecommendationPresentInput): MaterialPolicyIn
 
 function toPresentedMaterialCard({
   item,
-  position,
-  presentedAt,
 }: {
   item: AcceptedPresentationItem;
-  position: number;
-  presentedAt: string;
 }): PresentedMaterialCard {
   const subtitle = subtitleForMaterial(item.material);
-  const actions = toMaterialCardActions(item.material);
   const links = toPresentedMaterialLinks(item.material);
-  const reason = item.reason ?? item.material.notes;
 
   return {
     materialId: materialRefToMaterialId(item.material.materialRef),
     title: item.material.label,
     ...(subtitle === undefined ? {} : { subtitle }),
     status: toMaterialCardStatus(item.material),
-    identityConfidence: toMaterialCardIdentityConfidence(item.material),
-    ...(reason === undefined ? {} : { reason }),
     ...(links.length === 0 ? {} : { links }),
-    ...(actions.length === 0 ? {} : { actions }),
-    position,
-    presentedAt,
   };
 }
 
@@ -243,7 +227,12 @@ function recommendationPresentedPayload({
     ...(input.request === undefined ? {} : { request: input.request }),
     presentedAt,
     cards: cards.map((card, index) =>
-      toRecommendationPresentedCardSnapshot(card, selected[index] as AcceptedPresentationItem)
+      toRecommendationPresentedCardSnapshot(
+        card,
+        selected[index] as AcceptedPresentationItem,
+        index + 1,
+        presentedAt,
+      )
     ),
     ...(basis.length === 0 ? {} : { basis }),
   };
@@ -252,8 +241,11 @@ function recommendationPresentedPayload({
 function toRecommendationPresentedCardSnapshot(
   card: PresentedMaterialCard,
   item: AcceptedPresentationItem,
+  position: number,
+  presentedAt: string,
 ): RecommendationPresentedCardSnapshot {
   const { links, ...snapshot } = card;
+  const reason = item.reason ?? item.material.notes;
   const linkRefs = (item.material.playableLinks ?? []).map((link) => ({
     sourceRef: link.sourceRef,
     ...(link.label === undefined ? {} : { label: link.label }),
@@ -262,6 +254,10 @@ function toRecommendationPresentedCardSnapshot(
 
   return {
     ...snapshot,
+    position,
+    presentedAt,
+    identityConfidence: toMaterialCardIdentityConfidence(item.material),
+    ...(reason === undefined ? {} : { reason }),
     ...(linkRefs.length === 0 ? {} : { linkRefs }),
   };
 }

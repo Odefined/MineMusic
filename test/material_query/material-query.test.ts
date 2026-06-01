@@ -85,7 +85,7 @@ async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGroundi
   assert(output.items.length === 1, "saved-track query should project stored SourceEntity links without provider re-grounding");
   assert(output.items[0]?.title === "Stored Playable Track", "stored SourceEntity label should become the material card title");
   assert(output.items[0]?.status === "playable", "stored SourceEntity providerUrl should become a playable card");
-  assert(output.items[0]?.identityConfidence === "source_backed", "stored source-library cards should remain source-backed unless canonical-confirmed");
+  assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "material cards should not expose identity confidence");
 }
 
 async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Promise<void> {
@@ -106,7 +106,7 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
   assert(output.items.length === 1, "resolve cards should return one card for a source-backed material ref");
   assert(output.items[0]?.title === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the material id");
   assert(output.items[0]?.status === "playable", "source-backed material refs with links should be playable");
-  assert(output.items[0]?.identityConfidence === "source_backed", "source-backed material refs should preserve identity confidence");
+  assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "resolve cards should not expose identity confidence");
 }
 
 async function resolveCardsProjectsCanonicalOnlyCardRefs(): Promise<void> {
@@ -159,7 +159,7 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
   assert(output.items.length === 1, "resolve cards should return one card for a canonical material ref");
   assert(output.items[0]?.title === "Canonical Ref Seed", "canonical material refs should project canonical display labels");
   assert(output.items[0]?.status === "playable", "canonical material refs with source links should become playable cards");
-  assert(output.items[0]?.identityConfidence === "canonical_confirmed", "canonical material refs should expose confirmed identity confidence");
+  assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "canonical material refs should not expose identity confidence");
 }
 
 async function resolveCardsFollowsMaterialRedirects(): Promise<void> {
@@ -208,7 +208,7 @@ async function resolveCardsReturnsUnresolvedForUnknownMaterialIds(): Promise<voi
   assert(output.items.length === 1, "unknown material ids should still produce a decision card");
   assert(output.items[0]?.materialId === undefined, "unknown material id cards should not expose a durable material id");
   assert(output.items[0]?.status === "unresolved", "unknown material ids should be unresolved");
-  assert(output.items[0]?.reason === "material_not_found", "unknown material ids should explain material_not_found");
+  assert(!("reason" in (output.items[0] as Record<string, unknown>)), "unknown material id cards should not expose diagnostic reasons");
 }
 
 async function resolveCardsReturnsDiagnosticCardForUnbackedProviderResults(): Promise<void> {
@@ -245,10 +245,7 @@ async function resolveCardsReturnsDiagnosticCardForUnbackedProviderResults(): Pr
   assert(output.items.length === 1, "unbacked provider result should produce one diagnostic card");
   assert(output.items[0]?.materialId === undefined, "unbacked provider result should not expose a material id");
   assert(output.items[0]?.status === "unresolved", "unbacked provider result should be unresolved");
-  assert(
-    output.items[0]?.reason === "provider_result_missing_source_ref",
-    "unbacked provider result should explain the missing source ref",
-  );
+  assert(!("reason" in (output.items[0] as Record<string, unknown>)), "unbacked provider result should not expose diagnostic reasons");
 }
 
 async function querySkipsUnbackedProviderResults(): Promise<void> {
@@ -625,44 +622,17 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
   assert(output.items[0]?.title === "Source Only Collection Track", "material-only collection items should resolve to compact cards");
 }
 
-async function queryCollectionMaterialRefsProjectStoredPlayableLinksWithoutProviderGrounding(): Promise<void> {
-  const sourceRef = ref("source:fixture", "track", "collection-stored-playable");
-  const collectionRecord: Collection = {
-    id: "collection-stored-playable",
-    ownerScope: "local_profile:default",
-    collectionKind: "recording",
-    relationKind: "custom",
-    label: "Stored playable collection",
-    createdAt: "2026-05-30T00:00:00.000Z",
-  };
-  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([]);
-  await putLibraryTrack(materialStore, sourceRef, "Collection Stored Playable", "2026-05-30T00:00:00.000Z", {
-    providerUrl: "https://example.test/collection-stored-playable",
-  });
-  const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
-  const collectionItem: CollectionItem = {
-    id: "collection-item-stored-playable",
-    collectionId: collectionRecord.id,
-    materialRef: record.materialRef,
-    identityRequirement: "none",
-    status: "active",
+async function queryCollectionMaterialRefsUseStoredPlayableLinks(): Promise<void> {
+  const fixture = await createCollectionMaterialRefFixture({
+    sourceId: "collection-stored-playable",
     label: "Collection Stored Playable",
-    createdAt: "2026-05-30T00:00:00.000Z",
-  };
-  const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
-  const queryWithCollection = createMaterialQueryService({
-    materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
-    collection,
+    providerUrl: "https://example.test/collection-stored-playable",
   });
 
   const output = await assertOk(
-    queryWithCollection.query({
+    fixture.materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "collection", ref: collectionRecord.id },
+      pool: { kind: "collection", ref: fixture.collectionRecord.id },
       constraints: { availability: "playable" },
       returnKind: "recording",
       limit: 10,
@@ -670,7 +640,7 @@ async function queryCollectionMaterialRefsProjectStoredPlayableLinksWithoutProvi
   );
 
   assert(output.items.length === 1, "collection materialRef query should project stored links without provider re-grounding");
-  assert(output.items[0]?.materialId === materialRefToMaterialId(record.materialRef), "collection materialRef query should keep the stored material id");
+  assert(output.items[0]?.materialId === materialRefToMaterialId(fixture.record.materialRef), "collection materialRef query should keep the stored material id");
   assert(output.items[0]?.status === "playable", "collection materialRef query should return a playable card from stored SourceEntity providerUrl");
 }
 
@@ -1170,6 +1140,48 @@ function createMaterialQueryServiceHarness(
   return { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding, materialQuery };
 }
 
+async function createCollectionMaterialRefFixture({
+  sourceId,
+  label,
+  providerUrl,
+}: {
+  sourceId: string;
+  label: string;
+  providerUrl: string;
+}) {
+  const sourceRef = ref("source:fixture", "track", sourceId);
+  const collectionRecord: Collection = {
+    id: `${sourceId}-collection`,
+    ownerScope: "local_profile:default",
+    collectionKind: "recording",
+    relationKind: "custom",
+    label: `${label} collection`,
+    createdAt: "2026-05-30T00:00:00.000Z",
+  };
+  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([]);
+  await putLibraryTrack(materialStore, sourceRef, label, "2026-05-30T00:00:00.000Z", { providerUrl });
+  const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
+  const collection = createCollectionPortStub([collectionRecord], [{
+    id: `${sourceId}-collection-item`,
+    collectionId: collectionRecord.id,
+    materialRef: record.materialRef,
+    identityRequirement: "none",
+    status: "active",
+    label,
+    createdAt: "2026-05-30T00:00:00.000Z",
+  }]);
+  const materialQuery = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+    }),
+    collection,
+  });
+
+  return { collectionRecord, materialQuery, record };
+}
+
 function createCollectionPortStub(collections: Collection[], items: CollectionItem[]): CollectionPort {
   return {
     initializeOwnerCollections: async () => ({ ok: true, value: [] }),
@@ -1467,7 +1479,7 @@ await recentlyAddedOrderUsesSourceLibraryTimestamps();
 await queryPreferenceHintsFilterAndRankMaterials();
 await queryCollectionPoolCanResolveByLabel();
 await queryCollectionPoolReturnsMaterialOnlyItems();
-await queryCollectionMaterialRefsProjectStoredPlayableLinksWithoutProviderGrounding();
+await queryCollectionMaterialRefsUseStoredPlayableLinks();
 await queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds();
 await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();

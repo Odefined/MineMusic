@@ -100,8 +100,8 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       "response should not surface unresolved exploration links without store-backed source state",
     );
     assert(
-      transcript.presentedCards.every((card) => card.position > 0 && card.presentedAt.length > 0),
-      "presentation cards should carry typed position and presentedAt fields",
+      transcript.presentedCards.every((card) => !("position" in card) && !("presentedAt" in card)),
+      "presentation cards should not expose event position or timestamp fields",
     );
     assert(
       transcript.presentedMaterials.every((material) => material.materialRef.kind === "material" && material.identityState !== undefined),
@@ -121,7 +121,6 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       transcript.presentedCards.some((card) =>
         card.materialId === transcript.presentedMaterials.find((material) => material.id === fixtureSourceOnlyPlayableMaterial.id)?.materialRef.id &&
         card.status === "playable" &&
-        card.identityConfidence === "source_backed" &&
         card.links?.some((link) => link.url === "https://fixture.example/play/source-only-track")
       ),
       "source-backed playable material should be surfaced as a typed playable card",

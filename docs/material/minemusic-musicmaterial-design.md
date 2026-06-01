@@ -123,7 +123,7 @@ Source-backed material can be recommended, played/opened, recorded, and given sc
    Do not introduce `MaterialSubject`, `anchor`, or `occurrenceId`. Use `MusicMaterial`, `materialRef`, `sourceRef`, `canonicalRef`, `eventId`, and relation `scope`.
 
 4. **Keep agent-facing output compact.**  
-   Agent-facing material tools should return only what the agent needs for the next step: `ref`, `title`, `subtitle`, `status`, optional `basis`, optional `reason`, and allowed `actions`.
+   Agent-facing material tools should return only what the agent needs for the next step: `materialId`, `title`, optional `subtitle`, `status`, and presentation `links` when appropriate.
 
 5. **Make scripts deterministic.**  
    Scripts and services should not be responsible for natural-language understanding. The LLM agent translates user language into a structured query plan; MineMusic executes it.
@@ -781,32 +781,19 @@ export type MaterialCardStatus =
   | "blocked"
   | "unresolved";
 
-export type MaterialCardIdentityConfidence =
-  | "canonical_confirmed"
-  | "source_backed"
-  | "ambiguous"
-  | "unresolved";
-
-export type MaterialCardAction =
-  | "open"
-  | "more_like_this"
-  | "same_artist"
-  | "same_album"
-  | "not_this_version"
-  | "block"
-  | "remember";
-
 export type MaterialCard = {
   /** Opaque Material Store id. Agent passes this back. */
   materialId?: string;
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
-  identityConfidence?: MaterialCardIdentityConfidence;
-  reason?: string;
-  actions?: MaterialCardAction[];
 };
 ```
+
+Recommendation presentation cards may add display links. Position, presented
+time, identity confidence, recommendation reason, and link refs belong to the
+typed `recommendation.presented` event snapshot or detail/audit tools rather
+than ordinary agent-facing cards.
 
 ### 12.2 Material id handle
 
@@ -830,16 +817,12 @@ is still playable unless user feedback says otherwise.
 | `unresolved` / `exploration` / `verbal_only` | any | `unresolved` | source identity state |
 | multiple likely identities | `ambiguous` | state-derived status | `ambiguous` |
 
-### 12.4 Actions
+### 12.4 Action routing
 
-Generate actions from current material properties:
-
-- `open`: material has presentable playable link.
-- `same_artist`: material context has source or canonical artist basis.
-- `same_album`: material context has source or canonical release/release-group basis.
-- `not_this_version`: source-backed or version-sensitive material.
-- `block`: any material with materialRef.
-- `remember`: user feedback can become evidence-backed memory.
+Actions are chosen from user intent and tool schemas rather than advertised as
+card menus. Opening uses presentation links, related recommendations use
+`music.material.related`, version feedback uses detail/context tools, and durable
+writes go through feedback or effect boundaries.
 
 ---
 
@@ -1433,7 +1416,7 @@ Modify `src/contracts/index.ts`:
 2. Add `materialRef` and `identityState` to `MusicMaterial`.
 3. Add `MusicMaterialSnapshot`.
 4. Add `MusicMaterialRelationScope`, `MusicMaterialRelationKind`, `MusicMaterialRelation`.
-5. Add `MaterialCard`, `MaterialCardStatus`, `MaterialCardAction`.
+5. Add `MaterialCard` and `MaterialCardStatus`.
 6. Add `ResolveSeed`, `MaterialResolveCardsInput`, `MaterialResolveCardsOutput`.
 7. Add `MaterialQueryInput`, `MaterialQueryOutput`, `MaterialPoolSpec`.
 8. Add `RelatedInput`, `RelatedCardsOutput`.
@@ -1666,8 +1649,8 @@ MineMusic expands saved source releases through stored SourceRelease tracklists 
 - Resolve by sourceRef creates source-backed material.
 - Resolve by canonicalRef creates canonical-confirmed material.
 - Text seed dedupes source and canonical hits.
-- Source-backed material with playable link returns `status: "playable"` and
-  `identityConfidence: "source_backed"`.
+- Source-backed material with playable link returns `status: "playable"` on
+  agent-facing cards and keeps identity confidence in internal/detail surfaces.
 - Canonical-confirmed playable material returns `playable` card.
 - Not-playable source relation removes source playable link.
 - Material-level block returns `blocked` or excludes based on query purpose.

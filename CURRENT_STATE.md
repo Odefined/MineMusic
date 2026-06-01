@@ -166,8 +166,9 @@ actions use `materialId` instead of compact `mat_*` refs.
 
 The 2026-05-31 recommendation agent-facing surface hardening separates
 playable-link availability from identity confidence. Compact cards now use
-`status: "playable"` when a source-backed playable link is present and carry
-`identityConfidence` separately. Pool and collection recommendations are
+`status: "playable"` when a source-backed playable link is present; identity
+confidence is retained internally and exposed through detail/audit paths rather
+than ordinary recommendation cards. Pool and collection recommendations are
 documented as `music.material.query` flows, `music.links.refresh` accepts a
 `materialId` instead of a full `MusicMaterial`, ordinary version context reads
 return neutral unchecked status, and the fixture recommendation provider has an

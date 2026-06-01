@@ -69,8 +69,8 @@ projects `MaterialCard.materialId` strings in recommendation payloads into
 Material Activity, so recent exclusion works for compact card events.
 Compact material cards now separate playable-link availability from identity
 confidence. Source-backed cards with playable links return `status:
-"playable"` plus `identityConfidence: "source_backed"` rather than encoding
-identity uncertainty into playability. `music.material.context.brief` reports
+"playable"` while identity certainty stays out of ordinary agent-facing cards.
+`music.material.context.brief` reports
 ordinary version requests as neutral `version.status: "not_checked"` instead
 of a warning, so normal recommendation flow does not treat missing version
 inspection as a user-visible risk.
