@@ -9,6 +9,7 @@ import type {
   MaterialPoolsListInput,
   MaterialQueryInput,
   MaterialRelatedInput,
+  MaterialResolveResult,
   MaterialResolveRequest,
   MaterialResolveCardsInput,
   MaterialSelectInput,
@@ -33,6 +34,7 @@ import type {
   StageInterfaceToolInputSchema,
 } from "./types.js";
 import { materialForMaterialId, materialIdToRef } from "../../material_query/index.js";
+import { compactMaterialResolveOutput } from "../outputs/material.js";
 import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
 
 export const musicToolNames = [
@@ -260,7 +262,7 @@ export const musicToolDefinitions = [
     name: "music.material.resolve",
     description: "Resolve music candidates into material through canonical-first material resolution.",
     inputSchemaRef: "MaterialResolveRequest",
-    outputSchemaRef: "MaterialResolveResult",
+    outputSchemaRef: "CompactMaterialResolveOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       kind: z.enum(["single", "candidate_set"]),
@@ -282,6 +284,7 @@ export const musicToolDefinitions = [
         readPayload<MaterialResolveRequest>(payload, { sessionId }),
       );
     },
+    present: (value) => compactMaterialResolveOutput(value as MaterialResolveResult),
   },
   {
     name: "music.material.resolve.cards",

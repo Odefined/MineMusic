@@ -1867,7 +1867,7 @@ const instrumentCatalog: InstrumentCatalogPort = {
             name: "music.material.resolve",
             description: "Resolve music candidates through canonical-first material resolution.",
             inputSchemaRef: "MaterialResolveRequest",
-            outputSchemaRef: "MaterialResolveResult",
+            outputSchemaRef: "CompactMaterialResolveOutput",
           },
         ],
       },
@@ -1890,7 +1890,7 @@ const handbookToolEntry: HandbookToolEntry = {
     name: toolName,
     description: "Resolve music candidates through canonical-first material resolution.",
     inputSchemaRef: "MaterialResolveRequest",
-    outputSchemaRef: "MaterialResolveResult",
+    outputSchemaRef: "CompactMaterialResolveOutput",
   },
   content: "#### `music.material.resolve`\n",
 };

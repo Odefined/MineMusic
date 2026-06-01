@@ -11,7 +11,6 @@ import {
   fixtureUnresolvedExplorationMaterial,
 } from "../../fixtures/integration/mvp-fixture.js";
 import type {
-  MaterialResolveResult,
   MusicMaterial,
   RecommendationPresentOutput,
   Ref,
@@ -22,6 +21,7 @@ import type {
 import { runRecommendationTranscript } from "../../src/app/index.js";
 import { createFixtureMineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 import type { MineMusicStageCoreHarness } from "../../src/stage_core/index.js";
+import type { CompactMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -113,13 +113,13 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     );
     assert(
       transcript.presentedMaterials.some(
-        (material) => material.id === fixtureSourceOnlyPlayableMaterial.id,
+        (material) => material.label === fixtureSourceOnlyPlayableMaterial.label,
       ),
       "source-backed playable material should be considered through presentation cards, not the old prepare gate",
     );
     assert(
       transcript.presentedCards.some((card) =>
-        card.materialId === transcript.presentedMaterials.find((material) => material.id === fixtureSourceOnlyPlayableMaterial.id)?.materialRef.id &&
+        card.materialId === transcript.presentedMaterials.find((material) => material.label === fixtureSourceOnlyPlayableMaterial.label)?.materialRef.id &&
         card.status === "playable" &&
         card.links?.some((link) => link.url === "https://fixture.example/play/source-only-track")
       ),
@@ -319,8 +319,8 @@ async function doesNotPresentSourceRefPageUrlAsPlayableLink(): Promise<void> {
           },
         },
       }),
-    ) as MaterialResolveResult;
-    const material = resolvedResult.kind === "single" ? resolvedResult.result.materials[0] : undefined;
+    ) as CompactMaterialResolveOutput;
+    const material = resolvedResult.kind === "single" ? resolvedResult.result.items[0] : undefined;
     const storedSourceEntity = await assertOk(
       Promise.resolve(stageCore.materialStore.getSourceEntity({ sourceRef: pageUrlSourceRef })),
     );
@@ -334,7 +334,7 @@ async function doesNotPresentSourceRefPageUrlAsPlayableLink(): Promise<void> {
     const presentation = await assertOk(
       stageCore.stageInterface.tools["stage.recommendation.present"]({
         request: "I need a page url only coding track.",
-        items: [{ materialId: material.materialRef.id }],
+        items: material?.materialId === undefined ? [] : [{ materialId: material.materialId }],
         minCards: 1,
       }),
     ) as RecommendationPresentOutput;

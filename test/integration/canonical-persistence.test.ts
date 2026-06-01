@@ -4,7 +4,6 @@ import { join } from "node:path";
 
 import type {
   CanonicalRecord,
-  MaterialResolveResult,
   Ref,
   Result,
   SourceMaterial,
@@ -12,6 +11,7 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import { createMineMusicStageRuntimeWithSourceProvider } from "../../src/stage_core/index.js";
+import type { CompactMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -103,7 +103,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       sourceRef,
     });
     assert(
-      firstResolve.result.materials[0]?.state === "confirmed_playable",
+      firstResolve.result.items[0]?.status === "playable",
       "seeded canonical identity should confirm playability before restart",
     );
 
@@ -120,27 +120,17 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       label: "Persisted Canonical Track",
       sourceRef,
     });
-    const persistedMaterial = persistedResolve.result.materials[0];
 
     assert(
       persistedResolve.result.canonicalRef?.id === canonicalRecord.ref.id,
       "recreated Stage Core should resolve the same persisted canonical ref",
     );
     assert(
-      persistedMaterial?.canonicalRef?.id === canonicalRecord.ref.id,
-      "material should carry the persisted canonical ref after recreation",
-    );
-    assert(
-      persistedMaterial?.materialRef?.namespace === "minemusic" &&
-        persistedMaterial.materialRef.kind === "material",
+      persistedResolve.result.items[0]?.materialId !== undefined,
       "material should carry a material ref after recreation",
     );
     assert(
-      persistedMaterial?.identityState === "canonical_confirmed",
-      "known persisted source should project canonical-confirmed identity state",
-    );
-    assert(
-      persistedMaterial?.state === "confirmed_playable",
+      persistedResolve.result.items[0]?.status === "playable",
       "canonical identity plus source-backed playable link should be confirmed playable after recreation",
     );
 
@@ -149,26 +139,17 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       label: "Source Only Track",
       sourceRef: unknownSourceRef,
     });
-    const sourceOnly = sourceOnlyResolve.result.materials[0];
 
     assert(
       sourceOnlyResolve.result.canonicalRef === undefined,
       "unknown source ref should not invent canonical identity",
     );
     assert(
-      sourceOnly?.canonicalRef === undefined,
-      "source-only material should not carry a canonical ref",
-    );
-    assert(
-      sourceOnly?.materialRef?.namespace === "minemusic" && sourceOnly.materialRef.kind === "material",
+      sourceOnlyResolve.result.items[0]?.materialId !== undefined,
       "source-only material should carry a material ref",
     );
     assert(
-      sourceOnly?.identityState === "source_backed",
-      "source-only material should project source-backed identity state",
-    );
-    assert(
-      sourceOnly?.state === "source_only_playable",
+      sourceOnlyResolve.result.items[0]?.status === "playable",
       "source-only playable material should remain source_only_playable",
     );
   } finally {
@@ -220,12 +201,12 @@ async function resolveSingleCandidate(
     label: string;
     sourceRef: Ref;
   },
-): Promise<Extract<MaterialResolveResult, { kind: "single" }>> {
+): Promise<Extract<CompactMaterialResolveOutput, { kind: "single" }>> {
   const resolveResult = await assertOk(
     stageRuntime.stageInterface.tools["music.material.resolve"]({
       kind: "single",
       candidate,
-    }) as Promise<Result<MaterialResolveResult>>,
+    }) as Promise<Result<CompactMaterialResolveOutput>>,
   );
 
   assert(resolveResult.kind === "single", "resolve result should be single-kind");
