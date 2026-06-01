@@ -1,7 +1,13 @@
 import type {
   MaterialResolveIssue,
+  MaterialQueryOutput,
+  MaterialRelatedOutput,
   MaterialResolveResult,
+  MaterialResolveCardsOutput,
   MaterialResolveStatus,
+  MaterialSelectDropped,
+  MaterialSelectOutput,
+  MaterialSelectWarning,
   MusicMaterial,
   Ref,
   ResolvedCandidate,
@@ -38,6 +44,31 @@ export type CompactMaterialResolveOutput =
       results: CompactResolvedCandidate[];
     };
 
+export type CompactMaterialResolveCardsOutput = {
+  items: CompactMaterialCard[];
+  next?: MaterialResolveCardsOutput["next"];
+};
+
+export type CompactMaterialQueryOutput = {
+  basis?: MaterialQueryOutput["basis"];
+  items: CompactCandidateMaterialCard[];
+  nextCursor?: string;
+};
+
+export type CompactMaterialRelatedOutput = {
+  basis: MaterialRelatedOutput["basis"];
+  basisLabel?: string;
+  warning?: string;
+  items: CompactCandidateMaterialCard[];
+};
+
+export type CompactMaterialSelectOutput = {
+  items: CompactCandidateMaterialCard[];
+  dropped?: MaterialSelectDropped[];
+  warnings?: MaterialSelectWarning[];
+  applied?: string[];
+};
+
 export function compactMaterialCard(material: MusicMaterial): CompactMaterialCard {
   const subtitle = subtitleForMaterial(material);
 
@@ -67,6 +98,46 @@ export function compactMaterialResolveOutput(result: MaterialResolveResult): Com
   return {
     kind: "candidate_set",
     results: result.results.map(compactResolvedCandidate),
+  };
+}
+
+export function compactMaterialResolveCardsOutput(output: MaterialResolveCardsOutput): CompactMaterialResolveCardsOutput {
+  return {
+    items: [
+      ...output.items.map((item) => compactCandidateMaterialCard(item.material)),
+      ...(output.unresolved ?? []).map((item) => ({
+        ...(item.materialId === undefined ? {} : { materialId: item.materialId }),
+        title: item.label,
+        status: "unresolved" as const,
+      })),
+    ],
+    ...(output.next === undefined ? {} : { next: output.next }),
+  };
+}
+
+export function compactMaterialQueryOutput(output: MaterialQueryOutput): CompactMaterialQueryOutput {
+  return {
+    ...(output.basis === undefined ? {} : { basis: output.basis }),
+    items: output.items.map((item) => compactCandidateMaterialCard(item.material)),
+    ...(output.nextCursor === undefined ? {} : { nextCursor: output.nextCursor }),
+  };
+}
+
+export function compactMaterialRelatedOutput(output: MaterialRelatedOutput): CompactMaterialRelatedOutput {
+  return {
+    basis: output.basis,
+    ...(output.basisLabel === undefined ? {} : { basisLabel: output.basisLabel }),
+    ...(output.warning === undefined ? {} : { warning: output.warning }),
+    items: output.items.map((item) => compactCandidateMaterialCard(item.material)),
+  };
+}
+
+export function compactMaterialSelectOutput(output: MaterialSelectOutput): CompactMaterialSelectOutput {
+  return {
+    items: output.items.map((item) => compactCandidateMaterialCard(item.material)),
+    ...(output.dropped === undefined ? {} : { dropped: output.dropped }),
+    ...(output.warnings === undefined ? {} : { warnings: output.warnings }),
+    ...(output.applied === undefined ? {} : { applied: output.applied }),
   };
 }
 

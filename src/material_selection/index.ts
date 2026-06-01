@@ -1,5 +1,5 @@
 import type {
-  CandidateMaterialCard,
+  MaterialSelectionItem,
   MaterialPolicyInput,
   MaterialSelectCandidate,
   MaterialSelectDropped,
@@ -18,7 +18,6 @@ import type {
   MaterialSorterPort,
   MaterialStorePort,
 } from "../ports/index.js";
-import { toCandidateMaterialCard as projectCandidateMaterialCard } from "../material_cards/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 
@@ -128,7 +127,7 @@ async function selectMaterials({
     limit: input.limit,
     dropped,
   });
-  const items = limited.map(toCandidateMaterialCard);
+  const items = limited.map(toMaterialSelectionItem);
   const warnings = warningsForItems(items, warningMap);
 
   return ok({
@@ -266,7 +265,7 @@ function incrementCounts(keys: string[], counts: Map<string, number>): void {
 }
 
 function warningsForItems(
-  items: CandidateMaterialCard[],
+  items: MaterialSelectionItem[],
   warningMap: Map<string, string[]>,
 ): MaterialSelectWarning[] {
   return items.flatMap((item) => {
@@ -276,12 +275,12 @@ function warningsForItems(
   });
 }
 
-function toCandidateMaterialCard(candidate: MaterialSortCandidate): CandidateMaterialCard {
-  const card = projectCandidateMaterialCard(candidate.material);
-
+function toMaterialSelectionItem(candidate: MaterialSortCandidate): MaterialSelectionItem {
   return {
-    ...card,
     materialId: materialRefToMaterialId(candidate.material.materialRef),
+    material: candidate.material,
+    ...(candidate.score === undefined ? {} : { score: candidate.score }),
+    ...(candidate.reason === undefined ? {} : { reason: candidate.reason }),
   };
 }
 

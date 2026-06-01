@@ -359,6 +359,13 @@ export type CandidateMaterialCard = MaterialCard & {
   materialId: string;
 };
 
+export type MaterialSelectionItem = {
+  materialId: string;
+  material: MusicMaterial;
+  score?: number;
+  reason?: string;
+};
+
 export type MaterialSelectCandidate = {
   materialId: string;
   score?: number;
@@ -400,7 +407,7 @@ export type MaterialSelectInput = {
 };
 
 export type MaterialSelectOutput = {
-  items: CandidateMaterialCard[];
+  items: MaterialSelectionItem[];
   dropped?: MaterialSelectDropped[];
   warnings?: MaterialSelectWarning[];
   applied?: string[];
@@ -1152,8 +1159,22 @@ export type MaterialResolveCardsInput = {
   limit?: number;
 };
 
+export type MaterialQueryItem = {
+  materialId: string;
+  material: MusicMaterial;
+  score?: number;
+  reason?: string;
+};
+
+export type MaterialResolveUnresolvedItem = {
+  label: string;
+  materialId?: string;
+  reason?: string;
+};
+
 export type MaterialResolveCardsOutput = {
-  items: MaterialCard[];
+  items: MaterialQueryItem[];
+  unresolved?: MaterialResolveUnresolvedItem[];
   next?: {
     suggestedAction?: "present" | "ask_clarification" | "choose_one" | "retry";
     question?: string;
@@ -1227,7 +1248,7 @@ export type MaterialQueryOutput = {
     pool?: string;
     applied?: string[];
   };
-  items: MaterialCard[];
+  items: MaterialQueryItem[];
   nextCursor?: string;
 };
 
@@ -1256,7 +1277,7 @@ export type MaterialRelatedOutput = {
     | "fallback_text";
   basisLabel?: string;
   warning?: string;
-  items: MaterialCard[];
+  items: MaterialQueryItem[];
 };
 
 export type MaterialContextBriefInput = {

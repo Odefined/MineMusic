@@ -23,6 +23,10 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+function itemTitle(item: { material: { label: string } } | undefined): string | undefined {
+  return item?.material.label;
+}
+
 async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
@@ -124,7 +128,7 @@ async function selectorPreservesOrder(): Promise<void> {
     }),
   );
 
-  assert(output.items.map((item) => item.title).join(",") === "Second,First", "selector preserve sort should keep input order");
+  assert((output.items.map(itemTitle)).join(",") === "Second,First", "selector preserve sort should keep input order");
 }
 
 async function selectorUsesLeastRecentlyRecommended(): Promise<void> {
@@ -164,7 +168,7 @@ async function selectorUsesLeastRecentlyRecommended(): Promise<void> {
     }),
   );
 
-  assert(output.items.map((item) => item.title).join(",") === "Never,Old,Recent", "selector should delegate least_recently_recommended ordering");
+  assert((output.items.map(itemTitle)).join(",") === "Never,Old,Recent", "selector should delegate least_recently_recommended ordering");
 }
 
 async function selectorDropsRelationBlockedCandidates(): Promise<void> {
@@ -200,7 +204,7 @@ async function selectorDropsRelationBlockedCandidates(): Promise<void> {
     }),
   );
 
-  assert(output.items.length === 1 && output.items[0]?.title === "Kept", "selector should drop relation-blocked candidates");
+  assert(output.items.length === 1 && itemTitle(output.items[0]) === "Kept", "selector should drop relation-blocked candidates");
   assert(output.dropped?.[0]?.code === "blocked", "selector should report blocked drop reason");
 }
 
@@ -232,7 +236,7 @@ async function selectorDropsRecentHardCandidates(): Promise<void> {
     }),
   );
 
-  assert(output.items.length === 1 && output.items[0]?.title === "Older Hard", "selector should drop hard-recent candidates");
+  assert(output.items.length === 1 && itemTitle(output.items[0]) === "Older Hard", "selector should drop hard-recent candidates");
   assert(output.dropped?.[0]?.code === "recently_recommended", "selector should report recent drop reason");
 }
 
@@ -255,11 +259,11 @@ async function selectorAppliesArtistDiversityCap(): Promise<void> {
     }),
   );
 
-  assert(output.items.map((item) => item.title).join(",") === "First Artist Track,Other Artist Track", "selector should apply artist diversity cap");
+  assert((output.items.map(itemTitle)).join(",") === "First Artist Track,Other Artist Track", "selector should apply artist diversity cap");
   assert(output.dropped?.some((drop) => drop.code === "diversity_limit"), "selector should report diversity drops");
 }
 
-async function selectorReturnsCompactCards(): Promise<void> {
+async function selectorReturnsDomainItems(): Promise<void> {
   const { materialSelector, materialStore } = createHarness();
   const material = await putTrack({
     materialStore,
@@ -274,16 +278,15 @@ async function selectorReturnsCompactCards(): Promise<void> {
       candidates: [{ materialId: material.record.materialRef.id, material: material.material, reason: "fits the moment" }],
     }),
   );
-  const card = output.items[0] as unknown as Record<string, unknown>;
+  const item = output.items[0] as unknown as Record<string, unknown>;
 
-  assert(card.materialId === material.record.materialRef.id, "selected card should expose compact materialId");
-  assert(!("reason" in card), "selected card should not echo candidate reason");
-  assert(!("materialRef" in card), "selected card should not expose materialRef");
-  assert(!("sourceRefs" in card), "selected card should not expose sourceRefs");
-  assert(!("canonicalRef" in card), "selected card should not expose canonicalRef");
-  assert(!("playableLinks" in card), "selected card should not expose playableLinks");
-  assert(!("identityConfidence" in card), "selected card should not expose identity confidence");
-  assert(!("actions" in card), "selected card should not expose action menus");
+  assert(item.materialId === material.record.materialRef.id, "selected domain item should expose materialId");
+  assert(item.reason === "fits the moment", "selected domain item should preserve candidate reason");
+  assert((item.material as MusicMaterial | undefined)?.label === "Compact Card Track", "selected domain item should carry material");
+  assert(!("title" in item), "selected domain item should not expose card title at top level");
+  assert(!("status" in item), "selected domain item should not expose card status at top level");
+  assert(!("identityConfidence" in item), "selected domain item should not expose card identity confidence");
+  assert(!("actions" in item), "selected domain item should not expose action menus");
 }
 
 function ref(namespace: string, kind: string, id: string, label?: string): Ref {
@@ -300,4 +303,4 @@ await selectorUsesLeastRecentlyRecommended();
 await selectorDropsRelationBlockedCandidates();
 await selectorDropsRecentHardCandidates();
 await selectorAppliesArtistDiversityCap();
-await selectorReturnsCompactCards();
+await selectorReturnsDomainItems();

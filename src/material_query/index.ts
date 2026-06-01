@@ -1,15 +1,15 @@
 import type {
   CollectionItem,
-  MaterialCard,
-  MaterialCardStatus,
   MaterialContextBriefInput,
   MaterialContextBriefOutput,
   MaterialPoolsListInput,
   MaterialPoolsListOutput,
+  MaterialQueryItem,
   MaterialQueryInput,
   MaterialQueryOutput,
   MaterialRecord,
   MaterialResolveIssue,
+  MaterialResolveUnresolvedItem,
   MaterialSelectInput,
   MaterialRelatedInput,
   MaterialRelatedOutput,
@@ -39,7 +39,6 @@ import {
   createMaterialSorter,
 } from "../material_policy/index.js";
 import { createMaterialSelector } from "../material_selection/index.js";
-import { toMaterialCard } from "../material_cards/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
@@ -58,6 +57,18 @@ type ResolvedSeedMaterials = {
   materials: MusicMaterial[];
   issues: MaterialResolveIssue[];
 };
+
+type ResolvedSeedItems = {
+  items: MaterialQueryItem[];
+  unresolved: MaterialResolveUnresolvedItem[];
+};
+
+type RecentMaterialCardStatus =
+  | "playable"
+  | "found_no_link"
+  | "ambiguous"
+  | "blocked"
+  | "unresolved";
 
 export function createMaterialQueryService({
   materialStore,
@@ -79,7 +90,7 @@ export function createMaterialQueryService({
   const service: MaterialQueryService = {
     async resolveCards(input) {
       const ownerScope = input.ownerScope ?? defaultOwnerScope;
-      const cards = await resolveSeedCards({
+      const resolved = await resolveSeedItems({
         materialStore,
         materialResolve,
         ownerScope,
@@ -87,12 +98,13 @@ export function createMaterialQueryService({
         ...(input.limit === undefined ? {} : { limit: input.limit }),
       });
 
-      if (!cards.ok) {
-        return cards;
+      if (!resolved.ok) {
+        return resolved;
       }
 
       return ok({
-        items: cards.value,
+        items: resolved.value.items,
+        ...(resolved.value.unresolved.length === 0 ? {} : { unresolved: resolved.value.unresolved }),
       });
     },
 
@@ -328,7 +340,7 @@ async function resolveSeeds({
   });
 }
 
-async function resolveSeedCards({
+async function resolveSeedItems({
   materialStore,
   materialResolve,
   ownerScope,
@@ -340,8 +352,9 @@ async function resolveSeedCards({
   ownerScope: string;
   seeds: ResolveSeed[];
   limit?: number;
-}): Promise<Result<MaterialCard[]>> {
-  const cards: MaterialCard[] = [];
+}): Promise<Result<ResolvedSeedItems>> {
+  const items: MaterialQueryItem[] = [];
+  const unresolved: MaterialResolveUnresolvedItem[] = [];
 
   for (const [index, seed] of seeds.entries()) {
     const materialId = materialIdForSeed(seed);
@@ -358,7 +371,8 @@ async function resolveSeedCards({
         return resolved;
       }
 
-      cards.push(...resolved.value);
+      items.push(...resolved.value.items);
+      unresolved.push(...resolved.value.unresolved);
       continue;
     }
 
@@ -373,17 +387,14 @@ async function resolveSeedCards({
       return resolved;
     }
 
-    cards.push(...resolved.value.materials.map((material) => toMaterialCard(material)));
+    items.push(...resolved.value.materials.map(materialToQueryItem));
 
     if (resolved.value.materials.length === 0) {
-      cards.push({
-        title: seed.text ?? `seed-${index + 1}`,
-        status: "unresolved",
-      });
+      unresolved.push({ label: seed.text ?? `seed-${index + 1}` });
     }
   }
 
-  return ok(cards);
+  return ok({ items, unresolved });
 }
 
 async function resolveMaterialRefSeed({
@@ -396,7 +407,7 @@ async function resolveMaterialRefSeed({
   ownerScope: string;
   seed: ResolveSeed;
   materialId: string;
-}): Promise<Result<MaterialCard[]>> {
+}): Promise<Result<ResolvedSeedItems>> {
   const materialRef = materialIdToRef(materialId);
   const record = await currentMaterialRecordForRef(materialStore, materialRef);
 
@@ -405,9 +416,12 @@ async function resolveMaterialRefSeed({
   }
 
   if (record.value === null) {
-    return ok([unresolvedMaterialCard({
-      title: seed.text ?? materialId,
-    })]);
+    return ok({
+      items: [],
+      unresolved: [{
+        label: seed.text ?? materialId,
+      }],
+    });
   }
 
   const material = await projectMaterialRecord(materialStore, record.value, {
@@ -415,7 +429,7 @@ async function resolveMaterialRefSeed({
     purpose: "resolve.cards",
   });
 
-  return material.ok ? ok([toMaterialCard(material.value)]) : material;
+  return material.ok ? ok({ items: [materialToQueryItem(material.value)], unresolved: [] }) : material;
 }
 
 function materialIdForSeed(seed: ResolveSeed): string | undefined {
@@ -1021,20 +1035,6 @@ async function labelForMaterialRecord(
   return ok(record.materialRef.label ?? record.materialRef.id);
 }
 
-function unresolvedMaterialCard({
-  materialId,
-  title,
-}: {
-  materialId?: string;
-  title: string;
-}): MaterialCard {
-  return {
-    ...(materialId === undefined ? {} : { materialId }),
-    title,
-    status: "unresolved",
-  };
-}
-
 type SelectableMaterialCandidate = {
   material: MusicMaterial;
   score?: number;
@@ -1220,6 +1220,13 @@ async function relatedForInput({
     ...(related.value.basisLabel === undefined ? {} : { basisLabel: related.value.basisLabel }),
     items: selected.value.items,
   });
+}
+
+function materialToQueryItem(material: MusicMaterial): MaterialQueryItem {
+  return {
+    materialId: materialRefToMaterialId(material.materialRef),
+    material,
+  };
 }
 
 async function relatedCandidates({
@@ -1883,7 +1890,7 @@ function dedupeRefs(refs: Ref[]): Ref[] {
   return [...byKey.values()];
 }
 
-function isMaterialCardStatus(value: unknown): value is MaterialCardStatus {
+function isMaterialCardStatus(value: unknown): value is RecentMaterialCardStatus {
   return (
     value === "playable" ||
     value === "found_no_link" ||
@@ -1893,7 +1900,7 @@ function isMaterialCardStatus(value: unknown): value is MaterialCardStatus {
   );
 }
 
-function materialCardStatusFromEventValue(value: unknown): MaterialCardStatus {
+function materialCardStatusFromEventValue(value: unknown): RecentMaterialCardStatus {
   return value === "playable_unverified"
     ? "playable"
     : isMaterialCardStatus(value) ? value : "unresolved";

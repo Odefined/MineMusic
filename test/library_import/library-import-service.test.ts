@@ -1004,7 +1004,7 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
     "first import should keep distinct provider-added timestamps",
   );
   assert(
-    ordered.items.map((item) => item.title).join(",") === "Newer Provider Track,Older Provider Track",
+    ordered.items.map((item) => item.material.label).join(",") === "Newer Provider Track,Older Provider Track",
     "recently_added query order should use providerAddedAt-derived SourceLibraryItem.addedAt",
   );
 
