@@ -1,6 +1,5 @@
 import type {
   EffectProposal,
-  MaterialResolveResult,
   MemoryProposal,
   MusicMaterial,
   PresentedMaterialCard,
@@ -9,7 +8,9 @@ import type {
   StageEvent,
   StageSession,
 } from "../contracts/index.js";
+import { materialForMaterialId } from "../material_query/index.js";
 import type { MineMusicStageCoreHarness } from "../stage_core/index.js";
+import type { CompactMaterialResolveOutput } from "../stage_interface/outputs/index.js";
 
 export type RecommendationTranscriptInput = {
   sessionId: string;
@@ -61,19 +62,19 @@ export async function runRecommendationTranscript(
     return resolvedResult;
   }
 
-  const resolved = resolvedResult.value as MaterialResolveResult;
-  const groundedMaterials = resolved.kind === "single" ? resolved.result.materials : [];
+  const resolved = resolvedResult.value as CompactMaterialResolveOutput;
+  const resolvedCards = resolved.kind === "single" ? resolved.result.items : [];
+  const groundedMaterials = await materialsForResolvedCards(stageCore, resolvedCards);
 
   const presentResult = await stageCore.stageInterface.tools["stage.recommendation.present"]({
     request: input.request,
-    items: groundedMaterials.map((material) => ({
-      materialId: material.materialRef.id,
-      ...(material.notes === undefined ? {} : { reason: material.notes }),
+    items: resolvedCards.flatMap((card) => card.materialId === undefined ? [] : [{
+      materialId: card.materialId,
       basis: {
         kind: "direct_resolve",
         note: "Resolved from recommendation transcript request.",
       },
-    })),
+    }]),
     minCards: 1,
   });
 
@@ -204,4 +205,30 @@ function buildRecommendationResponse(cards: PresentedMaterialCard[]): string {
 
 function cardTitleForResponse(card: PresentedMaterialCard): string {
   return card.title;
+}
+
+async function materialsForResolvedCards(
+  stageCore: MineMusicStageCoreHarness,
+  cards: Array<{ materialId?: string }>,
+): Promise<MusicMaterial[]> {
+  const materials: MusicMaterial[] = [];
+
+  for (const card of cards) {
+    if (card.materialId === undefined) {
+      continue;
+    }
+
+    const material = await materialForMaterialId({
+      materialStore: stageCore.materialStore,
+      materialId: card.materialId,
+      ownerScope: "local_profile:default",
+      purpose: "resolve.cards",
+    });
+
+    if (material.ok && material.value !== null) {
+      materials.push(material.value);
+    }
+  }
+
+  return materials;
 }

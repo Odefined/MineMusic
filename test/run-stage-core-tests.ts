@@ -38,6 +38,7 @@ const testModules = [
   "./stage_core/stage-core-factory.test.js",
   "./stage/stage-modules.test.js",
   "./surfaces/mcp-server.test.js",
+  "./stage_interface/stage-interface-outputs.test.js",
   "./stage_interface/stage-interface-dispatch.test.js",
   "./stage_interface/stage-interface.test.js",
   "./integration/canonical-persistence.test.js",

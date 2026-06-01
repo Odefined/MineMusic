@@ -5,7 +5,6 @@ import { join } from "node:path";
 import type {
   CanonicalRecord,
   Collection,
-  MaterialResolveResult,
   PlatformLibraryProvider,
   ProviderHttpCacheEntry,
   Ref,
@@ -20,6 +19,7 @@ import {
   createMineMusicStageCoreWithSourceProvider,
   createMineMusicStageRuntimeWithSourceProvider,
 } from "../../src/stage_core/index.js";
+import type { CompactMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
@@ -100,15 +100,15 @@ async function createsStageCoreWithInjectedSourceProvider(): Promise<void> {
           limit: 1,
         },
       },
-    }) as Promise<Result<MaterialResolveResult>>,
+    }) as Promise<Result<CompactMaterialResolveOutput>>,
   );
   assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
-  const materials = resolveResult.result.materials;
+  const items = resolveResult.result.items;
 
   assert(calls.includes("provider.search"), "Stage Core should route material resolve to injected provider");
-  assert(materials[0]?.label === "Provider Coding Track", "Stage Core should return provider material through Stage Interface");
+  assert(items[0]?.title === "Provider Coding Track", "Stage Core should return compact provider material through Stage Interface");
   assert(
-    materials[0]?.state === "source_only_playable",
+    items[0]?.status === "playable",
     "Stage Core should preserve source-backed playability normalization",
   );
 }
@@ -306,17 +306,16 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
         label: "Known Canonical Track",
         sourceRef,
       },
-    }) as Promise<Result<MaterialResolveResult>>,
+    }) as Promise<Result<CompactMaterialResolveOutput>>,
   );
   assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
-  const resolvedMaterial = resolveResult.result.materials[0];
 
   assert(
-    resolvedMaterial?.canonicalRef?.id === canonicalRecord.ref.id,
+    resolveResult.result.canonicalRef?.id === canonicalRecord.ref.id,
     "Stage Core should resolve through the injected canonical repository",
   );
   assert(
-    resolvedMaterial?.state === "confirmed_playable",
+    resolveResult.result.items[0]?.status === "playable",
     "Injected canonical storage should allow source-backed material to become confirmed playable",
   );
 }
@@ -568,7 +567,7 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
         label: "Blocked Canonical Track",
         expectedKind: "track",
       },
-    }) as Promise<Result<MaterialResolveResult>>,
+    }) as Promise<Result<CompactMaterialResolveOutput>>,
   );
 
   assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
@@ -577,7 +576,7 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
     "Stage Core Material Resolve should use Collection blocked membership",
   );
   assert(
-    resolveResult.result.materials[0]?.state === "blocked",
+    resolveResult.result.items[0]?.status === "blocked",
     "Stage Core Material Resolve should return blocked material state",
   );
 }

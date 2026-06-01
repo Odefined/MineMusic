@@ -6,13 +6,13 @@ import type {
   CanonicalRecord,
   Collection,
   CollectionItem,
-  MaterialResolveResult,
   Ref,
   Result,
   SourceMaterial,
   StageSession,
 } from "../../src/contracts/index.js";
 import { createFixtureMineMusicStageRuntime } from "../../src/stage_core/index.js";
+import type { CompactMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
 
 type CollectionListOutput = {
   collections: Collection[];
@@ -258,13 +258,13 @@ async function materialResolveReportsBlockedCanonicalCandidateThroughStageInterf
           label: "Quiet Canonical Recording",
           canonicalRef: canonicalRecordingRef,
         },
-      }) as Promise<Result<MaterialResolveResult>>,
+      }) as Promise<Result<CompactMaterialResolveOutput>>,
     );
 
     assert(resolveResult.kind === "single", "Material Resolve should return a single result");
     assert(resolveResult.result.status === "blocked", "Blocked collection membership should mark resolve result blocked");
     assert(
-      resolveResult.result.materials[0]?.state === "blocked",
+      resolveResult.result.items[0]?.status === "blocked",
       "Blocked collection membership should mark resolved material blocked",
     );
   } finally {
