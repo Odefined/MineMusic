@@ -48,9 +48,9 @@ for material actions without exposing internal
 snapshot/relation-scope fields in the normal public schemas, and Collection
 Service uses Material Registry redirects plus MaterialRecord kind inference
 when filtering, adding, or removing material-backed collection items.
-Compact card playability is separate from identity confidence: cards with
-source-backed playable links use `status: "playable"` while retaining
-`identityConfidence: "source_backed"` for identity certainty. Link refresh is
+Compact card playability is separate from identity confidence: agent-facing
+cards use `status: "playable"` for source-backed playable links, while identity
+certainty stays in internal event snapshots and detail tools. Link refresh is
 also material-id based at the Stage Interface boundary, so callers do not need
 to construct full `MusicMaterial` payloads for ordinary link-problem recovery.
 Recommendation Presentation is the final user-visible recommendation boundary:
@@ -180,7 +180,7 @@ needs.
 | Material Resolve | canonical-first candidate-to-material resolution through Material Store, Material Registry materialization of `materialRef` / `identityState`, material relation filtering, `MaterialResolveResult` status, confirmed binding lookup, and explicit Source Library scoped reads | provider internals, playable-link refresh, canonical writes, Collection writes, final recommendation selection |
 | Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy; sorting of already usable material candidates; optional compact materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment |
 | Recommendation Presentation | final presentation gate for intended ordered materialId recommendations, typed `recommendation.presented` event creation, compact presented/recent card snapshots, min/max card enforcement | candidate discovery, sorting, selector delegation, final recommendation judgment |
-| Material Query / Related | compact agent-facing material retrieval, pool-restricted query, related candidate generation, selector delegation, and `MaterialCard` presentation over Material Resolve output | raw source/canonical graph exposure, provider internals, canonical writes, final recommendation selection |
+| Material Query / Related | compact agent-facing material retrieval, direct Source Library / Collection material-card projection for owned assets, related candidate generation, selector delegation, and `MaterialCard` presentation | raw source/canonical graph exposure, provider internals, canonical writes, tag/style-hint interpretation without real semantic data, final recommendation selection |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization, and persistence of provider-returned source evidence into Source Entity Store through a narrow writer | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |

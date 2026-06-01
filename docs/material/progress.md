@@ -47,8 +47,13 @@ saved albums expanded into tracks, apply `returnKind`, relation exclusions,
 recent-activity exclusions, cursor pagination, and least-recently-recommended
 ordering, recently-added ordering, and return explicit `materialId` handles without raw
 source/canonical/evidence graphs. Internal query inputs can still use
-lightweight text matching for `preferenceHints`, but Stage Interface tool
-schemas do not advertise those fields until real semantic feature data exists.
+lightweight text matching for `preferenceHints`, but Stage Interface and MCP
+surfaces do not advertise those fields and strip them from public tool payloads
+until real semantic feature data exists.
+Source Library saved-track, followed-artist, all-material, and materialRef-backed
+Collection pools now project stored Source Entity / Material Store records
+directly into cards before selector policy runs, so owned playable links do not
+depend on provider re-grounding during recommendation query.
 `music.material.resolve.cards` now resolves returned `materialId` values back
 through Material Registry / Material Resolve instead of treating them as text
 search.
@@ -64,8 +69,8 @@ projects `MaterialCard.materialId` strings in recommendation payloads into
 Material Activity, so recent exclusion works for compact card events.
 Compact material cards now separate playable-link availability from identity
 confidence. Source-backed cards with playable links return `status:
-"playable"` plus `identityConfidence: "source_backed"` rather than encoding
-identity uncertainty into playability. `music.material.context.brief` reports
+"playable"` while identity certainty stays out of ordinary agent-facing cards.
+`music.material.context.brief` reports
 ordinary version requests as neutral `version.status: "not_checked"` instead
 of a warning, so normal recommendation flow does not treat missing version
 inspection as a user-visible risk.
@@ -240,8 +245,9 @@ creates an evidence-backed memory proposal without auto-acceptance.
   `recently_added` / `least_recently_recommended` ordering.
 - Addressed PR #7 follow-up review by hiding experimental `preferenceHints`
   from the LLM-facing `music.material.query` and `music.material.related`
-  Stage Interface/MCP schemas while keeping the internal contract, and by
-  making `music.material.context.brief.fields` control output shape.
+  Stage Interface/MCP schemas, stripping them at the public tool boundary while
+  keeping the internal contract, and by making
+  `music.material.context.brief.fields` control output shape.
 - Added PR 5 downstream target contracts:
   `MusicMaterialSnapshot`, `MaterialEventTarget`, `MemoryTarget`, and compact
   `MusicMaterialActionTarget`.

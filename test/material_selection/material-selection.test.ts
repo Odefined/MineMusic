@@ -277,11 +277,13 @@ async function selectorReturnsCompactCards(): Promise<void> {
   const card = output.items[0] as unknown as Record<string, unknown>;
 
   assert(card.materialId === material.record.materialRef.id, "selected card should expose compact materialId");
-  assert(card.reason === "fits the moment", "selected card should preserve candidate reason");
+  assert(!("reason" in card), "selected card should not echo candidate reason");
   assert(!("materialRef" in card), "selected card should not expose materialRef");
   assert(!("sourceRefs" in card), "selected card should not expose sourceRefs");
   assert(!("canonicalRef" in card), "selected card should not expose canonicalRef");
   assert(!("playableLinks" in card), "selected card should not expose playableLinks");
+  assert(!("identityConfidence" in card), "selected card should not expose identity confidence");
+  assert(!("actions" in card), "selected card should not expose action menus");
 }
 
 function ref(namespace: string, kind: string, id: string, label?: string): Ref {

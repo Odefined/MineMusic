@@ -1527,17 +1527,23 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
 
 async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void> {
   const calls: string[] = [];
+  const queryPayloads: Array<Record<string, unknown>> = [];
+  const relatedPayloads: Array<Record<string, unknown>> = [];
   const sessionContext: SessionContextPort = {
     getSession: async ({ sessionId }) => ({ ok: true, value: { ...session, id: sessionId } }),
     readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
   };
   const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort = {
-    query: async ({ sessionId }) => {
+    query: async (input) => {
+      queryPayloads.push(input as Record<string, unknown>);
+      const { sessionId } = input;
       calls.push(`query:${sessionId ?? "missing"}`);
       return { ok: true, value: { items: [] } };
     },
-    related: async ({ sessionId }) => {
+    related: async (input) => {
+      relatedPayloads.push(input as Record<string, unknown>);
+      const { sessionId } = input;
       calls.push(`related:${sessionId ?? "missing"}`);
       return { ok: true, value: { basis: "fallback_text", items: [] } };
     },
@@ -1588,7 +1594,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     dispatch.call({
       sessionId: "session-current",
       toolName: "music.material.query",
-      payload: { pool: { kind: "all" } },
+      payload: { pool: { kind: "all" }, preferenceHints: { prefer: ["ambient"] } },
     }),
   );
   await assertOk(
@@ -1602,7 +1608,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     dispatch.call({
       sessionId: "session-current",
       toolName: "music.material.related",
-      payload: { materialId: "seed", relation: "similar" },
+      payload: { materialId: "seed", relation: "similar", preferenceHints: { prefer: ["ambient"] } },
     }),
   );
   await assertOk(
@@ -1642,6 +1648,14 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
   assert(calls.includes("query:session-current"), "material query should receive current dispatch session id by default");
   assert(calls.includes("query:caller-session"), "material query should preserve explicit caller session id");
   assert(calls.includes("related:session-current"), "material related should receive current dispatch session id by default");
+  assert(
+    !Object.prototype.hasOwnProperty.call(queryPayloads[0], "preferenceHints"),
+    "material query should strip hidden preferenceHints at the public tool boundary",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(relatedPayloads[0], "preferenceHints"),
+    "material related should strip hidden preferenceHints at the public tool boundary",
+  );
   assert(calls.includes("select:session-current"), "material select should receive current dispatch session id by default");
   assert(
     calls.includes("select-purpose:candidate_selection"),

@@ -332,7 +332,11 @@ export const musicToolDefinitions = [
         return materialQuery;
       }
 
-      return materialQuery.value.query(readPayload<MaterialQueryInput>(payload, { sessionId }));
+      return materialQuery.value.query(
+        stripPublicMaterialPreferenceHints(
+          readPayload<MaterialQueryInput>(payload, { sessionId }),
+        ),
+      );
     },
   },
   {
@@ -357,7 +361,11 @@ export const musicToolDefinitions = [
         return materialQuery;
       }
 
-      return materialQuery.value.related(readPayload<MaterialRelatedInput>(payload, { sessionId }));
+      return materialQuery.value.related(
+        stripPublicMaterialPreferenceHints(
+          readPayload<MaterialRelatedInput>(payload, { sessionId }),
+        ),
+      );
     },
   },
   defineStageInterfaceTool<
@@ -887,6 +895,15 @@ function readMaterialQuery(
   }
 
   return ok(materialQuery);
+}
+
+function stripPublicMaterialPreferenceHints<TInput extends object>(input: TInput): Omit<TInput, "preferenceHints"> {
+  const {
+    preferenceHints: _ignoredPreferenceHints,
+    ...publicInput
+  } = input as TInput & { preferenceHints?: unknown };
+
+  return publicInput;
 }
 
 function readMaterialSelector(materialSelector: MaterialSelectorPort | undefined): Result<MaterialSelectorPort> {

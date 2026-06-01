@@ -1048,8 +1048,9 @@
   recently-added / least-recently-recommended ordering.
 - Addressed PR #7 follow-up review by hiding experimental `preferenceHints`
   from the LLM-facing `music.material.query` and `music.material.related`
-  Stage Interface/MCP schemas while keeping the internal contract, and by
-  making `music.material.context.brief` respect requested `fields`.
+  Stage Interface/MCP schemas, stripping them at the public tool boundary while
+  keeping the internal contract, and by making `music.material.context.brief`
+  respect requested `fields`.
 - Started MusicMaterial PR 5 on branch
   `codex/material-05-downstream-migration` from updated `main`.
 - Added downstream material target contracts for snapshots, event targets,
@@ -1244,9 +1245,8 @@
 - Started recommendation agent-facing surface hardening on branch
   `codex/recommendation-agent-surfaces`.
 - Split compact card playability from identity certainty:
-  source-backed playable cards now return `status: "playable"` with
-  `identityConfidence: "source_backed"` instead of overloading link status with
-  identity certainty.
+  source-backed playable cards now return `status: "playable"` while identity
+  certainty stays out of ordinary agent-facing cards.
 - Changed `music.links.refresh` to accept public `materialId` input and
   project the full material internally before Source Grounding refresh.
 - Tightened MineMusic skill/Handbook guidance so pool and collection
@@ -1256,6 +1256,13 @@
   recommendations.
 - Fixed the recommendation fixture `Page Window` track to be explicitly
   page-url-only with no playable links, with regression coverage.
+- Started library query direct-card hardening on branch
+  `codex/library-query-direct-cards`.
+- Changed `music.material.query` so Source Library saved-track, followed-artist,
+  all-material, and materialRef-backed Collection pools project stored
+  Material Store / Source Entity records directly before selector policy, rather
+  than depending on provider re-grounding to recover already-owned playable
+  links.
 
 ## Next
 

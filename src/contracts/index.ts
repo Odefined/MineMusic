@@ -435,7 +435,7 @@ export type PresentedMaterialLink = {
   sourceHandle?: string;
 };
 
-export type PresentedMaterialCard = MaterialCardSnapshot & {
+export type PresentedMaterialCard = CandidateMaterialCard & {
   links?: PresentedMaterialLink[];
 };
 
@@ -446,6 +446,8 @@ export type RecommendationPresentedLinkRef = {
 };
 
 export type RecommendationPresentedCardSnapshot = MaterialCardSnapshot & {
+  identityConfidence?: MaterialCardIdentityConfidence;
+  reason?: string;
   linkRefs?: RecommendationPresentedLinkRef[];
 };
 
@@ -1123,15 +1125,6 @@ export type MaterialCardIdentityConfidence =
   | "ambiguous"
   | "unresolved";
 
-export type MaterialCardAction =
-  | "open"
-  | "more_like_this"
-  | "same_artist"
-  | "same_album"
-  | "not_this_version"
-  | "block"
-  | "remember";
-
 export type MaterialCard = {
   /**
    * Material Store id for durable material actions. Unresolved decision cards
@@ -1141,9 +1134,6 @@ export type MaterialCard = {
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
-  identityConfidence?: MaterialCardIdentityConfidence;
-  reason?: string;
-  actions?: MaterialCardAction[];
 };
 
 export type ResolveSeed = {

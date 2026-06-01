@@ -11,17 +11,15 @@ resolution, source grounding, Stage guidance, event records, memory proposals,
 and effect proposals.
 
 MineMusic tools come from the external MineMusic server registered in global
-Codex MCP client config. This skill does not start the server, configure MCP,
-or own provider/database/cache/session runtime settings.
+Codex MCP client config. Server startup, MCP registration, provider databases,
+caches, and session runtime settings stay in server/runtime configuration.
 
 ## Tool Discovery
 
-Codex may expose MineMusic MCP tools through deferred tool discovery instead
-of listing the `mcp__minemusic__` namespace in the initial active tool list.
-When a MineMusic tool is not visible yet, first call `tool_search` with a
-query such as `minemusic knowledge query` or `minemusic handbook`, then use the
-loaded native `mcp__minemusic__.*` tools. Do not treat SDK, curl, or direct MCP
-client calls as a substitute for checking native Codex tool exposure.
+Codex may expose MineMusic MCP tools through deferred tool discovery. To load a
+missing MineMusic tool, first call `tool_search` with a query such as
+`minemusic knowledge query` or `minemusic handbook`, then use the loaded native
+`mcp__minemusic__.*` tools.
 
 ## Handbook Lookup
 
@@ -36,14 +34,13 @@ Use the handbook tools by lookup level:
   - Reads one exact tool such as `library.source.list` or
     `music.material.resolve`.
 
-Do not mix these lookup keys:
+Use the lookup key that matches the requested level:
 
-- `instrumentId` is an instrument id like `minemusic.library`, not a tool name.
-- `toolName` is a tool name like `library.update.start`, not an instrument id.
+- `instrumentId` is an instrument id like `minemusic.library`.
+- `toolName` is a tool name like `library.update.start`.
 
-If you need the exact input/output contract for one operation, prefer
-`minemusic.handbook.tool.read` for that tool instead of guessing from the
-overview snapshot.
+For the exact input/output contract of one operation, use
+`minemusic.handbook.tool.read` for that tool.
 
 ## Required Flow
 
@@ -55,23 +52,27 @@ overview snapshot.
    - use `minemusic.handbook.tool.read({ toolName: "library.update.start" })`
      when you need one exact tool's current input/output shape.
 3. Call `minemusic.stage.context.read` for dynamic session context.
-4. Interpret the user's listening context yourself. "Writing code", "walking",
-   "late night", or "not too sleepy" are listening context, not literal song
-   titles.
+4. Interpret the user's listening context yourself. Phrases like "writing code",
+   "walking", "late night", or "steady but quiet" describe the listening
+   situation.
 5. Choose one or more music candidates from your musical judgment, such as a
    song title plus artist, an artist name, or a concrete album/track candidate.
-   Do not send environment words like "coding", "study", or "sleepy" as
-   literal provider searches unless the user actually asked for a song/title
-   with that word.
+   Send provider searches as concrete title, artist, album, or release text.
 6. For recommendations from a pool, collection, source library, related pool,
    or all available material, use `minemusic.music.material.query` with the
    requested `pool`, `constraints`, `exclude`, `order`, and `limit`.
+   Use only fields shown by the live handbook/tool schema. `q` is for concrete
+   title, artist, album, or release text; apply your musical judgment to the
+   returned cards.
+   For source-library or collection pools, treat returned cards as already
+   grounded from stored library/collection assets. Use `library.source.list` for
+   raw audit/listing views or after query produces zero usable candidates.
    For open-ended recommendations or playable-link requests, obtain intended
    `materialId` values from compact material sources such as
    `minemusic.music.material.resolve.cards`, `minemusic.music.material.query`,
    `minemusic.music.material.related`, or recent context.
-   Resolve is a grounding operation; source grounding is an internal evidence
-   step and should not be driven one candidate at a time by the agent:
+   Resolve is a grounding operation; MineMusic handles source evidence behind
+   the material boundary:
 
 ```json
 {
@@ -92,10 +93,11 @@ overview snapshot.
 
 7. Optionally call `minemusic.music.material.select` only after you already
    have materialIds and want reusable policy, sorting, diversity, or limit
-   behavior across that set. Do not use select as the way to retrieve from a
-   collection, source library, or all-material pool; use query for that.
+   behavior across that set. Retrieval from collection, source library, or
+   all-material pools stays in query.
    For recommendation candidate prep, pass `policy.availability: "playable"`
-   unless you are intentionally collecting non-playable context.
+   for playable recommendations. Use `availability: "any"` for non-playable
+   context.
 8. Call `minemusic.stage.recommendation.present` with the intended ordered
    items before answering with user-visible recommendations:
 
@@ -116,32 +118,26 @@ overview snapshot.
    `presented: false`, retry with better grounded materialIds or say plainly
    that no presentable grounded recommendation survived.
    A returned card with `status: "playable"` and links is usable for normal
-   recommendations even when `identityConfidence` is `source_backed`; do not
-   refresh or disclaim links unless the user reports a link problem.
-10. Do not create `recommendation.presented` manually with
-   `minemusic.stage.events.record`; presentation events come from
+   recommendations even when `identityConfidence` is `source_backed`. Refresh or
+   disclaim links after the user reports a link problem.
+10. Presentation events come from `minemusic.stage.recommendation.present`.
+11. Use `minemusic.stage.materials.prepare` as a material sanitizer for draft
+   display. Final recommendations go through
    `minemusic.stage.recommendation.present`.
-11. Use `minemusic.stage.materials.prepare` only as a legacy material sanitizer
-   for non-final material display, not as the final recommendation boundary.
 12. For feedback on shown cards, interpret the user's wording yourself and
    bind the feedback to recent presentation cards with
-   `minemusic.memory.feedback.record`. Do not fabricate a recommendation event
-   for feedback.
+   `minemusic.memory.feedback.record`.
 13. For feedback like "remember this style", use
    `minemusic.memory.feedback.record` with `remember_preference` bound to the
    recent recommendation when possible. Use `minemusic.memory.propose` only for
    advanced evidence-backed proposals.
 14. For external actions such as open, play, queue, save, source writeback, or
-   notification, call `minemusic.stage.effects.propose`; do not execute the action
-   directly.
+   notification, call `minemusic.stage.effects.propose`.
 
 ## Boundaries
 
 - Keep provider details behind MineMusic tools.
-- Keep final prose human and music-facing; do not expose internal buckets or
-  raw JSON unless the user asks.
-- Do not call `minemusic.music.material.context.brief` with `version` during
-  ordinary recommendations. Inspect version only after the user says the shown
-  version is wrong.
-- If tools return an error or no prepared playable link, say that plainly and
-  offer the grounded non-playable result only as such.
+- Keep final prose human and music-facing. Share internal buckets or raw JSON
+  only when the user asks.
+- Inspect version after the user reports a version mismatch.
+- For tool errors or grounded non-playable results, say that plainly.

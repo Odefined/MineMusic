@@ -123,7 +123,7 @@ Source-backed material can be recommended, played/opened, recorded, and given sc
    Do not introduce `MaterialSubject`, `anchor`, or `occurrenceId`. Use `MusicMaterial`, `materialRef`, `sourceRef`, `canonicalRef`, `eventId`, and relation `scope`.
 
 4. **Keep agent-facing output compact.**  
-   Agent-facing material tools should return only what the agent needs for the next step: `ref`, `title`, `subtitle`, `status`, optional `basis`, optional `reason`, and allowed `actions`.
+   Agent-facing material tools should return only what the agent needs for the next step: `materialId`, `title`, optional `subtitle`, `status`, and presentation `links` when appropriate.
 
 5. **Make scripts deterministic.**  
    Scripts and services should not be responsible for natural-language understanding. The LLM agent translates user language into a structured query plan; MineMusic executes it.
@@ -781,32 +781,19 @@ export type MaterialCardStatus =
   | "blocked"
   | "unresolved";
 
-export type MaterialCardIdentityConfidence =
-  | "canonical_confirmed"
-  | "source_backed"
-  | "ambiguous"
-  | "unresolved";
-
-export type MaterialCardAction =
-  | "open"
-  | "more_like_this"
-  | "same_artist"
-  | "same_album"
-  | "not_this_version"
-  | "block"
-  | "remember";
-
 export type MaterialCard = {
   /** Opaque Material Store id. Agent passes this back. */
   materialId?: string;
   title: string;
   subtitle?: string;
   status: MaterialCardStatus;
-  identityConfidence?: MaterialCardIdentityConfidence;
-  reason?: string;
-  actions?: MaterialCardAction[];
 };
 ```
+
+Recommendation presentation cards may add display links. Position, presented
+time, identity confidence, recommendation reason, and link refs belong to the
+typed `recommendation.presented` event snapshot or detail/audit tools rather
+than ordinary agent-facing cards.
 
 ### 12.2 Material id handle
 
@@ -830,16 +817,12 @@ is still playable unless user feedback says otherwise.
 | `unresolved` / `exploration` / `verbal_only` | any | `unresolved` | source identity state |
 | multiple likely identities | `ambiguous` | state-derived status | `ambiguous` |
 
-### 12.4 Actions
+### 12.4 Action routing
 
-Generate actions from current material properties:
-
-- `open`: material has presentable playable link.
-- `same_artist`: material context has source or canonical artist basis.
-- `same_album`: material context has source or canonical release/release-group basis.
-- `not_this_version`: source-backed or version-sensitive material.
-- `block`: any material with materialRef.
-- `remember`: user feedback can become evidence-backed memory.
+Actions are chosen from user intent and tool schemas rather than advertised as
+card menus. Opening uses presentation links, related recommendations use
+`music.material.related`, version feedback uses detail/context tools, and durable
+writes go through feedback or effect boundaries.
 
 ---
 
@@ -1068,18 +1051,14 @@ Example user request:
 From my saved albums, recommend a few tracks for writing, not sleepy, and don't repeat what you just recommended.
 ```
 
-Agent translates into:
+Agent first asks MineMusic for the owned playable pool, then uses musical
+judgment over returned cards for the style fit:
 
 ```ts
 {
   returnKind: "recording",
   pool: { kind: "source_library", areas: ["saved_albums"], expand: "tracks" },
   constraints: { availability: "playable", identity: "allow_source_backed" },
-  preferenceHints: {
-    activity: "writing",
-    prefer: ["calm", "steady_motion", "instrumental"],
-    avoid: ["sleepy", "vocal_heavy"]
-  },
   exclude: {
     relations: ["blocked", "wrong_version", "not_playable"],
     recent: { recommended: "session", mode: "hard" }
@@ -1119,14 +1098,6 @@ export type MaterialQueryInput = {
     availability?: "playable" | "any";
     identity?: "confirmed_only" | "allow_source_backed";
   };
-  preferenceHints?: {
-    activity?: string;
-    mood?: string[];
-    energy?: "low" | "medium_low" | "medium" | "high";
-    vocal?: "avoid" | "allow" | "prefer";
-    prefer?: string[];
-    avoid?: string[];
-  };
   exclude?: {
     materialIds?: string[];
     relations?: Array<"blocked" | "wrong_version" | "not_playable" | "bad_match">;
@@ -1142,6 +1113,13 @@ export type MaterialQueryInput = {
   cursor?: string;
 };
 ```
+
+The internal service contract may keep experimental `preferenceHints` for
+local tests, but the Stage Interface and MCP surfaces do not advertise them and
+strip them from public `music.material.query` / `music.material.related`
+payloads. Until MineMusic owns real tag, genre, mood, audio-feature, or
+embedding data, style fit is the agent's judgment over concrete returned cards,
+not a material-query tag interface.
 
 ### 14.4 Output
 
@@ -1159,7 +1137,7 @@ export type MaterialQueryOutput = {
 ### 14.5 Execution plan
 
 ```text
-1. Resolve pool into candidate material refs.
+1. Resolve pool into material refs from owned assets when possible.
 2. Expand pool if needed, e.g. saved albums -> tracklist -> recordings.
 3. Project material refs into MusicMaterial.
 4. Apply constraints: kind, availability, identity certainty.
@@ -1179,6 +1157,8 @@ SourceLibraryItem
   -> sourceRef
   -> MaterialRegistry.getOrCreateBySourceRef
   -> materialRef
+  -> SourceEntity providerUrl, if present
+  -> MaterialCard
 ```
 
 `areas` mapping:
@@ -1193,7 +1173,9 @@ If `expand: "tracks"` on saved albums, use `SourceRelease.tracklist` when availa
 
 #### Collection pool
 
-If Collection has migrated to material refs, use collection item material refs directly. During migration, resolve canonical refs through Material Registry.
+If Collection has migrated to material refs, use collection item material refs
+directly and project through Material Store / Source Entity. During migration,
+resolve canonical refs through Material Registry.
 
 #### Related pool
 
@@ -1201,7 +1183,9 @@ Delegates to Related Service seed generation, then resolves seeds.
 
 #### All pool
 
-Combines canonical lookup, source search, Source Library, and optional Knowledge-derived seeds, subject to constraints.
+Uses Source Library material refs as the owned-asset pool, subject to
+constraints. Provider/source search remains a resolve path for unknown
+candidate text rather than the default path for already-owned library items.
 
 ### 14.7 Recent dedupe
 
@@ -1221,7 +1205,6 @@ music.material.query({
   returnKind: "recording",
   pool: { kind: "source_library", areas: ["saved_tracks"] },
   constraints: { availability: "playable", identity: "allow_source_backed" },
-  preferenceHints: { activity: "writing", prefer: ["calm", "steady_motion"], avoid: ["sleepy"] },
   exclude: {
     relations: ["blocked", "wrong_version", "not_playable"],
     recent: { recommended: "session", mode: "hard" }
@@ -1350,7 +1333,7 @@ Ordinary user wording "album" defaults to `release_group` when canonical identit
 2. same album/release-group neighbors;
 3. Knowledge tags/genres/relations;
 4. user's Source Library adjacency;
-5. source search using artist/style hints.
+5. source search using artist or other concrete identity hints.
 
 Every generated seed must go back through `resolve`.
 
@@ -1433,7 +1416,7 @@ Modify `src/contracts/index.ts`:
 2. Add `materialRef` and `identityState` to `MusicMaterial`.
 3. Add `MusicMaterialSnapshot`.
 4. Add `MusicMaterialRelationScope`, `MusicMaterialRelationKind`, `MusicMaterialRelation`.
-5. Add `MaterialCard`, `MaterialCardStatus`, `MaterialCardAction`.
+5. Add `MaterialCard` and `MaterialCardStatus`.
 6. Add `ResolveSeed`, `MaterialResolveCardsInput`, `MaterialResolveCardsOutput`.
 7. Add `MaterialQueryInput`, `MaterialQueryOutput`, `MaterialPoolSpec`.
 8. Add `RelatedInput`, `RelatedCardsOutput`.
@@ -1666,8 +1649,8 @@ MineMusic expands saved source releases through stored SourceRelease tracklists 
 - Resolve by sourceRef creates source-backed material.
 - Resolve by canonicalRef creates canonical-confirmed material.
 - Text seed dedupes source and canonical hits.
-- Source-backed material with playable link returns `status: "playable"` and
-  `identityConfidence: "source_backed"`.
+- Source-backed material with playable link returns `status: "playable"` on
+  agent-facing cards and keeps identity confidence in internal/detail surfaces.
 - Canonical-confirmed playable material returns `playable` card.
 - Not-playable source relation removes source playable link.
 - Material-level block returns `blocked` or excludes based on query purpose.

@@ -104,14 +104,19 @@ expanded into tracks, Collection compatibility through canonical refs or
 collection labels, `returnKind`, relation exclusions, recent-activity
 exclusions, cursor pagination, recently-added and least-recently-recommended
 ordering, while internal query inputs can still use lightweight text matching
-for `preferenceHints`; Stage Interface tool schemas intentionally do not
-advertise `preferenceHints` until real semantic feature data exists. Related
+for `preferenceHints`; Stage Interface and MCP surfaces intentionally do not
+advertise `preferenceHints` and strip it from public tool payloads until real
+semantic feature data exists. Related
 material resolves generated candidates through Material Resolve and supports
 same-artist, same-album, and similar flows with canonical-artist preference and
 source artist/release fallback. `music.material.context.brief` respects its
 requested `fields` when returning artist, album, version, or status details.
 `music.material.resolve.cards` resolves explicit `materialId` seeds through
 Material Registry / Material Resolve rather than treating them as search text.
+Source Library saved-track, followed-artist, all-material, and materialRef-backed
+Collection pool queries project stored Source Entity / Material Store records
+directly into compact cards before selector policy runs, so already-owned
+playable links are not lost if provider grounding would not re-find them.
 Compact resolve, related, collection query, and explicit exclude-materialId
 paths follow material merge redirects so merged ids project or exclude the
 current survivor.
@@ -161,8 +166,9 @@ actions use `materialId` instead of compact `mat_*` refs.
 
 The 2026-05-31 recommendation agent-facing surface hardening separates
 playable-link availability from identity confidence. Compact cards now use
-`status: "playable"` when a source-backed playable link is present and carry
-`identityConfidence` separately. Pool and collection recommendations are
+`status: "playable"` when a source-backed playable link is present; identity
+confidence is retained internally and exposed through detail/audit paths rather
+than ordinary recommendation cards. Pool and collection recommendations are
 documented as `music.material.query` flows, `music.links.refresh` accepts a
 `materialId` instead of a full `MusicMaterial`, ordinary version context reads
 return neutral unchecked status, and the fixture recommendation provider has an
