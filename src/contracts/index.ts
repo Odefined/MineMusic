@@ -491,11 +491,33 @@ export type RecommendationPresentInput = {
   };
 };
 
+export type RecommendationPresentationItem = {
+  materialId: string;
+  materialRef: Ref;
+  material: MusicMaterial;
+  reason?: string;
+  basis?: RecommendationPresentItem["basis"];
+  warnings: string[];
+};
+
+export type RecommendationPresentationEventItem = {
+  materialId: string;
+  materialRef: Ref;
+  label: string;
+  state: MaterialState;
+  identityState: MusicMaterialIdentityState;
+  position: number;
+  presentedAt: string;
+  reason?: string;
+  basis?: RecommendationPresentItem["basis"];
+  linkRefs?: RecommendationPresentedLinkRef[];
+};
+
 export type RecommendationPresentedPayload = {
   ownerScope?: string;
   request?: string;
   presentedAt: string;
-  cards: RecommendationPresentedCardSnapshot[];
+  cards: RecommendationPresentationEventItem[];
   basis?: Array<{
     materialId: string;
     kind: RecommendationBasisKind;
@@ -507,13 +529,13 @@ export type RecommendationPresentOutput =
   | {
       presented: true;
       eventId: string;
-      cards: PresentedMaterialCard[];
+      items: RecommendationPresentationItem[];
       dropped?: DroppedMaterial[];
       warnings?: RecommendationPresentWarning[];
     }
   | {
       presented: false;
-      cards: PresentedMaterialCard[];
+      items: RecommendationPresentationItem[];
       dropped?: DroppedMaterial[];
       issues: RecommendationPresentIssue[];
       retryable: boolean;

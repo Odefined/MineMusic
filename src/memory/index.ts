@@ -270,15 +270,22 @@ function boundTargetForEventPosition(
 
   const linkRefs = linkRefsFromPresentedCardSnapshot(card);
   const sourceRef = linkRefs.length === 1 ? linkRefs[0]?.sourceRef : undefined;
+  const title = presentedEventItemTitle(card);
 
   return {
     materialId: card.materialId,
-    ...(typeof card.title === "string" ? { title: card.title } : {}),
+    ...(title === undefined ? {} : { title }),
     eventId: event.id,
     position,
     ...(sourceRef === undefined ? {} : { sourceRef }),
     ...(linkRefs.length === 0 ? {} : { linkRefs }),
   };
+}
+
+function presentedEventItemTitle(card: Record<string, unknown>): string | undefined {
+  return typeof card.title === "string"
+    ? card.title
+    : typeof card.label === "string" ? card.label : undefined;
 }
 
 async function applyFeedbackConsequence({

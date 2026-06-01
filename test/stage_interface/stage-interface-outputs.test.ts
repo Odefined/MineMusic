@@ -5,6 +5,7 @@ import type {
   MaterialResolveCardsOutput,
   MaterialSelectOutput,
   MusicMaterial,
+  RecommendationPresentOutput,
   Ref,
 } from "../../src/contracts/index.js";
 import {
@@ -14,6 +15,7 @@ import {
   compactMaterialResolveCardsOutput,
   compactMaterialResolveOutput,
   compactMaterialSelectOutput,
+  compactRecommendationPresentOutput,
 } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -215,6 +217,42 @@ function materialResolveCardsOutputCompactsDomainItemsAndUnresolved(): void {
   assert(output.items[1]?.materialId === undefined, "unresolved seed diagnostic card should not invent a material id");
 }
 
+function recommendationPresentOutputCompactsDomainItemsToCards(): void {
+  const sourceRef = ref("source:fixture", "track", "presented-track");
+  const output: RecommendationPresentOutput = {
+    presented: true,
+    eventId: "event-presented",
+    items: [{
+      materialId: "presented-material",
+      materialRef: ref("minemusic", "material", "presented-material"),
+      material: material("source_only_playable", {
+        label: "Presented Track",
+        playableLinks: [{ url: "https://example.test/presented-track", sourceRef, label: "Fixture" }],
+      }),
+      reason: "fits",
+      warnings: [],
+    }],
+  };
+
+  const compact = compactRecommendationPresentOutput(output) as Record<string, unknown>;
+  const card = (compact.cards as Array<Record<string, unknown>> | undefined)?.[0];
+  const link = (card?.links as Array<Record<string, unknown>> | undefined)?.[0];
+
+  assert(compact.presented === true, "presentation status should be preserved");
+  assert(compact.eventId === "event-presented", "presentation event id should be preserved");
+  assert(card?.materialId === "presented-material", "presentation item id should become compact card id");
+  assert(card.title === "Presented Track", "presentation domain label should compact to card title");
+  assert(card.status === "playable", "presentation compact status should be derived from material state");
+  assert(link?.url === "https://example.test/presented-track", "presentation playable links should become display links");
+  assert(link.sourceHandle === "link:1", "presentation links should expose opaque source handles");
+  assert(!("sourceRef" in link), "presentation display links should not expose source refs");
+  assert(!("items" in compact), "compact presentation output should not expose core domain items");
+  assert(!("material" in card), "compact presentation card should not expose raw material");
+  assert(!("materialRef" in card), "compact presentation card should not expose materialRef");
+  assert(!("sourceRefs" in card), "compact presentation card should not expose sourceRefs");
+  assert(!("playableLinks" in card), "compact presentation card should not expose playableLinks");
+}
+
 materialCardMapsMaterialStates();
 materialCardKeepsOnlyCompactFields();
 materialResolveOutputCompactsCandidates();
@@ -222,3 +260,4 @@ materialQueryOutputsCompactDomainItems();
 materialRelatedOutputsCompactDomainItems();
 materialSelectOutputCompactsDomainItems();
 materialResolveCardsOutputCompactsDomainItemsAndUnresolved();
+recommendationPresentOutputCompactsDomainItemsToCards();

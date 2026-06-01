@@ -12,7 +12,6 @@ import {
 } from "../../fixtures/integration/mvp-fixture.js";
 import type {
   MusicMaterial,
-  RecommendationPresentOutput,
   Ref,
   Result,
   SourceEntity,
@@ -21,7 +20,10 @@ import type {
 import { runRecommendationTranscript } from "../../src/app/index.js";
 import { createFixtureMineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 import type { MineMusicStageCoreHarness } from "../../src/stage_core/index.js";
-import type { CompactMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
+import type {
+  CompactMaterialResolveOutput,
+  CompactRecommendationPresentOutput,
+} from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -145,7 +147,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     const recommendationPayload = recommendationEvent.payload as {
       cards?: Array<{
         materialId?: string;
-        title?: string;
+        label?: string;
         links?: unknown;
         linkRefs?: Array<{ sourceRef?: Ref; url?: string }>;
         position?: number;
@@ -159,7 +161,7 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
     );
     assert(
       recommendationPayload.cards.some((card) =>
-        card.title === fixtureSourceOnlyPlayableMaterial.label &&
+        card.label === fixtureSourceOnlyPlayableMaterial.label &&
         card.linkRefs?.some((link) => link.url === "https://fixture.example/play/source-only-track")
       ),
       "recommendation event should retain source/link refs needed for later feedback binding",
@@ -337,7 +339,7 @@ async function doesNotPresentSourceRefPageUrlAsPlayableLink(): Promise<void> {
         items: material?.materialId === undefined ? [] : [{ materialId: material.materialId }],
         minCards: 1,
       }),
-    ) as RecommendationPresentOutput;
+    ) as CompactRecommendationPresentOutput;
 
     assert(!presentation.presented, "presentation should not present sourceRef.url-only material as playable");
     assert(presentation.cards.length === 0, "sourceRef.url-only material should not produce a display card");
