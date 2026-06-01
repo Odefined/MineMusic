@@ -146,6 +146,18 @@ export type HandbookToolEntry = {
 export type StageContext = {
   session: StageSession;
   memorySummaries: string[];
+  guidance?: string[];
+  recentCards?: StageRecentMaterialItem[];
+};
+
+export type StageRecentMaterialItem = {
+  materialId: string;
+  title: string;
+  subtitle?: string;
+  state: MaterialState;
+  position: number;
+  presentedAt: string;
+  eventId: string;
 };
 ```
 
@@ -444,9 +456,18 @@ export type MaterialSortInput = {
 export type MaterialSortOutput = {
   candidates: MaterialSortCandidate[];
 };
+```
 
-export type CandidateMaterialCard = MaterialCard & {
+Material modules return domain results. Stage Interface output modules project
+those results into compact agent-facing outputs. MaterialCard-like DTOs are
+Stage Interface output types, not material service communication formats.
+
+```ts
+export type MaterialSelectionItem = {
   materialId: string;
+  material: MusicMaterial;
+  score?: number;
+  reason?: string;
 };
 
 export type MaterialSelectCandidate = {
@@ -482,7 +503,7 @@ export type MaterialSelectInput = {
 };
 
 export type MaterialSelectOutput = {
-  items: CandidateMaterialCard[];
+  items: MaterialSelectionItem[];
   dropped?: MaterialSelectDropped[];
   warnings?: MaterialSelectWarning[];
   applied?: string[];
@@ -506,19 +527,13 @@ export type RecommendationPresentItem = {
   };
 };
 
-export type MaterialCardSnapshot = CandidateMaterialCard & {
-  position: number;
-  presentedAt: string;
-};
-
-export type PresentedMaterialLink = {
-  label?: string;
-  url: string;
-  sourceRef?: Ref;
-};
-
-export type PresentedMaterialCard = MaterialCardSnapshot & {
-  links?: PresentedMaterialLink[];
+export type RecommendationPresentationItem = {
+  materialId: string;
+  materialRef: Ref;
+  material: MusicMaterial;
+  reason?: string;
+  basis?: RecommendationPresentItem["basis"];
+  warnings: string[];
 };
 
 export type RecommendationPresentedLinkRef = {
@@ -527,12 +542,17 @@ export type RecommendationPresentedLinkRef = {
   url?: string;
 };
 
-export type RecommendationPresentedCardSnapshot = MaterialCardSnapshot & {
+export type RecommendationPresentationEventItem = {
+  materialId: string;
+  materialRef: Ref;
+  label: string;
+  state: MaterialState;
+  identityState: MusicMaterialIdentityState;
+  position: number;
+  presentedAt: string;
+  reason?: string;
+  basis?: RecommendationPresentItem["basis"];
   linkRefs?: RecommendationPresentedLinkRef[];
-};
-
-export type RecentMaterialCard = MaterialCardSnapshot & {
-  eventId: string;
 };
 
 export type DroppedMaterial = {
@@ -556,7 +576,7 @@ export type RecommendationPresentedPayload = {
   ownerScope?: string;
   request?: string;
   presentedAt: string;
-  cards: RecommendationPresentedCardSnapshot[];
+  cards: RecommendationPresentationEventItem[];
   basis?: Array<{
     materialId: string;
     kind: RecommendationBasisKind;
@@ -568,13 +588,13 @@ export type RecommendationPresentOutput =
   | {
       presented: true;
       eventId: string;
-      cards: PresentedMaterialCard[];
+      items: RecommendationPresentationItem[];
       dropped?: DroppedMaterial[];
       warnings?: Array<{ materialId: string; warnings: string[] }>;
     }
   | {
       presented: false;
-      cards: PresentedMaterialCard[];
+      items: RecommendationPresentationItem[];
       dropped?: DroppedMaterial[];
       issues: Array<{
         code: "not_enough_cards";
@@ -584,7 +604,13 @@ export type RecommendationPresentOutput =
       }>;
       retryable: boolean;
     };
+```
 
+`recommendation_presentation` remains a core/runtime service for final policy
+and event recording; only compact output projection belongs to Stage
+Interface.
+
+```ts
 export interface SourceProvider {
   id: string;
   search(input: {

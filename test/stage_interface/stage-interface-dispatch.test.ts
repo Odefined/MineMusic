@@ -27,8 +27,8 @@ import type {
   EffectBoundaryPort,
   EventPort,
   LibraryImportPort,
-  MaterialCardsPort,
   MaterialQueryPort,
+  MaterialQuerySupportPort,
   MaterialRelatedPort,
   MaterialSelectorPort,
   MaterialResolvePort,
@@ -838,7 +838,7 @@ function assertCompactRecommendationOutput(output: unknown, message: string): vo
   assert(first !== undefined, message);
   assert(first.materialId === "material-presented", message);
   assert(first.title === "Presented Track", message);
-  assert(first.status === "playable", message);
+  assert(first.state === "source_only_playable", message);
   assert(firstLink?.url === "https://example.test/presented-track", message);
   assert(!("items" in output), "compact Stage Interface recommendation output should not expose core items");
   assert(!("material" in first), "compact Stage Interface recommendation card should not expose raw material");
@@ -1586,7 +1586,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
   };
-  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialCardsPort = {
+  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort = {
     query: async (input) => {
       queryPayloads.push(input as Record<string, unknown>);
       const { sessionId } = input;
@@ -1736,7 +1736,7 @@ function assertCompactMaterialOutput(output: unknown, message: string): void {
   assert(first !== undefined, message);
   assert(first.materialId === "dispatch-material", message);
   assert(first.title === "Dispatch Material", message);
-  assert(first.status === "playable", message);
+  assert(first.state === "source_only_playable", message);
   assert(!("material" in first), "compact Stage Interface output should not expose raw material");
   assert(!("materialRef" in first), "compact Stage Interface output should not expose materialRef");
   assert(!("sourceRefs" in first), "compact Stage Interface output should not expose sourceRefs");

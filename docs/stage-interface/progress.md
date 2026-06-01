@@ -27,22 +27,29 @@ presentation boundary.
 `music.material.select` remains public only as a candidate-selection helper:
 the Stage Interface schema rejects `recommendation_presentation` and
 `feedback_target` policy purposes. `stage.recommendation.present` is still the
-only public presentation boundary, and it records compact feedback-binding
-snapshots rather than persisting the full display card links returned to the
-caller.
+only public presentation boundary. It returns compact public cards from
+`src/stage_interface/outputs/recommendation.ts` and records domain
+feedback-binding event items rather than persisting the display links returned
+to the caller.
+
+Material modules return domain results. Stage Interface output modules project
+those results into compact agent-facing outputs. MaterialCard-like DTOs are
+Stage Interface output types, not material service communication formats.
+`recommendation_presentation` remains a core/runtime service for final policy
+and event recording; only compact output projection belongs to Stage
+Interface.
 
 The Memory Tool Group now exposes `memory.feedback.record` for interpreted
 feedback on presented recommendation cards. Its target resolver binds through
 recent card handles or exact event positions and reads persisted presentation
 `linkRefs` for source/link-scoped consequences.
-Displayed `PresentedMaterialCard.links` keep only link display fields and a
-compact source handle; raw `sourceRef` objects stay in the persisted
-`recommendation.presented` snapshot for internal feedback binding.
-Displayed cards now treat `status: "playable"` as playable-link availability
-and carry identity certainty separately through `identityConfidence`, so
-source-backed playable recommendations do not ask the agent to second-guess
-normal links. `music.links.refresh` now takes `materialId` as its public input
-and projects the full material internally before calling Source Grounding.
+Displayed recommendation links keep only link display fields and a compact
+source handle; raw `sourceRef` objects stay in the persisted
+`recommendation.presented` event item for internal feedback binding.
+Displayed cards now expose the underlying `MaterialState` as `state`; playable-link
+availability stays visible through display links rather than an extra card field.
+`music.links.refresh` now takes `materialId` as its public input and projects
+the full material internally before calling Source Grounding.
 
 Tool Definitions now support optional typed input parsers in addition to their
 raw host-facing schema shapes. `music.material.select`,
@@ -128,6 +135,10 @@ the same passthrough payload shape.
   tools.
 - Public presentation links without raw `sourceRef` exposure; feedback binding
   source refs remain in persisted presentation snapshots.
+- Stage Interface output modules for material and recommendation compact
+  projections.
+- Architecture boundary test coverage that prevents material modules from
+  importing Stage Interface output DTOs or legacy card DTO names.
 
 ## Not Yet Implemented
 

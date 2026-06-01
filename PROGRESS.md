@@ -1027,9 +1027,9 @@
   wrong-version feedback.
 - Started MusicMaterial PR 4 on branch
   `codex/material-04-query-related-tools` from updated `main`.
-- Added compact `MaterialCard`, resolve-cards, query, related, context brief,
-  and pool-list contracts plus public Material Query/Related/Cards ports.
-- Added `src/material_query/index.ts` for compact material card presentation,
+- Added material resolve-cards, query, related, context brief, and pool-list
+  contracts plus public Material Query/Related/Support ports.
+- Added `src/material_query/index.ts` for domain material result retrieval,
   Source Library saved-track and saved-album query, Collection compatibility,
   relation/recent exclusions, related same-artist/same-album/similar flows,
   context brief, and pool listing.
@@ -1103,13 +1103,13 @@
   `collection.kind_unknown` when kind cannot be inferred without an explicit
   system `collectionKind`.
 - Added direct MaterialRecord projection for `music.material.resolve.cards`
-  materialId seeds, including canonical-only `found_no_link` cards, source-backed
+  materialId seeds, including canonical-only `grounded` cards, source-backed
   labels/links from Source Entity state, merge-survivor projection, and
   `material_not_found` unknown-ref handling.
 - Refreshed `skills/minemusic/HANDBOOK.md` from the current Stage Interface
   instrument catalog.
 - Addressed issue #12 by making `materialId` the primary agent-facing
-  MaterialCard handle for query, related, context brief, collection actions,
+  material handle for query, related, context brief, collection actions,
   `stage.materials.prepare`, recentCards, recommendation activity projection,
   and material effect targets without preserving legacy `mat_*` readers.
 - Started recommendation-posture PR 1 on branch
@@ -1143,17 +1143,17 @@
   policy, ordering, selection, and limit behavior to the selector while
   preserving their public output shape.
 - Added focused selector coverage for preserve order, least-recently-recommended
-  sorting, relation/recent hard drops, diversity caps, and compact selected
-  cards, plus Stage Interface/MCP schema coverage for `music.material.select`.
+  sorting, relation/recent hard drops, diversity caps, and selected material
+  results, plus Stage Interface/MCP schema coverage for `music.material.select`.
 - Started recommendation-posture PR 4 on branch
   `codex/recommendation-presenter` from merged `main`.
 - Added `RecommendationPresentationPort`, `src/recommendation_presentation`,
   and `stage.recommendation.present` as the final presentation gate for
   user-visible recommendations.
 - Implemented presentation evaluation over intended ordered materialId items,
-  preserving surviving order, applying min/max card counts, returning compact
-  presented cards, and recording typed `recommendation.presented` events only
-  after enough cards survive.
+  preserving surviving order, applying min/max item counts, returning domain
+  presentation items, and recording typed `recommendation.presented` events
+  only after enough items survive.
 - Updated agent-facing `stage.events.record` to reject manual
   `recommendation.presented` / `recommendation_presented` writes and point
   callers to `stage.recommendation.present`.
@@ -1164,9 +1164,8 @@
   card coverage, and full `npm test` verification.
 - Started recommendation-posture PR 5 on branch
   `codex/recommendation-workflow-present` from merged `main`.
-- Added presentation links to returned `PresentedMaterialCard` values so
-  user-facing responses can be built from the exact cards returned by
-  `stage.recommendation.present`.
+- Added Stage Interface presentation links so user-facing responses can be
+  built from the exact cards returned by `stage.recommendation.present`.
 - Migrated `runRecommendationTranscript` from
   `stage.materials.prepare + manual recommendation.presented` semantics to
   resolve -> `stage.recommendation.present` -> response from returned cards,
@@ -1184,9 +1183,9 @@
   policy purpose while keeping service-internal material policy purposes for
   presentation and future feedback.
 - Split recommendation presentation display output from persisted event
-  snapshots: returned `PresentedMaterialCard` values may carry display links,
-  while `recommendation.presented` stores compact
-  `RecommendationPresentedCardSnapshot.linkRefs` for later feedback binding.
+  snapshots: Stage Interface display cards may carry display links, while
+  `recommendation.presented` stores domain event item `linkRefs` for later
+  feedback binding.
 - Removed transcript-local Source Entity writes from
   `runRecommendationTranscript`; integration fixture setup now seeds
   source-backed playable state explicitly, and the transcript is covered against
@@ -1245,8 +1244,9 @@
 - Started recommendation agent-facing surface hardening on branch
   `codex/recommendation-agent-surfaces`.
 - Split compact card playability from identity certainty:
-  source-backed playable cards now return `status: "playable"` while identity
-  certainty stays out of ordinary agent-facing cards.
+  compact cards now expose domain `MaterialState` as `state`, while display
+  links indicate playable-link availability and identity certainty stays out of
+  ordinary agent-facing cards.
 - Changed `music.links.refresh` to accept public `materialId` input and
   project the full material internally before Source Grounding refresh.
 - Tightened MineMusic skill/Handbook guidance so pool and collection
@@ -1263,6 +1263,13 @@
   Material Store / Source Entity records directly before selector policy, rather
   than depending on provider re-grounding to recover already-owned playable
   links.
+- Completed Stage Interface output ownership PR 4 on branch
+  `codex/output-boundary-tests-pr4`: removed the legacy `src/material_cards`
+  module and global `MaterialCard*` contract ownership, kept material services
+  returning domain results, kept compact material/recommendation presentation in
+  `src/stage_interface/outputs/**`, and added
+  `test/architecture/material-boundary.test.ts` to prevent material modules
+  from importing Stage Interface output DTOs or legacy card DTO names.
 
 ## Next
 

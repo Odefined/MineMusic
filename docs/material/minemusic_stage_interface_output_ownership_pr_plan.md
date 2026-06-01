@@ -82,7 +82,7 @@ export type CompactMaterialCard = {
   materialId?: string;
   title: string;
   subtitle?: string;
-  status: "playable" | "found_no_link" | "ambiguous" | "blocked" | "unresolved";
+  state: MaterialState;
 };
 
 export type CompactCandidateMaterialCard = CompactMaterialCard & {
@@ -122,7 +122,7 @@ compactMaterialResolveOutput(result: MaterialResolveResult): CompactMaterialReso
    - material id from `material.materialRef.id`;
    - title from `material.label`;
    - subtitle from evidence note when safe;
-   - status mapping from material state.
+   - `state` copied directly from `material.state`.
 
 5. Export output functions from `src/stage_interface/outputs/index.ts`.
 
@@ -136,9 +136,9 @@ test/stage_interface/stage-interface-outputs.test.ts
 
 Test:
 
-- `compactMaterialCard` maps playable material to `status: "playable"`;
-- `compactMaterialCard` maps grounded material to `status: "found_no_link"`;
-- `compactMaterialCard` maps blocked material to `status: "blocked"`;
+- `compactMaterialCard` copies `source_only_playable` material state directly;
+- `compactMaterialCard` copies `grounded` material state directly;
+- `compactMaterialCard` copies `blocked` material state directly;
 - `compactMaterialResolveOutput` preserves candidate status, reason, issues, and canonicalRef;
 - compact output does not expose raw `MusicMaterial`, `playableLinks`, `sourceRefs`, or full evidence arrays.
 

@@ -264,7 +264,7 @@ async function materialResolveReportsBlockedCanonicalCandidateThroughStageInterf
     assert(resolveResult.kind === "single", "Material Resolve should return a single result");
     assert(resolveResult.result.status === "blocked", "Blocked collection membership should mark resolve result blocked");
     assert(
-      resolveResult.result.items[0]?.status === "blocked",
+      resolveResult.result.items[0]?.state === "blocked",
       "Blocked collection membership should mark resolved material blocked",
     );
   } finally {

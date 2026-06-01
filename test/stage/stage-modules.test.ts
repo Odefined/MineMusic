@@ -178,6 +178,7 @@ async function readsBoundedRecentCardsFromRecommendationEvents(): Promise<void> 
   assert(context.recentCards[0]?.position === 1, "recent cards should preserve 1-based presented position");
   assert(context.recentCards[0]?.eventId === "event-latest", "recent cards should include the source event id");
   assert(context.recentCards[0]?.presentedAt === "2026-05-30T00:00:00.000Z", "recent cards should include presentedAt");
+  assert(context.recentCards[0]?.state === "source_only_playable", "recent cards should expose material state directly");
   assert(
     !context.recentCards.some((card) => card.title === "Legacy Track"),
     "recent cards should ignore legacy materialStates recommendation payloads",
@@ -319,7 +320,7 @@ function recommendationEvent(id: string, ...titles: string[]): StageEvent {
       cards: titles.map((title, index) => ({
         materialId: `${id}-${index}`,
         title,
-        status: "playable",
+        state: "source_only_playable",
         position: index + 1,
         presentedAt: "2026-05-30T00:00:00.000Z",
       })),
@@ -358,7 +359,7 @@ function legacyUnderscoreRecommendationEvent(): StageEvent {
       cards: [{
         materialId: "legacy-underscore-track",
         title: "Legacy Underscore Track",
-        status: "playable",
+        state: "source_only_playable",
         position: 1,
         presentedAt: "2026-05-31T00:00:00.000Z",
       }],

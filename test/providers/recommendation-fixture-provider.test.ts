@@ -1,6 +1,6 @@
 import type { MusicMaterial, Ref, Result } from "../../src/contracts/index.js";
 import { createRecommendationFixtureSourceProvider } from "../../src/fixtures/recommendation_provider.js";
-import { toMaterialCard } from "../../src/material_cards/index.js";
+import { compactMaterialCard } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -40,9 +40,9 @@ async function pageWindowFixtureIsPageUrlOnly(): Promise<void> {
 
   assert(links.length === 0, "page-url-only fixture refresh should not synthesize playable links");
 
-  const card = toMaterialCard(toResolvedMaterial(material, material.sourceRefs?.[0] as Ref));
+  const card = compactMaterialCard(toResolvedMaterial(material, material.sourceRefs?.[0] as Ref));
 
-  assert(card.status === "found_no_link", "page-url-only fixture should project as found_no_link");
+  assert(card.state === "grounded", "page-url-only fixture should project as grounded");
   assert(!("actions" in card), "fixture material cards should not expose action menus");
 }
 

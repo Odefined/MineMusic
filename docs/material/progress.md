@@ -41,19 +41,23 @@ to the survivor material and merges loser activity into survivor activity, so
 source-only feedback and recent activity survive later canonical confirmation
 or material merge.
 
-Material Query now exposes compact agent-facing retrieval over material cards.
+Material Query now returns domain result items for material retrieval, and
+Stage Interface output modules project those results into compact
+agent-facing cards.
 `music.material.query` can restrict results to Source Library saved tracks and
 saved albums expanded into tracks, apply `returnKind`, relation exclusions,
 recent-activity exclusions, cursor pagination, and least-recently-recommended
-ordering, recently-added ordering, and return explicit `materialId` handles without raw
-source/canonical/evidence graphs. Internal query inputs can still use
+ordering, recently-added ordering, and return explicit `materialId` handles
+without raw source/canonical/evidence graphs at the public boundary. Internal
+query inputs can still use
 lightweight text matching for `preferenceHints`, but Stage Interface and MCP
 surfaces do not advertise those fields and strip them from public tool payloads
 until real semantic feature data exists.
 Source Library saved-track, followed-artist, all-material, and materialRef-backed
 Collection pools now project stored Source Entity / Material Store records
-directly into cards before selector policy runs, so owned playable links do not
-depend on provider re-grounding during recommendation query.
+directly into domain material items before Stage Interface presentation, so
+owned playable links do not depend on provider re-grounding during
+recommendation query.
 `music.material.resolve.cards` now resolves returned `materialId` values back
 through Material Registry / Material Resolve instead of treating them as text
 search.
@@ -65,11 +69,12 @@ when canonical identity is missing. `music.material.context.brief` respects its
 requested `fields` when returning artist, album, version, or status details.
 Stage context now includes bounded `recentCards` derived from recommendation
 presentation events without exposing raw event payloads. Event Service also
-projects `MaterialCard.materialId` strings in recommendation payloads into
-Material Activity, so recent exclusion works for compact card events.
-Compact material cards now separate playable-link availability from identity
-confidence. Source-backed cards with playable links return `status:
-"playable"` while identity certainty stays out of ordinary agent-facing cards.
+projects `materialId` values in recommendation payloads into Material Activity,
+so recent exclusion works for presentation events.
+Stage Interface compact material cards now expose the domain `MaterialState`
+directly as `state`. Playable-link availability stays visible through links
+instead of an extra card field, while identity certainty stays out of ordinary
+agent-facing cards.
 `music.material.context.brief` reports
 ordinary version requests as neutral `version.status: "not_checked"` instead
 of a warning, so normal recommendation flow does not treat missing version
@@ -81,8 +86,9 @@ without waiting for canonical identity, saved/favorite material items can remain
 Collection pool query now returns material-only items directly through
 `materialRef`, falls back to `materialSnapshot` when the live registry
 projection is unavailable, and follows material merge redirects before
-returning compact cards. Compact resolve/related/exclude-materialId paths also
-follow redirects so merged ids project the current survivor. Stage Interface
+returning domain items for Stage Interface presentation.
+Compact resolve/related/exclude-materialId paths also follow redirects so
+merged ids project the current survivor. Stage Interface
 collection tools now accept `materialId` as the normal material target path
 while keeping raw `materialRef` available to internal callers.
 Collection material filtering and removal are redirect-aware, so blocks stored
@@ -107,7 +113,7 @@ infer or validate collection kind from current `MaterialRecord` for materialId
 targets, require canonical/snapshot/target kind hints to agree with known
 Material Records, and include custom collection writes. Compact `resolve.cards`
 can project current Material Records directly, including canonical-only records
-with `found_no_link` status.
+with `grounded` state.
 
 Recommendation-posture PR 2 is now implemented. `src/material_policy/index.ts`
 provides a reusable per-material policy evaluator and a non-filtering material
@@ -116,29 +122,30 @@ identity, and freshness checks for one material at a time; the sorter handles
 preserve, score, least-recently-recommended, recently-added, and deterministic
 random ordering over already usable candidates. Material Query delegates its
 policy and ordering internals to these services without exposing new public
-tools or changing compact card output shape.
+tools or changing the compact Stage Interface output shape.
 
 Recommendation-posture PR 3 is now implemented. `src/material_selection/index.ts`
 adds the optional selector that composes policy evaluation, sorting, diversity,
-and limit over compact materialId candidates. The Stage Interface exposes
+and limit over materialId candidates. The Stage Interface exposes
 `music.material.select` as an optional helper, while Material Query / Related
-delegate policy, sorting, selection, and cutting to the selector. This slice
-does not add final presentation or recommendation event behavior.
+delegate policy, sorting, selection, and cutting to the selector. Stage
+Interface owns the compact output projection for the helper.
 
 Recommendation-posture PR 4 is now implemented. `src/recommendation_presentation/index.ts`
 adds the final presentation boundary behind `RecommendationPresentationPort`
 and `stage.recommendation.present`. The presenter evaluates the intended
 ordered materialId items with presentation policy, preserves surviving order,
 applies `maxCards` and `minCards`, records a typed
-`recommendation.presented` event only when enough cards survive, and returns
-the exact compact presented cards. Agent-facing `stage.events.record` rejects
-manual recommendation presentation events, and `stage.context.read`
-`recentCards` now come from typed presentation payloads with card position and
-presentation time.
+`recommendation.presented` event only when enough items survive, and returns
+domain presentation items to Stage Interface. Stage Interface projects those
+items into the exact compact presented cards returned to the agent.
+Agent-facing `stage.events.record` rejects manual recommendation presentation
+events, and `stage.context.read` `recentCards` now come from typed presentation
+payloads with card position and presentation time.
 
-Recommendation-posture PR 5 is now implemented. Presented cards can carry
-source-backed links, and the fixture recommendation transcript now builds its
-answer from `stage.recommendation.present` output instead of from
+Recommendation-posture PR 5 is now implemented. Stage Interface presented
+cards can carry source-backed links, and the fixture recommendation transcript
+now builds its answer from `stage.recommendation.present` output instead of from
 `stage.materials.prepare`. The workflow skill points agents at
 `stage.recommendation.present` as the final recommendation boundary and keeps
 `stage.materials.prepare` only as a legacy non-final material sanitizer.
@@ -146,11 +153,21 @@ answer from `stage.recommendation.present` output instead of from
 Recommendation-posture PR 1-5 hardening is now implemented. Public
 `music.material.select` accepts only candidate-selection policy purpose, so
 presentation and feedback policy modes stay service-internal. Recommendation
-presentation now returns display cards with links while recording compact
-`RecommendationPresentedCardSnapshot` payload cards with `linkRefs` for future
-feedback binding. The fixture recommendation transcript no longer writes
+presentation now returns domain items to Stage Interface, which returns display
+cards with links while the core service records domain event payload items with
+`linkRefs` for future feedback binding. The fixture recommendation transcript no longer writes
 Source Entity records from returned materials; tests seed fixture source state
 before the transcript when source-backed playable cards are expected.
+
+Stage Interface output ownership PR 4 is now implemented. Material modules
+return domain results. Stage Interface output modules project those results
+into compact agent-facing outputs. MaterialCard-like DTOs are Stage Interface
+output types, not material service communication formats.
+`recommendation_presentation` remains a core/runtime service for final policy
+and event recording; only compact output projection belongs to Stage Interface.
+The legacy `src/material_cards` module has been removed, and
+`test/architecture/material-boundary.test.ts` prevents material modules from
+importing Stage Interface output DTOs or legacy card DTO names.
 
 Recommendation-posture PR 6 is now implemented. `memory.feedback.record`
 binds user feedback to typed recent/presented recommendation cards, recovers
@@ -191,8 +208,8 @@ creates an evidence-backed memory proposal without auto-acceptance.
   the new services while keeping query behavior stable.
 - Added Material Selector contracts, port, implementation, optional
   `music.material.select`, and focused tests, then migrated Material Query /
-  Related selection internals to use the selector while keeping compact card
-  outputs stable.
+  Related selection internals to use the selector while keeping domain results
+  stable.
 - Added Recommendation Presentation contracts, port, implementation,
   `stage.recommendation.present`, typed recommendation presentation event
   recording, and focused tests.
@@ -200,8 +217,9 @@ creates an evidence-backed memory proposal without auto-acceptance.
   event writes from agent-facing tools.
 - Updated recentCards projection to read typed `recommendation.presented`
   payloads with `eventId`, `position`, and `presentedAt`.
-- Added presented-card links and migrated the fixture recommendation workflow
-  to answer from returned `PresentedMaterialCard` values.
+- Added Stage Interface presented-card links and migrated the fixture
+  recommendation workflow to answer from `stage.recommendation.present`
+  output.
 - Updated the MineMusic workflow skill to require
   `stage.recommendation.present` before answering with recommendations.
 - Added `memory.feedback.record`, feedback target binding, typed feedback
@@ -226,10 +244,10 @@ creates an evidence-backed memory proposal without auto-acceptance.
   present in the event target or payload cards.
 - Material Store `mergeMaterials` migrates loser material relations to the
   survivor and combines recent activity timestamps/counts by owner scope.
-- Added compact card/query/related contracts:
-  `MaterialCard`, `MaterialResolveCardsInput`, `MaterialQueryInput`,
+- Added material query/related contracts:
+  `MaterialResolveCardsInput`, `MaterialQueryInput`,
   `MaterialRelatedInput`, context brief inputs, and pool-list inputs.
-- Added `src/material_query/index.ts` with compact card presentation,
+- Added `src/material_query/index.ts` with domain material result retrieval,
   source-library pool query, collection compatibility query, related wrappers,
   relation/recent filtering, context brief, and pool listing.
 - Wired Material Query through Stage Core and Stage Interface as
@@ -274,7 +292,7 @@ creates an evidence-backed memory proposal without auto-acceptance.
   canonical/snapshot/target kind hints, tightening public collection schemas,
   and projecting existing MaterialRecords directly from materialId seeds.
 - Addressed issue #12 by making `materialId` the primary agent-facing
-  MaterialCard handle across query, related, context brief, collection actions,
+  material handle across query, related, context brief, collection actions,
   `stage.materials.prepare`, recentCards, recommendation activity projection,
   and effect action targets without preserving legacy `mat_*` read
   compatibility.
@@ -363,7 +381,7 @@ creates an evidence-backed memory proposal without auto-acceptance.
 
 - Full `music.material.resolve` canonical-only materialization remains
   deferred; compact `music.material.resolve.cards` can now project existing
-  canonical-only Material Records as `found_no_link` cards.
+  canonical-only Material Records as `grounded` cards.
 - Removing legacy raw/canonical target variants remains deferred until explicit
   cleanup approval.
 - Canonical relation-based same-release/same-release-group semantics, semantic

@@ -37,20 +37,10 @@ function itemTitle(item: { material: MusicMaterial } | undefined): string | unde
   return item?.material.label;
 }
 
-function itemCardStatus(
+function itemMaterialState(
   item: { material: MusicMaterial } | undefined,
-): "playable" | "found_no_link" | "blocked" | "unresolved" {
-  switch (item?.material.state) {
-    case "confirmed_playable":
-    case "source_only_playable":
-      return "playable";
-    case "grounded":
-      return "found_no_link";
-    case "blocked":
-      return "blocked";
-    default:
-      return "unresolved";
-  }
+): MusicMaterial["state"] | undefined {
+  return item?.material.state;
 }
 
 async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
@@ -104,9 +94,9 @@ async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGroundi
   );
 
   assert(output.items.length === 1, "saved-track query should project stored SourceEntity links without provider re-grounding");
-  assert(itemTitle(output.items[0]) === "Stored Playable Track", "stored SourceEntity label should become the material card title");
-  assert(itemCardStatus(output.items[0]) === "playable", "stored SourceEntity providerUrl should become a playable card");
-  assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "material cards should not expose identity confidence");
+  assert(itemTitle(output.items[0]) === "Stored Playable Track", "stored SourceEntity label should become the domain item label");
+  assert(itemMaterialState(output.items[0]) === "source_only_playable", "stored SourceEntity providerUrl should become source_only_playable material");
+  assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "domain query items should not expose identity confidence");
 }
 
 async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Promise<void> {
@@ -126,7 +116,7 @@ async function resolveCardsResolvesSourceBackedCardRefsWithoutTextSearch(): Prom
 
   assert(output.items.length === 1, "resolve cards should return one card for a source-backed material ref");
   assert(itemTitle(output.items[0]) === "Source Ref Seed Track", "resolve cards should load the referenced source material instead of text-searching the material id");
-  assert(itemCardStatus(output.items[0]) === "playable", "source-backed material refs with links should be playable");
+  assert(itemMaterialState(output.items[0]) === "source_only_playable", "source-backed material refs with links should be source_only_playable");
   assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "resolve cards should not expose identity confidence");
 }
 
@@ -151,7 +141,7 @@ async function resolveCardsProjectsCanonicalOnlyCardRefs(): Promise<void> {
 
   assert(output.items.length === 1, "canonical-only material refs should return one card");
   assert(itemTitle(output.items[0]) === "Canonical Only Seed", "canonical-only material refs should use canonical labels");
-  assert(itemCardStatus(output.items[0]) === "found_no_link", "canonical-only material refs should be found without playable links");
+  assert(itemMaterialState(output.items[0]) === "grounded", "canonical-only material refs should be grounded without playable links");
 }
 
 async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
@@ -179,7 +169,7 @@ async function resolveCardsResolvesCanonicalConfirmedCardRefs(): Promise<void> {
 
   assert(output.items.length === 1, "resolve cards should return one card for a canonical material ref");
   assert(itemTitle(output.items[0]) === "Canonical Ref Seed", "canonical material refs should project canonical display labels");
-  assert(itemCardStatus(output.items[0]) === "playable", "canonical material refs with source links should become playable cards");
+  assert(itemMaterialState(output.items[0]) === "confirmed_playable", "canonical material refs with source links should become confirmed_playable");
   assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "canonical material refs should not expose identity confidence");
 }
 
@@ -358,7 +348,7 @@ async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<
   );
 
   assert(output.items.length === 2, "expanded saved albums should return track cards");
-  assert(output.items.every((item) => itemCardStatus(item) === "playable"), "expanded album tracks should resolve as recording cards");
+  assert(output.items.every((item) => itemMaterialState(item) === "source_only_playable"), "expanded album tracks should resolve as source_only_playable recording materials");
   assert(
     (output.items.map(itemTitle)).join(",") === "Album Track One,Album Track Two",
     "expanded album query should preserve release tracklist order",
@@ -423,7 +413,7 @@ async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<vo
   assert(itemTitle(output.items[0]) === "Bright Lantern", "saved album expansion should find matching track labels");
 }
 
-async function queryCursorPaginatesMaterialCards(): Promise<void> {
+async function queryCursorPaginatesDomainItems(): Promise<void> {
   const firstRef = ref("source:fixture", "track", "cursor-track-1");
   const secondRef = ref("source:fixture", "track", "cursor-track-2");
   const thirdRef = ref("source:fixture", "track", "cursor-track-3");
@@ -662,7 +652,7 @@ async function queryCollectionMaterialRefsUseStoredPlayableLinks(): Promise<void
 
   assert(output.items.length === 1, "collection materialRef query should project stored links without provider re-grounding");
   assert(output.items[0]?.materialId === materialRefToMaterialId(fixture.record.materialRef), "collection materialRef query should keep the stored material id");
-  assert(itemCardStatus(output.items[0]) === "playable", "collection materialRef query should return a playable card from stored SourceEntity providerUrl");
+  assert(itemMaterialState(output.items[0]) === "source_only_playable", "collection materialRef query should return source_only_playable material from stored SourceEntity providerUrl");
 }
 
 async function queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds(): Promise<void> {
@@ -935,7 +925,7 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
             {
               materialId: materialRefToMaterialId(record.materialRef),
               title: "Compact Event Track",
-              status: "playable",
+              state: "source_only_playable",
             },
           ],
         },
@@ -965,9 +955,9 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
     }),
   );
 
-  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "MaterialCard.materialId should update aggregate MaterialActivity");
-  assert(sessionActivity?.recommendedCount === 1, "MaterialCard.materialId should update session MaterialActivity");
-  assert(output.items.length === 0, "recent exclusion should filter material-card recommendation events");
+  assert(activity?.lastRecommendedAt === "2026-05-30T02:00:00.000Z", "recommendation materialId should update aggregate MaterialActivity");
+  assert(sessionActivity?.recommendedCount === 1, "recommendation materialId should update session MaterialActivity");
+  assert(output.items.length === 0, "recent exclusion should filter recommendation events");
 }
 
 async function contextBriefFieldsSelectArtistAlbumVersionAndStatus(): Promise<void> {
@@ -1494,7 +1484,7 @@ await querySkipsUnbackedProviderResults();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
 await queryReturnKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();
-await queryCursorPaginatesMaterialCards();
+await queryCursorPaginatesDomainItems();
 await leastRecentlyRecommendedOrderUsesMaterialActivity();
 await recentlyAddedOrderUsesSourceLibraryTimestamps();
 await queryPreferenceHintsFilterAndRankMaterials();
