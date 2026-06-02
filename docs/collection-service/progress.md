@@ -21,11 +21,10 @@ The current implementation has:
   `MINEMUSIC_COLLECTION_DB_PATH`;
 - Stage Interface materialId-only public collection write tools.
 
-## Current Inconsistency
+## Accepted Boundary
 
-`AI-001` remains open: ADR-0002 still says Collection remains canonical-only
-unless a future decision changes the boundary, while current code/docs use
-materialRef-backed Collection items.
+ADR-0003 accepts materialRef-backed CollectionItems and supersedes ADR-0002's
+earlier canonical-only Collection consequence.
 
 ## Verification Evidence
 

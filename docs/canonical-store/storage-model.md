@@ -91,8 +91,8 @@ The current durable implementation uses this SQLite model for:
 
 Canonical source refs are current canonical evidence. They are not the ordinary
 Source Library binding path; Source Entity Store and Confirmed Canonical
-Bindings own that path. Current Source Grounding still calls
-`CanonicalStorePort.resolveSourceRef`, which is tracked as `AI-002`.
+Bindings own that path. Source Grounding now uses confirmed canonical bindings
+for ordinary source material normalization.
 
 Implementation files:
 

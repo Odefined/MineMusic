@@ -7,7 +7,7 @@ This document records the current Canonical Store port surface from
 
 | Port | Provided to | Capabilities |
 | --- | --- | --- |
-| `CanonicalStorePort` | Stage Core composition, Material Store canonical reads, Source Grounding, Music Knowledge, tests | Canonical lookup, source-ref evidence lookup/write, provisional relations, and provisional hints. |
+| `CanonicalStorePort` | Stage Core composition, Material Store canonical reads, Music Knowledge, Canonical Maintenance support, tests | Canonical lookup, source-ref evidence lookup/write, provisional relations, and provisional hints. |
 | `CanonicalMaintenancePort` | Stage Interface canonical review tools | Review list, inspect, apply, auto-update, and clear review state. |
 | `CanonicalRecordRepository` | Canonical Store and Canonical Maintenance implementations | Storage-facing canonical record, relation, hint, review-state, provider-identity, and source-ref persistence. |
 
@@ -17,7 +17,7 @@ This document records the current Canonical Store port surface from
 | --- | --- | --- |
 | `get` | Read | Material Store canonical reads, Knowledge canonicalRef queries, tests. |
 | `findByLabel` | Read | Material Store canonical lookup. |
-| `resolveSourceRef` | Read | Source Grounding source material normalization; tracked as `AI-002`. |
+| `resolveSourceRef` | Read | Canonical source-ref evidence lookup for canonical workflows and tests. |
 | `createProvisional` | Write | Canonical Store tests and explicit provisional identity creation paths. |
 | `attachSourceRef` | Write | Canonical evidence writes and tests; ordinary Source Entity binding should use Confirmed Canonical Bindings instead. |
 | `recordProvisionalRelations` | Write | Provisional review/import evidence. |
@@ -42,7 +42,6 @@ This document records the current Canonical Store port surface from
 | Material Store | `get`, `findByLabel` | Narrow canonical read surface only. |
 | Stage Interface | `CanonicalMaintenancePort` | Tool definitions route through maintenance, not repositories. |
 | Music Knowledge | `get`, `listRelations` | Only when a query uses MineMusic `canonicalRef`. |
-| Source Grounding | `resolveSourceRef` | Current code fact; conflicts with ADR-0002 and is tracked as `AI-002`. |
 | Canonical Maintenance | `CanonicalRecordRepository`, Knowledge, Event, Session Context | Owns review orchestration and writes. |
 
 ## Forbidden Dependencies
@@ -54,6 +53,9 @@ This document records the current Canonical Store port surface from
 - Source Entity Store and Confirmed Canonical Bindings are the ordinary
   provider-library binding path; canonical source refs must not be expanded
   into the Source Library binding mechanism.
+- Source Grounding must not consume `CanonicalStorePort.resolveSourceRef` or
+  `CanonicalStorePort.attachSourceRef` for ordinary source material
+  normalization.
 
 ## Guards And Tests
 
@@ -65,6 +67,6 @@ Current checks include:
 - `test/storage/sqlite-canonical-store.test.ts`;
 - `test/integration/canonical-persistence.test.ts`;
 - `test/contracts/wave1-contracts.test.ts`.
-
-No architecture guard currently enforces `AI-002`; that is later code/guard
-work, not part of this docs-only sweep.
+- `test/architecture/material-boundary.test.ts` guards that `src/source/**`
+  does not import `CanonicalStorePort` or reference Canonical Store source-ref
+  APIs.

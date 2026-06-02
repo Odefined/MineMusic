@@ -291,6 +291,14 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
     canonicalRepository,
   });
   await stageCore.ready;
+  await assertOk(stageCore.materialStore.putConfirmedCanonicalBinding({
+    binding: {
+      sourceRef,
+      canonicalRef: canonicalRecord.ref,
+      createdAt: "2026-06-02T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    },
+  }));
 
   const resolveResult = await assertOk(
     stageCore.stageInterface.tools["music.material.resolve"]({
@@ -300,7 +308,7 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
 
   assert(
     resolveResult.items[0]?.state === "confirmed_playable",
-    "Stage Core should resolve through the injected canonical repository",
+    "Stage Core should resolve confirmed playability through confirmed bindings",
   );
 }
 

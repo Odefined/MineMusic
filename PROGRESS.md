@@ -101,10 +101,13 @@ details live in area `progress.md` files listed in `INDEX.md`.
 - Completed Phase 6 root consolidation and final manual audit, archiving the
   original MVP docs, root proposal/plans, Stage Core refactor plans, and
   architecture-review evidence.
+- Resolved `AI-001` by accepting materialRef-backed Collections in ADR-0003.
+- Resolved `AI-002` by moving Source Grounding canonicalRef normalization to
+  `SourceGroundingEvidenceStorePort` confirmed canonical bindings and adding a
+  Source Grounding architecture guard.
 
 ## Next
 
-- Resolve or supersede ADR-0002 conflicts tracked as `AI-001` and `AI-002`.
 - Implement the documented docs guard (`npm run check:docs` /
   `scripts/check-docs.mjs`) when a code-change slice is opened for tooling.
 - Choose the next product/runtime slice from the current area progress docs.

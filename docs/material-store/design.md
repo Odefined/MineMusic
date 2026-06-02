@@ -78,18 +78,16 @@ canonical refs to current material records, supports source-ref attachment,
 canonical promotion, and material merge redirects. Material Store merge also
 migrates relations and activity from the loser material to the survivor.
 
-## Current Inconsistencies
+## Resolved Boundary Decisions
 
-- `AI-001`: ADR-0002 still says Collection remains canonical-only, while
-  current code and root architecture describe materialRef-backed Collection
-  items.
-- `AI-002`: ADR-0002 says ordinary business modules should stop using
-  `CanonicalStorePort.resolveSourceRef`; current Source Grounding still uses
-  that Canonical Store method when normalizing source-backed materials.
+- ADR-0003 accepts materialRef-backed Collection items and supersedes
+  ADR-0002's earlier canonical-only Collection consequence.
+- Source Grounding now reads confirmed canonical bindings through a narrow
+  `SourceGroundingEvidenceStorePort` instead of calling Canonical Store
+  source-ref APIs.
 
-These are recorded in
-`docs/maintenance/architecture-inconsistency-log.md`; this document describes
-the observed current implementation.
+Resolved inconsistency details are recorded in
+`docs/maintenance/architecture-inconsistency-log.md`.
 
 ## Related Documents
 
@@ -99,4 +97,5 @@ the observed current implementation.
 - `docs/canonical-store/ports.md`
 - `docs/canonical-store/progress.md`
 - `docs/adr/0002-material-store-boundary.md`
+- `docs/adr/0003-materialref-backed-collections.md`
 - `docs/archive/material-store/README.md`

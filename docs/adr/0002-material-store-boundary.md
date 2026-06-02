@@ -4,6 +4,10 @@
 
 Accepted
 
+ADR-0003 supersedes this ADR's original Collection canonical-only
+consequence. The Material Store, Source Entity Store, Canonical Store
+subdomain, and confirmed binding decisions here remain accepted.
+
 ## Context
 
 Library import testing showed that treating imported provider tracks as
@@ -64,5 +68,5 @@ workflows.
 - Material Resolve may read Source Library when a request explicitly scopes
   resolution to an owner source library, but it must not become the final
   recommender, write Collection state, or create canonical identity.
-- Collection remains canonical-only unless an explicit future decision changes
-  that boundary.
+- Superseded by ADR-0003: Collection is now materialRef-backed rather than
+  canonical-only.

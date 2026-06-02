@@ -29,12 +29,9 @@ The current implementation has:
 - Historical v1/v2/v3 review drafts, implementation plans, source-entity
   handoff notes, and interface drafts are archived under
   `docs/archive/canonical-store/2026-06-02/`.
-
-## Current Inconsistencies
-
-- `AI-002`: ADR-0002 says ordinary business modules should stop using
-  `CanonicalStorePort.resolveSourceRef`; current Source Grounding still uses
-  it.
+- Source Grounding no longer consumes `CanonicalStorePort.resolveSourceRef`;
+  ordinary source-ref normalization reads confirmed canonical bindings through
+  `SourceGroundingEvidenceStorePort`.
 
 ## Verification Evidence
 
@@ -44,11 +41,10 @@ The current implementation has:
 - `test/storage/sqlite-canonical-store.test.ts`
 - `test/integration/canonical-persistence.test.ts`
 - `test/contracts/wave1-contracts.test.ts`
+- `test/architecture/material-boundary.test.ts`
 
 ## Remaining Work
 
 - Decide whether `resolveSourceRef` / `attachSourceRef` stay on
   `CanonicalStorePort` only for canonical evidence/review workflows or move
   behind a narrower internal/admin boundary.
-- Add a later architecture guard for the ADR-0002 source-ref dependency rule
-  after `AI-002` is resolved.

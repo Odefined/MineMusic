@@ -16,7 +16,7 @@ instruments, provider slots, and runtime lifecycle.
 - `PROGRESS.md`: project-level milestone index.
 - `docs/maintenance/documentation-alignment-audit.md`: documentation sweep
   disposition ledger.
-- `docs/maintenance/architecture-inconsistency-log.md`: open architecture
+- `docs/maintenance/architecture-inconsistency-log.md`: architecture
   inconsistency ledger.
 
 Historical MVP proposal, MVP baseline docs, root plans, Stage Core refactor

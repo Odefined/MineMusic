@@ -41,11 +41,10 @@ them to internal `materialRef` before calling Collection Service. Raw
 `materialRef`, `canonicalRef`, `materialSnapshot`, `relationScope`, and
 `identityRequirement` are not public Stage Interface write fields.
 
-## Current Inconsistency
+## Accepted Boundary
 
-`AI-001` records that ADR-0002 still says Collection remains canonical-only
-unless a future decision changes the boundary. Current code and current docs
-describe materialRef-backed Collection items.
+ADR-0003 accepts materialRef-backed Collection items and supersedes ADR-0002's
+earlier canonical-only Collection consequence.
 
 ## Guards And Tests
 

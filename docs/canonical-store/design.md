@@ -50,15 +50,10 @@ flowchart TD
     Maintenance --> Knowledge["Music Knowledge"]
     Maintenance --> Events["Event Port"]
     Knowledge --> Canonical
-    SourceGrounding["Source Grounding"] --> CanonicalResolve["resolveSourceRef"]
-    CanonicalResolve --> Canonical
 ```
 
 Material Store consumes only canonical `get` and `findByLabel`. Stage Interface
 canonical review tools consume `CanonicalMaintenancePort`, not repositories.
-
-Source Grounding still consumes `CanonicalStorePort.resolveSourceRef`; that
-conflicts with ADR-0002 and is tracked as `AI-002`.
 
 ## Canonical Source Refs
 
@@ -68,11 +63,9 @@ In the current architecture, Source Entity Store and Confirmed Canonical
 Bindings are the ordinary source-library binding path. Canonical source refs
 remain canonical evidence and review support, not Source Library state.
 
-## Current Inconsistencies
-
-- `AI-002`: ADR-0002 says ordinary business modules should stop using
-  `CanonicalStorePort.resolveSourceRef`; Source Grounding still uses it for
-  source material normalization.
+Source Grounding no longer consumes Canonical Store source-ref APIs for
+ordinary source material normalization; it reads confirmed canonical bindings
+through `SourceGroundingEvidenceStorePort`.
 
 ## Related Documents
 

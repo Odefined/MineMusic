@@ -11,6 +11,7 @@ This document records the current Material Store port surface from
 | `MaterialRegistryPort` | Material Store composition and materialization boundary | Registry record reads, source/canonical lookup, get-or-create, source attach, canonical promotion, and merge. |
 | `SourceLibraryReadStorePort` | Source Library read paths | `listSourceLibraryItems`, `getSourceEntity`. |
 | `StageInterfaceMaterialStorePort` | Stage Interface dispatch/tool definitions | Projection reads plus Source Library read surface; no registry writers. |
+| `SourceGroundingEvidenceStorePort` | Source Grounding | Confirmed binding read plus source entity read/upsert. |
 | Narrow material flow store ports | Material Flow services | Projection, query, resolve, policy, sorter, selection, and materialization-specific slices of `MaterialStorePort`. |
 
 The exact key sets for several narrow material ports are guarded in
@@ -50,8 +51,9 @@ The exact key sets for several narrow material ports are guarded in
 - Stage Interface must receive `StageInterfaceMaterialStorePort`, not full
   `MaterialStorePort`.
 - Canonical source-ref binding should not be used as the ordinary Source
-  Entity binding path. Current Source Grounding still uses
-  `CanonicalStorePort.resolveSourceRef`; this is tracked as `AI-002`.
+  Entity binding path. Source Grounding must use confirmed canonical bindings
+  through `SourceGroundingEvidenceStorePort` instead of `CanonicalStorePort`
+  source-ref APIs.
 
 ## Composition
 
@@ -71,6 +73,8 @@ repositories according to runtime options such as
 Current guards include:
 
 - exact narrow key-set assertions in
+  `test/architecture/material-boundary.test.ts`;
+- Source Grounding forbidden Canonical Store source-ref API checks in
   `test/architecture/material-boundary.test.ts`;
 - contract shape assertions in `test/contracts/wave1-contracts.test.ts`;
 - registry behavior tests in `test/material_store/material-registry.test.ts`;

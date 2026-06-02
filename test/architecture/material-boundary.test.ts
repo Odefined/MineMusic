@@ -6,6 +6,7 @@ import type {
   MaterialQueryStorePort,
   MaterialResolveStorePort,
   MaterialSourceMaterializerStorePort,
+  SourceGroundingEvidenceStorePort,
   SourceLibraryReadStorePort,
   StageInterfaceMaterialStorePort,
 } from "../../src/ports/index.js";
@@ -71,6 +72,13 @@ export type SourceLibraryReadStorePortKeysAreExact = Assert<IsExact<
   | "getSourceEntity"
 >>;
 
+export type SourceGroundingEvidenceStorePortKeysAreExact = Assert<IsExact<
+  keyof SourceGroundingEvidenceStorePort,
+  | "getConfirmedCanonicalBinding"
+  | "getSourceEntity"
+  | "upsertSourceEntity"
+>>;
+
 export type StageInterfaceMaterialStorePortKeysAreExact = Assert<IsExact<
   keyof StageInterfaceMaterialStorePort,
   | "resolveMaterialRedirect"
@@ -101,6 +109,10 @@ const materialQueryRoots = [
 
 const materialResolveRoots = [
   "src/material/resolve",
+];
+
+const sourceGroundingRoots = [
+  "src/source",
 ];
 
 const materialMaterializationRoots = [
@@ -360,6 +372,32 @@ async function materialResolveDoesNotDirectlyUseRegistryMaterializationWriters()
   );
 }
 
+async function sourceGroundingDoesNotUseCanonicalStoreSourceRefBoundary(): Promise<void> {
+  const files = await sourceFilesUnderRoots(sourceGroundingRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bCanonicalStorePort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports CanonicalStorePort`);
+      }
+    }
+
+    for (const forbiddenName of ["resolveSourceRef", "attachSourceRef"]) {
+      if (new RegExp(`\\b${forbiddenName}\\b`).test(text)) {
+        failures.push(`${relative(process.cwd(), file)} references ${forbiddenName}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Source Grounding must use Source Entity Store / confirmed bindings instead of Canonical Store source-ref APIs:\n${failures.join("\n")}`,
+  );
+}
+
 async function movedProjectionConsumersDoNotImportMaterialQuery(): Promise<void> {
   const files = await sourceFilesUnderRoots(materialQueryProjectionFormerImportRoots);
   const failures: string[] = [];
@@ -504,6 +542,7 @@ await stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort();
 await stageInterfaceDispatchDoesNotImportFullMaterialStorePort();
 await materialQueryDoesNotDirectlyMaterializeSourceRefs();
 await materialResolveDoesNotDirectlyUseRegistryMaterializationWriters();
+await sourceGroundingDoesNotUseCanonicalStoreSourceRefBoundary();
 await movedProjectionConsumersDoNotImportMaterialQuery();
 await materializationBoundaryOwnsRegistryMaterialization();
 await materializationDoesNotImportForbiddenBoundaries();

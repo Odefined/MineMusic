@@ -537,6 +537,13 @@ export type SourceLibraryReadStorePort = Pick<
   | "getSourceEntity"
 >;
 
+export type SourceGroundingEvidenceStorePort = Pick<
+  MaterialStorePort,
+  | "getConfirmedCanonicalBinding"
+  | "getSourceEntity"
+  | "upsertSourceEntity"
+>;
+
 export type StageInterfaceMaterialStorePort =
   MaterialProjectionStorePort &
   SourceLibraryReadStorePort;

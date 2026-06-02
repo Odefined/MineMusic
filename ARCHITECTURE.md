@@ -395,9 +395,8 @@ Material Store and Canonical Store current details live in
 `docs/material-store/design.md`, `docs/material-store/ports.md`,
 `docs/material-store/progress.md`, `docs/canonical-store/design.md`,
 `docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`,
-and `docs/canonical-store/progress.md`. Open ADR/code disagreements from this
-area are tracked as `AI-001` and `AI-002` in
-`docs/maintenance/architecture-inconsistency-log.md`.
+and `docs/canonical-store/progress.md`. Past ADR/code disagreements from this
+area are resolved in `docs/maintenance/architecture-inconsistency-log.md`.
 
 Collection Service and Library Import current details live in
 `docs/collection-service/design.md`, `docs/collection-service/ports.md`,

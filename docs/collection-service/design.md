@@ -47,9 +47,8 @@ identity; Collection owns user-scoped collections and their members. New
 Collection writes require `materialRef`; `canonicalRef` is optional stored
 metadata, not a public write handle.
 
-This current behavior conflicts with the canonical-only Collection consequence
-in ADR-0002; see `AI-001` in
-`docs/maintenance/architecture-inconsistency-log.md`.
+ADR-0003 accepts this materialRef-backed Collection boundary and supersedes
+ADR-0002's earlier canonical-only Collection consequence.
 
 ## Collection Kinds
 
@@ -87,7 +86,7 @@ Collection Service belongs in the Core Capability Layer:
 Stage Interface
   -> Collection Service
        -> CollectionRepository / Storage
-       -> CanonicalStorePort
+       -> narrow Material Store reads
        -> EventPort
        -> MemoryPort?          optional proposal after explicit feedback
        -> EffectBoundaryPort?  only for external app/library writes

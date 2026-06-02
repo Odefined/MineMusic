@@ -1,14 +1,12 @@
 import type {
-  CanonicalRecord,
   MusicMaterial,
   Ref,
+  SourceEntity,
   SourceProvider,
 } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/material/store/canonical/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import { createSourceGroundingService } from "../../src/source/index.js";
 import {
-  createInMemoryCanonicalRecordRepository,
   createInMemorySourceEntityStoreRepository,
 } from "../../src/storage/index.js";
 
@@ -25,15 +23,17 @@ async function assertOk<T>(result: Promise<{ ok: true; value: T } | { ok: false 
 }
 
 async function groundsSourceOnlyAndConfirmedPlayableMaterials(): Promise<void> {
-  const canonicalRepository = createInMemoryCanonicalRecordRepository();
-  const canonical: CanonicalRecord = {
-    ref: { namespace: "minemusic", kind: "recording", id: "canonical-1" },
-    kind: "recording",
-    label: "Canonical Track",
-    status: "active",
-    sourceRefs: [{ namespace: "source:fixture", kind: "track", id: "known-track" }],
-  };
-  await assertOk(canonicalRepository.put(canonical));
+  const sourceEntities = createInMemorySourceEntityStoreRepository();
+  const canonicalRef: Ref = { namespace: "minemusic", kind: "recording", id: "canonical-1" };
+  const sourceRef: Ref = { namespace: "source:fixture", kind: "track", id: "known-track" };
+  await assertOk(sourceEntities.putConfirmedCanonicalBinding({
+    binding: {
+      sourceRef,
+      canonicalRef,
+      createdAt: "2026-06-02T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    },
+  }));
 
   const registry = createPluginRegistry();
   const provider: SourceProvider = {
@@ -46,11 +46,11 @@ async function groundsSourceOnlyAndConfirmedPlayableMaterials(): Promise<void> {
           kind: "recording",
           label: "Known Track",
           state: "grounded",
-          sourceRefs: [{ namespace: "source:fixture", kind: "track", id: "known-track" }],
+          sourceRefs: [sourceRef],
           playableLinks: [
             {
               url: "https://example.test/known",
-              sourceRef: { namespace: "source:fixture", kind: "track", id: "known-track" },
+              sourceRef,
             },
           ],
         },
@@ -77,8 +77,8 @@ async function groundsSourceOnlyAndConfirmedPlayableMaterials(): Promise<void> {
   await assertOk(registry.registerProvider({ slot: "source", providerId: provider.id, provider }));
 
   const source = createSourceGroundingService({
-    canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
     pluginRegistry: registry,
+    sourceEvidenceStore: sourceEvidenceStoreForRepository(sourceEntities),
   });
   const materials = await assertOk(
     source.ground({
@@ -88,7 +88,7 @@ async function groundsSourceOnlyAndConfirmedPlayableMaterials(): Promise<void> {
   );
 
   assert(materials[0]?.state === "confirmed_playable", "known source refs should become confirmed playable");
-  assert(materials[0]?.canonicalRef?.id === canonical.ref.id, "known source refs should attach canonical refs");
+  assert(materials[0]?.canonicalRef?.id === canonicalRef.id, "known source refs should attach canonical refs");
   assert(
     materials[1]?.state === "source_only_playable",
     "source-backed links without canonical identity should stay source-only",
@@ -105,7 +105,6 @@ async function refreshesLinksWithoutPretendingUnlinkedMaterialIsPlayable(): Prom
   };
   await assertOk(registry.registerProvider({ slot: "source", providerId: provider.id, provider }));
   const source = createSourceGroundingService({
-    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
     pluginRegistry: registry,
   });
 
@@ -148,12 +147,8 @@ async function persistsProviderPlayableLinksAsSourceEntities(): Promise<void> {
   };
   await assertOk(registry.registerProvider({ slot: "source", providerId: provider.id, provider }));
   const source = createSourceGroundingService({
-    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
     pluginRegistry: registry,
-    sourceEvidenceWriter: {
-      getSourceEntity: (input) => sourceEntities.getSourceEntity(input),
-      upsertSourceEntity: ({ entity }) => sourceEntities.putSourceEntity({ entity }),
-    },
+    sourceEvidenceStore: sourceEvidenceStoreForRepository(sourceEntities),
     clock: () => "2026-05-31T05:00:00.000Z",
   });
 
@@ -191,12 +186,8 @@ async function doesNotPromoteSourceRefUrlToProviderUrl(): Promise<void> {
   };
   await assertOk(registry.registerProvider({ slot: "source", providerId: provider.id, provider }));
   const source = createSourceGroundingService({
-    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
     pluginRegistry: registry,
-    sourceEvidenceWriter: {
-      getSourceEntity: (input) => sourceEntities.getSourceEntity(input),
-      upsertSourceEntity: ({ entity }) => sourceEntities.putSourceEntity({ entity }),
-    },
+    sourceEvidenceStore: sourceEvidenceStoreForRepository(sourceEntities),
     clock: () => "2026-05-31T05:05:00.000Z",
   });
 
@@ -223,12 +214,8 @@ async function refreshDoesNotPromoteSourceRefUrlWhenProviderHasNoPlayableLinks()
   };
   await assertOk(registry.registerProvider({ slot: "source", providerId: provider.id, provider }));
   const source = createSourceGroundingService({
-    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
     pluginRegistry: registry,
-    sourceEvidenceWriter: {
-      getSourceEntity: (input) => sourceEntities.getSourceEntity(input),
-      upsertSourceEntity: ({ entity }) => sourceEntities.putSourceEntity({ entity }),
-    },
+    sourceEvidenceStore: sourceEvidenceStoreForRepository(sourceEntities),
     clock: () => "2026-05-31T05:10:00.000Z",
   });
 
@@ -252,13 +239,25 @@ async function refreshDoesNotPromoteSourceRefUrlWhenProviderHasNoPlayableLinks()
 
 async function reportsMissingSourceProvider(): Promise<void> {
   const source = createSourceGroundingService({
-    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
     pluginRegistry: createPluginRegistry(),
   });
   const result = await source.ground({ query: { text: "anything" } });
 
   assert(!result.ok, "missing source providers should fail explicitly");
   assert(result.error.code === "source.no_provider", "missing source provider should use stable error");
+}
+
+function sourceEvidenceStoreForRepository(
+  repository: ReturnType<typeof createInMemorySourceEntityStoreRepository>,
+) {
+  return {
+    getConfirmedCanonicalBinding: (input: Parameters<typeof repository.getConfirmedCanonicalBinding>[0]) =>
+      repository.getConfirmedCanonicalBinding(input),
+    getSourceEntity: (input: Parameters<typeof repository.getSourceEntity>[0]) =>
+      repository.getSourceEntity(input),
+    upsertSourceEntity: ({ entity }: { entity: SourceEntity }) =>
+      repository.putSourceEntity({ entity }),
+  };
 }
 
 const refreshTarget: MusicMaterial = {

@@ -20,7 +20,7 @@ This index points to current authority documents. Archived evidence lives under
   documentation/code alignment sweep.
 - `docs/maintenance/documentation-alignment-audit.md`: document-disposition
   ledger for the sweep.
-- `docs/maintenance/architecture-inconsistency-log.md`: open architecture
+- `docs/maintenance/architecture-inconsistency-log.md`: architecture
   inconsistency ledger.
 - `docs/maintenance/dead-code-compatibility-cleanup-plan.md`: active cleanup
   plan outside this docs alignment sweep.
@@ -30,8 +30,10 @@ This index points to current authority documents. Archived evidence lives under
 - `docs/adr/0001-stage-core-runtime-composition.md`: accepted Stage Core /
   Stage Interface / Stage Modules naming decision.
 - `docs/adr/0002-material-store-boundary.md`: accepted Material Store boundary
-  decision. Open conflicts with current code are tracked as `AI-001` and
-  `AI-002`.
+  decision.
+- `docs/adr/0003-materialref-backed-collections.md`: accepted decision that
+  Collection Service is materialRef-backed, superseding ADR-0002's
+  canonical-only Collection consequence.
 
 ## Current Area Authority
 

@@ -44,17 +44,17 @@ the docs listed in `INDEX.md`.
   related retrieval, policy, sorting, selection, and recommendation
   presentation.
 - Collection Service owns owner-scoped system/custom Collections and current
-  materialRef-backed CollectionItems. This current implementation conflicts
-  with ADR-0002's canonical-only Collection expectation; see `AI-001`.
+  materialRef-backed CollectionItems. ADR-0003 accepts this boundary and
+  supersedes ADR-0002's earlier canonical-only Collection consequence.
 - Library Import/Update consumes `platform_library` providers and writes Source
   Entity Store / Source Library state, import/update batches, provenance,
   baselines, and absence records.
 - Canonical Maintenance Provisional Review is available through
   `canonical.review.list`, `canonical.review.inspect`, and
   `canonical.review.apply`.
-- Source Grounding still performs a direct Canonical Store source-ref lookup in
-  current code; this conflicts with ADR-0002's source-ref dependency cleanup
-  direction and is tracked as `AI-002`.
+- Source Grounding reads confirmed source-to-canonical bindings through a
+  narrow `SourceGroundingEvidenceStorePort` and no longer calls Canonical Store
+  source-ref APIs for ordinary source material normalization.
 
 ## Providers And Knowledge
 
@@ -87,17 +87,16 @@ the docs listed in `INDEX.md`.
 - Provider HTTP Cache can be configured through server runtime options and is
   passed to Knowledge provider factories.
 
-## Open Architecture Inconsistencies
+## Architecture Inconsistencies
 
-- `AI-001`: current Collection Service uses materialRef-backed CollectionItems,
-  while ADR-0002 still says Collection should remain canonical-only unless a
-  later decision changes the boundary.
-- `AI-002`: Source Grounding still receives `CanonicalStorePort` and calls
-  `resolveSourceRef`, while ADR-0002 says ordinary source-ref lookup should move
-  away from Canonical Store APIs.
+No architecture inconsistency is currently open in
+`docs/maintenance/architecture-inconsistency-log.md`.
 
-Documentation is aligned to observed current code facts, but these open
-inconsistencies mean the architecture and code are not fully consistent.
+- `AI-001` was resolved by ADR-0003, which accepts materialRef-backed
+  CollectionItems.
+- `AI-002` was resolved by moving Source Grounding source-ref normalization to
+  confirmed canonical bindings and adding an architecture guard against
+  Canonical Store source-ref API use in `src/source/**`.
 
 ## Verification Pointers
 

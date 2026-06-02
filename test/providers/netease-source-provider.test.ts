@@ -1,9 +1,8 @@
-import type { CanonicalRecord, MusicMaterial } from "../../src/contracts/index.js";
-import { createCanonicalStore } from "../../src/material/store/canonical/index.js";
+import type { MusicMaterial, Ref, SourceEntity } from "../../src/contracts/index.js";
 import { createNetEaseSourceProvider, type NetEaseProviderOptions } from "../../src/providers/netease/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
 import { createSourceGroundingService } from "../../src/source/index.js";
-import { createInMemoryCanonicalRecordRepository } from "../../src/storage/index.js";
+import { createInMemorySourceEntityStoreRepository } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -122,15 +121,17 @@ async function supportsModernNeteaseSongShapeAndBlockedState(): Promise<void> {
 }
 
 async function integratesWithSourceGroundingThroughPluginSlot(): Promise<void> {
-  const canonicalRepository = createInMemoryCanonicalRecordRepository();
-  const canonical: CanonicalRecord = {
-    ref: { namespace: "minemusic", kind: "recording", id: "canonical-netease-123" },
-    kind: "recording",
-    label: "Canonical NetEase Track",
-    status: "active",
-    sourceRefs: [{ namespace: "source:netease", kind: "track", id: "123" }],
-  };
-  await assertOk(canonicalRepository.put(canonical));
+  const sourceEntities = createInMemorySourceEntityStoreRepository();
+  const sourceRef: Ref = { namespace: "source:netease", kind: "track", id: "123" };
+  const canonicalRef: Ref = { namespace: "minemusic", kind: "recording", id: "canonical-netease-123" };
+  await assertOk(sourceEntities.putConfirmedCanonicalBinding({
+    binding: {
+      sourceRef,
+      canonicalRef,
+      createdAt: "2026-06-02T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+    },
+  }));
 
   const registry = createPluginRegistry();
   const provider = createNetEaseSourceProvider({
@@ -147,8 +148,8 @@ async function integratesWithSourceGroundingThroughPluginSlot(): Promise<void> {
   await assertOk(registry.registerProvider({ slot: "source", providerId: provider.id, provider }));
 
   const source = createSourceGroundingService({
-    canonicalStore: createCanonicalStore({ repository: canonicalRepository }),
     pluginRegistry: registry,
+    sourceEvidenceStore: sourceEvidenceStoreForRepository(sourceEntities),
   });
 
   const materials = await assertOk(source.ground({ query: { text: "coding", limit: 1 } }));
@@ -156,9 +157,22 @@ async function integratesWithSourceGroundingThroughPluginSlot(): Promise<void> {
 
   assert(material?.state === "confirmed_playable", "canonical NetEase source ref should confirm playability");
   assert(
-    material.canonicalRef?.id === canonical.ref.id,
+    material.canonicalRef?.id === canonicalRef.id,
     "Source Grounding should attach matching canonical ref",
   );
+}
+
+function sourceEvidenceStoreForRepository(
+  repository: ReturnType<typeof createInMemorySourceEntityStoreRepository>,
+) {
+  return {
+    getConfirmedCanonicalBinding: (input: Parameters<typeof repository.getConfirmedCanonicalBinding>[0]) =>
+      repository.getConfirmedCanonicalBinding(input),
+    getSourceEntity: (input: Parameters<typeof repository.getSourceEntity>[0]) =>
+      repository.getSourceEntity(input),
+    upsertSourceEntity: ({ entity }: { entity: SourceEntity }) =>
+      repository.putSourceEntity({ entity }),
+  };
 }
 
 async function refreshesLinksFromNeteaseSourceRefs(): Promise<void> {

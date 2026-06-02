@@ -38,13 +38,11 @@ repositories. `materialStoreDatabasePath` /
 - Stage Interface and ordinary Material Flow services receive narrow store
   slices instead of full `MaterialStorePort` where architecture guards cover
   the boundary.
-
-## Current Inconsistencies
-
-- `AI-001`: ADR-0002 still says Collection remains canonical-only, while
-  current code/docs use materialRef-backed Collection items.
-- `AI-002`: ADR-0002 says ordinary business modules should stop using
-  `CanonicalStorePort.resolveSourceRef`; Source Grounding still uses it.
+- ADR-0003 accepts materialRef-backed Collection items and supersedes
+  ADR-0002's earlier canonical-only Collection consequence.
+- Source Grounding uses confirmed canonical bindings through a narrow
+  `SourceGroundingEvidenceStorePort` instead of Canonical Store source-ref
+  APIs.
 
 ## Verification Evidence
 
@@ -60,7 +58,3 @@ repositories. `materialStoreDatabasePath` /
 
 - Add or document an explicit user/admin workflow for creating or correcting
   Confirmed Canonical Bindings.
-- Decide the long-term replacement for Source Grounding's direct
-  `CanonicalStorePort.resolveSourceRef` dependency (`AI-002`).
-- Resolve or supersede ADR-0002's canonical-only Collection consequence
-  (`AI-001`).

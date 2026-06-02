@@ -9,6 +9,13 @@ runtime artifacts, or implementation guards while executing this audit.
 Use `docs/maintenance/architecture-inconsistency-log.md` for architecture
 disagreements. This audit records what happens to documents.
 
+## Post-Sweep Resolution Note
+
+The sweep-time rows below preserve the status observed during the docs-only
+alignment sweep. A later 2026-06-02 code/ADR slice resolved `AI-001` and
+`AI-002`; current status lives in
+`docs/maintenance/architecture-inconsistency-log.md`.
+
 ## Disposition Statuses
 
 - `pending-review`
@@ -73,7 +80,7 @@ disagreements. This audit records what happens to documents.
 | `docs/library-import/progress.md` | Library Import | Current area progress | done | `docs/library-import/progress.md` | N/A | Phase 4: Library Import implementation and tests | None | Rewritten as current status summary. |
 | `docs/archive/library-import/README.md` | Library Import Archive | Archive area README | done | `docs/archive/library-import/README.md` | N/A | Phase 4: archive rules and moved document | None | Created archive index. |
 | `docs/archive/library-import/2026-06-02/implementation-plan.md` | Library Import Archive | Historical implementation plan | done | `docs/library-import/design.md`, `docs/library-import/ports.md`, `docs/library-import/progress.md` | Yes | Phase 4: extracted current Library Import facts | None | Archived with required notice. |
-| `docs/maintenance/architecture-inconsistency-log.md` | Maintenance | Inconsistency ledger | done | Maintenance authority | Completed | Phase 6: final manual audit confirmed open entries have classification, docs action, and later code action | `AI-001`, `AI-002` | Open entries remain active; no new Phase 6 inconsistency found. |
+| `docs/maintenance/architecture-inconsistency-log.md` | Maintenance | Inconsistency ledger | done | Maintenance authority | Completed | Phase 6: final manual audit confirmed open entries have classification, docs action, and later code action | `AI-001`, `AI-002` | Later 2026-06-02 code/ADR slice moved both entries to resolved. |
 | `docs/maintenance/dead-code-compatibility-cleanup-plan.md` | Maintenance | Active cleanup plan | done | Maintenance plan | N/A | Phase 6: checked during root manual audit | None | Kept active; not part of archive sweep. |
 | `docs/maintenance/documentation-alignment-audit.md` | Maintenance | Document disposition ledger | done | Maintenance authority | Completed | Phase 6: updated | None | Final disposition ledger for this branch. |
 | `docs/maintenance/documentation-alignment-plan.md` | Maintenance | Sweep phase plan | done | Maintenance authority | No | Phase 0 and Phase 6: read | None | Execution source for this branch. |

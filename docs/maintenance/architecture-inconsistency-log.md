@@ -60,13 +60,13 @@ inconsistency.
 
 | ID | Area | Summary | Evidence | Classification | Docs action in this sweep | Later code action | Owner/status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `AI-001` | Material Store / Collection Service | ADR-0002 says Collection remains canonical-only unless a future decision changes the boundary, but current code and root architecture describe materialRef-backed Collection items. | `docs/adr/0002-material-store-boundary.md`; `ARCHITECTURE.md`; `src/collection/index.ts`; `docs/collection-service/progress.md` | `code-violates-accepted-architecture`, `needs-adr` | Current docs describe observed materialRef-backed Collection behavior and link this entry where relevant. | Decide whether to update/supersede ADR-0002 with a new ADR or change Collection code back to canonical-only in a later code slice. | Open |
-| `AI-002` | Material Store / Canonical Store / Source Grounding | ADR-0002 says ordinary business modules should stop using `CanonicalStorePort.resolveSourceRef` / `attachSourceRef`, but Source Grounding still receives `CanonicalStorePort` and calls `resolveSourceRef`. | `docs/adr/0002-material-store-boundary.md`; `src/source/index.ts`; `src/stage_core/compose.ts`; `src/ports/index.ts` | `code-violates-accepted-architecture`, `needs-later-code-fix` | Canonical/Material Store docs describe current code and mark Source Grounding's direct canonical source-ref lookup as an open inconsistency. | Move Source Grounding source-ref lookup behind Material Store / Source Entity confirmed binding capability or explicitly approve a narrower canonical-evidence exception with a guard. | Open |
 
 ## Resolved Inconsistencies
 
 | ID | Area | Summary | Resolution | Evidence | Closed by |
 | --- | --- | --- | --- | --- | --- |
+| `AI-001` | Material Store / Collection Service | ADR-0002 said Collection remains canonical-only unless a future decision changed the boundary, while current code and root architecture describe materialRef-backed Collection items. | ADR-0003 accepts materialRef-backed CollectionItems and supersedes only ADR-0002's canonical-only Collection consequence. | `docs/adr/0003-materialref-backed-collections.md`; `docs/adr/0002-material-store-boundary.md`; `src/collection/index.ts`; `docs/collection-service/ports.md`; `CURRENT_STATE.md` | ADR decision slice, 2026-06-02 |
+| `AI-002` | Material Store / Canonical Store / Source Grounding | ADR-0002 said ordinary business modules should stop using `CanonicalStorePort.resolveSourceRef` / `attachSourceRef`, but Source Grounding received `CanonicalStorePort` and called `resolveSourceRef`. | Source Grounding now receives `SourceGroundingEvidenceStorePort`, reads confirmed canonical bindings for canonicalRef normalization, persists source evidence through the same narrow port, and no longer imports or calls Canonical Store source-ref APIs. | `src/source/index.ts`; `src/ports/index.ts`; `src/stage_core/compose.ts`; `test/source/source-grounding.test.ts`; `test/providers/netease-source-provider.test.ts`; `test/architecture/material-boundary.test.ts`; `docs/material-store/ports.md`; `docs/canonical-store/ports.md` | Code boundary slice, 2026-06-02 |
 
 ## Final Manual Audit Result
 
@@ -77,7 +77,8 @@ Scope checked:
 - root authority documents: `README.md`, `INDEX.md`, `CURRENT_STATE.md`,
   `ARCHITECTURE.md`, `PROGRESS.md`, `CONTEXT.md`;
 - accepted ADRs: `docs/adr/0001-stage-core-runtime-composition.md`,
-  `docs/adr/0002-material-store-boundary.md`;
+  `docs/adr/0002-material-store-boundary.md`, and
+  `docs/adr/0003-materialref-backed-collections.md`;
 - current area `design.md`, `ports.md`, and `progress.md` documents created or
   updated during the sweep;
 - archived architecture evidence under `docs/archive/**`;
@@ -88,11 +89,10 @@ Scope checked:
 Result:
 
 - No new `AI-*` entries were found during root consolidation.
-- `AI-001` and `AI-002` remain open and are reflected in current root/state
-  docs.
-- Documentation is aligned to observed current code facts. The project should
-  not claim code/architecture full consistency until `AI-001` and `AI-002` are
-  resolved or superseded by a later accepted decision.
+- `AI-001` and `AI-002` were later resolved on 2026-06-02 and are recorded in
+  `Resolved Inconsistencies`.
+- Current authority docs now describe ADR-0003's materialRef Collection
+  decision and Source Grounding's `SourceGroundingEvidenceStorePort` boundary.
 
 ## Final Manual Audit Checklist
 
