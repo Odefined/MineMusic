@@ -8,7 +8,8 @@ documentation/code alignment sweep. Architecture drift found during that sweep
 is tracked in `docs/maintenance/architecture-inconsistency-log.md`; document
 disposition is tracked in `docs/maintenance/documentation-alignment-audit.md`;
 execution sequencing is tracked in
-`docs/maintenance/documentation-alignment-plan.md`.
+`docs/maintenance/documentation-alignment-plan.md`; archived evidence is routed
+through `docs/archive/README.md`.
 
 ## Start Here
 

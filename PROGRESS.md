@@ -1396,6 +1396,11 @@
   trade-offs, but execution history belongs in archive or milestone summaries.
 - Added `docs/maintenance/documentation-alignment-plan.md` as the docs-only
   phase plan for executing the documentation/code alignment sweep.
+- Started the documentation/code alignment sweep on
+  `codex/documentation-alignment-sweep` with docs-only scope, created
+  `docs/archive/README.md`, seeded the document-disposition audit with every
+  tracked Markdown document, and recorded that `npm run check:docs` /
+  `scripts/check-docs.mjs` is specified but not implemented in this repository.
 
 ## Next
 
