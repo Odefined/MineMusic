@@ -521,10 +521,15 @@ collection.updated
 collection.removed
 collection.item.added
 collection.item.removed
+collection.item.updated
 ```
 
 Collection Service records these events after successful Collection-owned state
 changes. Callers should not duplicate the same factual event.
+
+`collection.item.updated` is used when re-adding an existing active material
+item refreshes Collection-owned item fields such as label or description. It
+does not imply a standalone public `updateItem` API on `CollectionPort`.
 
 Event payloads should include collection id, collection item id, collection
 kind, relation kind, label, and material ref. They may include canonical ref
