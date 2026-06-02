@@ -387,6 +387,14 @@ belongs to Stage Interface. Current Material Flow details live in
 `docs/material/design.md`, `docs/material/ports.md`,
 `docs/material/projection-materialization.md`, and `docs/material/progress.md`.
 
+Material Store and Canonical Store current details live in
+`docs/material-store/design.md`, `docs/material-store/ports.md`,
+`docs/material-store/progress.md`, `docs/canonical-store/design.md`,
+`docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`,
+and `docs/canonical-store/progress.md`. Open ADR/code disagreements from this
+area are tracked as `AI-001` and `AI-002` in
+`docs/maintenance/architecture-inconsistency-log.md`.
+
 ## Material State Policy
 
 Every recommended or action-targeted `MusicMaterial` must carry one state:

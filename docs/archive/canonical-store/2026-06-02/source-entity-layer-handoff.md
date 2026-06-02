@@ -1,3 +1,10 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material-store/design.md`, `docs/material-store/progress.md`, `docs/adr/0002-material-store-boundary.md`
+> Use only for: Historical Source Entity handoff evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+> Related inconsistencies: `AI-001`, `AI-002`
+
 # Provider-Neutral Source Entity Layer Handoff
 
 ## Status

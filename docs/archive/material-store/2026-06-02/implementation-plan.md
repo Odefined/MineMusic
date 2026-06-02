@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material-store/design.md`, `docs/material-store/ports.md`, `docs/material-store/progress.md`
+> Use only for: Historical Material Store Source Entity implementation planning evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Material Store Source Entity Implementation Plan
 
 ## Status

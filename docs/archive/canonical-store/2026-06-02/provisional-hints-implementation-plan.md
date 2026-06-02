@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/canonical-store/provisional-review.md`, `docs/canonical-store/progress.md`
+> Use only for: Historical provisional hint implementation planning evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Provisional Canonical Hints Implementation Plan
 
 ## Feature

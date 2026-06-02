@@ -82,10 +82,25 @@ through `docs/archive/README.md`.
      Store boundary: Canonical Store remains the canonical identity subdomain,
      Source Entity Store owns source entities, Source Library, and Library
      Import/Update, and external library tools keep user-facing names.
-   - `docs/material-store/implementation-plan.md` is the phased implementation
-     plan for the Source Entity Store and Source Library rewrite.
+   - `docs/material-store/design.md` is the current Material Store design
+     authority for durable material state.
+   - `docs/material-store/ports.md` records current Material Store provided
+     and consumed ports.
    - `docs/material-store/progress.md` records current Material Store
-     implementation state, verification, and remaining gaps.
+     implementation state, verification, remaining gaps, and open `AI-*`
+     inconsistencies.
+   - `docs/canonical-store/design.md` is the current Canonical Store design
+     authority.
+   - `docs/canonical-store/ports.md` records current Canonical Store and
+     Canonical Maintenance ports.
+   - `docs/canonical-store/provisional-review.md` records the current
+     Provisional Review surface.
+   - `docs/canonical-store/storage-model.md` records current Canonical Store
+     SQLite storage shape.
+   - `docs/canonical-store/progress.md` records current Canonical Store
+     implementation state.
+   - `docs/archive/material-store/README.md` and
+     `docs/archive/canonical-store/README.md` index historical store evidence.
    - `docs/material/design.md` is the current Material Flow design authority
      for resolve, query, projection, materialization, policy, selection, and
      recommendation presentation.
@@ -110,64 +125,9 @@ through `docs/archive/README.md`.
     - Cross-repository plan for separating immediate dead-code cleanup from
       compatibility-layer migration decisions.
 
-20. `docs/canonical-store/storage-model.md`
-    - Canonical Store durable storage model, implemented SQLite scope including
-      provisional relations with optional linked object refs, and open design
-      questions.
-
-21. `docs/canonical-store/design.md`
-    - Canonical Store responsibility, data flow, module boundaries, and
-      implementation phases.
-
-22. `docs/canonical-store/interfaces.md`
-    - Canonical Store public/admin/repository interface design and module access
-      matrix, including implemented methods, provisional relation methods, and
-      design-only methods.
-
-23. `docs/canonical-store/implementation-plan.md`
-    - Task-by-task plan for implementing durable Canonical Store storage and
-      identity hygiene.
-
-24. `docs/canonical-store/progress.md`
-    - Canonical Store implementation progress, current implementation state,
-      verification status, remaining gaps, and next slice.
-
-25. `docs/canonical-store/source-entity-layer-handoff.md`
-    - Handoff note for replacing source-track-to-canonical-recording pressure
-      with provider-neutral `source_track`, `source_release`, and
-      `source_artist` entities plus optional canonical bindings.
-
-26. `docs/canonical-store/provisional-review.md`
-    - Broader Provisional Review design reference for Canonical Maintenance,
-      agent-facing review posture, Gate behavior, active-neighbor review,
-      future split/reject/defer/human-review actions, and event separation.
-
-27. `docs/canonical-store/provisional-review-v1.md`
-    - Narrow Provisional Review v1 design for Canonical Store-owned maintenance
-      of provisional recordings through inspection-backed update and defer.
-    - `docs/canonical-store/provisional-review-v2.md` is the draft design for
-      compact agent-facing review inspection output, including summary/detail
-      views, `hints`, and `knowledgeFacts`.
-    - `docs/canonical-store/provisional-hints-implementation-plan.md` is the
-      handoff plan for adding source-side provisional recording hints without
-      expanding canonical relations.
-    - `docs/canonical-store/provisional-review-v1-implementation-plan.md` is
-      the task-by-task plan for implementing `canonical.review.list`,
-      `canonical.review.inspect`, and `canonical.review.apply`.
-    - `docs/canonical-store/provisional-review-v2-implementation-plan.md` is
-      the task-by-task plan for replacing v1 review output and update writes
-      with compact v2 agent-facing contracts and MusicBrainz-authoritative
-      recording identity maintenance.
-    - `docs/canonical-store/provisional-review-v2.1-implementation-plan.md` is
-      the follow-up plan from real MCP agent review feedback, covering
-      MusicBrainz release/track evidence, batch list progress, and v2.1 schema
-      discoverability.
-    - `docs/canonical-store/provisional-review-v3.md` is the design draft for
-      deterministic review qualification, automatic update, and
-      qualification-based ordering of neutral `knowledgeFacts`.
-    - `docs/canonical-store/provisional-review-v3-implementation-plan.md` is the
-      task-by-task plan for implementing v3 automatic update, qualification,
-      compact tool output, and independent-agent workflow validation.
+20. `docs/maintenance/architecture-inconsistency-log.md`
+    - Current open documentation/code/architecture disagreements, including
+      `AI-001` and `AI-002` from the Material Store / Canonical Store sweep.
 
 28. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom

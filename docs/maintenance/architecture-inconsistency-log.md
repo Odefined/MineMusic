@@ -60,6 +60,8 @@ inconsistency.
 
 | ID | Area | Summary | Evidence | Classification | Docs action in this sweep | Later code action | Owner/status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `AI-001` | Material Store / Collection Service | ADR-0002 says Collection remains canonical-only unless a future decision changes the boundary, but current code and root architecture describe materialRef-backed Collection items. | `docs/adr/0002-material-store-boundary.md`; `ARCHITECTURE.md`; `src/collection/index.ts`; `docs/collection-service/progress.md` | `code-violates-accepted-architecture`, `needs-adr` | Current docs describe observed materialRef-backed Collection behavior and link this entry where relevant. | Decide whether to update/supersede ADR-0002 with a new ADR or change Collection code back to canonical-only in a later code slice. | Open |
+| `AI-002` | Material Store / Canonical Store / Source Grounding | ADR-0002 says ordinary business modules should stop using `CanonicalStorePort.resolveSourceRef` / `attachSourceRef`, but Source Grounding still receives `CanonicalStorePort` and calls `resolveSourceRef`. | `docs/adr/0002-material-store-boundary.md`; `src/source/index.ts`; `src/stage_core/compose.ts`; `src/ports/index.ts` | `code-violates-accepted-architecture`, `needs-later-code-fix` | Canonical/Material Store docs describe current code and mark Source Grounding's direct canonical source-ref lookup as an open inconsistency. | Move Source Grounding source-ref lookup behind Material Store / Source Entity confirmed binding capability or explicitly approve a narrower canonical-evidence exception with a guard. | Open |
 
 ## Resolved Inconsistencies
 

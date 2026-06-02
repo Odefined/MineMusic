@@ -1,3 +1,10 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/canonical-store/ports.md`
+> Use only for: Historical Canonical Store interface design evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+> Related inconsistencies: `AI-002`
+
 # Canonical Store Interfaces
 
 ## Status

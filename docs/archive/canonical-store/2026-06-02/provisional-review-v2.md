@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/canonical-store/provisional-review.md`
+> Use only for: Historical Provisional Review v2 design evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Provisional Review V2 Design
 
 ## Status

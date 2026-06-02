@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/canonical-store/progress.md`
+> Use only for: Historical Provisional Review v1 implementation planning evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Provisional Review V1 Implementation Plan
 
 ## Status

@@ -1,3 +1,10 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/canonical-store/design.md`, `docs/canonical-store/ports.md`, `docs/canonical-store/progress.md`
+> Use only for: Historical durable Canonical Store implementation planning evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+> Related inconsistencies: `AI-002`
+
 # Canonical Store Implementation Plan
 
 ## Feature

@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/canonical-store/provisional-review.md`
+> Use only for: Historical provisional review case-calibration evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Provisional Review V1 Case Calibration
 
 This document records a real-data calibration pass for Provisional Review v1

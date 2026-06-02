@@ -1416,6 +1416,11 @@
   and recommendation posture evidence under `docs/archive/material/` and
   `docs/archive/recommendation/`, and found no Material Flow `AI-*`
   inconsistency.
+- Completed documentation alignment Phase 3 for Material Store and Canonical
+  Store: added current `design.md`/`ports.md` authorities, rewrote current
+  progress and Provisional Review docs, archived historical store/review plans
+  under `docs/archive/material-store/` and `docs/archive/canonical-store/`,
+  and recorded open inconsistencies `AI-001` and `AI-002`.
 
 ## Next
 

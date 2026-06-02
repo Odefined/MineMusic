@@ -251,6 +251,13 @@ remain in one Material Projection module instead of being copied into policy.
 Current Material Flow authority lives in `docs/material/design.md`,
 `docs/material/ports.md`, `docs/material/projection-materialization.md`, and
 `docs/material/progress.md`.
+Current Material Store / Canonical Store authority lives in
+`docs/material-store/design.md`, `docs/material-store/ports.md`,
+`docs/material-store/progress.md`, `docs/canonical-store/design.md`,
+`docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`,
+and `docs/canonical-store/progress.md`. Open accepted-architecture conflicts
+from the docs sweep are tracked as `AI-001` and `AI-002` in
+`docs/maintenance/architecture-inconsistency-log.md`.
 
 The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
 `RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the
@@ -420,11 +427,11 @@ LLM-facing surface.
   owns label/ref/current-record normalization, and `src/material/store/canonical/storage.ts`
   owns repository-backed lookup and write-error mapping.
 - Canonical Store durable storage design is documented in
-  `docs/canonical-store/storage-model.md`. Responsibility and interface designs
-  are documented in `docs/canonical-store/design.md` and
-  `docs/canonical-store/interfaces.md`. The durable implementation plan is
-  documented in `docs/canonical-store/implementation-plan.md`. Canonical
-  Store-specific progress is tracked in `docs/canonical-store/progress.md`.
+  `docs/canonical-store/storage-model.md`. Responsibility and port designs are
+  documented in `docs/canonical-store/design.md` and
+  `docs/canonical-store/ports.md`. Historical implementation plans are archived
+  under `docs/archive/canonical-store/`. Canonical Store-specific progress is
+  tracked in `docs/canonical-store/progress.md`.
 - SQLite-backed canonical storage is implemented under
   `src/storage/sqlite/**` for direct repository injection. Schema
   initialization lives in `src/storage/sqlite/canonical-schema.ts`; repository
@@ -463,9 +470,10 @@ LLM-facing surface.
   source-only playable material remains `source_only_playable`.
 - Canonical Store implementation state has been recorded in
   `docs/canonical-store/progress.md`, `docs/canonical-store/storage-model.md`,
-  `docs/canonical-store/design.md`, and `docs/canonical-store/interfaces.md`.
-  Public `addAlias`, a standalone broader admin port, split/reject review
-  actions, durable review queues, and human-review queues remain future work.
+  `docs/canonical-store/design.md`, `docs/canonical-store/ports.md`, and
+  `docs/canonical-store/provisional-review.md`. Public `addAlias`, a standalone
+  broader admin port, durable review queues, and human-review queues remain
+  future work; source-ref dependency cleanup is tracked as `AI-002`.
 - Event Service is exported from `src/events/index.ts` with factual event
   recording and session event listing.
 - Effect Boundary is exported from `src/effects/index.ts` with proposal and
