@@ -9,9 +9,10 @@ import type {
 import type { MaterialProjectionStorePort } from "../../ports/index.js";
 
 type MaterialProjectionPurpose =
-  | "resolve.cards"
+  | "material.query"
   | "context.brief"
   | "collection.snapshot"
+  | "link.refresh"
   | "policy.evaluation";
 
 export function materialRefToMaterialId(materialRef: Ref): string {

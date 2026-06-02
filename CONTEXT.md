@@ -94,6 +94,20 @@ validated, routed, and summarized for Host Clients.
 A Stage Interface-owned group of Tool Definitions that matches one instrument
 or agent-facing work area.
 
+### Public Agent Protocol
+
+The ordinary LLM-facing and host-facing Stage Interface contract: stable tools,
+public schemas, Handbook guidance, MCP exposure, and compact outputs an agent can
+use directly.
+_Avoid_: internal domain contract, provider audit shape, persisted event
+payload, source ref handle, canonical ref handle.
+
+### Public Display Link
+
+A link shape in the Public Agent Protocol that contains only user-displayable
+link text and URL.
+_Avoid_: source ref, playable-link record, provider provenance.
+
 ### Stage Modules
 
 Small LLM-facing modules used by Stage Interface.
@@ -102,13 +116,11 @@ Current Stage Modules:
 
 - Session Context: session identity, session state, `StageVibe`, active
   instruments, and memory summaries exposed as context.
-- Material Gate: presentation safety for `MusicMaterial`, especially whether
-  playable links may be exposed for a purpose.
 - Instrument Catalog: available instruments and tool descriptors.
 - Handbook: rendered instrument and tool reference.
 
-Current code mapping: `src/stage/index.ts` exports `createSessionContext` and
-`createMaterialGate` through `SessionContextPort` and `MaterialGatePort`.
+Current code mapping: `src/stage/index.ts` exports `createSessionContext`
+through `SessionContextPort`.
 
 ### Core Capabilities
 
@@ -266,6 +278,12 @@ for progress and summarized after completion.
 The user-intended subset of a platform library that a Library Import preview or
 batch should cover.
 
+### Provider Area
+
+A provider-owned platform library segment that a Platform Library Provider can
+read or describe.
+_Avoid_: Import Scope, Source Library item kind, Collection kind.
+
 ### Platform Listening History
 
 Provider-reported recent plays or listening activity that can inform context and
@@ -275,6 +293,10 @@ memory evidence without becoming a Collection item.
 
 The candidate-to-material resolution path that turns music candidates into
 resolved `MusicMaterial` results for recommendation or presentation.
+
+Material Resolve starts from uncertain music candidates or exact source/canonical
+anchors. A `materialId` is already a MineMusic material handle, not a resolve
+candidate.
 
 Material Resolve is where canonical identity, source evidence, playable material
 state, and user collection constraints such as `blocked` come together before
@@ -458,9 +480,9 @@ Storage does not own domain decisions, effect policy, or LLM-facing behavior.
 
 Use `Stage Core` for runtime composition and lifecycle.
 
-Do not use `Stage Core` to mean Session Context, Material Gate, or a module that
-contains every capability implementation.
+Do not use `Stage Core` to mean Session Context or a module that contains every
+capability implementation.
 
-Do not use `Stage Modules` for current architecture or current code. Historical
-Wave 4-8 notes may use that old term, but new architecture text and new code
-should use `Stage Modules`, `Session Context`, and `Material Gate`.
+`Stage Modules` remains the name for small LLM-facing support modules such as
+Session Context, Instrument Catalog, and Handbook. Historical Wave 4-8 notes may
+also mention the removed Material Gate module.

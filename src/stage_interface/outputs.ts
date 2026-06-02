@@ -4,6 +4,7 @@ import type {
   KnowledgeNode,
   KnowledgeRelation,
   LibraryImportItemsListOutput,
+  LibraryImportItemsListView,
   LibraryImportReport,
   LibraryImportStatus,
   LibraryImportSummaryView,
@@ -57,7 +58,13 @@ export function compactLibraryImportSummary(report: LibraryImportReport): Librar
     scopes: report.scopes,
     startedAt: report.startedAt,
     counts: report.counts,
-    areas: report.areas,
+    scopeReports: report.areas.map((area) => ({
+      scope: area.scope,
+      ...(area.area === undefined ? {} : { providerArea: area.area }),
+      ...(area.readStatus === undefined ? {} : { readStatus: area.readStatus }),
+      ...(area.count === undefined ? {} : { count: area.count }),
+      ...(area.issues === undefined ? {} : { issues: area.issues }),
+    })),
     progress: report.progress,
     itemCount: report.items.length,
   };
@@ -71,7 +78,14 @@ export function compactLibraryImportSummary(report: LibraryImportReport): Librar
   }
 
   if (report.absences !== undefined) {
-    summary.absences = report.absences;
+    summary.absentItems = report.absences.map((absence) => ({
+      label: absence.label,
+      scope: absence.scope,
+      ...(absence.area === undefined ? {} : { providerArea: absence.area }),
+      reason: absence.reason,
+      baselineBatchId: absence.baselineBatchId,
+      ...(absence.currentBatchId === undefined ? {} : { currentBatchId: absence.currentBatchId }),
+    }));
   }
 
   if (report.issues !== undefined) {
@@ -81,8 +95,23 @@ export function compactLibraryImportSummary(report: LibraryImportReport): Librar
   return summary;
 }
 
-export function compactLibraryImportItemsPage(page: LibraryImportItemsListOutput): unknown {
-  return page;
+export function compactLibraryImportItemsPage(page: LibraryImportItemsListOutput): LibraryImportItemsListView {
+  return {
+    batchId: page.batchId,
+    items: page.items.map((item) => ({
+      scope: item.scope,
+      ...(item.area === undefined ? {} : { providerArea: item.area }),
+      sourceRef: item.sourceRef,
+      itemKind: item.itemKind,
+      sourceEntityKind: item.sourceEntityKind,
+      label: item.label,
+      status: item.status,
+      ...(item.failureCode === undefined ? {} : { failureCode: item.failureCode }),
+      ...(item.retryable === undefined ? {} : { retryable: item.retryable }),
+    })),
+    totalItems: page.totalItems,
+    ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+  };
 }
 
 export function compactReviewList(output: ProvisionalReviewListOutput): unknown {

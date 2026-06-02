@@ -1,5 +1,4 @@
 import type {
-  MusicMaterial,
   Result,
   StageContext,
   StageError,
@@ -8,7 +7,6 @@ import type {
 import { recentCardsFromEvents } from "./recent_cards.js";
 import type {
   EventPort,
-  MaterialGatePort,
   MemoryPort,
   SessionContextPort,
 } from "../ports/index.js";
@@ -16,11 +14,6 @@ import type {
 type SessionContextOptions = {
   sessions?: StageSession[];
   memory: MemoryPort;
-  events: EventPort;
-};
-
-type MaterialGateOptions = {
-  sessionContext: SessionContextPort;
   events: EventPort;
 };
 
@@ -124,60 +117,6 @@ function canonicalReviewGuidance(): string[] {
   ];
 }
 
-export function createMaterialGate({
-  sessionContext,
-  events,
-}: MaterialGateOptions): MaterialGatePort {
-  return {
-    async prepareMaterials({ sessionId, materials, purpose }) {
-      const sessionResult = await sessionContext.getSession({ sessionId });
-
-      if (!sessionResult.ok) {
-        return sessionResult;
-      }
-
-      const preparedMaterials = materials.map((material) => gateMaterialForPurpose(material, purpose));
-
-      await events.record({
-        event: {
-          sessionId,
-          actor: "stage",
-          type: "stage.materials.prepared",
-          payload: {
-            purpose,
-            count: preparedMaterials.length,
-          },
-        },
-      });
-
-      return ok(preparedMaterials);
-    },
-  };
-}
-
-type MaterialGatePurpose = Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"];
-
-function gateMaterialForPurpose(
-  material: MusicMaterial,
-  purpose: MaterialGatePurpose,
-): MusicMaterial {
-  if (purpose === "conversation") {
-    return cloneMaterial(material);
-  }
-
-  if (material.state === "confirmed_playable" || material.state === "source_only_playable") {
-    return cloneMaterial(material);
-  }
-
-  return withoutPlayableLinks(material);
-}
-
-function withoutPlayableLinks(material: MusicMaterial): MusicMaterial {
-  const { playableLinks: _playableLinks, ...materialWithoutPlayableLinks } = material;
-
-  return cloneMaterial(materialWithoutPlayableLinks);
-}
-
 function sessionNotFound(sessionId: string): Result<never> {
   return fail({
     code: "stage.session_not_found",
@@ -197,8 +136,4 @@ function fail(error: StageError): Result<never> {
 
 function cloneSession(session: StageSession): StageSession {
   return structuredClone(session);
-}
-
-function cloneMaterial(material: MusicMaterial): MusicMaterial {
-  return structuredClone(material);
 }

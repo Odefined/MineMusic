@@ -2,7 +2,6 @@ import { z } from "zod/v4";
 
 import type {
   EffectProposal,
-  MusicMaterial,
   RecommendationPresentInput,
   RecommendationPresentOutput,
   Result,
@@ -13,8 +12,6 @@ import type {
 import type {
   EffectBoundaryPort,
   EventPort,
-  MaterialGatePort,
-  MaterialProjectionStorePort,
   RecommendationPresentationPort,
   SessionContextPort,
 } from "../../ports/index.js";
@@ -23,12 +20,10 @@ import type {
   StageInterfaceToolInputSchema,
 } from "./types.js";
 import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
-import { materialForMaterialId } from "../../material/projection/index.js";
 import { compactRecommendationPresentOutput } from "../outputs/recommendation.js";
 
 export const stageToolNames = [
   "stage.context.read",
-  "stage.materials.prepare",
   "stage.recommendation.present",
   "stage.session.update",
   "stage.events.record",
@@ -39,19 +34,11 @@ export type StageToolName = (typeof stageToolNames)[number];
 
 export type StageToolGroupContext = {
   sessionContext: SessionContextPort;
-  materialGate: MaterialGatePort;
   recommendationPresentation?: RecommendationPresentationPort;
-  materialStore?: MaterialProjectionStorePort;
   events: EventPort;
   effects: EffectBoundaryPort;
 };
 
-const musicMaterialSchema = z.object({
-  id: z.string(),
-  kind: z.string(),
-  label: z.string(),
-  state: z.string(),
-}).passthrough();
 const recommendationPresentBasisSchema = z.object({
   kind: z.enum(["query", "related", "collection", "recent_context", "direct_resolve", "manual_selection", "mixed"]),
   note: z.string().optional(),
@@ -93,27 +80,6 @@ export const stageToolDefinitions = [
     inputSchema: {},
     handler({ context, sessionId }) {
       return context.sessionContext.readContext({ sessionId });
-    },
-  },
-  {
-    name: "stage.materials.prepare",
-    description: "Legacy material sanitizer for non-final material use; use stage.recommendation.present for user-visible recommendations.",
-    inputSchemaRef: "StageMaterialsPrepareInput",
-    outputSchemaRef: "MusicMaterial[]",
-    availability: "requires_active_instrument",
-    inputSchema: {
-      materials: z.array(musicMaterialSchema).optional(),
-      materialIds: z.array(z.string()).optional(),
-      purpose: z.enum(["recommendation", "memory", "effect", "conversation"]),
-    },
-    async handler({ context, sessionId, payload }) {
-      const input = await materialsPrepareInput(context, payload, sessionId);
-
-      if (!input.ok) {
-        return input;
-      }
-
-      return context.materialGate.prepareMaterials(input.value);
     },
   },
   defineStageInterfaceTool<
@@ -195,85 +161,6 @@ export const stageToolDescriptors = stageToolDefinitions.map(
 export const stageToolInputSchemas = Object.fromEntries(
   stageToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
 ) as unknown as Record<StageToolName, StageInterfaceToolInputSchema>;
-
-async function materialsPrepareInput(
-  context: StageToolGroupContext,
-  payload: unknown,
-  sessionId: string,
-): Promise<Result<Parameters<MaterialGatePort["prepareMaterials"]>[0]>> {
-  const input = payloadObject(payload);
-  const materials = Array.isArray(input.materials) ? input.materials as MusicMaterial[] : [];
-  const materialIds = Array.isArray(input.materialIds)
-    ? input.materialIds.filter((materialId): materialId is string => typeof materialId === "string")
-    : [];
-
-  if (materials.length === 0 && materialIds.length === 0) {
-    return fail({
-      code: "stage_interface.invalid_payload",
-      message: "stage.materials.prepare requires materials or materialIds.",
-      module: "stage_interface",
-      retryable: false,
-    });
-  }
-
-  const resolvedMaterials = await materialsForIds(context, materialIds);
-
-  if (!resolvedMaterials.ok) {
-    return resolvedMaterials;
-  }
-
-  return ok({
-    sessionId,
-    materials: [...materials, ...resolvedMaterials.value],
-    purpose: input.purpose as Parameters<MaterialGatePort["prepareMaterials"]>[0]["purpose"],
-  });
-}
-
-async function materialsForIds(
-  context: StageToolGroupContext,
-  materialIds: string[],
-): Promise<Result<MusicMaterial[]>> {
-  if (materialIds.length === 0) {
-    return ok([]);
-  }
-
-  if (context.materialStore === undefined) {
-    return fail({
-      code: "stage_interface.tool_not_found",
-      message: "Material id preparation is not available without Material Store.",
-      module: "stage_interface",
-      retryable: false,
-    });
-  }
-
-  const materials: MusicMaterial[] = [];
-
-  for (const materialId of materialIds) {
-    const material = await materialForMaterialId({
-      materialStore: context.materialStore,
-      materialId,
-      ownerScope: "local_profile:default",
-      purpose: "resolve.cards",
-    });
-
-    if (!material.ok) {
-      return material;
-    }
-
-    if (material.value === null) {
-      return fail({
-        code: "material_registry.not_found",
-        message: `Material '${materialId}' was not found.`,
-        module: "material_store",
-        retryable: false,
-      });
-    }
-
-    materials.push(material.value);
-  }
-
-  return ok(materials);
-}
 
 function sessionUpdateInput(
   payload: unknown,

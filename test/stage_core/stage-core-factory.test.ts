@@ -19,7 +19,7 @@ import {
   createMineMusicStageCoreWithSourceProvider,
   createMineMusicStageRuntimeWithSourceProvider,
 } from "../../src/stage_core/index.js";
-import type { CompactMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
+import type { CompactPublicMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
@@ -91,19 +91,11 @@ async function createsStageCoreWithInjectedSourceProvider(): Promise<void> {
 
   const resolveResult = await assertOk(
     stageCore.stageInterface.tools["music.material.resolve"]({
-      kind: "single",
-      candidate: {
-        id: "coding",
-        label: "Coding Track",
-        query: {
-          text: "coding",
-          limit: 1,
-        },
-      },
-    }) as Promise<Result<CompactMaterialResolveOutput>>,
+      queries: [{ text: "coding" }],
+      limit: 1,
+    }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
-  assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
-  const items = resolveResult.result.items;
+  const items = resolveResult.items;
 
   assert(calls.includes("provider.search"), "Stage Core should route material resolve to injected provider");
   assert(items[0]?.title === "Provider Coding Track", "Stage Core should return compact provider material through Stage Interface");
@@ -302,23 +294,13 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
 
   const resolveResult = await assertOk(
     stageCore.stageInterface.tools["music.material.resolve"]({
-      kind: "single",
-      candidate: {
-        id: "known",
-        label: "Known Canonical Track",
-        sourceRef,
-      },
-    }) as Promise<Result<CompactMaterialResolveOutput>>,
+      queries: [{ text: "Known Canonical Track", kind: "recording" }],
+    }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
-  assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
 
   assert(
-    resolveResult.result.canonicalRef?.id === canonicalRecord.ref.id,
+    resolveResult.items[0]?.state === "confirmed_playable",
     "Stage Core should resolve through the injected canonical repository",
-  );
-  assert(
-    resolveResult.result.items[0]?.state === "confirmed_playable",
-    "Injected canonical storage should allow source-backed material to become confirmed playable",
   );
 }
 
@@ -570,23 +552,13 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
 
   const resolveResult = await assertOk(
     stageCore.stageInterface.tools["music.material.resolve"]({
-      kind: "single",
-      candidate: {
-        id: "blocked",
-        label: "Blocked Canonical Track",
-        expectedKind: "track",
-      },
-    }) as Promise<Result<CompactMaterialResolveOutput>>,
+      queries: [{ text: "Blocked Canonical Track", kind: "recording" }],
+    }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
 
-  assert(resolveResult.kind === "single", "Stage Core should return a single resolve result");
   assert(
-    resolveResult.result.status === "blocked",
+    resolveResult.items[0]?.state === "blocked",
     "Stage Core Material Resolve should use Collection blocked membership",
-  );
-  assert(
-    resolveResult.result.items[0]?.state === "blocked",
-    "Stage Core Material Resolve should return blocked material state",
   );
 }
 

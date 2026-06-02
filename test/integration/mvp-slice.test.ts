@@ -21,7 +21,7 @@ import { runRecommendationTranscript } from "../../src/app/index.js";
 import { createFixtureMineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 import type { MineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 import type {
-  CompactMaterialResolveOutput,
+  CompactPublicMaterialResolveOutput,
   CompactRecommendationPresentOutput,
 } from "../../src/stage_interface/outputs/index.js";
 
@@ -73,7 +73,6 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       fixtureSourceOnlyPlayableMaterial,
     ]);
     const toolCalls = spyStageTools(stageCore, [
-      "stage.materials.prepare",
       "stage.recommendation.present",
     ]);
     const transcript = await assertOk(
@@ -132,8 +131,8 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       "unresolved exploration material without store-backed source state should not become a presented playable card",
     );
     assert(
-      !toolCalls.includes("stage.materials.prepare"),
-      "recommendation transcript should not call the legacy prepare gate",
+      !("stage.materials.prepare" in (stageCore.stageInterface.tools as Record<string, unknown>)),
+      "recommendation transcript should not expose the legacy prepare gate",
     );
     assert(
       toolCalls.includes("stage.recommendation.present"),
@@ -312,18 +311,11 @@ async function doesNotPresentSourceRefPageUrlAsPlayableLink(): Promise<void> {
     await stageCore.ready;
     const resolvedResult = await assertOk(
       stageCore.stageInterface.tools["music.material.resolve"]({
-        kind: "single",
-        candidate: {
-          id: "page-url-only-request",
-          label: "I need a page url only coding track.",
-          query: {
-            text: "I need a page url only coding track.",
-            limit: 1,
-          },
-        },
+        queries: [{ text: "I need a page url only coding track." }],
+        limit: 1,
       }),
-    ) as CompactMaterialResolveOutput;
-    const material = resolvedResult.kind === "single" ? resolvedResult.result.items[0] : undefined;
+    ) as CompactPublicMaterialResolveOutput;
+    const material = resolvedResult.items[0];
     const storedSourceEntity = await assertOk(
       Promise.resolve(stageCore.materialStore.getSourceEntity({ sourceRef: pageUrlSourceRef })),
     );

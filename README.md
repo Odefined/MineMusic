@@ -53,8 +53,8 @@ effect boundaries.
 
 Waves 1 through 8 have established the TypeScript contract, public-port
 harness, in-memory repository foundation, plugin registry foundation, core
-domain module skeletons, Stage Core runtime composition, Stage Modules for
-Session Context / Material Gate, Stage Interface catalog and dispatch,
+domain module skeletons, Stage Core runtime composition, the Session Context
+Stage Module, Stage Interface catalog and dispatch,
 fixture end-to-end MVP slice, final review documentation, and a read-only
 NetEase source provider adapter with opt-in live smoke validation. Wave 8 adds
 a Codex skill surface for using MineMusic MCP tools. The runtime boundary now
@@ -72,7 +72,7 @@ MineMusic Server
 
 `Stage Core` means runtime composition and lifecycle. Current code maps that to
 `src/stage_core/index.ts`. The current `src/stage/index.ts` module is not Stage
-Core; it exports Stage Modules for Session Context and Material Gate.
+Core; it exports the Session Context Stage Module.
 
 ```bash
 npm test

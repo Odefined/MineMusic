@@ -38,20 +38,18 @@ Source Resolution, Canonical Store, Event Service, Memory Service, Effect
 Boundary, Music Knowledge, Plugin Slots, and Storage keep their own module
 ownership.
 
-The current Stage Modules are exposed through explicit ports:
+The current Stage Module exposed through an explicit port is:
 
 - Session Context.
-- Material Gate.
 
 ## Consequences
 
 - `src/stage_core/index.ts` is the current Stage Core implementation.
-- `src/stage/index.ts` is not Stage Core. It implements Session Context and
-  Material Gate through separate `SessionContextPort` and `MaterialGatePort`
-  factories.
+- `src/stage/index.ts` is not Stage Core. It implements Session Context through
+  the `SessionContextPort` factory.
 - Host Adapters should call Stage Interface rather than Core Capability modules
   directly.
 - Stage Interface owns the host-facing callable surface through
   `MineMusicStageInterface`.
-- Future architecture reviews should not re-suggest making Stage Core a
-  session/material gate module.
+- Future architecture reviews should not re-suggest making Stage Core a session
+  module.

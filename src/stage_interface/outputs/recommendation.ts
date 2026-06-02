@@ -4,18 +4,14 @@ import type {
   RecommendationPresentIssue,
   RecommendationPresentOutput,
   RecommendationPresentWarning,
+  PublicDisplayLink,
 } from "../../contracts/index.js";
 import type { CompactCandidateMaterialCard } from "./material.js";
 import { compactCandidateMaterialCard } from "./material.js";
-
-export type CompactPresentedMaterialLink = {
-  label?: string;
-  url: string;
-  sourceHandle?: string;
-};
+import { publicDisplayLinksForMaterial } from "./links.js";
 
 export type CompactPresentedMaterialCard = CompactCandidateMaterialCard & {
-  links?: CompactPresentedMaterialLink[];
+  links?: PublicDisplayLink[];
 };
 
 export type CompactRecommendationPresentOutput =
@@ -35,11 +31,7 @@ export type CompactRecommendationPresentOutput =
     };
 
 export function compactPresentedMaterialCard(item: RecommendationPresentationItem): CompactPresentedMaterialCard {
-  const links = (item.material.playableLinks ?? []).map((link, index) => ({
-    ...(link.label === undefined ? {} : { label: link.label }),
-    url: link.url,
-    sourceHandle: `link:${index + 1}`,
-  }));
+  const links = publicDisplayLinksForMaterial(item.material);
 
   return {
     ...compactCandidateMaterialCard(item.material),

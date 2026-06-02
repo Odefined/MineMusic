@@ -25,12 +25,12 @@ import type {
   EffectBoundaryPort,
   EventPort,
   LibraryImportPort,
+  MaterialContextBriefPort,
+  MaterialPoolsPort,
   MaterialQueryPort,
-  MaterialQuerySupportPort,
   MaterialRelatedPort,
   MaterialSelectorPort,
   MaterialResolvePort,
-  MaterialGatePort,
   MaterialStorePort,
   MemoryPort,
   MusicKnowledgePort,
@@ -381,9 +381,6 @@ async function registersMigratedToolDefinitions(): Promise<void> {
   const registry = createStageInterfaceToolDefinitionRegistry({
     stage: {
       sessionContext,
-      materialGate: {
-        prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
-      },
       events: {
         record: async ({ event }) => ({
           ok: true,
@@ -477,10 +474,6 @@ async function registersMigratedToolDefinitions(): Promise<void> {
     "Handbook tool schemas should be derived from Tool Definitions",
   );
   assert(
-    stageInterfaceToolInputSchemas["stage.materials.prepare"] === registry.get("stage.materials.prepare")?.inputSchema,
-    "Stage tool schemas should be derived from Tool Definitions",
-  );
-  assert(
     stageInterfaceToolInputSchemas["music.material.resolve"] === registry.get("music.material.resolve")?.inputSchema,
     "Music tool schemas should be derived from Tool Definitions",
   );
@@ -527,12 +520,6 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
     updateSession: async ({ patch }) => {
       calls.push("sessionContext.updateSession");
       return { ok: true, value: { ...session, ...patch } };
-    },
-  };
-  const materialGate: MaterialGatePort = {
-    prepareMaterials: async ({ materials }) => {
-      calls.push("materialGate.prepareMaterials");
-      return { ok: true, value: materials };
     },
   };
   const recommendationPresentation: RecommendationPresentationPort = {
@@ -682,7 +669,6 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
   );
   const dispatch = createToolDispatch({
     sessionContext,
-    materialGate,
     recommendationPresentation,
     instruments: catalog,
     materialResolve,
@@ -708,8 +694,7 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       sessionId: session.id,
       toolName: "music.material.resolve",
       payload: {
-        kind: "candidate_set",
-        candidates: [{ id: "quiet", label: "Quiet Track", query: { text: "quiet" } }],
+        queries: [{ text: "Quiet Track" }],
       },
     }),
   );
@@ -787,25 +772,6 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       } satisfies { proposal: Omit<EffectProposal, "id"> },
     }),
   );
-  await assertOk(
-    dispatch.call({
-      sessionId: session.id,
-      toolName: "stage.materials.prepare",
-      payload: {
-        materials: [
-          {
-            id: "material-for-stage",
-            materialRef: { namespace: "minemusic", kind: "material", id: "material-for-stage" },
-            kind: "recording",
-            label: "Material For Stage",
-            state: "grounded",
-            identityState: "source_backed",
-          } satisfies MusicMaterial,
-        ],
-        purpose: "recommendation",
-      },
-    }),
-  );
   const recommendationOutput = await assertOk(
     dispatch.call({
       sessionId: session.id,
@@ -836,7 +802,6 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       (toolEntry as { tool?: { name?: unknown } }).tool?.name === "music.material.resolve",
     "handbook.tool.read should return the requested tool descriptor",
   );
-  assert(calls.includes("materialGate.prepareMaterials"), "stage.materials.prepare should call MaterialGatePort");
   assert(calls.includes("stage.recommendation.present"), "stage.recommendation.present should call RecommendationPresentationPort");
   assert(calls.includes("materialResolve.resolve"), "music.material.resolve should call MaterialResolvePort");
   assert(calls.includes("source.refreshPlayableLinks"), "music.links.refresh should call SourceGroundingPort");
@@ -888,9 +853,6 @@ async function rejectsManualRecommendationPresentedEvents(): Promise<void> {
   };
   const dispatch = createToolDispatch({
     sessionContext,
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
-    },
     instruments: createInstrumentCatalog(),
     materialResolve: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
@@ -942,98 +904,6 @@ async function rejectsManualRecommendationPresentedEvents(): Promise<void> {
   );
 }
 
-async function dispatchesStageMaterialsPrepareWithMaterialIds(): Promise<void> {
-  const sourceRef: Ref = { namespace: "source:fixture", kind: "track", id: "prepare-id-track" };
-  const sourceEntity: SourceEntity = {
-    sourceRef,
-    providerId: "fixture",
-    kind: "track",
-    label: "Prepared Id Track",
-    title: "Prepared Id Track",
-    providerUrl: "https://example.test/prepare-id-track",
-    createdAt: "2026-05-31T00:00:00.000Z",
-    updatedAt: "2026-05-31T00:00:00.000Z",
-  };
-  const materialRegistry = createInMemoryMaterialRegistry({
-    generateId: () => "prepared-id-material",
-    now: () => "2026-05-31T00:00:00.000Z",
-  });
-  const record = await assertOk(
-    materialRegistry.getOrCreateBySourceRef({
-      sourceRef,
-      kind: "recording",
-      primarySourceRef: sourceRef,
-    }),
-  );
-  const materialStore = {
-    ...materialRegistry,
-    getCanonical: async () => ({ ok: true, value: null }),
-    getSourceEntity: async ({ sourceRef: requestedRef }: { sourceRef: Ref }) => ({
-      ok: true,
-      value: requestedRef.id === sourceRef.id ? sourceEntity : null,
-    }),
-  } as unknown as MaterialStorePort;
-  const preparedLabels: string[] = [];
-  const dispatch = createToolDispatch({
-    sessionContext: {
-      getSession: async () => ({ ok: true, value: session }),
-      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
-      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
-    },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => {
-        preparedLabels.push(...materials.map((material) => material.label));
-
-        return { ok: true, value: materials };
-      },
-    },
-    instruments: createInstrumentCatalog(),
-    materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
-    },
-    source: {
-      ground: async () => ({ ok: true, value: [] }),
-      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
-    },
-    events: {
-      record: async ({ event }) => ({ ok: true, value: { ...event, id: "event-1", time: "2026-05-31T00:00:00.000Z" } }),
-      listBySession: async () => ({ ok: true, value: [] }),
-    },
-    memory: {
-      summarizeForSession: async () => ({ ok: true, value: [] }),
-    recordFeedback: async () => ({ ok: true, value: { feedbackEventId: "feedback-event-1", applied: [] } }),
-      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "memory-1" } }),
-      accept: async () => ({
-        ok: true,
-        value: { id: "memory-entry-1", text: "memory", kind: "contextual_preference" },
-      }),
-    },
-    effects: {
-      propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
-      decide: async () => ({ ok: true, value: undefined }),
-    },
-    materialStore,
-  });
-
-  const prepared = await assertOk(
-    dispatch.call({
-      sessionId: session.id,
-      toolName: "stage.materials.prepare",
-      payload: {
-        materialIds: [record.materialRef.id],
-        purpose: "recommendation",
-      },
-    }),
-  );
-
-  assert(preparedLabels[0] === "Prepared Id Track", "stage.materials.prepare should resolve materialIds before Material Gate");
-  assert(
-    Array.isArray(prepared) &&
-      (prepared as MusicMaterial[])[0]?.materialRef.id === "prepared-id-material",
-    "stage.materials.prepare should return prepared materials for materialIds",
-  );
-}
-
 async function dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints(): Promise<void> {
   const restrictedSession: StageSession = {
     ...session,
@@ -1050,12 +920,8 @@ async function dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints(): Pro
     }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...restrictedSession, ...patch } }),
   };
-  const materialGate: MaterialGatePort = {
-    prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
-  };
   const dispatch = createToolDispatch({
     sessionContext,
-    materialGate,
     instruments: createInstrumentCatalog(),
     materialResolve: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
@@ -1107,7 +973,7 @@ async function dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints(): Pro
   const result = await dispatch.call({
     sessionId: restrictedSession.id,
     toolName: "music.material.resolve",
-    payload: { kind: "single", candidate: { id: "quiet", label: "Quiet", query: { text: "quiet" } } },
+    payload: { queries: [{ text: "Quiet" }] },
   });
   assert(result.ok, "activeInstruments should not gate stable tool dispatch");
 }
@@ -1152,9 +1018,6 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       getSession: async () => ({ ok: true, value: session }),
       readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
       updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
-    },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
@@ -1356,9 +1219,6 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
       updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
     },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
-    },
     instruments: createInstrumentCatalog(),
     materialResolve: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
@@ -1529,9 +1389,6 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
       readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
       updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
     },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
-    },
     instruments: createInstrumentCatalog(),
     materialResolve: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
@@ -1601,7 +1458,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
   };
-  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort = {
+  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort = {
     query: async (input) => {
       queryPayloads.push(input as Record<string, unknown>);
       const { sessionId } = input;
@@ -1614,7 +1471,6 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       calls.push(`related:${sessionId ?? "missing"}`);
       return { ok: true, value: { basis: "fallback_text", items: [{ materialId: material.materialRef.id, material }] } };
     },
-    resolveCards: async () => ({ ok: true, value: { items: [{ materialId: material.materialRef.id, material }] } }),
   };
   const materialSelector: MaterialSelectorPort = {
     select: async ({ sessionId, policy }) => {
@@ -1625,12 +1481,24 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
   };
   const dispatch = createToolDispatch({
     sessionContext,
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
-    },
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async (input) => {
+        calls.push(`resolve:${input.sessionId ?? "missing"}`);
+        return {
+          ok: true,
+          value: {
+            kind: "candidate_set",
+            results: [{
+              candidate: input.kind === "candidate_set"
+                ? input.candidates[0] ?? { id: "query:1", label: "Dispatch Material" }
+                : input.candidate,
+              status: "resolved",
+              materials: [material],
+            }],
+          },
+        };
+      },
     },
     materialQuery,
     materialSelector,
@@ -1685,11 +1553,11 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       payload: { candidates: [{ materialId: "seed" }] },
     }),
   );
-  const resolveCardsOutput = await assertOk(
+  const resolveOutput = await assertOk(
     dispatch.call({
       sessionId: "session-current",
-      toolName: "music.material.resolve.cards",
-      payload: { seeds: [{ materialId: "seed" }] },
+      toolName: "music.material.resolve",
+      payload: { queries: [{ text: "Dispatch Material" }] },
     }),
   );
   await assertOk(
@@ -1722,6 +1590,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
   assert(calls.includes("query:session-current"), "material query should receive current dispatch session id by default");
   assert(calls.includes("query:caller-session"), "material query should preserve explicit caller session id");
   assert(calls.includes("related:session-current"), "material related should receive current dispatch session id by default");
+  assert(calls.includes("resolve:session-current"), "material resolve should receive current dispatch session id by default");
   assert(
     !Object.prototype.hasOwnProperty.call(queryPayloads[0], "preferenceHints"),
     "material query should strip hidden preferenceHints at the public tool boundary",
@@ -1739,7 +1608,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
   assertCompactMaterialOutput(queryOutput, "material query should compact domain query items at the Stage Interface boundary");
   assertCompactMaterialOutput(relatedOutput, "material related should compact domain related items at the Stage Interface boundary");
   assertCompactMaterialOutput(selectOutput, "material select should compact domain selection items at the Stage Interface boundary");
-  assertCompactMaterialOutput(resolveCardsOutput, "material resolve.cards should compact domain resolved seed items at the Stage Interface boundary");
+  assertCompactMaterialOutput(resolveOutput, "material resolve should compact domain resolved text-query items at the Stage Interface boundary");
   assert(!presentationPurposeSelect.ok, "music.material.select should reject recommendation_presentation policy purpose");
   assert(!feedbackPurposeSelect.ok, "music.material.select should reject feedback_target policy purpose");
 }
@@ -1849,9 +1718,6 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
       getSession: async () => ({ ok: true, value: importSession }),
       readContext: async () => ({ ok: true, value: { session: importSession, memorySummaries: [] } }),
       updateSession: async ({ patch }) => ({ ok: true, value: { ...importSession, ...patch } }),
-    },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
@@ -1969,9 +1835,6 @@ async function dispatchRejectsRemovedSourceLibraryListTool(): Promise<void> {
       getSession: async () => ({ ok: true, value: session }),
       readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
       updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
-    },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
@@ -2246,9 +2109,6 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
       readContext: async () => ({ ok: true, value: { session: reviewSession, memorySummaries: [] } }),
       updateSession: async ({ patch }) => ({ ok: true, value: { ...reviewSession, ...patch } }),
     },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
-    },
     instruments: createInstrumentCatalog(),
     materialResolve: {
       resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
@@ -2474,7 +2334,6 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
 async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   const dispatch = createToolDispatch({
     sessionContext: {} as SessionContextPort,
-    materialGate: {} as MaterialGatePort,
     instruments: createInstrumentCatalog(),
     materialResolve: {} as MaterialResolvePort,
     source: {} as SourceGroundingPort,
@@ -2492,42 +2351,6 @@ async function reportsUnknownToolsAsResultErrors(): Promise<void> {
   assert(result.error.code === "stage_interface.tool_not_found", "unknown tools should use stable error code");
 }
 
-async function invalidStageMaterialsPayloadFailsAtBoundary(): Promise<void> {
-  let prepareMaterialsCalls = 0;
-  const dispatch = createToolDispatch({
-    sessionContext: {
-      getSession: async () => ({ ok: true, value: session }),
-      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
-      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
-    },
-    materialGate: {
-      prepareMaterials: async () => {
-        prepareMaterialsCalls += 1;
-        return { ok: true, value: [] };
-      },
-    },
-    instruments: createInstrumentCatalog(),
-    materialResolve: {} as MaterialResolvePort,
-    source: {} as SourceGroundingPort,
-    events: {} as EventPort,
-    memory: {} as MemoryPort,
-    effects: {} as EffectBoundaryPort,
-  });
-  const result = await dispatch.call({
-    sessionId: session.id,
-    toolName: "stage.materials.prepare",
-    payload: { purpose: "recommendation" },
-  });
-
-  assert(!result.ok, "invalid payloads should fail via Result");
-  assert(
-    result.error.code === "stage_interface.invalid_payload",
-    "invalid payloads should fail at the Stage Interface boundary",
-  );
-  assert(result.error.module === "stage_interface", "invalid payload errors should belong to Stage Interface");
-  assert(prepareMaterialsCalls === 0, "invalid payloads should not call handler dependencies");
-}
-
 async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promise<void> {
   let resolveCalls = 0;
   const dispatch = createToolDispatch({
@@ -2535,9 +2358,6 @@ async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promis
       getSession: async () => ({ ok: true, value: session }),
       readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
       updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
-    },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
@@ -2552,84 +2372,40 @@ async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promis
     effects: {} as EffectBoundaryPort,
   });
 
-  const missingCandidate = await dispatch.call({
+  const missingQueries = await dispatch.call({
     sessionId: session.id,
     toolName: "music.material.resolve",
-    payload: { kind: "single" },
+    payload: {},
   });
-  const missingCandidates = await dispatch.call({
+  const emptyQueries = await dispatch.call({
     sessionId: session.id,
     toolName: "music.material.resolve",
-    payload: { kind: "candidate_set" },
+    payload: { queries: [] },
+  });
+  const emptyText = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { queries: [{ text: " " }] },
+  });
+  const invalidKind = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { queries: [{ text: "Quiet Track", kind: "song" }] },
   });
 
-  assert(!missingCandidate.ok, "single material resolve should require candidate");
+  assert(!missingQueries.ok, "public material resolve should require queries");
   assert(
-    missingCandidate.error.code === "stage_interface.invalid_payload",
-    "single material resolve should fail at the Stage Interface boundary",
+    missingQueries.error.code === "stage_interface.invalid_payload",
+    "missing queries should fail at the Stage Interface boundary",
   );
-  assert(!missingCandidates.ok, "candidate-set material resolve should require candidates");
+  assert(!emptyQueries.ok, "public material resolve should reject empty queries");
   assert(
-    missingCandidates.error.code === "stage_interface.invalid_payload",
-    "candidate-set material resolve should fail at the Stage Interface boundary",
+    emptyQueries.error.code === "stage_interface.invalid_payload",
+    "empty queries should fail at the Stage Interface boundary",
   );
+  assert(!emptyText.ok, "public material resolve should reject empty query text");
+  assert(!invalidKind.ok, "public material resolve should reject internal or legacy kind names");
   assert(resolveCalls === 0, "invalid material resolve payloads should not call MaterialResolvePort");
-}
-
-async function validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys(): Promise<void> {
-  let prepareMaterialsCalls = 0;
-  const dispatch = createToolDispatch({
-    sessionContext: {
-      getSession: async () => ({ ok: true, value: session }),
-      readContext: async () => ({ ok: true, value: { session, memorySummaries: [] } }),
-      updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
-    },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => {
-        prepareMaterialsCalls += 1;
-        return { ok: true, value: materials };
-      },
-    },
-    instruments: createInstrumentCatalog(),
-    materialResolve: {} as MaterialResolvePort,
-    source: {} as SourceGroundingPort,
-    events: {} as EventPort,
-    memory: {} as MemoryPort,
-    effects: {} as EffectBoundaryPort,
-  });
-
-  const valid = await dispatch.call({
-    sessionId: session.id,
-    toolName: "stage.materials.prepare",
-    payload: {
-      materials: [dispatchMaterial("valid-material")],
-      purpose: "recommendation",
-    },
-  });
-  const withExtraKey = await dispatch.call({
-    sessionId: session.id,
-    toolName: "stage.materials.prepare",
-    payload: {
-      materials: [dispatchMaterial("extra-material")],
-      purpose: "recommendation",
-      extra: "allowed in passthrough mode",
-    },
-  });
-
-  assert(valid.ok, "valid payloads should reach handler dependencies");
-  assert(withExtraKey.ok, "unknown extra keys should be accepted in passthrough mode");
-  assert(prepareMaterialsCalls === 2, "valid payloads should call handler dependencies");
-}
-
-function dispatchMaterial(id: string): MusicMaterial {
-  return {
-    id,
-    materialRef: { namespace: "minemusic", kind: "material", id },
-    kind: "recording",
-    label: id,
-    state: "grounded",
-    identityState: "source_backed",
-  };
 }
 
 async function stageSessionUpdateDefaultsToDispatchSessionId(): Promise<void> {
@@ -2642,9 +2418,6 @@ async function stageSessionUpdateDefaultsToDispatchSessionId(): Promise<void> {
         updatedSessionId = sessionId;
         return { ok: true, value: { ...session, ...patch } };
       },
-    },
-    materialGate: {
-      prepareMaterials: async ({ materials }) => ({ ok: true, value: materials }),
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {} as MaterialResolvePort,
@@ -2765,7 +2538,6 @@ await rendersKnowledgeProviderCapabilitiesInHandbook();
 await registersMigratedToolDefinitions();
 await dispatchesStableToolNamesThroughInjectedPorts();
 await rejectsManualRecommendationPresentedEvents();
-await dispatchesStageMaterialsPrepareWithMaterialIds();
 await dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints();
 await dispatchesCollectionSystemToolsWithDefaultOwnerScope();
 await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
@@ -2775,7 +2547,5 @@ await dispatchesLibraryImportToolsWithDefaultOwnerScope();
 await dispatchRejectsRemovedSourceLibraryListTool();
 await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();
-await invalidStageMaterialsPayloadFailsAtBoundary();
 await invalidMaterialResolveConditionalPayloadsFailAtBoundary();
-await validStageMaterialsPayloadsReachHandlerAndAllowExtraKeys();
 await stageSessionUpdateDefaultsToDispatchSessionId();

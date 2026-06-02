@@ -48,7 +48,7 @@ export function createMaterializationService({
 
       return projectStoredMaterialRecord(materialStore, record.value, {
         ownerScope,
-        purpose: "resolve.cards",
+        purpose: "material.query",
         fallbackLabel: item.label,
       });
     },

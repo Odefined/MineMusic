@@ -199,7 +199,7 @@ export const libraryToolDefinitions = [
     name: "library.import.items.list",
     description: "List item-level import facts for a Library Import batch in bounded pages.",
     inputSchemaRef: "LibraryImportItemsListInput",
-    outputSchemaRef: "LibraryImportItemsListOutput",
+    outputSchemaRef: "LibraryImportItemsListView",
     availability: "requires_active_instrument",
     inputSchema: {
       batchId: z.string(),

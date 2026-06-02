@@ -6,8 +6,6 @@ import type {
   MaterialPoolsListOutput,
   MaterialQueryItem,
   MaterialQueryInput,
-  MaterialResolveIssue,
-  MaterialResolveUnresolvedItem,
   MaterialSelectInput,
   MaterialRelatedInput,
   MaterialRelatedOutput,
@@ -15,17 +13,17 @@ import type {
   MusicMaterial,
   PlatformLibraryItemKind,
   Ref,
-  ResolveSeed,
   Result,
   SourceEntity,
   SourceLibraryItem,
 } from "../../contracts/index.js";
 import type {
   CollectionPort,
+  MaterialContextBriefPort,
+  MaterialPoolsPort,
   MaterialQueryPort,
   MaterialProjectionStorePort,
   MaterialQueryStorePort,
-  MaterialQuerySupportPort,
   MaterialRelatedPort,
   MaterialResolvePort,
   MaterialSelectorPort,
@@ -44,7 +42,11 @@ import {
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
 
-export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
+export type MaterialQueryService =
+  MaterialQueryPort &
+  MaterialRelatedPort &
+  MaterialContextBriefPort &
+  MaterialPoolsPort;
 
 export type MaterialQueryServiceOptions = {
   materialStore: MaterialQueryStorePort;
@@ -52,16 +54,6 @@ export type MaterialQueryServiceOptions = {
   materialSelector: MaterialSelectorPort;
   sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
   collection?: CollectionPort;
-};
-
-type ResolvedSeedMaterials = {
-  materials: MusicMaterial[];
-  issues: MaterialResolveIssue[];
-};
-
-type ResolvedSeedItems = {
-  items: MaterialQueryItem[];
-  unresolved: MaterialResolveUnresolvedItem[];
 };
 
 export function createMaterialQueryService({
@@ -72,26 +64,6 @@ export function createMaterialQueryService({
   collection,
 }: MaterialQueryServiceOptions): MaterialQueryService {
   const service: MaterialQueryService = {
-    async resolveCards(input) {
-      const ownerScope = input.ownerScope ?? defaultOwnerScope;
-      const resolved = await resolveSeedItems({
-        materialStore,
-        materialResolve,
-        ownerScope,
-        seeds: input.seeds,
-        ...(input.limit === undefined ? {} : { limit: input.limit }),
-      });
-
-      if (!resolved.ok) {
-        return resolved;
-      }
-
-      return ok({
-        items: resolved.value.items,
-        ...(resolved.value.unresolved.length === 0 ? {} : { unresolved: resolved.value.unresolved }),
-      });
-    },
-
     async query(input) {
       const ownerScope = input.ownerScope ?? defaultOwnerScope;
       const limit = normalizeLimit(input.limit);
@@ -198,145 +170,6 @@ export function createMaterialQueryService({
   };
 
   return service;
-}
-
-async function resolveSeeds({
-  materialResolve,
-  ownerScope,
-  seeds,
-  limit,
-}: {
-  materialResolve: MaterialResolvePort;
-  ownerScope: string;
-  seeds: ResolveSeed[];
-  limit?: number;
-}): Promise<Result<ResolvedSeedMaterials>> {
-  if (seeds.length === 0) {
-    return ok({ materials: [], issues: [] });
-  }
-
-  const candidates = seeds.map((seed, index) => seedToCandidate(seed, index));
-  const resolved = await materialResolve.resolve({
-    kind: "candidate_set",
-    ownerScope,
-    candidates,
-    ...(limit === undefined ? {} : { limitPerCandidate: limit }),
-  });
-
-  if (!resolved.ok) {
-    return resolved;
-  }
-
-  return ok({
-    materials:
-      resolved.value.kind === "candidate_set"
-        ? dedupeMaterials(resolved.value.results.flatMap((result) => result.materials))
-        : resolved.value.result.materials,
-    issues:
-      resolved.value.kind === "candidate_set"
-        ? resolved.value.results.flatMap((result) => result.issues ?? [])
-        : resolved.value.result.issues ?? [],
-  });
-}
-
-async function resolveSeedItems({
-  materialStore,
-  materialResolve,
-  ownerScope,
-  seeds,
-  limit,
-}: {
-  materialStore: MaterialProjectionStorePort;
-  materialResolve: MaterialResolvePort;
-  ownerScope: string;
-  seeds: ResolveSeed[];
-  limit?: number;
-}): Promise<Result<ResolvedSeedItems>> {
-  const items: MaterialQueryItem[] = [];
-  const unresolved: MaterialResolveUnresolvedItem[] = [];
-
-  for (const [index, seed] of seeds.entries()) {
-    const materialId = materialIdForSeed(seed);
-
-    if (materialId !== undefined) {
-      const resolved = await resolveMaterialRefSeed({
-        materialStore,
-        ownerScope,
-        seed,
-        materialId,
-      });
-
-      if (!resolved.ok) {
-        return resolved;
-      }
-
-      items.push(...resolved.value.items);
-      unresolved.push(...resolved.value.unresolved);
-      continue;
-    }
-
-    const resolved = await resolveSeeds({
-      materialResolve,
-      ownerScope,
-      seeds: [seed],
-      ...(limit === undefined ? {} : { limit }),
-    });
-
-    if (!resolved.ok) {
-      return resolved;
-    }
-
-    items.push(...resolved.value.materials.map(materialToQueryItem));
-
-    if (resolved.value.materials.length === 0) {
-      unresolved.push({ label: seed.text ?? `seed-${index + 1}` });
-    }
-  }
-
-  return ok({ items, unresolved });
-}
-
-async function resolveMaterialRefSeed({
-  materialStore,
-  ownerScope,
-  seed,
-  materialId,
-}: {
-  materialStore: MaterialProjectionStorePort;
-  ownerScope: string;
-  seed: ResolveSeed;
-  materialId: string;
-}): Promise<Result<ResolvedSeedItems>> {
-  const materialRef = materialIdToRef(materialId);
-  const record = await currentMaterialRecordForRef(materialStore, materialRef);
-
-  if (!record.ok) {
-    return record;
-  }
-
-  if (record.value === null) {
-    return ok({
-      items: [],
-      unresolved: [{
-        label: seed.text ?? materialId,
-      }],
-    });
-  }
-
-  const material = await projectMaterialRecord(materialStore, record.value, {
-    ownerScope,
-    purpose: "resolve.cards",
-  });
-
-  return material.ok ? ok({ items: [materialToQueryItem(material.value)], unresolved: [] }) : material;
-}
-
-function materialIdForSeed(seed: ResolveSeed): string | undefined {
-  if (seed.materialId !== undefined) {
-    return seed.materialId;
-  }
-
-  return undefined;
 }
 
 async function resolveCandidates({
@@ -748,26 +581,6 @@ function candidateForCollectionItem(item: CollectionItem): MusicCandidate {
       text: item.label,
       canonicalRef,
     },
-  };
-}
-
-function seedToCandidate(seed: ResolveSeed, index: number): MusicCandidate {
-  const sourceRef = seed.sourceRef;
-  const canonicalRef = seed.canonicalRef;
-  const text = seed.text ?? seed.materialId ?? sourceRef?.label ?? canonicalRef?.label ?? `seed-${index + 1}`;
-
-  return {
-    id: `seed:${index + 1}`,
-    label: text,
-    ...(seed.kind === undefined ? {} : { expectedKind: normalizeSeedKind(seed.kind) }),
-    ...(sourceRef === undefined ? {} : { sourceRef }),
-    ...(canonicalRef === undefined ? {} : { canonicalRef }),
-    query: {
-      text,
-      ...(sourceRef === undefined ? {} : { sourceRef }),
-      ...(canonicalRef === undefined ? {} : { canonicalRef }),
-    },
-    ...(seed.reason === undefined ? {} : { reason: seed.reason }),
   };
 }
 
@@ -1553,18 +1366,6 @@ function poolLabel(pool: NonNullable<MaterialQueryInput["pool"]>): string {
   }
 
   return "all";
-}
-
-function normalizeSeedKind(kind: string): string {
-  switch (kind) {
-    case "song":
-    case "track":
-      return "recording";
-    case "album":
-      return "release_group";
-    default:
-      return kind;
-  }
 }
 
 function matchesQueryText(label: string, q: string | undefined): boolean {

@@ -8,7 +8,6 @@ import type {
   HandbookInstrumentEntry,
   InstrumentProviderDescriptor,
   KnowledgeProvider,
-  MusicMaterial,
   PlatformLibraryProvider,
   Result,
   SourceProvider,
@@ -66,7 +65,7 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP tools should use a MineMusic namespace prefix",
   );
   assert(
-    internalToolNameFor("minemusic.stage.materials.prepare") === "stage.materials.prepare",
+    internalToolNameFor("minemusic.stage.context.read") === "stage.context.read",
     "MCP tools should map back to internal tool names",
   );
   assert(
@@ -94,6 +93,10 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP should expose collection tools with the MineMusic prefix",
   );
   assert(internalToolNameFor("stage.context.read") === null, "unprefixed tool names should not be accepted");
+  assert(
+    internalToolNameFor("minemusic.stage.materials.prepare") === null,
+    "MCP should not map removed material prepare tool names",
+  );
 }
 
 async function exposesStableToolsThroughMcpDefinitions(): Promise<void> {
@@ -153,20 +156,20 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   );
 
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "kind"),
-    "resolve tool schema should declare discriminant input",
+    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "queries"),
+    "resolve tool schema should declare public text queries input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidate"),
-    "resolve tool schema should declare single-candidate input",
+    !hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidate"),
+    "resolve tool schema should not declare raw single-candidate input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidates"),
-    "resolve tool schema should declare candidate-set input",
+    !hasSchemaKey(schemasByName.get("minemusic.music.material.resolve"), "candidates"),
+    "resolve tool schema should not declare raw candidate-set input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.material.resolve.cards"), "seeds"),
-    "resolve cards schema should declare material seeds input",
+    schemasByName.get("minemusic.music.material.resolve.cards") === undefined,
+    "MCP should not expose removed resolve cards schema",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "pool") &&
@@ -249,16 +252,8 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "knowledge query schema should declare cursor input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materials"),
-    "stage materials tool schema should declare materials input",
-  );
-  assert(
-    hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "materialIds"),
-    "stage materials tool schema should declare materialIds input",
-  );
-  assert(
-    hasSchemaKey(schemasByName.get("minemusic.stage.materials.prepare"), "purpose"),
-    "stage materials tool schema should declare purpose input",
+    schemasByName.get("minemusic.stage.materials.prepare") === undefined,
+    "MCP should not expose removed stage material prepare schema",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.stage.recommendation.present"), "items") &&
@@ -382,30 +377,18 @@ async function dispatchesMcpPayloadsToStageInterface(): Promise<void> {
   await stageRuntime.ready;
 
   const definitions = createMineMusicMcpToolDefinitions(stageRuntime);
-  const prepareTool = definitions.find(
-    (definition) => definition.name === "minemusic.stage.materials.prepare",
+  const contextTool = definitions.find(
+    (definition) => definition.name === "minemusic.stage.context.read",
   );
-  assert(prepareTool !== undefined, "stage materials tool should be exposed through MCP");
+  assert(contextTool !== undefined, "stage context tool should be exposed through MCP");
 
-  const response = await prepareTool.handler({
-    materials: [
-      {
-        id: "mcp-material",
-        materialRef: { namespace: "minemusic", kind: "material", id: "mcp-material" },
-        kind: "recording",
-        label: "MCP Material",
-        state: "grounded",
-        identityState: "source_backed",
-      } satisfies MusicMaterial,
-    ],
-    purpose: "recommendation",
-  });
+  const response = await contextTool.handler({});
   const firstContent = response.content[0];
   assert(firstContent?.type === "text", "MCP handler should return text content");
 
-  const result = JSON.parse(firstContent.text) as Result<MusicMaterial[]>;
+  const result = JSON.parse(firstContent.text) as Result<{ session?: { id?: string } }>;
   assert(result.ok, "MCP handler should return the Stage Interface result");
-  assert(result.value[0]?.id === "mcp-material", "MCP handler should preserve Stage Core result payload");
+  assert(result.value.session?.id === session.id, "MCP handler should preserve Stage Core result payload");
 }
 
 async function dispatchesMcpPayloadsThroughInjectedRuntime(): Promise<void> {
@@ -413,44 +396,25 @@ async function dispatchesMcpPayloadsThroughInjectedRuntime(): Promise<void> {
     ready: Promise.resolve(),
     stageInterface: {
       tools: {
-        "stage.materials.prepare": async (payload: unknown) => {
-          const materialPayload = payload as { materials: MusicMaterial[] };
-
-          return {
-            ok: true,
-            value: materialPayload.materials,
-          };
-        },
+        "stage.context.read": async (payload: unknown) => ({ ok: true, value: { payload } }),
       },
     },
   } satisfies MineMusicMcpRuntime;
 
   const definitions = createMineMusicMcpToolDefinitions(runtime);
-  const prepareTool = definitions.find(
-    (definition) => definition.name === "minemusic.stage.materials.prepare",
+  const contextTool = definitions.find(
+    (definition) => definition.name === "minemusic.stage.context.read",
   );
-  assert(prepareTool !== undefined, "stage materials tool should be exposed through MCP");
+  assert(contextTool !== undefined, "stage context tool should be exposed through MCP");
 
-  const response = await prepareTool.handler({
-    materials: [
-      {
-        id: "injected-runtime-material",
-        materialRef: { namespace: "minemusic", kind: "material", id: "injected-runtime-material" },
-        kind: "recording",
-        label: "Injected Runtime Material",
-        state: "grounded",
-        identityState: "source_backed",
-      } satisfies MusicMaterial,
-    ],
-    purpose: "recommendation",
-  });
+  const response = await contextTool.handler({ include: "session" });
   const firstContent = response.content[0];
   assert(firstContent?.type === "text", "MCP handler should return text content");
 
-  const result = JSON.parse(firstContent.text) as Result<MusicMaterial[]>;
+  const result = JSON.parse(firstContent.text) as Result<{ payload?: { include?: string } }>;
   assert(result.ok, "MCP handler should return the injected runtime result");
   assert(
-    result.value[0]?.id === "injected-runtime-material",
+    result.value.payload?.include === "session",
     "MCP handler should not require a full Stage Core object",
   );
 }

@@ -59,14 +59,12 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
     "handbook.overview.read",
     "handbook.instrument.read",
     "handbook.tool.read",
-    "stage.materials.prepare",
     "stage.recommendation.present",
     "stage.session.update",
     "stage.events.record",
     "stage.effects.propose",
     "music.material.resolve",
     "knowledge.query",
-    "music.material.resolve.cards",
     "music.material.query",
     "music.material.related",
     "music.material.select",
@@ -107,6 +105,14 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
   assert(
     !(stableToolNames as readonly string[]).includes("library.source.list"),
     "stable tool names should not expose removed source library list tool",
+  );
+  assert(
+    !(stableToolNames as readonly string[]).includes("music.material.resolve.cards"),
+    "stable tool names should not expose removed material resolve cards tool",
+  );
+  assert(
+    !(stableToolNames as readonly string[]).includes("stage.materials.prepare"),
+    "stable tool names should not expose removed material prepare tool",
   );
 }
 
@@ -152,6 +158,43 @@ async function stableToolNamesHaveMatchingSchemasAndDescriptors(): Promise<void>
   assert(
     schemaNames.every((toolName) => uniqueStableNames.has(toolName as ToolName)),
     "every input schema should refer to a stable tool",
+  );
+}
+
+async function materialResolveSchemaUsesPublicTextQueries(): Promise<void> {
+  const resolveSchema = stageInterfaceToolInputSchemas["music.material.resolve"];
+  const resolvePayloadSchema = z.object(resolveSchema).passthrough();
+  const resolveSchemaText = inputSchemaText(resolveSchema);
+
+  assert(
+    Object.prototype.hasOwnProperty.call(resolveSchema, "queries"),
+    "material resolve public schema should expose text queries",
+  );
+  assert(
+    resolvePayloadSchema.safeParse({
+      queries: [{ text: "Quiet Track", kind: "recording", reason: "fits" }],
+      purpose: "recommend",
+      limit: 3,
+    }).success,
+    "material resolve public schema should accept public text queries",
+  );
+  assert(
+    !resolvePayloadSchema.safeParse({ queries: [] }).success,
+    "material resolve public schema should reject empty query arrays",
+  );
+  assert(
+    !resolvePayloadSchema.safeParse({ queries: [{ text: "Quiet Track", kind: "song" }] }).success,
+    "material resolve public schema should reject legacy or internal kind hints",
+  );
+  assert(
+    !resolveSchemaText.includes("\"materialId\"") &&
+      !resolveSchemaText.includes("\"sourceRef\"") &&
+      !resolveSchemaText.includes("\"canonicalRef\"") &&
+      !resolveSchemaText.includes("\"sourceLibraryScope\"") &&
+      !resolveSchemaText.includes("\"candidate\"") &&
+      !resolveSchemaText.includes("\"candidates\"") &&
+      !resolveSchemaText.includes("\"SourceQuery\""),
+    "material resolve public schema should not advertise internal resolve inputs",
   );
 }
 
@@ -381,6 +424,7 @@ async function typedInputParsersStayAlignedWithRawSchemas(): Promise<void> {
 await exposesEveryStableToolNameThroughStageInterface();
 await stableToolNamesRemainInPublishedOrder();
 await stableToolNamesHaveMatchingSchemasAndDescriptors();
+await materialResolveSchemaUsesPublicTextQueries();
 await materialQuerySchemasHideExperimentalPreferenceHints();
 await collectionSchemasExposeOnlyMaterialIdTargets();
 await newRecommendationToolsUseTypedInputParsers();

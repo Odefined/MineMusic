@@ -1,7 +1,5 @@
 import type {
   MemoryEntry,
-  MusicMaterial,
-  Ref,
   Result,
   StageEvent,
   StageSession,
@@ -10,7 +8,7 @@ import type {
   EventPort,
   MemoryPort,
 } from "../../src/ports/index.js";
-import { createMaterialGate, createSessionContext } from "../../src/stage/index.js";
+import { createSessionContext } from "../../src/stage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -73,12 +71,8 @@ function createTestStageModules(eventsSeen: string[] = []) {
     memory,
     events,
   });
-  const materialGate = createMaterialGate({
-    sessionContext,
-    events,
-  });
 
-  return { sessionContext, materialGate };
+  return { sessionContext };
 }
 
 async function readsContextWithoutHandbookMaterial(): Promise<void> {
@@ -205,56 +199,6 @@ async function updatesSessionWithoutOwningToolDispatch(): Promise<void> {
   assert(eventsSeen.includes("stage.session.updated"), "session update should record event");
 }
 
-async function gatesMaterialStatesForRecommendationUse(): Promise<void> {
-  const sourceRef: Ref = { namespace: "source:fixture", kind: "track", id: "track-1" };
-  const materials: MusicMaterial[] = [
-    {
-      id: "confirmed",
-      materialRef: { namespace: "minemusic", kind: "material", id: "confirmed" },
-      kind: "recording",
-      label: "Confirmed",
-      state: "confirmed_playable",
-      identityState: "canonical_confirmed",
-      playableLinks: [{ url: "https://example.test/confirmed", sourceRef }],
-    },
-    {
-      id: "grounded-with-link",
-      materialRef: { namespace: "minemusic", kind: "material", id: "grounded-with-link" },
-      kind: "recording",
-      label: "Grounded With Link",
-      state: "grounded",
-      identityState: "source_backed",
-      playableLinks: [{ url: "https://example.test/not-yet", sourceRef }],
-    },
-    {
-      id: "blocked",
-      materialRef: { namespace: "minemusic", kind: "material", id: "blocked" },
-      kind: "recording",
-      label: "Blocked",
-      state: "blocked",
-      identityState: "source_backed",
-      playableLinks: [{ url: "https://example.test/blocked", sourceRef }],
-    },
-  ];
-  const { materialGate } = createTestStageModules();
-
-  const prepared = await assertOk(
-    materialGate.prepareMaterials({
-      sessionId: session.id,
-      materials,
-      purpose: "recommendation",
-    }),
-  );
-
-  assert(prepared[0]?.playableLinks?.length === 1, "confirmed playable material should retain links");
-  assert(prepared[1]?.playableLinks === undefined, "grounded material must not present playable links");
-  assert(
-    prepared[1]?.materialRef.id === "grounded-with-link" && prepared[1].identityState === "source_backed",
-    "material gate should preserve material identity fields when hiding links",
-  );
-  assert(prepared[2]?.playableLinks === undefined, "blocked material must not present playable links");
-}
-
 async function reportsMissingSessionAsResultError(): Promise<void> {
   const { sessionContext } = createTestStageModules();
   const result = await sessionContext.getSession({ sessionId: "missing" });
@@ -264,42 +208,17 @@ async function reportsMissingSessionAsResultError(): Promise<void> {
 }
 
 async function supportsDetachedPublicPortMethods(): Promise<void> {
-  const { sessionContext, materialGate } = createTestStageModules();
+  const { sessionContext } = createTestStageModules();
   const { readContext } = sessionContext;
-  const { prepareMaterials } = materialGate;
   const context = await assertOk(readContext({ sessionId: session.id }));
-  const prepared = await assertOk(
-    prepareMaterials({
-      sessionId: session.id,
-      purpose: "recommendation",
-      materials: [
-        {
-          id: "grounded",
-          materialRef: { namespace: "minemusic", kind: "material", id: "grounded" },
-          kind: "recording",
-          label: "Grounded",
-          state: "grounded",
-          identityState: "source_backed",
-          playableLinks: [
-            {
-              url: "https://example.test/grounded",
-              sourceRef: { namespace: "source:fixture", kind: "track", id: "track-1" },
-            },
-          ],
-        },
-      ],
-    }),
-  );
 
   assert(context.session.id === session.id, "detached readContext should still use port state");
-  assert(prepared[0]?.playableLinks === undefined, "detached prepareMaterials should still gate materials");
 }
 
 await readsContextWithoutHandbookMaterial();
 await readsCanonicalReviewGuidanceInReviewPosture();
 await readsBoundedRecentCardsFromRecommendationEvents();
 await updatesSessionWithoutOwningToolDispatch();
-await gatesMaterialStatesForRecommendationUse();
 await reportsMissingSessionAsResultError();
 await supportsDetachedPublicPortMethods();
 

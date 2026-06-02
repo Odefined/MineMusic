@@ -223,6 +223,10 @@ This index points agents to the current MVP documentation pack.
       removing `library.source.list`, using query-ready material pools, hiding
       old Source Library `areas`/`expand` language, and keeping collection
       material actions materialId-only.
+    - `docs/stage-interface/stage_interface_language_normalization_consensus.md`
+      records the follow-up protocol decisions.
+    - `docs/stage-interface/stage_interface_language_normalization_followup_plan.md`
+      records the phase-gated follow-up implementation plan.
 
 39. `docs/stage-interface/todo.md`
     - Module-local TODO list for the Tool Definition registry migration.

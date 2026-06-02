@@ -11,7 +11,7 @@ import type {
   StageSession,
 } from "../../src/contracts/index.js";
 import { createMineMusicStageRuntimeWithSourceProvider } from "../../src/stage_core/index.js";
-import type { CompactMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
+import type { CompactPublicMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -97,13 +97,9 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     });
     await firstStageRuntime.ready;
 
-    const firstResolve = await resolveSingleCandidate(firstStageRuntime, {
-      id: "first",
-      label: "Persisted Canonical Track",
-      sourceRef,
-    });
+    const firstResolve = await resolveSingleCandidate(firstStageRuntime, "Persisted Canonical Track");
     assert(
-      firstResolve.result.items[0]?.state === "confirmed_playable",
+      firstResolve.items[0]?.state === "confirmed_playable",
       "seeded canonical identity should confirm playability before restart",
     );
 
@@ -115,41 +111,25 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     });
     await recreatedStageRuntime.ready;
 
-    const persistedResolve = await resolveSingleCandidate(recreatedStageRuntime, {
-      id: "persisted",
-      label: "Persisted Canonical Track",
-      sourceRef,
-    });
+    const persistedResolve = await resolveSingleCandidate(recreatedStageRuntime, "Persisted Canonical Track");
 
     assert(
-      persistedResolve.result.canonicalRef?.id === canonicalRecord.ref.id,
-      "recreated Stage Core should resolve the same persisted canonical ref",
-    );
-    assert(
-      persistedResolve.result.items[0]?.materialId !== undefined,
+      persistedResolve.items[0]?.materialId !== undefined,
       "material should carry a material ref after recreation",
     );
     assert(
-      persistedResolve.result.items[0]?.state === "confirmed_playable",
+      persistedResolve.items[0]?.state === "confirmed_playable",
       "canonical identity plus source-backed playable link should be confirmed playable after recreation",
     );
 
-    const sourceOnlyResolve = await resolveSingleCandidate(recreatedStageRuntime, {
-      id: "source-only",
-      label: "Source Only Track",
-      sourceRef: unknownSourceRef,
-    });
+    const sourceOnlyResolve = await resolveSingleCandidate(recreatedStageRuntime, "Source Only Track");
 
     assert(
-      sourceOnlyResolve.result.canonicalRef === undefined,
-      "unknown source ref should not invent canonical identity",
-    );
-    assert(
-      sourceOnlyResolve.result.items[0]?.materialId !== undefined,
+      sourceOnlyResolve.items[0]?.materialId !== undefined,
       "source-only material should carry a material ref",
     );
     assert(
-      sourceOnlyResolve.result.items[0]?.state === "source_only_playable",
+      sourceOnlyResolve.items[0]?.state === "source_only_playable",
       "source-only playable material should remain source_only_playable",
     );
   } finally {
@@ -196,20 +176,13 @@ function createStaticSourceProvider(materials: SourceMaterial[]): SourceProvider
 
 async function resolveSingleCandidate(
   stageRuntime: ReturnType<typeof createMineMusicStageRuntimeWithSourceProvider>,
-  candidate: {
-    id: string;
-    label: string;
-    sourceRef: Ref;
-  },
-): Promise<Extract<CompactMaterialResolveOutput, { kind: "single" }>> {
+  text: string,
+): Promise<CompactPublicMaterialResolveOutput> {
   const resolveResult = await assertOk(
     stageRuntime.stageInterface.tools["music.material.resolve"]({
-      kind: "single",
-      candidate,
-    }) as Promise<Result<CompactMaterialResolveOutput>>,
+      queries: [{ text, kind: "recording" }],
+    }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
-
-  assert(resolveResult.kind === "single", "resolve result should be single-kind");
 
   return resolveResult;
 }
