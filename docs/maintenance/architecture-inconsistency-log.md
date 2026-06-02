@@ -94,6 +94,15 @@ Result:
 - Current authority docs now describe ADR-0003's materialRef Collection
   decision and Source Grounding's `SourceGroundingEvidenceStorePort` boundary.
 
+Post-review follow-up:
+
+- PR #44 review later found Library Import / Collection documentation drift and
+  a broad Library Import dependency on `MaterialStorePort`. The branch corrected
+  the docs, introduced `LibraryImportMaterialStorePort`, and added architecture
+  guards for the exact port key set and forbidden broad Material Store /
+  Collection / Canonical dependencies. This follow-up did not leave a new open
+  `AI-*` entry.
+
 ## Final Manual Audit Checklist
 
 - Review `ARCHITECTURE.md` against accepted ADRs.
