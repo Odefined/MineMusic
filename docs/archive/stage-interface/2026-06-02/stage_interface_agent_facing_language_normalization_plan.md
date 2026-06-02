@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md`
+> Use only for: Historical public-language cleanup plan.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Stage Interface Agent-Facing Language Normalization Plan
 
 ## 1. Purpose

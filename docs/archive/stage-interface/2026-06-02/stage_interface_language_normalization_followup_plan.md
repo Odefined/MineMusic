@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-interface/progress.md`, `docs/stage-interface/tool-contracts.md`
+> Use only for: Historical follow-up implementation sequence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Stage Interface Agent-Facing Language Normalization - Follow-Up Implementation Plan
 
 ## 1. Goal

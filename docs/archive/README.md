@@ -43,7 +43,8 @@ and list archived documents with their superseding targets.
 
 | Area | Current authority | Archive README | Notes |
 | --- | --- | --- | --- |
-| Pending | See `INDEX.md` | Pending area README creation | Area archive directories are created during the phase that processes that area. |
+| Stage Interface | `docs/stage-interface/design.md`, `docs/stage-interface/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/stage-interface/README.md` | Phase 1 archived completed tool-contract and language-normalization planning evidence. |
+| Pending | See `INDEX.md` | Pending area README creation | Remaining area archive directories are created during the phase that processes that area. |
 
 ## Docs Guard Status
 

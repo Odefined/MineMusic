@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-interface/progress.md`, `docs/stage-interface/tool-contracts.md`
+> Use only for: Historical execution sequence and test plan for the completed tool-contract migration.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Stage Interface Tool Contract Refactor Execution Plan
 
 ## 1. Purpose

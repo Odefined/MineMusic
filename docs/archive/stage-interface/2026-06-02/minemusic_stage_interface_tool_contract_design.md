@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-interface/design.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/ports.md`
+> Use only for: Historical tool-contract refactor rationale before implementation completed.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Stage Interface Tool Contract Refactor Design
 
 ## 1. Executive Summary
@@ -573,4 +579,3 @@ tests
 Start with **runtime payload validation**. It is the smallest change that makes the existing tool definition architecture materially stronger.
 
 Do not start by reorganizing all tool files. First make the existing schema field meaningful at runtime. Then derive aggregate surfaces from definitions in a follow-up PR.
-

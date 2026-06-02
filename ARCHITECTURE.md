@@ -374,7 +374,9 @@ agent-facing presentation. Compatibility exports may remain in `tools.ts` and
 than duplicate tool facts. First-pass payload validation is passthrough, not
 strict: extra keys are tolerated while required fields and field types are
 enforced. MCP remains an adapter that consumes Stage Interface definitions and
-must not own MineMusic tool contracts.
+must not own MineMusic tool contracts. The detailed current public tool surface
+lives in `docs/stage-interface/tool-contracts.md`; Stage Interface
+port/capability dependencies live in `docs/stage-interface/ports.md`.
 
 Material modules return domain results. Stage Interface output modules project
 those results into compact agent-facing outputs. MaterialCard-like DTOs are

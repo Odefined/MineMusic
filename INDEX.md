@@ -213,35 +213,26 @@ through `docs/archive/README.md`.
       facts.
 
 35. `docs/stage-interface/design.md`
-    - Source design for Stage Interface Tool Definitions as the runtime tool
-      contract: stable names, descriptors, input schemas, availability,
-      dispatch routing, runtime payload validation, and presentation rules.
+    - Current Stage Interface boundary design: tool definitions, governed
+      dispatch, compact output ownership, MCP adapter relationship, and
+      forbidden public leaks.
 
-36. `docs/stage-interface/minemusic_stage_interface_tool_contract_design.md`
-    - Refactor design for making Tool Definitions the authoritative runtime
-      contract for tool names, descriptors, input schemas, availability,
-      handler routing, output presentation, and MCP-derived exposure.
+36. `docs/stage-interface/ports.md`
+    - Current Stage Interface provided and consumed ports, read/write
+      capabilities, composition points, and guards.
 
-37. `docs/stage-interface/minemusic_stage_interface_tool_contract_execution_plan.md`
-    - Phase plan for adding payload validation, parity tests,
-      definition-derived aggregates, registry-primary dispatch, handler cleanup,
-      strictness policy, and state documentation.
+37. `docs/stage-interface/tool-contracts.md`
+    - Current public tool surface authority for stable tool names, schema
+      policy, compact output policy, MCP parity, public materialId handles, and
+      removed public tool names.
 
-38. `docs/stage-interface/stage_interface_agent_facing_language_normalization_plan.md`
-    - Implementation plan for normalizing agent-facing Stage Interface language:
-      removing `library.source.list`, using query-ready material pools, hiding
-      old Source Library `areas`/`expand` language, and keeping collection
-      material actions materialId-only.
-    - `docs/stage-interface/stage_interface_language_normalization_consensus.md`
-      records the follow-up protocol decisions.
-    - `docs/stage-interface/stage_interface_language_normalization_followup_plan.md`
-      records the phase-gated follow-up implementation plan.
+38. `docs/stage-interface/progress.md`
+    - Current Stage Interface implementation status, evidence checked,
+      verification history, and remaining scoped cleanup.
 
-39. `docs/stage-interface/todo.md`
-    - Module-local TODO list for the Tool Definition registry migration.
-
-40. `docs/stage-interface/progress.md`
-    - Module-local progress/status ledger for Stage Interface.
+39. `docs/archive/stage-interface/README.md`
+    - Archived Stage Interface refactor plans, language-normalization plans,
+      completed TODOs, and their superseding current authority documents.
 
 41. `src/collection/index.ts`
     - Collection Service public-port implementation for owner-scoped system and

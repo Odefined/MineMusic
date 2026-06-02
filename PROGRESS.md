@@ -898,9 +898,10 @@
 - Documented the Stage Interface Tool Definition / Tool Group deepening
   direction in architecture and MVP module docs.
 - Added `docs/stage-interface/design.md`,
-  `docs/stage-interface/minemusic_stage_interface_tool_contract_design.md`,
-  `docs/stage-interface/minemusic_stage_interface_tool_contract_execution_plan.md`,
-  `docs/stage-interface/todo.md`, and `docs/stage-interface/progress.md` as the
+  `docs/archive/stage-interface/2026-06-02/minemusic_stage_interface_tool_contract_design.md`,
+  `docs/archive/stage-interface/2026-06-02/minemusic_stage_interface_tool_contract_execution_plan.md`,
+  `docs/archive/stage-interface/2026-06-02/todo.md`, and
+  `docs/stage-interface/progress.md` as the
   local documentation set for Stage Interface Tool Definitions as the runtime
   tool contract.
 - Implemented the Library Tool Group tracer bullet under
@@ -1401,6 +1402,13 @@
   `docs/archive/README.md`, seeded the document-disposition audit with every
   tracked Markdown document, and recorded that `npm run check:docs` /
   `scripts/check-docs.mjs` is specified but not implemented in this repository.
+- Completed documentation alignment Phase 1 for Stage Interface: rewrote
+  `docs/stage-interface/design.md` as current authority, added
+  `docs/stage-interface/ports.md` and
+  `docs/stage-interface/tool-contracts.md`, archived completed tool-contract
+  and language-normalization planning evidence under
+  `docs/archive/stage-interface/`, and found no Stage Interface `AI-*`
+  inconsistency.
 
 ## Next
 

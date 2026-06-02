@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-interface/progress.md`
+> Use only for: Historical completed checklist and future-cleanup reminder.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Stage Interface Tool Contract TODO
 
 ## Documentation

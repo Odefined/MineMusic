@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-interface/tool-contracts.md`
+> Use only for: Historical decision record for removed public tools and public materialId language.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Stage Interface Agent-Facing Language Normalization - Current Consensus
 
 ## Purpose
