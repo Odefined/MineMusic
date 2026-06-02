@@ -87,10 +87,14 @@ now reads active owner/material relations after materialization: material-level
 blocks mark direct raw resolve results as `blocked`, source-level blocks and
 wrong-version feedback filter the matching source result, and source-level
 not-playable feedback removes matching playable links without blocking the
-whole material. Existing canonical Collection blocked filtering remains in
-place during migration. Event Service still records factual events and now also
-updates a recent Material Activity projection from recommendation/open/play/skip
-events when their target or payload cards include material refs.
+whole material. Collection blocked filtering now uses material refs. Event
+Service still records factual events and now also updates a recent Material
+Activity projection from recommendation/open/play/skip events when their target
+or payload cards include material refs. The underscore event-type aliases used
+for activity projection, such as `recommendation_presented` and
+`material_played`, are deliberately retained for historical event projection;
+they are not a deletion target in cleanup PRs unless a separate event data
+compatibility decision says otherwise.
 Material Store merge migrates loser relations to the survivor material and
 combines loser activity into survivor activity, preserving source-only feedback
 and recentness after later canonical confirmation or material merge.
@@ -422,9 +426,11 @@ host-facing and LLM-facing surface.
   `materialStoreDatabasePath` configuration for host surfaces or tests that need
   durable canonical storage. SQLite initialization migrates the legacy
   `canonical_external_refs.external_id` table shape to
-  `canonical_source_refs.source_id`. The Codex MCP default runtime accepts
-  `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize durable Material Store
-  storage.
+  `canonical_source_refs.source_id`. That SQLite migration is deliberately
+  retained for local durable-store compatibility and should not be removed as
+  dead code without an explicit data compatibility decision. The Codex MCP
+  default runtime accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize
+  durable Material Store storage.
 - SQLite-backed Source Entity Store storage is implemented under
   `src/storage/sqlite/source-entity-schema.ts` and
   `src/storage/sqlite/source-entity-repository.ts`. It persists source
@@ -463,7 +469,11 @@ host-facing and LLM-facing surface.
   removed-record filtering, and returned-copy behavior. The default Codex MCP
   runtime accepts `MINEMUSIC_COLLECTION_DB_PATH` to initialize that durable
   Collection store; without it, Stage Core still defaults to in-memory
-  Collection storage. The source-of-truth design is
+  Collection storage. SQLite initialization deliberately retains the
+  `collection_items` material-target migration that converts older required
+  canonical item rows and adds material target columns; it should not be
+  removed as dead code without an explicit local data compatibility decision.
+  The source-of-truth design is
   `docs/collection-service/design.md`, task breakdown is
   `docs/collection-service/implementation-plan.md`, and detailed implementation
   status is tracked in `docs/collection-service/progress.md`.

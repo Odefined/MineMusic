@@ -20,7 +20,7 @@ Task breakdown belongs in:
 
 ## Current Snapshot
 
-Date: 2026-05-27
+Date: 2026-06-02
 
 Task status:
 
@@ -76,6 +76,11 @@ Implemented:
   boundary.
 - SQLite initialization migrates the earlier local development table shape
   `canonical_external_refs.external_id` into `canonical_source_refs.source_id`.
+- PR4 compatibility marking deliberately retains the
+  `canonical_external_refs` to `canonical_source_refs` SQLite migration for
+  local durable-store compatibility. It should not be removed as dead code
+  unless a separate data compatibility decision says older local SQLite stores
+  no longer need protection.
 - SQLite-backed repositories expose indexed source-ref lookup so Canonical
   Store can resolve source refs, reuse provisional evidence, and check
   source-ref conflicts without scanning every canonical record.

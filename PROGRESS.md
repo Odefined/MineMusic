@@ -1313,6 +1313,11 @@
   collection writes are materialId-only, `CollectionPort` no longer exposes
   canonicalRef adapter methods or canonicalRef-based `updateItem`, and Material
   Resolve / Material Policy use blocked material filtering only.
+- Completed the PR 4 event and SQLite compatibility marking slice on branch
+  `codex/event-sqlite-compat-marking`: retained underscore event activity
+  projection aliases, retained the canonical source-ref SQLite table migration,
+  and retained the CollectionItems material-target SQLite migration as
+  deliberate compatibility paths.
 
 ## Next
 
