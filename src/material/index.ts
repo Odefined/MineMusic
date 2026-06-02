@@ -7,7 +7,7 @@ export {
   createMaterialStore,
 } from "./store/index.js";
 export { createMaterialResolveService } from "./resolve/index.js";
-export { createMaterialMaterializer } from "./materialization/index.js";
+export { createMaterializationService } from "./materialization/index.js";
 export { createMaterialQueryService } from "./query/index.js";
 export {
   materialForMaterialId,

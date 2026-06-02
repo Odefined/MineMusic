@@ -11,7 +11,7 @@ import type {
   MaterialStorePort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
-import { createMaterialMaterializer } from "../../src/material/materialization/index.js";
+import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import { createMaterialQueryService as createMaterialQueryServiceBase } from "../../src/material/query/index.js";
@@ -229,7 +229,7 @@ function createMaterialQueryService({
     materialStore,
     materialResolve,
     materialSelector,
-    sourceLibraryMaterializer: createMaterialMaterializer({ materialStore }),
+    sourceLibraryMaterializer: createMaterializationService({ materialStore }),
   });
 }
 
@@ -243,7 +243,7 @@ function createMaterialResolveService({
   return createMaterialResolveServiceBase({
     materialStore,
     sourceGrounding,
-    sourceMaterializer: createMaterialMaterializer({ materialStore }),
+    sourceMaterializer: createMaterializationService({ materialStore }),
   });
 }
 

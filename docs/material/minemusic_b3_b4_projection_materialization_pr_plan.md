@@ -383,7 +383,7 @@ materialKindForMaterial
 Also implement the Query source-library item materializer:
 
 ```ts
-export function createMaterialMaterializer({
+export function createMaterializationService({
   materialStore,
 }: {
   materialStore: MaterialSourceMaterializerStorePort;
@@ -573,7 +573,7 @@ src/stage_core/compose.ts
 Create the materializer before Material Resolve and Material Query setup:
 
 ```ts
-const materialMaterializer = createMaterialMaterializer({
+const materializationService = createMaterializationService({
   materialStore,
 });
 ```
@@ -584,7 +584,7 @@ Pass into Resolve:
 const materialResolve = createMaterialResolveService({
   materialStore,
   sourceGrounding: source,
-  sourceMaterializer: materialMaterializer,
+  sourceMaterializer: materializationService,
   collection,
 });
 ```
@@ -596,7 +596,7 @@ const materialQuery = createMaterialQueryService({
   materialStore,
   materialResolve,
   materialSelector,
-  sourceLibraryMaterializer: materialMaterializer,
+  sourceLibraryMaterializer: materializationService,
   collection,
 });
 ```
@@ -612,7 +612,7 @@ src/material/index.ts
 Export:
 
 ```ts
-createMaterialMaterializer
+createMaterializationService
 ```
 
 from:

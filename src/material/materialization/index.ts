@@ -18,7 +18,7 @@ import type {
 import { materialKindForMaterial, sourceKindToMaterialKind } from "../kinds.js";
 import { projectMaterialRecord as projectStoredMaterialRecord } from "../projection/index.js";
 
-export function createMaterialMaterializer({
+export function createMaterializationService({
   materialStore,
 }: {
   materialStore: MaterialSourceMaterializerStorePort;

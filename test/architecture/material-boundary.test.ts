@@ -324,7 +324,7 @@ async function materializationBoundaryOwnsRegistryMaterialization(): Promise<voi
   const files = await sourceFilesUnderRoots(materialMaterializationRoots);
   const text = (await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n");
   const missing = [
-    "createMaterialMaterializer",
+    "createMaterializationService",
     "materializeSourceMaterials",
     "materialForSourceLibraryItem",
     "getOrCreateBySourceRef",

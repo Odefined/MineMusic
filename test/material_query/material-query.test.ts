@@ -17,7 +17,7 @@ import type {
 } from "../../src/contracts/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
-import { createMaterialMaterializer } from "../../src/material/materialization/index.js";
+import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import { createMaterialQueryService as createMaterialQueryServiceBase } from "../../src/material/query/index.js";
@@ -1186,7 +1186,7 @@ function createMaterialQueryService({
     materialStore,
     materialResolve,
     materialSelector: selector,
-    sourceLibraryMaterializer: createMaterialMaterializer({ materialStore }),
+    sourceLibraryMaterializer: createMaterializationService({ materialStore }),
     ...(collection === undefined ? {} : { collection }),
   });
 }
@@ -1203,7 +1203,7 @@ function createMaterialResolveService({
   return createMaterialResolveServiceBase({
     materialStore,
     sourceGrounding,
-    sourceMaterializer: createMaterialMaterializer({ materialStore }),
+    sourceMaterializer: createMaterializationService({ materialStore }),
     ...(collection === undefined ? {} : { collection }),
   });
 }

@@ -6,7 +6,7 @@ import type {
   Result,
   SourceMaterial,
 } from "../../src/contracts/index.js";
-import { createMaterialMaterializer } from "../../src/material/materialization/index.js";
+import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { createMaterialResolveService } from "../../src/material/resolve/index.js";
 import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
@@ -213,7 +213,7 @@ function createTestResolve(
   const materialResolve = createMaterialResolveService({
     materialStore,
     sourceGrounding,
-    sourceMaterializer: createMaterialMaterializer({ materialStore }),
+    sourceMaterializer: createMaterializationService({ materialStore }),
     ...(options.collection === undefined ? {} : { collection: options.collection }),
   });
 

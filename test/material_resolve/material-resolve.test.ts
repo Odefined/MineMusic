@@ -7,7 +7,7 @@ import type {
   Result,
   SourceQuery,
 } from "../../src/contracts/index.js";
-import { createMaterialMaterializer } from "../../src/material/materialization/index.js";
+import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { createMaterialResolveService as createMaterialResolveServiceBase } from "../../src/material/resolve/index.js";
 import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
@@ -53,7 +53,7 @@ function createMaterialResolveService({
   return createMaterialResolveServiceBase({
     materialStore,
     sourceGrounding,
-    sourceMaterializer: createMaterialMaterializer({ materialStore }),
+    sourceMaterializer: createMaterializationService({ materialStore }),
     ...(collection === undefined ? {} : { collection }),
   });
 }
