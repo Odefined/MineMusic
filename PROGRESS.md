@@ -1301,6 +1301,9 @@
   that projection-plus-Source-Library read surface instead of full
   `MaterialStorePort`, and added architecture guards for the exact key set and
   dispatch import boundary.
+- Added `docs/maintenance/dead-code-compatibility-cleanup-plan.md` to separate
+  immediate dead-code cleanup from compatibility-layer migrations and retained
+  compatibility decisions.
 
 ## Next
 
