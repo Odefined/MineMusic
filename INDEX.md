@@ -2,6 +2,10 @@
 
 This index points agents to the current MVP documentation pack.
 
+Documentation maintenance note: `docs/maintenance/documentation-architecture.md`
+records the agreed documentation structure and responsibilities for the upcoming
+documentation/code alignment sweep.
+
 ## Start Here
 
 1. `proposal.md`

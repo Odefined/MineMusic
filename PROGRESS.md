@@ -1344,6 +1344,12 @@
   compact `absentItems`, with detailed item listing documented separately.
 - Updated Stage Interface, MCP, skill Handbook, architecture, state, and module
   progress docs to match the current tool surface.
+- Added `docs/maintenance/documentation-architecture.md` as the agreed
+  operating rule for the upcoming documentation/code alignment sweep, including
+  root document roles, area document roles, `ports.md` requirements, archive
+  rules, and docs-guard scope.
+- Updated `AGENTS.md` so future documentation-structure and alignment work
+  follows `docs/maintenance/documentation-architecture.md`.
 
 ## Next
 
