@@ -423,9 +423,9 @@ host-facing and LLM-facing surface.
   still defaults to in-memory canonical storage, and its factories now accept
   optional `canonicalRepository` injection or
   `materialStoreDatabasePath` configuration for host surfaces or tests that need
-  durable canonical storage. SQLite initialization migrates the legacy
-  `canonical_external_refs.external_id` table shape to
-  `canonical_source_refs.source_id`; PR4 removes that legacy table migration,
+  durable canonical storage. Earlier local development builds migrated the
+  legacy `canonical_external_refs.external_id` table shape to
+  `canonical_source_refs.source_id`. PR4 removes that legacy table migration,
   so fresh and retained durable canonical stores are expected to already use
   the current `canonical_source_refs.source_id` shape. The Codex MCP default
   runtime accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize durable
