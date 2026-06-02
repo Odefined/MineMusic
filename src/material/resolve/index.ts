@@ -1,6 +1,5 @@
 import type {
   CanonicalRecord,
-  MaterialRecord,
   MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
@@ -16,31 +15,25 @@ import type {
 } from "../../contracts/index.js";
 import type {
   CollectionPort,
-  MaterialStorePort,
+  MaterialResolveStorePort,
   MaterialResolvePort,
+  MaterialSourceMaterializerPort,
   SourceGroundingPort,
 } from "../../ports/index.js";
+import { sourceKindToMaterialKind } from "../kinds.js";
 import { projectMaterialRelations } from "../policy/relation_projection.js";
 
-type ProjectedSourceMaterials = {
-  materials: MusicMaterial[];
-  issues: MaterialResolveIssue[];
-};
-
-type ProjectedSourceMaterial = {
-  material: MusicMaterial | null;
-  issues: MaterialResolveIssue[];
-};
-
 type MaterialResolveServiceOptions = {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialResolveStorePort;
   sourceGrounding: SourceGroundingPort;
+  sourceMaterializer: MaterialSourceMaterializerPort;
   collection?: CollectionPort;
 };
 
 export function createMaterialResolveService({
   materialStore,
   sourceGrounding,
+  sourceMaterializer,
   collection,
 }: MaterialResolveServiceOptions): MaterialResolvePort {
   return {
@@ -56,6 +49,7 @@ export function createMaterialResolveService({
           ownerScope,
           materialStore,
           sourceGrounding,
+          sourceMaterializer,
           ...(collection === undefined ? {} : { collection }),
         });
 
@@ -80,6 +74,7 @@ export function createMaterialResolveService({
           ownerScope,
           materialStore,
           sourceGrounding,
+          sourceMaterializer,
           ...(collection === undefined ? {} : { collection }),
         });
 
@@ -106,6 +101,7 @@ async function resolveCandidate({
   ownerScope,
   materialStore,
   sourceGrounding,
+  sourceMaterializer,
   collection,
 }: {
   candidate: MusicCandidate;
@@ -113,8 +109,9 @@ async function resolveCandidate({
   limitPerCandidate?: number;
   sourceLibraryScope?: SourceLibraryResolveScope;
   ownerScope: string;
-  materialStore: MaterialStorePort;
+  materialStore: MaterialResolveStorePort;
   sourceGrounding: SourceGroundingPort;
+  sourceMaterializer: MaterialSourceMaterializerPort;
   collection?: CollectionPort;
 }): Promise<Result<ResolvedCandidate>> {
   const canonicalResult = await findCanonicalForCandidate(materialStore, candidate);
@@ -140,17 +137,15 @@ async function resolveCandidate({
   }
 
   if (scopedLibraryMaterials.value.length > 0) {
-    const attachedLibraryMaterials = await attachKnownCanonicalRefsToMaterials(
-      materialStore,
-      scopedLibraryMaterials.value,
-    );
+    const attachedLibraryMaterials = await sourceMaterializer.attachKnownCanonicalRefs({
+      materials: scopedLibraryMaterials.value,
+    });
 
     if (!attachedLibraryMaterials.ok) {
       return attachedLibraryMaterials;
     }
 
-    const projectedLibraryMaterials = await projectSourceMaterials({
-      materialStore,
+    const projectedLibraryMaterials = await sourceMaterializer.materializeSourceMaterials({
       materials: attachedLibraryMaterials.value,
     });
 
@@ -208,15 +203,14 @@ async function resolveCandidate({
 
   const materialsResult =
     canonical === null
-      ? await attachKnownCanonicalRefsToMaterials(materialStore, groundResult.value)
+      ? await sourceMaterializer.attachKnownCanonicalRefs({ materials: groundResult.value })
       : await attachCanonicalToMaterials(canonical, groundResult.value);
 
   if (!materialsResult.ok) {
     return materialsResult;
   }
 
-  const projectedMaterials = await projectSourceMaterials({
-    materialStore,
+  const projectedMaterials = await sourceMaterializer.materializeSourceMaterials({
     materials: materialsResult.value,
   });
 
@@ -262,7 +256,7 @@ async function applyMaterialRelationFiltering({
   materials,
   ownerScope,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialResolveStorePort;
   materials: MusicMaterial[];
   ownerScope: string;
 }): Promise<Result<MusicMaterial[]>> {
@@ -364,7 +358,7 @@ async function applyBlockedFiltering({
 }
 
 async function findCanonicalForCandidate(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialResolveStorePort,
   candidate: MusicCandidate,
 ): Promise<Result<CanonicalRecord | null>> {
   if (candidate.canonicalRef !== undefined) {
@@ -422,7 +416,7 @@ async function findSourceLibraryMaterialsForCandidate({
   requestScope,
   limitPerCandidate,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: MaterialResolveStorePort;
   ownerScope: string;
   candidate: MusicCandidate;
   requestScope?: SourceLibraryResolveScope;
@@ -516,259 +510,8 @@ async function attachCanonicalToMaterials(
   return ok(attachedMaterials);
 }
 
-async function attachKnownCanonicalRefsToMaterials(
-  materialStore: MaterialStorePort,
-  materials: SourceMaterial[],
-): Promise<Result<SourceMaterial[]>> {
-  const attachedMaterials: SourceMaterial[] = [];
-
-  for (const material of materials) {
-    const sourceRefs = mergeRefs(
-      material.sourceRefs ?? [],
-      (material.playableLinks ?? []).map((link) => link.sourceRef),
-    );
-    const canonical = await findCanonicalForSourceRefs(materialStore, sourceRefs);
-
-    if (!canonical.ok) {
-      return canonical;
-    }
-
-    if (canonical.value === null) {
-      attachedMaterials.push(material);
-      continue;
-    }
-
-    attachedMaterials.push({
-      ...material,
-      canonicalRef: canonical.value.ref,
-      ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-      state: stateWithCanonical(material),
-    });
-  }
-
-  return ok(attachedMaterials);
-}
-
-async function projectSourceMaterials({
-  materialStore,
-  materials,
-}: {
-  materialStore: MaterialStorePort;
-  materials: SourceMaterial[];
-}): Promise<Result<ProjectedSourceMaterials>> {
-  const projected: MusicMaterial[] = [];
-  const issues: MaterialResolveIssue[] = [];
-
-  for (const material of materials) {
-    const result = await projectSourceMaterial(materialStore, material);
-
-    if (!result.ok) {
-      return result;
-    }
-
-    issues.push(...result.value.issues);
-
-    if (result.value.material !== null) {
-      projected.push(result.value.material);
-    }
-  }
-
-  return ok({ materials: projected, issues });
-}
-
-async function projectSourceMaterial(
-  materialStore: MaterialStorePort,
-  material: SourceMaterial,
-): Promise<Result<ProjectedSourceMaterial>> {
-  const sourceRefs = mergeRefs(
-    material.sourceRefs ?? [],
-    (material.playableLinks ?? []).map((link) => link.sourceRef),
-  );
-  const sourceMaterial: SourceMaterial = {
-    ...material,
-    ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-  };
-  const recordResult = await resolveSourceMaterialToRecord(materialStore, sourceMaterial);
-
-  if (!recordResult.ok) {
-    return recordResult;
-  }
-
-  if (recordResult.value === null) {
-    return ok({
-      material: null,
-      issues: [providerResultMissingSourceRefIssue(sourceMaterial)],
-    });
-  }
-
-  const projected = await projectMaterialRecord(materialStore, recordResult.value, sourceMaterial);
-
-  if (!projected.ok) {
-    return projected;
-  }
-
-  return ok({ material: projected.value, issues: [] });
-}
-
-async function resolveSourceMaterialToRecord(
-  materialStore: MaterialStorePort,
-  material: SourceMaterial,
-): Promise<Result<MaterialRecord | null>> {
-  if (material.canonicalRef !== undefined) {
-    return materialRecordForCanonicalSourceMaterial(materialStore, material.canonicalRef, material);
-  }
-
-  const sourceRef = material.sourceRefs?.[0];
-
-  if (sourceRef === undefined) {
-    return ok(null);
-  }
-
-  const record = await materialStore.getOrCreateBySourceRef({
-    sourceRef,
-    kind: materialKindForMaterial(material),
-    primarySourceRef: sourceRef,
-  });
-
-  if (!record.ok) {
-    return record;
-  }
-
-  return attachAdditionalSourceRefs(materialStore, record.value, material.sourceRefs?.slice(1) ?? []);
-}
-
-async function materialRecordForCanonicalSourceMaterial(
-  materialStore: MaterialStorePort,
-  canonicalRef: Ref,
-  material: SourceMaterial,
-): Promise<Result<MaterialRecord>> {
-  const sourceRefs = material.sourceRefs ?? [];
-  const sourceRecord =
-    sourceRefs[0] === undefined
-      ? ok(null)
-      : await materialStore.findMaterialBySourceRef({ sourceRef: sourceRefs[0] });
-
-  if (!sourceRecord.ok) {
-    return sourceRecord;
-  }
-
-  const canonicalRecord = await materialStore.findMaterialByCanonicalRef({ canonicalRef });
-
-  if (!canonicalRecord.ok) {
-    return canonicalRecord;
-  }
-
-  if (sourceRecord.value === null && canonicalRecord.value === null) {
-    return materialStore.getOrCreateByCanonicalRef({
-      canonicalRef,
-      kind: materialKindForMaterial(material),
-      ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-    });
-  }
-
-  if (sourceRecord.value !== null && canonicalRecord.value === null) {
-    const promoted = await materialStore.promoteToCanonical({
-      materialRef: sourceRecord.value.materialRef,
-      canonicalRef,
-    });
-
-    if (!promoted.ok) {
-      return promoted;
-    }
-
-    return attachAdditionalSourceRefs(materialStore, promoted.value, sourceRefs.slice(1));
-  }
-
-  if (canonicalRecord.value !== null) {
-    let record = canonicalRecord.value;
-
-    if (sourceRecord.value !== null && refKey(sourceRecord.value.materialRef) !== refKey(record.materialRef)) {
-      const merged = await materialStore.mergeMaterials({
-        from: sourceRecord.value.materialRef,
-        into: record.materialRef,
-        reason: "confirmed_source_canonical_binding",
-      });
-
-      if (!merged.ok) {
-        return merged;
-      }
-
-      return attachAdditionalSourceRefs(materialStore, record, sourceRefs);
-    }
-
-    for (const sourceRef of sourceRefs) {
-      const attached = await materialStore.attachSourceRef({
-        materialRef: record.materialRef,
-        sourceRef,
-      });
-
-      if (!attached.ok) {
-        return attached;
-      }
-
-      record = attached.value;
-    }
-
-    return ok(record);
-  }
-
-  return materialStore.getOrCreateByCanonicalRef({
-    canonicalRef,
-    kind: materialKindForMaterial(material),
-    ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-  });
-}
-
-async function attachAdditionalSourceRefs(
-  materialStore: MaterialStorePort,
-  record: MaterialRecord,
-  sourceRefs: Ref[],
-): Promise<Result<MaterialRecord>> {
-  let current = record;
-
-  for (const sourceRef of sourceRefs) {
-    const attached = await materialStore.attachSourceRef({
-      materialRef: current.materialRef,
-      sourceRef,
-    });
-
-    if (!attached.ok) {
-      return attached;
-    }
-
-    current = attached.value;
-  }
-
-  return ok(current);
-}
-
-async function projectMaterialRecord(
-  materialStore: MaterialStorePort,
-  record: MaterialRecord,
-  sourceMaterial: SourceMaterial,
-): Promise<Result<MusicMaterial>> {
-  const canonical =
-    record.canonicalRef === undefined
-      ? ok(null)
-      : await materialStore.getCanonical({ ref: record.canonicalRef });
-
-  if (!canonical.ok) {
-    return canonical;
-  }
-
-  return ok({
-    ...sourceMaterial,
-    kind: materialKindForMaterial(sourceMaterial),
-    label: canonical.value?.label ?? sourceMaterial.label,
-    materialRef: record.materialRef,
-    identityState: record.identityState,
-    ...(record.canonicalRef === undefined ? {} : { canonicalRef: record.canonicalRef }),
-    ...(record.sourceRefs.length === 0 ? {} : { sourceRefs: record.sourceRefs }),
-  });
-}
-
 async function findCanonicalForSourceRefs(
-  materialStore: MaterialStorePort,
+  materialStore: MaterialResolveStorePort,
   sourceRefs: Ref[],
 ): Promise<Result<CanonicalRecord | null>> {
   for (const sourceRef of sourceRefs) {
@@ -850,29 +593,6 @@ function canonicalKindForCandidate(candidate: MusicCandidate): string | undefine
   return expectedKind;
 }
 
-function sourceKindToMaterialKind(sourceKind: "track" | "release" | "artist"): string {
-  switch (sourceKind) {
-    case "track":
-      return "recording";
-    case "release":
-      return "release";
-    case "artist":
-      return "artist";
-  }
-}
-
-function materialKindForMaterial(material: SourceMaterial): string {
-  if (material.kind === "track" || material.kind === "song") {
-    return "recording";
-  }
-
-  if (material.kind === "album") {
-    return "release_group";
-  }
-
-  return material.kind;
-}
-
 function normalizeLabel(value: string): string {
   return value.trim().toLocaleLowerCase();
 }
@@ -883,16 +603,6 @@ function providerNoMatchIssue(query: SourceQuery): MaterialResolveIssue {
     message: "Source provider returned no matches for this candidate.",
     retryable: true,
     query: structuredClone(query),
-  };
-}
-
-function providerResultMissingSourceRefIssue(material: SourceMaterial): MaterialResolveIssue {
-  return {
-    code: "provider_result_missing_source_ref",
-    message:
-      "Provider result did not include a stable sourceRef or canonicalRef, so no Material Store-backed material was created.",
-    retryable: false,
-    resultLabel: material.label,
   };
 }
 

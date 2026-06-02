@@ -7,8 +7,9 @@ import type {
   Result,
   SourceQuery,
 } from "../../src/contracts/index.js";
+import { createMaterialMaterializer } from "../../src/material/materialization/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
-import { createMaterialResolveService } from "../../src/material/resolve/index.js";
+import { createMaterialResolveService as createMaterialResolveServiceBase } from "../../src/material/resolve/index.js";
 import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
@@ -38,6 +39,23 @@ function confirmedBinding(sourceRef: Ref, canonicalRef: Ref): ConfirmedCanonical
 
 function sameRef(left: Ref, right: Ref): boolean {
   return left.namespace === right.namespace && left.kind === right.kind && left.id === right.id;
+}
+
+function createMaterialResolveService({
+  materialStore,
+  sourceGrounding,
+  collection,
+}: {
+  materialStore: ReturnType<typeof createMaterialStore>;
+  sourceGrounding: SourceGroundingPort;
+  collection?: CollectionPort;
+}) {
+  return createMaterialResolveServiceBase({
+    materialStore,
+    sourceGrounding,
+    sourceMaterializer: createMaterialMaterializer({ materialStore }),
+    ...(collection === undefined ? {} : { collection }),
+  });
 }
 
 async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {

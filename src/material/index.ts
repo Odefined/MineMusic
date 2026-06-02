@@ -7,13 +7,13 @@ export {
   createMaterialStore,
 } from "./store/index.js";
 export { createMaterialResolveService } from "./resolve/index.js";
+export { createMaterialMaterializer } from "./materialization/index.js";
+export { createMaterialQueryService } from "./query/index.js";
 export {
-  createMaterialQueryService,
   materialForMaterialId,
   materialIdToRef,
   materialRefToMaterialId,
-  recentCardsFromEvents,
-} from "./query/index.js";
+} from "./projection/index.js";
 export {
   createMaterialPolicyEvaluator,
   createMaterialSorter,
