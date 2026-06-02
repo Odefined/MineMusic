@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/design.md`, `docs/material/ports.md`
+> Use only for: Historical query/projection dependency-narrowing evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic B2 Design — Narrow Material Query and Projection Store Dependencies
 
 **Status:** Proposed

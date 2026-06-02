@@ -248,6 +248,9 @@ read-only resolve capabilities instead of direct registry materialization
 writers. Material Policy now also uses `src/material/projection` for live
 `MaterialRecord`-to-`MusicMaterial` projection, so record projection rules
 remain in one Material Projection module instead of being copied into policy.
+Current Material Flow authority lives in `docs/material/design.md`,
+`docs/material/ports.md`, `docs/material/projection-materialization.md`, and
+`docs/material/progress.md`.
 
 The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
 `RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the

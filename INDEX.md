@@ -86,26 +86,19 @@ through `docs/archive/README.md`.
      plan for the Source Entity Store and Source Library rewrite.
    - `docs/material-store/progress.md` records current Material Store
      implementation state, verification, and remaining gaps.
-   - `docs/material/minemusic-musicmaterial-design.md` is the MusicMaterial
-     refactor design for product-level material targets and compact material
-     retrieval.
-   - `docs/material/minemusic_musicmaterial_pr_plan.md` is the staged
-     implementation plan for the MusicMaterial refactor PR sequence.
-   - `docs/material/minemusic-musicmaterial-post-merge-review.md` records the
-     post-merge MusicMaterial review findings addressed after PR 5.
-   - `docs/material/progress.md` records current Material Registry
-     implementation state, verification, and remaining MusicMaterial work.
-   - `docs/material/minemusic_b2_narrow_material_query_design.md` records the
-     B2 design for narrowing Material Query, projection, and adjacent
-     source-library read dependencies away from full `MaterialStorePort`.
-   - `docs/material/minemusic_b2_narrow_material_query_pr_plan.md` records the
-     execution plan and verification gates for that dependency-narrowing slice.
-   - `docs/material/minemusic_b3_b4_projection_materialization_pr_plan.md`
-     records the execution plan for extracting material projection and shared
-     materialization boundaries.
-   - `docs/recommendation/minemusic_recommendation_posture_design_final.md`
-     records the recommendation posture boundaries for material selection,
-     presentation, and feedback handling.
+   - `docs/material/design.md` is the current Material Flow design authority
+     for resolve, query, projection, materialization, policy, selection, and
+     recommendation presentation.
+   - `docs/material/ports.md` records the current Material Flow provided and
+     consumed ports plus architecture guard expectations.
+   - `docs/material/projection-materialization.md` records the current split
+     between read projection and writer materialization boundaries.
+   - `docs/material/progress.md` records current Material Flow implementation
+     state and verification evidence.
+   - `docs/archive/material/README.md` indexes archived material design,
+     review, and PR-plan evidence.
+   - `docs/archive/recommendation/README.md` indexes archived recommendation
+     posture design and PR-plan evidence.
 
 17. `CURRENT_STATE.md`
    - Current implementation status.

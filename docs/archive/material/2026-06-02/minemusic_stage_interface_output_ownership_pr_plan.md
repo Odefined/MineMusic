@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/progress.md`, `docs/stage-interface/progress.md`
+> Use only for: Historical Stage Interface output ownership execution evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic PR Plan: Stage Interface Output Ownership and Material Boundary Migration
 
 **Date:** 2026-06-01  

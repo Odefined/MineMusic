@@ -1409,6 +1409,13 @@
   and language-normalization planning evidence under
   `docs/archive/stage-interface/`, and found no Stage Interface `AI-*`
   inconsistency.
+- Completed documentation alignment Phase 2 for Material Flow: added current
+  authorities `docs/material/design.md`, `docs/material/ports.md`, and
+  `docs/material/projection-materialization.md`, rewrote
+  `docs/material/progress.md` as current status, archived historical material
+  and recommendation posture evidence under `docs/archive/material/` and
+  `docs/archive/recommendation/`, and found no Material Flow `AI-*`
+  inconsistency.
 
 ## Next
 

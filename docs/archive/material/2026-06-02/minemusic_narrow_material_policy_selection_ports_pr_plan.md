@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/ports.md`, `docs/material/progress.md`
+> Use only for: Historical policy/selection port-narrowing execution evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic PR Plan — Narrow Material Policy / Sorter / Selection Store Dependencies
 
 **Date:** 2026-06-01  

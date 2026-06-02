@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/design.md`, `docs/material/ports.md`, `docs/stage-interface/tool-contracts.md`
+> Use only for: Historical recommendation posture design evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Recommendation Posture Final Design
 
 **Document type:** architecture / product design  

@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/design.md`, `docs/material/ports.md`, `docs/material/progress.md`
+> Use only for: Historical selector-composition execution evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic PR Plan — Extract Material Selector Composition from Material Query
 
 **Date:** 2026-06-01  

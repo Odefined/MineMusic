@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/design.md`, `docs/stage-interface/design.md`, `docs/stage-interface/tool-contracts.md`
+> Use only for: Historical Stage Interface output ownership and material boundary evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Stage Interface Output Ownership and Material Boundary Design
 
 **Date:** 2026-06-01  

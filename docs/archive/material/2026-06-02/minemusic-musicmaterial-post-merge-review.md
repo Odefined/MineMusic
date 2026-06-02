@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/progress.md`
+> Use only for: Historical post-merge review evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic MusicMaterial Post-Merge Code Review
 
 **Review date:** 2026-05-31  

@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/design.md`, `docs/material/ports.md`, `docs/material/projection-materialization.md`
+> Use only for: Historical MusicMaterial-centered design evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic MusicMaterial-Centered Material Design
 
 **Status:** design proposal  

@@ -383,7 +383,9 @@ those results into compact agent-facing outputs. MaterialCard-like DTOs are
 Stage Interface output types, not material service communication formats.
 Material Presentation under `src/material/presentation` remains a core/runtime
 service for final policy and event recording; only compact output projection
-belongs to Stage Interface.
+belongs to Stage Interface. Current Material Flow details live in
+`docs/material/design.md`, `docs/material/ports.md`,
+`docs/material/projection-materialization.md`, and `docs/material/progress.md`.
 
 ## Material State Policy
 

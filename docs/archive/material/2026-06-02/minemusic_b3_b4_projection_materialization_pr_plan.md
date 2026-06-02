@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/projection-materialization.md`, `docs/material/progress.md`
+> Use only for: Historical projection/materialization execution evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic B3+B4 PR Plan — Extract Material Projection and Shared Materialization Boundaries
 
 **Status:** Ready for Codex execution  

@@ -44,6 +44,8 @@ and list archived documents with their superseding targets.
 | Area | Current authority | Archive README | Notes |
 | --- | --- | --- | --- |
 | Stage Interface | `docs/stage-interface/design.md`, `docs/stage-interface/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/stage-interface/README.md` | Phase 1 archived completed tool-contract and language-normalization planning evidence. |
+| Material Flow | `docs/material/design.md`, `docs/material/ports.md`, `docs/material/projection-materialization.md`, `docs/material/progress.md` | `docs/archive/material/README.md` | Phase 2 archived historical material design, review, and PR-plan evidence. |
+| Recommendation | `docs/material/design.md`, `docs/material/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/recommendation/README.md` | Phase 2 archived historical recommendation posture planning evidence. |
 | Pending | See `INDEX.md` | Pending area README creation | Remaining area archive directories are created during the phase that processes that area. |
 
 ## Docs Guard Status

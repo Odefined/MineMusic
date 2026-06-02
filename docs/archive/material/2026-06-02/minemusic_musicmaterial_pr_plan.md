@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/design.md`, `docs/material/progress.md`
+> Use only for: Historical MusicMaterial implementation planning evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic MusicMaterial Refactor PR Plan
 
 **Purpose:** staged implementation plan for Codex-driven PRs  

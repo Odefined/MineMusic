@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/progress.md`, `docs/stage-interface/progress.md`
+> Use only for: Historical recommendation posture staged execution evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Recommendation Posture PR Plan for Codex
 
 **Document type:** staged implementation plan  

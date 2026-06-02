@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/material/ports.md`, `docs/material/progress.md`
+> Use only for: Historical dependency-narrowing execution evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic B2 PR Plan — Narrow Material Query and Projection Store Dependencies
 
 **Status:** Ready for Codex execution
