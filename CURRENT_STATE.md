@@ -214,6 +214,17 @@ tool shapes unchanged while changing Material Query to receive
 `MaterialQueryStorePort`, projection helpers and adjacent material-id Stage
 Interface reads to use `MaterialProjectionStorePort`, and `library.source.list`
 to use `SourceLibraryReadStorePort`.
+The 2026-06-02 B3/B4 boundary slice keeps behavior and public tool shapes
+unchanged while extracting material projection helpers into
+`src/material/projection`, moving recent-card event projection to
+`src/stage/recent_cards.ts`, and introducing `src/material/materialization` as
+the shared SourceMaterial / Source Library item materialization boundary.
+Material Query now uses `MaterialSourceLibraryMaterializerPort` for
+Source Library item materialization and no longer receives registry writer
+capability. Material Resolve now uses `MaterialSourceMaterializerPort` for
+source/provider materialization and receives `MaterialResolveStorePort` with
+read-only resolve capabilities instead of direct registry materialization
+writers.
 
 The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
 `RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the
