@@ -12,7 +12,7 @@ import type {
   EventPort,
   InstrumentCatalogPort,
   LibraryImportPort,
-  MaterialStorePort,
+  StageInterfaceMaterialStorePort,
   MaterialQueryPort,
   MaterialQuerySupportPort,
   MaterialResolvePort,
@@ -44,7 +44,7 @@ type ToolDispatchOptions = {
   events: EventPort;
   memory: MemoryPort;
   effects: EffectBoundaryPort;
-  materialStore?: MaterialStorePort;
+  materialStore?: StageInterfaceMaterialStorePort;
   collection?: CollectionPort;
   canonicalMaintenance?: CanonicalMaintenancePort;
   libraryImport?: LibraryImportPort;

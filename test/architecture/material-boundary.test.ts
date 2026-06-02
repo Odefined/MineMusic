@@ -7,6 +7,7 @@ import type {
   MaterialResolveStorePort,
   MaterialSourceMaterializerStorePort,
   SourceLibraryReadStorePort,
+  StageInterfaceMaterialStorePort,
 } from "../../src/ports/index.js";
 
 type IsExact<TActual, TExpected> =
@@ -70,6 +71,15 @@ type SourceLibraryReadStorePortKeysAreExact = Assert<IsExact<
   | "getSourceEntity"
 >>;
 
+type StageInterfaceMaterialStorePortKeysAreExact = Assert<IsExact<
+  keyof StageInterfaceMaterialStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
+  | "listSourceLibraryItems"
+>>;
+
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
@@ -101,6 +111,10 @@ const stageInterfaceMaterialStoreNarrowingRoots = [
   "src/stage_interface/tool_definitions/stage.ts",
   "src/stage_interface/tool_definitions/music.ts",
   "src/stage_interface/tool_definitions/library.ts",
+];
+
+const stageInterfaceDispatchRoots = [
+  "src/stage_interface/dispatch.ts",
 ];
 
 const materialQueryProjectionFormerImportRoots = [
@@ -259,6 +273,26 @@ async function stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort
   assert(
     failures.length === 0,
     `Stage Interface projection/source-library tools must use narrow material store ports:\n${failures.join("\n")}`,
+  );
+}
+
+async function stageInterfaceDispatchDoesNotImportFullMaterialStorePort(): Promise<void> {
+  const files = await sourceFilesUnderRoots(stageInterfaceDispatchRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bMaterialStorePort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports MaterialStorePort`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Stage Interface dispatch must use StageInterfaceMaterialStorePort instead of full MaterialStorePort:\n${failures.join("\n")}`,
   );
 }
 
@@ -440,6 +474,7 @@ await legacyMaterialRootDirectoriesAreRemoved();
 await materialPolicyAndSelectionDoNotImportFullMaterialStorePort();
 await materialQueryDoesNotImportFullMaterialStorePort();
 await stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort();
+await stageInterfaceDispatchDoesNotImportFullMaterialStorePort();
 await materialQueryDoesNotDirectlyMaterializeSourceRefs();
 await materialResolveDoesNotDirectlyUseRegistryMaterializationWriters();
 await movedProjectionConsumersDoNotImportMaterialQuery();
