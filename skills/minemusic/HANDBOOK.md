@@ -37,7 +37,7 @@ Output: `MusicMaterial[]`
 
 Description: Final presentation boundary for user-visible recommendations.
 Input: `RecommendationPresentInput`
-Output: `RecommendationPresentOutput`
+Output: `CompactRecommendationPresentOutput`
 #### `stage.session.update`
 
 Description: Update soft session state through Session Context.
@@ -89,27 +89,27 @@ Output: `KnowledgeResult`
 
 Description: Resolve music candidates into material through canonical-first material resolution.
 Input: `MaterialResolveRequest`
-Output: `MaterialResolveResult`
+Output: `CompactMaterialResolveOutput`
 #### `music.material.resolve.cards`
 
 Description: Resolve material seeds and return compact agent-safe material cards.
 Input: `MaterialResolveCardsInput`
-Output: `MaterialResolveCardsOutput`
+Output: `CompactMaterialResolveCardsOutput`
 #### `music.material.query`
 
 Description: Retrieve compact material cards from pools, collections, source library, related pools, or all available material.
 Input: `MaterialQueryInput`
-Output: `MaterialQueryOutput`
+Output: `CompactMaterialQueryOutput`
 #### `music.material.related`
 
 Description: Find compact material cards related to one material id.
 Input: `MaterialRelatedInput`
-Output: `MaterialRelatedOutput`
+Output: `CompactMaterialRelatedOutput`
 #### `music.material.select`
 
 Description: Apply reusable material policy, sorting, diversity, and limit after material ids have already been retrieved; use music.material.query to retrieve from pools or collections.
 Input: `MaterialSelectInput`
-Output: `MaterialSelectOutput`
+Output: `CompactMaterialSelectOutput`
 #### `music.material.context.brief`
 
 Description: Read a compact context brief for one material id; do not request version during ordinary recommendations.
@@ -127,42 +127,42 @@ Input: `MusicLinksRefreshInput`
 Output: `MusicMaterial`
 #### `music.collection.save`
 
-Description: Save a canonical or material music object to the owner's saved system collection.
+Description: Save a material to the owner's saved system collection.
 Input: `CollectionSystemItemInput`
 Output: `CollectionItem`
 #### `music.collection.unsave`
 
-Description: Remove a canonical or material music object from the owner's saved system collection.
+Description: Remove a material from the owner's saved system collection.
 Input: `CollectionSystemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.favorite`
 
-Description: Favorite a canonical or material music object in the owner's favorite system collection.
+Description: Favorite a material in the owner's favorite system collection.
 Input: `CollectionSystemItemInput`
 Output: `CollectionItem`
 #### `music.collection.unfavorite`
 
-Description: Remove a canonical or material music object from the owner's favorite system collection.
+Description: Remove a material from the owner's favorite system collection.
 Input: `CollectionSystemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.block`
 
-Description: Block a canonical or material music object from future recommendations for the owner.
+Description: Block a material from future recommendations for the owner.
 Input: `CollectionSystemItemInput`
 Output: `CollectionItem`
 #### `music.collection.unblock`
 
-Description: Remove a canonical or material music object from the owner's blocked system collection.
+Description: Remove a material from the owner's blocked system collection.
 Input: `CollectionSystemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.item.add`
 
-Description: Add a canonical or material music object to a custom collection by collection id.
+Description: Add a material to a custom collection by collection id.
 Input: `CollectionItemAddInput`
 Output: `CollectionItem`
 #### `music.collection.item.remove`
 
-Description: Remove a canonical or material music object from a custom collection by collection id.
+Description: Remove a material from a custom collection by collection id.
 Input: `CollectionItemRemoveInput`
 Output: `CollectionItem`
 #### `music.collection.create`
@@ -200,11 +200,6 @@ Output: `CollectionListOutput`
   - Playlists (`playlists`): `unsupported`
   - Listening history (`listening_history`): `unsupported`
 
-#### `library.source.list`
-
-Description: List Source Library items in bounded pages as short cards.
-Input: `SourceLibraryListInput`
-Output: `SourceLibraryListOutput`
 #### `library.import.start`
 
 Description: Start importing saved platform library facts into MineMusic state.

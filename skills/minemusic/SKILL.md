@@ -31,7 +31,7 @@ Use the handbook tools by lookup level:
   - Reads one instrument section such as `minemusic.library` or
     `minemusic.music`.
 - `minemusic.handbook.tool.read({ toolName })`
-  - Reads one exact tool such as `library.source.list` or
+  - Reads one exact tool such as `music.material.query` or
     `music.material.resolve`.
 
 Use the lookup key that matches the requested level:
@@ -59,14 +59,17 @@ For the exact input/output contract of one operation, use
    song title plus artist, an artist name, or a concrete album/track candidate.
    Send provider searches as concrete title, artist, album, or release text.
 6. For recommendations from a pool, collection, source library, related pool,
-   or all available material, use `minemusic.music.material.query` with the
-   requested `pool`, `constraints`, `exclude`, `order`, and `limit`.
+   or all available material, use `minemusic.music.pools.list` to discover
+   query-ready pools when needed, then use `minemusic.music.material.query`
+   with the requested `pool`, `constraints`, `exclude`, `order`, and `limit`.
    Use only fields shown by the live handbook/tool schema. `q` is for concrete
    title, artist, album, or release text; apply your musical judgment to the
    returned cards.
    For source-library or collection pools, treat returned cards as already
-   grounded from stored library/collection assets. Use `library.source.list` for
-   raw audit/listing views or after query produces zero usable candidates.
+   grounded from stored library/collection assets. If a query produces zero
+   usable candidates, try another pool from `music.pools.list`, resolve concrete
+   seeds with `music.material.resolve.cards`, or use `music.material.related`
+   when you already have a seed material id.
    For open-ended recommendations or playable-link requests, obtain intended
    `materialId` values from compact material sources such as
    `minemusic.music.material.resolve.cards`, `minemusic.music.material.query`,

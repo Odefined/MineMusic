@@ -7,17 +7,12 @@ import type {
   LibraryImportReport,
   LibraryImportStatus,
   LibraryImportSummaryView,
-  SourceLibraryListOutput,
   ProvisionalReviewApplyOutput,
   ProvisionalReviewAutoUpdateItem,
   ProvisionalReviewAutoUpdateOutput,
   ProvisionalReviewInspection,
   ProvisionalReviewListOutput,
   Ref,
-  SourceEntity,
-  SourceLibraryEntry,
-  SourceLibraryItem,
-  SourceLibraryListItemView,
 } from "../contracts/index.js";
 
 export function reviewSubjectRef(subjectId: string): Ref {
@@ -88,56 +83,6 @@ export function compactLibraryImportSummary(report: LibraryImportReport): Librar
 
 export function compactLibraryImportItemsPage(page: LibraryImportItemsListOutput): unknown {
   return page;
-}
-
-export function compactSourceLibraryList(
-  output: SourceLibraryListOutput | { items: SourceLibraryEntry[]; totalItems: number; nextCursor?: string },
-): unknown {
-  return {
-    items: output.items.map((entry) =>
-      compactSourceLibraryListItemView(entry as SourceLibraryEntry | SourceLibraryListItemView),
-    ),
-    totalItems: output.totalItems,
-    ...(output.nextCursor === undefined ? {} : { nextCursor: output.nextCursor }),
-  };
-}
-
-function compactSourceLibraryListItemView(entry: SourceLibraryEntry | SourceLibraryListItemView): unknown {
-  return {
-    sourceRef: "item" in entry ? entry.item.sourceRef : entry.sourceRef,
-    label: "item" in entry ? entry.item.label : entry.label,
-    ...("subtitle" in entry && entry.subtitle !== undefined
-      ? { subtitle: entry.subtitle }
-      : "sourceEntity" in entry && entry.sourceEntity !== undefined
-        ? compactSourceLibrarySubtitle(entry.item, entry.sourceEntity)
-        : {}),
-  };
-}
-
-function compactSourceLibrarySubtitle(item: SourceLibraryItem, entity: SourceEntity): { subtitle: string } | {} {
-  if (entity.kind === "track") {
-    const parts = [
-      entity.artistLabels?.join(", "),
-      entity.releaseLabel,
-    ].filter((part): part is string => typeof part === "string" && part.length > 0);
-
-    return parts.length === 0 ? {} : { subtitle: parts.join(" - ") };
-  }
-
-  if (entity.kind === "release") {
-    const parts = [
-      entity.artistLabels?.join(", "),
-      entity.releaseDate,
-    ].filter((part): part is string => typeof part === "string" && part.length > 0);
-
-    return parts.length === 0 ? {} : { subtitle: parts.join(" - ") };
-  }
-
-  if (entity.kind === "artist") {
-    return entity.name === undefined || entity.name === item.label ? {} : { subtitle: entity.name };
-  }
-
-  return {};
 }
 
 export function compactReviewList(output: ProvisionalReviewListOutput): unknown {

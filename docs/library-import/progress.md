@@ -40,18 +40,18 @@ This file tracks Library Import implementation progress.
   `materialStoreDatabasePath` / `MINEMUSIC_MATERIAL_STORE_DB_PATH` persists
   canonical and Source Entity Store state, while `libraryImportDatabasePath` /
   `MINEMUSIC_LIBRARY_IMPORT_DB_PATH` persists import/update batch working state.
-- Stage Interface exposes Source Library read tools plus import/update
-  start/continue tools through `minemusic.library` with stable external
-  names: `library.source.list`,
+- Stage Interface exposes Library Import/Update tools through
+  `minemusic.library` with stable external names:
   `library.import.start`,
   `library.import.continue`,
   `library.update.start`, `library.update.continue`,
   `library.import.status`, `library.import.summary`, and
   `library.import.items.list`.
-- Source Library read tools also follow the compact-output rule:
-  `library.source.list` returns short cards only. It does not expose redundant
-  provider/account identity fields, internal ids, raw provider payloads, or
-  full release tracklists.
+- The old `library.source.list` Source Library row browser is no longer part of
+  the public Stage Interface / MCP tool surface. Agent-facing Source Library
+  browsing now goes through `music.pools.list` and `music.material.query`, which
+  return query-ready pool specs and compact material cards instead of Source
+  Library rows.
 - The MCP-facing start tools now return compact `LibraryImportStatus` payloads
   instead of full item arrays. `library.import.summary` returns a compact
   summary view with aggregate counts and `itemCount`, and item-level detail is

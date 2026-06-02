@@ -47,15 +47,21 @@ or material merge.
 Material Query now returns domain result items for material retrieval, and
 Stage Interface output modules project those results into compact
 agent-facing cards.
-`music.material.query` can restrict results to Source Library saved tracks and
-saved albums expanded into tracks, apply `returnKind`, relation exclusions,
-recent-activity exclusions, cursor pagination, and least-recently-recommended
-ordering, recently-added ordering, and return explicit `materialId` handles
-without raw source/canonical/evidence graphs at the public boundary. Internal
-query inputs can still use
-lightweight text matching for `preferenceHints`, but Stage Interface and MCP
-surfaces do not advertise those fields and strip them from public tool payloads
-until real semantic feature data exists.
+`music.material.query` can restrict results to query-ready Source Library
+pools keyed by `libraryKinds` and optional `target`, including saved tracks,
+followed artists, saved releases, and saved release track expansion through
+`target: "release_tracks"`. It can also apply `returnKind`, relation
+exclusions, recent-activity exclusions, cursor pagination,
+least-recently-recommended ordering, recently-added ordering, and return
+explicit `materialId` handles without raw source/canonical/evidence graphs at
+the public boundary. Internal query inputs can still use lightweight text
+matching for `preferenceHints`, but Stage Interface and MCP surfaces do not
+advertise those fields, old Source Library `areas`/`expand` pool language, or
+`dynamic` pool filters, and strip hidden preference hints from public tool
+payloads until real semantic feature data exists.
+`music.pools.list` returns query-ready all/source-library/collection pool specs
+and hides seed-dependent related pools; `includeEmpty` only affects empty
+Collection pool visibility.
 Source Library saved-track, followed-artist, all-material, and materialRef-backed
 Collection pools now project stored Source Entity / Material Store records
 directly into domain material items before Stage Interface presentation, so
@@ -64,8 +70,12 @@ recommendation query.
 The B2 dependency-narrowing slice keeps this behavior but changes the type
 boundary: Material Query receives `MaterialQueryStorePort`, projection helpers
 receive `MaterialProjectionStorePort`, adjacent material-id Stage Interface
-reads receive `MaterialProjectionStorePort`, and `library.source.list` receives
-`SourceLibraryReadStorePort` instead of full `MaterialStorePort`.
+reads receive `MaterialProjectionStorePort`, and the former
+`library.source.list` path received `SourceLibraryReadStorePort` instead of
+full `MaterialStorePort`.
+The Stage Interface language-normalization slice removes `library.source.list`
+from the public ToolName / Stage Interface / MCP surface; Source Library
+browsing is now exposed through `music.pools.list` and `music.material.query`.
 The B5 dispatch-boundary slice keeps tool behavior unchanged while changing
 `createToolDispatch` to accept `StageInterfaceMaterialStorePort`, a
 projection-plus-Source-Library read surface with no registry, relation,
@@ -115,8 +125,9 @@ projection is unavailable, and follows material merge redirects before
 returning domain items for Stage Interface presentation.
 Compact resolve/related/exclude-materialId paths also follow redirects so
 merged ids project the current survivor. Stage Interface collection tools now
-accept `materialId` as the public material target path; raw `materialRef`
-remains an internal CollectionPort input only.
+require `materialId` as the public material target path; raw `materialRef`,
+`canonicalRef`, and public item `label` are hidden. The handlers project the
+material by id and derive the CollectionPort label internally before writing.
 Collection material filtering and removal are redirect-aware, so blocks stored
 before a source-only material merges into a survivor still apply and can be
 removed through the current survivor ref.

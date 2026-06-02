@@ -59,6 +59,17 @@ than re-casting `unknown` payloads locally. The migrated tools have a schema
 drift regression that proves their typed parsers and raw public schemas accept
 the same passthrough payload shape.
 
+The Stage Interface language-normalization slice removes
+`library.source.list` from stable public tools and MCP definitions. Source
+Library browsing is exposed through `music.pools.list` plus
+`music.material.query`: public source-library pools use `libraryKinds` and
+optional `target`, `music.pools.list` returns query-ready all/source-library/
+collection pool specs, and seed-dependent related pools are not listed.
+Public schemas no longer advertise Source Library `areas`/`expand` or
+`dynamic` pool filters. Ordinary collection material actions expose only
+`materialId`; handlers project the material internally and derive the
+CollectionPort label before writing.
+
 ## Established Decisions
 
 - Keep `ToolDispatchPort.call({ sessionId, toolName, payload })` as the public
@@ -133,6 +144,13 @@ the same passthrough payload shape.
   `stage.recommendation.present`, and `memory.feedback.record`.
 - Typed parser/raw schema drift regression for the migrated recommendation
   tools.
+- `library.source.list` removed from stable tool names, ToolName, Stage
+  Interface registry, MCP definitions, and Handbook snapshot.
+- Public material pool schemas normalized to `libraryKinds` plus optional
+  `target`; `music.pools.list` now returns query-ready `pool` specs and hides
+  related pools.
+- Public collection add/save/favorite/block schemas hide `canonicalRef`,
+  `materialRef`, and `label`; handlers derive labels from material projection.
 - Public presentation links without raw `sourceRef` exposure; feedback binding
   source refs remain in persisted presentation snapshots.
 - Stage Interface output modules for material and recommendation compact

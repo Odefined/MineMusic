@@ -1318,6 +1318,14 @@
   projection aliases, removed the canonical source-ref legacy SQLite table
   migration, and removed the CollectionItems material-target legacy SQLite
   migration.
+- Started Stage Interface agent-facing language normalization on branch
+  `codex/stage-interface-language-normalization`: removed public
+  `library.source.list`, normalized source-library pools to `libraryKinds`
+  plus optional `target`, changed `music.pools.list` to return query-ready
+  all/source-library/collection pool specs without seed-dependent related
+  pools, scoped `includeEmpty` to collection pools, and made public collection
+  material actions materialId-only with internal label derivation from material
+  projection.
 
 ## Next
 

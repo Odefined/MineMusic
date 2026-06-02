@@ -962,32 +962,6 @@ export type SourceLibraryItem = {
   status: SourceLibraryItemStatus;
 };
 
-export type SourceLibraryListInput = {
-  ownerScope?: string;
-  providerId?: string;
-  providerAccountId?: string;
-  libraryKind?: PlatformLibraryItemKind;
-  limit?: number;
-  cursor?: string;
-};
-
-export type SourceLibraryEntry = {
-  item: SourceLibraryItem;
-  sourceEntity?: SourceEntity;
-};
-
-export type SourceLibraryListItemView = {
-  sourceRef: Ref;
-  label: string;
-  subtitle?: string;
-};
-
-export type SourceLibraryListOutput = {
-  items: SourceLibraryListItemView[];
-  totalItems: number;
-  nextCursor?: string;
-};
-
 export type SourceLibraryResolveScope = {
   providerId?: string;
   providerAccountId?: string;
@@ -1160,27 +1134,29 @@ export type MaterialResolveCardsOutput = {
   };
 };
 
+export type SourceLibraryPoolTarget =
+  | "library_item"
+  | "release_tracks";
+
 export type MaterialPoolSpec =
   | { kind: "all" }
   | {
       kind: "source_library";
-      areas?: Array<"saved_tracks" | "saved_albums" | "followed_artists">;
+      libraryKinds: PlatformLibraryItemKind[];
       providerId?: string;
-      expand?: "none" | "tracks";
+      providerAccountId?: string;
+      target?: SourceLibraryPoolTarget;
     }
   | {
       kind: "collection";
       ref?: string;
       label?: string;
       relation?: "saved" | "favorite" | "custom" | "blocked";
-      expand?: "none" | "tracks";
     }
   | {
       kind: "related";
       materialId: string;
-      // same_release and same_release_group remain internal-only until
-      // distinct deterministic relation semantics are implemented.
-      relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
+      relation: "same_artist" | "same_album" | "similar";
     };
 
 export type MaterialQueryInput = {
@@ -1278,15 +1254,15 @@ export type MaterialContextBriefOutput = {
 };
 
 export type MaterialPoolsListInput = {
-  kinds?: Array<"source_library" | "collection" | "dynamic">;
+  kinds?: Array<"all" | "source_library" | "collection">;
   ownerScope?: string;
+  includeEmpty?: boolean;
 };
 
 export type MaterialPoolsListOutput = {
   pools: Array<{
-    ref: string;
     label: string;
-    type: "source_library" | "collection" | "dynamic";
+    pool: Exclude<MaterialPoolSpec, { kind: "related" }>;
     returnKinds: string[];
     count?: number;
   }>;
@@ -2143,7 +2119,6 @@ export type ToolName =
   | "music.collection.update"
   | "music.collection.delete"
   | "music.collection.list"
-  | "library.source.list"
   | "library.import.start"
   | "library.import.continue"
   | "library.update.start"
