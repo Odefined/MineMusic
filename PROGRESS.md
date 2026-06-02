@@ -1350,6 +1350,52 @@
   rules, and docs-guard scope.
 - Updated `AGENTS.md` so future documentation-structure and alignment work
   follows `docs/maintenance/documentation-architecture.md`.
+- Added a code/architecture drift adjudication rule to
+  `docs/maintenance/documentation-architecture.md` so future documentation
+  sweeps classify drift before deciding whether code or docs should change.
+- Clarified that old architecture evidence must be archived rather than
+  deleted, and that the sweep ends with a manual inconsistency audit across
+  current authority docs, archived architecture evidence, code, ports, and
+  guards.
+- Clarified that the documentation alignment sweep is docs-only: discovered
+  code drift should be recorded for the final audit or later code-fix slices,
+  not fixed during the documentation sweep.
+- Added `docs/maintenance/architecture-inconsistency-log.md` as the dedicated
+  ledger for architecture drift discovered during the documentation alignment
+  sweep.
+- Clarified that architecture inconsistencies should be recorded immediately
+  during area sweeps, not deferred to the final audit.
+- Clarified that current docs should describe observed code behavior as the
+  current implementation fact while logging any conflict with accepted
+  architecture in the architecture inconsistency ledger.
+- Added stable architecture-inconsistency IDs and current-document back-linking
+  rules for open inconsistencies.
+- Added evidence and verification-claim rules for current implementation facts
+  in `docs/maintenance/documentation-architecture.md`.
+- Clarified the split between the document-disposition audit ledger and the
+  architecture-inconsistency ledger.
+- Added the required archive notice format and archive README table fields for
+  archived documents.
+- Added fixed document-disposition statuses for
+  `docs/maintenance/documentation-alignment-audit.md`.
+- Added `docs/maintenance/documentation-alignment-audit.md` as the
+  document-disposition ledger template for the documentation/code alignment
+  sweep.
+- Recorded the intended docs guard command and script path:
+  `npm run check:docs` through `scripts/check-docs.mjs`.
+- Added the completion gate for the documentation/code alignment sweep,
+  including the rule that open architecture inconsistencies block claims of
+  full code/architecture consistency.
+- Added the default area sweep order for the documentation/code alignment work.
+- Added per-area completion requirements and an `Area Progress` table to
+  `docs/maintenance/documentation-alignment-audit.md`.
+- Clarified that useful old-document content with unclear ownership must be
+  extracted into the right current authority, creating that authority document
+  when needed, rather than being blocked or archived prematurely.
+- Clarified that current authority documents may keep stable rationale and
+  trade-offs, but execution history belongs in archive or milestone summaries.
+- Added `docs/maintenance/documentation-alignment-plan.md` as the docs-only
+  phase plan for executing the documentation/code alignment sweep.
 
 ## Next
 

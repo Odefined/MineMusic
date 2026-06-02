@@ -4,7 +4,11 @@ This index points agents to the current MVP documentation pack.
 
 Documentation maintenance note: `docs/maintenance/documentation-architecture.md`
 records the agreed documentation structure and responsibilities for the upcoming
-documentation/code alignment sweep.
+documentation/code alignment sweep. Architecture drift found during that sweep
+is tracked in `docs/maintenance/architecture-inconsistency-log.md`; document
+disposition is tracked in `docs/maintenance/documentation-alignment-audit.md`;
+execution sequencing is tracked in
+`docs/maintenance/documentation-alignment-plan.md`.
 
 ## Start Here
 
