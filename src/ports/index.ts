@@ -547,6 +547,10 @@ export type SourceLibraryReadStorePort = Pick<
   | "getSourceEntity"
 >;
 
+export type StageInterfaceMaterialStorePort =
+  MaterialProjectionStorePort &
+  SourceLibraryReadStorePort;
+
 export type MaterialRegistryPort = Pick<
   MaterialStorePort,
   | "getMaterialRecord"

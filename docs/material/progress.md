@@ -63,6 +63,10 @@ boundary: Material Query receives `MaterialQueryStorePort`, projection helpers
 receive `MaterialProjectionStorePort`, adjacent material-id Stage Interface
 reads receive `MaterialProjectionStorePort`, and `library.source.list` receives
 `SourceLibraryReadStorePort` instead of full `MaterialStorePort`.
+The B5 dispatch-boundary slice keeps tool behavior unchanged while changing
+`createToolDispatch` to accept `StageInterfaceMaterialStorePort`, a
+projection-plus-Source-Library read surface with no registry, relation,
+activity, canonical, or Source Entity writer capabilities.
 The B3/B4 projection/materialization slice keeps behavior stable while moving
 materialId/current-record projection helpers to `src/material/projection`,
 moving recent-card event projection to `src/stage/recent_cards.ts`, and

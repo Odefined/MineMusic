@@ -1295,6 +1295,12 @@
   `src/material/materialization` for shared SourceMaterial and Source Library
   item materialization, removed registry writer access from Material Query and
   Material Resolve, and added architecture guards for the new boundaries.
+- Completed the B5 Stage Interface dispatch material-store boundary slice on
+  branch `codex/narrow-stage-interface-dispatch-material-store`: added
+  `StageInterfaceMaterialStorePort`, changed `createToolDispatch` to receive
+  that projection-plus-Source-Library read surface instead of full
+  `MaterialStorePort`, and added architecture guards for the exact key set and
+  dispatch import boundary.
 
 ## Next
 

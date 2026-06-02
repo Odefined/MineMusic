@@ -214,6 +214,10 @@ tool shapes unchanged while changing Material Query to receive
 `MaterialQueryStorePort`, projection helpers and adjacent material-id Stage
 Interface reads to use `MaterialProjectionStorePort`, and `library.source.list`
 to use `SourceLibraryReadStorePort`.
+The 2026-06-02 B5 dispatch-boundary slice keeps behavior unchanged while
+changing `createToolDispatch` to receive `StageInterfaceMaterialStorePort`,
+the projection-plus-Source-Library read surface needed by Stage Interface tool
+groups, instead of full `MaterialStorePort`.
 The 2026-06-02 B3/B4 boundary slice keeps behavior and public tool shapes
 unchanged while extracting material projection helpers into
 `src/material/projection`, moving recent-card event projection to

@@ -360,6 +360,12 @@ Tool Group
   -> only the ports needed by that group
 ```
 
+`createToolDispatch` may pass material-store reads through to Stage Interface
+tool groups, but its material-store option is narrowed to
+`StageInterfaceMaterialStorePort`: projection reads plus Source Library reads,
+with no registry, relation, activity, canonical, or Source Entity writer
+capabilities.
+
 `ToolDispatchPort.call({ sessionId, toolName, payload })` remains the narrow
 external Interface for Host Adapters and the Stage Interface facade. The
 deepening happens behind that Interface: dispatch should find a Tool Definition,
