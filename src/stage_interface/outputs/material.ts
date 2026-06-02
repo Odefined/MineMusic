@@ -3,7 +3,6 @@ import type {
   MaterialQueryOutput,
   MaterialRelatedOutput,
   MaterialResolveResult,
-  MaterialResolveCardsOutput,
   MaterialResolveStatus,
   MaterialState,
   MaterialSelectDropped,
@@ -45,9 +44,12 @@ export type CompactMaterialResolveOutput =
       results: CompactResolvedCandidate[];
     };
 
-export type CompactMaterialResolveCardsOutput = {
-  items: CompactMaterialCard[];
-  next?: MaterialResolveCardsOutput["next"];
+export type CompactPublicMaterialResolveOutput = {
+  items: CompactCandidateMaterialCard[];
+  unresolved?: Array<{
+    text: string;
+    reason?: string;
+  }>;
 };
 
 export type CompactMaterialQueryOutput = {
@@ -102,17 +104,30 @@ export function compactMaterialResolveOutput(result: MaterialResolveResult): Com
   };
 }
 
-export function compactMaterialResolveCardsOutput(output: MaterialResolveCardsOutput): CompactMaterialResolveCardsOutput {
+export function compactPublicMaterialResolveOutput(
+  result: MaterialResolveResult,
+): CompactPublicMaterialResolveOutput {
+  const results = result.kind === "candidate_set" ? result.results : [result.result];
+  const byMaterialId = new Map<string, CompactCandidateMaterialCard>();
+  const unresolved: CompactPublicMaterialResolveOutput["unresolved"] = [];
+
+  for (const resolved of results) {
+    for (const material of resolved.materials) {
+      const card = compactCandidateMaterialCard(material);
+      byMaterialId.set(card.materialId, card);
+    }
+
+    if (resolved.materials.length === 0) {
+      unresolved.push({
+        text: resolved.candidate.label,
+        ...(resolved.reason === undefined ? {} : { reason: resolved.reason }),
+      });
+    }
+  }
+
   return {
-    items: [
-      ...output.items.map((item) => compactCandidateMaterialCard(item.material)),
-      ...(output.unresolved ?? []).map((item) => ({
-        ...(item.materialId === undefined ? {} : { materialId: item.materialId }),
-        title: item.label,
-        state: "unresolved" as const,
-      })),
-    ],
-    ...(output.next === undefined ? {} : { next: output.next }),
+    items: [...byMaterialId.values()],
+    ...(unresolved.length === 0 ? {} : { unresolved }),
   };
 }
 

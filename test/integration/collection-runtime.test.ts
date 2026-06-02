@@ -13,8 +13,7 @@ import type {
 } from "../../src/contracts/index.js";
 import { createFixtureMineMusicStageRuntime } from "../../src/stage_core/index.js";
 import type {
-  CompactMaterialResolveCardsOutput,
-  CompactMaterialResolveOutput,
+  CompactPublicMaterialResolveOutput,
 } from "../../src/stage_interface/outputs/index.js";
 
 type CollectionListOutput = {
@@ -100,18 +99,16 @@ async function resolveCanonicalRecordingMaterialId(
   stageRuntime: Awaited<ReturnType<typeof createRuntime>>["stageRuntime"],
 ): Promise<string> {
   const cards = await assertOk(
-    stageRuntime.stageInterface.tools["music.material.resolve.cards"]({
-      seeds: [{
+    stageRuntime.stageInterface.tools["music.material.resolve"]({
+      queries: [{
         kind: "recording",
-        canonicalRef: canonicalRecordingRef,
-        sourceRef: sourceRecordingRef,
         text: "Quiet Canonical Recording",
       }],
-    }) as Promise<Result<CompactMaterialResolveCardsOutput>>,
+    }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
   const materialId = cards.items[0]?.materialId;
 
-  assert(materialId !== undefined, "Material resolve cards should expose a materialId for collection writes");
+  assert(materialId !== undefined, "Material resolve should expose a materialId for collection writes");
 
   return materialId;
 }
@@ -286,19 +283,12 @@ async function materialResolveReportsBlockedCanonicalCandidateThroughStageInterf
 
     const resolveResult = await assertOk(
       stageRuntime.stageInterface.tools["music.material.resolve"]({
-        kind: "single",
-        candidate: {
-          id: "quiet-canonical-recording",
-          label: "Quiet Canonical Recording",
-          canonicalRef: canonicalRecordingRef,
-        },
-      }) as Promise<Result<CompactMaterialResolveOutput>>,
+        queries: [{ text: "Quiet Canonical Recording", kind: "recording" }],
+      }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
     );
 
-    assert(resolveResult.kind === "single", "Material Resolve should return a single result");
-    assert(resolveResult.result.status === "blocked", "Blocked collection membership should mark resolve result blocked");
     assert(
-      resolveResult.result.items[0]?.state === "blocked",
+      resolveResult.items[0]?.state === "blocked",
       "Blocked collection membership should mark resolved material blocked",
     );
   } finally {

@@ -9,8 +9,8 @@ import type {
 import { materialForMaterialId } from "../material/projection/index.js";
 import type { MineMusicStageCoreHarness } from "../stage_core/index.js";
 import type {
-  CompactMaterialResolveOutput,
   CompactPresentedMaterialCard,
+  CompactPublicMaterialResolveOutput,
   CompactRecommendationPresentOutput,
 } from "../stage_interface/outputs/index.js";
 
@@ -49,23 +49,16 @@ export async function runRecommendationTranscript(
     session: StageSession;
   };
   const resolvedResult = await stageCore.stageInterface.tools["music.material.resolve"]({
-    kind: "single",
-    candidate: {
-      id: "user-request",
-      label: input.request,
-      query: {
-        text: input.request,
-        limit: 5,
-      },
-    },
+    queries: [{ text: input.request }],
+    limit: 5,
   });
 
   if (!resolvedResult.ok) {
     return resolvedResult;
   }
 
-  const resolved = resolvedResult.value as CompactMaterialResolveOutput;
-  const resolvedCards = resolved.kind === "single" ? resolved.result.items : [];
+  const resolved = resolvedResult.value as CompactPublicMaterialResolveOutput;
+  const resolvedCards = resolved.items;
   const groundedMaterials = await materialsForResolvedCards(stageCore, resolvedCards);
 
   const presentResult = await stageCore.stageInterface.tools["stage.recommendation.present"]({
@@ -224,7 +217,7 @@ async function materialsForResolvedCards(
       materialStore: stageCore.materialStore,
       materialId: card.materialId,
       ownerScope: "local_profile:default",
-      purpose: "resolve.cards",
+      purpose: "material.query",
     });
 
     if (material.ok && material.value !== null) {

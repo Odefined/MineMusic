@@ -17,6 +17,8 @@ import type {
   LibraryImportPort,
   LibraryImportRepository,
   MaterialActivityRepository,
+  MaterialContextBriefPort,
+  MaterialPoolsPort,
   MaterialRegistryPort,
   MaterialSessionActivityRepository,
   MaterialStorePort,
@@ -24,8 +26,6 @@ import type {
   MaterialResolvePort,
   MaterialRelatedPort,
   MaterialSelectorPort,
-  MaterialQuerySupportPort,
-  MaterialGatePort,
   MemoryPort,
   MusicMaterialRelationRepository,
   MusicKnowledgePort,
@@ -47,14 +47,13 @@ export type MineMusicStageRuntime = {
 export type MineMusicStageCoreHarness = MineMusicStageRuntime & {
   dispatch: ToolDispatchPort;
   sessionContext: SessionContextPort;
-  materialGate: MaterialGatePort;
   recommendationPresentation: RecommendationPresentationPort;
   materialStore: MaterialStorePort;
   canonical: CanonicalStorePort;
   canonicalMaintenance: CanonicalMaintenancePort;
   collection: CollectionPort;
   materialResolve: MaterialResolvePort;
-  materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
+  materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort;
   materialSelector: MaterialSelectorPort;
   source: SourceGroundingPort;
   knowledge: MusicKnowledgePort;

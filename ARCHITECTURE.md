@@ -69,9 +69,7 @@ Important naming decision:
 - `Stage Core` means runtime composition and lifecycle.
 - `Stage Interface` means the LLM-facing and host-facing callable interface.
 - `Stage Modules` are the smaller LLM-facing modules used by Stage Interface,
-  such as Session Context and Material Gate.
-- `Stage Modules` is a historical Wave 4-8 implementation term and is not part
-  of the current architecture vocabulary.
+  such as Session Context, Instrument Catalog, and Handbook rendering.
 
 ## Layer Model
 
@@ -101,7 +99,6 @@ MineMusic Server Process
      -> common MineMusic flow ordering
   -> Stage Modules
      -> Session Context
-     -> Material Gate
      -> Instrument Catalog
      -> Handbook renderer
      -> Core Capability Layer
@@ -152,14 +149,12 @@ without creating provider-specific environment switches in host adapter config.
 | Stage Core | `src/stage_core/index.ts`, `src/stage_core/runtime_kit.ts`, `src/stage_core/compose.ts`, `src/stage_core/repositories.ts`, `src/stage_core/seed.ts` |
 | Stage Interface | `src/stage_interface/**`, `src/handbook/index.ts` |
 | Session Context | `src/stage/index.ts` through `SessionContextPort` |
-| Material Gate | `src/stage/index.ts` through `MaterialGatePort` |
 | Core Capabilities | `src/material/**`, `src/collection`, `src/source`, `src/knowledge`, `src/events`, `src/memory`, `src/effects` |
 | Plugin Slots | `src/plugins/index.ts` and provider interfaces in `src/contracts/index.ts` |
 | Storage | `src/storage/index.ts` |
 
-Session Context and Material Gate are separate Stage Modules. Stage Core
-constructs them separately and Stage Interface depends on the specific port it
-needs.
+Session Context remains a Stage Module. Stage Core constructs it separately and
+Stage Interface depends on the specific port it needs.
 
 ## Ownership Rules
 
@@ -170,7 +165,6 @@ needs.
 | Stage Core | runtime graph assembly, provider registration, initialization, `runtime.ready`, runtime lifecycle | domain logic inside core capabilities, host protocol, final recommendation judgment |
 | Stage Interface | instruments, tools, Handbook lookup, governed dispatch, host-facing callable surface, common MineMusic call ordering, agent-facing schema language for compact material pools and materialId actions | provider internals, storage internals, final recommendation judgment, raw Source Library row browsing |
 | Session Context | session identity, session state, `StageVibe`, dynamic context | source matching, memory persistence, effect execution, tool availability policy |
-| Material Gate | presentation safety for `MusicMaterial`, especially playable-link exposure by purpose | source search, canonical identity, final recommendation selection |
 | Material Store | MineMusic product-level material identity, canonical identity, source entities, Source Library, Library Import/Update state, import history, confirmed source-to-canonical bindings, material relations, and material activity projections | current playability, user taste, final recommendation selection, external write-back |
 | Material Registry inside Material Store | Opaque `materialRef` records, source/canonical lookup indexes, identity state, and material merge redirects | provider source facts, canonical metadata authority, playability, final recommendation judgment |
 | Material Relations inside Material Store | Owner/material-scoped relation facts such as blocked, wrong-version, not-playable, liked, disliked, saved, favorite, and event-scoped bad-match feedback | source provider facts, canonical metadata authority, final recommendation judgment |
@@ -223,8 +217,8 @@ needs.
    projections can reconstruct playable links from `materialId`.
 13. Material Resolve returns `MusicMaterial` with stable material identity,
    honest material state, and candidate-level resolve status.
-14. Stage Interface sends material through Material Gate before presentation
-   where full `MusicMaterial` output is still needed.
+14. Stage Interface projects public material outputs directly and keeps raw
+   `MusicMaterial` records behind Stage Interface output helpers.
 15. LLM chooses the intended recommendation order, then calls
    `stage.recommendation.present` for the final presentation gate.
 16. Recommendation Presentation records the typed `recommendation.presented`
@@ -408,8 +402,8 @@ playable links. Durable memory should prefer a canonical ref or a confirmed
 source-to-canonical binding before falling back to source refs or plain text.
 
 Material Resolve owns candidate-level material state/status assembly. Source
-Grounding owns source-backed playable-link state normalization. Material Gate
-owns presentation safety before material reaches the LLM or user.
+Grounding owns source-backed playable-link state normalization. Stage Interface
+owns compact public output projection before material reaches the LLM or user.
 
 ## Effect Policy
 
@@ -444,7 +438,7 @@ new external action -> Effect Slot adapter
 new playback surface -> Playback Slot adapter
 new persistence backend -> Storage Slot adapter
 new session behavior -> Session Context or Stage Interface
-new presentation behavior -> Material Gate
+new presentation behavior -> Recommendation Presentation or Stage Interface output projection
 new preference behavior -> Memory Service protocol
 ```
 
@@ -477,8 +471,8 @@ posture, not by compiling or reading a Handbook as a side effect.
 Codex-visible tools are derived from MineMusic instrument descriptors. The
 host-facing MCP names are prefixed, for example
 `minemusic.stage.context.read`, `minemusic.handbook.tool.read`, and
-`minemusic.stage.materials.prepare`, while the internal public tool names remain
-the stable `ToolName` union. The catalog exposes focused `minemusic.stage`,
+`minemusic.stage.recommendation.present`, while the internal public tool names
+remain the stable `ToolName` union. The catalog exposes focused `minemusic.stage`,
 `minemusic.knowledge`, `minemusic.music`, `minemusic.library`, and
 `minemusic.memory` instruments instead of a single aggregate MVP instrument.
 `activeInstruments` is not a tool-availability gate.

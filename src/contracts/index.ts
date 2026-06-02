@@ -108,6 +108,11 @@ export type PlayableLink = {
   requiresAccount?: boolean;
 };
 
+export type PublicDisplayLink = {
+  label?: string;
+  url: string;
+};
+
 export type MaterialEvidence = {
   kind: string;
   source: Ref;
@@ -1097,17 +1102,21 @@ export type MaterialResolveResult =
       results: ResolvedCandidate[];
     };
 
-export type ResolveSeed = {
-  materialId?: string;
-  text?: string;
-  kind?: "song" | "track" | "recording" | "artist" | "album" | "release" | "release_group" | "work" | string;
-  sourceRef?: Ref;
-  canonicalRef?: Ref;
+export type PublicMaterialResolveQueryKind =
+  | "recording"
+  | "release_group"
+  | "release"
+  | "artist"
+  | "work";
+
+export type PublicMaterialResolveQuery = {
+  text: string;
+  kind?: PublicMaterialResolveQueryKind;
   reason?: string;
 };
 
-export type MaterialResolveCardsInput = {
-  seeds: ResolveSeed[];
+export type PublicMaterialResolveInput = {
+  queries: PublicMaterialResolveQuery[];
   purpose?: "recommend" | "lookup" | "play";
   ownerScope?: string;
   limit?: number;
@@ -1120,15 +1129,21 @@ export type MaterialQueryItem = {
   reason?: string;
 };
 
-export type MaterialResolveUnresolvedItem = {
-  label: string;
-  materialId?: string;
+export type PublicMaterialResolveItem = {
+  materialId: string;
+  title: string;
+  subtitle?: string;
+  state: MaterialState;
+};
+
+export type PublicMaterialResolveUnresolvedItem = {
+  text: string;
   reason?: string;
 };
 
-export type MaterialResolveCardsOutput = {
-  items: MaterialQueryItem[];
-  unresolved?: MaterialResolveUnresolvedItem[];
+export type PublicMaterialResolveOutput = {
+  items: PublicMaterialResolveItem[];
+  unresolved?: PublicMaterialResolveUnresolvedItem[];
   next?: {
     suggestedAction?: "present" | "ask_clarification" | "choose_one" | "retry";
     question?: string;
@@ -1682,16 +1697,48 @@ export type LibraryImportSummaryView = {
   startedAt: string;
   completedAt?: string;
   counts: LibraryImportCounts;
-  areas: LibraryImportReportArea[];
+  scopeReports: Array<{
+    scope: LibraryImportScope;
+    providerArea?: PlatformLibraryArea;
+    readStatus?: PlatformLibraryReadStatus;
+    count?: PlatformLibraryCount;
+    issues?: PlatformLibraryIssue[];
+  }>;
   progress: LibraryImportProgress;
   itemCount: number;
-  absences?: PlatformLibraryAbsenceSummary[];
+  absentItems?: Array<{
+    label: string;
+    scope: LibraryImportScope;
+    providerArea?: PlatformLibraryArea;
+    reason: "platform_not_returned" | (string & {});
+    baselineBatchId: string;
+    currentBatchId?: string;
+  }>;
   issues?: PlatformLibraryIssue[];
+};
+
+export type LibraryImportItemReportView = {
+  scope: LibraryImportScope;
+  providerArea?: PlatformLibraryArea;
+  sourceRef: Ref;
+  itemKind: PlatformLibraryItemKind;
+  sourceEntityKind: SourceEntityKind;
+  label: string;
+  status: LibraryImportItemStatus;
+  failureCode?: string;
+  retryable?: boolean;
 };
 
 export type LibraryImportItemsListOutput = {
   batchId: string;
   items: LibraryImportItemReport[];
+  totalItems: number;
+  nextCursor?: string;
+};
+
+export type LibraryImportItemsListView = {
+  batchId: string;
+  items: LibraryImportItemReportView[];
   totalItems: number;
   nextCursor?: string;
 };
@@ -1787,6 +1834,13 @@ export type PlatformLibraryAbsence = {
   currentBatchId: string;
   reason: "platform_not_returned" | (string & {});
   recordedAt: string;
+};
+
+export type MusicLinksRefreshOutput = {
+  materialId: string;
+  status: "refreshed" | "not_available";
+  links?: PublicDisplayLink[];
+  message?: string;
 };
 
 export type KnowledgeQueryPurpose = "lookup" | "explain" | "review" | "discover";
@@ -2094,13 +2148,11 @@ export type ToolName =
   | "handbook.overview.read"
   | "handbook.instrument.read"
   | "handbook.tool.read"
-  | "stage.materials.prepare"
   | "stage.recommendation.present"
   | "stage.session.update"
   | "stage.events.record"
   | "stage.effects.propose"
   | "music.material.resolve"
-  | "music.material.resolve.cards"
   | "music.material.query"
   | "music.material.related"
   | "music.material.select"
@@ -2212,7 +2264,6 @@ export type DomainEvent = {
 
 export type DomainEventType =
   | "stage.session.updated"
-  | "stage.materials.prepared"
   | "instrument.called"
   | "instrument.failed"
   | "canonical.provisional.created"

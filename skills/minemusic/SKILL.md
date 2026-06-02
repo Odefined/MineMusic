@@ -68,29 +68,25 @@ For the exact input/output contract of one operation, use
    For source-library or collection pools, treat returned cards as already
    grounded from stored library/collection assets. If a query produces zero
    usable candidates, try another pool from `music.pools.list`, resolve concrete
-   seeds with `music.material.resolve.cards`, or use `music.material.related`
+   text queries with `music.material.resolve`, or use `music.material.related`
    when you already have a seed material id.
    For open-ended recommendations or playable-link requests, obtain intended
    `materialId` values from compact material sources such as
-   `minemusic.music.material.resolve.cards`, `minemusic.music.material.query`,
+   `minemusic.music.material.resolve`, `minemusic.music.material.query`,
    `minemusic.music.material.related`, or recent context.
    Resolve is a grounding operation; MineMusic handles source evidence behind
    the material boundary:
 
 ```json
 {
-  "kind": "candidate_set",
-  "candidates": [
+  "queries": [
     {
-      "id": "candidate-1",
-      "label": "candidate song or artist",
-      "expectedKind": "track",
-      "query": {
-        "text": "candidate song or artist",
-        "limit": 3
-      }
+      "text": "candidate song or artist",
+      "kind": "recording",
+      "reason": "why it fits"
     }
-  ]
+  ],
+  "limit": 3
 }
 ```
 
@@ -124,17 +120,14 @@ For the exact input/output contract of one operation, use
    recommendations even when `identityConfidence` is `source_backed`. Refresh or
    disclaim links after the user reports a link problem.
 10. Presentation events come from `minemusic.stage.recommendation.present`.
-11. Use `minemusic.stage.materials.prepare` as a material sanitizer for draft
-   display. Final recommendations go through
-   `minemusic.stage.recommendation.present`.
-12. For feedback on shown cards, interpret the user's wording yourself and
+11. For feedback on shown cards, interpret the user's wording yourself and
    bind the feedback to recent presentation cards with
    `minemusic.memory.feedback.record`.
-13. For feedback like "remember this style", use
+12. For feedback like "remember this style", use
    `minemusic.memory.feedback.record` with `remember_preference` bound to the
    recent recommendation when possible. Use `minemusic.memory.propose` only for
    advanced evidence-backed proposals.
-14. For external actions such as open, play, queue, save, source writeback, or
+13. For external actions such as open, play, queue, save, source writeback, or
    notification, call `minemusic.stage.effects.propose`.
 
 ## Boundaries

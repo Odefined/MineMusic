@@ -13,12 +13,12 @@ import type {
   InstrumentCatalogPort,
   LibraryImportPort,
   StageInterfaceMaterialStorePort,
+  MaterialContextBriefPort,
+  MaterialPoolsPort,
   MaterialQueryPort,
-  MaterialQuerySupportPort,
   MaterialResolvePort,
   MaterialRelatedPort,
   MaterialSelectorPort,
-  MaterialGatePort,
   MemoryPort,
   MusicKnowledgePort,
   RecommendationPresentationPort,
@@ -33,11 +33,10 @@ import {
 
 type ToolDispatchOptions = {
   sessionContext: SessionContextPort;
-  materialGate: MaterialGatePort;
   recommendationPresentation?: RecommendationPresentationPort;
   instruments: InstrumentCatalogPort;
   materialResolve: MaterialResolvePort;
-  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
+  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort;
   materialSelector?: MaterialSelectorPort;
   source: SourceGroundingPort;
   knowledge?: MusicKnowledgePort;
@@ -52,7 +51,6 @@ type ToolDispatchOptions = {
 
 export function createToolDispatch({
   sessionContext,
-  materialGate,
   recommendationPresentation,
   instruments,
   materialResolve,
@@ -71,9 +69,7 @@ export function createToolDispatch({
   const toolDefinitionRegistry = createStageInterfaceToolDefinitionRegistry({
     stage: {
       sessionContext,
-      materialGate,
       ...(recommendationPresentation === undefined ? {} : { recommendationPresentation }),
-      ...(materialStore === undefined ? {} : { materialStore }),
       events,
       effects,
     },

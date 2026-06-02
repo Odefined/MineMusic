@@ -157,7 +157,6 @@ import type {
   MaterialSessionActivityRepository,
   MaterialStorePort,
   MaterialResolvePort,
-  MaterialGatePort,
   MemoryPort,
   MemoryRepository,
   MusicKnowledgePort,
@@ -224,8 +223,7 @@ export type _stageSessionHasVibe = Expect<
 export type _allStageModuleMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<SessionContextPort, "getSession"> &
     MethodAcceptsSingleObject<SessionContextPort, "readContext"> &
-    MethodAcceptsSingleObject<SessionContextPort, "updateSession"> &
-    MethodAcceptsSingleObject<MaterialGatePort, "prepareMaterials">
+    MethodAcceptsSingleObject<SessionContextPort, "updateSession">
 >;
 
 export type _catalogAndDispatchStaySeparate = Expect<
@@ -931,10 +929,10 @@ export type _libraryImportSummaryViewKeys = Expect<
     | "startedAt"
     | "completedAt"
     | "counts"
-    | "areas"
+    | "scopeReports"
     | "progress"
     | "itemCount"
-    | "absences"
+    | "absentItems"
     | "issues"
   >
 >;
@@ -1838,13 +1836,6 @@ const sessionContext: SessionContextPort = {
   }),
 };
 
-const materialGate: MaterialGatePort = {
-  prepareMaterials: async ({ materials }) => ({
-    ok: true,
-    value: materials,
-  }),
-};
-
 const instrumentCatalog: InstrumentCatalogPort = {
   list: async () => ({
     ok: true,
@@ -2144,7 +2135,6 @@ void [
   platformLibraryReadResult,
   platformLibraryProvider,
   sessionContext,
-  materialGate,
   instrumentCatalog,
   toolName,
   collectionToolName,

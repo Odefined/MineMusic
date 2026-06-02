@@ -12,24 +12,17 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
-function createPrepareStageInterface() {
+function createContextStageInterface() {
   return {
     tools: {
-      "stage.materials.prepare": async (payload: unknown) => {
-        const materialPayload = payload as { materials: unknown[] };
-
-        return {
-          ok: true,
-          value: materialPayload.materials,
-        };
-      },
+      "stage.context.read": async () => ({ ok: true, value: { marker: "server-held-stage-interface" } }),
     },
   };
 }
 
 async function serverExposesMcpOverStreamableHttp(): Promise<void> {
   let readyAwaited = false;
-  const stageInterface = createPrepareStageInterface();
+  const stageInterface = createContextStageInterface();
   const runtime = {
     ready: Promise.resolve().then(() => {
       readyAwaited = true;
@@ -63,22 +56,14 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
 
     assert(readyAwaited, "MineMusic server should await the server runtime before accepting MCP calls");
     assert(
-      toolNames.includes("minemusic.stage.materials.prepare"),
+      toolNames.includes("minemusic.stage.context.read"),
       "MineMusic server should expose MineMusic MCP tools over streamable HTTP",
     );
 
     const response = await client.callTool({
-      name: "minemusic.stage.materials.prepare",
+      name: "minemusic.stage.context.read",
       arguments: {
-        materials: [
-          {
-            id: "server-http-material",
-            kind: "recording",
-            label: "Server HTTP Material",
-            state: "grounded",
-          },
-        ],
-        purpose: "recommendation",
+        include: "session",
       },
     });
     const toolResponse = response as {
@@ -87,11 +72,11 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
     const firstContent = toolResponse.content[0];
 
     assert(firstContent?.type === "text", "MCP call should return text content");
-    const result = JSON.parse(firstContent.text) as Result<Array<{ id: string }>>;
+    const result = JSON.parse(firstContent.text) as Result<{ marker?: string }>;
 
     assert(result.ok, "MCP tool call should return the server runtime result");
     assert(
-      result.value[0]?.id === "server-http-material",
+      result.value.marker === "server-held-stage-interface",
       "MCP tool call should route through the server-held Stage Interface",
     );
   } finally {
@@ -101,7 +86,7 @@ async function serverExposesMcpOverStreamableHttp(): Promise<void> {
 }
 
 async function serverAcceptsStaleClientSessionIds(): Promise<void> {
-  const stageInterface = createPrepareStageInterface();
+  const stageInterface = createContextStageInterface();
   const runtime = {
     ready: Promise.resolve(),
     stageInterface,
@@ -134,7 +119,7 @@ async function serverAcceptsStaleClientSessionIds(): Promise<void> {
     const toolNames = tools.tools.map((tool) => tool.name);
 
     assert(
-      toolNames.includes("minemusic.stage.materials.prepare"),
+      toolNames.includes("minemusic.stage.context.read"),
       "MineMusic server should not reject stale client MCP session ids after a server restart",
     );
   } finally {

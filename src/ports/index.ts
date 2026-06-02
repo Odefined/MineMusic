@@ -65,8 +65,6 @@ import type {
   MaterialRelatedInput,
   MaterialRelatedOutput,
   MaterialRecord,
-  MaterialResolveCardsInput,
-  MaterialResolveCardsOutput,
   MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
@@ -307,14 +305,6 @@ export interface SessionContextPort {
     sessionId: string;
     patch: Partial<StageSession>;
   }): Promise<Result<StageSession>>;
-}
-
-export interface MaterialGatePort {
-  prepareMaterials(input: {
-    sessionId: string;
-    materials: MusicMaterial[];
-    purpose: "recommendation" | "memory" | "effect" | "conversation";
-  }): Promise<Result<MusicMaterial[]>>;
 }
 
 export interface InstrumentCatalogPort {
@@ -783,11 +773,11 @@ export interface MaterialRelatedPort {
   related(input: MaterialRelatedInput): Promise<Result<MaterialRelatedOutput>>;
 }
 
-export interface MaterialQuerySupportPort {
-  resolveCards(input: MaterialResolveCardsInput): Promise<Result<MaterialResolveCardsOutput>>;
-
+export interface MaterialContextBriefPort {
   contextBrief?(input: MaterialContextBriefInput): Promise<Result<MaterialContextBriefOutput>>;
+}
 
+export interface MaterialPoolsPort {
   listPools?(input: MaterialPoolsListInput): Promise<Result<MaterialPoolsListOutput>>;
 }
 

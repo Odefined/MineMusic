@@ -2,7 +2,6 @@ import type {
   MaterialQueryOutput,
   MaterialRelatedOutput,
   MaterialResolveResult,
-  MaterialResolveCardsOutput,
   MaterialSelectOutput,
   MusicMaterial,
   RecommendationPresentOutput,
@@ -12,8 +11,8 @@ import {
   compactMaterialCard,
   compactMaterialQueryOutput,
   compactMaterialRelatedOutput,
-  compactMaterialResolveCardsOutput,
   compactMaterialResolveOutput,
+  compactPublicMaterialResolveOutput,
   compactMaterialSelectOutput,
   compactRecommendationPresentOutput,
 } from "../../src/stage_interface/outputs/index.js";
@@ -195,26 +194,35 @@ function materialSelectOutputCompactsDomainItems(): void {
   assert(!("material" in item), "selection compact item should not expose raw material");
 }
 
-function materialResolveCardsOutputCompactsDomainItemsAndUnresolved(): void {
+function publicMaterialResolveOutputCompactsDomainItemsAndUnresolved(): void {
   const sourceRef = ref("source:fixture", "track", "seed-track");
-  const resolveCards: MaterialResolveCardsOutput = {
-    items: [{
-      materialId: "seed-material",
-      material: material("source_only_playable", {
-        label: "Seed Track",
-        playableLinks: [{ url: "https://example.test/seed-track", sourceRef }],
-      }),
-    }],
-    unresolved: [{ label: "Missing Seed" }],
+  const result: MaterialResolveResult = {
+    kind: "candidate_set",
+    results: [
+      {
+        candidate: { id: "query:1", label: "Seed Track", query: { text: "Seed Track" } },
+        status: "resolved",
+        materials: [
+          material("source_only_playable", {
+            label: "Seed Track",
+            playableLinks: [{ url: "https://example.test/seed-track", sourceRef }],
+          }),
+        ],
+      },
+      {
+        candidate: { id: "query:2", label: "Missing Seed", query: { text: "Missing Seed" } },
+        status: "unresolved",
+        materials: [],
+      },
+    ],
   };
 
-  const output = compactMaterialResolveCardsOutput(resolveCards);
+  const output = compactPublicMaterialResolveOutput(result);
 
-  assert(output.items[0]?.title === "Seed Track", "resolved seed domain item should compact to card title");
-  assert(output.items[0]?.state === "source_only_playable", "resolved seed compact state should be copied from material state");
-  assert(output.items[1]?.title === "Missing Seed", "unresolved seed should compact to diagnostic card");
-  assert(output.items[1]?.state === "unresolved", "unresolved seed diagnostic card should carry unresolved state");
-  assert(output.items[1]?.materialId === undefined, "unresolved seed diagnostic card should not invent a material id");
+  assert(output.items[0]?.title === "Seed Track", "resolved query domain item should compact to card title");
+  assert(output.items[0]?.state === "source_only_playable", "resolved query compact state should be copied from material state");
+  assert(output.unresolved?.[0]?.text === "Missing Seed", "unresolved query should stay in unresolved list");
+  assert(!("sourceRef" in (output.unresolved?.[0] as Record<string, unknown>)), "unresolved query should not expose source refs");
 }
 
 function recommendationPresentOutputCompactsDomainItemsToCards(): void {
@@ -244,7 +252,7 @@ function recommendationPresentOutputCompactsDomainItemsToCards(): void {
   assert(card.title === "Presented Track", "presentation domain label should compact to card title");
   assert(card.state === "source_only_playable", "presentation compact state should be copied from material state");
   assert(link?.url === "https://example.test/presented-track", "presentation playable links should become display links");
-  assert(link.sourceHandle === "link:1", "presentation links should expose opaque source handles");
+  assert(!("sourceHandle" in link), "presentation display links should not expose source handles");
   assert(!("sourceRef" in link), "presentation display links should not expose source refs");
   assert(!("items" in compact), "compact presentation output should not expose core domain items");
   assert(!("material" in card), "compact presentation card should not expose raw material");
@@ -259,5 +267,5 @@ materialResolveOutputCompactsCandidates();
 materialQueryOutputsCompactDomainItems();
 materialRelatedOutputsCompactDomainItems();
 materialSelectOutputCompactsDomainItems();
-materialResolveCardsOutputCompactsDomainItemsAndUnresolved();
+publicMaterialResolveOutputCompactsDomainItemsAndUnresolved();
 recommendationPresentOutputCompactsDomainItemsToCards();

@@ -18,7 +18,7 @@ import { createMusicKnowledgeService } from "../knowledge/index.js";
 import { createMemoryService } from "../memory/index.js";
 import { createPluginRegistry } from "../plugins/index.js";
 import { createSourceGroundingService } from "../source/index.js";
-import { createMaterialGate, createSessionContext } from "../stage/index.js";
+import { createSessionContext } from "../stage/index.js";
 import {
   createInstrumentCatalog,
   createMineMusicStageInterface,
@@ -105,10 +105,6 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     memory,
     events,
   });
-  const materialGate = createMaterialGate({
-    sessionContext,
-    events,
-  });
   const recommendationPolicyEvaluator = createMaterialPolicyEvaluator({
     materialStore,
     collection,
@@ -126,7 +122,6 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   });
   const dispatch = createToolDispatch({
     sessionContext,
-    materialGate,
     recommendationPresentation,
     instruments,
     materialResolve,
@@ -167,7 +162,6 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     stageInterface,
     dispatch,
     sessionContext,
-    materialGate,
     recommendationPresentation,
     materialStore,
     canonical,

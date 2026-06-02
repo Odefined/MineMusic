@@ -28,11 +28,6 @@ Output: `HandbookToolEntry`
 Description: Read dynamic session context.
 Input: `StageContextReadInput`
 Output: `StageContextReadOutput`
-#### `stage.materials.prepare`
-
-Description: Legacy material sanitizer for non-final material use; use stage.recommendation.present for user-visible recommendations.
-Input: `StageMaterialsPrepareInput`
-Output: `MusicMaterial[]`
 #### `stage.recommendation.present`
 
 Description: Final presentation boundary for user-visible recommendations.
@@ -87,14 +82,9 @@ Output: `KnowledgeResult`
 
 #### `music.material.resolve`
 
-Description: Resolve music candidates into material through canonical-first material resolution.
-Input: `MaterialResolveRequest`
-Output: `CompactMaterialResolveOutput`
-#### `music.material.resolve.cards`
-
-Description: Resolve material seeds and return compact agent-safe material cards.
-Input: `MaterialResolveCardsInput`
-Output: `CompactMaterialResolveCardsOutput`
+Description: Resolve text music queries into compact material items through canonical-first material resolution.
+Input: `PublicMaterialResolveInput`
+Output: `PublicMaterialResolveOutput`
 #### `music.material.query`
 
 Description: Retrieve compact material cards from pools, collections, source library, related pools, or all available material.
@@ -124,7 +114,7 @@ Output: `MaterialPoolsListOutput`
 
 Description: Refresh source-backed playable links by material id after the user reports a link problem.
 Input: `MusicLinksRefreshInput`
-Output: `MusicMaterial`
+Output: `MusicLinksRefreshOutput`
 #### `music.collection.save`
 
 Description: Save a material to the owner's saved system collection.
@@ -234,7 +224,7 @@ Output: `LibraryImportSummaryView`
 
 Description: List item-level import facts for a Library Import batch in bounded pages.
 Input: `LibraryImportItemsListInput`
-Output: `LibraryImportItemsListOutput`
+Output: `LibraryImportItemsListView`
 ### MineMusic Memory (`minemusic.memory`)
 
 #### `memory.feedback.record`
@@ -247,4 +237,3 @@ Output: `MemoryFeedbackRecordOutput`
 Description: Advanced memory proposal tool; for user feedback on shown recommendations, use memory.feedback.record with remember_preference.
 Input: `MemoryProposalDraft`
 Output: `MemoryProposal`
-

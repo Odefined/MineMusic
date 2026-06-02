@@ -1327,6 +1327,24 @@
   material actions materialId-only with internal label derivation from material
   projection.
 
+## 2026-06-02
+
+- Continued Stage Interface agent-facing language normalization on branch
+  `codex/stage-interface-language-normalization`: removed
+  `music.material.resolve.cards`, public `stage.materials.prepare`, the unused
+  Material Gate module, the old `MaterialQuerySupportPort.resolveCards` helper,
+  and the public resolve-cards contracts.
+- Changed public `music.material.resolve` to accept text `queries` and return
+  compact `PublicMaterialResolveOutput` items, while keeping materialId-based
+  actions on query, collection, context, links refresh, and presentation flows.
+- Normalized public display links through `PublicDisplayLink`, removed
+  `sourceHandle` from recommendation display output, and made
+  `music.links.refresh` return compact refreshed-link output.
+- Normalized Library Import summary output to top-level `scopeReports` plus
+  compact `absentItems`, with detailed item listing documented separately.
+- Updated Stage Interface, MCP, skill Handbook, architecture, state, and module
+  progress docs to match the current tool surface.
+
 ## Next
 
 - Add CLI or Web UI peer transports when there is a concrete product workflow.

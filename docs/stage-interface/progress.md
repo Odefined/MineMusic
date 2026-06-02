@@ -21,9 +21,9 @@ The Stage Tool Group now includes `stage.recommendation.present`, the
 agent-facing final boundary for user-visible recommendations. Manual
 `recommendation.presented` writes through `stage.events.record` are rejected
 before `EventPort.record` is called.
-`stage.materials.prepare` remains available, but its descriptor now frames it
-as a legacy non-final material sanitizer rather than the recommendation
-presentation boundary.
+`stage.materials.prepare` has been removed from stable tools, MCP schemas, and
+the Handbook snapshot; `stage.recommendation.present` is the only public
+recommendation presentation boundary.
 `music.material.select` remains public only as a candidate-selection helper:
 the Stage Interface schema rejects `recommendation_presentation` and
 `feedback_target` policy purposes. `stage.recommendation.present` is still the
@@ -43,13 +43,15 @@ The Memory Tool Group now exposes `memory.feedback.record` for interpreted
 feedback on presented recommendation cards. Its target resolver binds through
 recent card handles or exact event positions and reads persisted presentation
 `linkRefs` for source/link-scoped consequences.
-Displayed recommendation links keep only link display fields and a compact
-source handle; raw `sourceRef` objects stay in the persisted
-`recommendation.presented` event item for internal feedback binding.
+Displayed recommendation links use `PublicDisplayLink` with only `label` and
+`url`; raw `sourceRef` objects stay in the persisted
+`recommendation.presented` event item for internal feedback binding, and public
+cards no longer expose source handles.
 Displayed cards now expose the underlying `MaterialState` as `state`; playable-link
 availability stays visible through display links rather than an extra card field.
 `music.links.refresh` now takes `materialId` as its public input and projects
-the full material internally before calling Source Grounding.
+the full material internally before calling Source Grounding, returning compact
+`PublicDisplayLink[]` values when links are refreshed.
 
 Tool Definitions now support optional typed input parsers in addition to their
 raw host-facing schema shapes. `music.material.select`,
@@ -69,6 +71,11 @@ Public schemas no longer advertise Source Library `areas`/`expand` or
 `dynamic` pool filters. Ordinary collection material actions expose only
 `materialId`; handlers project the material internally and derive the
 CollectionPort label before writing.
+The same normalization removes `music.material.resolve.cards`; public
+`music.material.resolve` now accepts text `queries` and returns
+`PublicMaterialResolveOutput` compact items. Library import summary output uses
+top-level `scopeReports` and compact `absentItems`, while detailed import-item
+listing keeps `sourceRef`.
 
 ## Established Decisions
 
@@ -130,14 +137,15 @@ CollectionPort label before writing.
   `stageInterfaceToolInputSchemas`.
 - Registry-primary dispatch lookup.
 - Low-risk Stage Tool Group payload handling cleanup after dispatch validation.
-- `music.material.resolve` conditional validation: `single` requires
-  `candidate`, and `candidate_set` requires `candidates`, before
-  `MaterialResolvePort` is called.
+- `music.material.resolve` public validation requires non-empty text
+  `queries`, validates optional query `kind`, and adapts those public queries
+  to the internal candidate-set resolve request before `MaterialResolvePort` is
+  called.
 - MCP schema parity and stable tool aggregate tests.
 - `stage.recommendation.present` dispatch to `RecommendationPresentationPort`.
 - Manual recommendation presentation event rejection in `stage.events.record`.
-- `stage.materials.prepare` descriptor guidance that points recommendation
-  flows to `stage.recommendation.present`.
+- `stage.materials.prepare` removed from stable tool names, ToolName, Stage
+  Interface registry, MCP definitions, and Handbook snapshot.
 - `memory.feedback.record` descriptor, schema, and dispatch to
   `MemoryPort.recordFeedback`.
 - Typed input parsers for `music.material.select`,
@@ -157,6 +165,13 @@ CollectionPort label before writing.
   projections.
 - Architecture boundary test coverage that prevents material modules from
   importing Stage Interface output DTOs or legacy card DTO names.
+- `music.material.resolve.cards` removed from stable tool names, ToolName,
+  Stage Interface registry, MCP definitions, public contracts, Material Query
+  support helpers, and Handbook snapshot.
+- Public display-link projection centralized as `PublicDisplayLink`.
+- `library.import.summary` output normalized to `scopeReports` and compact
+  `absentItems`; `library.import.items.list` documents its detailed item-list
+  output separately.
 
 ## Not Yet Implemented
 
@@ -177,6 +192,9 @@ CollectionPort label before writing.
 - `npm test` passes as of recommendation-posture PR 7.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
   the recommendation-posture follow-up schema drift regression.
+- `npm run typecheck`, `npm run build:test`, and focused Stage Interface,
+  material query, contract, integration, MCP, Stage Core factory, and server MCP
+  tests pass for the Stage Interface language-normalization implementation.
 
 ## Next Slice
 

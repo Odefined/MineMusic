@@ -7,8 +7,8 @@ changes applied.
 
 The current implementation contains TypeScript shared contracts, public module
 ports, in-memory repository infrastructure, plugin registry infrastructure, and
-core domain service skeletons, Stage Core runtime composition, Stage Modules
-for Session Context and Material Gate, Stage Interface facade, instrument
+core domain service skeletons, Stage Core runtime composition, the Session
+Context Stage Module, Stage Interface facade, instrument
 registry, a fixture end-to-end MVP slice, a read-only NetEase provider adapter,
 contract/runtime tests, and SQLite-backed repository adapters plus opt-in
 runtime database-path wiring for Material Store, Collection, and Library Import
@@ -100,8 +100,8 @@ and recentness after later canonical confirmation or material merge.
 
 The 2026-05-30 MusicMaterial PR 4 query/related slice adds the Material Query
 service, and the 2026-06-01 Stage Interface output-ownership migration moved
-compact output DTO ownership under Stage Interface. Stage
-Interface now exposes `music.material.resolve.cards`, `music.material.query`,
+compact output DTO ownership under Stage Interface. Stage Interface exposes
+public `music.material.resolve`, `music.material.query`,
 `music.material.related`, `music.material.context.brief`, and
 `music.pools.list`. Query supports query-ready Source Library pools keyed by
 `libraryKinds` plus optional `target`, including saved tracks, followed
@@ -121,8 +121,10 @@ material resolves generated candidates through Material Resolve and supports
 same-artist, same-album, and similar flows with canonical-artist preference and
 source artist/release fallback. `music.material.context.brief` respects its
 requested `fields` when returning artist, album, version, or status details.
-`music.material.resolve.cards` resolves explicit `materialId` seeds through
-Material Registry / Material Resolve rather than treating them as search text.
+Public `music.material.resolve` accepts text query entries and returns compact
+public material items; materialId projection is handled by query, collection,
+context brief, links refresh, and presentation flows that already have a
+materialId.
 Source Library saved-track, followed-artist, all-material, and materialRef-backed
 Collection pool queries project stored Source Entity / Material Store records
 directly into domain material results before Stage Interface projection, so
@@ -337,8 +339,8 @@ The phased refactor plan for that change is documented in
 
 The current docs are based on `proposal.md` plus the vocabulary decision in
 `CONTEXT.md`: Stage Core is runtime composition and lifecycle; Session Context
-and Material Gate are Stage Modules; Stage Interface is the callable
-host-facing and LLM-facing surface.
+is the current Stage Module; Stage Interface is the callable host-facing and
+LLM-facing surface.
 
 ## Established
 
@@ -691,10 +693,9 @@ host-facing and LLM-facing surface.
 - Source Grounding is exported from `src/source/index.ts` with provider search,
   playable-link refresh, canonical-ref lookup from source refs, and honest
   `confirmed_playable` / `source_only_playable` states.
-- Session Context and Material Gate are exported from `src/stage/index.ts`
-  through `createSessionContext`, `createMaterialGate`, `SessionContextPort`,
-  and `MaterialGatePort`, with session continuity, dynamic session context,
-  `StageVibe` propagation through session state, and material-state gating.
+- Session Context is exported from `src/stage/index.ts` through
+  `createSessionContext` and `SessionContextPort`, with session continuity,
+  dynamic session context, and `StageVibe` propagation through session state.
 - `stage.context.read` returns dynamic session context only: session state and
   memory summaries. It does not embed or point at a Handbook.
 - The MineMusic Handbook is generated from current agent-visible
@@ -754,8 +755,9 @@ host-facing and LLM-facing surface.
 - `./scripts/reset-minemusic-launchd-runtime.sh` now preserves
   `/tmp/minemusic` by default and only clears runtime state when called with
   `--clear-runtime`.
-- `stage.materials.prepare` is a stable Stage Interface / Instrument tool, so
-  Material Gate behavior is Codex-visible.
+- `stage.recommendation.present` is the public recommendation presentation
+  boundary. `stage.materials.prepare` and the old Material Gate module are no
+  longer exposed as current Stage Interface / Instrument tools.
 - Tool Dispatch enforces current instrument availability through
   `InstrumentCatalogPort`, not by compiling a Handbook. `stage.context.read`,
   the `handbook.*` lookup tools, and `stage.session.update` remain available for
