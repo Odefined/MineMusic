@@ -1288,6 +1288,13 @@
   Material Query plus adjacent Stage Interface read contexts away from full
   `MaterialStorePort`; and added architecture coverage for both direct imports
   and exact alias method sets.
+- Completed the B3/B4 projection/materialization boundary slice on branch
+  `codex/extract-projection-materializer`: moved materialId/current-record
+  projection helpers into `src/material/projection`, moved recent-card event
+  projection to `src/stage/recent_cards.ts`, introduced
+  `src/material/materialization` for shared SourceMaterial and Source Library
+  item materialization, removed registry writer access from Material Query and
+  Material Resolve, and added architecture guards for the new boundaries.
 
 ## Next
 

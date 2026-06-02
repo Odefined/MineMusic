@@ -6,7 +6,7 @@ import type {
   StageEvent,
   StageSession,
 } from "../contracts/index.js";
-import { materialForMaterialId } from "../material/query/index.js";
+import { materialForMaterialId } from "../material/projection/index.js";
 import type { MineMusicStageCoreHarness } from "../stage_core/index.js";
 import type {
   CompactMaterialResolveOutput,

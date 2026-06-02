@@ -4,6 +4,8 @@ import { join, relative } from "node:path";
 import type {
   MaterialProjectionStorePort,
   MaterialQueryStorePort,
+  MaterialResolveStorePort,
+  MaterialSourceMaterializerStorePort,
   SourceLibraryReadStorePort,
 } from "../../src/ports/index.js";
 
@@ -32,10 +34,34 @@ type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
   | "getMaterialRecord"
   | "getSourceEntity"
   | "getCanonical"
-  | "getOrCreateBySourceRef"
   | "listSourceLibraryItems"
   | "listSourceEntities"
   | "getConfirmedCanonicalBinding"
+>>;
+
+type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
+  keyof MaterialResolveStorePort,
+  | "getCanonical"
+  | "findCanonicalByLabel"
+  | "getConfirmedCanonicalBinding"
+  | "listSourceLibraryItems"
+  | "listMaterialRelations"
+>>;
+
+type MaterialSourceMaterializerStorePortKeysAreExact = Assert<IsExact<
+  keyof MaterialSourceMaterializerStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
+  | "getConfirmedCanonicalBinding"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
+  | "getOrCreateBySourceRef"
+  | "getOrCreateByCanonicalRef"
+  | "attachSourceRef"
+  | "promoteToCanonical"
+  | "mergeMaterials"
 >>;
 
 type SourceLibraryReadStorePortKeysAreExact = Assert<IsExact<
@@ -63,10 +89,26 @@ const materialQueryRoots = [
   "src/material/query",
 ];
 
+const materialResolveRoots = [
+  "src/material/resolve",
+];
+
+const materialMaterializationRoots = [
+  "src/material/materialization",
+];
+
 const stageInterfaceMaterialStoreNarrowingRoots = [
   "src/stage_interface/tool_definitions/stage.ts",
   "src/stage_interface/tool_definitions/music.ts",
   "src/stage_interface/tool_definitions/library.ts",
+];
+
+const materialQueryProjectionFormerImportRoots = [
+  "src/stage_interface/tool_definitions/stage.ts",
+  "src/stage_interface/tool_definitions/music.ts",
+  "src/app/index.ts",
+  "src/stage/index.ts",
+  "src/memory/index.ts",
 ];
 
 const legacyMaterialRoots = [
@@ -94,6 +136,23 @@ const forbiddenImportedNames = [
   "CompactMaterialCard",
   "CompactCandidateMaterialCard",
   "CompactPresentedMaterialCard",
+];
+
+const registryMaterializationWriterNames = [
+  "getOrCreateBySourceRef",
+  "getOrCreateByCanonicalRef",
+  "attachSourceRef",
+  "promoteToCanonical",
+  "mergeMaterials",
+];
+
+const forbiddenMaterializationImportFragments = [
+  "material/query",
+  "material/resolve",
+  "stage_interface",
+  "presentation",
+  "library_import",
+  "memory",
 ];
 
 async function materialModulesDoNotImportAgentFacingOutputShapes(): Promise<void> {
@@ -203,6 +262,104 @@ async function stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort
   );
 }
 
+async function materialQueryDoesNotDirectlyMaterializeSourceRefs(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialQueryRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    if (/\bgetOrCreateBySourceRef\b/.test(text)) {
+      failures.push(`${relative(process.cwd(), file)} references getOrCreateBySourceRef`);
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material query must delegate source-library materialization:\n${failures.join("\n")}`,
+  );
+}
+
+async function materialResolveDoesNotDirectlyUseRegistryMaterializationWriters(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialResolveRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const writerName of registryMaterializationWriterNames) {
+      if (new RegExp(`\\b${writerName}\\b`).test(text)) {
+        failures.push(`${relative(process.cwd(), file)} references ${writerName}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material resolve must delegate registry materialization writers:\n${failures.join("\n")}`,
+  );
+}
+
+async function movedProjectionConsumersDoNotImportMaterialQuery(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialQueryProjectionFormerImportRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (importStatement.source.includes("material/query")) {
+        failures.push(`${relative(process.cwd(), file)} imports ${importStatement.source}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Moved projection/recent-card consumers must not import material/query:\n${failures.join("\n")}`,
+  );
+}
+
+async function materializationBoundaryOwnsRegistryMaterialization(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialMaterializationRoots);
+  const text = (await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n");
+  const missing = [
+    "createMaterializationService",
+    "materializeSourceMaterials",
+    "materialForSourceLibraryItem",
+    "getOrCreateBySourceRef",
+  ].filter((expected) => !new RegExp(`\\b${expected}\\b`).test(text));
+
+  assert(
+    files.length > 0 && missing.length === 0,
+    `Material materialization boundary must own shared materialization; missing ${missing.join(", ") || "source files"}`,
+  );
+}
+
+async function materializationDoesNotImportForbiddenBoundaries(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialMaterializationRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      const fragment = forbiddenMaterializationImportFragments.find((candidate) =>
+        importStatement.source.includes(candidate)
+      );
+
+      if (fragment !== undefined) {
+        failures.push(`${relative(process.cwd(), file)} imports ${fragment} via ${importStatement.source}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material materialization must not import forbidden boundaries:\n${failures.join("\n")}`,
+  );
+}
+
 async function materialSourceFiles(): Promise<string[]> {
   return sourceFilesUnderRoots(materialRoots);
 }
@@ -283,3 +440,8 @@ await legacyMaterialRootDirectoriesAreRemoved();
 await materialPolicyAndSelectionDoNotImportFullMaterialStorePort();
 await materialQueryDoesNotImportFullMaterialStorePort();
 await stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort();
+await materialQueryDoesNotDirectlyMaterializeSourceRefs();
+await materialResolveDoesNotDirectlyUseRegistryMaterializationWriters();
+await movedProjectionConsumersDoNotImportMaterialQuery();
+await materializationBoundaryOwnsRegistryMaterialization();
+await materializationDoesNotImportForbiddenBoundaries();

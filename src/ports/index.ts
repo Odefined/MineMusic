@@ -67,6 +67,7 @@ import type {
   MaterialRecord,
   MaterialResolveCardsInput,
   MaterialResolveCardsOutput,
+  MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
   MaterialSelectInput,
@@ -481,11 +482,64 @@ export type MaterialQueryStorePort =
   MaterialProjectionStorePort &
   Pick<
     MaterialStorePort,
-    | "getOrCreateBySourceRef"
     | "listSourceLibraryItems"
     | "listSourceEntities"
     | "getConfirmedCanonicalBinding"
   >;
+
+export type MaterialSourceMaterializerStorePort =
+  MaterialProjectionStorePort &
+  Pick<
+    MaterialStorePort,
+    | "getConfirmedCanonicalBinding"
+    | "findMaterialBySourceRef"
+    | "findMaterialByCanonicalRef"
+    | "getOrCreateBySourceRef"
+    | "getOrCreateByCanonicalRef"
+    | "attachSourceRef"
+    | "promoteToCanonical"
+    | "mergeMaterials"
+  >;
+
+export type MaterialResolveStorePort = Pick<
+  MaterialStorePort,
+  | "getCanonical"
+  | "findCanonicalByLabel"
+  | "getConfirmedCanonicalBinding"
+  | "listSourceLibraryItems"
+  | "listMaterialRelations"
+>;
+
+export type ProjectedSourceMaterial = {
+  material: MusicMaterial | null;
+  issues: MaterialResolveIssue[];
+};
+
+export type ProjectedSourceMaterials = {
+  materials: MusicMaterial[];
+  issues: MaterialResolveIssue[];
+};
+
+export interface MaterialSourceMaterializerPort {
+  materializeSourceMaterial(input: {
+    material: SourceMaterial;
+  }): Promise<Result<ProjectedSourceMaterial>>;
+
+  materializeSourceMaterials(input: {
+    materials: SourceMaterial[];
+  }): Promise<Result<ProjectedSourceMaterials>>;
+
+  attachKnownCanonicalRefs(input: {
+    materials: SourceMaterial[];
+  }): Promise<Result<SourceMaterial[]>>;
+}
+
+export interface MaterialSourceLibraryMaterializerPort {
+  materialForSourceLibraryItem(input: {
+    ownerScope: string;
+    item: SourceLibraryItem;
+  }): Promise<Result<MusicMaterial>>;
+}
 
 export type SourceLibraryReadStorePort = Pick<
   MaterialStorePort,

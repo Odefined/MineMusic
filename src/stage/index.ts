@@ -5,7 +5,7 @@ import type {
   StageError,
   StageSession,
 } from "../contracts/index.js";
-import { recentCardsFromEvents } from "../material/query/index.js";
+import { recentCardsFromEvents } from "./recent_cards.js";
 import type {
   EventPort,
   MaterialGatePort,

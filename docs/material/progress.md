@@ -63,6 +63,16 @@ boundary: Material Query receives `MaterialQueryStorePort`, projection helpers
 receive `MaterialProjectionStorePort`, adjacent material-id Stage Interface
 reads receive `MaterialProjectionStorePort`, and `library.source.list` receives
 `SourceLibraryReadStorePort` instead of full `MaterialStorePort`.
+The B3/B4 projection/materialization slice keeps behavior stable while moving
+materialId/current-record projection helpers to `src/material/projection`,
+moving recent-card event projection to `src/stage/recent_cards.ts`, and
+creating `src/material/materialization` as the shared boundary for
+SourceMaterial and Source Library item materialization. Material Query now
+delegates Source Library item materialization through
+`MaterialSourceLibraryMaterializerPort` and no longer receives
+`getOrCreateBySourceRef`; Material Resolve now delegates source/provider
+materialization through `MaterialSourceMaterializerPort` and receives
+`MaterialResolveStorePort` without registry writer methods.
 `music.material.resolve.cards` now resolves returned `materialId` values back
 through Material Registry / Material Resolve instead of treating them as text
 search.
@@ -234,6 +244,19 @@ creates an evidence-backed memory proposal without auto-acceptance.
   port aliases; migrated Material Query plus adjacent Stage Interface read
   contexts away from full `MaterialStorePort` without changing runtime behavior
   or agent-facing output shapes.
+- Added `src/material/projection/index.ts` for materialId/current
+  MaterialRecord to domain `MusicMaterial` projection and moved Stage
+  Interface/app imports to that owner.
+- Added `src/stage/recent_cards.ts` for typed recommendation-presented recent
+  card projection used by Session Context and Memory feedback binding.
+- Added `MaterialSourceMaterializerPort`,
+  `MaterialSourceLibraryMaterializerPort`,
+  `MaterialSourceMaterializerStorePort`, and `MaterialResolveStorePort`; wired
+  `src/material/materialization/index.ts` through Stage Core into Material
+  Resolve and Material Query.
+- Added architecture guards preventing Query and Resolve from regaining direct
+  registry materialization writers and preventing moved helper consumers from
+  importing `src/material/query`.
 - Added Recommendation Presentation contracts, port, implementation,
   `stage.recommendation.present`, typed recommendation presentation event
   recording, and focused tests.
@@ -402,6 +425,10 @@ creates an evidence-backed memory proposal without auto-acceptance.
   `npm test` and `git diff --check`.
 - Material Selector composition cleanup verification passed on 2026-06-01:
   `npm run typecheck`, `npm test`, and `git diff --check`.
+- B3/B4 projection/materialization verification passed on 2026-06-02:
+  `npm run typecheck`, `npm run build:test`, and `npm run test:stage-core`
+  after rerunning the stage-core test with permission to listen on
+  `127.0.0.1`.
 
 ## Remaining
 

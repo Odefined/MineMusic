@@ -16,7 +16,7 @@ import type {
   StageError,
   StageEvent,
 } from "../contracts/index.js";
-import { recentCardsFromEvents } from "../material/query/index.js";
+import { recentCardsFromEvents } from "../stage/recent_cards.js";
 import type {
   EffectBoundaryPort,
   EventPort,

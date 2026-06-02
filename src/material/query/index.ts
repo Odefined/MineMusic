@@ -7,7 +7,6 @@ import type {
   MaterialQueryItem,
   MaterialQueryInput,
   MaterialQueryOutput,
-  MaterialRecord,
   MaterialResolveIssue,
   MaterialResolveUnresolvedItem,
   MaterialSelectInput,
@@ -15,7 +14,6 @@ import type {
   MaterialRelatedOutput,
   MaterialResolveCardsInput,
   MaterialResolveCardsOutput,
-  MaterialState,
   MusicCandidate,
   MusicMaterial,
   PlatformLibraryItemKind,
@@ -24,7 +22,6 @@ import type {
   Result,
   SourceEntity,
   SourceLibraryItem,
-  StageError,
 } from "../../contracts/index.js";
 import type {
   CollectionPort,
@@ -35,12 +32,21 @@ import type {
   MaterialRelatedPort,
   MaterialResolvePort,
   MaterialSelectorPort,
+  MaterialSourceLibraryMaterializerPort,
   SourceLibraryReadStorePort,
 } from "../../ports/index.js";
+import { sourceKindToMaterialKind } from "../kinds.js";
+import {
+  currentMaterialRecordForRef,
+  materialForMaterialId,
+  materialIdToRef,
+  materialRefToMaterialId,
+  projectMaterialRecord,
+  sourceEntitiesForRefs,
+} from "../projection/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 const defaultLimit = 10;
-const defaultRecentCardLimit = 5;
 
 export type MaterialQueryService = MaterialQueryPort & MaterialRelatedPort & MaterialQuerySupportPort;
 
@@ -48,6 +54,7 @@ export type MaterialQueryServiceOptions = {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
   materialSelector: MaterialSelectorPort;
+  sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
   collection?: CollectionPort;
 };
 
@@ -65,6 +72,7 @@ export function createMaterialQueryService({
   materialStore,
   materialResolve,
   materialSelector,
+  sourceLibraryMaterializer,
   collection,
 }: MaterialQueryServiceOptions): MaterialQueryService {
   const service: MaterialQueryService = {
@@ -105,6 +113,7 @@ export function createMaterialQueryService({
         ? await sourceLibraryMaterials({
             materialStore,
             materialResolve,
+            sourceLibraryMaterializer,
             ownerScope,
             pool,
             ...(input.q === undefined ? {} : { q: input.q }),
@@ -112,6 +121,7 @@ export function createMaterialQueryService({
         : pool.kind === "all"
         ? await allSourceLibraryMaterials({
             materialStore,
+            sourceLibraryMaterializer,
             ownerScope,
             ...(input.q === undefined ? {} : { q: input.q }),
           })
@@ -193,105 +203,6 @@ export function createMaterialQueryService({
   };
 
   return service;
-}
-
-export function materialRefToMaterialId(materialRef: Ref): string {
-  return materialRef.id;
-}
-
-export function materialIdToRef(materialId: string): Ref {
-  return {
-    namespace: "minemusic",
-    kind: "material",
-    id: materialId,
-  };
-}
-
-async function currentMaterialRecordForRef(
-  materialStore: MaterialProjectionStorePort,
-  materialRef: Ref,
-): Promise<Result<MaterialRecord | null>> {
-  const current = await materialStore.resolveMaterialRedirect({ materialRef });
-
-  if (!current.ok) {
-    return current;
-  }
-
-  return materialStore.getMaterialRecord({ materialRef: current.value });
-}
-
-export function recentCardsFromEvents(
-  events: Array<{ id: string; type: string; payload: unknown }>,
-  limit = defaultRecentCardLimit,
-): NonNullable<import("../../contracts/index.js").StageContext["recentCards"]> {
-  const recentCards: NonNullable<import("../../contracts/index.js").StageContext["recentCards"]> = [];
-
-  for (const event of [...events].reverse()) {
-    if (event.type !== "recommendation.presented") {
-      continue;
-    }
-
-    if (!isRecord(event.payload) || !Array.isArray(event.payload.cards)) {
-      continue;
-    }
-
-    if (typeof event.payload.presentedAt !== "string") {
-      continue;
-    }
-
-    for (const [index, card] of event.payload.cards.entries()) {
-      if (!isRecord(card)) {
-        continue;
-      }
-      const title = titleFromPresentedEventItem(card);
-
-      if (title === undefined) {
-        continue;
-      }
-
-      const materialId = materialIdFromCardPayload(card);
-
-      if (materialId === undefined) {
-        continue;
-      }
-
-      const state = materialStateFromEventValue(card.state);
-
-      if (state === undefined) {
-        continue;
-      }
-
-      recentCards.push({
-        materialId,
-        title,
-        ...(typeof card.subtitle === "string" ? { subtitle: card.subtitle } : {}),
-        position: typeof card.position === "number" ? card.position : index + 1,
-        presentedAt: typeof card.presentedAt === "string" ? card.presentedAt : event.payload.presentedAt,
-        eventId: event.id,
-        state,
-      });
-
-      if (recentCards.length >= limit) {
-        return recentCards;
-      }
-    }
-  }
-
-  return recentCards;
-}
-
-function titleFromPresentedEventItem(card: Record<string, unknown>): string | undefined {
-  return typeof card.title === "string"
-    ? card.title
-    : typeof card.label === "string" ? card.label : undefined;
-}
-
-function materialIdFromCardPayload(card: Record<string, unknown>): string | undefined {
-  if (typeof card.materialId === "string" && card.materialId.length > 0) {
-    return card.materialId;
-  }
-
-  return undefined;
 }
 
 async function resolveSeeds({
@@ -497,12 +408,14 @@ async function materialsForCandidatePool({
 async function sourceLibraryMaterials({
   materialStore,
   materialResolve,
+  sourceLibraryMaterializer,
   ownerScope,
   pool,
   q,
 }: {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
+  sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>;
   q?: string;
@@ -549,8 +462,7 @@ async function sourceLibraryMaterials({
         continue;
       }
 
-      const material = await projectStoredSourceLibraryItem({
-        materialStore,
+      const material = await sourceLibraryMaterializer.materialForSourceLibraryItem({
         ownerScope,
         item,
       });
@@ -568,10 +480,12 @@ async function sourceLibraryMaterials({
 
 async function allSourceLibraryMaterials({
   materialStore,
+  sourceLibraryMaterializer,
   ownerScope,
   q,
 }: {
   materialStore: MaterialQueryStorePort;
+  sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
   ownerScope: string;
   q?: string;
 }): Promise<Result<MusicMaterial[]>> {
@@ -587,8 +501,7 @@ async function allSourceLibraryMaterials({
   const materials: MusicMaterial[] = [];
 
   for (const item of items.value.filter((entry) => matchesQueryText(entry.label, q))) {
-    const material = await projectStoredSourceLibraryItem({
-      materialStore,
+    const material = await sourceLibraryMaterializer.materialForSourceLibraryItem({
       ownerScope,
       item,
     });
@@ -601,32 +514,6 @@ async function allSourceLibraryMaterials({
   }
 
   return ok(dedupeMaterials(materials));
-}
-
-async function projectStoredSourceLibraryItem({
-  materialStore,
-  ownerScope,
-  item,
-}: {
-  materialStore: MaterialQueryStorePort;
-  ownerScope: string;
-  item: SourceLibraryItem;
-}): Promise<Result<MusicMaterial>> {
-  const record = await materialStore.getOrCreateBySourceRef({
-    sourceRef: item.sourceRef,
-    kind: sourceKindToMaterialKind(item.sourceKind),
-    primarySourceRef: item.sourceRef,
-  });
-
-  if (!record.ok) {
-    return record;
-  }
-
-  return projectMaterialRecord(materialStore, record.value, {
-    ownerScope,
-    purpose: "resolve.cards",
-    fallbackLabel: item.label,
-  });
 }
 
 async function collectionMaterials({
@@ -860,172 +747,6 @@ function seedToCandidate(seed: ResolveSeed, index: number): MusicCandidate {
     },
     ...(seed.reason === undefined ? {} : { reason: seed.reason }),
   };
-}
-
-async function projectMaterialRecord(
-  materialStore: MaterialProjectionStorePort,
-  record: MaterialRecord,
-  context: {
-    ownerScope: string;
-    purpose: "resolve.cards" | "context.brief" | "collection.snapshot";
-    fallbackLabel?: string;
-  },
-): Promise<Result<MusicMaterial>> {
-  const currentRef = await materialStore.resolveMaterialRedirect({ materialRef: record.materialRef });
-
-  if (!currentRef.ok) {
-    return currentRef;
-  }
-
-  const currentRecord = sameRef(currentRef.value, record.materialRef)
-    ? ok(record)
-    : await materialStore.getMaterialRecord({ materialRef: currentRef.value });
-
-  if (!currentRecord.ok) {
-    return currentRecord;
-  }
-
-  if (currentRecord.value === null) {
-    return fail({
-      code: "material_registry.conflict",
-      message: `Material redirect target '${currentRef.value.id}' was not found.`,
-      module: "material_store",
-      retryable: false,
-    });
-  }
-
-  const sourceRefs = sourceRefsForMaterialRecord(currentRecord.value);
-  const sourceEntities = await sourceEntitiesForRefs(materialStore, sourceRefs);
-
-  if (!sourceEntities.ok) {
-    return sourceEntities;
-  }
-
-  const label = await labelForMaterialRecord(materialStore, currentRecord.value);
-
-  if (!label.ok) {
-    return label;
-  }
-
-  const playableLinks = playableLinksForSourceEntities(sourceEntities.value);
-  const displayLabel = label.value === currentRecord.value.materialRef.id && context.fallbackLabel !== undefined
-    ? context.fallbackLabel
-    : label.value;
-
-  return ok({
-    id: currentRecord.value.materialRef.id,
-    materialRef: currentRecord.value.materialRef,
-    kind: normalizeSeedKind(currentRecord.value.kind),
-    label: displayLabel,
-    state: projectedStateForMaterialRecord(currentRecord.value, playableLinks),
-    identityState: currentRecord.value.identityState,
-    ...(currentRecord.value.canonicalRef === undefined ? {} : { canonicalRef: currentRecord.value.canonicalRef }),
-    ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-    ...(playableLinks.length === 0 ? {} : { playableLinks }),
-  });
-}
-
-export async function materialForMaterialId({
-  materialStore,
-  materialId,
-  ownerScope,
-  purpose,
-}: {
-  materialStore: MaterialProjectionStorePort;
-  materialId: string;
-  ownerScope: string;
-  purpose: "resolve.cards" | "context.brief" | "collection.snapshot";
-}): Promise<Result<MusicMaterial | null>> {
-  const record = await currentMaterialRecordForRef(materialStore, materialIdToRef(materialId));
-
-  if (!record.ok) {
-    return record;
-  }
-
-  if (record.value === null) {
-    return ok(null);
-  }
-
-  return projectMaterialRecord(materialStore, record.value, { ownerScope, purpose });
-}
-
-function sourceRefsForMaterialRecord(record: MaterialRecord): Ref[] {
-  const refs = record.primarySourceRef === undefined
-    ? [...record.sourceRefs]
-    : [record.primarySourceRef, ...record.sourceRefs];
-  const seen = new Set<string>();
-  const uniqueRefs: Ref[] = [];
-
-  for (const ref of refs) {
-    const key = `${ref.namespace}:${ref.kind}:${ref.id}`;
-
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    uniqueRefs.push(ref);
-  }
-
-  return uniqueRefs;
-}
-
-function playableLinksForSourceEntities(
-  entities: SourceEntity[],
-): NonNullable<MusicMaterial["playableLinks"]> {
-  return entities.flatMap((entity) =>
-    entity.providerUrl === undefined
-      ? []
-      : [{
-          url: entity.providerUrl,
-          label: entity.label,
-          sourceRef: entity.sourceRef,
-        }],
-  );
-}
-
-function projectedStateForMaterialRecord(
-  record: MaterialRecord,
-  playableLinks: NonNullable<MusicMaterial["playableLinks"]>,
-): MusicMaterial["state"] {
-  if (playableLinks.length === 0) {
-    return "grounded";
-  }
-
-  return record.identityState === "canonical_confirmed" ? "confirmed_playable" : "source_only_playable";
-}
-
-async function labelForMaterialRecord(
-  materialStore: MaterialProjectionStorePort,
-  record: MaterialRecord,
-): Promise<Result<string>> {
-  if (record.canonicalRef !== undefined) {
-    const canonical = await materialStore.getCanonical({ ref: record.canonicalRef });
-
-    if (!canonical.ok) {
-      return canonical;
-    }
-
-    if (canonical.value !== null) {
-      return ok(canonical.value.label);
-    }
-  }
-
-  const sourceRef = record.primarySourceRef ?? record.sourceRefs[0];
-
-  if (sourceRef !== undefined) {
-    const source = await materialStore.getSourceEntity({ sourceRef });
-
-    if (!source.ok) {
-      return source;
-    }
-
-    if (source.value !== null) {
-      return ok(source.value.label);
-    }
-  }
-
-  return ok(record.materialRef.label ?? record.materialRef.id);
 }
 
 type SelectableMaterialCandidate = {
@@ -1394,27 +1115,6 @@ async function sameAlbumCandidates(
   });
 }
 
-async function sourceEntitiesForRefs(
-  materialStore: MaterialProjectionStorePort,
-  sourceRefs: Ref[],
-): Promise<Result<SourceEntity[]>> {
-  const entities: SourceEntity[] = [];
-
-  for (const sourceRef of sourceRefs) {
-    const entity = await materialStore.getSourceEntity({ sourceRef });
-
-    if (!entity.ok) {
-      return entity;
-    }
-
-    if (entity.value !== null) {
-      entities.push(entity.value);
-    }
-  }
-
-  return ok(entities);
-}
-
 async function canonicalArtistRefsForSourceArtistRefs(
   materialStore: MaterialQueryStorePort,
   sourceArtistRefs: Ref[],
@@ -1745,17 +1445,6 @@ function libraryKindForArea(area: "saved_tracks" | "saved_albums" | "followed_ar
   }
 }
 
-function sourceKindToMaterialKind(kind: "track" | "release" | "artist"): string {
-  switch (kind) {
-    case "track":
-      return "recording";
-    case "release":
-      return "release";
-    case "artist":
-      return "artist";
-  }
-}
-
 function normalizeSeedKind(kind: string): string {
   switch (kind) {
     case "song":
@@ -1883,26 +1572,6 @@ function dedupeRefs(refs: Ref[]): Ref[] {
   return [...byKey.values()];
 }
 
-function materialStateFromEventValue(value: unknown): MaterialState | undefined {
-  return isMaterialState(value) ? value : undefined;
-}
-
-function isMaterialState(value: unknown): value is MaterialState {
-  return (
-    value === "grounded" ||
-    value === "confirmed_playable" ||
-    value === "source_only_playable" ||
-    value === "exploration" ||
-    value === "unresolved" ||
-    value === "blocked" ||
-    value === "verbal_only"
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function sameRef(left: Ref, right: Ref): boolean {
   return refKey(left) === refKey(right);
 }
@@ -1913,8 +1582,4 @@ function refKey(ref: Ref): string {
 
 function ok<T>(value: T): Result<T> {
   return { ok: true, value };
-}
-
-function fail(error: StageError): Result<never> {
-  return { ok: false, error };
 }

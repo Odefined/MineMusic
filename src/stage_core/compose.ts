@@ -2,6 +2,7 @@ import {
   createCanonicalMaintenance,
   createCanonicalStore,
   createLibraryImportService,
+  createMaterializationService,
   createMaterialPolicyEvaluator,
   createMaterialQueryService,
   createMaterialResolveService,
@@ -59,9 +60,13 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     pluginRegistry: plugins,
     canonicalStore: canonical,
   });
+  const materializationService = createMaterializationService({
+    materialStore,
+  });
   const materialResolve = createMaterialResolveService({
     materialStore,
     sourceGrounding: source,
+    sourceMaterializer: materializationService,
     collection,
   });
   const materialQueryPolicyEvaluator = createMaterialPolicyEvaluator({
@@ -78,6 +83,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     materialStore,
     materialResolve,
     materialSelector,
+    sourceLibraryMaterializer: materializationService,
     collection,
   });
   const libraryImport = createLibraryImportService({

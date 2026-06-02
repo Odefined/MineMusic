@@ -37,7 +37,7 @@ import type {
   StageInterfaceToolDefinition,
   StageInterfaceToolInputSchema,
 } from "./types.js";
-import { materialForMaterialId, materialIdToRef } from "../../material/query/index.js";
+import { materialForMaterialId, materialIdToRef } from "../../material/projection/index.js";
 import {
   compactMaterialQueryOutput,
   compactMaterialRelatedOutput,

@@ -11,10 +11,12 @@ import type {
   MaterialStorePort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
+import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
-import { createMaterialQueryService as createMaterialQueryServiceBase, materialRefToMaterialId } from "../../src/material/query/index.js";
+import { materialRefToMaterialId } from "../../src/material/projection/index.js";
+import { createMaterialQueryService as createMaterialQueryServiceBase } from "../../src/material/query/index.js";
 import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
-import { createMaterialResolveService } from "../../src/material/resolve/index.js";
+import { createMaterialResolveService as createMaterialResolveServiceBase } from "../../src/material/resolve/index.js";
 import { createMaterialSelector } from "../../src/material/selection/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
@@ -227,6 +229,21 @@ function createMaterialQueryService({
     materialStore,
     materialResolve,
     materialSelector,
+    sourceLibraryMaterializer: createMaterializationService({ materialStore }),
+  });
+}
+
+function createMaterialResolveService({
+  materialStore,
+  sourceGrounding,
+}: {
+  materialStore: MaterialStorePort;
+  sourceGrounding: SourceGroundingPort;
+}) {
+  return createMaterialResolveServiceBase({
+    materialStore,
+    sourceGrounding,
+    sourceMaterializer: createMaterializationService({ materialStore }),
   });
 }
 
