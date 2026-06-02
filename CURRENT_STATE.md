@@ -467,8 +467,8 @@ host-facing and LLM-facing surface.
   status is tracked in `docs/collection-service/progress.md`.
 - Library Import/Update is now a Source Entity Store flow inside Material
   Store. The implementation lives in
-  `src/material/store/source_entity/library-import.ts`; `src/library_import/index.ts`
-  re-exports it so existing imports and external tool names stay stable.
+  `src/material/store/source_entity/library-import.ts` and is exported through
+  the Material bounded-context barrel at `src/material/index.ts`.
   Library Import reads `platform_library` providers, writes import/update
   working state through `LibraryImportRepository`, upserts Source Track/Release/
   Artist entities, and updates Source Library state for every observed provider

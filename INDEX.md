@@ -471,11 +471,7 @@ This index points agents to the current MVP documentation pack.
       Library Absence records, started-batch failure handling, and
       repository-backed batch status/summary helpers.
 
-90. `src/library_import/index.ts`
-    - Compatibility export path for the Source Entity Store-owned Library
-      Import/Update implementation.
-
-91. `test/library_import/library-import-service.test.ts`
+90. `test/library_import/library-import-service.test.ts`
     - Library Import Service skeleton tests for provider preview delegation,
       missing provider errors, discovery start rejection, readable batch start,
       status readback, side-effect-free preview estimates, and discovery preview
@@ -483,7 +479,7 @@ This index points agents to the current MVP documentation pack.
       guards, summary recovery, update diffing, provider-account-stable baseline
       separation, and absence recording.
 
-92. `test/integration/library-import-runtime.test.ts`
+91. `test/integration/library-import-runtime.test.ts`
     - Composed Stage Core integration coverage for first-slice Library Import:
       discovery preview, preview estimates, import writes, idempotency, update
       diffing, partial-read absence guards, durable Library Import database path

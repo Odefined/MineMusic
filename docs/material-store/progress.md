@@ -24,9 +24,9 @@ This file tracks implementation progress for Material Store.
   repositories. `materialStoreDatabasePath` /
   `MINEMUSIC_MATERIAL_STORE_DB_PATH` initializes both subdomains.
 - Library Import/Update lives under
-  `src/material/store/source_entity/library-import.ts`. The old
-  `src/library_import/index.ts` path re-exports that implementation to preserve
-  public imports and external tool names.
+  `src/material/store/source_entity/library-import.ts`. Public code imports it
+  through the Material bounded-context barrel at `src/material/index.ts`; the
+  old `src/library_import/index.ts` compatibility export path has been removed.
 - Library Import writes every observed provider item into Source Entity Store
   and Source Library. It writes Collection only when a Confirmed Canonical
   Binding already maps the source entity to an existing canonical record.
