@@ -234,8 +234,8 @@ ordering such as "resolve before present" but must not become a recommender.
 
 ## Module Port Model
 
-Each module is implemented behind a public port listed in
-`docs/mvp/module-interfaces.md`.
+Each module is implemented behind public ports in `src/ports/index.ts` and the
+current area `ports.md` documents listed in `INDEX.md`.
 
 Cross-module communication is limited to:
 
@@ -316,6 +316,10 @@ Stage Core may know module factories because its job is composition. It should
 not absorb the internal implementation of Material Resolve, Source Grounding,
 Memory Service, Effect Boundary, or other Core Capabilities.
 
+Current Stage Core design, ports, and implementation status live in
+`docs/stage-core/design.md`, `docs/stage-core/ports.md`, and
+`docs/stage-core/progress.md`.
+
 ## Stage Interface Policy
 
 Stage Interface is the stable callable surface for service adapters, LLM-facing
@@ -374,14 +378,41 @@ agent-facing presentation. Compatibility exports may remain in `tools.ts` and
 than duplicate tool facts. First-pass payload validation is passthrough, not
 strict: extra keys are tolerated while required fields and field types are
 enforced. MCP remains an adapter that consumes Stage Interface definitions and
-must not own MineMusic tool contracts.
+must not own MineMusic tool contracts. The detailed current public tool surface
+lives in `docs/stage-interface/tool-contracts.md`; Stage Interface
+port/capability dependencies live in `docs/stage-interface/ports.md`.
 
 Material modules return domain results. Stage Interface output modules project
 those results into compact agent-facing outputs. MaterialCard-like DTOs are
 Stage Interface output types, not material service communication formats.
 Material Presentation under `src/material/presentation` remains a core/runtime
 service for final policy and event recording; only compact output projection
-belongs to Stage Interface.
+belongs to Stage Interface. Current Material Flow details live in
+`docs/material/design.md`, `docs/material/ports.md`,
+`docs/material/projection-materialization.md`, and `docs/material/progress.md`.
+
+Material Store and Canonical Store current details live in
+`docs/material-store/design.md`, `docs/material-store/ports.md`,
+`docs/material-store/progress.md`, `docs/canonical-store/design.md`,
+`docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`,
+and `docs/canonical-store/progress.md`. Past ADR/code disagreements from this
+area are resolved in `docs/maintenance/architecture-inconsistency-log.md`.
+
+Collection Service and Library Import current details live in
+`docs/collection-service/design.md`, `docs/collection-service/ports.md`,
+`docs/collection-service/progress.md`, `docs/library-import/design.md`,
+`docs/library-import/ports.md`, and `docs/library-import/progress.md`.
+
+Provider, Knowledge, host-adapter, and local-operations current details live in
+`docs/source-providers/netease.md`,
+`docs/platform-library-provider/design.md`,
+`docs/platform-library-provider/progress.md`,
+`docs/knowledge-slot/design.md`,
+`docs/knowledge-slot/musicbrainz-provider.md`,
+`docs/knowledge-slot/progress.md`, `docs/host-adapters/codex-skill.md`, and
+`docs/operations/minemusic-server-launchd.md`. Historical implementation plans
+for those areas are archived under `docs/archive/platform-library-provider/`,
+`docs/archive/knowledge-slot/`, and `docs/archive/host-adapters/`.
 
 ## Material State Policy
 

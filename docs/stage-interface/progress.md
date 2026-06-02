@@ -6,6 +6,16 @@ Stage Interface owns the host-facing and LLM-facing callable MineMusic surface:
 instruments, tools, Handbook lookup, governed dispatch, and common MineMusic
 flow ordering.
 
+Current authority is split across:
+
+- `docs/stage-interface/design.md` for ownership and public-boundary design.
+- `docs/stage-interface/ports.md` for provided/consumed ports, read/write
+  capabilities, composition, and guards.
+- `docs/stage-interface/tool-contracts.md` for stable public tool names,
+  schema policy, compact output policy, MCP parity, and public handle rules.
+- This file for current implementation state, evidence, verification history,
+  and next scoped cleanup.
+
 The Tool Definition / Tool Group direction is documented. The Stage, Handbook,
 Music, Knowledge, Library, Canonical Review, and Memory Tool Groups are
 implemented in the registry. Their tool names, descriptors, host input schemas,
@@ -195,6 +205,26 @@ listing keeps `sourceRef`.
 - `npm run typecheck`, `npm run build:test`, and focused Stage Interface,
   material query, contract, integration, MCP, Stage Core factory, and server MCP
   tests pass for the Stage Interface language-normalization implementation.
+
+## Documentation Alignment Evidence
+
+Phase 1 of the documentation/code alignment sweep checked current Stage
+Interface facts on 2026-06-02 without changing source code.
+
+Evidence inspected:
+
+- `src/stage_interface/tool_definitions/**`
+- `src/stage_interface/dispatch.ts`
+- `src/stage_interface/facade.ts`
+- `src/stage_interface/outputs/**`
+- `src/surfaces/mcp/server.ts`
+- `src/contracts/index.ts`
+- `src/ports/index.ts`
+- `test/stage_interface/stage-interface.test.ts`
+- `test/stage_interface/stage-interface-dispatch.test.ts`
+- `test/surfaces/mcp-server.test.ts`
+
+No Stage Interface `AI-*` inconsistency was found in this phase.
 
 ## Next Slice
 

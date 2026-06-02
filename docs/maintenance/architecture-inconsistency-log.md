@@ -65,6 +65,43 @@ inconsistency.
 
 | ID | Area | Summary | Resolution | Evidence | Closed by |
 | --- | --- | --- | --- | --- | --- |
+| `AI-001` | Material Store / Collection Service | ADR-0002 said Collection remains canonical-only unless a future decision changed the boundary, while current code and root architecture describe materialRef-backed Collection items. | ADR-0003 accepts materialRef-backed CollectionItems and supersedes only ADR-0002's canonical-only Collection consequence. | `docs/adr/0003-materialref-backed-collections.md`; `docs/adr/0002-material-store-boundary.md`; `src/collection/index.ts`; `docs/collection-service/ports.md`; `CURRENT_STATE.md` | ADR decision slice, 2026-06-02 |
+| `AI-002` | Material Store / Canonical Store / Source Grounding | ADR-0002 said ordinary business modules should stop using `CanonicalStorePort.resolveSourceRef` / `attachSourceRef`, but Source Grounding received `CanonicalStorePort` and called `resolveSourceRef`. | Source Grounding now receives `SourceGroundingEvidenceStorePort`, reads confirmed canonical bindings for canonicalRef normalization, persists source evidence through the same narrow port, and no longer imports or calls Canonical Store source-ref APIs. | `src/source/index.ts`; `src/ports/index.ts`; `src/stage_core/compose.ts`; `test/source/source-grounding.test.ts`; `test/providers/netease-source-provider.test.ts`; `test/architecture/material-boundary.test.ts`; `docs/material-store/ports.md`; `docs/canonical-store/ports.md` | Code boundary slice, 2026-06-02 |
+
+## Final Manual Audit Result
+
+Date: 2026-06-02
+
+Scope checked:
+
+- root authority documents: `README.md`, `INDEX.md`, `CURRENT_STATE.md`,
+  `ARCHITECTURE.md`, `PROGRESS.md`, `CONTEXT.md`;
+- accepted ADRs: `docs/adr/0001-stage-core-runtime-composition.md`,
+  `docs/adr/0002-material-store-boundary.md`, and
+  `docs/adr/0003-materialref-backed-collections.md`;
+- current area `design.md`, `ports.md`, and `progress.md` documents created or
+  updated during the sweep;
+- archived architecture evidence under `docs/archive/**`;
+- representative code facts for Stage Core, Stage Interface, Material Store,
+  Collection Service, Library Import, providers, Knowledge, and host/server
+  runtime paths already checked during area phases.
+
+Result:
+
+- No new `AI-*` entries were found during root consolidation.
+- `AI-001` and `AI-002` were later resolved on 2026-06-02 and are recorded in
+  `Resolved Inconsistencies`.
+- Current authority docs now describe ADR-0003's materialRef Collection
+  decision and Source Grounding's `SourceGroundingEvidenceStorePort` boundary.
+
+Post-review follow-up:
+
+- PR #44 review later found Library Import / Collection documentation drift and
+  a broad Library Import dependency on `MaterialStorePort`. The branch corrected
+  the docs, introduced `LibraryImportMaterialStorePort`, and added architecture
+  guards for the exact port key set and forbidden broad Material Store /
+  Collection / Canonical dependencies. This follow-up did not leave a new open
+  `AI-*` entry.
 
 ## Final Manual Audit Checklist
 

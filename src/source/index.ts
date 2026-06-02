@@ -9,27 +9,20 @@ import type {
   StageError,
 } from "../contracts/index.js";
 import type {
-  CanonicalStorePort,
   PluginRegistryPort,
+  SourceGroundingEvidenceStorePort,
   SourceGroundingPort,
 } from "../ports/index.js";
 
-type SourceEvidenceWriterPort = {
-  getSourceEntity(input: { sourceRef: Ref }): Promise<Result<SourceEntity | null>>;
-  upsertSourceEntity(input: { entity: SourceEntity }): Promise<Result<SourceEntity>>;
-};
-
 type SourceGroundingServiceOptions = {
-  canonicalStore: CanonicalStorePort;
   pluginRegistry: PluginRegistryPort;
-  sourceEvidenceWriter?: SourceEvidenceWriterPort;
+  sourceEvidenceStore?: SourceGroundingEvidenceStorePort;
   clock?: () => string;
 };
 
 export function createSourceGroundingService({
-  canonicalStore,
   pluginRegistry,
-  sourceEvidenceWriter,
+  sourceEvidenceStore,
   clock = () => new Date().toISOString(),
 }: SourceGroundingServiceOptions): SourceGroundingPort {
   const ground: SourceGroundingPort["ground"] = async (input) => {
@@ -49,14 +42,14 @@ export function createSourceGroundingService({
       }
 
       for (const material of providerResult.value) {
-        const normalized = await normalizeMaterialForPlayability(canonicalStore, material);
+        const normalized = await normalizeMaterialForPlayability(sourceEvidenceStore, material);
 
         if (!normalized.ok) {
           return normalized;
         }
 
         const persisted = await persistSourceEvidence({
-          sourceEvidenceWriter,
+          sourceEvidenceStore,
           providerId: provider.id,
           material: normalized.value,
           now: clock(),
@@ -93,7 +86,7 @@ export function createSourceGroundingService({
       }
 
       const persisted = await persistSourceEvidence({
-        sourceEvidenceWriter,
+        sourceEvidenceStore,
         providerId: provider.id,
         material: {
           ...material,
@@ -119,7 +112,7 @@ export function createSourceGroundingService({
       });
     }
 
-    return normalizeMaterialForPlayability(canonicalStore, {
+    return normalizeMaterialForPlayability(sourceEvidenceStore, {
       ...material,
       playableLinks,
       sourceRefs: mergeRefs(material.sourceRefs ?? [], playableLinks.map((link) => link.sourceRef)),
@@ -133,17 +126,17 @@ export function createSourceGroundingService({
 }
 
 async function persistSourceEvidence({
-  sourceEvidenceWriter,
+  sourceEvidenceStore,
   providerId,
   material,
   now,
 }: {
-  sourceEvidenceWriter: SourceEvidenceWriterPort | undefined;
+  sourceEvidenceStore: SourceGroundingEvidenceStorePort | undefined;
   providerId: string;
   material: SourceMaterial;
   now: string;
 }): Promise<Result<void>> {
-  if (sourceEvidenceWriter === undefined) {
+  if (sourceEvidenceStore === undefined) {
     return ok(undefined);
   }
 
@@ -166,7 +159,7 @@ async function persistSourceEvidence({
       continue;
     }
 
-    const existing = await sourceEvidenceWriter.getSourceEntity({ sourceRef });
+    const existing = await sourceEvidenceStore.getSourceEntity({ sourceRef });
 
     if (!existing.ok) {
       return existing;
@@ -181,7 +174,7 @@ async function persistSourceEvidence({
       now,
       entityKind,
     });
-    const stored = await sourceEvidenceWriter.upsertSourceEntity({ entity });
+    const stored = await sourceEvidenceStore.upsertSourceEntity({ entity });
 
     if (!stored.ok) {
       return stored;
@@ -290,14 +283,14 @@ async function getSourceProviders(
 }
 
 async function normalizeMaterialForPlayability<T extends SourceMaterial>(
-  canonicalStore: CanonicalStorePort,
+  sourceEvidenceStore: SourceGroundingEvidenceStorePort | undefined,
   material: T,
 ): Promise<Result<T>> {
   const sourceRefs = mergeRefs(
     material.sourceRefs ?? [],
     (material.playableLinks ?? []).map((link) => link.sourceRef),
   );
-  const canonicalRef = material.canonicalRef ?? (await resolveCanonicalRef(canonicalStore, sourceRefs));
+  const canonicalRef = material.canonicalRef ?? (await resolveCanonicalRef(sourceEvidenceStore, sourceRefs));
   const hasPlayableLinks = (material.playableLinks?.length ?? 0) > 0;
 
   if (isTerminalState(material.state)) {
@@ -321,14 +314,18 @@ async function normalizeMaterialForPlayability<T extends SourceMaterial>(
 }
 
 async function resolveCanonicalRef(
-  canonicalStore: CanonicalStorePort,
+  sourceEvidenceStore: SourceGroundingEvidenceStorePort | undefined,
   sourceRefs: Ref[],
 ): Promise<Ref | undefined> {
-  for (const sourceRef of sourceRefs) {
-    const canonical = await canonicalStore.resolveSourceRef({ ref: sourceRef });
+  if (sourceEvidenceStore === undefined) {
+    return undefined;
+  }
 
-    if (canonical.ok && canonical.value !== null) {
-      return canonical.value.ref;
+  for (const sourceRef of sourceRefs) {
+    const binding = await sourceEvidenceStore.getConfirmedCanonicalBinding({ sourceRef });
+
+    if (binding.ok && binding.value !== null) {
+      return binding.value.canonicalRef;
     }
   }
 

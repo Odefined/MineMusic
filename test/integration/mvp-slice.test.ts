@@ -68,6 +68,14 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
   });
 
   try {
+    await assertOk(stageCore.materialStore.putConfirmedCanonicalBinding({
+      binding: {
+        sourceRef: fixtureSourceRef,
+        canonicalRef: fixtureCanonicalRef,
+        createdAt: "2026-06-02T00:00:00.000Z",
+        updatedAt: "2026-06-02T00:00:00.000Z",
+      },
+    }));
     await seedFixturePlayableSourceEntities(stageCore, [
       fixtureKnownMaterial,
       fixtureSourceOnlyPlayableMaterial,

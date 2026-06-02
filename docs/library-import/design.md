@@ -84,9 +84,7 @@ flowchart TD
     NetEasePlugin["NetEase Plugin"]
     MaterialStore["Material Store"]
     SourceEntityStore["Source Entity Store"]
-    CanonicalStore["Canonical Store"]
     SourceLibrary["Source Library"]
-    CollectionService["Collection Service"]
     EventService["Event Service"]
     MaterialResolve["Material Resolve"]
     SourceGrounding["Source Grounding"]
@@ -100,14 +98,11 @@ flowchart TD
     NetEasePlugin --> SourceProvider
     ImportService --> MaterialStore
     MaterialStore --> SourceEntityStore
-    MaterialStore --> CanonicalStore
     SourceEntityStore --> SourceLibrary
-    ImportService --> CollectionService
     ImportService --> EventService
     MaterialResolve --> SourceGrounding
     MaterialResolve --> MaterialStore
     SourceGrounding --> SourceProvider
-    CollectionService -. "future taste proposals" .-> MemoryService
     EventService -. "future summarized signals" .-> MemoryService
 ```
 
@@ -166,8 +161,8 @@ canonical:minemusic / recording / ...
 The binding can be:
 
 - confirmed, if Source Entity Store has an explicit Confirmed Canonical Binding.
-- absent, if MineMusic keeps the platform fact in Source Library without writing
-  a Collection item until a binding is created.
+- absent, if MineMusic keeps the platform fact in Source Library without
+  confirmed canonical identity.
 - rejected or corrected later, if the source ref was bound to the wrong
   canonical object.
 
@@ -230,14 +225,13 @@ Owns explicit MineMusic-side user assets. Ordinary Library Import does not
 write Collection.
 
 Provider account identity is import/update provenance, not Collection
-ownership. Multiple provider accounts imported into the same `ownerScope` merge
-into the same owner-scoped saved Collections. If two provider accounts map to
-the same canonical object, Collection Service should still keep one idempotent
-Collection item for that canonical ref.
+ownership. Imported platform facts remain Source Library facts until a separate
+explicit workflow decides to write MineMusic Collection membership.
 
-Collection items do not store source refs. Source refs remain recoverable
-through Source Entity Store, Source Library, Confirmed Canonical Bindings, and
-import/update provenance.
+Future import-to-Collection behavior must not use `canonicalRef` or confirmed
+binding as the Collection write handle. It should materialize a stable
+`materialRef` through Material Store / Material Flow and then call Collection
+Service explicitly.
 
 Library Import should retain item-level provenance that connects provider id,
 provider account id, import scope, source ref, item kind, source entity kind,
@@ -253,9 +247,9 @@ those hints into Canonical Store or create canonical relations. A later binding
 or canonical maintenance workflow may inspect Source Library facts when it needs
 source-side evidence.
 
-Platform saved, liked, collected, or followed library facts should map to the
-owner's matching `saved` system Collection. They do not imply MineMusic
-`favorite`; `favorite` is reserved for a stronger MineMusic-side user signal.
+Platform saved, liked, collected, or followed library facts should be stored as
+Source Library membership. They do not imply MineMusic `favorite`, and they do
+not automatically create MineMusic `saved` Collection membership.
 
 Library updates must not remove MineMusic Collection items just because the
 asset no longer appears in the current platform library response. Platform
@@ -296,7 +290,8 @@ to do, but MineMusic itself only reports structured update state.
 
 Library Import does not keep an import-level blocklist for items the user
 removed from a MineMusic Collection. If a later platform update still reports
-the asset, the update may add it back through the normal saved Collection path.
+the asset, Library Import should refresh Source Library provenance only; any
+Collection restore requires an explicit Collection workflow.
 
 Initial import and later update should use the same Import Batch and report
 model, with a batch kind such as `initial_import` or `library_update`. Status,
@@ -475,7 +470,6 @@ sequenceDiagram
     participant Provider as Platform Library Provider
     participant Material as Material Store
     participant SourceEntity as Source Entity Store
-    participant Collection as Collection Service
     participant Events as Event Service
 
     User->>LLM: Import my NetEase library
@@ -523,8 +517,8 @@ Import behavior:
 
 Platform album saves should preserve the platform fact. If NetEase returns a
 concrete album id, Library Import should treat that imported asset as a
-Source Release, update Source Library, and write the owner's saved `release`
-Collection only after a Confirmed Canonical Binding exists.
+Source Release and update Source Library. It must not write the owner's saved
+`release` Collection during ordinary import.
 
 `release_group` is still useful for grouping editions later, but Library Import
 should not collapse a concrete platform album save into `release_group` during
@@ -533,8 +527,8 @@ the first import.
 ### Followed Artist
 
 Followed artists become Source Artist records and Source Library items. They
-should be written to the owner's saved `artist` Collection only after a
-Confirmed Canonical Binding exists.
+must not be written to the owner's saved `artist` Collection during ordinary
+import.
 
 ### Recent Play Or History
 
@@ -554,9 +548,6 @@ Suggested dedupe keys:
 import batch:
   ownerScope + provider id + provider account id + batch kind + import scope/library area + startedAt
 
-collection item:
-  collection id + canonical ref
-
 source entity:
   source ref namespace + kind + id
 
@@ -570,8 +561,8 @@ Library state. Re-importing the same platform asset should not create a second
 source entity or Source Library item.
 
 Readable provider items without stable `sourceRef` are not importable. Library
-Import should skip them or report provider warnings rather than writing
-Collection items or update baselines.
+Import should skip them or report provider warnings rather than writing Source
+Library items or update baselines.
 
 Library Import must treat provider `sourceRef` values as opaque stable source
 keys. It must not branch on provider-specific `sourceRef.kind` values. Import
@@ -742,7 +733,7 @@ Material Resolve tools.
 
 ## Module Placement
 
-Design-only additions:
+Current and future module placement:
 
 | Concern | Proposed location | Notes |
 | --- | --- | --- |
@@ -750,7 +741,7 @@ Design-only additions:
 | Capability slot | `src/contracts/index.ts`, `src/plugins/index.ts` | Use the reserved `platform_library` slot. |
 | Library import service | `src/material/store/source_entity/library-import.ts`, exported through `src/material/index.ts` | Source Entity Store-owned Core Capability. |
 | Library import repository | `src/storage/**` | Stores import batches, area snapshots, item provenance, provider account identity, baseline state, warnings, and failures. |
-| Collection service | `src/collection/index.ts` | Owns saved/favorite/list/remove semantics. |
+| Collection service | `src/collection/index.ts` | Owns explicit saved/favorite/list/remove semantics; not called by ordinary Library Import. |
 | NetEase provider | `src/providers/netease/**` | Same plugin/module can export source and platform-library providers. |
 | Stage Interface tools | `src/stage_interface/**` | User-semantic import tools only. |
 | MCP surface | `src/surfaces/mcp/server.ts` | Should derive tools from Stage Interface descriptors. |
@@ -761,7 +752,7 @@ Platform Library Provider contract.
 
 ## Events
 
-Design-only event types:
+Current event types:
 
 ```text
 library_import.batch.started
@@ -842,8 +833,9 @@ First useful slice:
 3. Upsert Source Track/Release/Artist records and Source Library state for
    imported saved/followed assets.
 4. Record import batch and item events.
-5. Expose Stage Interface import and update preview/start tools, plus shared
-   batch status/summary tools.
+5. Expose Stage Interface import and update start/continue tools plus shared
+   batch status/summary/item-list tools. Preview remains a runtime/internal
+   capability, not part of the normal current agent-facing tool surface.
 6. Let the user ask for recommendations from imported assets.
 
 History/recent-play import can be a later slice because it needs retention,
@@ -855,6 +847,8 @@ model for playlist identity, ordered membership, and user organization.
 Platform saved albums are concrete `release` assets for Library Import. They
 should not be collapsed into `release_group` during import.
 
-## Open Decisions
+## Current Authority
 
-No open design decisions remain for the first NetEase import/update slice.
+Implementation state belongs in `docs/library-import/progress.md`. Provided and
+consumed ports belong in `docs/library-import/ports.md`. Historical
+implementation planning is archived under `docs/archive/library-import/`.

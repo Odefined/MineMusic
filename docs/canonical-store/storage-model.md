@@ -5,12 +5,13 @@
 Canonical Store owns MineMusic identity anchors. It is not a source catalog,
 player database, recommender, or preference store.
 
-Project contracts define the public shape in:
+Current public contracts and architecture boundaries are defined in:
 
-- `docs/mvp/interface-contracts.md`
-- `docs/mvp/module-interfaces.md`
-- `docs/mvp/module-boundaries.md`
+- `src/contracts/index.ts`
+- `src/ports/index.ts`
 - `ARCHITECTURE.md`
+- `docs/canonical-store/design.md`
+- `docs/canonical-store/ports.md`
 
 The storage model below keeps those boundaries explicit:
 
@@ -88,11 +89,10 @@ The current durable implementation uses this SQLite model for:
 - `canonical_aliases`
 - `canonical_relations`
 
-Initialization migrates the earlier local development table shape
-`canonical_external_refs.external_id` into `canonical_source_refs.source_id`
-before normal schema creation.
-
-`canonical_redirects` remains design-only until merge behavior exists.
+Canonical source refs are current canonical evidence. They are not the ordinary
+Source Library binding path; Source Entity Store and Confirmed Canonical
+Bindings own that path. Source Grounding now uses confirmed canonical bindings
+for ordinary source material normalization.
 
 Implementation files:
 

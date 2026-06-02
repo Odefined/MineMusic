@@ -47,6 +47,9 @@ identity; Collection owns user-scoped collections and their members. New
 Collection writes require `materialRef`; `canonicalRef` is optional stored
 metadata, not a public write handle.
 
+ADR-0003 accepts this materialRef-backed Collection boundary and supersedes
+ADR-0002's earlier canonical-only Collection consequence.
+
 ## Collection Kinds
 
 Collection Service must support more than songs.
@@ -83,7 +86,7 @@ Collection Service belongs in the Core Capability Layer:
 Stage Interface
   -> Collection Service
        -> CollectionRepository / Storage
-       -> CanonicalStorePort
+       -> narrow Material Store reads
        -> EventPort
        -> MemoryPort?          optional proposal after explicit feedback
        -> EffectBoundaryPort?  only for external app/library writes
@@ -295,7 +298,7 @@ within the owner scope.
 
 ## Public Port Shape
 
-Proposed public port:
+Current service port shape:
 
 ```text
 CollectionPort.addMaterialToSystemCollection(input)
@@ -309,6 +312,9 @@ CollectionPort.updateCollection(input)
 CollectionPort.removeCollection(input)
 CollectionPort.filterBlockedMaterials(input)
 ```
+
+Method-level authority lives in `docs/collection-service/ports.md` and
+`src/ports/index.ts`.
 
 `addMaterialToSystemCollection` input:
 
@@ -570,19 +576,12 @@ Repository responsibilities:
 
 No other module should import Collection Repository directly.
 
-## Initial Implementation Plan
+## Current Authority
 
-Recommended sequence:
-
-1. Add shared `Collection`, `CollectionItem`, and `CollectionPort` contracts.
-2. Add in-memory `CollectionRepository`.
-3. Add `createCollectionService`.
-4. Add Stage Core wiring with default in-memory collection repository.
-5. Add Stage Interface tools for save/remove/list.
-6. Add deterministic tests for song, album, release, and artist saves.
-7. Add events for save/remove.
-8. Only after that, decide whether collection actions produce Memory proposals
-   by default.
+Implementation state belongs in `docs/collection-service/progress.md`.
+Provided and consumed ports belong in `docs/collection-service/ports.md`.
+Historical implementation planning is archived under
+`docs/archive/collection-service/`.
 
 ## Open Decisions
 

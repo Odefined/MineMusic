@@ -1,107 +1,49 @@
 # Stage Core Progress
 
-## Purpose
+This file records current Stage Core implementation state. Current design and
+port authority live in `docs/stage-core/design.md` and
+`docs/stage-core/ports.md`.
 
-This file tracks Stage Core implementation progress.
+## Current Implementation
 
-Design intent and task breakdown for the current refactor live in:
-
-- `docs/stage-core/minemusic_stage_core_refactoring_design.md`
-- `docs/stage-core/minemusic_stage_core_refactoring_execution_plan.md`
-- `docs/stage-core/minemusic_stage_runtime_interface_narrowing_plan.md`
-
-Global state files may summarize this document, but should not duplicate the
-fine-grained Stage Core task ledger.
-
-## Current Snapshot
-
-Date: 2026-05-30
-
-First-wave runtime-kit refactor status:
-
-- Phase 0: completed.
-- Phase 1: completed.
-- Phase 2: completed.
-- Phase 3: completed.
-- Phase 4: completed.
-- Phase 5: completed.
-- Phase 6: completed.
-- Phase 7: completed.
-- Phase 8: completed.
-- Phase 9: completed.
-
-Implemented:
-
-- Characterization coverage for Provider HTTP Cache repository priority:
-  injected repository beats database path.
-- Stage Core public/internal types moved to `src/stage_core/types.ts`.
-- Fixture source provider moved to `src/fixtures/source_provider.ts`.
-- Repository selection moved to `src/stage_core/repositories.ts`.
-- Handbook path normalization moved to `src/stage_core/handbook_paths.ts` and
-  reused by server runtime.
-- Runtime startup side effects moved to `src/stage_core/seed.ts`.
-- Options normalization, repository creation, provider factory expansion,
-  canonical seed defaults, owner scope, and Handbook output paths moved to
+- `src/stage_core/index.ts` is a public facade over the internal Runtime Kit.
+- `src/stage_core/types.ts` defines the narrow production runtime
+  `MineMusicStageRuntime` and the explicit full `MineMusicStageCoreHarness`.
+- Production-facing runtime factories expose only `ready` and
+  `stageInterface`; tests and diagnostics can call explicit harness factories.
+- Repository selection lives in `src/stage_core/repositories.ts` and applies
+  injected repository > database path > in-memory defaults.
+- Runtime option normalization and Knowledge provider factory expansion live in
   `src/stage_core/runtime_kit.ts`.
-- Service graph assembly moved to `src/stage_core/compose.ts`.
-- `src/stage_core/index.ts` is now a compatibility facade for the existing
-  public factories.
-- `MineMusicStageRuntime` and `MineMusicStageCoreHarness` type names exist,
-  while `MineMusicStageCore` remains compatible with the old harness shape.
-- Explicit harness factory aliases exist for future test-harness migration.
-- Narrow Stage Runtime factory entrypoints now exist:
-  `createFixtureMineMusicStageRuntime(...)` and
-  `createMineMusicStageRuntimeWithSourceProvider(...)`.
-- The default MineMusic server runtime now holds `MineMusicStageRuntime`
-  (`ready` plus `stageInterface`) and does not expose the full Stage Core
-  harness shape.
-- MCP definition and server-runtime tests exercise the Stage Interface through
-  `MineMusicStageRuntime`; tests that need internals use explicit harness
-  aliases.
+- Service graph assembly lives in `src/stage_core/compose.ts`.
+- Startup seeding, provider registration, owner system Collection
+  initialization, and explicit Handbook snapshot writing live in
+  `src/stage_core/seed.ts`.
+- The default MineMusic server runtime creates and holds a
+  `MineMusicStageRuntime` and keeps environment parsing/provider defaults in
+  `src/server/runtime.ts`.
+- Stage Core does not read server environment variables directly.
 
-## Current Boundaries
+## Remaining Work
 
-- Public factory signatures remain compatible:
-  `createMineMusicStageCore(...)` and
-  `createMineMusicStageCoreWithSourceProvider(...)`.
-- `MineMusicStageCore` remains a compatibility type for callers that still need
-  the full harness shape.
-- `MineMusicStageRuntime` is the narrow production-facing shape for callers
-  that only need readiness and Stage Interface dispatch.
-- Stage Core does not read `process.env`; server runtime still owns environment
-  parsing and production provider wiring.
-- `src/stage_core/index.ts` no longer imports storage implementations, fixture
-  matching logic, seed logic, or service graph assembly.
+- Provider registry wrapper cleanup remains a future code slice.
+- Material Resolve pipeline extraction remains a future code slice.
+- Future storage schema changes need explicit migration policy and tests.
+- Additional Stage Core architecture guards may be added in later code slices
+  that narrow public surfaces or import boundaries.
 
-## Not Yet Implemented
+## Verification Evidence
 
-- Provider registry wrappers, Material Resolve pipeline extraction, and
-  storage schema changes remain separate future slices.
+- `test/stage_core/stage-core-factory.test.ts`
+- `test/server/server-runtime.test.ts`
+- `test/server/server-http-mcp.test.ts`
+- `test/surfaces/mcp-server.test.ts`
+- `test/integration/canonical-persistence.test.ts`
+- `test/integration/collection-runtime.test.ts`
+- `test/integration/library-import-runtime.test.ts`
+- `npm test`
 
-## Verification
+## Archive
 
-Latest checks for the current implementation slice:
-
-```bash
-npm run typecheck
-npm run build:test
-node .tmp-test/test/stage_core/stage-core-factory.test.js
-node .tmp-test/test/server/server-runtime.test.js
-node .tmp-test/test/server/server-http-mcp.test.js
-node .tmp-test/test/surfaces/mcp-server.test.js
-node .tmp-test/test/integration/canonical-persistence.test.js
-node .tmp-test/test/integration/collection-runtime.test.js
-node .tmp-test/test/integration/library-import-runtime.test.js
-node .tmp-test/test/integration/mvp-slice.test.js
-npm test
-```
-
-Results:
-
-- All listed commands pass.
-
-## Next Slice
-
-Choose the next architecture slice from the remaining Stage Core backlog:
-Provider Registry wrapper cleanup, Material Resolve pipeline extraction, or a
-storage schema change with explicit migration policy.
+Historical Runtime Kit refactor design, execution, and narrowing plans are
+archived under `docs/archive/stage-core/`.

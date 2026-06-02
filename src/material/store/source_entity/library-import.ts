@@ -43,15 +43,15 @@ import type {
 } from "../../../contracts/index.js";
 import type {
   EventPort,
+  LibraryImportMaterialStorePort,
   LibraryImportPort,
   LibraryImportRepository,
-  MaterialStorePort,
   PluginRegistryPort,
 } from "../../../ports/index.js";
 
 type LibraryImportServiceOptions = {
   pluginRegistry: PluginRegistryPort;
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   events: EventPort;
   repository: LibraryImportRepository;
   idFactory?: () => string;
@@ -265,7 +265,7 @@ async function previewLibraryImport({
   includeUpdateEstimates,
 }: {
   pluginRegistry: PluginRegistryPort;
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   repository: LibraryImportRepository;
   input: LibraryImportPreviewInput | LibraryUpdatePreviewInput;
   includeUpdateEstimates: boolean;
@@ -401,7 +401,7 @@ async function estimateReadablePreviewAreas({
   includeUpdateEstimates,
 }: {
   provider: PlatformLibraryProvider;
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   repository: LibraryImportRepository;
   ownerScope: string;
   providerAccountId: string | undefined;
@@ -531,7 +531,7 @@ async function estimatePreviewItem({
   providerAccountId,
   item,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   ownerScope: string;
   providerId: string;
   providerAccountId: string | undefined;
@@ -734,7 +734,7 @@ async function deriveSourceLibraryAbsences({
   currentSourceRefs,
   currentBatchId,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   ownerScope: string;
   providerId: string;
   providerAccountId: string | undefined;
@@ -822,7 +822,7 @@ async function startLibraryImport({
   clock,
 }: {
   pluginRegistry: PluginRegistryPort;
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
@@ -1226,7 +1226,7 @@ async function importProviderItem({
   seenAt,
   suppressAlreadyPresentReport,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   events: EventPort;
   repository: LibraryImportRepository;
   batchId: string;
@@ -1313,7 +1313,7 @@ async function storeSourceEntityAndLibraryItem({
   item,
   seenAt,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   batchId: string;
   ownerScope: string;
   providerId: string;
@@ -1667,7 +1667,7 @@ async function storePlatformLibraryAbsence({
   absence,
   recordedAt,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   repository: LibraryImportRepository;
   events: EventPort;
   batchId: string;
@@ -2031,7 +2031,7 @@ async function continueLibraryImport({
   clock,
 }: {
   pluginRegistry: PluginRegistryPort;
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
@@ -2112,7 +2112,7 @@ async function startPagedLibraryImport({
   idFactory,
   clock,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;
@@ -2267,7 +2267,7 @@ async function processPagedImportSegment({
   pageSize,
   clock,
 }: {
-  materialStore: MaterialStorePort;
+  materialStore: LibraryImportMaterialStorePort;
   events: EventPort;
   repository: LibraryImportRepository;
   completedReports: Map<string, LibraryImportReport>;

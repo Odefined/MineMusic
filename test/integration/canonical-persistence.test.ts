@@ -10,7 +10,7 @@ import type {
   SourceProvider,
   StageSession,
 } from "../../src/contracts/index.js";
-import { createMineMusicStageRuntimeWithSourceProvider } from "../../src/stage_core/index.js";
+import { createMineMusicStageCoreWithSourceProvider } from "../../src/stage_core/index.js";
 import type { CompactPublicMaterialResolveOutput } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -88,7 +88,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
   ]);
 
   try {
-    const firstStageRuntime = createMineMusicStageRuntimeWithSourceProvider({
+    const firstStageRuntime = createMineMusicStageCoreWithSourceProvider({
       session,
       sourceProvider,
       materialStoreDatabasePath: databasePath,
@@ -96,14 +96,22 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       handbookPath: join(directory, "first-HANDBOOK.md"),
     });
     await firstStageRuntime.ready;
+    await assertOk(firstStageRuntime.materialStore.putConfirmedCanonicalBinding({
+      binding: {
+        sourceRef,
+        canonicalRef: canonicalRecord.ref,
+        createdAt: "2026-06-02T00:00:00.000Z",
+        updatedAt: "2026-06-02T00:00:00.000Z",
+      },
+    }));
 
     const firstResolve = await resolveSingleCandidate(firstStageRuntime, "Persisted Canonical Track");
     assert(
       firstResolve.items[0]?.state === "confirmed_playable",
-      "seeded canonical identity should confirm playability before restart",
+      "confirmed binding should confirm playability before restart",
     );
 
-    const recreatedStageRuntime = createMineMusicStageRuntimeWithSourceProvider({
+    const recreatedStageRuntime = createMineMusicStageCoreWithSourceProvider({
       session,
       sourceProvider,
       materialStoreDatabasePath: databasePath,
@@ -119,7 +127,7 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
     );
     assert(
       persistedResolve.items[0]?.state === "confirmed_playable",
-      "canonical identity plus source-backed playable link should be confirmed playable after recreation",
+      "persisted confirmed binding plus source-backed playable link should be confirmed playable after recreation",
     );
 
     const sourceOnlyResolve = await resolveSingleCandidate(recreatedStageRuntime, "Source Only Track");
@@ -175,7 +183,7 @@ function createStaticSourceProvider(materials: SourceMaterial[]): SourceProvider
 }
 
 async function resolveSingleCandidate(
-  stageRuntime: ReturnType<typeof createMineMusicStageRuntimeWithSourceProvider>,
+  stageRuntime: ReturnType<typeof createMineMusicStageCoreWithSourceProvider>,
   text: string,
 ): Promise<CompactPublicMaterialResolveOutput> {
   const resolveResult = await assertOk(

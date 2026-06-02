@@ -2,6 +2,9 @@
 
 This document defines the `platform_library` capability slot. Platform Library
 Provider is a plugin-slot contract, not a Library Import submodule.
+Implementation state lives in `docs/platform-library-provider/progress.md`;
+historical NetEase implementation sequencing is archived under
+`docs/archive/platform-library-provider/`.
 
 ## Purpose
 
@@ -103,7 +106,7 @@ Registration rules:
 - The registry stores providers by slot. It must not branch on platform names,
   provider-specific source-ref kinds, import scope, or account details.
 - Library Import discovers providers by the `platform_library` slot, then calls
-  `preview` or `readItems` on the selected provider.
+  `preview`, `readItems`, or optional `readPage` on the selected provider.
 - Registration does not choose what to import. The LLM/user-facing layer
   chooses scope before calling Library Import tools.
 
@@ -177,6 +180,8 @@ export interface PlatformLibraryProvider {
   preview(input: PlatformLibraryPreviewInput): Promise<Result<PlatformLibraryPreview>>;
 
   readItems(input: PlatformLibraryReadInput): Promise<Result<PlatformLibraryReadResult>>;
+
+  readPage?(input: PlatformLibraryReadPageInput): Promise<Result<PlatformLibraryReadPageResult>>;
 }
 ```
 
@@ -256,6 +261,26 @@ export type PlatformLibraryReadResult = {
   areas: PlatformLibraryReadAreaResult[];
   issues?: PlatformLibraryIssue[];
 };
+
+export type PlatformLibraryReadPageInput = {
+  providerAccountId?: string;
+  area: PlatformLibraryArea;
+  pageSize: number;
+  sampleLimitRemaining?: number;
+  providerState?: unknown;
+};
+
+export type PlatformLibraryReadPageResult = {
+  providerId: string;
+  account?: PlatformLibraryAccountIdentity;
+  area: PlatformLibraryArea;
+  status: PlatformLibraryReadStatus;
+  items: PlatformLibraryItem[];
+  count?: PlatformLibraryCount;
+  providerState?: unknown;
+  hasMore: boolean;
+  issues?: PlatformLibraryIssue[];
+};
 ```
 
 The provider item is a platform-library fact. It is not a Collection item and
@@ -323,9 +348,10 @@ Callers must not infer newest-first ordering from source ids, labels, release
 dates, or previous MineMusic import order.
 
 The provider descriptor or equivalent provider-owned area capability metadata
-should declare whether each readable area supports newest-first ordering.
-Library Import consumes that capability; Stage Interface and Library Import
-must not hard-code provider-specific endpoint knowledge.
+declares whether each readable area supports newest-first ordering. In current
+shared contracts this is `InstrumentProviderAreaDescriptor.ordering:
+"newest_first"`. Library Import consumes that capability; Stage Interface and
+Library Import must not hard-code provider-specific endpoint knowledge.
 
 `latest_until_seen` Library Update may run only for provider areas that support
 newest-first ordering. Areas without this support must use full Library Update
