@@ -552,10 +552,17 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
     canonicalRecords: [canonicalRecord],
   });
   await stageCore.ready;
+  const blockedRecord = await assertOk(
+    stageCore.materialStore.getOrCreateByCanonicalRef({
+      canonicalRef: canonicalRecord.ref,
+      kind: "recording",
+    }),
+  );
   await assertOk(
-    stageCore.collection.addItemToSystemCollection({
+    stageCore.collection.addMaterialToSystemCollection({
       ownerScope: "local_profile:default",
       relationKind: "blocked",
+      materialRef: blockedRecord.materialRef,
       canonicalRef: canonicalRecord.ref,
       label: canonicalRecord.label,
     }),

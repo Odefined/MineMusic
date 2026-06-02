@@ -102,18 +102,18 @@ agent-facing cards.
 ordinary version requests as neutral `version.status: "not_checked"` instead
 of a warning, so normal recommendation flow does not treat missing version
 inspection as a user-visible risk.
-Collection Items now support material targets and legacy canonical
-compatibility. Source-only materials can be blocked through Collection Service
-without waiting for canonical identity, saved/favorite material items can remain
-`pending_identity`, and custom collections can list material-backed items.
+Collection Items are materialRef-backed. Source-only materials can be blocked
+through Collection Service without waiting for canonical identity,
+saved/favorite material items can remain `pending_identity`, and custom
+collections can list material-backed items.
 Collection pool query now returns material-only items directly through
 `materialRef`, falls back to `materialSnapshot` when the live registry
 projection is unavailable, and follows material merge redirects before
 returning domain items for Stage Interface presentation.
 Compact resolve/related/exclude-materialId paths also follow redirects so
-merged ids project the current survivor. Stage Interface
-collection tools now accept `materialId` as the normal material target path
-while keeping raw `materialRef` available to internal callers.
+merged ids project the current survivor. Stage Interface collection tools now
+accept `materialId` as the public material target path; raw `materialRef`
+remains an internal CollectionPort input only.
 Collection material filtering and removal are redirect-aware, so blocks stored
 before a source-only material merges into a survivor still apply and can be
 removed through the current survivor ref.
@@ -324,12 +324,13 @@ creates an evidence-backed memory proposal without auto-acceptance.
 - Added PR 5 downstream target contracts:
   `MusicMaterialSnapshot`, `MaterialEventTarget`, `MemoryTarget`, and compact
   `MusicMaterialActionTarget`.
-- Extended Collection Service with materialRef-based add/remove/filter methods
-  while keeping canonicalRef methods as compatibility adapters.
+- Extended Collection Service with materialRef-based add/remove/filter methods,
+  then removed the canonicalRef compatibility adapter methods from
+  `CollectionPort`.
 - Extended in-memory and SQLite Collection repositories with materialRef
   membership lookup and persistence.
-- Updated Stage Interface collection tools to accept either `canonicalRef` or
-  `materialRef` payloads.
+- Updated Stage Interface collection tools to expose `materialId` as the only
+  public collection write target.
 - Preserved Event, Memory, and Effect compatibility while adding structured
   material targets for new consequence flows.
 - Addressed PR #10 review feedback by making collection pool query return

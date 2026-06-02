@@ -664,14 +664,6 @@ export interface CollectionPort {
     ownerScope: string;
   }): Promise<Result<Collection[]>>;
 
-  addItemToSystemCollection(input: {
-    ownerScope: string;
-    relationKind: SystemCollectionRelationKind;
-    canonicalRef: Ref;
-    label: string;
-    description?: string;
-  }): Promise<Result<CollectionItem>>;
-
   addMaterialToSystemCollection(input: {
     ownerScope: string;
     relationKind: SystemCollectionRelationKind;
@@ -685,24 +677,11 @@ export interface CollectionPort {
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
-  removeItemFromSystemCollection(input: {
-    ownerScope: string;
-    relationKind: SystemCollectionRelationKind;
-    canonicalRef: Ref;
-  }): Promise<Result<CollectionItem>>;
-
   removeMaterialFromSystemCollection(input: {
     ownerScope: string;
     relationKind: SystemCollectionRelationKind;
     materialRef: Ref;
     collectionKind?: CollectionKind;
-  }): Promise<Result<CollectionItem>>;
-
-  addItemToCollection(input: {
-    collectionId: string;
-    canonicalRef: Ref;
-    label: string;
-    description?: string;
   }): Promise<Result<CollectionItem>>;
 
   addMaterialToCollection(input: {
@@ -716,22 +695,9 @@ export interface CollectionPort {
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
-  removeItemFromCollection(input: {
-    collectionId: string;
-    canonicalRef: Ref;
-  }): Promise<Result<CollectionItem>>;
-
   removeMaterialFromCollection(input: {
     collectionId: string;
     materialRef: Ref;
-  }): Promise<Result<CollectionItem>>;
-
-  updateItem(input: {
-    collectionId: string;
-    canonicalRef: Ref;
-    label?: string;
-    description?: string;
-    position?: number;
   }): Promise<Result<CollectionItem>>;
 
   listItems(input: CollectionListItemsInput): Promise<Result<CollectionItem[]>>;
@@ -753,11 +719,6 @@ export interface CollectionPort {
   }): Promise<Result<Collection>>;
 
   removeCollection(input: { collectionId: string }): Promise<Result<Collection>>;
-
-  filterBlocked(input: {
-    ownerScope: string;
-    canonicalRefs: Ref[];
-  }): Promise<Result<Ref[]>>;
 
   filterBlockedMaterials(input: {
     ownerScope: string;

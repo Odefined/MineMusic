@@ -169,7 +169,8 @@ This index points agents to the current MVP documentation pack.
 
 28. `docs/collection-service/design.md`
     - Collection Service source-of-truth design for owner-scoped system/custom
-      Collections, canonical-only CollectionItems, and blocked filtering.
+      Collections, materialRef-backed CollectionItems, and blocked material
+      filtering.
 
 29. `docs/collection-service/implementation-plan.md`
     - Task-by-task Collection Service implementation plan for contracts,
@@ -225,8 +226,8 @@ This index points agents to the current MVP documentation pack.
 
 40. `src/collection/index.ts`
     - Collection Service public-port implementation for owner-scoped system and
-      custom Collections, canonical-only CollectionItems, mutual exclusion, and
-      Collection events.
+      custom Collections, materialRef-backed CollectionItems, mutual exclusion,
+      and Collection events.
 
 41. `test/collection/collection-service.test.ts`
     - Collection Service behavior tests for system initialization, custom

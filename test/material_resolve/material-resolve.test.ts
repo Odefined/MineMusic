@@ -200,14 +200,13 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
   await assertOk(canonicalRepository.put(canonical));
 
   const ownerScopes: string[] = [];
-  const blockedRefs: Ref[][] = [];
+  const blockedMaterialRefs: Ref[][] = [];
   const collection = {
-    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
-    filterBlocked: async ({ ownerScope, canonicalRefs }: { ownerScope: string; canonicalRefs: Ref[] }) => {
+    filterBlockedMaterials: async ({ ownerScope, materialRefs }: { ownerScope: string; materialRefs: Ref[] }) => {
       ownerScopes.push(ownerScope);
-      blockedRefs.push(canonicalRefs);
+      blockedMaterialRefs.push(materialRefs);
 
-      return { ok: true, value: [canonical.ref] };
+      return { ok: true, value: materialRefs };
     },
   } as unknown as CollectionPort;
   const sourceGrounding: SourceGroundingPort = {
@@ -251,10 +250,10 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
   );
 
   assert(resolved.kind === "single", "single resolve should return a single result");
-  assert(resolved.result.status === "blocked", "blocked canonical refs should mark the candidate blocked");
+  assert(resolved.result.status === "blocked", "blocked material refs should mark the candidate blocked");
   assert(
     resolved.result.materials[0]?.state === "blocked",
-    "blocked canonical refs should mark returned material blocked",
+    "blocked material refs should mark returned material blocked",
   );
   assert(
     resolved.result.materials[0]?.canonicalRef?.id === canonical.ref.id,
@@ -265,8 +264,8 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
     "material resolve should default blocked filtering to the local owner scope",
   );
   assert(
-    blockedRefs[0]?.[0]?.id === canonical.ref.id,
-    "material resolve should pass resolved canonical refs to Collection Service",
+    blockedMaterialRefs[0]?.[0]?.id === resolved.result.materials[0]?.materialRef.id,
+    "material resolve should pass resolved material refs to Collection Service",
   );
 }
 
@@ -294,13 +293,12 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
 
   const ownerScopes: string[] = [];
   const collection = {
-    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
-    filterBlocked: async ({ ownerScope, canonicalRefs }: { ownerScope: string; canonicalRefs: Ref[] }) => {
+    filterBlockedMaterials: async ({ ownerScope, materialRefs }: { ownerScope: string; materialRefs: Ref[] }) => {
       ownerScopes.push(ownerScope);
 
       return {
         ok: true,
-        value: canonicalRefs.filter((ref: Ref) => ref.id === canonical.ref.id),
+        value: materialRefs,
       };
     },
   } as unknown as CollectionPort;
@@ -347,7 +345,7 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
   );
 
   assert(resolved.kind === "single", "source source-ref resolve should return a single result");
-  assert(resolved.result.status === "blocked", "source material with blocked canonical binding should mark the candidate blocked");
+  assert(resolved.result.status === "blocked", "source material with blocked material membership should mark the candidate blocked");
   assert(
     resolved.result.materials[0]?.canonicalRef?.id === canonical.ref.id,
     "source material source-ref binding should attach the canonical ref",

@@ -260,8 +260,10 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "memory feedback schema should declare feedback text, target, and interpretation inputs",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "canonicalRef"),
-    "collection save schema should declare canonicalRef input",
+    hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "materialId") &&
+      !hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "canonicalRef") &&
+      !hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "materialRef"),
+    "collection save schema should expose materialId and hide canonical/raw material refs",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.collection.create"), "collectionKind"),

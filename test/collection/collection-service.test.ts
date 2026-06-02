@@ -40,33 +40,6 @@ function createTestCollectionService() {
   return { collections, events };
 }
 
-function createTestCollectionServiceWithMaterialBackfill() {
-  const events = createEventService({
-    repository: createInMemoryEventRepository(),
-    idFactory: createSequence("event"),
-    clock: () => "2026-05-24T00:00:00.000Z",
-  });
-  const collections = createCollectionService({
-    repository: createInMemoryCollectionRepository(),
-    events,
-    materialStore: {
-      getMaterialRecord: async () => ({ ok: true, value: null }),
-      getOrCreateByCanonicalRef: async ({ canonicalRef }) => ({
-        ok: true,
-        value: materialRecordForCanonicalRef(canonicalRef),
-      }),
-      resolveMaterialRedirect: async ({ materialRef }) => ({
-        ok: true,
-        value: materialRef,
-      }),
-    },
-    idFactory: createSequence("collection"),
-    clock: () => "2026-05-24T00:00:00.000Z",
-  });
-
-  return { collections, events };
-}
-
 function createTestCollectionServiceWithMaterialRegistry() {
   const events = createEventService({
     repository: createInMemoryEventRepository(),
@@ -214,7 +187,7 @@ async function updatesAndRemovesCustomCollectionsButKeepsSystemCollectionsImmuta
   );
 }
 
-async function addsCustomCollectionItemsWithKindChecksAndIdempotency(): Promise<void> {
+async function addsCustomCollectionMaterialItemsWithKindChecksAndIdempotency(): Promise<void> {
   const { collections, events } = createTestCollectionService();
   const custom = await assertOk(
     collections.createCollection({
@@ -224,33 +197,39 @@ async function addsCustomCollectionItemsWithKindChecksAndIdempotency(): Promise<
       label: "Night coding",
     }),
   );
+  const materialRef: Ref = {
+    namespace: "minemusic",
+    kind: "material",
+    id: "quiet-material",
+  };
   const added = await assertOk(
-    collections.addItemToCollection({
+    collections.addMaterialToCollection({
       collectionId: custom.id,
-      canonicalRef: {
-        namespace: "minemusic",
-        kind: "recording",
-        id: "quiet-track",
-      },
+      materialRef,
       label: "Quiet Track",
       description: "Original note.",
+      identityRequirement: "none",
     }),
   );
-  assert(added.canonicalRef !== undefined, "canonical collection add should keep canonicalRef");
   const readded = await assertOk(
-    collections.addItemToCollection({
+    collections.addMaterialToCollection({
       collectionId: custom.id,
-      canonicalRef: added.canonicalRef,
+      materialRef,
       label: "Quiet Track Updated",
       description: "Updated note.",
+      identityRequirement: "none",
     }),
   );
-  const mismatch = await collections.addItemToCollection({
+  const mismatch = await collections.addMaterialToCollection({
     collectionId: custom.id,
-    canonicalRef: {
-      namespace: "minemusic",
+    materialRef: { namespace: "minemusic", kind: "material", id: "artist-material" },
+    materialSnapshot: {
+      materialRef: { namespace: "minemusic", kind: "material", id: "artist-material" },
+      id: "artist-material",
       kind: "artist",
-      id: "quiet-artist",
+      label: "Quiet Artist",
+      state: "grounded",
+      identityState: "source_backed",
     },
     label: "Quiet Artist",
   });
@@ -260,11 +239,12 @@ async function addsCustomCollectionItemsWithKindChecksAndIdempotency(): Promise<
   );
 
   assert(added.id === "collection-2", "new collection items should receive service ids");
-  assert(readded.id === added.id, "re-adding the same canonical ref should update the existing item");
+  assert(added.materialRef?.id === materialRef.id, "custom collection add should store materialRef");
+  assert(readded.id === added.id, "re-adding the same material ref should update the existing item");
   assert(readded.label === "Quiet Track Updated", "re-add should update item label");
   assert(readded.description === "Updated note.", "re-add should update item description");
   assert(listed.length === 1, "idempotent re-add should not create duplicate active items");
-  assert(!mismatch.ok, "collection item canonical kind must match the collection kind");
+  assert(!mismatch.ok, "collection item material kind must match the collection kind");
   assert(
     mismatch.ok === false && mismatch.error.code === "collection.kind_mismatch",
     "kind mismatch should use the collection kind-mismatch error",
@@ -279,7 +259,7 @@ async function addsCustomCollectionItemsWithKindChecksAndIdempotency(): Promise<
   );
 }
 
-async function updatesAndRemovesActiveCollectionItems(): Promise<void> {
+async function removesAndReaddsActiveCollectionMaterialItems(): Promise<void> {
   const { collections, events } = createTestCollectionService();
   const custom = await assertOk(
     collections.createCollection({
@@ -289,38 +269,37 @@ async function updatesAndRemovesActiveCollectionItems(): Promise<void> {
       label: "Night coding",
     }),
   );
+  const materialRef: Ref = {
+    namespace: "minemusic",
+    kind: "material",
+    id: "quiet-material",
+  };
   const added = await assertOk(
-    collections.addItemToCollection({
+    collections.addMaterialToCollection({
       collectionId: custom.id,
-      canonicalRef: {
-        namespace: "minemusic",
-        kind: "recording",
-        id: "quiet-track",
-      },
+      materialRef,
       label: "Quiet Track",
-    }),
-  );
-  assert(added.canonicalRef !== undefined, "canonical collection add should keep canonicalRef");
-  const updated = await assertOk(
-    collections.updateItem({
-      collectionId: custom.id,
-      canonicalRef: added.canonicalRef,
-      label: "Quiet Track Updated",
-      description: "A better note.",
-      position: 7,
+      identityRequirement: "none",
     }),
   );
   const removed = await assertOk(
-    collections.removeItemFromCollection({
+    collections.removeMaterialFromCollection({
       collectionId: custom.id,
-      canonicalRef: added.canonicalRef,
+      materialRef,
     }),
   );
-  const removedUpdate = await collections.updateItem({
+  const missingSecondRemove = await collections.removeMaterialFromCollection({
     collectionId: custom.id,
-    canonicalRef: added.canonicalRef,
-    label: "Should not update",
+    materialRef,
   });
+  const readded = await assertOk(
+    collections.addMaterialToCollection({
+      collectionId: custom.id,
+      materialRef,
+      label: "Quiet Track Readded",
+      identityRequirement: "none",
+    }),
+  );
   const activeItems = await assertOk(collections.listItems({ ownerScope: "local_profile:default" }));
   const allItems = await assertOk(
     collections.listItems({
@@ -333,20 +312,18 @@ async function updatesAndRemovesActiveCollectionItems(): Promise<void> {
     events.listBySession({ sessionId: "collection:local_profile:default" }),
   );
 
-  assert(updated.label === "Quiet Track Updated", "active item update should change label");
-  assert(updated.description === "A better note.", "active item update should change description");
-  assert(updated.position === 7, "active item update should change position");
   assert(removed.removedAt === "2026-05-24T00:00:00.000Z", "item removal should set removedAt");
-  assert(!removedUpdate.ok, "removed item updates are outside the first implementation");
+  assert(!missingSecondRemove.ok, "removed material item removal should report not found");
   assert(
-    removedUpdate.ok === false && removedUpdate.error.code === "collection.not_found",
-    "removed item updates should report not found",
+    missingSecondRemove.ok === false && missingSecondRemove.error.code === "collection.not_found",
+    "removed material item removal should report not found",
   );
-  assert(activeItems.length === 0, "listItems should hide removed items by default");
-  assert(allItems.length === 1 && allItems[0]?.id === added.id, "listItems should include removed items when requested");
+  assert(readded.id === added.id, "re-adding a removed material item should reactivate the same item");
+  assert(activeItems.length === 1, "listItems should include the reactivated item");
+  assert(allItems.length === 1 && allItems[0]?.id === added.id, "listItems should include the item when requested");
   assert(
     recordedEvents.some((event) => event.type === "collection.item.updated"),
-    "active item update should record collection.item.updated",
+    "material item re-add should record collection.item.updated",
   );
   assert(
     recordedEvents.some((event) => event.type === "collection.item.removed"),
@@ -356,10 +333,10 @@ async function updatesAndRemovesActiveCollectionItems(): Promise<void> {
 
 async function systemCollectionsApplyMutualExclusionAndBlockedFiltering(): Promise<void> {
   const { collections } = createTestCollectionService();
-  const canonicalRef = {
+  const materialRef: Ref = {
     namespace: "minemusic",
-    kind: "recording",
-    id: "quiet-track",
+    kind: "material",
+    id: "quiet-material",
   };
   await assertOk(collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
   const custom = await assertOk(
@@ -371,41 +348,45 @@ async function systemCollectionsApplyMutualExclusionAndBlockedFiltering(): Promi
     }),
   );
   await assertOk(
-    collections.addItemToCollection({
+    collections.addMaterialToCollection({
       collectionId: custom.id,
-      canonicalRef,
+      materialRef,
       label: "Quiet Track",
+      identityRequirement: "none",
     }),
   );
 
   await assertOk(
-    collections.addItemToSystemCollection({
+    collections.addMaterialToSystemCollection({
       ownerScope: "local_profile:default",
       relationKind: "saved",
-      canonicalRef,
+      materialRef,
       label: "Quiet Track",
+      identityRequirement: "none",
     }),
   );
   await assertOk(
-    collections.addItemToSystemCollection({
+    collections.addMaterialToSystemCollection({
       ownerScope: "local_profile:default",
       relationKind: "favorite",
-      canonicalRef,
+      materialRef,
       label: "Quiet Track",
+      identityRequirement: "none",
     }),
   );
   await assertOk(
-    collections.addItemToSystemCollection({
+    collections.addMaterialToSystemCollection({
       ownerScope: "local_profile:default",
       relationKind: "blocked",
-      canonicalRef,
+      materialRef,
       label: "Quiet Track",
+      identityRequirement: "none",
     }),
   );
   const blockedRefs = await assertOk(
-    collections.filterBlocked({
+    collections.filterBlockedMaterials({
       ownerScope: "local_profile:default",
-      canonicalRefs: [canonicalRef],
+      materialRefs: [materialRef],
     }),
   );
   const savedAfterBlock = await assertOk(
@@ -424,17 +405,18 @@ async function systemCollectionsApplyMutualExclusionAndBlockedFiltering(): Promi
   );
 
   await assertOk(
-    collections.addItemToSystemCollection({
+    collections.addMaterialToSystemCollection({
       ownerScope: "local_profile:default",
       relationKind: "saved",
-      canonicalRef,
+      materialRef,
       label: "Quiet Track",
+      identityRequirement: "none",
     }),
   );
   const blockedAfterSave = await assertOk(
-    collections.filterBlocked({
+    collections.filterBlockedMaterials({
       ownerScope: "local_profile:default",
-      canonicalRefs: [canonicalRef],
+      materialRefs: [materialRef],
     }),
   );
   const savedAfterSave = await assertOk(
@@ -445,10 +427,10 @@ async function systemCollectionsApplyMutualExclusionAndBlockedFiltering(): Promi
     }),
   );
   await assertOk(
-    collections.removeItemFromSystemCollection({
+    collections.removeMaterialFromSystemCollection({
       ownerScope: "local_profile:default",
       relationKind: "saved",
-      canonicalRef,
+      materialRef,
     }),
   );
   const savedAfterRemove = await assertOk(
@@ -465,7 +447,7 @@ async function systemCollectionsApplyMutualExclusionAndBlockedFiltering(): Promi
     }),
   );
 
-  assert(blockedRefs.length === 1 && blockedRefs[0]?.id === canonicalRef.id, "blocked system membership should filter blocked refs");
+  assert(blockedRefs.length === 1 && blockedRefs[0]?.id === materialRef.id, "blocked system membership should filter blocked material refs");
   assert(savedAfterBlock.length === 0, "blocking should remove saved system membership");
   assert(favoriteAfterBlock.length === 0, "blocking should remove favorite system membership");
   assert(blockedAfterSave.length === 0, "saving should remove blocked system membership");
@@ -504,41 +486,6 @@ async function blocksSourceOnlyMaterialThroughSystemCollection(): Promise<void> 
   assert(blocked.status === "active", "blocked source-only material should be active immediately");
   assert(blockedRefs.length === 1 && blockedRefs[0]?.id === materialRef.id, "materialRef block should filter blocked material");
   assert(blocked.canonicalRef === undefined, "source-only material block should not invent canonical identity");
-}
-
-async function backfillsMaterialRefForLegacyCanonicalCollectionItems(): Promise<void> {
-  const { collections } = createTestCollectionServiceWithMaterialBackfill();
-  const canonicalRef = {
-    namespace: "minemusic",
-    kind: "recording",
-    id: "canonical-quiet-track",
-  };
-  const custom = await assertOk(
-    collections.createCollection({
-      ownerScope: "local_profile:default",
-      collectionKind: "recording",
-      relationKind: "custom",
-      label: "Canonical compatibility",
-    }),
-  );
-
-  const added = await assertOk(
-    collections.addItemToCollection({
-      collectionId: custom.id,
-      canonicalRef,
-      label: "Canonical Quiet Track",
-    }),
-  );
-  const listed = await assertOk(
-    collections.listItems({
-      ownerScope: "local_profile:default",
-      collectionId: custom.id,
-    }),
-  );
-
-  assert(added.canonicalRef?.id === canonicalRef.id, "legacy canonical item should keep canonicalRef");
-  assert(added.materialRef?.id === "mat-canonical-quiet-track", "legacy canonical item should get materialRef from registry");
-  assert(listed[0]?.materialRef?.id === added.materialRef?.id, "listed legacy item should include backfilled materialRef");
 }
 
 async function materialSystemCollectionsInferKindFromMaterialRecords(): Promise<void> {
@@ -997,11 +944,10 @@ function materialRecordForCanonicalRef(canonicalRef: Ref): MaterialRecord {
 await initializesSystemCollectionsForOwner();
 await createsCustomCollectionsAndRecordsEvents();
 await updatesAndRemovesCustomCollectionsButKeepsSystemCollectionsImmutable();
-await addsCustomCollectionItemsWithKindChecksAndIdempotency();
-await updatesAndRemovesActiveCollectionItems();
+await addsCustomCollectionMaterialItemsWithKindChecksAndIdempotency();
+await removesAndReaddsActiveCollectionMaterialItems();
 await systemCollectionsApplyMutualExclusionAndBlockedFiltering();
 await blocksSourceOnlyMaterialThroughSystemCollection();
-await backfillsMaterialRefForLegacyCanonicalCollectionItems();
 await materialSystemCollectionsInferKindFromMaterialRecords();
 await unknownMaterialSystemCollectionTargetsRequireExplicitKind();
 await customCollectionRejectsMismatchedKnownMaterialKind();

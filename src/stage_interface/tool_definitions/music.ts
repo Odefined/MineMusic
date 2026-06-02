@@ -84,8 +84,6 @@ export type MusicToolGroupContext = {
 type CollectionSystemAddPayload = {
   ownerScope: string;
   materialId?: string;
-  canonicalRef?: Ref;
-  materialRef?: Ref;
   collectionKind?: CollectionKind;
   label: string;
   materialSnapshot?: CollectionItem["materialSnapshot"];
@@ -97,16 +95,12 @@ type CollectionSystemAddPayload = {
 type CollectionSystemRemovePayload = {
   ownerScope: string;
   materialId?: string;
-  canonicalRef?: Ref;
-  materialRef?: Ref;
   collectionKind?: CollectionKind;
 };
 
 type CollectionItemAddPayload = {
   collectionId: string;
   materialId?: string;
-  canonicalRef?: Ref;
-  materialRef?: Ref;
   label: string;
   materialSnapshot?: CollectionItem["materialSnapshot"];
   relationScope?: CollectionItem["relationScope"];
@@ -117,8 +111,6 @@ type CollectionItemAddPayload = {
 type CollectionItemRemovePayload = {
   collectionId: string;
   materialId?: string;
-  canonicalRef?: Ref;
-  materialRef?: Ref;
 };
 
 type CollectionCreatePayload = {
@@ -504,14 +496,13 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.collection.save",
-    description: "Save a canonical or material music object to the owner's saved system collection.",
+    description: "Save a material music object to the owner's saved system collection.",
     inputSchemaRef: "CollectionSystemItemInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
       collectionKind: collectionKindSchema.optional(),
       label: z.string(),
       description: z.string().optional(),
@@ -522,14 +513,13 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.collection.unsave",
-    description: "Remove a canonical or material music object from the owner's saved system collection.",
+    description: "Remove a material music object from the owner's saved system collection.",
     inputSchemaRef: "CollectionSystemRemoveInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
       collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
@@ -538,14 +528,13 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.collection.favorite",
-    description: "Favorite a canonical or material music object in the owner's favorite system collection.",
+    description: "Favorite a material music object in the owner's favorite system collection.",
     inputSchemaRef: "CollectionSystemItemInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
       collectionKind: collectionKindSchema.optional(),
       label: z.string(),
       description: z.string().optional(),
@@ -556,14 +545,13 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.collection.unfavorite",
-    description: "Remove a canonical or material music object from the owner's favorite system collection.",
+    description: "Remove a material music object from the owner's favorite system collection.",
     inputSchemaRef: "CollectionSystemRemoveInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
       collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
@@ -572,14 +560,13 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.collection.block",
-    description: "Block a canonical or material music object from future recommendations for the owner.",
+    description: "Block a material music object from future recommendations for the owner.",
     inputSchemaRef: "CollectionSystemItemInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
       collectionKind: collectionKindSchema.optional(),
       label: z.string(),
       description: z.string().optional(),
@@ -590,14 +577,13 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.collection.unblock",
-    description: "Remove a canonical or material music object from the owner's blocked system collection.",
+    description: "Remove a material music object from the owner's blocked system collection.",
     inputSchemaRef: "CollectionSystemRemoveInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
       collectionKind: collectionKindSchema.optional(),
     },
     handler({ context, payload }) {
@@ -606,14 +592,13 @@ export const musicToolDefinitions = [
   },
   {
     name: "music.collection.item.add",
-    description: "Add a canonical or material music object to a custom collection by collection id.",
+    description: "Add a material music object to a custom collection by collection id.",
     inputSchemaRef: "CollectionItemAddInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       collectionId: z.string(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
       label: z.string(),
       description: z.string().optional(),
     },
@@ -627,33 +612,25 @@ export const musicToolDefinitions = [
       const input = readPayload<CollectionItemAddPayload>(payload);
       const materialRef = materialRefFromCollectionPayload(input);
 
-      if (materialRef !== undefined) {
-        return availableCollection.value.addMaterialToCollection({
-          ...input,
-          materialRef,
-        });
+      if (materialRef === undefined) {
+        return invalidPayload("music.collection.item.add requires materialId.");
       }
 
-      if (input.canonicalRef === undefined) {
-        return invalidPayload("music.collection.item.add requires canonicalRef, materialRef, or materialId.");
-      }
-
-      return availableCollection.value.addItemToCollection({
+      return availableCollection.value.addMaterialToCollection({
         ...input,
-        canonicalRef: input.canonicalRef,
+        materialRef,
       });
     },
   },
   {
     name: "music.collection.item.remove",
-    description: "Remove a canonical or material music object from a custom collection by collection id.",
+    description: "Remove a material music object from a custom collection by collection id.",
     inputSchemaRef: "CollectionItemRemoveInput",
     outputSchemaRef: "CollectionItem",
     availability: "requires_active_instrument",
     inputSchema: {
       collectionId: z.string(),
-      materialId: materialIdSchema.optional(),
-      canonicalRef: refSchema.optional(),
+      materialId: materialIdSchema,
     },
     handler({ context, payload }) {
       const availableCollection = readCollection(context.collection);
@@ -665,20 +642,13 @@ export const musicToolDefinitions = [
       const input = readPayload<CollectionItemRemovePayload>(payload);
       const materialRef = materialRefFromCollectionPayload(input);
 
-      if (materialRef !== undefined) {
-        return availableCollection.value.removeMaterialFromCollection({
-          collectionId: input.collectionId,
-          materialRef,
-        });
+      if (materialRef === undefined) {
+        return invalidPayload("music.collection.item.remove requires materialId.");
       }
 
-      if (input.canonicalRef === undefined) {
-        return invalidPayload("music.collection.item.remove requires canonicalRef, materialRef, or materialId.");
-      }
-
-      return availableCollection.value.removeItemFromCollection({
+      return availableCollection.value.removeMaterialFromCollection({
         collectionId: input.collectionId,
-        canonicalRef: input.canonicalRef,
+        materialRef,
       });
     },
   },
@@ -821,7 +791,6 @@ function dispatchSystemCollectionAdd(
   payload: unknown,
   relationKind: SystemCollectionRelationKind,
 ):
-  | ReturnType<CollectionPort["addItemToSystemCollection"]>
   | ReturnType<CollectionPort["addMaterialToSystemCollection"]>
   | Result<never> {
   const availableCollection = readCollection(collection);
@@ -833,22 +802,14 @@ function dispatchSystemCollectionAdd(
   const input = readPayload<CollectionSystemAddPayload>(payload, { ownerScope: defaultOwnerScope });
   const materialRef = materialRefFromCollectionPayload(input);
 
-  if (materialRef !== undefined) {
-    return availableCollection.value.addMaterialToSystemCollection({
-      ...input,
-      relationKind,
-      materialRef,
-    });
+  if (materialRef === undefined) {
+    return invalidPayload("music.collection system add requires materialId.");
   }
 
-  if (input.canonicalRef === undefined) {
-    return invalidPayload("music.collection system add requires canonicalRef, materialRef, or materialId.");
-  }
-
-  return availableCollection.value.addItemToSystemCollection({
+  return availableCollection.value.addMaterialToSystemCollection({
     ...input,
     relationKind,
-    canonicalRef: input.canonicalRef,
+    materialRef,
   });
 }
 
@@ -857,7 +818,6 @@ function dispatchSystemCollectionRemove(
   payload: unknown,
   relationKind: SystemCollectionRelationKind,
 ):
-  | ReturnType<CollectionPort["removeItemFromSystemCollection"]>
   | ReturnType<CollectionPort["removeMaterialFromSystemCollection"]>
   | Result<never> {
   const availableCollection = readCollection(collection);
@@ -869,31 +829,23 @@ function dispatchSystemCollectionRemove(
   const input = readPayload<CollectionSystemRemovePayload>(payload, { ownerScope: defaultOwnerScope });
   const materialRef = materialRefFromCollectionPayload(input);
 
-  if (materialRef !== undefined) {
-    return availableCollection.value.removeMaterialFromSystemCollection({
-      ...input,
-      relationKind,
-      materialRef,
-    });
+  if (materialRef === undefined) {
+    return invalidPayload("music.collection system remove requires materialId.");
   }
 
-  if (input.canonicalRef === undefined) {
-    return invalidPayload("music.collection system remove requires canonicalRef, materialRef, or materialId.");
-  }
-
-  return availableCollection.value.removeItemFromSystemCollection({
+  return availableCollection.value.removeMaterialFromSystemCollection({
     ...input,
     relationKind,
-    canonicalRef: input.canonicalRef,
+    materialRef,
   });
 }
 
-function materialRefFromCollectionPayload(input: { materialId?: string; materialRef?: Ref }): Ref | undefined {
+function materialRefFromCollectionPayload(input: { materialId?: string }): Ref | undefined {
   if (input.materialId !== undefined) {
     return materialIdToRef(input.materialId);
   }
 
-  return input.materialRef;
+  return undefined;
 }
 
 function readCollection(collection: CollectionPort | undefined): Result<CollectionPort> {

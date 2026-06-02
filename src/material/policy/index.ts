@@ -263,20 +263,7 @@ async function blockedByCollection({
     return ok(true);
   }
 
-  if (material.canonicalRef === undefined) {
-    return ok(false);
-  }
-
-  const canonicalBlocked = await collection.filterBlocked({
-    ownerScope,
-    canonicalRefs: [material.canonicalRef],
-  });
-
-  if (!canonicalBlocked.ok) {
-    return canonicalBlocked;
-  }
-
-  return ok(canonicalBlocked.value.some((ref) => sameRef(ref, material.canonicalRef as Ref)));
+  return ok(false);
 }
 
 async function evaluateFreshness({
