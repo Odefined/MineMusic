@@ -48,6 +48,8 @@ and list archived documents with their superseding targets.
 | Recommendation | `docs/material/design.md`, `docs/material/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/recommendation/README.md` | Phase 2 archived historical recommendation posture planning evidence. |
 | Material Store | `docs/material-store/design.md`, `docs/material-store/ports.md`, `docs/material-store/progress.md` | `docs/archive/material-store/README.md` | Phase 3 archived historical Material Store implementation planning evidence. |
 | Canonical Store | `docs/canonical-store/design.md`, `docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`, `docs/canonical-store/storage-model.md`, `docs/canonical-store/progress.md` | `docs/archive/canonical-store/README.md` | Phase 3 archived historical Canonical Store implementation and provisional review evidence. |
+| Collection Service | `docs/collection-service/design.md`, `docs/collection-service/ports.md`, `docs/collection-service/progress.md` | `docs/archive/collection-service/README.md` | Phase 4 archived historical Collection Service implementation planning evidence. |
+| Library Import | `docs/library-import/design.md`, `docs/library-import/ports.md`, `docs/library-import/progress.md` | `docs/archive/library-import/README.md` | Phase 4 archived historical Library Import implementation planning evidence. |
 | Pending | See `INDEX.md` | Pending area README creation | Remaining area archive directories are created during the phase that processes that area. |
 
 ## Docs Guard Status

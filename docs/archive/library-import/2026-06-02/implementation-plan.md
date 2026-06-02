@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/library-import/design.md`, `docs/library-import/ports.md`, `docs/library-import/progress.md`
+> Use only for: Historical Library Import implementation planning evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Library Import Service Implementation Plan
 
 This is the historical first-slice implementation plan for Library Import

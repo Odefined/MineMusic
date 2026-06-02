@@ -134,31 +134,25 @@ through `docs/archive/README.md`.
       Collections, materialRef-backed CollectionItems, and blocked material
       filtering.
 
-29. `docs/collection-service/implementation-plan.md`
-    - Task-by-task Collection Service implementation plan for contracts,
-      storage, service rules, Stage Core wiring, Stage Interface tools,
-      Material Resolve blocked filtering, integration coverage, and state sync.
+29. `docs/collection-service/ports.md`
+    - Current Collection Service provided and consumed ports, public handle
+      policy, and open `AI-001` inconsistency.
 
 30. `docs/collection-service/progress.md`
-    - Collection Service implementation progress, current implementation state,
-      verification status, remaining gaps, and next slice.
+    - Collection Service current implementation state, verification evidence,
+      remaining gaps, and related archive.
 
 31. `docs/library-import/design.md`
     - Library Import design for Source Entity Store-owned import orchestration,
-      library updates, Source Library state, confirmed-binding Collection
-      writes, and import/update event records.
+      library updates, Source Library state, and import/update event records.
 
-32. `docs/library-import/implementation-plan.md`
-    - Library Import implementation plan. It preserves the historical
-      first-slice task plan and adds the current follow-up plan for Library
-      Update modes, newest-first provider area capabilities, compact
-      agent-facing update output, NetEase ordered saved-source reads, and
-      `providerAddedAt` provenance cleanup.
+32. `docs/library-import/ports.md`
+    - Current Library Import provided and consumed ports, batch/state storage
+      boundary, and public tool relationship.
 
 33. `docs/library-import/progress.md`
-    - Library Import implementation progress, including the Source Entity Store
-      ownership boundary, Source Library writes, confirmed-binding Collection
-      behavior, verification, remaining gaps, and future slices.
+    - Library Import current implementation state, verification evidence,
+      remaining gaps, and related archive.
 
 34. `docs/platform-library-provider/design.md`
     - `platform_library` capability slot design for account-scoped platform

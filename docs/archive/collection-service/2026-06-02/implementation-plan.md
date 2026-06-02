@@ -1,3 +1,10 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/collection-service/design.md`, `docs/collection-service/ports.md`, `docs/collection-service/progress.md`
+> Use only for: Historical Collection Service implementation planning evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+> Related inconsistencies: `AI-001`
+
 # Collection Service Implementation Plan
 
 ## Feature

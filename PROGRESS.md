@@ -1421,6 +1421,11 @@
   progress and Provisional Review docs, archived historical store/review plans
   under `docs/archive/material-store/` and `docs/archive/canonical-store/`,
   and recorded open inconsistencies `AI-001` and `AI-002`.
+- Completed documentation alignment Phase 4 for Collection Service and Library
+  Import: added current `ports.md` documents, rewrote current progress docs,
+  archived historical implementation plans under
+  `docs/archive/collection-service/` and `docs/archive/library-import/`, and
+  carried open Collection inconsistency `AI-001`.
 
 ## Next
 

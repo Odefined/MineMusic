@@ -395,6 +395,11 @@ and `docs/canonical-store/progress.md`. Open ADR/code disagreements from this
 area are tracked as `AI-001` and `AI-002` in
 `docs/maintenance/architecture-inconsistency-log.md`.
 
+Collection Service and Library Import current details live in
+`docs/collection-service/design.md`, `docs/collection-service/ports.md`,
+`docs/collection-service/progress.md`, `docs/library-import/design.md`,
+`docs/library-import/ports.md`, and `docs/library-import/progress.md`.
+
 ## Material State Policy
 
 Every recommended or action-targeted `MusicMaterial` must carry one state:

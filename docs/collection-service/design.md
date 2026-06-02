@@ -47,6 +47,10 @@ identity; Collection owns user-scoped collections and their members. New
 Collection writes require `materialRef`; `canonicalRef` is optional stored
 metadata, not a public write handle.
 
+This current behavior conflicts with the canonical-only Collection consequence
+in ADR-0002; see `AI-001` in
+`docs/maintenance/architecture-inconsistency-log.md`.
+
 ## Collection Kinds
 
 Collection Service must support more than songs.
@@ -570,19 +574,12 @@ Repository responsibilities:
 
 No other module should import Collection Repository directly.
 
-## Initial Implementation Plan
+## Current Authority
 
-Recommended sequence:
-
-1. Add shared `Collection`, `CollectionItem`, and `CollectionPort` contracts.
-2. Add in-memory `CollectionRepository`.
-3. Add `createCollectionService`.
-4. Add Stage Core wiring with default in-memory collection repository.
-5. Add Stage Interface tools for save/remove/list.
-6. Add deterministic tests for song, album, release, and artist saves.
-7. Add events for save/remove.
-8. Only after that, decide whether collection actions produce Memory proposals
-   by default.
+Implementation state belongs in `docs/collection-service/progress.md`.
+Provided and consumed ports belong in `docs/collection-service/ports.md`.
+Historical implementation planning is archived under
+`docs/archive/collection-service/`.
 
 ## Open Decisions
 

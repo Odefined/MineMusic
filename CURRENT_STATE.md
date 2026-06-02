@@ -494,9 +494,11 @@ LLM-facing surface.
   Collection storage. PR4 removes the legacy `collection_items` material-target
   migration; fresh and retained durable Collection stores are expected to
   already use the current material target columns. The source-of-truth design is
-  `docs/collection-service/design.md`, task breakdown is
-  `docs/collection-service/implementation-plan.md`, and detailed implementation
-  status is tracked in `docs/collection-service/progress.md`.
+  `docs/collection-service/design.md`, port boundaries live in
+  `docs/collection-service/ports.md`, detailed implementation status is tracked
+  in `docs/collection-service/progress.md`, and historical planning is archived
+  under `docs/archive/collection-service/`. The accepted-architecture conflict
+  with ADR-0002 is tracked as `AI-001`.
 - Library Import/Update is now a Source Entity Store flow inside Material
   Store. The implementation lives in
   `src/material/store/source_entity/library-import.ts` and is exported through
@@ -558,6 +560,9 @@ LLM-facing surface.
   certainty, and standard provider issue codes. Platform Library Providers are
   registered through the shared Plugin Registry under the `platform_library`
   slot; registry tests cover slot-scoped registration and lookup for that slot.
+  Library Import port boundaries live in `docs/library-import/ports.md`,
+  detailed implementation status lives in `docs/library-import/progress.md`,
+  and historical planning is archived under `docs/archive/library-import/`.
 - NetEase platform-library provider implementation plan Tasks 1-9 are complete:
   the existing NetEase adapter now exports a shared
   requester/options shape for source and platform-library provider factories,

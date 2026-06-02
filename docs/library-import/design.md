@@ -842,8 +842,9 @@ First useful slice:
 3. Upsert Source Track/Release/Artist records and Source Library state for
    imported saved/followed assets.
 4. Record import batch and item events.
-5. Expose Stage Interface import and update preview/start tools, plus shared
-   batch status/summary tools.
+5. Expose Stage Interface import and update start/continue tools plus shared
+   batch status/summary/item-list tools. Preview remains a runtime/internal
+   capability, not part of the normal current agent-facing tool surface.
 6. Let the user ask for recommendations from imported assets.
 
 History/recent-play import can be a later slice because it needs retention,
@@ -855,6 +856,8 @@ model for playlist identity, ordered membership, and user organization.
 Platform saved albums are concrete `release` assets for Library Import. They
 should not be collapsed into `release_group` during import.
 
-## Open Decisions
+## Current Authority
 
-No open design decisions remain for the first NetEase import/update slice.
+Implementation state belongs in `docs/library-import/progress.md`. Provided and
+consumed ports belong in `docs/library-import/ports.md`. Historical
+implementation planning is archived under `docs/archive/library-import/`.
