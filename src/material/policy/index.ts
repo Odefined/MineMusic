@@ -10,7 +10,6 @@ import type {
   MusicMaterial,
   Ref,
   Result,
-  SourceEntity,
 } from "../../contracts/index.js";
 import type {
   CollectionPort,
@@ -19,6 +18,7 @@ import type {
   MaterialSorterPort,
   MaterialSorterStorePort,
 } from "../../ports/index.js";
+import { materialIdToRef, projectMaterialRecord } from "../projection/index.js";
 import { projectMaterialRelations } from "./relation_projection.js";
 
 type MaterialPolicyEvaluatorOptions = {
@@ -87,7 +87,10 @@ async function evaluateMaterialPolicy({
   }
 
   const material = input.material === undefined
-    ? await projectMaterialRecord(materialStore, record.value)
+    ? await projectMaterialRecord(materialStore, record.value, {
+        ownerScope: input.ownerScope,
+        purpose: "policy.evaluation",
+      })
     : ok(currentMaterialForEvaluation(input.material, currentRef.value, record.value));
 
   if (!material.ok) {
@@ -463,38 +466,6 @@ async function sortMaterials({
   });
 }
 
-async function projectMaterialRecord(
-  materialStore: MaterialPolicyStorePort,
-  record: MaterialRecord,
-): Promise<Result<MusicMaterial>> {
-  const sourceRefs = sourceRefsForMaterialRecord(record);
-  const sourceEntities = await sourceEntitiesForRefs(materialStore, sourceRefs);
-
-  if (!sourceEntities.ok) {
-    return sourceEntities;
-  }
-
-  const label = await labelForMaterialRecord(materialStore, record);
-
-  if (!label.ok) {
-    return label;
-  }
-
-  const playableLinks = playableLinksForSourceEntities(sourceEntities.value);
-
-  return ok({
-    id: record.materialRef.id,
-    materialRef: record.materialRef,
-    kind: record.kind,
-    label: label.value,
-    state: projectedStateForMaterialRecord(record, playableLinks),
-    identityState: record.identityState,
-    ...(record.canonicalRef === undefined ? {} : { canonicalRef: record.canonicalRef }),
-    ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-    ...(playableLinks.length === 0 ? {} : { playableLinks }),
-  });
-}
-
 function currentMaterialForEvaluation(
   material: MusicMaterial,
   currentRef: Ref,
@@ -508,110 +479,6 @@ function currentMaterialForEvaluation(
     identityState: record.identityState,
     ...(record.canonicalRef === undefined ? {} : { canonicalRef: record.canonicalRef }),
   };
-}
-
-function sourceRefsForMaterialRecord(record: MaterialRecord): Ref[] {
-  const refs = record.primarySourceRef === undefined
-    ? [...record.sourceRefs]
-    : [record.primarySourceRef, ...record.sourceRefs];
-  const seen = new Set<string>();
-  const uniqueRefs: Ref[] = [];
-
-  for (const ref of refs) {
-    const key = refKey(ref);
-
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    uniqueRefs.push(ref);
-  }
-
-  return uniqueRefs;
-}
-
-async function sourceEntitiesForRefs(
-  materialStore: MaterialPolicyStorePort,
-  sourceRefs: Ref[],
-): Promise<Result<SourceEntity[]>> {
-  const entities: SourceEntity[] = [];
-
-  for (const sourceRef of sourceRefs) {
-    const entity = await materialStore.getSourceEntity({ sourceRef });
-
-    if (!entity.ok) {
-      return entity;
-    }
-
-    if (entity.value !== null) {
-      entities.push(entity.value);
-    }
-  }
-
-  return ok(entities);
-}
-
-function playableLinksForSourceEntities(
-  entities: SourceEntity[],
-): NonNullable<MusicMaterial["playableLinks"]> {
-  return entities.flatMap((entity) =>
-    entity.providerUrl === undefined
-      ? []
-      : [{
-          url: entity.providerUrl,
-          label: entity.label,
-          sourceRef: entity.sourceRef,
-        }],
-  );
-}
-
-function projectedStateForMaterialRecord(
-  record: MaterialRecord,
-  playableLinks: NonNullable<MusicMaterial["playableLinks"]>,
-): MusicMaterial["state"] {
-  if (record.status !== "active") {
-    return "unresolved";
-  }
-
-  if (playableLinks.length === 0) {
-    return "grounded";
-  }
-
-  return record.identityState === "canonical_confirmed" ? "confirmed_playable" : "source_only_playable";
-}
-
-async function labelForMaterialRecord(
-  materialStore: MaterialPolicyStorePort,
-  record: MaterialRecord,
-): Promise<Result<string>> {
-  if (record.canonicalRef !== undefined) {
-    const canonical = await materialStore.getCanonical({ ref: record.canonicalRef });
-
-    if (!canonical.ok) {
-      return canonical;
-    }
-
-    if (canonical.value !== null) {
-      return ok(canonical.value.label);
-    }
-  }
-
-  const sourceRef = record.primarySourceRef ?? record.sourceRefs[0];
-
-  if (sourceRef !== undefined) {
-    const source = await materialStore.getSourceEntity({ sourceRef });
-
-    if (!source.ok) {
-      return source;
-    }
-
-    if (source.value !== null) {
-      return ok(source.value.label);
-    }
-  }
-
-  return ok(record.materialRef.label ?? record.materialRef.id);
 }
 
 async function recentlyAddedAtForMaterial(
@@ -655,14 +522,6 @@ function drop(code: MaterialPolicyDropCode, reason: string): Extract<MaterialPol
     decision: "drop",
     code,
     reason,
-  };
-}
-
-function materialIdToRef(materialId: string): Ref {
-  return {
-    namespace: "minemusic",
-    kind: "material",
-    id: materialId,
   };
 }
 

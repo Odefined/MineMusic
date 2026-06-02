@@ -157,6 +157,26 @@ async function evaluatorDoesNotAcceptSnapshotWhenLiveRecordIsMissing(): Promise<
   assert(decision.code === "material_not_found", "snapshot-only evaluation should not look usable to selectors");
 }
 
+async function evaluatorProjectsLiveRecordWhenSnapshotIsAbsent(): Promise<void> {
+  const { materialStore } = createHarness();
+  const sourceRef = ref("source:fixture", "track", "projection-fallback");
+  const { record } = await putSourceBackedMaterial(materialStore, "Projection Fallback", [sourceRef]);
+  const evaluator = createTestPolicyEvaluator(materialStore);
+
+  const decision = await assertOk(
+    evaluator.evaluate({
+      ownerScope: "local_profile:default",
+      materialId: record.materialRef.id,
+      policy: { purpose: "candidate_selection", availability: "playable" },
+    }),
+  );
+
+  assert(decision.decision === "allow", "live record projection should produce a usable material");
+  assert(decision.material.label === "Projection Fallback", "projected material should use the Source Entity label");
+  assert(decision.material.state === "source_only_playable", "source-backed projected material should be playable");
+  assert(decision.material.playableLinks?.[0]?.sourceRef.id === sourceRef.id, "projected material should expose source playable link");
+}
+
 async function evaluatorDropsMaterialLevelBlockedForPresentation(): Promise<void> {
   const { materialStore } = createHarness();
   const sourceRef = ref("source:fixture", "track", "blocked-presentation");
@@ -455,6 +475,7 @@ function ref(namespace: string, kind: string, id: string): Ref {
 
 await evaluatorDropsMissingMaterial();
 await evaluatorDoesNotAcceptSnapshotWhenLiveRecordIsMissing();
+await evaluatorProjectsLiveRecordWhenSnapshotIsAbsent();
 await evaluatorDropsMaterialLevelBlockedForPresentation();
 await evaluatorHidesNotPlayableSourceWhenOtherSourceRemains();
 await evaluatorDropsNotPlayableWhenNoDisplayableSourceRemains();

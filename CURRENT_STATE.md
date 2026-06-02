@@ -228,7 +228,9 @@ Source Library item materialization and no longer receives registry writer
 capability. Material Resolve now uses `MaterialSourceMaterializerPort` for
 source/provider materialization and receives `MaterialResolveStorePort` with
 read-only resolve capabilities instead of direct registry materialization
-writers.
+writers. Material Policy now also uses `src/material/projection` for live
+`MaterialRecord`-to-`MusicMaterial` projection, so record projection rules
+remain in one Material Projection module instead of being copied into policy.
 
 The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
 `RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the

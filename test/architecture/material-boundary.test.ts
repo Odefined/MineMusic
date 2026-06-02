@@ -169,6 +169,15 @@ const forbiddenMaterializationImportFragments = [
   "memory",
 ];
 
+const forbiddenMaterialPolicyRecordProjectionHelpers = [
+  "projectMaterialRecord",
+  "sourceRefsForMaterialRecord",
+  "sourceEntitiesForRefs",
+  "playableLinksForSourceEntities",
+  "projectedStateForMaterialRecord",
+  "labelForMaterialRecord",
+];
+
 async function materialModulesDoNotImportAgentFacingOutputShapes(): Promise<void> {
   const files = await materialSourceFiles();
   const failures: string[] = [];
@@ -233,6 +242,23 @@ async function materialPolicyAndSelectionDoNotImportFullMaterialStorePort(): Pro
   assert(
     failures.length === 0,
     `Material policy/selection modules must use narrow material store ports:\n${failures.join("\n")}`,
+  );
+}
+
+async function materialPolicyUsesMaterialProjectionForRecordProjection(): Promise<void> {
+  const policyEntry = join(process.cwd(), "src/material/policy/index.ts");
+  const text = await readFile(policyEntry, "utf8");
+  const localProjectionHelpers = forbiddenMaterialPolicyRecordProjectionHelpers.filter((name) =>
+    new RegExp(`(?:async\\s+)?function\\s+${name}\\b`).test(text)
+  );
+
+  assert(
+    text.includes('from "../projection/index.js"'),
+    "Material policy must import the Material Projection module for record projection.",
+  );
+  assert(
+    localProjectionHelpers.length === 0,
+    `Material policy must not reimplement MaterialRecord projection helpers:\n${localProjectionHelpers.join("\n")}`,
   );
 }
 
@@ -472,6 +498,7 @@ function importStatements(text: string): Array<{ clause: string; source: string 
 await materialModulesDoNotImportAgentFacingOutputShapes();
 await legacyMaterialRootDirectoriesAreRemoved();
 await materialPolicyAndSelectionDoNotImportFullMaterialStorePort();
+await materialPolicyUsesMaterialProjectionForRecordProjection();
 await materialQueryDoesNotImportFullMaterialStorePort();
 await stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort();
 await stageInterfaceDispatchDoesNotImportFullMaterialStorePort();

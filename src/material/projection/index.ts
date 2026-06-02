@@ -8,6 +8,12 @@ import type {
 } from "../../contracts/index.js";
 import type { MaterialProjectionStorePort } from "../../ports/index.js";
 
+type MaterialProjectionPurpose =
+  | "resolve.cards"
+  | "context.brief"
+  | "collection.snapshot"
+  | "policy.evaluation";
+
 export function materialRefToMaterialId(materialRef: Ref): string {
   return materialRef.id;
 }
@@ -42,7 +48,7 @@ export async function materialForMaterialId({
   materialStore: MaterialProjectionStorePort;
   materialId: string;
   ownerScope: string;
-  purpose: "resolve.cards" | "context.brief" | "collection.snapshot";
+  purpose: MaterialProjectionPurpose;
 }): Promise<Result<MusicMaterial | null>> {
   const record = await currentMaterialRecordForRef(materialStore, materialIdToRef(materialId));
 
@@ -62,7 +68,7 @@ export async function projectMaterialRecord(
   record: MaterialRecord,
   context: {
     ownerScope: string;
-    purpose: "resolve.cards" | "context.brief" | "collection.snapshot";
+    purpose: MaterialProjectionPurpose;
     fallbackLabel?: string;
   },
 ): Promise<Result<MusicMaterial>> {
@@ -213,6 +219,10 @@ export function projectedStateForMaterialRecord(
   record: MaterialRecord,
   playableLinks: NonNullable<MusicMaterial["playableLinks"]>,
 ): MusicMaterial["state"] {
+  if (record.status !== "active") {
+    return "unresolved";
+  }
+
   if (playableLinks.length === 0) {
     return "grounded";
   }

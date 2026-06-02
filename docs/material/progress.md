@@ -77,6 +77,10 @@ delegates Source Library item materialization through
 `getOrCreateBySourceRef`; Material Resolve now delegates source/provider
 materialization through `MaterialSourceMaterializerPort` and receives
 `MaterialResolveStorePort` without registry writer methods.
+Material Policy now uses `src/material/projection` for live
+`MaterialRecord`-to-`MusicMaterial` projection instead of carrying local
+projection helpers; an architecture guard prevents those helpers from being
+reintroduced in policy.
 `music.material.resolve.cards` now resolves returned `materialId` values back
 through Material Registry / Material Resolve instead of treating them as text
 search.

@@ -143,6 +143,20 @@ Other Core Capabilities use Material Store through a Material Store public port.
 Canonical Store ports are internal to the Material Store canonical subdomain
 except for explicit Canonical Maintenance workflows.
 
+### Material Projection
+
+The Material Store read-side module that turns a `materialId`, `materialRef`,
+or current `MaterialRecord` into a domain `MusicMaterial`.
+_Avoid_: compact agent-facing card projection, policy relation application,
+provider/source materialization.
+
+Material Projection owns label selection, source-ref ordering, playable-link
+projection, material-kind normalization, merge-current lookup, and projected
+material state derived from current Material Store facts. Material Query,
+Material Policy, Material Materialization, Stage Interface, and app entrypoints
+should use Material Projection instead of reimplementing
+`MaterialRecord`-to-`MusicMaterial` rules.
+
 ### Collection Service
 
 The Core Capability for a user's explicit long-lived music assets, such as kept
