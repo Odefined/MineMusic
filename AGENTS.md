@@ -215,3 +215,89 @@ For risky or architecture-affecting changes, use an explicit approval gate befor
 - Do not overwrite user changes you did not author.
 - Avoid force-push unless the user explicitly asks for it.
 - Use feature branches for non-trivial work when the repo workflow expects them.
+
+## Review and PR Work
+
+When implementing review feedback:
+
+1. Group comments by theme or file.
+2. Distinguish required fixes from optional suggestions.
+3. Apply behavior-preserving fixes first.
+4. Re-run relevant verification after each logical group of changes.
+5. Summarize which comments were addressed and which remain open.
+
+## Documentation Updates
+
+Update documentation when code changes affect:
+
+- setup steps
+- developer workflow
+- public APIs
+- configuration
+- architecture decisions
+- deployment behavior
+
+Prefer updating existing docs over creating new top-level docs unless a new document is clearly warranted.
+
+Design documents are sources of truth for intended behavior and constraints.
+They must not carry mutable implementation status such as "not implemented",
+"partially implemented", or task completion state.
+
+Implementation plans describe task breakdown and sequencing. They should not be
+used as the live implementation-status ledger.
+
+Each module with implementation progress must keep its current implementation
+state in a module-local progress/status document, such as
+`docs/<module>/progress.md`. Global files such as `CURRENT_STATE.md` and
+`PROGRESS.md` may summarize and link to module progress, but must not duplicate
+fine-grained module task status.
+
+## State Sync Gate
+
+For non-trivial changes, run:
+
+```bash
+git diff --name-only
+```
+
+
+Do not mark the task complete until the answer is recorded in the final report:
+
+- `INDEX.md`: updated, or not needed with a concrete reason.
+- `CURRENT_STATE.md`: updated, or not needed with a concrete reason.
+- `ARCHITECTURE.md`: updated, or not needed with a concrete reason.
+- `PROGRESS.md`: updated, or not needed with a concrete reason.
+
+For contract/workflow/runtime changes, lack of this state-sync check is an
+incomplete task even when tests pass.
+
+## Communication
+
+- Be concise and specific.
+- Separate facts, repository evidence, and inference.
+- Use exact file paths, commands, and verification results.
+- If blocked, state the blocker and the next required decision.
+
+## Completion Format
+
+For non-trivial tasks, report:
+
+1. what was established
+2. what changed
+3. what remains unclear
+4. what verification was performed
+5. what still needs verification
+
+## Optional Project Overrides
+
+Projects may add sections such as:
+
+- stack-specific commands
+- directory ownership
+- release workflow
+- migration rules
+- security constraints
+- generated code policy
+- test matrix
+
+Keep overrides concrete. Prefer exact commands and file paths over generic advice.
