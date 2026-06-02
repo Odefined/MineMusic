@@ -725,43 +725,6 @@ async function previewAbsencesForArea({
   return ok(absences);
 }
 
-async function previewAbsencesForSourceRefs({
-  repository,
-  ownerScope,
-  providerId,
-  providerAccountId,
-  providerAccountStable,
-  scope,
-  area,
-  currentSourceRefs,
-  currentBatchId,
-}: {
-  repository: LibraryImportRepository;
-  ownerScope: string;
-  providerId: string;
-  providerAccountId: string | undefined;
-  providerAccountStable: boolean | undefined;
-  scope: LibraryImportScope;
-  area: PlatformLibraryArea;
-  currentSourceRefs: Ref[];
-  currentBatchId: string | undefined;
-}): Promise<Result<PlatformLibraryAbsenceSummary[]>> {
-  return previewAbsencesForArea({
-    repository,
-    ownerScope,
-    providerId,
-    providerAccountId,
-    providerAccountStable,
-    scope,
-    area,
-    currentItems: currentSourceRefs
-      .map((sourceRef) => ({
-        sourceRef,
-      }) as PlatformLibraryItem),
-    currentBatchId,
-  });
-}
-
 async function deriveSourceLibraryAbsences({
   materialStore,
   ownerScope,
@@ -893,7 +856,6 @@ async function startLibraryImport({
 
   if (
     shouldUsePagedImport({
-      input,
       provider: provider.value,
       repository,
     }) &&
@@ -2117,11 +2079,9 @@ async function continueLibraryImport({
 }
 
 function shouldUsePagedImport({
-  input,
   provider,
   repository,
 }: {
-  input: LibraryImportStartInput | LibraryUpdateStartInput;
   provider: PlatformLibraryProvider;
   repository: LibraryImportRepository;
 }): boolean {

@@ -1,7 +1,6 @@
 import type {
   InstrumentProviderDescriptor,
   MaterialEvidence,
-  MusicMaterial,
   PlayableLink,
   PlatformLibraryAccountIdentity,
   PlatformLibraryArea,
@@ -1423,26 +1422,6 @@ function extractSongsFromAlbumResult(payload: unknown): NetEasePayloadResult<Net
   }
 
   return { ok: false, issue: malformedResponseIssue("saved_source_tracks", "NetEase album response did not include songs.") };
-}
-
-function extractIdListResult(
-  payload: unknown,
-  area: PlatformLibraryArea,
-): NetEasePayloadResult<string[]> {
-  const issue = issueFromNetEasePayload(payload, area);
-
-  if (issue !== undefined) {
-    return { ok: false, issue };
-  }
-
-  if (!isRecord(payload) || !Array.isArray(payload.ids)) {
-    return { ok: false, issue: malformedResponseIssue(area, "NetEase liked-song response did not include ids.") };
-  }
-
-  return {
-    ok: true,
-    value: payload.ids.map(toStringId).filter((id): id is string => id !== undefined),
-  };
 }
 
 async function readLikedPlaylistTrackEntries(

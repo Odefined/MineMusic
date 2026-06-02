@@ -179,7 +179,7 @@ function recommendationPresentedPayload({
   selected: RecommendationPresentationItem[];
   presentedAt: string;
 }): RecommendationPresentedPayload {
-  const basis = selected.flatMap((item, index) =>
+  const basis = selected.flatMap((item) =>
     item.basis === undefined
       ? []
       : [{

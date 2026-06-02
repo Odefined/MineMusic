@@ -362,7 +362,6 @@ async function applyFeedbackConsequence({
     feedbackEventId,
     relationId: relationIdFactory(),
     now: clock(),
-    note: input.note ?? input.feedbackText,
   });
 
   if (relation.warning !== undefined) {
@@ -406,7 +405,6 @@ function relationForFeedback({
   feedbackEventId,
   relationId,
   now,
-  note,
 }: {
   interpretation: Exclude<MemoryFeedbackRecordInput["interpretation"], { kind: "remember_preference" }>;
   ownerScope: string;
@@ -415,7 +413,6 @@ function relationForFeedback({
   feedbackEventId: string;
   relationId: string;
   now: string;
-  note: string;
 }): { relation?: MusicMaterialRelation; warning?: MemoryFeedbackWarning } {
   const relationKind = relationKindForFeedback(interpretation);
 
@@ -423,7 +420,7 @@ function relationForFeedback({
     return {};
   }
 
-  const scope = relationScopeForFeedback(interpretation, target, note);
+  const scope = relationScopeForFeedback(interpretation, target);
 
   if (scope.warning !== undefined) {
     return { warning: scope.warning };
@@ -467,7 +464,6 @@ function relationKindForFeedback(
 function relationScopeForFeedback(
   interpretation: Exclude<MemoryFeedbackRecordInput["interpretation"], { kind: "remember_preference" }>,
   target: MemoryFeedbackBoundTarget,
-  note: string,
 ): { scope: MusicMaterialRelationScope; warning?: undefined } | { warning: MemoryFeedbackWarning } {
   if (interpretation.kind === "wrong_version") {
     if (target.sourceRef !== undefined) {

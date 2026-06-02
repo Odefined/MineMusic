@@ -939,27 +939,6 @@ async function getActiveCollectionItem(
   return ok(item.value);
 }
 
-async function getActiveMaterialCollectionItem(
-  repository: CollectionRepository,
-  collectionId: string,
-  materialRef: Ref,
-): Promise<Result<CollectionItem>> {
-  const item = await repository.findItemByMaterialMembership({
-    collectionId,
-    materialRef,
-  });
-
-  if (!item.ok) {
-    return item;
-  }
-
-  if (item.value === null) {
-    return failNotFound("Collection item was not found.");
-  }
-
-  return ok(item.value);
-}
-
 async function removeExcludedSystemMemberships({
   repository,
   events,

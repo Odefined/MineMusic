@@ -53,14 +53,6 @@ export type LibraryToolGroupContext = {
 
 const defaultOwnerScope = "local_profile:default";
 
-const refSchema = z.object({
-  namespace: z.string(),
-  kind: z.string(),
-  id: z.string(),
-  label: z.string().optional(),
-  url: z.string().optional(),
-});
-
 const platformLibraryItemKindSchema = z.enum([
   "saved_source_track",
   "saved_source_release",

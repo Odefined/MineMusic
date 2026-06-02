@@ -112,7 +112,6 @@ import type {
   SourceEntity,
   SourceEntityKind,
   SourceLibraryEntry,
-  SourceLibraryItem,
   SourceLibraryListItemView,
   SourceLibraryListInput,
   SourceLibraryListOutput,
@@ -215,49 +214,49 @@ type OptionalMethodAcceptsSingleObject<Port, Key extends keyof Port> =
       : false
     : false;
 
-type _stageSessionHasVibe = Expect<
+export type _stageSessionHasVibe = Expect<
   Equal<
     NonNullable<StageSession["vibe"]>["explorationLevel"],
     "low" | "medium" | "high" | undefined
   >
 >;
 
-type _allStageModuleMethodsUseSingleObjectInputs = Expect<
+export type _allStageModuleMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<SessionContextPort, "getSession"> &
     MethodAcceptsSingleObject<SessionContextPort, "readContext"> &
     MethodAcceptsSingleObject<SessionContextPort, "updateSession"> &
     MethodAcceptsSingleObject<MaterialGatePort, "prepareMaterials">
 >;
 
-type _catalogAndDispatchStaySeparate = Expect<
+export type _catalogAndDispatchStaySeparate = Expect<
   Equal<keyof InstrumentCatalogPort, "list"> &
     Equal<keyof ToolDispatchPort, "call">
 >;
 
-type _collectionKindsMatchDesignedCanonicalKinds = Expect<
+export type _collectionKindsMatchDesignedCanonicalKinds = Expect<
   Equal<CollectionKind, "recording" | "work" | "release_group" | "release" | "artist">
 >;
 
-type _canonicalRecordKindIncludesRelease = Expect<
+export type _canonicalRecordKindIncludesRelease = Expect<
   Equal<Extract<CanonicalRecord["kind"], "release">, "release"> &
     Equal<CanonicalRecord["facts"], Record<string, unknown> | undefined> &
     Equal<CanonicalRecord["mergedIntoRef"], Ref | undefined>
 >;
 
-type _canonicalProviderIdentityShape = Expect<
+export type _canonicalProviderIdentityShape = Expect<
   Equal<CanonicalProviderIdentity["canonicalRef"], Ref> &
     Equal<CanonicalProviderIdentity["providerId"], string> &
     Equal<CanonicalProviderIdentity["entityKind"], string> &
     Equal<CanonicalProviderIdentity["providerEntityId"], string>
 >;
 
-type _canonicalProviderIdentityRepositoryInputShape = Expect<
+export type _canonicalProviderIdentityRepositoryInputShape = Expect<
   Equal<CanonicalRecordRepositoryFindByProviderIdentityInput["providerId"], string> &
     Equal<CanonicalRecordRepositoryFindByProviderIdentityInput["entityKind"], string> &
     Equal<CanonicalRecordRepositoryFindByProviderIdentityInput["providerEntityId"], string>
 >;
 
-type _canonicalChangesetShape = Expect<
+export type _canonicalChangesetShape = Expect<
   Equal<CanonicalRecordRepositoryCommitChangesInput["putRecords"], CanonicalRecord[] | undefined> &
     Equal<
       CanonicalRecordRepositoryCommitChangesInput["putProviderIdentities"],
@@ -272,21 +271,21 @@ type _canonicalChangesetShape = Expect<
     Equal<CanonicalRecordRepositoryCommitChangesOutput["deletedRelationIds"], string[]>
 >;
 
-type _collectionRelationKindsMatchDesignedRelations = Expect<
+export type _collectionRelationKindsMatchDesignedRelations = Expect<
   Equal<CollectionRelationKind, "saved" | "favorite" | "blocked" | "custom">
 >;
 
-type _collectionItemSupportsMaterialAndLegacyCanonicalRefs = Expect<
+export type _collectionItemSupportsMaterialAndLegacyCanonicalRefs = Expect<
   Equal<CollectionItem["materialRef"], Ref | undefined> &
     Equal<CollectionItem["canonicalRef"], Ref | undefined>
 >;
 
-type _materialResolveRequestCarriesOwnerScope = Expect<
+export type _materialResolveRequestCarriesOwnerScope = Expect<
   Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
     Equal<NonNullable<MaterialResolveRequest["sourceLibraryScope"]>, SourceLibraryResolveScope>
 >;
 
-type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
+export type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
   Equal<
     keyof KnowledgeQuery,
     | "text"
@@ -317,7 +316,7 @@ type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
     Equal<KnowledgeQuery["cursor"], string | undefined>
 >;
 
-type _knowledgeStructuredQueryContract = Expect<
+export type _knowledgeStructuredQueryContract = Expect<
   Equal<
     keyof KnowledgeFieldQuery,
     "title" | "artist" | "release" | "label" | "date" | "country" | "barcode" | "catalogNumber" | "type"
@@ -328,13 +327,13 @@ type _knowledgeStructuredQueryContract = Expect<
     Equal<KnowledgeTagFilter["exclude"], string[] | undefined>
 >;
 
-type _knowledgeResultCarriesProviderAttributedItems = Expect<
+export type _knowledgeResultCarriesProviderAttributedItems = Expect<
   Equal<keyof KnowledgeResult, "items" | "nextCursor"> &
     Equal<KnowledgeResult["items"], KnowledgeItem[]> &
     Equal<KnowledgeResult["nextCursor"], string | undefined>
 >;
 
-type _structuredKnowledgeContract = Expect<
+export type _structuredKnowledgeContract = Expect<
   Equal<
     keyof StructuredKnowledge,
     | "id"
@@ -353,7 +352,7 @@ type _structuredKnowledgeContract = Expect<
     Equal<StructuredKnowledge["relations"], KnowledgeRelation[]>
 >;
 
-type _knowledgeRelationContract = Expect<
+export type _knowledgeRelationContract = Expect<
   Equal<
     keyof KnowledgeRelation,
     "id" | "type" | "endpoints" | "direction" | "phrases" | "properties"
@@ -363,17 +362,17 @@ type _knowledgeRelationContract = Expect<
     Equal<KnowledgeRelation["direction"], KnowledgeRelationDirection | undefined>
 >;
 
-type _knowledgeRelationEndpointContract = Expect<
+export type _knowledgeRelationEndpointContract = Expect<
   Equal<keyof KnowledgeRelationEndpoint, "nodeId" | "role"> &
     Equal<KnowledgeRelationEndpoint["nodeId"], string> &
     Equal<KnowledgeRelationEndpoint["role"], string | undefined>
 >;
 
-type _knowledgeRelationDirectionAllowsNoDirection = Expect<
+export type _knowledgeRelationDirectionAllowsNoDirection = Expect<
   Equal<Extract<KnowledgeRelationDirection, "none">, "none">
 >;
 
-type _textKnowledgeContract = Expect<
+export type _textKnowledgeContract = Expect<
   Equal<
     keyof TextKnowledge,
     "id" | "kind" | "providerId" | "source" | "content" | "retrievalScore" | "metadata"
@@ -383,7 +382,7 @@ type _textKnowledgeContract = Expect<
     Equal<Extract<KnowledgeItem, TextKnowledge>, TextKnowledge>
 >;
 
-type _knowledgeProviderInputCarriesCanonicalContext = Expect<
+export type _knowledgeProviderInputCarriesCanonicalContext = Expect<
   Equal<
     keyof KnowledgeProvider,
     "id" | "descriptor" | "query"
@@ -401,7 +400,7 @@ type _knowledgeProviderInputCarriesCanonicalContext = Expect<
     Equal<KnowledgeCanonicalContext["relations"], CanonicalRelation[]>
 >;
 
-type _knowledgeProviderCapabilityDescriptorContract = Expect<
+export type _knowledgeProviderCapabilityDescriptorContract = Expect<
   Equal<
     keyof KnowledgeProviderCapabilityDescriptor,
     "formats" | "entityKinds" | "expansions" | "relationFocuses" | "boundaryNotes"
@@ -411,7 +410,7 @@ type _knowledgeProviderCapabilityDescriptorContract = Expect<
     Equal<InstrumentProviderDescriptor["knowledge"], KnowledgeProviderCapabilityDescriptor | undefined>
 >;
 
-type _providerHttpCacheEntryContract = Expect<
+export type _providerHttpCacheEntryContract = Expect<
   Equal<
     keyof ProviderHttpCacheEntry,
     | "providerId"
@@ -424,7 +423,7 @@ type _providerHttpCacheEntryContract = Expect<
   >
 >;
 
-type _providerHttpCacheRepositoryMethodsUseSingleObjectInputs = Expect<
+export type _providerHttpCacheRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<ProviderHttpCacheRepository, "get"> &
     MethodAcceptsSingleObject<ProviderHttpCacheRepository, "put"> &
     MethodAcceptsSingleObject<ProviderHttpCacheRepository, "listLeastRecentlyUsed"> &
@@ -433,30 +432,30 @@ type _providerHttpCacheRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<ProviderHttpCacheRepository, "clearProvider">
 >;
 
-type _platformLibraryItemKindsMatchFirstContract = Expect<
+export type _platformLibraryItemKindsMatchFirstContract = Expect<
   Equal<PlatformLibraryItemKind, "saved_source_track" | "saved_source_release" | "saved_source_artist">
 >;
 
-type _platformLibraryTargetKindsMatchFirstContract = Expect<
+export type _platformLibraryTargetKindsMatchFirstContract = Expect<
   Equal<PlatformLibraryTargetKind, "recording" | "release" | "artist">
 >;
 
-type _platformLibraryAvailabilityKinds = Expect<
+export type _platformLibraryAvailabilityKinds = Expect<
   Equal<PlatformLibraryAvailability, "previewable" | "readable" | "unsupported" | "unavailable">
 >;
 
-type _platformLibraryReadStatuses = Expect<
+export type _platformLibraryReadStatuses = Expect<
   Equal<PlatformLibraryReadStatus, "complete" | "partial" | "failed" | "unavailable">
 >;
 
-type _sourceReleaseTrackPositionKeys = Expect<
+export type _sourceReleaseTrackPositionKeys = Expect<
   Equal<keyof SourceReleaseTrackPosition, "discNumber" | "trackNumber" | "trackCount"> &
     Equal<SourceReleaseTrackPosition["discNumber"], string | undefined> &
     Equal<SourceReleaseTrackPosition["trackNumber"], number | undefined> &
     Equal<SourceReleaseTrackPosition["trackCount"], number | undefined>
 >;
 
-type _sourceReleaseTracklistItemKeys = Expect<
+export type _sourceReleaseTracklistItemKeys = Expect<
   Equal<
     keyof SourceReleaseTracklistItem,
     "sourceRef" | "title" | "artistLabels" | "discNumber" | "trackNumber" | "trackCount" | "durationMs"
@@ -466,7 +465,7 @@ type _sourceReleaseTracklistItemKeys = Expect<
     Equal<SourceReleaseTracklistItem["artistLabels"], string[] | undefined>
 >;
 
-type _platformLibraryCanonicalHintsKeys = Expect<
+export type _platformLibraryCanonicalHintsKeys = Expect<
   Equal<
     keyof PlatformLibraryCanonicalHints,
     | "label"
@@ -484,7 +483,7 @@ type _platformLibraryCanonicalHintsKeys = Expect<
     Equal<PlatformLibraryCanonicalHints["trackPosition"], SourceReleaseTrackPosition | undefined>
 >;
 
-type _platformLibraryIssueCodes = Expect<
+export type _platformLibraryIssueCodes = Expect<
   Equal<
     PlatformLibraryIssueCode,
     | "login_required"
@@ -500,53 +499,53 @@ type _platformLibraryIssueCodes = Expect<
   >
 >;
 
-type _platformLibraryItemHasNoRawEscapeHatch = Expect<
+export type _platformLibraryItemHasNoRawEscapeHatch = Expect<
   Equal<
     keyof PlatformLibraryItem,
     "providerId" | "sourceRef" | "itemKind" | "targetKind" | "label" | "providerAddedAt" | "canonicalHints"
   >
 >;
 
-type _platformLibrarySampleIsLightweight = Expect<
+export type _platformLibrarySampleIsLightweight = Expect<
   Equal<keyof PlatformLibrarySample, "label" | "itemKind" | "targetKind" | "artistLabels">
 >;
 
-type _instrumentProviderAreaDescriptorKeys = Expect<
+export type _instrumentProviderAreaDescriptorKeys = Expect<
   Equal<
     keyof InstrumentProviderAreaDescriptor,
     "id" | "label" | "availability" | "description" | "ordering"
   >
 >;
 
-type _platformLibraryUnknownCountHasNoValue = Expect<
+export type _platformLibraryUnknownCountHasNoValue = Expect<
   Equal<Extract<PlatformLibraryCount, { certainty: "unknown" }>, { certainty: "unknown" }>
 >;
 
-type _platformLibraryProviderMethodsUseSingleObjectInputs = Expect<
+export type _platformLibraryProviderMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<PlatformLibraryProvider, "preview"> &
     MethodAcceptsSingleObject<PlatformLibraryProvider, "readItems"> &
     OptionalMethodAcceptsSingleObject<PlatformLibraryProvider, "readPage">
 >;
 
-type _platformLibraryReadPageInputKeys = Expect<
+export type _platformLibraryReadPageInputKeys = Expect<
   Equal<
     keyof PlatformLibraryReadPageInput,
     "providerAccountId" | "area" | "pageSize" | "sampleLimitRemaining" | "providerState"
   >
 >;
 
-type _platformLibraryReadPageResultKeys = Expect<
+export type _platformLibraryReadPageResultKeys = Expect<
   Equal<
     keyof PlatformLibraryReadPageResult,
     "providerId" | "account" | "area" | "status" | "items" | "count" | "providerState" | "hasMore" | "issues"
   >
 >;
 
-type _canonicalProvisionalHintKindAllowsSourceRecordingContext = Expect<
+export type _canonicalProvisionalHintKindAllowsSourceRecordingContext = Expect<
   Equal<Extract<CanonicalProvisionalHintKind, "source_recording_context">, "source_recording_context">
 >;
 
-type _canonicalProvisionalHintFactsKeys = Expect<
+export type _canonicalProvisionalHintFactsKeys = Expect<
   Equal<
     keyof CanonicalProvisionalHintFacts,
     "title" | "artistLabels" | "releaseLabel" | "releaseSourceRef" | "releaseDate" | "durationMs" | "trackPosition"
@@ -555,7 +554,7 @@ type _canonicalProvisionalHintFactsKeys = Expect<
     Equal<CanonicalProvisionalHintFacts["trackPosition"], SourceReleaseTrackPosition | undefined>
 >;
 
-type _canonicalProvisionalHintKeys = Expect<
+export type _canonicalProvisionalHintKeys = Expect<
   Equal<
     keyof CanonicalProvisionalHint,
     | "id"
@@ -570,11 +569,11 @@ type _canonicalProvisionalHintKeys = Expect<
   >
 >;
 
-type _canonicalProvisionalHintDraftKeys = Expect<
+export type _canonicalProvisionalHintDraftKeys = Expect<
   Equal<keyof CanonicalProvisionalHintDraft, "kind" | "facts">
 >;
 
-type _provisionalReviewSupportReasonKinds = Expect<
+export type _provisionalReviewSupportReasonKinds = Expect<
   Equal<
     ProvisionalReviewSupportReasonKind,
     | "artist_credit"
@@ -588,7 +587,7 @@ type _provisionalReviewSupportReasonKinds = Expect<
   >
 >;
 
-type _provisionalReviewAnchorKeys = Expect<
+export type _provisionalReviewAnchorKeys = Expect<
   Equal<
     keyof ProvisionalReviewAnchor,
     | "id"
@@ -605,7 +604,7 @@ type _provisionalReviewAnchorKeys = Expect<
     Equal<ProvisionalReviewAnchor["providerRef"], Ref | undefined>
 >;
 
-type _provisionalRelationCandidateKeys = Expect<
+export type _provisionalRelationCandidateKeys = Expect<
   Equal<
     keyof ProvisionalRelationCandidate,
     | "id"
@@ -622,7 +621,7 @@ type _provisionalRelationCandidateKeys = Expect<
   >
 >;
 
-type _provisionalReviewInspectionKeys = Expect<
+export type _provisionalReviewInspectionKeys = Expect<
   Equal<
     keyof ProvisionalReviewInspection,
     | "inspectionId"
@@ -646,7 +645,7 @@ type _provisionalReviewInspectionKeys = Expect<
     Equal<ProvisionalReviewInspection["detail"], ProvisionalReviewInspectionDetail | undefined>
 >;
 
-type _provisionalReviewInspectInputShape = Expect<
+export type _provisionalReviewInspectInputShape = Expect<
   Equal<
     keyof ProvisionalReviewInspectInput,
     | "sessionId"
@@ -664,7 +663,7 @@ type _provisionalReviewInspectInputShape = Expect<
     Equal<ProvisionalReviewInspectInput["knowledgeFactLimit"], number | undefined>
 >;
 
-type _provisionalReviewInspectionDetailShape = Expect<
+export type _provisionalReviewInspectionDetailShape = Expect<
   Equal<ProvisionalReviewInspectionDetail["recordingRefToken"], ProvisionalReviewRefToken> &
     Equal<ProvisionalReviewInspectionDetail["recordingRef"], Ref> &
     Equal<ProvisionalReviewInspectionDetail["releaseAppearances"], Array<{
@@ -678,19 +677,19 @@ type _provisionalReviewInspectionDetailShape = Expect<
     Equal<ProvisionalReviewInspectDetailInclude, "releaseAppearances" | "releaseTrackPositions">
 >;
 
-type _provisionalReviewRefTokenShape = Expect<
+export type _provisionalReviewRefTokenShape = Expect<
   Equal<ProvisionalReviewRefToken["kind"], "recording" | "release"> &
     Equal<ProvisionalReviewRefToken["id"], string> &
     Equal<ProvisionalReviewRefTokenBinding["token"], ProvisionalReviewRefToken> &
     Equal<ProvisionalReviewRefTokenBinding["ref"], Ref>
 >;
 
-type _provisionalReviewListOutputShape = Expect<
+export type _provisionalReviewListOutputShape = Expect<
   Equal<keyof ProvisionalReviewListOutput, "items" | "nextCursor"> &
     Equal<ProvisionalReviewListOutput["items"][number]["kind"], "recording">
 >;
 
-type _provisionalReviewApplyInputIsUpdateOrCannotConfirm = Expect<
+export type _provisionalReviewApplyInputIsUpdateOrCannotConfirm = Expect<
   Equal<ProvisionalReviewApplyInput["action"], "update" | "cannot_confirm"> &
     Equal<
       keyof Extract<ProvisionalReviewApplyInput, { action: "update" }>,
@@ -715,7 +714,7 @@ type _provisionalReviewApplyInputIsUpdateOrCannotConfirm = Expect<
     >
 >;
 
-type _provisionalReviewApplyOutputIsDerivedEffect = Expect<
+export type _provisionalReviewApplyOutputIsDerivedEffect = Expect<
   Equal<ProvisionalReviewApplyOutput["action"], "update" | "cannot_confirm"> &
     Equal<
       Extract<ProvisionalReviewApplyOutput, { action: "update" }>["appliedAction"],
@@ -735,7 +734,7 @@ type _provisionalReviewApplyOutputIsDerivedEffect = Expect<
     >
 >;
 
-type _canonicalReviewStateShape = Expect<
+export type _canonicalReviewStateShape = Expect<
   Equal<CanonicalReviewStateOutcome, "cannot_confirm" | "updated"> &
     Equal<
       keyof CanonicalReviewState,
@@ -750,59 +749,59 @@ type _canonicalReviewStateShape = Expect<
     Equal<CanonicalReviewStateListInput["outcome"], CanonicalReviewStateOutcome | undefined>
 >;
 
-type _libraryImportScopesMatchFirstSlice = Expect<
+export type _libraryImportScopesMatchFirstSlice = Expect<
   Equal<LibraryImportScope, "discovery" | "saved_source_tracks" | "saved_source_releases" | "saved_source_artists">
 >;
 
-type _libraryImportBatchKinds = Expect<
+export type _libraryImportBatchKinds = Expect<
   Equal<LibraryImportBatchKind, "initial_import" | "library_update">
 >;
 
-type _libraryImportBatchStatuses = Expect<
+export type _libraryImportBatchStatuses = Expect<
   Equal<
     LibraryImportBatchStatus,
     "pending" | "running" | "completed" | "completed_with_warnings" | "failed" | "canceled"
   >
 >;
 
-type _libraryImportPreviewInputKeys = Expect<
+export type _libraryImportPreviewInputKeys = Expect<
   Equal<
     keyof LibraryImportPreviewInput,
     "providerId" | "providerAccountId" | "ownerScope" | "scopes" | "sampleLimitPerArea"
   >
 >;
 
-type _libraryImportStartInputKeys = Expect<
+export type _libraryImportStartInputKeys = Expect<
   Equal<
     keyof LibraryImportStartInput,
     keyof LibraryImportPreviewInput | "pageSize"
   >
 >;
 
-type _libraryUpdateMode = Expect<Equal<LibraryUpdateMode, "full" | "latest_until_seen">>;
+export type _libraryUpdateMode = Expect<Equal<LibraryUpdateMode, "full" | "latest_until_seen">>;
 
-type _libraryUpdatePreviewInputKeys = Expect<
+export type _libraryUpdatePreviewInputKeys = Expect<
   Equal<keyof LibraryUpdatePreviewInput, keyof LibraryImportPreviewInput | "mode">
 >;
 
-type _libraryUpdateStartInputKeys = Expect<
+export type _libraryUpdateStartInputKeys = Expect<
   Equal<keyof LibraryUpdateStartInput, keyof LibraryImportStartInput | "mode">
 >;
 
-type _libraryImportContinueInputKeys = Expect<
+export type _libraryImportContinueInputKeys = Expect<
   Equal<keyof LibraryImportContinueInput, "batchId" | "pageSize">
 >;
 
-type _libraryImportBatchLookupInputsUseBatchId = Expect<
+export type _libraryImportBatchLookupInputsUseBatchId = Expect<
   Equal<keyof LibraryImportStatusInput, "batchId"> &
     Equal<keyof LibraryImportSummaryInput, "batchId">
 >;
 
-type _libraryImportItemsListInputKeys = Expect<
+export type _libraryImportItemsListInputKeys = Expect<
   Equal<keyof LibraryImportItemsListInput, "batchId" | "limit" | "cursor">
 >;
 
-type _libraryImportProgressKeys = Expect<
+export type _libraryImportProgressKeys = Expect<
   Equal<
     keyof LibraryImportProgress,
     | "processedItems"
@@ -812,7 +811,7 @@ type _libraryImportProgressKeys = Expect<
   >
 >;
 
-type _libraryImportPreviewAreaKeys = Expect<
+export type _libraryImportPreviewAreaKeys = Expect<
   Equal<
     keyof LibraryImportPreviewArea,
     | "scope"
@@ -827,11 +826,11 @@ type _libraryImportPreviewAreaKeys = Expect<
   >
 >;
 
-type _libraryImportPreviewKeys = Expect<
+export type _libraryImportPreviewKeys = Expect<
   Equal<keyof LibraryImportPreview, "providerId" | "ownerScope" | "scopes" | "account" | "areas" | "issues">
 >;
 
-type _libraryImportPreviewAreaViewKeys = Expect<
+export type _libraryImportPreviewAreaViewKeys = Expect<
   Equal<
     keyof LibraryImportPreviewAreaView,
     | "scope"
@@ -847,11 +846,11 @@ type _libraryImportPreviewAreaViewKeys = Expect<
   >
 >;
 
-type _libraryImportPreviewViewKeys = Expect<
+export type _libraryImportPreviewViewKeys = Expect<
   Equal<keyof LibraryImportPreviewView, "providerId" | "ownerScope" | "scopes" | "mode" | "account" | "areas" | "issues">
 >;
 
-type _libraryImportReportKeys = Expect<
+export type _libraryImportReportKeys = Expect<
   Equal<
     keyof LibraryImportReport,
     | "batchId"
@@ -873,7 +872,7 @@ type _libraryImportReportKeys = Expect<
   >
 >;
 
-type _libraryImportStatusIsBatchSummary = Expect<
+export type _libraryImportStatusIsBatchSummary = Expect<
   Equal<
     keyof LibraryImportStatus,
     | "batchId"
@@ -891,9 +890,9 @@ type _libraryImportStatusIsBatchSummary = Expect<
   >
 >;
 
-type _libraryImportSummaryUsesReportShape = Expect<Equal<LibraryImportSummary, LibraryImportReport>>;
+export type _libraryImportSummaryUsesReportShape = Expect<Equal<LibraryImportSummary, LibraryImportReport>>;
 
-type _libraryImportSummaryViewKeys = Expect<
+export type _libraryImportSummaryViewKeys = Expect<
   Equal<
     keyof LibraryImportSummaryView,
     | "batchId"
@@ -915,11 +914,11 @@ type _libraryImportSummaryViewKeys = Expect<
   >
 >;
 
-type _libraryImportItemsListOutputKeys = Expect<
+export type _libraryImportItemsListOutputKeys = Expect<
   Equal<keyof LibraryImportItemsListOutput, "batchId" | "items" | "totalItems" | "nextCursor">
 >;
 
-type _libraryImportBatchRecordKeys = Expect<
+export type _libraryImportBatchRecordKeys = Expect<
   Equal<
     keyof LibraryImportBatch,
     | "id"
@@ -938,14 +937,14 @@ type _libraryImportBatchRecordKeys = Expect<
   >
 >;
 
-type _libraryImportContinuationStatuses = Expect<
+export type _libraryImportContinuationStatuses = Expect<
   Equal<
     LibraryImportContinuationStateStatus,
     "pending" | "running" | "complete" | "failed" | "unavailable"
   >
 >;
 
-type _libraryImportContinuationStateKeys = Expect<
+export type _libraryImportContinuationStateKeys = Expect<
   Equal<
     keyof LibraryImportContinuationState,
     | "batchId"
@@ -968,7 +967,7 @@ type _libraryImportContinuationStateKeys = Expect<
   >
 >;
 
-type _libraryImportContinuationStateLookupInputs = Expect<
+export type _libraryImportContinuationStateLookupInputs = Expect<
   Equal<keyof LibraryImportRepositoryContinuationStateInput, "batchId" | "scope" | "area"> &
     Equal<
       keyof LibraryImportRepositoryListContinuationStatesInput,
@@ -976,7 +975,7 @@ type _libraryImportContinuationStateLookupInputs = Expect<
     >
 >;
 
-type _libraryImportAreaSnapshotKeys = Expect<
+export type _libraryImportAreaSnapshotKeys = Expect<
   Equal<
     keyof LibraryImportAreaSnapshot,
     | "batchId"
@@ -994,7 +993,7 @@ type _libraryImportAreaSnapshotKeys = Expect<
   >
 >;
 
-type _libraryImportItemProvenanceKeys = Expect<
+export type _libraryImportItemProvenanceKeys = Expect<
   Equal<
     keyof LibraryImportItemProvenance,
     | "ownerScope"
@@ -1017,7 +1016,7 @@ type _libraryImportItemProvenanceKeys = Expect<
   >
 >;
 
-type _platformLibraryAbsenceRecordKeys = Expect<
+export type _platformLibraryAbsenceRecordKeys = Expect<
   Equal<
     keyof PlatformLibraryAbsence,
     | "id"
@@ -1035,11 +1034,11 @@ type _platformLibraryAbsenceRecordKeys = Expect<
   >
 >;
 
-type _systemCollectionRelationsExcludeCustom = Expect<
+export type _systemCollectionRelationsExcludeCustom = Expect<
   Equal<SystemCollectionRelationKind, "saved" | "favorite" | "blocked">
 >;
 
-type _collectionPortMethods = Expect<
+export type _collectionPortMethods = Expect<
   Equal<
     keyof CollectionPort,
     | "initializeOwnerCollections"
@@ -1062,7 +1061,7 @@ type _collectionPortMethods = Expect<
   >
 >;
 
-type _collectionPortMethodsUseSingleObjectInputs = Expect<
+export type _collectionPortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CollectionPort, "initializeOwnerCollections"> &
     MethodAcceptsSingleObject<CollectionPort, "addItemToSystemCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "addMaterialToSystemCollection"> &
@@ -1082,7 +1081,7 @@ type _collectionPortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CollectionPort, "filterBlockedMaterials">
 >;
 
-type _libraryImportPortMethods = Expect<
+export type _libraryImportPortMethods = Expect<
   Equal<
     keyof LibraryImportPort,
     | "previewImport"
@@ -1097,7 +1096,7 @@ type _libraryImportPortMethods = Expect<
   >
 >;
 
-type _libraryImportPortMethodsUseSingleObjectInputs = Expect<
+export type _libraryImportPortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<LibraryImportPort, "previewImport"> &
     MethodAcceptsSingleObject<LibraryImportPort, "startImport"> &
     MethodAcceptsSingleObject<LibraryImportPort, "continueImport"> &
@@ -1108,7 +1107,7 @@ type _libraryImportPortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<LibraryImportPort, "getSummary">
 >;
 
-type _libraryImportRepositoryMethods = Expect<
+export type _libraryImportRepositoryMethods = Expect<
   Equal<
     keyof LibraryImportRepository,
     | "getBatch"
@@ -1130,7 +1129,7 @@ type _libraryImportRepositoryMethods = Expect<
   >
 >;
 
-type _libraryImportRepositoryMethodsUseSingleObjectInputs = Expect<
+export type _libraryImportRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<LibraryImportRepository, "getBatch"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "putBatch"> &
     MethodAcceptsSingleObject<LibraryImportRepository, "listBatches"> &
@@ -1149,11 +1148,11 @@ type _libraryImportRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<LibraryImportRepository, "listAbsences">
 >;
 
-type _canonicalProvisionalHintListInputKeys = Expect<
+export type _canonicalProvisionalHintListInputKeys = Expect<
   Equal<keyof CanonicalProvisionalHintListInput, "subjectRef" | "sourceRef" | "kind">
 >;
 
-type _canonicalStorePortMethods = Expect<
+export type _canonicalStorePortMethods = Expect<
   Equal<
     keyof CanonicalStorePort,
     | "get"
@@ -1168,7 +1167,7 @@ type _canonicalStorePortMethods = Expect<
   >
 >;
 
-type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
+export type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CanonicalStorePort, "get"> &
     MethodAcceptsSingleObject<CanonicalStorePort, "findByLabel"> &
     MethodAcceptsSingleObject<CanonicalStorePort, "resolveSourceRef"> &
@@ -1180,41 +1179,41 @@ type _canonicalStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CanonicalStorePort, "listProvisionalHints">
 >;
 
-type _sourceEntityKinds = Expect<Equal<SourceEntityKind, "track" | "release" | "artist">>;
+export type _sourceEntityKinds = Expect<Equal<SourceEntityKind, "track" | "release" | "artist">>;
 
-type _sourceEntityUnion = Expect<
+export type _sourceEntityUnion = Expect<
   Equal<SourceEntity, SourceTrack | SourceRelease | SourceArtist>
 >;
 
-type _sourceLibraryItemStatus = Expect<Equal<SourceLibraryItemStatus, "present" | "absent">>;
+export type _sourceLibraryItemStatus = Expect<Equal<SourceLibraryItemStatus, "present" | "absent">>;
 
-type _sourceLibraryResolveScopeKeys = Expect<
+export type _sourceLibraryResolveScopeKeys = Expect<
   Equal<keyof SourceLibraryResolveScope, "providerId" | "providerAccountId" | "libraryKind" | "status">
 >;
 
-type _confirmedCanonicalBindingKeys = Expect<
+export type _confirmedCanonicalBindingKeys = Expect<
   Equal<keyof ConfirmedCanonicalBinding, "sourceRef" | "canonicalRef" | "createdAt" | "updatedAt">
 >;
 
-type _sourceLibraryItemKeyInputKeys = Expect<
+export type _sourceLibraryItemKeyInputKeys = Expect<
   Equal<
     keyof SourceLibraryItemKeyInput,
     "ownerScope" | "providerId" | "providerAccountId" | "libraryKind" | "sourceRef"
   >
 >;
 
-type _sourceEntityStoreListEntitiesInputKeys = Expect<
+export type _sourceEntityStoreListEntitiesInputKeys = Expect<
   Equal<keyof SourceEntityStoreListEntitiesInput, "providerId" | "kind" | "sourceRef">
 >;
 
-type _sourceLibraryItemListInputKeys = Expect<
+export type _sourceLibraryItemListInputKeys = Expect<
   Equal<
     keyof SourceLibraryItemListInput,
     "ownerScope" | "providerId" | "providerAccountId" | "sourceKind" | "libraryKind" | "status" | "sourceRef"
   >
 >;
 
-type _sourceLibraryListInputKeys = Expect<
+export type _sourceLibraryListInputKeys = Expect<
   Equal<
     keyof SourceLibraryListInput,
     | "ownerScope"
@@ -1226,21 +1225,21 @@ type _sourceLibraryListInputKeys = Expect<
   >
 >;
 
-type _sourceLibraryEntryKeys = Expect<Equal<keyof SourceLibraryEntry, "item" | "sourceEntity">>;
+export type _sourceLibraryEntryKeys = Expect<Equal<keyof SourceLibraryEntry, "item" | "sourceEntity">>;
 
-type _sourceLibraryListItemViewKeys = Expect<
+export type _sourceLibraryListItemViewKeys = Expect<
   Equal<keyof SourceLibraryListItemView, "sourceRef" | "label" | "subtitle">
 >;
 
-type _sourceLibraryListOutputKeys = Expect<
+export type _sourceLibraryListOutputKeys = Expect<
   Equal<keyof SourceLibraryListOutput, "items" | "totalItems" | "nextCursor">
 >;
 
-type _confirmedCanonicalBindingListInputKeys = Expect<
+export type _confirmedCanonicalBindingListInputKeys = Expect<
   Equal<keyof ConfirmedCanonicalBindingListInput, "sourceRef" | "canonicalRef">
 >;
 
-type _materialSessionActivityKeys = Expect<
+export type _materialSessionActivityKeys = Expect<
   Equal<
     keyof MaterialSessionActivity,
     | "ownerScope"
@@ -1254,7 +1253,7 @@ type _materialSessionActivityKeys = Expect<
   >
 >;
 
-type _materialStorePortMethods = Expect<
+export type _materialStorePortMethods = Expect<
   Equal<
     keyof MaterialStorePort,
     | "getMaterialRecord"
@@ -1288,7 +1287,7 @@ type _materialStorePortMethods = Expect<
   >
 >;
 
-type _materialStorePortMethodsUseSingleObjectInputs = Expect<
+export type _materialStorePortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<MaterialStorePort, "getMaterialRecord"> &
     MethodAcceptsSingleObject<MaterialStorePort, "resolveMaterialRedirect"> &
     MethodAcceptsSingleObject<MaterialStorePort, "findMaterialBySourceRef"> &
@@ -1319,13 +1318,13 @@ type _materialStorePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<MaterialStorePort, "listConfirmedCanonicalBindings">
 >;
 
-type _materialSessionActivityRepositoryMethodsUseSingleObjectInputs = Expect<
+export type _materialSessionActivityRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<MaterialSessionActivityRepository, "getSessionActivity"> &
     MethodAcceptsSingleObject<MaterialSessionActivityRepository, "putSessionActivity"> &
     MethodAcceptsSingleObject<MaterialSessionActivityRepository, "listSessionActivity">
 >;
 
-type _materialRegistryPortMethods = Expect<
+export type _materialRegistryPortMethods = Expect<
   Equal<
     keyof MaterialRegistryPort,
     | "getMaterialRecord"
@@ -1340,7 +1339,7 @@ type _materialRegistryPortMethods = Expect<
   >
 >;
 
-type _materialRegistryPortMethodsUseSingleObjectInputs = Expect<
+export type _materialRegistryPortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<MaterialRegistryPort, "getMaterialRecord"> &
     MethodAcceptsSingleObject<MaterialRegistryPort, "resolveMaterialRedirect"> &
     MethodAcceptsSingleObject<MaterialRegistryPort, "findMaterialBySourceRef"> &
@@ -1352,7 +1351,7 @@ type _materialRegistryPortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<MaterialRegistryPort, "mergeMaterials">
 >;
 
-type _sourceEntityStoreRepositoryMethods = Expect<
+export type _sourceEntityStoreRepositoryMethods = Expect<
   Equal<
     keyof SourceEntityStoreRepository,
     | "getSourceEntity"
@@ -1367,7 +1366,7 @@ type _sourceEntityStoreRepositoryMethods = Expect<
   >
 >;
 
-type _sourceEntityStoreRepositoryMethodsUseSingleObjectInputs = Expect<
+export type _sourceEntityStoreRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<SourceEntityStoreRepository, "getSourceEntity"> &
     MethodAcceptsSingleObject<SourceEntityStoreRepository, "putSourceEntity"> &
     MethodAcceptsSingleObject<SourceEntityStoreRepository, "listSourceEntities"> &
@@ -1379,11 +1378,11 @@ type _sourceEntityStoreRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<SourceEntityStoreRepository, "listConfirmedCanonicalBindings">
 >;
 
-type _canonicalMaintenancePortMethods = Expect<
+export type _canonicalMaintenancePortMethods = Expect<
   Equal<keyof CanonicalMaintenancePort, "reviewList" | "reviewInspect" | "reviewApply" | "reviewAutoUpdate" | "clearReviewState">
 >;
 
-type _canonicalMaintenancePortMethodsUseSingleObjectInputs = Expect<
+export type _canonicalMaintenancePortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewList"> &
     MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewInspect"> &
     MethodAcceptsSingleObject<CanonicalMaintenancePort, "reviewApply"> &
@@ -1391,19 +1390,19 @@ type _canonicalMaintenancePortMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CanonicalMaintenancePort, "clearReviewState">
 >;
 
-type _provisionalReviewDecisionOrigins = Expect<
+export type _provisionalReviewDecisionOrigins = Expect<
   Equal<ProvisionalReviewDecisionOrigin, "agent" | "automatic">
 >;
 
-type _provisionalReviewAutoUpdateInputDoesNotExposeInspectionId = Expect<
+export type _provisionalReviewAutoUpdateInputDoesNotExposeInspectionId = Expect<
   Equal<Extract<keyof ProvisionalReviewAutoUpdateInput, "inspectionId">, never>
 >;
 
-type _provisionalReviewAutoUpdateOutputModes = Expect<
+export type _provisionalReviewAutoUpdateOutputModes = Expect<
   Equal<ProvisionalReviewAutoUpdateOutput["mode"], "single" | "batch">
 >;
 
-type _canonicalRecordRepositoryMethods = Expect<
+export type _canonicalRecordRepositoryMethods = Expect<
   Equal<
     keyof CanonicalRecordRepository,
     | keyof Repository<CanonicalRecord, Ref>
@@ -1420,7 +1419,7 @@ type _canonicalRecordRepositoryMethods = Expect<
   >
 >;
 
-type _canonicalRecordRepositoryMethodsUseSingleObjectInputs = Expect<
+export type _canonicalRecordRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CanonicalRecordRepository, "putRelation"> &
     OptionalMethodAcceptsSingleObject<CanonicalRecordRepository, "findCurrentByProviderIdentity"> &
     OptionalMethodAcceptsSingleObject<CanonicalRecordRepository, "commitChanges"> &
@@ -1432,7 +1431,7 @@ type _canonicalRecordRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CanonicalRecordRepository, "deleteReviewState">
 >;
 
-type _collectionRepositoryMethods = Expect<
+export type _collectionRepositoryMethods = Expect<
   Equal<
     keyof CollectionRepository,
     | "getCollection"
@@ -1447,7 +1446,7 @@ type _collectionRepositoryMethods = Expect<
   >
 >;
 
-type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
+export type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CollectionRepository, "getCollection"> &
     MethodAcceptsSingleObject<CollectionRepository, "putCollection"> &
     MethodAcceptsSingleObject<CollectionRepository, "listCollections"> &
@@ -1459,26 +1458,26 @@ type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
     MethodAcceptsSingleObject<CollectionRepository, "listItems">
 >;
 
-type _musicMaterialIdentityStateValues = Expect<
+export type _musicMaterialIdentityStateValues = Expect<
   Equal<
     MusicMaterialIdentityState,
     "canonical_confirmed" | "source_backed" | "ambiguous" | "unresolved"
   >
 >;
 
-type _materialRecordStatusValues = Expect<
+export type _materialRecordStatusValues = Expect<
   Equal<MaterialRecordStatus, "active" | "merged" | "rejected">
 >;
 
-type _sourceMaterialBaseCompatibility = Expect<
+export type _sourceMaterialBaseCompatibility = Expect<
   Equal<SourceMaterial, MusicMaterialBase>
 >;
 
-type _musicMaterialResolvedShape = Expect<
+export type _musicMaterialResolvedShape = Expect<
   Equal<MusicMaterial, MusicMaterialBase & { materialRef: Ref; identityState: MusicMaterialIdentityState }>
 >;
 
-type _materialRecordShape = Expect<
+export type _materialRecordShape = Expect<
   Equal<
     keyof MaterialRecord,
     | "materialRef"

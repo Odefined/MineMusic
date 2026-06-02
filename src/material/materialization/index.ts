@@ -5,7 +5,6 @@ import type {
   MusicMaterial,
   Ref,
   Result,
-  SourceLibraryItem,
   SourceMaterial,
 } from "../../contracts/index.js";
 import type {
