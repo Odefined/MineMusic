@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/knowledge-slot/design.md`, `docs/knowledge-slot/musicbrainz-provider.md`, `docs/knowledge-slot/progress.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`
+> Use only for: historical Knowledge Slot implementation sequencing and verification evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Knowledge Slot Implementation Plan
 
 ## Status

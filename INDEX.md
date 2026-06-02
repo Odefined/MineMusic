@@ -159,27 +159,64 @@ through `docs/archive/README.md`.
       library reads, provider account selection, availability, and provider item
       facts.
 
-35. `docs/stage-interface/design.md`
+35. `docs/platform-library-provider/progress.md`
+    - Platform Library Provider current implementation state, NetEase readable
+      areas, remaining gaps, and related archive.
+
+36. `docs/source-providers/netease.md`
+    - Current NetEase source and platform-library provider behavior, runtime
+      configuration, source mapping, library mapping, boundaries, and
+      verification notes.
+
+37. `docs/knowledge-slot/design.md`
+    - Current Knowledge Slot design authority for provider-attributed
+      structured/text knowledge and the general `knowledge.query` boundary.
+
+38. `docs/knowledge-slot/musicbrainz-provider.md`
+    - Current MusicBrainz Knowledge Provider design authority for structured
+      search, lookup, browse expansions, relation focus, cache, and provider
+      boundaries.
+
+39. `docs/knowledge-slot/progress.md`
+    - Knowledge Slot current implementation state, remaining gaps, verification
+      evidence, and related archive.
+
+40. `docs/host-adapters/codex-skill.md`
+    - Current Codex skill and global MCP client boundary.
+
+41. `docs/operations/minemusic-server-launchd.md`
+    - Current local long-lived MineMusic server operation guide.
+
+42. `docs/stage-interface/design.md`
     - Current Stage Interface boundary design: tool definitions, governed
       dispatch, compact output ownership, MCP adapter relationship, and
       forbidden public leaks.
 
-36. `docs/stage-interface/ports.md`
+43. `docs/stage-interface/ports.md`
     - Current Stage Interface provided and consumed ports, read/write
       capabilities, composition points, and guards.
 
-37. `docs/stage-interface/tool-contracts.md`
+44. `docs/stage-interface/tool-contracts.md`
     - Current public tool surface authority for stable tool names, schema
       policy, compact output policy, MCP parity, public materialId handles, and
       removed public tool names.
 
-38. `docs/stage-interface/progress.md`
+45. `docs/stage-interface/progress.md`
     - Current Stage Interface implementation status, evidence checked,
       verification history, and remaining scoped cleanup.
 
-39. `docs/archive/stage-interface/README.md`
+46. `docs/archive/stage-interface/README.md`
     - Archived Stage Interface refactor plans, language-normalization plans,
       completed TODOs, and their superseding current authority documents.
+
+47. `docs/archive/platform-library-provider/README.md`
+    - Archived Platform Library Provider implementation planning evidence.
+
+48. `docs/archive/knowledge-slot/README.md`
+    - Archived Knowledge Slot implementation planning evidence.
+
+49. `docs/archive/host-adapters/README.md`
+    - Archived host-adapter/server-boundary planning evidence.
 
 41. `src/collection/index.ts`
     - Collection Service public-port implementation for owner-scoped system and
@@ -306,21 +343,19 @@ through `docs/archive/README.md`.
       boundaries, and verification notes.
 
 68. `docs/knowledge-slot/design.md`
-    - Knowledge Slot design draft for provider-attributed structured graph and
+    - Knowledge Slot design authority for provider-attributed structured graph and
       text knowledge, including the MusicBrainz and document-knowledge-base
       boundary, general expansion names, and coarse relationship focus.
 
 69. `docs/knowledge-slot/musicbrainz-provider.md`
-    - MusicBrainz Knowledge Provider design draft covering supported query
+    - MusicBrainz Knowledge Provider design authority covering supported query
       modes, deterministic search/lookup/browse API planning, first structured
       knowledge scope, expansion mapping, text-query expansion follow-up,
       relation focus, provider activation, and provider boundaries.
 
-70. `docs/knowledge-slot/implementation-plan.md`
-    - Task-by-task implementation plan for the target Knowledge Slot contract,
-      generic provider HTTP cache, Stage Interface knowledge tool, and first
-      MusicBrainz provider, including runtime provider-factory activation and
-      the text-query relation expansion follow-up task.
+70. `docs/archive/knowledge-slot/README.md`
+    - Archive index for historical Knowledge Slot implementation planning
+      evidence.
 
 71. `docs/knowledge-slot/progress.md`
     - Knowledge Slot implementation progress, including implemented shared
@@ -341,9 +376,9 @@ through `docs/archive/README.md`.
       while provider/database/cache/session runtime configuration belongs to
       server startup.
 
-74. `docs/host-adapters/service-adapter-refactor-plan.md`
-    - Corrected refactor plan for moving runtime ownership out of Codex into a
-      long-lived MineMusic server that exposes MCP directly.
+74. `docs/archive/host-adapters/README.md`
+    - Archive index for the historical host-adapter refactor plan that moved
+      runtime ownership out of Codex into a long-lived MineMusic server.
 
 75. `docs/operations/minemusic-server-launchd.md`
     - Local operation guide recording that MineMusic server is kept alive by
@@ -396,10 +431,9 @@ through `docs/archive/README.md`.
       tools, including Library Import tool entries. Live Handbook lookup is
       served by the MineMusic server through MCP.
 
-84. `docs/platform-library-provider/netease-implementation-plan.md`
-    - Task-by-task implementation plan for the NetEase `platform_library`
-      provider, including supported areas, adapter boundaries, issue mapping,
-      fixture tests, and verification.
+84. `docs/archive/platform-library-provider/README.md`
+    - Archive index for the historical NetEase `platform_library` provider
+      implementation plan.
 
 85. `docs/platform-library-provider/progress.md`
     - Platform Library Provider implementation progress, including current

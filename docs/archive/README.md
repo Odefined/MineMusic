@@ -50,6 +50,9 @@ and list archived documents with their superseding targets.
 | Canonical Store | `docs/canonical-store/design.md`, `docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`, `docs/canonical-store/storage-model.md`, `docs/canonical-store/progress.md` | `docs/archive/canonical-store/README.md` | Phase 3 archived historical Canonical Store implementation and provisional review evidence. |
 | Collection Service | `docs/collection-service/design.md`, `docs/collection-service/ports.md`, `docs/collection-service/progress.md` | `docs/archive/collection-service/README.md` | Phase 4 archived historical Collection Service implementation planning evidence. |
 | Library Import | `docs/library-import/design.md`, `docs/library-import/ports.md`, `docs/library-import/progress.md` | `docs/archive/library-import/README.md` | Phase 4 archived historical Library Import implementation planning evidence. |
+| Platform Library Provider | `docs/platform-library-provider/design.md`, `docs/platform-library-provider/progress.md`, `docs/source-providers/netease.md`, `docs/library-import/design.md` | `docs/archive/platform-library-provider/README.md` | Phase 5 archived historical NetEase platform-library provider implementation planning evidence. |
+| Knowledge Slot | `docs/knowledge-slot/design.md`, `docs/knowledge-slot/musicbrainz-provider.md`, `docs/knowledge-slot/progress.md` | `docs/archive/knowledge-slot/README.md` | Phase 5 archived historical Knowledge Slot implementation planning evidence. |
+| Host Adapters | `docs/host-adapters/codex-skill.md`, `docs/operations/minemusic-server-launchd.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md` | `docs/archive/host-adapters/README.md` | Phase 5 archived historical server/MCP host-boundary planning evidence. |
 | Pending | See `INDEX.md` | Pending area README creation | Remaining area archive directories are created during the phase that processes that area. |
 
 ## Docs Guard Status

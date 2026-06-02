@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/platform-library-provider/design.md`, `docs/platform-library-provider/progress.md`, `docs/source-providers/netease.md`, `docs/library-import/design.md`
+> Use only for: historical NetEase platform-library provider implementation sequencing and verification evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # NetEase Platform Library Provider Implementation Plan
 
 ## Goal

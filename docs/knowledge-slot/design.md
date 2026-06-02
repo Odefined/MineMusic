@@ -2,7 +2,9 @@
 
 ## Status
 
-Design draft.
+Current design authority. Implementation state lives in
+`docs/knowledge-slot/progress.md`; historical sequencing evidence is archived
+under `docs/archive/knowledge-slot/`.
 
 ## Discussion Summary
 
@@ -49,8 +51,8 @@ recommendation flow.
 ## Established Decisions
 
 - Knowledge Slot's primary output should not be `MusicMaterial[]`.
-- The old `MusicMaterial[]` Knowledge path should not be kept as a compatibility
-  method when the target contract is implemented.
+- The old `MusicMaterial[]` Knowledge path is not kept as a compatibility
+  method.
 - Knowledge output is provider-attributed and source-attributed.
 - Knowledge providers may return structured facts or text retrieval results.
 - MusicBrainz should be a Music Knowledge provider first, not an identity
@@ -70,7 +72,7 @@ recommendation flow.
   exists, tests and host surfaces may pass explicit runtime options, but those
   options should not become per-provider activation switches.
 
-## Proposed Top-Level Contract
+## Top-Level Contract
 
 The target shape should keep the top level small:
 
@@ -259,7 +261,7 @@ score.
 Agents should query by knowledge intent, not by provider internals or storage
 shape. Structured/text should be a preference, not the business action.
 
-Proposed target shape:
+Contract shape:
 
 ```ts
 export type KnowledgeQuery = {
@@ -702,15 +704,14 @@ that `tagQuery` finds entities by provider-attributed tags, that
 should not teach agents to call MusicBrainz search, lookup, browse, offsets, or
 MusicBrainz API parameters directly.
 
-## Migration Rule
+## Material Boundary
 
-When the target contract is implemented, `MusicKnowledgePort.query` should move
-directly from `MusicMaterial[]` to `KnowledgeResult`.
+`MusicKnowledgePort.query` returns `KnowledgeResult` directly.
 
-Do not keep a compatibility method such as `queryMaterials`. Knowledge should not
-remain a material provider. Any current caller that expects `MusicMaterial[]`
-must either move to `knowledge.query` for knowledge items or use Material
-Resolve / Source Grounding for material resolution.
+Knowledge does not keep a compatibility material-output method such as
+`queryMaterials`, and it is not a material provider. Callers that need
+playable/source-grounded material must use Material Resolve / Source Grounding
+rather than `knowledge.query`.
 
 ## MusicBrainz Implications
 
@@ -758,8 +759,7 @@ The review/apply workflow remains a separate design. It may use LLM assistance
 to summarize facts, compare possible identities, and draft an apply proposal, but
 Canonical Store must own the actual state transitions.
 
-## Decision Queue
+## Future Design Queue
 
-The general Knowledge Slot contract decisions in this draft are resolved enough
-to plan implementation. Future design should cover the Canonical Store
-LLM-assisted review/apply workflow separately.
+Future design should cover the Canonical Store LLM-assisted review/apply
+workflow separately.

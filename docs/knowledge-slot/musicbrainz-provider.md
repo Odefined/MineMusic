@@ -2,7 +2,9 @@
 
 ## Status
 
-Design draft.
+Current MusicBrainz Knowledge Provider design authority. Implementation state
+lives in `docs/knowledge-slot/progress.md`; historical sequencing evidence is
+archived under `docs/archive/knowledge-slot/`.
 
 ## Purpose
 
@@ -608,7 +610,7 @@ Use `expand: ["identifiers"]` when the caller wants extra provider identifiers
 beyond the default identifier fields, such as additional label codes, catalog
 numbers, or provider-specific identifiers.
 
-## Node And Edge Conventions
+## Node And Relation Conventions
 
 Node `type` values should use MusicBrainz-compatible music terms:
 

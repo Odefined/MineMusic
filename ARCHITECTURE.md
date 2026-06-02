@@ -400,6 +400,17 @@ Collection Service and Library Import current details live in
 `docs/collection-service/progress.md`, `docs/library-import/design.md`,
 `docs/library-import/ports.md`, and `docs/library-import/progress.md`.
 
+Provider, Knowledge, host-adapter, and local-operations current details live in
+`docs/source-providers/netease.md`,
+`docs/platform-library-provider/design.md`,
+`docs/platform-library-provider/progress.md`,
+`docs/knowledge-slot/design.md`,
+`docs/knowledge-slot/musicbrainz-provider.md`,
+`docs/knowledge-slot/progress.md`, `docs/host-adapters/codex-skill.md`, and
+`docs/operations/minemusic-server-launchd.md`. Historical implementation plans
+for those areas are archived under `docs/archive/platform-library-provider/`,
+`docs/archive/knowledge-slot/`, and `docs/archive/host-adapters/`.
+
 ## Material State Policy
 
 Every recommended or action-targeted `MusicMaterial` must carry one state:

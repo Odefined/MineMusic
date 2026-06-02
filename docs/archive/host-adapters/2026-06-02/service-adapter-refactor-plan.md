@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/host-adapters/codex-skill.md`, `docs/operations/minemusic-server-launchd.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`
+> Use only for: historical evidence of the server/MCP host-boundary correction.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Server MCP Refactor Plan
 
 ## Correction

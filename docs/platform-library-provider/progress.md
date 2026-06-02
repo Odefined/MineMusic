@@ -1,98 +1,73 @@
 # Platform Library Provider Progress
 
-This file tracks implementation progress for the `platform_library` capability
-slot and concrete platform-library providers.
+This file records current implementation state for the `platform_library`
+capability slot and the bundled NetEase platform-library provider. Current slot
+design authority lives in `docs/platform-library-provider/design.md`; NetEase
+provider behavior is documented in `docs/source-providers/netease.md`.
 
-## Current State
+## Current Implementation
 
-- The shared `PlatformLibraryProvider` contract is defined in
-  `src/contracts/index.ts`.
-- The generic slot design lives in `docs/platform-library-provider/design.md`.
-- The NetEase implementation plan lives in
-  `docs/platform-library-provider/netease-implementation-plan.md`.
-- NetEase provider Task 1 is complete: `src/providers/netease/index.ts` now
-  exposes a shared NetEase requester/options shape that preserves
-  `defaultNetEaseBaseUrl` and injectable `requestJson` for deterministic tests.
-- NetEase provider Task 2 is complete: `src/providers/netease/index.ts` now
-  exports `createNetEasePlatformLibraryProvider(...)`, returning a
-  `PlatformLibraryProvider` with `id: "netease"` and callable `preview` /
-  `readItems` methods.
-- NetEase provider Task 3 is complete: `preview` and `readItems` resolve the
-  current local NetEase API session through `/login/status`, return stable
-  account identity when a user id can be proven, and return structured
-  `login_required` issues when no usable account or requested account match can
-  be proven.
-- The provider currently uses the local API's default session account. Explicit
-  reads for multiple simultaneously available NetEase accounts are not exposed
-  by the current adapter; account-selection behavior remains a future concern if
-  the runtime later supports multiple configured sessions.
-- NetEase provider Task 4 is complete: `readItems` maps `saved_source_tracks`,
-  `saved_source_releases`, and `saved_source_artists` responses into generic
-  `PlatformLibraryItem` records with stable NetEase `sourceRef` values,
-  generic item/target kinds, labels, and canonical hints.
-- NetEase provider Task 5 is complete: `preview` defaults to the first-slice
-  readable areas, reports readable availability and honest counts, supports
-  bounded lightweight samples, and reports `playlists` / `listening_history` as
-  unsupported during discovery.
-- NetEase provider Task 6 is complete: `readItems` returns requested readable
-  area results with `complete`, `failed`, and `partial` per-area statuses;
-  unsupported read areas return `unavailable` with `scope_unsupported`, and one
-  area failure no longer prevents other requested areas from returning data.
-- NetEase provider Task 7 is complete: account, preview, and item-read failures
-  from requester errors and local API payloads now map into standard
-  `PlatformLibraryIssueCode` values including `provider_unavailable`,
-  `timeout`, `login_required`, `scope_unsupported`, `rate_limited`,
-  `partial_read`, and `malformed_response`.
-- NetEase provider Task 8 is complete: deterministic provider coverage now
-  includes readable previews, generic item reads, stable source refs, sample
-  shape constraints, unsupported areas, login/provider/malformed/partial issue
-  paths, artist/release source-ref canonical hints for saved source tracks, and
-  NetEase provider registration through the `platform_library` slot.
-- NetEase provider Task 9 is complete: the platform-library provider test
-  module is wired into `test/run-stage-core-tests.ts`, and
-  `docs/source-providers/netease.md` now documents that the NetEase adapter
-  exposes both `source` and `platform_library` slot providers.
-- NetEase saved-source-track reads now best-effort fetch `/album` once per
-  album id during `readItems` to enrich generic `canonicalHints.releaseDate`
-  from album `publishTime` and `canonicalHints.trackPosition` from source album
-  tracklist context. Album enrichment failures do not fail the
-  saved-source-track read, and preview samples remain lightweight.
-- `PlatformLibraryReadInput.sampleLimitPerArea` is now part of the shared
-  provider read contract. NetEase saved-source-track reads preserve full-read
-  behavior by default and bound the liked-track detail read when a caller passes
-  an explicit sample limit.
-- Real validation against the updated local Docker API found and fixed two read
-  completeness gaps: `song/detail` requests are now batched below the API's
-  1000-song limit, and saved album / followed artist reads now paginate
-  `album/sublist` and `artist/sublist` with stable `limit` / `offset` requests.
-- Live validation against `http://127.0.0.1:3000` now uses the Docker-side
-  NetEase API setting in `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env`.
-  The local API proves the current account identity and returns exact preview
-  counts of 1372 saved source tracks, 466 saved source releases, and 179 saved
-  source artists; `readItems` returns matching item counts for all three
-  readable areas.
+- Shared contracts in `src/contracts/index.ts` define
+  `PlatformLibraryProvider`, `preview`, `readItems`, optional `readPage`,
+  account identity, area availability, read status, count certainty, provider
+  items, preview samples, standard issue codes, and provider area capability
+  descriptors.
+- Providers register through the shared Plugin Registry under slot
+  `platform_library`; provider ids are scoped by slot.
+- Library Import consumes `PlatformLibraryProvider` results and owns all
+  import/update batching, Source Entity Store writes, Source Library state,
+  update baselines, absence records, and public `library.*` tools.
+- The NetEase adapter in `src/providers/netease/index.ts` exports both
+  `createNetEaseSourceProvider(...)` and
+  `createNetEasePlatformLibraryProvider(...)` over a shared requester/options
+  shape.
+- The NetEase platform-library provider resolves the current local API session
+  account through `/login/status`, rejects mismatched explicit
+  `providerAccountId` values, and returns structured `login_required` issues
+  when no usable account can be proven.
+- NetEase readable areas are `saved_source_tracks`, `saved_source_releases`,
+  and `saved_source_artists`. `playlists` and `listening_history` are reported
+  as unsupported.
+- NetEase area descriptors mark all three readable areas as
+  `ordering: "newest_first"`, allowing Library Import's
+  `latest_until_seen` update mode when other update preconditions hold.
+- Saved-source-track reads use the liked playlist detail `trackIds` order and
+  `trackIds[].at` timestamps, not `/likelist`, as the provider item fact
+  source. `/song/detail` supplies the song facts after stable track ids are
+  known.
+- Saved-source-track reads best-effort fetch album details once per distinct
+  album id to populate release date and source track-position hints.
+- Saved-source-release reads use `/album/sublist` plus best-effort album detail
+  fetches to populate release dates and structured source tracklists.
+- Saved-source-artist reads use `/artist/sublist`.
+- NetEase `preview`, `readItems`, and `readPage` map requester errors and
+  provider payload issues into standard platform-library issue codes.
+- The default MineMusic server/runtime registers the NetEase source provider
+  and NetEase platform-library provider from the same NetEase base-url setting.
 
-## Next Slice
+## Remaining Work
 
-1. Start Library Import orchestration work that consumes
-   `PlatformLibraryProvider` preview/read results.
-2. Keep playlist and listening-history support out of scope until a later
-   provider slice defines their data model and user-facing import behavior.
+- Playlist import and listening-history import remain future provider/import
+  slices.
+- Multi-account NetEase session selection remains future work if the local API
+  runtime later supports multiple configured sessions.
+- Provider writeback, playlist mutation, and playback control remain out of
+  scope for the platform-library slot.
 
-## Verification
+## Verification Evidence
 
-- `npm run build:test`
-- `node .tmp-test/test/providers/netease-source-provider.test.js`
-- `node .tmp-test/test/providers/netease-platform-library-provider.test.js`
-- `npm run build:test && node .tmp-test/test/providers/netease-platform-library-provider.test.js`
-  passes after adding NetEase saved-source-track album track-position enrichment.
+- `test/providers/netease-platform-library-provider.test.ts`
+- `test/providers/netease-source-provider.test.ts`
+- `test/plugins/plugin-registry.test.ts`
+- `test/stage_core/stage-core-factory.test.ts`
+- `test/surfaces/mcp-server.test.ts`
 - `npm test`
-- Live `preview({ discovery: true, sampleLimitPerArea: 3 })` and
-  `readItems({ areas: ["saved_source_tracks", "saved_source_releases", "saved_source_artists", "playlists"] })`
-  against `http://127.0.0.1:3000`; both prove the current account, return
-  matching readable-area counts of 1372 saved source tracks, 466 saved source
-  releases, and 179 saved source artists, and report `playlists` as
-  unsupported for item reads.
-- `git diff --check`
-- `rg -n "CanonicalStore|Collection|LibraryImport" src/providers/netease`
-- `rg -n "raw|sampleItems" src test docs/platform-library-provider docs/library-import`
+- Live validation against the configured local NetEase API service has proven
+  matching preview/read counts for saved tracks, saved releases, and followed
+  artists; live availability still depends on that external service and login
+  state.
+
+## Archive
+
+Historical NetEase platform-library provider implementation sequencing is
+archived under `docs/archive/platform-library-provider/`.

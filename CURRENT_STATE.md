@@ -342,8 +342,10 @@ Stage Core startup and server-level provider/repository/cache/session
 configuration, while Codex and OpenClaw are MCP clients that connect to the
 server URL. CLI and Web UI remain future peer transports over the same
 server-held Stage Runtime.
-The phased refactor plan for that change is documented in
-`docs/host-adapters/service-adapter-refactor-plan.md`.
+The current host boundary is documented in
+`docs/host-adapters/codex-skill.md` and
+`docs/operations/minemusic-server-launchd.md`; the historical refactor plan is
+archived under `docs/archive/host-adapters/`.
 
 ## Source Basis
 
@@ -556,28 +558,35 @@ LLM-facing surface.
   `docs/platform-library-provider/design.md`; Library Import consumes that slot
   rather than defining provider behavior inside the import design. Shared
   TypeScript contracts now define `PlatformLibraryProvider`, preview/read input
-  and output shapes, item kinds, availability, per-area read status, count
-  certainty, and standard provider issue codes. Platform Library Providers are
-  registered through the shared Plugin Registry under the `platform_library`
-  slot; registry tests cover slot-scoped registration and lookup for that slot.
-  Library Import port boundaries live in `docs/library-import/ports.md`,
-  detailed implementation status lives in `docs/library-import/progress.md`,
-  and historical planning is archived under `docs/archive/library-import/`.
-- NetEase platform-library provider implementation plan Tasks 1-9 are complete:
+  and output shapes, optional paged read output, item kinds, availability,
+  per-area read status, count certainty, provider area ordering descriptors,
+  and standard provider issue codes. Platform Library Providers are registered
+  through the shared Plugin Registry under the `platform_library` slot;
+  registry tests cover slot-scoped registration and lookup for that slot.
+  Platform Library Provider progress lives in
+  `docs/platform-library-provider/progress.md`; historical provider planning is
+  archived under `docs/archive/platform-library-provider/`. Library Import port
+  boundaries live in `docs/library-import/ports.md`, detailed implementation
+  status lives in `docs/library-import/progress.md`, and historical import
+  planning is archived under `docs/archive/library-import/`.
+- NetEase platform-library provider implementation is current:
   the existing NetEase adapter now exports a shared
   requester/options shape for source and platform-library provider factories,
   and `createNetEasePlatformLibraryProvider(...)` returns a
   `PlatformLibraryProvider` with stable `id: "netease"` plus callable
-  `preview` and `readItems` methods. Those methods resolve the current local
-  NetEase API session account identity through `/login/status` and return
-  structured `login_required` issues when no usable account or requested
-  account match can be proven. `readItems` maps `saved_source_tracks`,
-  `saved_source_releases`, and `saved_source_artists` into generic provider item facts with
-  stable NetEase source refs and canonical hints, including artist/release
-  source refs for saved source tracks, batched `song/detail` reads, and
-  paginated saved source release / followed artist reads. Saved-source-track
-  reads now best-effort
-  fetch `/album?id=<albumId>` once per distinct album id to populate
+  `preview`, `readItems`, and optional `readPage` methods. Those methods
+  resolve the current local NetEase API session account identity through
+  `/login/status` and return structured `login_required` issues when no usable
+  account or requested account match can be proven. `readItems` and `readPage`
+  map `saved_source_tracks`, `saved_source_releases`, and
+  `saved_source_artists` into generic provider item facts with stable NetEase
+  source refs and canonical hints, including artist/release source refs for
+  saved source tracks, liked-playlist newest-first reads, batched
+  `song/detail` reads, and paginated saved source release / followed artist
+  reads. Saved-source-track reads use liked playlist detail `trackIds[].at` as
+  provider add-time evidence and do not use `/likelist` as the current Source
+  Library track import/update fact source. They also best-effort fetch
+  `/album?id=<albumId>` once per distinct album id to populate
   platform-neutral `canonicalHints.releaseDate` and
   `canonicalHints.trackPosition`. Saved-release reads now use the same album
   detail endpoint to populate `canonicalHints.releaseDate` and a structured
@@ -590,8 +599,9 @@ LLM-facing surface.
   platform-library issue codes such as `provider_unavailable`, `timeout`,
   `rate_limited`, `malformed_response`, `partial_read`, and `login_required`.
   Deterministic tests also verify NetEase registration through the
-  `platform_library` plugin slot, and `docs/source-providers/netease.md` records
-  that the adapter exposes both `source` and `platform_library` slot providers.
+  `platform_library` plugin slot, and `docs/source-providers/netease.md`
+  records that the adapter exposes both `source` and `platform_library` slot
+  providers and documents the current liked-playlist mapping.
   The current local live
   NetEase API service at `http://127.0.0.1:3000` now reads the Docker-side
   account setting from `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env`;
@@ -677,11 +687,11 @@ LLM-facing surface.
   MusicBrainz's default HTTP requester preserves status codes from non-JSON
   error bodies, so rate-limit responses still map to retryable
   `knowledge.rate_limited` errors.
-  A target Knowledge Slot design draft now exists in
+  The current Knowledge Slot design authority lives in
   `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
   output to provider-attributed knowledge items while keeping identity
-  confirmation and canonical writes in Canonical Store review/apply flows. A
-  provider-specific MusicBrainz design draft now exists in
+  confirmation and canonical writes in Canonical Store review/apply flows. The
+  provider-specific MusicBrainz design authority lives in
   `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
   provider-ref lookup, and deterministic provider-internal browse for ref-based
   list expansions behind the general `knowledge.query` tool. The Knowledge
@@ -690,14 +700,13 @@ LLM-facing surface.
   `relationFocus: ["members"]` narrows broad relationships to membership facts
   while preserving dates and role attributes. The design also records a future
   generic persistent provider HTTP cache, defaulting to non-expiring entries
-  with explicit least-recently-used cleanup by `lastUsedAt`. A task-by-task
-  implementation plan for the target Knowledge Slot contract, cache, Stage
-  Interface tool, MusicBrainz provider, and text-query relation expansion now
-  exists in `docs/knowledge-slot/implementation-plan.md`. Future common plugin
-  configuration should still be able to drive Knowledge provider activation,
-  but the first service runtime registers bundled MusicBrainz directly and
-  does not make a MusicBrainz-specific environment variable decide provider
-  activation.
+  with explicit least-recently-used cleanup by `lastUsedAt`. Current Knowledge
+  implementation state lives in `docs/knowledge-slot/progress.md`; historical
+  implementation sequencing is archived under `docs/archive/knowledge-slot/`.
+  Future common plugin configuration should still be able to drive Knowledge
+  provider activation, but the first service runtime registers bundled
+  MusicBrainz directly and does not make a MusicBrainz-specific environment
+  variable decide provider activation.
 - Material Resolve is exported from `src/material/resolve/index.ts` with
   canonical-first `MusicCandidate` to `MusicMaterial` resolution through
   `MaterialStorePort`. It can accept `CollectionPort` for owner-scoped blocked
