@@ -74,13 +74,10 @@ Implemented:
 - SQLite `canonical_source_refs` uniqueness failures are tagged by storage
   and mapped to `canonical.source_ref_conflict` at the Canonical Store
   boundary.
-- SQLite initialization migrates the earlier local development table shape
+- PR4 removes the earlier local development SQLite migration from
   `canonical_external_refs.external_id` into `canonical_source_refs.source_id`.
-- PR4 compatibility marking deliberately retains the
-  `canonical_external_refs` to `canonical_source_refs` SQLite migration for
-  local durable-store compatibility. It should not be removed as dead code
-  unless a separate data compatibility decision says older local SQLite stores
-  no longer need protection.
+  Fresh and retained durable canonical stores are expected to already use the
+  current `canonical_source_refs.source_id` shape.
 - SQLite-backed repositories expose indexed source-ref lookup so Canonical
   Store can resolve source refs, reuse provisional evidence, and check
   source-ref conflicts without scanning every canonical record.

@@ -484,22 +484,25 @@ git diff --name-only
   decision.
 - Architecture and module progress docs describe the new boundary.
 
-## PR 4: Event and SQLite Compatibility Marking
+## PR 4: Event and SQLite Compatibility Deletion
 
 ### Goal
 
-Mark old event and SQLite migration compatibility as deliberate, or remove them
-only after an explicit data compatibility decision.
+Remove old event and SQLite migration compatibility after the explicit data
+compatibility decision that these old local/event states no longer need
+protection.
 
 ### Owned Context
 
 Event Service activity projection and SQLite storage initialization.
 
-### Default Decision
+### Compatibility Decision
 
-Keep these compatibility layers:
+Delete these compatibility layers:
 
 - underscore event projection in `src/events/index.ts`;
+- underscore manual `recommendation_presented` special-casing in
+  `src/stage_interface/tool_definitions/stage.ts`;
 - `canonical_external_refs` to `canonical_source_refs` migration in
   `src/storage/sqlite/canonical-schema.ts`;
 - legacy `collection_items` material-target migration in
@@ -507,14 +510,16 @@ Keep these compatibility layers:
 
 ### Non-Goals
 
-- Do not delete these paths by default.
 - Do not add new migration or repair layers.
 - Do not change event payload formats.
 
 ### Files Likely To Change
 
-Docs only, unless a later explicit decision approves deletion:
-
+- `src/events/index.ts`;
+- `src/stage_interface/tool_definitions/stage.ts`;
+- `src/storage/sqlite/canonical-schema.ts`;
+- `src/storage/sqlite/collection-schema.ts`;
+- tests that protected removed compatibility behavior;
 - `CURRENT_STATE.md`;
 - `docs/canonical-store/progress.md`;
 - `docs/collection-service/progress.md`;
@@ -530,27 +535,14 @@ Docs only, unless a later explicit decision approves deletion:
 
 ### Allowed Writes
 
-- docs that mark retained compatibility as deliberate;
-- code only if a separate decision says old event data and old local SQLite
-  schema state do not need protection.
+- code and tests that remove the compatibility paths above;
+- docs that record the data compatibility decision.
 
 ### Forbidden Edits
 
-- Do not remove migrations just because they look old.
-- Do not remove underscore event projection if activity projection for old
-  events is still considered useful.
 - Do not change `/tmp/minemusic` reset behavior in this PR.
 
 ### Verification
-
-Docs-only marking:
-
-```bash
-git diff --check
-git diff --name-only
-```
-
-Deletion, if explicitly approved later:
 
 ```bash
 npm run build:test
@@ -565,9 +557,9 @@ git diff --name-only
 
 ### Acceptance Criteria
 
-- Retained compatibility paths are documented as deliberate.
-- If any path is removed, the PR states the data compatibility decision and
-  updates or removes tests that protected the old behavior.
+- Removed compatibility paths have no remaining runtime branch.
+- The PR states the data compatibility decision and updates or removes tests
+  that protected the old behavior.
 
 ## State Sync Rules
 

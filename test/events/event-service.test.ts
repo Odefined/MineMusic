@@ -25,7 +25,7 @@ async function recordsFactualEventsAndListsBySession(): Promise<void> {
       event: {
         sessionId: "session-1",
         actor: "stage",
-        type: "recommendation_presented",
+        type: "recommendation.presented",
         payload: { materialState: "source_only_playable" },
       },
     }),

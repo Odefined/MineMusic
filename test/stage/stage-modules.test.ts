@@ -146,7 +146,6 @@ async function readsBoundedRecentCardsFromRecommendationEvents(): Promise<void> 
     legacyMaterialStatesRecommendationEvent(),
     recommendationEvent("event-old", "Old Track"),
     recommendationEvent("event-latest", "Latest Track", "Second Track"),
-    legacyUnderscoreRecommendationEvent(),
   ];
   const memory: MemoryPort = {
     summarizeForSession: async () => ({ ok: true, value: [] }),
@@ -182,10 +181,6 @@ async function readsBoundedRecentCardsFromRecommendationEvents(): Promise<void> 
   assert(
     !context.recentCards.some((card) => card.title === "Legacy Track"),
     "recent cards should ignore legacy materialStates recommendation payloads",
-  );
-  assert(
-    !context.recentCards.some((card) => card.title === "Legacy Underscore Track"),
-    "recent cards should ignore legacy recommendation_presented events",
   );
   assert(!("payload" in context.recentCards[0]!), "recent cards should not expose raw event payloads");
 }
@@ -343,26 +338,6 @@ function legacyMaterialStatesRecommendationEvent(): StageEvent {
           state: "confirmed_playable",
         },
       ],
-    },
-  };
-}
-
-function legacyUnderscoreRecommendationEvent(): StageEvent {
-  return {
-    id: "event-legacy-underscore",
-    time: "2026-05-31T00:00:00.000Z",
-    sessionId: session.id,
-    actor: "llm",
-    type: "recommendation_presented",
-    payload: {
-      presentedAt: "2026-05-31T00:00:00.000Z",
-      cards: [{
-        materialId: "legacy-underscore-track",
-        title: "Legacy Underscore Track",
-        state: "source_only_playable",
-        position: 1,
-        presentedAt: "2026-05-31T00:00:00.000Z",
-      }],
     },
   };
 }

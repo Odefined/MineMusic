@@ -232,18 +232,13 @@ function applySessionActivityUpdate({
 function activityUpdateKindForEvent(type: string): "recommended" | "opened" | "played" | "skipped" | null {
   switch (type) {
     case "recommendation.presented":
-    case "recommendation_presented":
       return "recommended";
     case "material.opened":
     case "link.opened":
-    case "material_opened":
-    case "link_opened":
       return "opened";
     case "material.played":
-    case "material_played":
       return "played";
     case "material.skipped":
-    case "material_skipped":
       return "skipped";
     default:
       return null;

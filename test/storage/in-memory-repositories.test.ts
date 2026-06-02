@@ -72,7 +72,7 @@ async function storesEachRepositoryType(): Promise<void> {
     time: "2026-05-17T00:00:00.000Z",
     sessionId: session.id,
     actor: "stage",
-    type: "recommendation_presented",
+    type: "recommendation.presented",
     payload: { materialState: "confirmed_playable" },
   };
   const eventRepo = createInMemoryEventRepository();

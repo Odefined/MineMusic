@@ -1603,7 +1603,7 @@ const stageEvent: StageEvent = {
   time: "2026-05-17T00:00:00.000Z",
   sessionId: "session-1",
   actor: "stage",
-  type: "recommendation_presented",
+  type: "recommendation.presented",
   target: ref,
   payload: { materialState: material.state },
 };
