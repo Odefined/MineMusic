@@ -204,6 +204,7 @@ npm run typecheck
 npm run build:test
 node .tmp-test/test/contracts/wave1-contracts.test.js
 npm test
+git diff --check
 git diff --name-only
 ```
 
@@ -294,13 +295,15 @@ material-store ports.
 ```bash
 npm run typecheck -- --noUnusedLocals --noUnusedParameters
 npm test
+git diff --check
 git diff --name-only
 ```
 
 ### Acceptance Criteria
 
-- `noUnusedLocals` / `noUnusedParameters` no longer reports production-code
-  cleanup candidates introduced in the audit.
+- `npm run typecheck -- --noUnusedLocals --noUnusedParameters` exits
+  successfully, or any remaining test-only/type-contract exception is documented
+  with a deliberate reason.
 - Runtime behavior tests pass.
 - No public schema, event payload, or storage schema diff is present.
 
@@ -326,9 +329,15 @@ Material Store / Source Entity Store Library Import boundary.
 
 - `test/library_import/library-import-service.test.ts`;
 - `src/library_import/index.ts`;
+- `docs/library-import/progress.md`;
+- `docs/material-store/progress.md`;
 - `INDEX.md`;
-- `CURRENT_STATE.md` or module-local progress docs if they currently describe
-  the compatibility path as present.
+- `CURRENT_STATE.md` if it currently describes the compatibility path as
+  present.
+
+`docs/library-import/implementation-plan.md` is historical/superseded planning
+material. PR 2 should state whether it was left unchanged for that reason
+rather than silently treating it as live status.
 
 ### Allowed Reads
 
@@ -362,6 +371,7 @@ npm run build:test
 node .tmp-test/test/library_import/library-import-service.test.js
 node .tmp-test/test/integration/library-import-runtime.test.js
 npm test
+git diff --check
 git diff --name-only
 ```
 
@@ -395,6 +405,8 @@ Collection Service and Stage Interface collection tools.
 - Should public Stage Interface collection schemas continue to accept
   `canonicalRef`?
 - Should `CollectionPort` keep canonical adapter methods?
+- Should canonicalRef-based `updateItem` remain, be replaced by a
+  materialId/materialRef update path, or be removed?
 - Should old collection SQLite data be migrated, retained, or considered
   disposable development/test state?
 - Should `filterBlocked` canonical paths remain for any current caller?
@@ -459,14 +471,15 @@ node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
 node .tmp-test/test/material_query/material-query.test.js
 node .tmp-test/test/integration/collection-runtime.test.js
 npm test
+git diff --check
 git diff --name-only
 ```
 
 ### Acceptance Criteria
 
 - Public Stage Interface schema and dispatch behavior agree.
-- Material-backed collection write, query, merge, and remove round trips still
-  pass.
+- Material-backed collection write, query, and remove round trips still pass.
+- Existing merge/redirect behavior is preserved or explicitly remains deferred.
 - Any removed canonical compatibility path has a documented data compatibility
   decision.
 - Architecture and module progress docs describe the new boundary.
@@ -546,6 +559,7 @@ node .tmp-test/test/events/material-activity.test.js
 node .tmp-test/test/storage/sqlite-canonical-store.test.js
 node .tmp-test/test/storage/sqlite-collection-repository.test.js
 npm test
+git diff --check
 git diff --name-only
 ```
 
@@ -568,6 +582,7 @@ Every non-trivial cleanup PR must report:
 Every cleanup PR must also run:
 
 ```bash
+git diff --check
 git diff --name-only
 ```
 
@@ -578,4 +593,3 @@ Do not mark a cleanup task complete until the final report distinguishes:
 - deliberately retained compatibility;
 - verification performed;
 - verification not performed.
-

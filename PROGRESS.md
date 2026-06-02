@@ -1304,6 +1304,10 @@
 - Added `docs/maintenance/dead-code-compatibility-cleanup-plan.md` to separate
   immediate dead-code cleanup from compatibility-layer migrations and retained
   compatibility decisions.
+- Tightened the cleanup plan after review: PR 2 now names the live Library
+  Import and Material Store progress docs, PR 3 explicitly covers
+  canonicalRef-based `updateItem`, merge/redirect compatibility stays deferred
+  unless decided otherwise, and each cleanup PR now includes `git diff --check`.
 
 ## Next
 
