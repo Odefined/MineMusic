@@ -748,7 +748,7 @@ Design-only additions:
 | --- | --- | --- |
 | Provider contract types | `src/contracts/index.ts` | Add `PlatformLibraryProvider` and import item types when implementing. |
 | Capability slot | `src/contracts/index.ts`, `src/plugins/index.ts` | Use the reserved `platform_library` slot. |
-| Library import service | `src/library_import/index.ts` | New Core Capability. |
+| Library import service | `src/material/store/source_entity/library-import.ts`, exported through `src/material/index.ts` | Source Entity Store-owned Core Capability. |
 | Library import repository | `src/storage/**` | Stores import batches, area snapshots, item provenance, provider account identity, baseline state, warnings, and failures. |
 | Collection service | `src/collection/index.ts` | Owns saved/favorite/list/remove semantics. |
 | NetEase provider | `src/providers/netease/**` | Same plugin/module can export source and platform-library providers. |

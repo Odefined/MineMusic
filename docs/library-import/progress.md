@@ -8,8 +8,9 @@ This file tracks Library Import implementation progress.
   first synchronous slice.
 - Library Import is now owned by Source Entity Store inside Material Store. The
   implementation lives in `src/material/store/source_entity/library-import.ts`.
-  `src/library_import/index.ts` is a compatibility export path for existing
-  imports and tests, not a separate ownership boundary.
+  Public imports use the Material bounded-context barrel at
+  `src/material/index.ts`; the old `src/library_import/index.ts`
+  compatibility export path has been removed.
 - Public contracts still expose `LibraryImportPort` and
   `LibraryImportRepository` for preview, start, status, summary, import/update
   batch storage, completed report storage, area snapshots, item provenance,

@@ -10,7 +10,7 @@ import type {
 import { createCanonicalStore, createMaterialStore } from "../../src/material/store/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
-import { createLibraryImportService } from "../../src/library_import/index.js";
+import { createLibraryImportService } from "../../src/material/index.js";
 import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
 import { createMaterialQueryService } from "../../src/material/query/index.js";
