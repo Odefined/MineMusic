@@ -416,6 +416,12 @@ async function sourceLibraryMaterials({
   q?: string;
 }): Promise<Result<MusicMaterial[]>> {
   const target = pool.target ?? "library_item";
+  const validation = validateSourceLibraryPoolTarget(pool);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
   const materials: MusicMaterial[] = [];
 
   for (const libraryKind of pool.libraryKinds) {
@@ -509,6 +515,27 @@ async function allSourceLibraryMaterials({
   }
 
   return ok(dedupeMaterials(materials));
+}
+
+function validateSourceLibraryPoolTarget(
+  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>,
+): Result<void> {
+  if (
+    pool.target === "release_tracks" &&
+    (pool.libraryKinds.length !== 1 || pool.libraryKinds[0] !== "saved_source_release")
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: "material_query.invalid_pool",
+        message: "release_tracks target requires libraryKinds: ['saved_source_release'].",
+        module: "material_query",
+        retryable: false,
+      },
+    };
+  }
+
+  return ok(undefined);
 }
 
 async function collectionMaterials({
@@ -1412,12 +1439,14 @@ function sourceLibraryPoolsForItems(items: SourceLibraryItem[]): MaterialPoolsLi
 
 function sourceLibraryPoolLabel({
   providerId,
+  providerAccountId,
   libraryKind,
 }: {
   providerId: string;
+  providerAccountId: string;
   libraryKind: PlatformLibraryItemKind;
 }): string {
-  return `${providerId} ${labelForLibraryKind(libraryKind)}`;
+  return `${providerId}/${providerAccountId} ${labelForLibraryKind(libraryKind)}`;
 }
 
 function labelForLibraryKind(libraryKind: PlatformLibraryItemKind): string {

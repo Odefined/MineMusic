@@ -5,6 +5,7 @@ export type ModuleId =
   | "collection"
   | "library_import"
   | "material_store"
+  | "material_query"
   | "material_resolve"
   | "source"
   | "knowledge"

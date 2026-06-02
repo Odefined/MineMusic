@@ -425,6 +425,51 @@ async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<vo
   assert(itemTitle(output.items[0]) === "Bright Lantern", "saved album expansion should find matching track labels");
 }
 
+async function queryRejectsInvalidReleaseTracksSourceLibraryPool(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "invalid-release-target-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
+    sourceMaterial("Invalid Release Target Track", sourceRef),
+  ]);
+  await putLibraryTrack(materialStore, sourceRef, "Invalid Release Target Track");
+
+  const output = await materialQuery.query({
+    ownerScope: "local_profile:default",
+    pool: { kind: "source_library", libraryKinds: ["saved_source_track"], target: "release_tracks" },
+    limit: 10,
+  });
+
+  assert(!output.ok, "release_tracks target should reject non-release source-library pools");
+  assert(
+    !output.ok && output.error.code === "material_query.invalid_pool",
+    "release_tracks target should fail with an explicit invalid-pool error",
+  );
+}
+
+async function listPoolsDisambiguatesProviderAccountsInSourceLibraryLabels(): Promise<void> {
+  const firstRef = ref("source:fixture", "track", "account-one-track");
+  const secondRef = ref("source:fixture", "track", "account-two-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([]);
+  assert(materialQuery.listPools !== undefined, "material query service should expose pool listing");
+  await putLibraryTrack(materialStore, firstRef, "Account One Track", "2026-05-30T00:00:00.000Z", {
+    providerAccountId: "account-one",
+  });
+  await putLibraryTrack(materialStore, secondRef, "Account Two Track", "2026-05-30T00:00:00.000Z", {
+    providerAccountId: "account-two",
+  });
+
+  const output = await assertOk(
+    materialQuery.listPools({
+      ownerScope: "local_profile:default",
+      kinds: ["source_library"],
+    }),
+  );
+  const labels = output.pools.map((pool) => pool.label);
+
+  assert(labels.includes("fixture/account-one saved tracks"), "pool labels should include the first provider account");
+  assert(labels.includes("fixture/account-two saved tracks"), "pool labels should include the second provider account");
+  assert(new Set(labels).size === labels.length, "source-library pool labels should not collide across accounts");
+}
+
 async function queryCursorPaginatesDomainItems(): Promise<void> {
   const firstRef = ref("source:fixture", "track", "cursor-track-1");
   const secondRef = ref("source:fixture", "track", "cursor-track-2");
@@ -1342,6 +1387,7 @@ async function putLibraryTrack(
     artistLabels?: string[];
     releaseLabel?: string;
     providerUrl?: string;
+    providerAccountId?: string;
   } = {},
 ): Promise<void> {
   await assertOk(
@@ -1366,7 +1412,7 @@ async function putLibraryTrack(
         id: `item-${sourceRef.id}`,
         ownerScope: "local_profile:default",
         providerId: "fixture",
-        providerAccountId: "fixture-account",
+        providerAccountId: context.providerAccountId ?? "fixture-account",
         sourceRef,
         sourceKind: "track",
         libraryKind: "saved_source_track",
@@ -1559,6 +1605,8 @@ await querySkipsUnbackedProviderResults();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
 await queryReturnKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();
+await queryRejectsInvalidReleaseTracksSourceLibraryPool();
+await listPoolsDisambiguatesProviderAccountsInSourceLibraryLabels();
 await queryCursorPaginatesDomainItems();
 await leastRecentlyRecommendedOrderUsesMaterialActivity();
 await recentlyAddedOrderUsesSourceLibraryTimestamps();
