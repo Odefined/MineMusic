@@ -44,8 +44,8 @@ those actions are listable, removable, sortable, and syncable later.
 Collection Service does not own the music object itself. Material Store owns
 the product-level material target and Canonical Store owns accepted canonical
 identity; Collection owns user-scoped collections and their members. New
-Collection writes should prefer `materialRef`; legacy `canonicalRef` item
-methods remain compatibility adapters during migration.
+Collection writes require `materialRef`; `canonicalRef` is optional stored
+metadata, not a public write handle.
 
 ## Collection Kinds
 
@@ -69,10 +69,11 @@ Canonical Store supports `artist`, `work`, `recording`, `release_group`, and
 `release` so users can save both album-level groupings and concrete editions,
 remasters, regions, formats, or deluxe versions.
 
-`collectionKind` is the type of music object in the collection. For canonical
-compatibility it matches `canonicalRef.kind`; for material-backed items it is
-the collection view kind chosen by the caller or inferred from the material
-snapshot. Collection Service does not maintain an independent object taxonomy.
+`collectionKind` is the type of music object in the collection. For known
+material-backed items it is the collection view kind chosen by the caller or
+inferred from the current `MaterialRecord`; optional canonical or snapshot kind
+metadata must agree with that view. Collection Service does not maintain an
+independent object taxonomy.
 
 ## Layer Placement
 
@@ -172,7 +173,12 @@ Collection item:
 ```text
 id
 collectionId
-canonicalRef
+materialRef
+materialSnapshot?
+relationScope?
+identityRequirement?
+status?
+canonicalRef?
 label
 description?
 position?
@@ -183,28 +189,29 @@ removedAt?
 Rules:
 
 - Collection ids are Collection-owned, not provider ids.
-- `canonicalRef` is required. Collection does not store source-only items.
-- An item's `canonicalRef.kind` must match its Collection's `collectionKind`.
-- `relationKind` describes the user's long-lived relationship to the canonical
+- New Collection item writes require `materialRef`. `canonicalRef` can remain
+  on stored items as optional identity metadata for material-backed or
+  historical rows, but it is not the public write handle.
+- A known item's material kind, canonical kind, snapshot kind, or explicit
+  `collectionKind` must agree with the Collection's `collectionKind`.
+- `relationKind` describes the user's long-lived relationship to the material
   objects in a Collection.
 - System Collections use `saved`, `favorite`, or `blocked`.
 - User-created Collections use `custom`.
 - `blocked` is mutually exclusive with `saved` and `favorite` for the same owner
-  and canonical object in system Collections. This mutual exclusion does not
+  and material object in system Collections. This mutual exclusion does not
   remove items from user-created custom Collections.
-- Adding `saved` or `favorite` removes the same canonical object from the
+- Adding `saved` or `favorite` removes the same material object from the
   owner's system `blocked` Collection. Adding `blocked` removes it from the
   owner's system `saved` and `favorite` Collections.
 - Blocked membership is actionable: Material Resolve must query Collection
-  Service and filter blocked canonical objects before returning resolved
-  material. Source Providers do not own blocked filtering.
+  Service and filter blocked material refs before returning resolved material.
+  Source Providers do not own blocked filtering.
 - Blocked candidates should not disappear silently. Material Resolve should
   return a blocked status/material state so the caller can explain why the
   candidate was not recommended.
-- Blocked checks use canonical refs only. If material only has source refs,
-  Material Resolve should first use Canonical Store source-ref binding to find
-  a canonical ref. Without a canonical ref, Collection-level blocked filtering
-  cannot apply.
+- Blocked checks use material refs and should follow Material Registry redirects
+  so source-only items remain blocked after later material merges.
 - `CollectionItem.label` is stored on the item for display or user adjustment.
   It is not identity authority.
 - `CollectionItem.description` belongs to that item in that Collection. It is not
@@ -213,16 +220,14 @@ Rules:
   provenance, not Collection item identity.
 - `removedAt` marks removal without physical deletion.
 - Collection item ids are Collection-owned, not provider ids.
-- Item membership is idempotent by `collectionId + canonicalRef`. Re-adding the
-  same canonical object updates the existing item; if it was removed, re-adding
-  clears `removedAt`.
+- Item membership is idempotent by `collectionId + materialRef` after following
+  Material Registry redirects. Re-adding the same material object updates the
+  existing item; if it was removed, re-adding clears `removedAt`.
 - List operations hide removed items by default. `includeRemoved` returns them
   for audit, sync, or recovery flows.
-- Active Collection items can update `label` and `description`. Updating removed
-  items is outside the first implementation.
-- `position` is optional. System Collections can default to `createdAt` order;
-  user-created custom Collections can use `position` for manual ordering. Complex
-  reorder operations are outside the first implementation.
+- Public item update and manual ordering APIs are outside the current
+  CollectionPort. Re-adding an active material item can refresh label or
+  description.
 - `listItems` default ordering is `createdAt` descending for system Collections,
   and `position` ascending then `createdAt` ascending for user-created custom
   Collections.
@@ -259,10 +264,10 @@ editable.
 
 Users may also create additional Collections. User-created Collections are
 explicit records with their own label and description; they are not generated as
-a side effect of `addItem`. User-created Collections use `relationKind =
-custom`. MVP user-created Collections are single-kind Collections; mixed-kind
-Collections can be added later with an explicit `mixed` collection kind if
-needed.
+a side effect of `addMaterialToCollection`. User-created Collections use
+`relationKind = custom`. MVP user-created Collections are single-kind
+Collections; mixed-kind Collections can be added later with an explicit `mixed`
+collection kind if needed.
 
 The first implementation has no public/private/share visibility model.
 
@@ -293,61 +298,60 @@ within the owner scope.
 Proposed public port:
 
 ```text
-CollectionPort.addItemToSystemCollection(input)
-CollectionPort.removeItemFromSystemCollection(input)
-CollectionPort.addItemToCollection(input)
-CollectionPort.removeItemFromCollection(input)
-CollectionPort.updateItem(input)
+CollectionPort.addMaterialToSystemCollection(input)
+CollectionPort.removeMaterialFromSystemCollection(input)
+CollectionPort.addMaterialToCollection(input)
+CollectionPort.removeMaterialFromCollection(input)
 CollectionPort.listItems(input)
 CollectionPort.listCollections(input)
 CollectionPort.createCollection(input)
 CollectionPort.updateCollection(input)
 CollectionPort.removeCollection(input)
-CollectionPort.filterBlocked(input)
+CollectionPort.filterBlockedMaterials(input)
 ```
 
-`addItemToSystemCollection` input:
+`addMaterialToSystemCollection` input:
 
 ```text
 ownerScope
 relationKind: saved | favorite | blocked
-canonicalRef
+materialRef
 label
+collectionKind?
+canonicalRef?
+materialSnapshot?
+relationScope?
+identityRequirement?
 description?
 ```
 
-`removeItemFromSystemCollection` input:
+`removeMaterialFromSystemCollection` input:
 
 ```text
 ownerScope
 relationKind: saved | favorite | blocked
-canonicalRef
+materialRef
+collectionKind?
 ```
 
-`addItemToCollection` input:
+`addMaterialToCollection` input:
 
 ```text
 collectionId
-canonicalRef
+materialRef
 label
+canonicalRef?
+materialSnapshot?
+relationScope?
+identityRequirement?
 description?
 ```
 
-`removeItemFromCollection` input:
+`removeMaterialFromCollection` input:
 
 ```text
 collectionId
-canonicalRef
-```
-
-`updateItem` input:
-
-```text
-collectionId
-canonicalRef
-label?
-description?
-position?
+materialRef
 ```
 
 `listItems` input:
@@ -395,14 +399,14 @@ label?
 description?
 ```
 
-`filterBlocked` input:
+`filterBlockedMaterials` input:
 
 ```text
 ownerScope
-canonicalRefs
+materialRefs
 ```
 
-Returns the canonical refs that are blocked for that owner.
+Returns the material refs that are blocked for that owner.
 
 ## Stage Interface Tools
 
@@ -459,18 +463,20 @@ When a user says "save this" or "keep this artist":
 
 ```text
 Stage Interface
--> Collection Service addItem
+-> resolves public materialId to materialRef
+-> Collection Service addMaterialToSystemCollection
 -> Collection Repository adds item to the initialized system Collection
 -> Collection Service records collection.item.added
 ```
 
 Important:
 
-- Collection Service receives a canonical ref. It does not create canonical
-  records from labels or source refs.
-- Library Import or another upstream flow must resolve or create the canonical
-  record before writing Collection.
-- Source refs do not become Collection identity.
+- Stage Interface receives `materialId` as the public write handle and converts
+  it to an opaque `materialRef` before calling Collection Service.
+- Collection Service does not create canonical records from labels or source
+  refs. Canonical identity remains Material Store / Canonical Store
+  responsibility.
+- Source refs do not become Collection item identity.
 
 ## Remove Flow
 
@@ -478,15 +484,16 @@ When a user removes an item:
 
 ```text
 Stage Interface
--> Collection Service removeItem
+-> resolves public materialId to materialRef
+-> Collection Service removeMaterialFromSystemCollection or removeMaterialFromCollection
 -> Collection Repository marks removedAt
 -> Collection Service records collection.item.removed
 -> optional Memory Service proposal if removal clearly changes taste
 ```
 
-Removal should not delete canonical records. A canonical record may still be
-used by events, memory, Material Resolve, Source Grounding, or other collection
-items.
+Removal should not delete material or canonical records. A material or canonical
+record may still be used by events, memory, Material Resolve, Source Grounding,
+or other collection items.
 
 ## Collection vs Feedback
 
@@ -514,15 +521,15 @@ collection.updated
 collection.removed
 collection.item.added
 collection.item.removed
-collection.item.updated
 ```
 
 Collection Service records these events after successful Collection-owned state
 changes. Callers should not duplicate the same factual event.
 
 Event payloads should include collection id, collection item id, collection
-kind, relation kind, label, and canonical ref. They should not embed provider
-credentials or long-lived playable links.
+kind, relation kind, label, and material ref. They may include canonical ref
+metadata when stored on the item, but should not embed provider credentials or
+long-lived playable links.
 
 ## Effect Boundary
 

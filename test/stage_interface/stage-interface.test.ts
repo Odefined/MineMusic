@@ -244,14 +244,14 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
   );
 }
 
-async function collectionSchemasHideAdvancedMaterialTargetFields(): Promise<void> {
+async function collectionSchemasExposeOnlyMaterialIdTargets(): Promise<void> {
   const systemAddSchema = stageInterfaceToolInputSchemas["music.collection.favorite"];
   const systemRemoveSchema = stageInterfaceToolInputSchemas["music.collection.unfavorite"];
   const customAddSchema = stageInterfaceToolInputSchemas["music.collection.item.add"];
   const customRemoveSchema = stageInterfaceToolInputSchemas["music.collection.item.remove"];
-  const hiddenFields = ["materialRef", "materialSnapshot", "relationScope", "identityRequirement"];
+  const addHiddenFields = ["canonicalRef", "materialRef", "materialSnapshot", "relationScope", "identityRequirement"];
 
-  for (const field of hiddenFields) {
+  for (const field of addHiddenFields) {
     assert(
       !Object.prototype.hasOwnProperty.call(systemAddSchema, field),
       `system collection add public schema should not advertise ${field}`,
@@ -261,17 +261,21 @@ async function collectionSchemasHideAdvancedMaterialTargetFields(): Promise<void
       `custom collection add public schema should not advertise ${field}`,
     );
   }
-  assert(
-    !Object.prototype.hasOwnProperty.call(systemRemoveSchema, "materialRef"),
-    "system collection remove public schema should not advertise materialRef",
-  );
-  assert(
-    !Object.prototype.hasOwnProperty.call(customRemoveSchema, "materialRef"),
-    "custom collection remove public schema should not advertise materialRef",
-  );
+  for (const field of ["canonicalRef", "materialRef"]) {
+    assert(
+      !Object.prototype.hasOwnProperty.call(systemRemoveSchema, field),
+      `system collection remove public schema should not advertise ${field}`,
+    );
+    assert(
+      !Object.prototype.hasOwnProperty.call(customRemoveSchema, field),
+      `custom collection remove public schema should not advertise ${field}`,
+    );
+  }
   assert(
     Object.prototype.hasOwnProperty.call(systemAddSchema, "materialId") &&
-      Object.prototype.hasOwnProperty.call(customAddSchema, "materialId"),
+      Object.prototype.hasOwnProperty.call(systemRemoveSchema, "materialId") &&
+      Object.prototype.hasOwnProperty.call(customAddSchema, "materialId") &&
+      Object.prototype.hasOwnProperty.call(customRemoveSchema, "materialId"),
     "collection public schemas should expose materialId inputs",
   );
 }
@@ -352,6 +356,6 @@ await exposesEveryStableToolNameThroughStageInterface();
 await stableToolNamesRemainInPublishedOrder();
 await stableToolNamesHaveMatchingSchemasAndDescriptors();
 await materialQuerySchemasHideExperimentalPreferenceHints();
-await collectionSchemasHideAdvancedMaterialTargetFields();
+await collectionSchemasExposeOnlyMaterialIdTargets();
 await newRecommendationToolsUseTypedInputParsers();
 await typedInputParsersStayAlignedWithRawSchemas();

@@ -655,14 +655,7 @@ async function estimatesReadableImportPreviewWithoutWritingMineMusicState(): Pro
   await putConfirmedBinding(environment, sourceRef("bound-track"), boundCanonical.ref);
   await putConfirmedBinding(environment, sourceRef("bound-unsaved-track"), unsavedCanonical.ref);
   await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
-  await assertOk(
-    environment.collections.addItemToSystemCollection({
-      ownerScope: "local_profile:default",
-      relationKind: "saved",
-      canonicalRef: boundCanonical.ref,
-      label: boundCanonical.label,
-    }),
-  );
+  await addCanonicalToSavedSystemCollection(environment, boundCanonical);
   const eventsBeforePreview = await assertOk(
     environment.events.listBySession({ sessionId: "collection:local_profile:default" }),
   );
@@ -824,14 +817,7 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   await assertOk(environment.canonicalRepository.put(boundCanonical));
   await putConfirmedBinding(environment, sourceRef("bound-track"), boundCanonical.ref);
   await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
-  await assertOk(
-    environment.collections.addItemToSystemCollection({
-      ownerScope: "local_profile:default",
-      relationKind: "saved",
-      canonicalRef: boundCanonical.ref,
-      label: boundCanonical.label,
-    }),
-  );
+  await addCanonicalToSavedSystemCollection(environment, boundCanonical);
 
   const report = await assertOk(
     environment.libraryImport.startImport({
@@ -1563,14 +1549,7 @@ async function previewsLibraryUpdateAgainstLatestCompleteBaselineWithoutWriting(
   await assertOk(environment.canonicalRepository.put(preExistingCanonical));
   await putConfirmedBinding(environment, sourceRef("saved-new-track"), preExistingCanonical.ref);
   await assertOk(environment.collections.initializeOwnerCollections({ ownerScope: "local_profile:default" }));
-  await assertOk(
-    environment.collections.addItemToSystemCollection({
-      ownerScope: "local_profile:default",
-      relationKind: "saved",
-      canonicalRef: preExistingCanonical.ref,
-      label: preExistingCanonical.label,
-    }),
-  );
+  await addCanonicalToSavedSystemCollection(environment, preExistingCanonical);
   providerItems = [
     providerItem("kept-track", "Kept Track"),
     providerItem("saved-new-track", "Saved New Track"),
@@ -2324,6 +2303,28 @@ async function putConfirmedBinding(
   await assertOk(
     environment.sourceEntityStore.putConfirmedCanonicalBinding({
       binding: confirmedBinding(sourceRef, canonicalRef),
+    }),
+  );
+}
+
+async function addCanonicalToSavedSystemCollection(
+  environment: ReturnType<typeof createTestLibraryImportEnvironment>,
+  canonical: CanonicalRecord,
+): Promise<void> {
+  const material = await assertOk(
+    environment.materialStore.getOrCreateByCanonicalRef({
+      canonicalRef: canonical.ref,
+      kind: canonical.kind,
+    }),
+  );
+
+  await assertOk(
+    environment.collections.addMaterialToSystemCollection({
+      ownerScope: "local_profile:default",
+      relationKind: "saved",
+      materialRef: material.materialRef,
+      canonicalRef: canonical.ref,
+      label: canonical.label,
     }),
   );
 }

@@ -1083,33 +1083,21 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
   const calls: string[] = [];
   const collection: CollectionPort = {
     initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
-    addItemToSystemCollection: async ({ ownerScope, relationKind, canonicalRef }) => {
-      calls.push(`add:${ownerScope}:${relationKind}:${canonicalRef.id}`);
-      return { ok: true, value: collectionItem };
-    },
     addMaterialToSystemCollection: async ({ ownerScope, relationKind, materialRef }) => {
       calls.push(`add-material:${ownerScope}:${relationKind}:${materialRef.id}`);
       return { ok: true, value: { ...collectionItem, materialRef } };
-    },
-    removeItemFromSystemCollection: async ({ ownerScope, relationKind, canonicalRef }) => {
-      calls.push(`remove:${ownerScope}:${relationKind}:${canonicalRef.id}`);
-      return { ok: true, value: collectionItem };
     },
     removeMaterialFromSystemCollection: async ({ ownerScope, relationKind, materialRef }) => {
       calls.push(`remove-material:${ownerScope}:${relationKind}:${materialRef.id}`);
       return { ok: true, value: { ...collectionItem, materialRef } };
     },
-    addItemToCollection: async () => ({ ok: true, value: collectionItem }),
     addMaterialToCollection: async () => ({ ok: true, value: collectionItem }),
-    removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
     removeMaterialFromCollection: async () => ({ ok: true, value: collectionItem }),
-    updateItem: async () => ({ ok: true, value: collectionItem }),
     listItems: async () => ({ ok: true, value: [] }),
     listCollections: async () => ({ ok: true, value: [] }),
     createCollection: async () => ({ ok: true, value: collectionRecord }),
     updateCollection: async () => ({ ok: true, value: collectionRecord }),
     removeCollection: async () => ({ ok: true, value: collectionRecord }),
-    filterBlocked: async () => ({ ok: true, value: [] }),
     filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
   const dispatch = createToolDispatch({
@@ -1153,61 +1141,42 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.save",
-      payload: { canonicalRef: collectionRef, label: "Quiet Track" },
+      payload: { materialId: "quiet-track", label: "Quiet Track" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.unsave",
-      payload: { canonicalRef: collectionRef },
+      payload: { materialId: "quiet-track" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.favorite",
-      payload: { canonicalRef: collectionRef, label: "Quiet Track", ownerScope: "local_profile:guest" },
+      payload: { materialId: "quiet-track", label: "Quiet Track", ownerScope: "local_profile:guest" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.unfavorite",
-      payload: { canonicalRef: collectionRef, ownerScope: "local_profile:guest" },
+      payload: { materialId: "quiet-track", ownerScope: "local_profile:guest" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.block",
-      payload: { canonicalRef: collectionRef, label: "Quiet Track" },
+      payload: { materialId: "quiet-track", label: "Quiet Track" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.unblock",
-      payload: { canonicalRef: collectionRef },
-    }),
-  );
-  await assertOk(
-    dispatch.call({
-      sessionId: session.id,
-      toolName: "music.collection.block",
-      payload: {
-        materialRef: { namespace: "minemusic", kind: "material", id: "source-only-material" },
-        label: "Source Only Material",
-      },
-    }),
-  );
-  await assertOk(
-    dispatch.call({
-      sessionId: session.id,
-      toolName: "music.collection.unblock",
-      payload: {
-        materialRef: { namespace: "minemusic", kind: "material", id: "source-only-material" },
-      },
+      payload: { materialId: "quiet-track" },
     }),
   );
   await assertOk(
@@ -1231,36 +1200,28 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
   );
 
   assert(
-    calls.includes("add:local_profile:default:saved:quiet-track"),
+    calls.includes("add-material:local_profile:default:saved:quiet-track"),
     "collection save should default missing owner scope",
   );
   assert(
-    calls.includes("remove:local_profile:default:saved:quiet-track"),
+    calls.includes("remove-material:local_profile:default:saved:quiet-track"),
     "collection unsave should default missing owner scope",
   );
   assert(
-    calls.includes("add:local_profile:guest:favorite:quiet-track"),
+    calls.includes("add-material:local_profile:guest:favorite:quiet-track"),
     "collection favorite should preserve explicit owner scope",
   );
   assert(
-    calls.includes("remove:local_profile:guest:favorite:quiet-track"),
+    calls.includes("remove-material:local_profile:guest:favorite:quiet-track"),
     "collection unfavorite should preserve explicit owner scope",
   );
   assert(
-    calls.includes("add:local_profile:default:blocked:quiet-track"),
+    calls.includes("add-material:local_profile:default:blocked:quiet-track"),
     "collection block should call blocked system collection",
   );
   assert(
-    calls.includes("remove:local_profile:default:blocked:quiet-track"),
+    calls.includes("remove-material:local_profile:default:blocked:quiet-track"),
     "collection unblock should call blocked system collection removal",
-  );
-  assert(
-    calls.includes("add-material:local_profile:default:blocked:source-only-material"),
-    "collection block should accept materialRef payloads",
-  );
-  assert(
-    calls.includes("remove-material:local_profile:default:blocked:source-only-material"),
-    "collection unblock should accept materialRef payloads",
   );
   assert(
     calls.includes("add-material:local_profile:default:blocked:compact-source-only-material"),
@@ -1286,27 +1247,16 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
   };
   const collection: CollectionPort = {
     initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
-    addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
     addMaterialToSystemCollection: async () => ({ ok: true, value: collectionItem }),
-    removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
     removeMaterialFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
-    addItemToCollection: async ({ collectionId, canonicalRef, label }) => {
-      calls.push(`item.add:${collectionId}:${canonicalRef.id}:${label}`);
-      return { ok: true, value: customItem };
-    },
     addMaterialToCollection: async ({ collectionId, materialRef, label }) => {
       calls.push(`item.add-material:${collectionId}:${materialRef.id}:${label}`);
       return { ok: true, value: { ...customItem, materialRef } };
-    },
-    removeItemFromCollection: async ({ collectionId, canonicalRef }) => {
-      calls.push(`item.remove:${collectionId}:${canonicalRef.id}`);
-      return { ok: true, value: customItem };
     },
     removeMaterialFromCollection: async ({ collectionId, materialRef }) => {
       calls.push(`item.remove-material:${collectionId}:${materialRef.id}`);
       return { ok: true, value: { ...customItem, materialRef } };
     },
-    updateItem: async () => ({ ok: true, value: customItem }),
     listItems: async ({ ownerScope, collectionKind, relationKind, includeRemoved, limit, cursor }) => {
       calls.push(
         `list.items:${ownerScope}:${collectionKind ?? "any"}:${relationKind ?? "any"}:${String(includeRemoved)}:${limit ?? "none"}:${cursor ?? "none"}`,
@@ -1331,7 +1281,6 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       calls.push(`delete:${collectionId}`);
       return { ok: true, value: customCollection };
     },
-    filterBlocked: async () => ({ ok: true, value: [] }),
     filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
   const dispatch = createToolDispatch({
@@ -1389,14 +1338,14 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.item.add",
-      payload: { collectionId: customCollection.id, canonicalRef: collectionRef, label: "Quiet Track" },
+      payload: { collectionId: customCollection.id, materialId: "quiet-track", label: "Quiet Track" },
     }),
   );
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.item.remove",
-      payload: { collectionId: customCollection.id, canonicalRef: collectionRef },
+      payload: { collectionId: customCollection.id, materialId: "quiet-track" },
     }),
   );
   await assertOk(
@@ -1441,14 +1390,6 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
   assert(
     calls.includes("update:collection-night-coding:Late night coding"),
     "custom collection update should call CollectionPort",
-  );
-  assert(
-    calls.includes("item.add:collection-night-coding:quiet-track:Quiet Track"),
-    "collection item add should use collectionId",
-  );
-  assert(
-    calls.includes("item.remove:collection-night-coding:quiet-track"),
-    "collection item remove should use collectionId",
   );
   assert(
     calls.includes("item.add-material:collection-night-coding:custom-source-material:Custom Source Material"),
@@ -1864,21 +1805,15 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     },
     collection: {
       initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
-      addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
       addMaterialToSystemCollection: async () => ({ ok: true, value: collectionItem }),
-      removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
       removeMaterialFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
-      addItemToCollection: async () => ({ ok: true, value: collectionItem }),
       addMaterialToCollection: async () => ({ ok: true, value: collectionItem }),
-      removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
       removeMaterialFromCollection: async () => ({ ok: true, value: collectionItem }),
-      updateItem: async () => ({ ok: true, value: collectionItem }),
       listItems: async () => ({ ok: true, value: [] }),
       listCollections: async () => ({ ok: true, value: [] }),
       createCollection: async () => ({ ok: true, value: collectionRecord }),
       updateCollection: async () => ({ ok: true, value: collectionRecord }),
       removeCollection: async () => ({ ok: true, value: collectionRecord }),
-      filterBlocked: async () => ({ ok: true, value: [] }),
       filterBlockedMaterials: async () => ({ ok: true, value: [] }),
     },
     libraryImport,

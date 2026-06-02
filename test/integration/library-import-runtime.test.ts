@@ -266,10 +266,17 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
     await stageCore.ready;
     await putRuntimeConfirmedBinding(stageCore, sourceRef("saved-bound-track"), savedBoundRecord.ref);
     await putRuntimeConfirmedBinding(stageCore, sourceRef("unsaved-bound-track"), unsavedBoundRecord.ref);
+    const savedMaterial = await assertOk(
+      stageCore.materialStore.getOrCreateByCanonicalRef({
+        canonicalRef: savedBoundRecord.ref,
+        kind: "recording",
+      }),
+    );
     await assertOk(
-      stageCore.collection.addItemToSystemCollection({
+      stageCore.collection.addMaterialToSystemCollection({
         ownerScope: "local_profile:default",
         relationKind: "saved",
+        materialRef: savedMaterial.materialRef,
         canonicalRef: savedBoundRecord.ref,
         label: savedBoundRecord.label,
       }),

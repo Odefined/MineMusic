@@ -321,40 +321,11 @@ async function applyBlockedFiltering({
   }
 
   const blockedMaterialRefKeys = new Set(blockedMaterials.value.map(refKey));
-  const materialFiltered = materials.map((material) =>
+  return ok(materials.map((material) =>
     blockedMaterialRefKeys.has(refKey(material.materialRef))
       ? { ...material, state: "blocked" as const }
       : material,
-  );
-  const canonicalRefs = mergeRefs(
-    [],
-    materialFiltered
-      .map((material) => material.canonicalRef)
-      .filter((ref): ref is Ref => ref !== undefined),
-  );
-
-  if (canonicalRefs.length === 0) {
-    return ok(materialFiltered);
-  }
-
-  const blocked = await collection.filterBlocked({
-    ownerScope,
-    canonicalRefs,
-  });
-
-  if (!blocked.ok) {
-    return blocked;
-  }
-
-  const blockedRefKeys = new Set(blocked.value.map(refKey));
-
-  return ok(
-    materialFiltered.map((material) =>
-      material.canonicalRef !== undefined && blockedRefKeys.has(refKey(material.canonicalRef))
-        ? { ...material, state: "blocked" }
-        : material,
-    ),
-  );
+  ));
 }
 
 async function findCanonicalForCandidate(

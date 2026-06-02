@@ -20,7 +20,7 @@ export type CollectionServiceOptions = {
   events: EventPort;
   materialStore?: Pick<
     MaterialStorePort,
-    "getMaterialRecord" | "getOrCreateByCanonicalRef" | "resolveMaterialRedirect"
+    "getMaterialRecord" | "resolveMaterialRedirect"
   >;
   idFactory?: () => string;
   clock?: () => string;
@@ -109,61 +109,6 @@ export function createCollectionService({
       );
     },
 
-    async addItemToSystemCollection({
-      ownerScope,
-      relationKind,
-      canonicalRef,
-      label,
-      description,
-    }) {
-      if (!isCollectionKind(canonicalRef.kind)) {
-        return failKindMismatch(`Unsupported collection kind '${canonicalRef.kind}'.`);
-      }
-
-      const collection = await findSystemCollection(repository, {
-        ownerScope,
-        relationKind,
-        collectionKind: canonicalRef.kind,
-      });
-
-      if (!collection.ok) {
-        return collection;
-      }
-
-      const exclusions = await removeExcludedSystemMemberships({
-        repository,
-        events,
-        clock,
-        ownerScope,
-        relationKind,
-        canonicalRef,
-      });
-
-      if (!exclusions.ok) {
-        return exclusions;
-      }
-
-      const materialRefResult = await materialRefForCanonicalRef(materialStore, canonicalRef);
-
-      if (!materialRefResult.ok) {
-        return materialRefResult;
-      }
-
-      const materialRef = materialRefResult.value;
-
-      return addItemToResolvedCollection({
-        repository,
-        events,
-        idFactory,
-        clock,
-        collection: collection.value,
-        canonicalRef,
-        label,
-        ...(description === undefined ? {} : { description }),
-        ...(materialRef === undefined ? {} : { materialRef }),
-      });
-    },
-
     async addMaterialToSystemCollection({
       ownerScope,
       relationKind,
@@ -250,30 +195,6 @@ export function createCollectionService({
       });
     },
 
-    async removeItemFromSystemCollection({ ownerScope, relationKind, canonicalRef }) {
-      if (!isCollectionKind(canonicalRef.kind)) {
-        return failKindMismatch(`Unsupported collection kind '${canonicalRef.kind}'.`);
-      }
-
-      const collection = await findSystemCollection(repository, {
-        ownerScope,
-        relationKind,
-        collectionKind: canonicalRef.kind,
-      });
-
-      if (!collection.ok) {
-        return collection;
-      }
-
-      return removeRequiredItemFromResolvedCollection({
-        repository,
-        events,
-        clock,
-        collection: collection.value,
-        canonicalRef,
-      });
-    },
-
     async removeMaterialFromSystemCollection({ ownerScope, relationKind, materialRef, collectionKind }) {
       if (collectionKind === undefined) {
         const collections = await repository.listCollections({
@@ -325,34 +246,6 @@ export function createCollectionService({
         clock,
         collection: collection.value,
         materialRef,
-      });
-    },
-
-    async addItemToCollection({ collectionId, canonicalRef, label, description }) {
-      const collection = await getActiveCollection(repository, collectionId);
-
-      if (!collection.ok) {
-        return collection;
-      }
-
-      const materialRefResult = await materialRefForCanonicalRef(materialStore, canonicalRef);
-
-      if (!materialRefResult.ok) {
-        return materialRefResult;
-      }
-
-      const materialRef = materialRefResult.value;
-
-      return addItemToResolvedCollection({
-        repository,
-        events,
-        idFactory,
-        clock,
-        collection: collection.value,
-        canonicalRef,
-        label,
-        ...(description === undefined ? {} : { description }),
-        ...(materialRef === undefined ? {} : { materialRef }),
       });
     },
 
@@ -412,22 +305,6 @@ export function createCollectionService({
       });
     },
 
-    async removeItemFromCollection({ collectionId, canonicalRef }) {
-      const collection = await getActiveCollection(repository, collectionId);
-
-      if (!collection.ok) {
-        return collection;
-      }
-
-      return removeRequiredItemFromResolvedCollection({
-        repository,
-        events,
-        clock,
-        collection: collection.value,
-        canonicalRef,
-      });
-    },
-
     async removeMaterialFromCollection({ collectionId, materialRef }) {
       const collection = await getActiveCollection(repository, collectionId);
 
@@ -443,45 +320,6 @@ export function createCollectionService({
         collection: collection.value,
         materialRef,
       });
-    },
-
-    async updateItem({ collectionId, canonicalRef, label, description, position }) {
-      const collection = await getActiveCollection(repository, collectionId);
-
-      if (!collection.ok) {
-        return collection;
-      }
-
-      const item = await getActiveCollectionItem(repository, collectionId, canonicalRef);
-
-      if (!item.ok) {
-        return item;
-      }
-
-      const updated = await repository.putItem({
-        item: {
-          ...item.value,
-          ...(label === undefined ? {} : { label }),
-          ...(description === undefined ? {} : { description }),
-          ...(position === undefined ? {} : { position }),
-        },
-      });
-
-      if (!updated.ok) {
-        return updated;
-      }
-
-      const recorded = await recordCollectionEvent(events, {
-        type: "collection.item.updated",
-        collection: collection.value,
-        item: updated.value,
-      });
-
-      if (!recorded.ok) {
-        return recorded;
-      }
-
-      return updated;
     },
 
     async listItems(input) {
@@ -601,41 +439,6 @@ export function createCollectionService({
       return stored;
     },
 
-    async filterBlocked({ ownerScope, canonicalRefs }) {
-      const blockedRefs: Ref[] = [];
-
-      for (const canonicalRef of canonicalRefs) {
-        if (!isCollectionKind(canonicalRef.kind)) {
-          continue;
-        }
-
-        const collection = await findSystemCollection(repository, {
-          ownerScope,
-          relationKind: "blocked",
-          collectionKind: canonicalRef.kind,
-        });
-
-        if (!collection.ok) {
-          continue;
-        }
-
-        const item = await repository.findItemByMembership({
-          collectionId: collection.value.id,
-          canonicalRef,
-        });
-
-        if (!item.ok) {
-          return item;
-        }
-
-        if (item.value !== null) {
-          blockedRefs.push(canonicalRef);
-        }
-      }
-
-      return ok(blockedRefs);
-    },
-
     async filterBlockedMaterials({ ownerScope, materialRefs }) {
       const blockedRefs: Ref[] = [];
       const collections = await repository.listCollections({
@@ -752,79 +555,6 @@ async function getActiveCollection(
   return ok(collection.value);
 }
 
-async function addItemToResolvedCollection({
-  repository,
-  events,
-  idFactory,
-  clock,
-  collection,
-  canonicalRef,
-  materialRef,
-  label,
-  description,
-}: {
-  repository: CollectionRepository;
-  events: EventPort;
-  idFactory: () => string;
-  clock: () => string;
-  collection: Collection;
-  canonicalRef: Ref;
-  materialRef?: Ref;
-  label: string;
-  description?: string;
-}): Promise<Result<CollectionItem>> {
-  if (canonicalRef.kind !== collection.collectionKind) {
-    return failKindMismatch(
-      `Collection '${collection.id}' accepts '${collection.collectionKind}' refs, not '${canonicalRef.kind}'.`,
-    );
-  }
-
-  const existing = await repository.findItemByMembership({
-    collectionId: collection.id,
-    canonicalRef,
-    includeRemoved: true,
-  });
-
-  if (!existing.ok) {
-    return existing;
-  }
-
-  const item =
-    existing.value === null
-      ? {
-          id: idFactory(),
-          collectionId: collection.id,
-          canonicalRef,
-          ...(materialRef === undefined ? {} : { materialRef }),
-          label,
-          ...(description === undefined ? {} : { description }),
-          createdAt: clock(),
-        }
-      : activeCollectionItem({
-          ...existing.value,
-          ...(materialRef === undefined ? {} : { materialRef }),
-          label,
-          ...(description === undefined ? {} : { description }),
-        });
-  const stored = await repository.putItem({ item });
-
-  if (!stored.ok) {
-    return stored;
-  }
-
-  const recorded = await recordCollectionEvent(events, {
-    type: existing.value === null ? "collection.item.added" : "collection.item.updated",
-    collection,
-    item: stored.value,
-  });
-
-  if (!recorded.ok) {
-    return recorded;
-  }
-
-  return stored;
-}
-
 async function addMaterialToResolvedCollection({
   repository,
   events,
@@ -918,75 +648,6 @@ async function addMaterialToResolvedCollection({
   return stored;
 }
 
-async function getActiveCollectionItem(
-  repository: CollectionRepository,
-  collectionId: string,
-  canonicalRef: Ref,
-): Promise<Result<CollectionItem>> {
-  const item = await repository.findItemByMembership({
-    collectionId,
-    canonicalRef,
-  });
-
-  if (!item.ok) {
-    return item;
-  }
-
-  if (item.value === null) {
-    return failNotFound("Collection item was not found.");
-  }
-
-  return ok(item.value);
-}
-
-async function removeExcludedSystemMemberships({
-  repository,
-  events,
-  clock,
-  ownerScope,
-  relationKind,
-  canonicalRef,
-}: {
-  repository: CollectionRepository;
-  events: EventPort;
-  clock: () => string;
-  ownerScope: string;
-  relationKind: SystemCollectionRelationKind;
-  canonicalRef: Ref;
-}): Promise<Result<void>> {
-  const excludedRelationKinds =
-    relationKind === "blocked"
-      ? (["saved", "favorite"] as const)
-      : (["blocked"] as const);
-
-  for (const excludedRelationKind of excludedRelationKinds) {
-    const collection = await findSystemCollection(repository, {
-      ownerScope,
-      relationKind: excludedRelationKind,
-      collectionKind: canonicalRef.kind as CollectionKind,
-    });
-
-    if (!collection.ok) {
-      return collection;
-    }
-
-    const removed = await removeItemFromResolvedCollection({
-      repository,
-      events,
-      clock,
-      collection: collection.value,
-      canonicalRef,
-      requireExisting: false,
-    });
-
-    if (!removed.ok) {
-      return removed;
-    }
-  }
-
-  return ok(undefined);
-}
-
 async function removeExcludedSystemMaterialMemberships({
   repository,
   events,
@@ -1040,25 +701,6 @@ async function removeExcludedSystemMaterialMemberships({
   return ok(undefined);
 }
 
-async function removeRequiredItemFromResolvedCollection(
-  input: Omit<Parameters<typeof removeItemFromResolvedCollection>[0], "requireExisting">,
-): Promise<Result<CollectionItem>> {
-  const removed = await removeItemFromResolvedCollection({
-    ...input,
-    requireExisting: true,
-  });
-
-  if (!removed.ok) {
-    return removed;
-  }
-
-  if (removed.value === null) {
-    return failNotFound("Collection item was not found.");
-  }
-
-  return ok(removed.value);
-}
-
 async function removeRequiredMaterialFromResolvedCollection(
   input: Omit<Parameters<typeof removeMaterialFromResolvedCollection>[0], "requireExisting">,
 ): Promise<Result<CollectionItem>> {
@@ -1076,58 +718,6 @@ async function removeRequiredMaterialFromResolvedCollection(
   }
 
   return ok(removed.value);
-}
-
-async function removeItemFromResolvedCollection({
-  repository,
-  events,
-  clock,
-  collection,
-  canonicalRef,
-  requireExisting,
-}: {
-  repository: CollectionRepository;
-  events: EventPort;
-  clock: () => string;
-  collection: Collection;
-  canonicalRef: Ref;
-  requireExisting: boolean;
-}): Promise<Result<CollectionItem | null>> {
-  const item = await repository.findItemByMembership({
-    collectionId: collection.id,
-    canonicalRef,
-  });
-
-  if (!item.ok) {
-    return item;
-  }
-
-  if (item.value === null) {
-    return requireExisting ? failNotFound("Collection item was not found.") : ok(null);
-  }
-
-  const removed = await repository.putItem({
-    item: {
-      ...item.value,
-      removedAt: clock(),
-    },
-  });
-
-  if (!removed.ok) {
-    return removed;
-  }
-
-  const recorded = await recordCollectionEvent(events, {
-    type: "collection.item.removed",
-    collection,
-    item: removed.value,
-  });
-
-  if (!recorded.ok) {
-    return recorded;
-  }
-
-  return removed;
 }
 
 async function removeMaterialFromResolvedCollection({
@@ -1198,22 +788,6 @@ function activeCollectionItem(item: CollectionItem): CollectionItem {
   }
 
   return activeItem;
-}
-
-async function materialRefForCanonicalRef(
-  materialStore: Pick<MaterialStorePort, "getOrCreateByCanonicalRef"> | undefined,
-  canonicalRef: Ref,
-): Promise<Result<Ref | undefined>> {
-  if (materialStore === undefined) {
-    return ok(undefined);
-  }
-
-  const record = await materialStore.getOrCreateByCanonicalRef({
-    canonicalRef,
-    kind: canonicalRef.kind,
-  });
-
-  return record.ok ? ok(record.value.materialRef) : record;
 }
 
 async function resolveCurrentMaterialRef(

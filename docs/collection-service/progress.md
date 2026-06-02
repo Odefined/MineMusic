@@ -17,7 +17,7 @@ fine-grained Collection Service task ledger.
 
 ## Current Snapshot
 
-Date: 2026-05-25
+Date: 2026-06-02
 
 Task status:
 
@@ -39,20 +39,20 @@ Implemented:
 - `CollectionPort`, `SystemCollectionRelationKind`, list input contracts, and
   a collection-specific `CollectionRepository` boundary.
 - In-memory Collection repository with owner/kind/relation/removed-status
-  queries, active owner-scope label uniqueness, `collectionId + canonicalRef`
-  membership lookup, and clone-return semantics.
+  queries, active owner-scope label uniqueness, material membership lookup, and
+  clone-return semantics.
 - SQLite-backed Collection repository with reopen persistence for Collections
-  and CollectionItems, active owner-scope label uniqueness, membership lookup,
-  removed-record filtering, and returned-copy semantics.
+  and CollectionItems, active owner-scope label uniqueness, material membership
+  lookup, removed-record filtering, and returned-copy semantics.
 - `createCollectionService` behind `CollectionPort`.
 - Default owner system Collection initialization for 15
   relation-kind/collection-kind combinations.
 - Custom Collection create/update/soft-remove.
-- Canonical-only CollectionItems with kind matching.
+- MaterialRef-backed CollectionItems with kind inference and validation.
 - Idempotent membership writes and removed-item re-add.
-- Active item update/removal.
+- Material-backed item removal.
 - Saved/favorite/blocked mutual exclusion for system Collections.
-- Blocked canonical ref filtering.
+- Blocked material ref filtering with redirect-aware material membership.
 - Owner-derived Collection event session ids and factual Collection events.
 - Material Resolve blocked filtering through optional `CollectionPort`, with
   missing `ownerScope` defaulting to `local_profile:default`.
@@ -62,11 +62,20 @@ Implemented:
   and runtime exposure through `MineMusicStageCore`.
 - Codex MCP runtime configuration through `MINEMUSIC_COLLECTION_DB_PATH` for
   durable Collection storage.
-- Stage Interface collection tools, descriptors, schemas, dispatch, MCP schema
-  coverage, and generated Handbook entries.
+- Stage Interface collection tools, descriptors, materialId-only public write
+  schemas, dispatch, MCP schema coverage, and generated Handbook entries.
 - Composed runtime integration coverage in
   `test/integration/collection-runtime.test.ts`, including Stage Core
   recreation against the same Collection SQLite database path.
+
+Compatibility cleanup:
+
+- Public Stage Interface collection write tools now accept `materialId` only.
+- `CollectionPort` no longer exposes canonicalRef adapter methods or
+  canonicalRef-based `updateItem`; stored `canonicalRef` fields remain
+  historical/metadata fields on CollectionItems.
+- Material Resolve and Material Policy use `filterBlockedMaterials`; the old
+  canonical `filterBlocked` port method was removed.
 
 Design sync:
 

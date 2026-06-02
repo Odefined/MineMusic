@@ -163,7 +163,7 @@ async function sourceWrongVersionSurvivesMaterialMerge(): Promise<void> {
   assert(resolved.status === "unresolved", "filtering the only source projection should make the candidate unresolved");
 }
 
-async function canonicalCollectionBlockedFilteringStillWorks(): Promise<void> {
+async function canonicalResolvedMaterialCollectionBlockedFilteringStillWorks(): Promise<void> {
   const canonicalRepository = createInMemoryCanonicalRecordRepository();
   const canonical: CanonicalRecord = {
     ref: ref("minemusic", "recording", "canonical-blocked"),
@@ -174,8 +174,7 @@ async function canonicalCollectionBlockedFilteringStillWorks(): Promise<void> {
   await assertOk(canonicalRepository.put(canonical));
   const sourceRef = ref("source:fixture", "track", "canonical-source");
   const collection = {
-    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
-    filterBlocked: async () => ({ ok: true, value: [canonical.ref] }),
+    filterBlockedMaterials: async ({ materialRefs }: { materialRefs: Ref[] }) => ({ ok: true, value: materialRefs }),
   } as unknown as CollectionPort;
   const { resolve } = createTestResolve([sourceMaterial("Canonical Blocked", sourceRef)], {
     canonicalRepository,
@@ -184,8 +183,8 @@ async function canonicalCollectionBlockedFilteringStillWorks(): Promise<void> {
 
   const resolved = await assertOk(resolve("Canonical Blocked"));
 
-  assert(firstMaterial(resolved).state === "blocked", "canonical Collection blocked filtering should still work");
-  assert(resolved.status === "blocked", "canonical Collection blocked filtering should still set blocked status");
+  assert(firstMaterial(resolved).state === "blocked", "material Collection blocked filtering should still work");
+  assert(resolved.status === "blocked", "material Collection blocked filtering should still set blocked status");
 }
 
 function createTestResolve(
@@ -292,4 +291,4 @@ await sourceLevelBlockFiltersOnlyThatSource();
 await sourceNotPlayableRemovesPlayableLinkWithoutBlockingMaterial();
 await sourceWrongVersionFiltersMatchingSource();
 await sourceWrongVersionSurvivesMaterialMerge();
-await canonicalCollectionBlockedFilteringStillWorks();
+await canonicalResolvedMaterialCollectionBlockedFilteringStillWorks();

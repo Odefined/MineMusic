@@ -1308,6 +1308,11 @@
   Import and Material Store progress docs, PR 3 explicitly covers
   canonicalRef-based `updateItem`, merge/redirect compatibility stays deferred
   unless decided otherwise, and each cleanup PR now includes `git diff --check`.
+- Completed the PR 3 Collection compatibility cleanup slice on branch
+  `codex/collection-materialid-only-compat-cleanup`: public Stage Interface
+  collection writes are materialId-only, `CollectionPort` no longer exposes
+  canonicalRef adapter methods or canonicalRef-based `updateItem`, and Material
+  Resolve / Material Policy use blocked material filtering only.
 
 ## Next
 

@@ -1042,42 +1042,30 @@ export type _collectionPortMethods = Expect<
   Equal<
     keyof CollectionPort,
     | "initializeOwnerCollections"
-    | "addItemToSystemCollection"
     | "addMaterialToSystemCollection"
-    | "removeItemFromSystemCollection"
     | "removeMaterialFromSystemCollection"
-    | "addItemToCollection"
     | "addMaterialToCollection"
-    | "removeItemFromCollection"
     | "removeMaterialFromCollection"
-    | "updateItem"
     | "listItems"
     | "listCollections"
     | "createCollection"
     | "updateCollection"
     | "removeCollection"
     | "filterBlockedMaterials"
-    | "filterBlocked"
   >
 >;
 
 export type _collectionPortMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CollectionPort, "initializeOwnerCollections"> &
-    MethodAcceptsSingleObject<CollectionPort, "addItemToSystemCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "addMaterialToSystemCollection"> &
-    MethodAcceptsSingleObject<CollectionPort, "removeItemFromSystemCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "removeMaterialFromSystemCollection"> &
-    MethodAcceptsSingleObject<CollectionPort, "addItemToCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "addMaterialToCollection"> &
-    MethodAcceptsSingleObject<CollectionPort, "removeItemFromCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "removeMaterialFromCollection"> &
-    MethodAcceptsSingleObject<CollectionPort, "updateItem"> &
     MethodAcceptsSingleObject<CollectionPort, "listItems"> &
     MethodAcceptsSingleObject<CollectionPort, "listCollections"> &
     MethodAcceptsSingleObject<CollectionPort, "createCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "updateCollection"> &
     MethodAcceptsSingleObject<CollectionPort, "removeCollection"> &
-    MethodAcceptsSingleObject<CollectionPort, "filterBlocked"> &
     MethodAcceptsSingleObject<CollectionPort, "filterBlockedMaterials">
 >;
 
@@ -2004,21 +1992,15 @@ const canonicalMaintenance: CanonicalMaintenancePort = {
 
 const collectionPort: CollectionPort = {
   initializeOwnerCollections: async () => ({ ok: true, value: [collection] }),
-  addItemToSystemCollection: async () => ({ ok: true, value: collectionItem }),
   addMaterialToSystemCollection: async () => ({ ok: true, value: collectionItem }),
-  removeItemFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
   removeMaterialFromSystemCollection: async () => ({ ok: true, value: collectionItem }),
-  addItemToCollection: async () => ({ ok: true, value: collectionItem }),
   addMaterialToCollection: async () => ({ ok: true, value: collectionItem }),
-  removeItemFromCollection: async () => ({ ok: true, value: collectionItem }),
   removeMaterialFromCollection: async () => ({ ok: true, value: collectionItem }),
-  updateItem: async () => ({ ok: true, value: collectionItem }),
   listItems: async () => ({ ok: true, value: [collectionItem] }),
   listCollections: async () => ({ ok: true, value: [collection] }),
   createCollection: async () => ({ ok: true, value: collection }),
   updateCollection: async () => ({ ok: true, value: collection }),
   removeCollection: async () => ({ ok: true, value: collection }),
-  filterBlocked: async ({ canonicalRefs }) => ({ ok: true, value: canonicalRefs }),
   filterBlockedMaterials: async ({ materialRefs }) => ({ ok: true, value: materialRefs }),
 };
 

@@ -130,15 +130,17 @@ query exclusions work after recommendation events.
 The 2026-05-30 MusicMaterial PR 5 downstream migration slice moves
 consequence-bearing modules toward product-level material targets. Collection
 Items now support `materialRef`, material snapshots, relation scope, identity
-requirements, and `pending_identity` status while preserving legacy
-`canonicalRef` collection APIs. Collection Service can block source-only
-materials and filter blocked material refs, with material filtering and removal
-following Material Registry redirects after merges. Stage Interface collection
-tools accept `materialId` as the normal material target path while preserving
-`canonicalRef` and raw `materialRef` for internal compatibility. Material
+requirements, and `pending_identity` status. Public collection writes use
+`materialId`; `CollectionPort` uses internal materialRef-backed add/remove and
+blocked-filter methods, with stored `canonicalRef` remaining only as optional
+item metadata or historical storage state. Collection Service can block
+source-only materials and filter blocked material refs, with material filtering
+and removal following Material Registry redirects after merges. Stage Interface
+collection tools no longer accept public `canonicalRef` or raw `materialRef`
+write targets. Material
 Query collection pools return material-only items directly, use snapshots as a
-fallback when a live projection is unavailable, and keep legacy canonical
-collection items working during migration. Event Service accepts
+fallback when a live projection is unavailable, and can still project historical
+canonical metadata stored on CollectionItems. Event Service accepts
 structured material snapshot targets while preserving old Ref targets. Memory
 entries can carry structured material targets under the existing evidence gate,
 and Effect Boundary accepts compact material action targets.
@@ -666,8 +668,8 @@ host-facing and LLM-facing surface.
   canonical-first `MusicCandidate` to `MusicMaterial` resolution through
   `MaterialStorePort`. It can accept `CollectionPort` for owner-scoped blocked
   filtering, defaults missing `ownerScope` to `local_profile:default`, marks
-  blocked canonical materials as `blocked`, resolves source refs through
-  Confirmed Canonical Bindings, reads Source Library only when
+  blocked material refs as `blocked`, resolves source refs through Confirmed
+  Canonical Bindings, reads Source Library only when
   `sourceLibraryScope` is explicit, and does not attach source refs or create
   canonical identity.
 - Source Grounding is exported from `src/source/index.ts` with provider search,
