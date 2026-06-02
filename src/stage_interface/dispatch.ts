@@ -93,7 +93,6 @@ export function createToolDispatch({
       ...(knowledge === undefined ? {} : { knowledge }),
     },
     library: {
-      ...(materialStore === undefined ? {} : { materialStore }),
       ...(libraryImport === undefined ? {} : { libraryImport }),
     },
     canonicalReview: {

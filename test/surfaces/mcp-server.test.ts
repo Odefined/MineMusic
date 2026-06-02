@@ -2,6 +2,8 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { z } from "zod/v4";
+
 import type {
   HandbookInstrumentEntry,
   InstrumentProviderDescriptor,
@@ -29,6 +31,11 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function inputSchemaText(schema: z.ZodRawShape | Readonly<z.ZodRawShape> | undefined): string {
+  assert(schema !== undefined, "schema should exist");
+  return JSON.stringify(z.toJSONSchema(z.object({ ...schema })));
 }
 
 async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
@@ -172,6 +179,11 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "material query schema should not advertise experimental preferenceHints",
   );
   assert(
+    !inputSchemaText(schemasByName.get("minemusic.music.material.query")).includes("\"areas\"") &&
+      !inputSchemaText(schemasByName.get("minemusic.music.material.query")).includes("\"expand\""),
+    "material query MCP schema should not advertise Source Library areas or expand",
+  );
+  assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "materialId") &&
       hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "relation"),
     "material related schema should declare materialId and relation inputs",
@@ -193,6 +205,11 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.pools.list"), "kinds"),
     "material pools list schema should declare pool kind filters",
+  );
+  assert(
+    !inputSchemaText(schemasByName.get("minemusic.music.pools.list")).includes("\"dynamic\"") &&
+      !inputSchemaText(schemasByName.get("minemusic.music.pools.list")).includes("\"related\""),
+    "material pools list MCP schema should not advertise dynamic or related pool filters",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.links.refresh"), "materialId") &&
@@ -262,8 +279,9 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "materialId") &&
       !hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "canonicalRef") &&
-      !hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "materialRef"),
-    "collection save schema should expose materialId and hide canonical/raw material refs",
+      !hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "materialRef") &&
+      !hasSchemaKey(schemasByName.get("minemusic.music.collection.save"), "label"),
+    "collection save schema should expose materialId and hide canonical/raw material refs and labels",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.collection.create"), "collectionKind"),
@@ -274,10 +292,8 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     "collection list schema should declare ownerScope input",
   );
   assert(
-    hasSchemaKey(schemasByName.get("minemusic.library.source.list"), "providerId") &&
-      hasSchemaKey(schemasByName.get("minemusic.library.source.list"), "limit") &&
-      hasSchemaKey(schemasByName.get("minemusic.library.source.list"), "cursor"),
-    "source library list schema should declare filtering and paging inputs",
+    !schemasByName.has("minemusic.library.source.list"),
+    "source library list should not be exposed through MCP",
   );
   assert(
     !schemasByName.has("minemusic.library.import.preview"),

@@ -10,22 +10,16 @@ import type {
   LibraryImportSummaryInput,
   LibraryUpdateStartInput,
   Result,
-  SourceEntity,
-  SourceLibraryEntry,
-  SourceLibraryItem,
-  SourceLibraryListInput,
   StageError,
   ToolDescriptor,
 } from "../../contracts/index.js";
 import type {
   LibraryImportPort,
-  SourceLibraryReadStorePort,
 } from "../../ports/index.js";
 import {
   compactLibraryImportItemsPage,
   compactLibraryImportStart,
   compactLibraryImportSummary,
-  compactSourceLibraryList,
 } from "../outputs.js";
 import type {
   StageInterfaceToolDefinition,
@@ -34,7 +28,6 @@ import type {
 import { descriptorForToolDefinition } from "./types.js";
 
 export const libraryToolNames = [
-  "library.source.list",
   "library.import.start",
   "library.import.continue",
   "library.update.start",
@@ -47,17 +40,10 @@ export const libraryToolNames = [
 export type LibraryToolName = (typeof libraryToolNames)[number];
 
 export type LibraryToolGroupContext = {
-  materialStore?: SourceLibraryReadStorePort;
   libraryImport?: LibraryImportPort;
 };
 
 const defaultOwnerScope = "local_profile:default";
-
-const platformLibraryItemKindSchema = z.enum([
-  "saved_source_track",
-  "saved_source_release",
-  "saved_source_artist",
-]);
 
 const libraryImportScopeSchema = z.enum([
   "discovery",
@@ -67,45 +53,6 @@ const libraryImportScopeSchema = z.enum([
 ]);
 
 export const libraryToolDefinitions = [
-  {
-    name: "library.source.list",
-    description: "List Source Library items in bounded pages as short cards.",
-    inputSchemaRef: "SourceLibraryListInput",
-    outputSchemaRef: "SourceLibraryListOutput",
-    availability: "requires_active_instrument",
-    inputSchema: {
-      ownerScope: z.string().optional(),
-      providerId: z.string().optional(),
-      providerAccountId: z.string().optional(),
-      libraryKind: platformLibraryItemKindSchema.optional(),
-      limit: z.number().int().positive().optional(),
-      cursor: z.string().optional(),
-    },
-    async handler({ context, payload }) {
-      const availableMaterialStore = readMaterialStore(context.materialStore);
-
-      if (!availableMaterialStore.ok) {
-        return availableMaterialStore;
-      }
-
-      const input = readPayload<SourceLibraryListInput>(payload, {
-        ownerScope: defaultOwnerScope,
-      });
-      const listed = await availableMaterialStore.value.listSourceLibraryItems({
-        ...input,
-        status: "present",
-      });
-
-      if (!listed.ok) {
-        return listed;
-      }
-
-      const page = await pageSourceLibraryEntries(availableMaterialStore.value, listed.value, input);
-
-      return page.ok ? ok(page.value) : page;
-    },
-    present: (value) => compactSourceLibraryList(value as SourceLibraryListPage),
-  },
   {
     name: "library.import.start",
     description: "Start importing saved platform library facts into MineMusic state.",
@@ -282,35 +229,12 @@ export const libraryToolInputSchemas = Object.fromEntries(
   libraryToolDefinitions.map((definition) => [definition.name, definition.inputSchema]),
 ) as unknown as Record<LibraryToolName, StageInterfaceToolInputSchema>;
 
-type SourceLibraryListPage = {
-  items: SourceLibraryEntry[];
-  totalItems: number;
-  nextCursor?: string;
-};
-
-function readMaterialStore(materialStore: SourceLibraryReadStorePort | undefined): Result<SourceLibraryReadStorePort> {
-  if (materialStore === undefined) {
-    return materialStoreUnavailable();
-  }
-
-  return ok(materialStore);
-}
-
 function readLibraryImport(libraryImport: LibraryImportPort | undefined): Result<LibraryImportPort> {
   if (libraryImport === undefined) {
     return libraryImportUnavailable();
   }
 
   return ok(libraryImport);
-}
-
-function materialStoreUnavailable(): Result<never> {
-  return fail({
-    code: "stage_interface.tool_not_found",
-    message: "Source Library tools are not available.",
-    module: "stage_interface",
-    retryable: false,
-  });
 }
 
 function libraryImportUnavailable(): Result<never> {
@@ -320,77 +244,6 @@ function libraryImportUnavailable(): Result<never> {
     module: "stage_interface",
     retryable: false,
   });
-}
-
-const defaultSourceLibraryPageSize = 20;
-const maxSourceLibraryPageSize = 200;
-
-async function pageSourceLibraryEntries(
-  materialStore: SourceLibraryReadStorePort,
-  items: SourceLibraryItem[],
-  input: SourceLibraryListInput,
-): Promise<Result<SourceLibraryListPage>> {
-  const totalItems = items.length;
-  const start = normalizePagedCursor(input.cursor, totalItems);
-  const limit = normalizePagedLimit(input.limit);
-  const pageItems = items.slice(start, start + limit);
-  const entriesResult = await Promise.all(
-    pageItems.map((item) => buildSourceLibraryEntry(materialStore, item)),
-  );
-  const failedEntry = entriesResult.find((entry) => !entry.ok);
-
-  if (failedEntry !== undefined && !failedEntry.ok) {
-    return failedEntry;
-  }
-
-  const entries = entriesResult
-    .filter((entry): entry is { ok: true; value: SourceLibraryEntry } => entry.ok)
-    .map((entry) => entry.value);
-  const nextOffset = start + entries.length;
-
-  return ok({
-    items: entries,
-    totalItems,
-    ...(nextOffset < totalItems ? { nextCursor: String(nextOffset) } : {}),
-  });
-}
-
-async function buildSourceLibraryEntry(
-  materialStore: SourceLibraryReadStorePort,
-  item: SourceLibraryItem,
-): Promise<Result<SourceLibraryEntry>> {
-  const sourceEntity = await materialStore.getSourceEntity({ sourceRef: item.sourceRef });
-
-  if (!sourceEntity.ok) {
-    return sourceEntity;
-  }
-
-  return ok({
-    item,
-    ...(sourceEntity.value === null ? {} : { sourceEntity: sourceEntity.value as SourceEntity }),
-  });
-}
-
-function normalizePagedLimit(limit: number | undefined): number {
-  if (limit === undefined || !Number.isFinite(limit) || limit < 1) {
-    return defaultSourceLibraryPageSize;
-  }
-
-  return Math.min(Math.floor(limit), maxSourceLibraryPageSize);
-}
-
-function normalizePagedCursor(cursor: string | undefined, totalItems: number): number {
-  if (cursor === undefined) {
-    return 0;
-  }
-
-  const parsed = Number.parseInt(cursor, 10);
-
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return 0;
-  }
-
-  return Math.min(parsed, totalItems);
 }
 
 function readPayload<TPayload extends object>(

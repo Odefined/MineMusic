@@ -74,7 +74,7 @@ async function querySavedTracksReturnsOnlySavedTrackMaterials(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       limit: 10,
     }),
   );
@@ -99,7 +99,7 @@ async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGroundi
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       constraints: { availability: "playable" },
       limit: 10,
     }),
@@ -354,7 +354,7 @@ async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_albums"], expand: "tracks" },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_release"], target: "release_tracks" },
       limit: 10,
     }),
   );
@@ -380,7 +380,7 @@ async function queryReturnKindFiltersResolvedMaterials(): Promise<void> {
   const recordings = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks", "followed_artists"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track", "saved_source_artist"] },
       returnKind: "recording",
       limit: 10,
     }),
@@ -388,7 +388,7 @@ async function queryReturnKindFiltersResolvedMaterials(): Promise<void> {
   const artists = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks", "followed_artists"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track", "saved_source_artist"] },
       returnKind: "artist",
       limit: 10,
     }),
@@ -414,7 +414,7 @@ async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<vo
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_albums"], expand: "tracks" },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_release"], target: "release_tracks" },
       q: "Lantern",
       returnKind: "recording",
       limit: 10,
@@ -423,6 +423,51 @@ async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<vo
 
   assert(output.items.length === 1, "saved album expansion should apply q to expanded track labels");
   assert(itemTitle(output.items[0]) === "Bright Lantern", "saved album expansion should find matching track labels");
+}
+
+async function queryRejectsInvalidReleaseTracksSourceLibraryPool(): Promise<void> {
+  const sourceRef = ref("source:fixture", "track", "invalid-release-target-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
+    sourceMaterial("Invalid Release Target Track", sourceRef),
+  ]);
+  await putLibraryTrack(materialStore, sourceRef, "Invalid Release Target Track");
+
+  const output = await materialQuery.query({
+    ownerScope: "local_profile:default",
+    pool: { kind: "source_library", libraryKinds: ["saved_source_track"], target: "release_tracks" },
+    limit: 10,
+  });
+
+  assert(!output.ok, "release_tracks target should reject non-release source-library pools");
+  assert(
+    !output.ok && output.error.code === "material_query.invalid_pool",
+    "release_tracks target should fail with an explicit invalid-pool error",
+  );
+}
+
+async function listPoolsDisambiguatesProviderAccountsInSourceLibraryLabels(): Promise<void> {
+  const firstRef = ref("source:fixture", "track", "account-one-track");
+  const secondRef = ref("source:fixture", "track", "account-two-track");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([]);
+  assert(materialQuery.listPools !== undefined, "material query service should expose pool listing");
+  await putLibraryTrack(materialStore, firstRef, "Account One Track", "2026-05-30T00:00:00.000Z", {
+    providerAccountId: "account-one",
+  });
+  await putLibraryTrack(materialStore, secondRef, "Account Two Track", "2026-05-30T00:00:00.000Z", {
+    providerAccountId: "account-two",
+  });
+
+  const output = await assertOk(
+    materialQuery.listPools({
+      ownerScope: "local_profile:default",
+      kinds: ["source_library"],
+    }),
+  );
+  const labels = output.pools.map((pool) => pool.label);
+
+  assert(labels.includes("fixture/account-one saved tracks"), "pool labels should include the first provider account");
+  assert(labels.includes("fixture/account-two saved tracks"), "pool labels should include the second provider account");
+  assert(new Set(labels).size === labels.length, "source-library pool labels should not collide across accounts");
 }
 
 async function queryCursorPaginatesDomainItems(): Promise<void> {
@@ -441,7 +486,7 @@ async function queryCursorPaginatesDomainItems(): Promise<void> {
   const firstPage = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       limit: 2,
     }),
   );
@@ -449,7 +494,7 @@ async function queryCursorPaginatesDomainItems(): Promise<void> {
   const secondPage = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       cursor: firstPage.nextCursor,
       limit: 2,
     }),
@@ -478,7 +523,7 @@ async function leastRecentlyRecommendedOrderUsesMaterialActivity(): Promise<void
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       order: "least_recently_recommended",
       limit: 10,
     }),
@@ -503,7 +548,7 @@ async function recentlyAddedOrderUsesSourceLibraryTimestamps(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       order: "recently_added",
       limit: 10,
     }),
@@ -531,7 +576,7 @@ async function queryPreferenceHintsFilterAndRankMaterials(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       preferenceHints: {
         activity: "writing",
         mood: ["calm"],
@@ -726,7 +771,7 @@ async function explicitPoolDoesNotFallbackOutsidePool(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       limit: 10,
     }),
   );
@@ -756,7 +801,7 @@ async function relationExclusionsRemoveBlockedWrongVersionAndNotPlayable(): Prom
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       exclude: { relations: ["blocked", "wrong_version", "not_playable"] },
       limit: 10,
     }),
@@ -812,7 +857,7 @@ async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<voi
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       exclude: { relations: ["blocked"] },
       limit: 10,
     }),
@@ -848,7 +893,7 @@ async function recentRecommendedHardExcludeWorks(): Promise<void> {
     materialQuery.query({
       ownerScope: "local_profile:default",
       sessionId: "session-1",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
     }),
@@ -891,7 +936,7 @@ async function recentRecommendedSessionExcludeUsesMaterialSessionActivity(): Pro
     materialQuery.query({
       ownerScope: "local_profile:default",
       sessionId: "session-a",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
     }),
@@ -900,7 +945,7 @@ async function recentRecommendedSessionExcludeUsesMaterialSessionActivity(): Pro
     materialQuery.query({
       ownerScope: "local_profile:default",
       sessionId: "session-b",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
     }),
@@ -961,7 +1006,7 @@ async function compactRecommendationCardEventsUpdateRecentExclusions(): Promise<
     materialQuery.query({
       ownerScope: "local_profile:default",
       sessionId: "session-1",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       exclude: { recent: { recommended: "session", mode: "hard" } },
       limit: 10,
     }),
@@ -1066,7 +1111,7 @@ async function recentOpenedAndPlayedHardExcludeWorksByWindow(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       exclude: { recent: { opened: "1h", played: "1h", mode: "hard" } },
       limit: 10,
     }),
@@ -1091,7 +1136,7 @@ async function compactCardsDoNotExposeRawMaterialInternals(): Promise<void> {
   const output = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"] },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"] },
       limit: 1,
     }),
   );
@@ -1342,6 +1387,7 @@ async function putLibraryTrack(
     artistLabels?: string[];
     releaseLabel?: string;
     providerUrl?: string;
+    providerAccountId?: string;
   } = {},
 ): Promise<void> {
   await assertOk(
@@ -1366,7 +1412,7 @@ async function putLibraryTrack(
         id: `item-${sourceRef.id}`,
         ownerScope: "local_profile:default",
         providerId: "fixture",
-        providerAccountId: "fixture-account",
+        providerAccountId: context.providerAccountId ?? "fixture-account",
         sourceRef,
         sourceKind: "track",
         libraryKind: "saved_source_track",
@@ -1559,6 +1605,8 @@ await querySkipsUnbackedProviderResults();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
 await queryReturnKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();
+await queryRejectsInvalidReleaseTracksSourceLibraryPool();
+await listPoolsDisambiguatesProviderAccountsInSourceLibraryLabels();
 await queryCursorPaginatesDomainItems();
 await leastRecentlyRecommendedOrderUsesMaterialActivity();
 await recentlyAddedOrderUsesSourceLibraryTimestamps();

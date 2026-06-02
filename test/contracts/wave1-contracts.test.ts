@@ -80,6 +80,9 @@ import type {
   LibraryUpdateStartInput,
   MaterialRecord,
   MaterialRecordStatus,
+  MaterialPoolSpec,
+  MaterialPoolsListInput,
+  MaterialPoolsListOutput,
   MaterialSessionActivity,
   MaterialResolveRequest,
   MaterialResolveResult,
@@ -111,10 +114,7 @@ import type {
   SourceArtist,
   SourceEntity,
   SourceEntityKind,
-  SourceLibraryEntry,
-  SourceLibraryListItemView,
-  SourceLibraryListInput,
-  SourceLibraryListOutput,
+  SourceLibraryPoolTarget,
   SourceLibraryResolveScope,
   SourceLibraryItemStatus,
   SourceMaterial,
@@ -283,6 +283,31 @@ export type _collectionItemSupportsMaterialAndLegacyCanonicalRefs = Expect<
 export type _materialResolveRequestCarriesOwnerScope = Expect<
   Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
     Equal<NonNullable<MaterialResolveRequest["sourceLibraryScope"]>, SourceLibraryResolveScope>
+>;
+
+export type _materialPoolSpecUsesQueryReadySourceLibraryLanguage = Expect<
+  Equal<SourceLibraryPoolTarget, "library_item" | "release_tracks"> &
+    Equal<
+      keyof Extract<MaterialPoolSpec, { kind: "source_library" }>,
+      "kind" | "libraryKinds" | "providerId" | "providerAccountId" | "target"
+    > &
+    Equal<Extract<MaterialPoolSpec, { kind: "source_library" }>["libraryKinds"], PlatformLibraryItemKind[]> &
+    Equal<Extract<MaterialPoolSpec, { kind: "source_library" }>["target"], SourceLibraryPoolTarget | undefined> &
+    Equal<
+      keyof Extract<MaterialPoolSpec, { kind: "collection" }>,
+      "kind" | "ref" | "label" | "relation"
+    > &
+    Equal<Extract<MaterialPoolSpec, { kind: "related" }>["relation"], "same_artist" | "same_album" | "similar">
+>;
+
+export type _materialPoolsListReturnsQueryReadyNonSeedPools = Expect<
+  Equal<keyof MaterialPoolsListInput, "kinds" | "ownerScope" | "includeEmpty"> &
+    Equal<NonNullable<MaterialPoolsListInput["kinds"]>[number], "all" | "source_library" | "collection"> &
+    Equal<
+      keyof MaterialPoolsListOutput["pools"][number],
+      "label" | "pool" | "returnKinds" | "count"
+    > &
+    Equal<MaterialPoolsListOutput["pools"][number]["pool"], Exclude<MaterialPoolSpec, { kind: "related" }>>
 >;
 
 export type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
@@ -1199,28 +1224,6 @@ export type _sourceLibraryItemListInputKeys = Expect<
     keyof SourceLibraryItemListInput,
     "ownerScope" | "providerId" | "providerAccountId" | "sourceKind" | "libraryKind" | "status" | "sourceRef"
   >
->;
-
-export type _sourceLibraryListInputKeys = Expect<
-  Equal<
-    keyof SourceLibraryListInput,
-    | "ownerScope"
-    | "providerId"
-    | "providerAccountId"
-    | "libraryKind"
-    | "limit"
-    | "cursor"
-  >
->;
-
-export type _sourceLibraryEntryKeys = Expect<Equal<keyof SourceLibraryEntry, "item" | "sourceEntity">>;
-
-export type _sourceLibraryListItemViewKeys = Expect<
-  Equal<keyof SourceLibraryListItemView, "sourceRef" | "label" | "subtitle">
->;
-
-export type _sourceLibraryListOutputKeys = Expect<
-  Equal<keyof SourceLibraryListOutput, "items" | "totalItems" | "nextCursor">
 >;
 
 export type _confirmedCanonicalBindingListInputKeys = Expect<

@@ -25,6 +25,10 @@ function assert(condition: unknown, message: string): asserts condition {
   }
 }
 
+function inputSchemaText(schema: z.ZodRawShape | Readonly<z.ZodRawShape>): string {
+  return JSON.stringify(z.toJSONSchema(z.object({ ...schema })));
+}
+
 async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
@@ -81,7 +85,6 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
     "music.collection.update",
     "music.collection.delete",
     "music.collection.list",
-    "library.source.list",
     "library.import.start",
     "library.import.continue",
     "library.update.start",
@@ -100,6 +103,10 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
   assert(
     stableToolNames.join("\n") === expectedOrder.join("\n"),
     "stable tool order should remain unchanged",
+  );
+  assert(
+    !(stableToolNames as readonly string[]).includes("library.source.list"),
+    "stable tool names should not expose removed source library list tool",
   );
 }
 
@@ -152,9 +159,12 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
   const querySchema = stageInterfaceToolInputSchemas["music.material.query"];
   const relatedSchema = stageInterfaceToolInputSchemas["music.material.related"];
   const selectSchema = stageInterfaceToolInputSchemas["music.material.select"];
+  const poolsListSchema = stageInterfaceToolInputSchemas["music.pools.list"];
   const queryPayloadSchema = z.object(querySchema).passthrough();
   const relatedPayloadSchema = z.object(relatedSchema).passthrough();
   const selectPayloadSchema = z.object(selectSchema).passthrough();
+  const querySchemaText = inputSchemaText(querySchema);
+  const poolsListSchemaText = inputSchemaText(poolsListSchema);
 
   assert(
     !Object.prototype.hasOwnProperty.call(querySchema, "preferenceHints"),
@@ -232,6 +242,22 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     }).success,
     "material query related pool public schema should not advertise same_release",
   );
+  assert(
+    !querySchemaText.includes("\"areas\"") && !querySchemaText.includes("\"expand\""),
+    "material query public schema should not advertise Source Library areas or expand",
+  );
+  assert(
+    querySchemaText.includes("\"libraryKinds\"") && querySchemaText.includes("\"target\""),
+    "material query public schema should advertise source library item kinds and target",
+  );
+  assert(
+    !poolsListSchemaText.includes("\"dynamic\"") && !poolsListSchemaText.includes("\"related\""),
+    "material pools list schema should not advertise dynamic or seed-related pool filters",
+  );
+  assert(
+    poolsListSchemaText.includes("\"includeEmpty\""),
+    "material pools list schema should expose includeEmpty for collection pools",
+  );
 
   const linksRefreshSchema = stageInterfaceToolInputSchemas["music.links.refresh"];
   assert(
@@ -249,7 +275,7 @@ async function collectionSchemasExposeOnlyMaterialIdTargets(): Promise<void> {
   const systemRemoveSchema = stageInterfaceToolInputSchemas["music.collection.unfavorite"];
   const customAddSchema = stageInterfaceToolInputSchemas["music.collection.item.add"];
   const customRemoveSchema = stageInterfaceToolInputSchemas["music.collection.item.remove"];
-  const addHiddenFields = ["canonicalRef", "materialRef", "materialSnapshot", "relationScope", "identityRequirement"];
+  const addHiddenFields = ["canonicalRef", "materialRef", "label", "materialSnapshot", "relationScope", "identityRequirement"];
 
   for (const field of addHiddenFields) {
     assert(

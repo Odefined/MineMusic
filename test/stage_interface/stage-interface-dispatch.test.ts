@@ -12,7 +12,6 @@ import type {
   Ref,
   Result,
   SourceEntity,
-  SourceLibraryEntry,
   StageSession,
   ToolName,
 } from "../../src/contracts/index.js";
@@ -77,6 +76,40 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
   return awaited.value;
+}
+
+async function putSourceMaterialFixture(
+  materialStore: MaterialStorePort,
+  sourceId: string,
+  label: string,
+): Promise<void> {
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: sourceId,
+  };
+
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label,
+        title: label,
+        providerUrl: `https://example.test/${sourceId}`,
+        createdAt: "2026-06-02T00:00:00.000Z",
+        updatedAt: "2026-06-02T00:00:00.000Z",
+      },
+    }),
+  );
+  await assertOk(
+    materialStore.getOrCreateBySourceRef({
+      sourceRef,
+      kind: "recording",
+      primarySourceRef: sourceRef,
+    }),
+  );
 }
 
 const session: StageSession = {
@@ -1083,8 +1116,9 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
   const calls: string[] = [];
   const collection: CollectionPort = {
     initializeOwnerCollections: async () => ({ ok: true, value: [collectionRecord] }),
-    addMaterialToSystemCollection: async ({ ownerScope, relationKind, materialRef }) => {
+    addMaterialToSystemCollection: async ({ ownerScope, relationKind, materialRef, label }) => {
       calls.push(`add-material:${ownerScope}:${relationKind}:${materialRef.id}`);
+      calls.push(`label:${relationKind}:${label}`);
       return { ok: true, value: { ...collectionItem, materialRef } };
     },
     removeMaterialFromSystemCollection: async ({ ownerScope, relationKind, materialRef }) => {
@@ -1100,6 +1134,19 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     removeCollection: async () => ({ ok: true, value: collectionRecord }),
     filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
+  const materialIds = ["quiet-track", "compact-source-only-material"];
+  const materialStore = createMaterialStore({
+    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+    materialRegistry: createInMemoryMaterialRegistry({
+      generateId: () => materialIds.shift() ?? "unexpected-material-id",
+      now: () => "2026-06-02T00:00:00.000Z",
+    }),
+    materialActivity: createInMemoryMaterialActivityRepository(),
+    materialSessionActivity: createInMemoryMaterialSessionActivityRepository(),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  await putSourceMaterialFixture(materialStore, "quiet-track-source", "Quiet Track");
+  await putSourceMaterialFixture(materialStore, "compact-source-only-source", "Compact Source Only Material");
   const dispatch = createToolDispatch({
     sessionContext: {
       getSession: async () => ({ ok: true, value: session }),
@@ -1135,13 +1182,14 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       decide: async () => ({ ok: true, value: undefined }),
     },
     collection,
+    materialStore,
   });
 
   await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.save",
-      payload: { materialId: "quiet-track", label: "Quiet Track" },
+      payload: { materialId: "quiet-track" },
     }),
   );
   await assertOk(
@@ -1155,7 +1203,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.favorite",
-      payload: { materialId: "quiet-track", label: "Quiet Track", ownerScope: "local_profile:guest" },
+      payload: { materialId: "quiet-track", ownerScope: "local_profile:guest" },
     }),
   );
   await assertOk(
@@ -1169,7 +1217,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.block",
-      payload: { materialId: "quiet-track", label: "Quiet Track" },
+      payload: { materialId: "quiet-track" },
     }),
   );
   await assertOk(
@@ -1185,7 +1233,6 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
       toolName: "music.collection.block",
       payload: {
         materialId: "compact-source-only-material",
-        label: "Compact Source Only Material",
       },
     }),
   );
@@ -1203,6 +1250,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     calls.includes("add-material:local_profile:default:saved:quiet-track"),
     "collection save should default missing owner scope",
   );
+  assert(calls.includes("label:saved:Quiet Track"), "collection save should derive labels from material projection");
   assert(
     calls.includes("remove-material:local_profile:default:saved:quiet-track"),
     "collection unsave should default missing owner scope",
@@ -1211,6 +1259,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     calls.includes("add-material:local_profile:guest:favorite:quiet-track"),
     "collection favorite should preserve explicit owner scope",
   );
+  assert(calls.includes("label:favorite:Quiet Track"), "collection favorite should derive labels from material projection");
   assert(
     calls.includes("remove-material:local_profile:guest:favorite:quiet-track"),
     "collection unfavorite should preserve explicit owner scope",
@@ -1219,6 +1268,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     calls.includes("add-material:local_profile:default:blocked:quiet-track"),
     "collection block should call blocked system collection",
   );
+  assert(calls.includes("label:blocked:Quiet Track"), "collection block should derive labels from material projection");
   assert(
     calls.includes("remove-material:local_profile:default:blocked:quiet-track"),
     "collection unblock should call blocked system collection removal",
@@ -1226,6 +1276,10 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
   assert(
     calls.includes("add-material:local_profile:default:blocked:compact-source-only-material"),
     "collection block should accept materialId payloads",
+  );
+  assert(
+    calls.includes("label:blocked:Compact Source Only Material"),
+    "collection block should derive labels for source-only materialId payloads",
   );
   assert(
     calls.includes("remove-material:local_profile:default:blocked:compact-source-only-material"),
@@ -1283,6 +1337,19 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
     },
     filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
+  const materialIds = ["quiet-track", "custom-source-material"];
+  const materialStore = createMaterialStore({
+    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+    materialRegistry: createInMemoryMaterialRegistry({
+      generateId: () => materialIds.shift() ?? "unexpected-custom-material-id",
+      now: () => "2026-06-02T00:00:00.000Z",
+    }),
+    materialActivity: createInMemoryMaterialActivityRepository(),
+    materialSessionActivity: createInMemoryMaterialSessionActivityRepository(),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  await putSourceMaterialFixture(materialStore, "quiet-track-source", "Quiet Track");
+  await putSourceMaterialFixture(materialStore, "custom-source-material-source", "Custom Source Material");
   const dispatch = createToolDispatch({
     sessionContext: {
       getSession: async () => ({ ok: true, value: session }),
@@ -1318,6 +1385,7 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       decide: async () => ({ ok: true, value: undefined }),
     },
     collection,
+    materialStore,
   });
 
   await assertOk(
@@ -1338,7 +1406,7 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.item.add",
-      payload: { collectionId: customCollection.id, materialId: "quiet-track", label: "Quiet Track" },
+      payload: { collectionId: customCollection.id, materialId: "quiet-track" },
     }),
   );
   await assertOk(
@@ -1352,7 +1420,7 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.item.add",
-      payload: { collectionId: customCollection.id, materialId: "custom-source-material", label: "Custom Source Material" },
+      payload: { collectionId: customCollection.id, materialId: "custom-source-material" },
     }),
   );
   await assertOk(
@@ -1420,9 +1488,15 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
 async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<void> {
   let nextId = 1;
   const next = (prefix: string) => `${prefix}-${nextId++}`;
-  const materialRegistry = createInMemoryMaterialRegistry({
-    generateId: () => next("material"),
-    now: () => "2026-05-31T00:00:00.000Z",
+  const materialStore = createMaterialStore({
+    canonicalStore: createCanonicalStore({ repository: createInMemoryCanonicalRecordRepository() }),
+    materialRegistry: createInMemoryMaterialRegistry({
+      generateId: () => next("material"),
+      now: () => "2026-05-31T00:00:00.000Z",
+    }),
+    materialActivity: createInMemoryMaterialActivityRepository(),
+    materialSessionActivity: createInMemoryMaterialSessionActivityRepository(),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
   });
   const collection = createCollectionService({
     repository: createInMemoryCollectionRepository(),
@@ -1431,7 +1505,7 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
       idFactory: () => next("event"),
       clock: () => "2026-05-31T00:00:00.000Z",
     }),
-    materialStore: materialRegistry,
+    materialStore,
     idFactory: () => next("collection"),
     clock: () => "2026-05-31T00:00:00.000Z",
   });
@@ -1444,7 +1518,7 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
     }),
   );
   const artist = await assertOk(
-    materialRegistry.getOrCreateByCanonicalRef({
+    materialStore.getOrCreateByCanonicalRef({
       canonicalRef: { namespace: "musicbrainz", kind: "artist", id: "stage-interface-artist" },
       kind: "artist",
     }),
@@ -1484,6 +1558,7 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
       decide: async () => ({ ok: true, value: undefined }),
     },
     collection,
+    materialStore,
   });
 
   const added = await dispatch.call({
@@ -1500,7 +1575,7 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
   assert(!added.ok, "compact custom collection add should reject mismatched material kind even with a fake canonical hint");
   assert(
     added.ok === false && added.error.code === "collection.kind_mismatch",
-    "compact custom collection add should surface collection.kind_mismatch for inconsistent target hints",
+    "compact custom collection add should ignore public target hints and validate against the material record kind",
   );
 }
 
@@ -1888,80 +1963,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
   assert(Array.isArray((itemsResult as { items?: unknown[] }).items), "library import items list should return paged item details");
 }
 
-async function dispatchesSourceLibraryToolsThroughMaterialStore(): Promise<void> {
-  const calls: string[] = [];
-  const sourceEntity: SourceEntity = {
-    sourceRef: {
-      namespace: "source:fixture-library",
-      kind: "track",
-      id: "track-1",
-    },
-    kind: "track",
-    providerId: "fixture-library",
-    label: "Fixture Track",
-    title: "Fixture Track",
-    artistLabels: ["Artist 1"],
-    releaseLabel: "Fixture Release",
-    durationMs: 123000,
-    providerFacts: { noisy: true },
-    createdAt: "2026-05-28T00:00:00.000Z",
-    updatedAt: "2026-05-28T00:00:00.000Z",
-  };
-  const sourceLibraryEntry: SourceLibraryEntry = {
-    item: {
-      id: "source-library-item-1",
-      ownerScope: "local_profile:default",
-      providerId: "fixture-library",
-      providerAccountId: "acct-1",
-      sourceRef: sourceEntity.sourceRef,
-      sourceKind: "track",
-      libraryKind: "saved_source_track",
-      label: "Fixture Track",
-      lastSeenAt: "2026-05-28T00:00:00.000Z",
-      status: "present",
-    },
-    sourceEntity,
-  };
-  const materialRegistry = createInMemoryMaterialRegistry();
-  const materialStore: MaterialStorePort = {
-    ...materialRegistry,
-    getCanonical: async () => ({ ok: true, value: null }),
-    findCanonicalByLabel: async () => ({ ok: true, value: [] }),
-    getSourceEntity: async ({ sourceRef }) => {
-      calls.push(`sourceEntity:${sourceRef.id}`);
-      return { ok: true, value: sourceRef.id === sourceEntity.sourceRef.id ? sourceEntity : null };
-    },
-    upsertSourceEntity: async ({ entity }) => ({ ok: true, value: entity }),
-    listSourceEntities: async () => ({ ok: true, value: [sourceEntity] }),
-    getSourceLibraryItem: async ({ ownerScope, providerId, providerAccountId, libraryKind, sourceRef }) => {
-      calls.push(`source.get:${ownerScope}:${providerId}:${providerAccountId}:${libraryKind}:${sourceRef.id}`);
-      return { ok: true, value: sourceRef.id === sourceLibraryEntry.item.sourceRef.id ? sourceLibraryEntry.item : null };
-    },
-    putSourceLibraryItem: async ({ item }) => ({ ok: true, value: item }),
-    listSourceLibraryItems: async ({
-      ownerScope,
-      providerId,
-      providerAccountId,
-      libraryKind,
-      status,
-    }) => {
-      calls.push(
-        `source.list:${ownerScope ?? "missing"}:${providerId ?? "missing"}:${providerAccountId ?? "missing"}:${libraryKind ?? "missing"}:${status ?? "missing"}`,
-      );
-      return { ok: true, value: [sourceLibraryEntry.item] };
-    },
-    getConfirmedCanonicalBinding: async () => ({ ok: true, value: null }),
-    putConfirmedCanonicalBinding: async ({ binding }) => ({ ok: true, value: binding }),
-    listConfirmedCanonicalBindings: async () => ({ ok: true, value: [] }),
-    putMaterialRelation: async ({ relation }) => ({ ok: true, value: relation }),
-    listMaterialRelations: async () => ({ ok: true, value: [] }),
-    getMaterialActivity: async () => ({ ok: true, value: null }),
-    putMaterialActivity: async ({ activity }) => ({ ok: true, value: activity }),
-    listMaterialActivity: async () => ({ ok: true, value: [] }),
-    getMaterialSessionActivity: async () => ({ ok: true, value: null }),
-    putMaterialSessionActivity: async ({ activity }) => ({ ok: true, value: activity }),
-    listMaterialSessionActivity: async () => ({ ok: true, value: [] }),
-  };
+async function dispatchRejectsRemovedSourceLibraryListTool(): Promise<void> {
   const dispatch = createToolDispatch({
     sessionContext: {
       getSession: async () => ({ ok: true, value: session }),
@@ -1996,45 +1998,19 @@ async function dispatchesSourceLibraryToolsThroughMaterialStore(): Promise<void>
       propose: async ({ proposal }) => ({ ok: true, value: { ...proposal, id: "effect-1" } }),
       decide: async () => ({ ok: true, value: undefined }),
     },
-    materialStore,
   });
 
-  const listed = await assertOk(
-    dispatch.call({
-      sessionId: session.id,
-      toolName: "library.source.list",
-      payload: {
-        providerId: "fixture-library",
-        providerAccountId: "acct-1",
-        libraryKind: "saved_source_track",
-        limit: 10,
-      },
-    }),
-  );
+  const result = await dispatch.call({
+    sessionId: session.id,
+    toolName: "library.source.list" as ToolName,
+    payload: {},
+  });
+
+  assert(!result.ok, "removed source library list tool should be rejected");
   assert(
-    calls.includes("source.list:local_profile:default:fixture-library:acct-1:saved_source_track:present"),
-    "source library list should route through material store with default owner scope",
+    result.error.code === "stage_interface.tool_not_found",
+    "removed source library list tool should not be registered in dispatch",
   );
-  assert(calls.includes("sourceEntity:track-1"), "source library tools should hydrate source entity details");
-  assert(
-    Array.isArray((listed as { items?: unknown[] }).items) &&
-      ((listed as { items?: unknown[] }).items?.length ?? 0) === 1,
-    "source library list should return a bounded item page",
-  );
-  const listedFirst = ((listed as { items?: unknown[] }).items?.[0] ?? {}) as {
-    sourceRef?: Record<string, unknown>;
-    label?: unknown;
-    subtitle?: unknown;
-    status?: unknown;
-    libraryKind?: unknown;
-  };
-  assert(listedFirst.label === "Fixture Track", "source library list should expose compact label");
-  assert(typeof listedFirst.subtitle === "string", "source library list should expose a compact subtitle");
-  assert(!("status" in listedFirst), "source library list should not expose status");
-  assert(!("libraryKind" in listedFirst), "source library list should not expose internal library kind");
-  assert(!("providerId" in listedFirst), "source library list should not expose redundant provider id");
-  assert(!("providerAccountId" in listedFirst), "source library list should not expose redundant provider account id");
-  assert(!("sourceEntity" in listedFirst), "source library list should not expose source entity detail by default");
 }
 
 async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<void> {
@@ -2796,7 +2772,7 @@ await dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope();
 await dispatchRejectsCompactCustomCollectionKindMismatch();
 await dispatchesMaterialQueryToolsWithCurrentSessionId();
 await dispatchesLibraryImportToolsWithDefaultOwnerScope();
-await dispatchesSourceLibraryToolsThroughMaterialStore();
+await dispatchRejectsRemovedSourceLibraryListTool();
 await dispatchesCanonicalReviewToolsWithCurrentSessionId();
 await reportsUnknownToolsAsResultErrors();
 await invalidStageMaterialsPayloadFailsAtBoundary();

@@ -995,7 +995,7 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
   const ordered = await assertOk(
     materialQuery.query({
       ownerScope: "local_profile:default",
-      pool: { kind: "source_library", areas: ["saved_tracks"], providerId: provider.id },
+      pool: { kind: "source_library", libraryKinds: ["saved_source_track"], providerId: provider.id },
       order: "recently_added",
       limit: 10,
     }),

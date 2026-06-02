@@ -415,16 +415,22 @@ async function sourceLibraryMaterials({
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>;
   q?: string;
 }): Promise<Result<MusicMaterial[]>> {
-  const areas = pool.areas ?? ["saved_tracks"];
+  const target = pool.target ?? "library_item";
+  const validation = validateSourceLibraryPoolTarget(pool);
+
+  if (!validation.ok) {
+    return validation;
+  }
+
   const materials: MusicMaterial[] = [];
 
-  for (const area of areas) {
-    const libraryKind = libraryKindForArea(area);
+  for (const libraryKind of pool.libraryKinds) {
     const items = await materialStore.listSourceLibraryItems({
       ownerScope,
       status: "present",
       libraryKind,
       ...(pool.providerId === undefined ? {} : { providerId: pool.providerId }),
+      ...(pool.providerAccountId === undefined ? {} : { providerAccountId: pool.providerAccountId }),
     });
 
     if (!items.ok) {
@@ -432,7 +438,7 @@ async function sourceLibraryMaterials({
     }
 
     for (const item of items.value) {
-      if (area === "saved_albums" && pool.expand === "tracks") {
+      if (target === "release_tracks") {
         const expanded = await tracklistCandidatesForReleaseItem(materialStore, item);
 
         if (!expanded.ok) {
@@ -509,6 +515,27 @@ async function allSourceLibraryMaterials({
   }
 
   return ok(dedupeMaterials(materials));
+}
+
+function validateSourceLibraryPoolTarget(
+  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>,
+): Result<void> {
+  if (
+    pool.target === "release_tracks" &&
+    (pool.libraryKinds.length !== 1 || pool.libraryKinds[0] !== "saved_source_release")
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: "material_query.invalid_pool",
+        message: "release_tracks target requires libraryKinds: ['saved_source_release'].",
+        module: "material_query",
+        retryable: false,
+      },
+    };
+  }
+
+  return ok(undefined);
 }
 
 async function collectionMaterials({
@@ -1291,8 +1318,16 @@ async function listPoolsForInput({
   input: MaterialPoolsListInput;
 }): Promise<Result<MaterialPoolsListOutput>> {
   const ownerScope = input.ownerScope ?? defaultOwnerScope;
-  const kinds = input.kinds ?? ["source_library", "collection", "dynamic"];
+  const kinds = input.kinds ?? ["all", "source_library", "collection"];
   const pools: MaterialPoolsListOutput["pools"] = [];
+
+  if (kinds.includes("all")) {
+    pools.push({
+      label: "All material",
+      pool: { kind: "all" },
+      returnKinds: ["recording", "artist", "release", "release_group"],
+    });
+  }
 
   if (kinds.includes("source_library")) {
     const sourceItems = await materialStore.listSourceLibraryItems({ ownerScope, status: "present" });
@@ -1301,20 +1336,7 @@ async function listPoolsForInput({
       return sourceItems;
     }
 
-    pools.push({
-      ref: "source_library:saved_tracks",
-      label: "Saved tracks",
-      type: "source_library",
-      returnKinds: ["recording"],
-      count: sourceItems.value.filter((item) => item.libraryKind === "saved_source_track").length,
-    });
-    pools.push({
-      ref: "source_library:saved_albums",
-      label: "Saved albums",
-      type: "source_library",
-      returnKinds: ["release", "recording"],
-      count: sourceItems.value.filter((item) => item.libraryKind === "saved_source_release").length,
-    });
+    pools.push(...sourceLibraryPoolsForItems(sourceItems.value));
   }
 
   if (kinds.includes("collection") && collection !== undefined) {
@@ -1324,26 +1346,129 @@ async function listPoolsForInput({
       return collections;
     }
 
-    pools.push(
-      ...collections.value.map((entry) => ({
-        ref: entry.id,
-        label: entry.label,
-        type: "collection" as const,
-        returnKinds: [entry.collectionKind],
-      })),
-    );
-  }
+    for (const entry of collections.value) {
+      const items = await collection.listItems({
+        ownerScope,
+        collectionId: entry.id,
+        includeRemoved: false,
+      });
 
-  if (kinds.includes("dynamic")) {
-    pools.push({
-      ref: "dynamic:related",
-      label: "Related material",
-      type: "dynamic",
-      returnKinds: ["recording", "artist", "release"],
-    });
+      if (!items.ok) {
+        return items;
+      }
+
+      if (items.value.length === 0 && input.includeEmpty !== true) {
+        continue;
+      }
+
+      pools.push({
+        label: entry.label,
+        pool: {
+          kind: "collection",
+          ref: entry.id,
+          label: entry.label,
+          relation: entry.relationKind,
+        },
+        returnKinds: [entry.collectionKind],
+        count: items.value.length,
+      });
+    }
   }
 
   return ok({ pools });
+}
+
+function sourceLibraryPoolsForItems(items: SourceLibraryItem[]): MaterialPoolsListOutput["pools"] {
+  const grouped = new Map<string, {
+    providerId: string;
+    providerAccountId: string;
+    libraryKind: PlatformLibraryItemKind;
+    count: number;
+  }>();
+
+  for (const item of items) {
+    const key = `${item.providerId}:${item.providerAccountId}:${item.libraryKind}`;
+    const group = grouped.get(key);
+
+    if (group === undefined) {
+      grouped.set(key, {
+        providerId: item.providerId,
+        providerAccountId: item.providerAccountId,
+        libraryKind: item.libraryKind,
+        count: 1,
+      });
+      continue;
+    }
+
+    group.count += 1;
+  }
+
+  const pools: MaterialPoolsListOutput["pools"] = [];
+
+  for (const group of grouped.values()) {
+    pools.push({
+      label: sourceLibraryPoolLabel(group),
+      pool: {
+        kind: "source_library",
+        libraryKinds: [group.libraryKind],
+        providerId: group.providerId,
+        providerAccountId: group.providerAccountId,
+      },
+      returnKinds: [materialKindForLibraryKind(group.libraryKind)],
+      count: group.count,
+    });
+
+    if (group.libraryKind === "saved_source_release") {
+      pools.push({
+        label: `Tracks from ${sourceLibraryPoolLabel(group)}`,
+        pool: {
+          kind: "source_library",
+          libraryKinds: [group.libraryKind],
+          providerId: group.providerId,
+          providerAccountId: group.providerAccountId,
+          target: "release_tracks",
+        },
+        returnKinds: ["recording"],
+        count: group.count,
+      });
+    }
+  }
+
+  return pools;
+}
+
+function sourceLibraryPoolLabel({
+  providerId,
+  providerAccountId,
+  libraryKind,
+}: {
+  providerId: string;
+  providerAccountId: string;
+  libraryKind: PlatformLibraryItemKind;
+}): string {
+  return `${providerId}/${providerAccountId} ${labelForLibraryKind(libraryKind)}`;
+}
+
+function labelForLibraryKind(libraryKind: PlatformLibraryItemKind): string {
+  switch (libraryKind) {
+    case "saved_source_track":
+      return "saved tracks";
+    case "saved_source_release":
+      return "saved releases";
+    case "saved_source_artist":
+      return "saved artists";
+  }
+}
+
+function materialKindForLibraryKind(libraryKind: PlatformLibraryItemKind): string {
+  switch (libraryKind) {
+    case "saved_source_track":
+      return "recording";
+    case "saved_source_release":
+      return "release";
+    case "saved_source_artist":
+      return "artist";
+  }
 }
 
 function appliedLabels(input: MaterialQueryInput): string[] {
@@ -1412,7 +1537,11 @@ function encodeCursor(offset: number): string {
 
 function poolLabel(pool: NonNullable<MaterialQueryInput["pool"]>): string {
   if (pool.kind === "source_library") {
-    return `source_library:${(pool.areas ?? ["saved_tracks"]).join(",")}`;
+    return [
+      "source_library",
+      pool.libraryKinds.join(","),
+      pool.target ?? "library_item",
+    ].join(":");
   }
 
   if (pool.kind === "collection") {
@@ -1424,17 +1553,6 @@ function poolLabel(pool: NonNullable<MaterialQueryInput["pool"]>): string {
   }
 
   return "all";
-}
-
-function libraryKindForArea(area: "saved_tracks" | "saved_albums" | "followed_artists"): PlatformLibraryItemKind {
-  switch (area) {
-    case "saved_tracks":
-      return "saved_source_track";
-    case "saved_albums":
-      return "saved_source_release";
-    case "followed_artists":
-      return "saved_source_artist";
-  }
 }
 
 function normalizeSeedKind(kind: string): string {

@@ -102,7 +102,7 @@ Lookup keys are not interchangeable:
 
 - `instrumentId` must be an instrument id such as `minemusic.library` or
   `minemusic.music`.
-- `toolName` must be an exact tool name such as `library.source.list` or
+- `toolName` must be an exact tool name such as `music.material.query` or
   `music.material.resolve`.
 
 If a caller needs the current input/output contract for one operation, prefer
