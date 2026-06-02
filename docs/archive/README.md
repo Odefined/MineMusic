@@ -43,6 +43,10 @@ and list archived documents with their superseding targets.
 
 | Area | Current authority | Archive README | Notes |
 | --- | --- | --- | --- |
+| Root Proposal And Plans | `README.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`, `INDEX.md`, `PROGRESS.md`, `docs/maintenance/documentation-alignment-plan.md` | `docs/archive/root/README.md` | Phase 6 archived historical root proposal and planning evidence. |
+| MVP Baseline | `README.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`, `INDEX.md`, area current authority documents | `docs/archive/mvp/README.md` | Phase 6 archived original MVP documentation baseline. |
+| Architecture Reviews | `ARCHITECTURE.md`, accepted ADRs, Stage Core/Stage Interface current docs | `docs/archive/architecture-reviews/README.md` | Phase 6 archived historical architecture-review evidence. |
+| Stage Core | `docs/stage-core/design.md`, `docs/stage-core/ports.md`, `docs/stage-core/progress.md`, `ARCHITECTURE.md` | `docs/archive/stage-core/README.md` | Phase 6 archived historical Stage Core Runtime Kit planning evidence. |
 | Stage Interface | `docs/stage-interface/design.md`, `docs/stage-interface/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/stage-interface/README.md` | Phase 1 archived completed tool-contract and language-normalization planning evidence. |
 | Material Flow | `docs/material/design.md`, `docs/material/ports.md`, `docs/material/projection-materialization.md`, `docs/material/progress.md` | `docs/archive/material/README.md` | Phase 2 archived historical material design, review, and PR-plan evidence. |
 | Recommendation | `docs/material/design.md`, `docs/material/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/recommendation/README.md` | Phase 2 archived historical recommendation posture planning evidence. |
@@ -53,7 +57,6 @@ and list archived documents with their superseding targets.
 | Platform Library Provider | `docs/platform-library-provider/design.md`, `docs/platform-library-provider/progress.md`, `docs/source-providers/netease.md`, `docs/library-import/design.md` | `docs/archive/platform-library-provider/README.md` | Phase 5 archived historical NetEase platform-library provider implementation planning evidence. |
 | Knowledge Slot | `docs/knowledge-slot/design.md`, `docs/knowledge-slot/musicbrainz-provider.md`, `docs/knowledge-slot/progress.md` | `docs/archive/knowledge-slot/README.md` | Phase 5 archived historical Knowledge Slot implementation planning evidence. |
 | Host Adapters | `docs/host-adapters/codex-skill.md`, `docs/operations/minemusic-server-launchd.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md` | `docs/archive/host-adapters/README.md` | Phase 5 archived historical server/MCP host-boundary planning evidence. |
-| Pending | See `INDEX.md` | Pending area README creation | Remaining area archive directories are created during the phase that processes that area. |
 
 ## Docs Guard Status
 

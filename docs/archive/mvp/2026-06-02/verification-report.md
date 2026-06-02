@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `CURRENT_STATE.md`, `PROGRESS.md`, area progress documents
+> Use only for: historical fixture-MVP verification evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MVP Verification Report
 
 ## Terminology Note

@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `AGENTS.md`, `INDEX.md`, `docs/maintenance/documentation-alignment-audit.md`
+> Use only for: historical subagent coordination evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Subagent MVP Master Plan
 
 ## Purpose

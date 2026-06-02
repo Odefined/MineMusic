@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `README.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`
+> Use only for: historical product proposal and original MVP framing evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Stage Proposal
 
 ## 1. Product Definition

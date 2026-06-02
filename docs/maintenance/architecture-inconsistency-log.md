@@ -68,6 +68,32 @@ inconsistency.
 | ID | Area | Summary | Resolution | Evidence | Closed by |
 | --- | --- | --- | --- | --- | --- |
 
+## Final Manual Audit Result
+
+Date: 2026-06-02
+
+Scope checked:
+
+- root authority documents: `README.md`, `INDEX.md`, `CURRENT_STATE.md`,
+  `ARCHITECTURE.md`, `PROGRESS.md`, `CONTEXT.md`;
+- accepted ADRs: `docs/adr/0001-stage-core-runtime-composition.md`,
+  `docs/adr/0002-material-store-boundary.md`;
+- current area `design.md`, `ports.md`, and `progress.md` documents created or
+  updated during the sweep;
+- archived architecture evidence under `docs/archive/**`;
+- representative code facts for Stage Core, Stage Interface, Material Store,
+  Collection Service, Library Import, providers, Knowledge, and host/server
+  runtime paths already checked during area phases.
+
+Result:
+
+- No new `AI-*` entries were found during root consolidation.
+- `AI-001` and `AI-002` remain open and are reflected in current root/state
+  docs.
+- Documentation is aligned to observed current code facts. The project should
+  not claim code/architecture full consistency until `AI-001` and `AI-002` are
+  resolved or superseded by a later accepted decision.
+
 ## Final Manual Audit Checklist
 
 - Review `ARCHITECTURE.md` against accepted ADRs.

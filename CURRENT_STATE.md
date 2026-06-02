@@ -1,923 +1,115 @@
 # Current State
 
-## Status
+MineMusic has a working TypeScript runtime for grounded music recommendations,
+material identity, source/library import, collections, provider-backed
+knowledge, and MCP host access.
 
-MineMusic has the MusicMaterial post-merge hardening and materialId migration
-changes applied.
+This file summarizes current implementation state. Area-level detail lives in
+the docs listed in `INDEX.md`.
 
-The current implementation contains TypeScript shared contracts, public module
-ports, in-memory repository infrastructure, plugin registry infrastructure, and
-core domain service skeletons, Stage Core runtime composition, the Session
-Context Stage Module, Stage Interface facade, instrument
-registry, a fixture end-to-end MVP slice, a read-only NetEase provider adapter,
-contract/runtime tests, and SQLite-backed repository adapters plus opt-in
-runtime database-path wiring for Material Store, Collection, and Library Import
-state.
-Wave 7 adds a read-only NetEase source provider adapter and opt-in live smoke
-command. The local NetEase service is currently verified through explicit live
-smoke against `http://127.0.0.1:3000`. Wave 8 adds a Codex skill surface plus
-global MCP client wiring. The Codex surface exposes MineMusic instruments, not
-runtime internals, and deterministic MCP/skill packaging tests pass. The
-repo-local Codex skill includes explicit MCP input schemas for argument-bearing
-tools, a skill-local `HANDBOOK.md` snapshot, and `minemusic.handbook.*` lookup
-tools. The 2026-05-23 architecture refactor
-renamed the current code to Stage Core / Stage Interface / Stage Modules.
-The 2026-05-26 server/MCP refactor adds a MineMusic server runtime and
-streamable HTTP MCP server entrypoint. The server startup path creates and
-holds the MineMusic runtime, exposes `minemusic.*` tools directly over MCP, and
-keeps provider/database/cache/session configuration out of Codex/OpenClaw
-client config.
-The local machine now runs MineMusic server as a user `launchd` LaunchAgent
-(`com.minemusic.server`), documented in
-`docs/operations/minemusic-server-launchd.md`; it is no longer dependent on any
-Codex conversation lifecycle.
-The active Codex session has verified live MineMusic MCP tool visibility and a
-real NetEase-backed recommendation flow. Fresh Codex session tool visibility has
-also been confirmed by the user in this thread; the repo now treats Codex as a
-skill plus global MCP client, not a MineMusic plugin package.
+## Runtime And Host Access
 
-The 2026-05-28 Material Store rewrite makes Source Entity Store the owner of
-Source Track/Release/Artist records, Source Library, Library Import/Update
-state, import history, and Confirmed Canonical Bindings. Canonical Store remains
-inside Material Store as the canonical identity subdomain. Existing repository
-data is test/dev data, so this repo does not carry compatibility repair layers
-for the old provisional import path unless explicitly requested.
-
-The 2026-05-29 Stage Core Runtime Kit refactor keeps the existing public factory
-entrypoints compatible while moving Stage Core internals out of
-`src/stage_core/index.ts`. Repository selection, provider factory expansion,
-runtime seeding, service graph assembly, Handbook path normalization, and
-fixture source-provider behavior now live in focused Stage Core or fixture
-modules. Current Stage Core still returns the full harness shape for existing
-tests and callers.
-
-The 2026-05-30 Stage Runtime interface narrowing adds production-facing
-`MineMusicStageRuntime` factories that expose only readiness and Stage
-Interface dispatch. The default MineMusic server runtime now holds that narrow
-runtime shape and does not expose the full Stage Core harness; tests or
-integration fixtures that need internals use explicit harness factory aliases.
-
-The 2026-05-30 MusicMaterial PR 1 registry foundation adds Material Registry
-inside Material Store. It introduces opaque product-level `materialRef` records,
-source/canonical lookup indexes, identity state, and material merge redirects
-with in-memory and SQLite-backed implementations. Stage Core initializes the
-registry from the same `materialStoreDatabasePath` used by Material Store
-canonical/source-entity storage.
-The 2026-05-30 MusicMaterial PR 2 resolve projection integration makes
-Material Resolve the owner of materialization: source providers return
-`SourceMaterial`, while every `MusicMaterial` returned by
-`music.material.resolve` carries `materialRef` and `identityState`.
-Canonical-confirmed, source-only, and Source Library results are materialized
-through Material Registry, and source-only materials keep stable material refs
-across repeated resolves for the same source ref.
-Material Registry public lookup and get-or-create operations now follow merge
-redirects and return the current survivor record, while direct
-`getMaterialRecord` can still inspect the raw record by material ref. Merge now
-transfers loser source refs to the survivor so repeated source/canonical
-resolves can reuse the survivor without source ownership conflicts. Registry
-promotion and merge invariants are also enforced: canonical promotion rejects
-replacement of an existing different canonical ref, and self-merge is rejected
-before writing a redirect. Canonical-only materialization when Source Grounding
-returns no source material remains deferred.
-
-The 2026-05-30 MusicMaterial PR 3 relation/activity slice adds
-`MusicMaterialRelation` and `MaterialActivity` contracts plus in-memory and
-SQLite-backed repositories in the Material Store storage path. Material Resolve
-now reads active owner/material relations after materialization: material-level
-blocks mark direct raw resolve results as `blocked`, source-level blocks and
-wrong-version feedback filter the matching source result, and source-level
-not-playable feedback removes matching playable links without blocking the
-whole material. Collection blocked filtering now uses material refs. Event
-Service still records factual events and now also updates a recent Material
-Activity projection from recommendation/open/play/skip events when their target
-or payload cards include material refs. The PR4 cleanup removes underscore
-event-type projection aliases such as `recommendation_presented` and
-`material_played`; activity projection now follows the current dotted event
-type names only.
-Material Store merge migrates loser relations to the survivor material and
-combines loser activity into survivor activity, preserving source-only feedback
-and recentness after later canonical confirmation or material merge.
-
-The 2026-05-30 MusicMaterial PR 4 query/related slice adds the Material Query
-service, and the 2026-06-01 Stage Interface output-ownership migration moved
-compact output DTO ownership under Stage Interface. Stage Interface exposes
-public `music.material.resolve`, `music.material.query`,
-`music.material.related`, `music.material.context.brief`, and
-`music.pools.list`. Query supports query-ready Source Library pools keyed by
-`libraryKinds` plus optional `target`, including saved tracks, followed
-artists, saved releases, and release-track expansion through
-`target: "release_tracks"`. It also supports Collection compatibility through
-canonical refs or collection labels, `returnKind`, relation exclusions, recent-activity
-exclusions, cursor pagination, recently-added and least-recently-recommended
-ordering, while internal query inputs can still use lightweight text matching
-for `preferenceHints`; Stage Interface and MCP surfaces intentionally do not
-advertise `preferenceHints`, old Source Library `areas`/`expand` pool language,
-or `dynamic` pool filters, and strip hidden preference hints from public tool
-payloads until real semantic feature data exists. `music.pools.list` returns
-query-ready `pool` specs for all/source-library/collection pools and does not
-return seed-dependent related pools; `includeEmpty` only affects empty
-Collection pool visibility. Related
-material resolves generated candidates through Material Resolve and supports
-same-artist, same-album, and similar flows with canonical-artist preference and
-source artist/release fallback. `music.material.context.brief` respects its
-requested `fields` when returning artist, album, version, or status details.
-Public `music.material.resolve` accepts text query entries and returns compact
-public material items; materialId projection is handled by query, collection,
-context brief, links refresh, and presentation flows that already have a
-materialId.
-Source Library saved-track, followed-artist, all-material, and materialRef-backed
-Collection pool queries project stored Source Entity / Material Store records
-directly into domain material results before Stage Interface projection, so
-already-owned playable links are not lost if provider grounding would not
-re-find them.
-Compact resolve, related, collection query, and explicit exclude-materialId
-paths follow material merge redirects so merged ids project or exclude the
-current survivor.
-`stage.context.read` now returns bounded `recentCards` from compact
-recommendation presentation events without exposing raw event payloads, and
-Event Service projects `materialId` values into Material Activity so recent
-query exclusions work after recommendation events.
-
-The 2026-05-30 MusicMaterial PR 5 downstream migration slice moves
-consequence-bearing modules toward product-level material targets. Collection
-Items now support `materialRef`, material snapshots, relation scope, identity
-requirements, and `pending_identity` status. Public collection writes use
-`materialId`; `CollectionPort` uses internal materialRef-backed add/remove and
-blocked-filter methods, with stored `canonicalRef` remaining only as optional
-item metadata or historical storage state. Collection Service can block
-source-only materials and filter blocked material refs, with material filtering
-and removal following Material Registry redirects after merges. Stage Interface
-collection tools no longer accept public `canonicalRef` or raw `materialRef`
-write targets. Material
-Query collection pools return material-only items directly, use snapshots as a
-fallback when a live projection is unavailable, and can still project historical
-canonical metadata stored on CollectionItems. Event Service accepts
-structured material snapshot targets while preserving old Ref targets. Memory
-entries can carry structured material targets under the existing evidence gate,
-and Effect Boundary accepts compact material action targets.
-
-The 2026-05-31 MusicMaterial post-merge hardening fixes the follow-up review
-findings from issues #8 and #9 and tightens compact material consequences.
-Library Import now preserves existing Source Library `addedAt` values while
-using provider-supplied `providerAddedAt` before falling back to import
-observation time. Public Stage Interface schemas no longer advertise
-unsupported material related/order options or advanced internal collection
-target fields. Material Query `exclude.relations: ["blocked"]` now also
-excludes materials projected as blocked by Collection state. Recent
-`"session"` exclusions use `MaterialSessionActivity` keyed by owner, session,
-and material, while aggregate `MaterialActivity` remains for timestamp
-windows. Collection material writes infer and validate collection kind from
-current `MaterialRecord` when material ids are used, require canonical,
-snapshot, and target collection kind hints to agree, and apply the same rule to
-custom collection writes. Compact materialId resolution can project current
-Material Records directly, including canonical-only records that have no
-playable source link yet.
-
-The 2026-05-31 issue #12 materialId migration makes `materialId` the primary
-agent-facing material handle for query, related, context brief, collection,
-recentCards, recommendation presentation, and effect action targets. Internal
-storage and redirect logic still use full `Ref` values, but LLM-facing material
-actions use `materialId` instead of compact `mat_*` refs.
-
-The 2026-05-31 recommendation agent-facing surface hardening separates
-playable-link availability from identity confidence. Compact cards now expose
-the domain `MaterialState` directly as `state`; displayed links, not an extra
-card field, indicate playable-link availability. Identity confidence is retained
-internally and exposed through detail/audit paths rather than ordinary
-recommendation cards. Pool and collection recommendations are documented as
-`music.material.query` flows, `music.links.refresh` accepts a `materialId`
-instead of a full `MusicMaterial`, ordinary version context reads return neutral
-unchecked status, and the fixture recommendation provider has an explicit
-page-url-only/no-playable-link negative track for evaluator tests.
-
-The 2026-05-31 recommendation-posture PR 1 resolve cleanup removes ghost
-material identities from Material Resolve. Provider results without stable
-`sourceRef` or `canonicalRef` are dropped from returned `materials` and reported
-through structured `ResolvedCandidate.issues`, while empty provider matches
-return retryable `provider_no_match` diagnostics. Compact resolve cards now
-return unresolved diagnostic cards without `materialId` when no Material
-Store-backed material exists.
-
-The 2026-05-31 recommendation-posture PR 2 policy/sort substrate adds
-service-facing `MaterialPolicyEvaluatorPort` and `MaterialSorterPort`.
-Material Policy evaluates one material at a time for relation, collection
-block, availability, identity, and freshness outcomes, returning
-allow/degrade/drop without ranking. Material Sort reorders already usable
-candidates for preserve, score, least-recently-recommended, recently-added, and
-random policies without filtering. Material Query now delegates relation,
-recent, availability, identity, and ordering behavior to these services while
-preserving its agent-facing output shape.
-
-The 2026-05-31 recommendation-posture PR 3 selector substrate adds
-`MaterialSelectorPort` and optional `music.material.select`. The selector
-composes evaluator + sorter + optional diversity + optional limit over compact
-materialId candidates, returning compact selected cards, dropped reasons,
-warnings, and applied labels. Material Query / Related now build candidate
-materialIds and delegate policy, ordering, selection, and cutting to the
-selector. This is still not final recommendation presentation: no
-`recommendation.presented` event behavior changes were made in this slice.
-The 2026-06-01 selector composition cleanup moves Material Selector factory
-wiring out of Material Query and into Stage Core. Stage Core now composes the
-query-side Material Policy Evaluator, Material Sorter, Material Selector, and
-Material Query explicitly, then injects Material Query and Material Selector
-into Tool Dispatch as separate capabilities. Material Query no longer exposes
-`select`.
-The 2026-06-01 B2 dependency-narrowing slice keeps runtime behavior and public
-tool shapes unchanged while changing Material Query to receive
-`MaterialQueryStorePort`, projection helpers and adjacent material-id Stage
-Interface reads to use `MaterialProjectionStorePort`, and the former
-`library.source.list` implementation to use `SourceLibraryReadStorePort`.
-The 2026-06-02 Stage Interface language-normalization slice removes
-`library.source.list` from the public ToolName / Stage Interface / MCP surface;
-Source Library browsing is now agent-facing through `music.pools.list` and
-`music.material.query`.
-The 2026-06-02 B5 dispatch-boundary slice keeps behavior unchanged while
-changing `createToolDispatch` to receive `StageInterfaceMaterialStorePort`,
-the projection-plus-Source-Library read surface needed by Stage Interface tool
-groups, instead of full `MaterialStorePort`.
-The 2026-06-02 B3/B4 boundary slice keeps behavior and public tool shapes
-unchanged while extracting material projection helpers into
-`src/material/projection`, moving recent-card event projection to
-`src/stage/recent_cards.ts`, and introducing `src/material/materialization` as
-the shared SourceMaterial / Source Library item materialization boundary.
-Material Query now uses `MaterialSourceLibraryMaterializerPort` for
-Source Library item materialization and no longer receives registry writer
-capability. Material Resolve now uses `MaterialSourceMaterializerPort` for
-source/provider materialization and receives `MaterialResolveStorePort` with
-read-only resolve capabilities instead of direct registry materialization
-writers. Material Policy now also uses `src/material/projection` for live
-`MaterialRecord`-to-`MusicMaterial` projection, so record projection rules
-remain in one Material Projection module instead of being copied into policy.
-Current Material Flow authority lives in `docs/material/design.md`,
-`docs/material/ports.md`, `docs/material/projection-materialization.md`, and
-`docs/material/progress.md`.
-Current Material Store / Canonical Store authority lives in
-`docs/material-store/design.md`, `docs/material-store/ports.md`,
-`docs/material-store/progress.md`, `docs/canonical-store/design.md`,
-`docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`,
-and `docs/canonical-store/progress.md`. Open accepted-architecture conflicts
-from the docs sweep are tracked as `AI-001` and `AI-002` in
-`docs/maintenance/architecture-inconsistency-log.md`.
-
-The 2026-05-31 recommendation-posture PR 4 presentation boundary adds
-`RecommendationPresentationPort`, `src/material/presentation/index.ts`, and the
-`stage.recommendation.present` tool. Presentation evaluates the intended
-ordered materialId items with the material policy evaluator, preserves the
-surviving order, applies `maxCards` / `minCards`, records a typed
-`recommendation.presented` event only when enough items survive, and returns
-domain presentation items that Stage Interface projects into exact compact
-cards to show. Agent-facing `stage.events.record` now rejects manual
-`recommendation.presented` events with a pointer to
-`stage.recommendation.present`, and `stage.context.read` `recentCards` are
-derived from the typed presentation payload.
-
-The 2026-05-31 recommendation-posture PR 5 workflow migration moves
-`runRecommendationTranscript` and the Codex workflow skill onto the presentation
-boundary. The fixture transcript now resolves grounded materials, calls
-`stage.recommendation.present`, builds its response from returned
-Stage Interface presentation links, and binds memory/effect proposals to the
-typed presentation event. Fixture tests seed Source Entity state explicitly
-when they need source-backed playable links; the transcript itself does not
-write Source Entity records. The old
-`stage.materials.prepare + manual stage.events.record(recommendation.presented)`
-recommendation path is no longer used by the transcript or skill.
-
-The recommendation-posture PR 1-5 hardening keeps public
-`music.material.select` as a candidate-selection helper by rejecting
-`recommendation_presentation` and `feedback_target` policy purposes at the
-Stage Interface schema boundary. Recommendation presentation now separates
-Stage Interface display cards from persisted feedback-binding domain event
-items. Display links remain in the tool output, while
-`recommendation.presented` stores `linkRefs` on typed event items.
-`stage.context.read` `recentCards` remain compact handles with event id,
-position, material id, and display context; future feedback flows must recover
-source/link/version facts from the corresponding typed presentation event
-payload.
-
-The 2026-06-01 Stage Interface output-ownership PR 4 removes global
-MaterialCard ownership. Material modules return domain results. Stage Interface
-output modules project those results into compact agent-facing outputs.
-MaterialCard-like DTOs are Stage Interface output types, not material service
-communication formats. Material Presentation under `src/material/presentation`
-remains a core/runtime service for final policy and event recording; only
-compact output projection belongs to Stage Interface. `src/material_cards` has
-been removed, and
-`test/architecture/material-boundary.test.ts` enforces that material modules do
-not import Stage Interface output DTOs or legacy card DTO names.
-
-The 2026-06-01 Stage Interface output-ownership PR 5 consolidates the material
-bounded context under `src/material/**`. `src/material/index.ts` is the public
-barrel for store, resolve, query, policy, selection, and presentation exports;
-root-level material folders have been removed rather than kept as shims.
-
-The 2026-05-31 recommendation-posture PR 6 feedback boundary adds
-`memory.feedback.record`. Memory now records agent-interpreted user feedback
-as typed `recommendation.feedback` events, binds targets through recent
-presented cards, `{ eventId, position }`, or direct `materialId`, and recovers
-source/link context from persisted `recommendation.presented` `linkRefs`.
-Wrong-version, not-playable, and source block feedback require source context;
-material block and like/dislike write material-scoped relations;
-remember-preference creates a memory proposal without auto-accepting durable
-memory. Unbound or under-scoped feedback returns warnings and does not write
-blind relation consequences.
-
-The 2026-05-31 recommendation-posture follow-up hardening persists
-provider-returned playable source evidence during Source Grounding so a
-resolved source-backed `materialId` can later be presented without manual
-Source Entity seeding. Collection snapshot fallbacks no longer create
-recommendation candidates when the current Material Store record is missing,
-and Material Policy evaluation now requires a live Material Record even when an
-internal material snapshot is supplied. Relation projection for resolve and
-presentation policy shares one source/material relation projector. Version
-scoped `wrong_version` feedback now warns instead of writing an unenforceable
-durable relation, and relation storage failures return a partial-success
-warning after the factual feedback event is recorded. Stage context
-`recentCards` only reads dotted `recommendation.presented` events, and
-presented display links no longer expose raw `sourceRef` objects while the
-persisted presentation snapshot still keeps internal `linkRefs` for feedback
-binding.
-
-The host boundary is now implemented for MCP: the MineMusic server process owns
-Stage Core startup and server-level provider/repository/cache/session
-configuration, while Codex and OpenClaw are MCP clients that connect to the
-server URL. CLI and Web UI remain future peer transports over the same
-server-held Stage Runtime.
-The current host boundary is documented in
-`docs/host-adapters/codex-skill.md` and
-`docs/operations/minemusic-server-launchd.md`; the historical refactor plan is
-archived under `docs/archive/host-adapters/`.
-
-## Source Basis
-
-The current docs are based on `proposal.md` plus the vocabulary decision in
-`CONTEXT.md`: Stage Core is runtime composition and lifecycle; Session Context
-is the current Stage Module; Stage Interface is the callable host-facing and
-LLM-facing surface.
-
-## Established
-
-- The MVP user-facing chain is a grounded recommendation with playable links
-  when available.
-- The LLM owns musical interpretation and final recommendation.
-- MineMusic owns grounding, identity anchors, source-backed links, material
-  states, events, memory proposals, and effect boundaries.
-- Identity, source access, memory, events, and effects are separate modules.
-- Modules are expected to communicate through public ports, domain events,
-  proposals, provider slots, and interface change requests.
-- Plugin packages extend capability slots. They do not define core business
-  boundaries.
-- Stage Core means runtime composition and lifecycle. In current code this maps
-  to `src/stage_core/index.ts`.
-- Stage Interface means the LLM-facing and host-facing callable surface. In
-  current code this is centered in `src/stage_interface/**`, with
-  descriptors and dispatch in that module and Handbook rendering
-  in `src/handbook/index.ts`.
-- `src/stage/index.ts` exports Stage Modules for Session Context and Material
-  Gate; it is not the Stage Core.
-- ADR-0001 records this naming decision so future architecture reviews do not
-  reintroduce the old naming ambiguity.
-- A subagent orchestration plan now exists for implementing the MVP with
-  isolated write scopes and review gates.
-- Contract docs distinguish shared data contracts from public module ports.
-- Stage/Instrument coordination is split into `InstrumentCatalogPort` and
-  `ToolDispatchPort` to avoid a circular public-port contract.
-- `StageVibe` is part of session guidance, and Music Knowledge remains a thin
-  MVP stub unless later promoted.
-- Wave 1 TypeScript build harness exists in `package.json` and `tsconfig.json`.
-- Shared contracts are exported from `src/contracts/index.ts`.
-- Public ports and repository interfaces are exported from `src/ports/index.ts`.
-- Contract/type coverage exists in `test/contracts/wave1-contracts.test.ts`.
-- Wave 2 runtime test harness compiles test files into `.tmp-test/`.
-- The runtime test runner imports compiled test modules sequentially so
-  file-writing startup tests do not race Codex skill packaging checks.
-- In-memory repositories are exported from `src/storage/index.ts` for sessions,
-  canonical records, Material Registry, Source Entity Store records, collection
-  records/items, Library Import working state, events, memory entries, and
-  effect proposals.
-  The same module also exports SQLite-backed repository factories for Material
-  Store canonical/source-entity storage, Collection, Library Import,
-  Provider HTTP Cache, and related runtime storage.
-- Plugin registry infrastructure is exported from `src/plugins/index.ts` with
-  slot-scoped registration, lookup, listing, and `plugin.provider_not_found`
-  behavior.
-- Canonical Store is exported from `src/material/store/canonical/index.ts` as
-  the canonical identity subdomain inside Material Store. It still owns
-  canonical records, label/alias lookup, provisional records, provisional
-  relations, provisional hints, merge redirects, and Canonical Maintenance
-  review/apply policy. Its older source-ref APIs remain available for canonical
-  maintenance and existing tests, but ordinary Library Import and Material
-  Resolve no longer use `canonical_source_refs` as the provider-source binding
-  path. Confirmed provider source-to-canonical binding now belongs to Source
-  Entity Store.
-- Canonical Maintenance Provisional Review is implemented through a separate
-  `CanonicalMaintenancePort` and Stage Interface tools
-  `canonical.review.list`, `canonical.review.inspect`, and
-  `canonical.review.apply`. It lists current provisional recordings, inspects
-  neutral local/Knowledge facts with process-memory snapshots, accepts
-  `update` or `cannot_confirm`, records
-  `provisional_review.cannot_confirm_identity` plus Canonical Maintenance
-  review state for cannot-confirm outcomes, and derives activation or merge
-  from the selected exact MusicBrainz recording ref at apply time. The agent
-  does not choose activate, merge, or a merge target. Ordinary Canonical Store
-  `get` follows merged redirects, and SQLite persists `mergedIntoRef` through
-  the existing `merged_into_id` column.
-- The shared Canonical Store contract exports `CanonicalKind`, including
-  `artist`, `work`, `recording`, `release_group`, and `release`, and uses it for
-  canonical records and Canonical Store kind inputs.
-- Canonical Store identity policy is split from storage mechanics:
-  `src/material/store/canonical/index.ts` owns policy flow, `src/material/store/canonical/normalization.ts`
-  owns label/ref/current-record normalization, and `src/material/store/canonical/storage.ts`
-  owns repository-backed lookup and write-error mapping.
-- Canonical Store durable storage design is documented in
-  `docs/canonical-store/storage-model.md`. Responsibility and port designs are
-  documented in `docs/canonical-store/design.md` and
-  `docs/canonical-store/ports.md`. Historical implementation plans are archived
-  under `docs/archive/canonical-store/`. Canonical Store-specific progress is
-  tracked in `docs/canonical-store/progress.md`.
-- SQLite-backed canonical storage is implemented under
-  `src/storage/sqlite/**` for direct repository injection. Schema
-  initialization lives in `src/storage/sqlite/canonical-schema.ts`; repository
-  behavior lives in `src/storage/sqlite/canonical-repository.ts`; public exports
-  live in `src/storage/sqlite/index.ts`. It persists canonical entities,
-  source refs, aliases, provisional relations, and provisional hints. Tests
-  prove `get`, `resolveSourceRef`, provisional relation and provisional hint
-  list/reopen behavior, source-ref conflicts across repository reopen, and
-  SQLite uniqueness failures mapped to `canonical.source_ref_conflict` at the
-  Canonical Store boundary. Stage Core
-  still defaults to in-memory canonical storage, and its factories now accept
-  optional `canonicalRepository` injection or
-  `materialStoreDatabasePath` configuration for host surfaces or tests that need
-  durable canonical storage. Earlier local development builds migrated the
-  legacy `canonical_external_refs.external_id` table shape to
-  `canonical_source_refs.source_id`. PR4 removes that legacy table migration,
-  so fresh and retained durable canonical stores are expected to already use
-  the current `canonical_source_refs.source_id` shape. The Codex MCP default
-  runtime accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize durable
-  Material Store storage.
-- SQLite-backed Source Entity Store storage is implemented under
-  `src/storage/sqlite/source-entity-schema.ts` and
-  `src/storage/sqlite/source-entity-repository.ts`. It persists source
-  entities, Source Library items, and Confirmed Canonical Bindings in the same
-  Material Store database path used by canonical storage.
-- SQLite-backed Material Registry storage is implemented under
-  `src/storage/sqlite/material-schema.ts` and
-  `src/storage/sqlite/material-repository.ts`. It persists `material_records`,
-  `material_source_refs`, `material_canonical_refs`, and `material_redirects`
-  in the same Material Store database path used by canonical and source-entity
-  storage.
-- Canonical Store persistence integration is covered by
-  `test/integration/canonical-persistence.test.ts`: it recreates Stage Core
-  with the same SQLite canonical database path, proves persisted canonical
-  identity still yields `confirmed_playable` material, and proves unknown
-  source-only playable material remains `source_only_playable`.
-- Canonical Store implementation state has been recorded in
-  `docs/canonical-store/progress.md`, `docs/canonical-store/storage-model.md`,
-  `docs/canonical-store/design.md`, `docs/canonical-store/ports.md`, and
-  `docs/canonical-store/provisional-review.md`. Public `addAlias`, a standalone
-  broader admin port, durable review queues, and human-review queues remain
-  future work; source-ref dependency cleanup is tracked as `AI-002`.
-- Event Service is exported from `src/events/index.ts` with factual event
-  recording and session event listing.
-- Effect Boundary is exported from `src/effects/index.ts` with proposal and
-  decision handling.
-- Memory Service is exported from `src/memory/index.ts` with evidence-gated
-  proposals, effect-boundary acceptance, and summaries.
-- Collection Service foundation is implemented through shared contracts, public
-  ports, in-memory storage, SQLite-backed durable storage, service behavior,
-  Stage Core composition, Material Resolve blocked filtering, Stage Interface
-  collection tools, and composed runtime integration coverage. SQLite-backed
-  Collection storage is implemented under `src/storage/sqlite/**` for direct
-  repository injection and Stage Core `collectionDatabasePath` configuration:
-  it persists Collections and CollectionItems across repository reopen while
-  preserving active owner-scope label uniqueness, membership lookup,
-  removed-record filtering, and returned-copy behavior. The default Codex MCP
-  runtime accepts `MINEMUSIC_COLLECTION_DB_PATH` to initialize that durable
-  Collection store; without it, Stage Core still defaults to in-memory
-  Collection storage. PR4 removes the legacy `collection_items` material-target
-  migration; fresh and retained durable Collection stores are expected to
-  already use the current material target columns. The source-of-truth design is
-  `docs/collection-service/design.md`, port boundaries live in
-  `docs/collection-service/ports.md`, detailed implementation status is tracked
-  in `docs/collection-service/progress.md`, and historical planning is archived
-  under `docs/archive/collection-service/`. The accepted-architecture conflict
-  with ADR-0002 is tracked as `AI-001`.
-- Library Import/Update is now a Source Entity Store flow inside Material
-  Store. The implementation lives in
-  `src/material/store/source_entity/library-import.ts` and is exported through
-  the Material bounded-context barrel at `src/material/index.ts`.
-  Library Import reads `platform_library` providers, writes import/update
-  working state through `LibraryImportRepository`, upserts Source Track/Release/
-  Artist entities, and updates Source Library state for every observed provider
-  item. Import success is a source-layer fact: if the Source Entity and Source
-  Library write succeeds, the item is imported, regardless of canonical
-  binding or Collection state. SourceRelease entities now preserve a
-  structured provider tracklist when the provider can supply one. Ordinary
-  import no longer creates provisional canonical records, attaches
-  `canonical_source_refs`, or writes Collection.
-- The `minemusic.library` instrument now exposes Library Import tools only;
-  the old `library.source.list` tool is no longer public. Agent-facing Source
-  Library browsing goes through `music.pools.list` and `music.material.query`,
-  which return materialId-backed compact material cards rather than Source
-  Library rows. Import tools remain `library.import.start`,
-  `library.import.continue`,
-  `library.update.start`, `library.update.continue`,
-  `library.import.status`, `library.import.summary`, and
-  `library.import.items.list`. The start tools return compact
-  `LibraryImportStatus` payloads instead of full item arrays, summary returns a
-  compact aggregate view with `itemCount`, and item-level detail is paged
-  through `library.import.items.list`. Preview remains an internal runtime
-  capability rather than an agent-facing tool. When the provider supports paged reads,
-  import/update batches default to
-  MineMusic-owned continuation batches keyed by `batchId`, using page size
-  `50` unless the caller overrides it; explicit `pageSize` is now capped at
-  `100` in both Stage Interface validation and service execution. Provider
-  cursors stay inside Library Import working state, and default batch ids are
-  restart-safe so preserved durable batch rows do not collide with new runs
-  after a server reboot. Library Update compares complete provider reads with
-  eligible baselines, records Source Library absence state and Platform
-  Library Absence provenance for complete reads, and avoids deriving absences
-  from partial reads or mid-batch continuation progress. Paged full update now
-  compares against the prior complete baseline even after the current batch
-  writes its own snapshot, continuation status now returns report-backed
-  progress instead of batch-default progress, and full update absence
-  reconciliation now operates against current `status=present` Source Library
-  membership, marking missing items `absent` instead of leaving membership
-  state unchanged. NetEase `saved_source_tracks` paged reads also prefer the
-  returned liked-playlist `trackIds.length` when `playlist.trackCount`
-  under-reports the current saved-track total.
-  SQLite-backed Library Import storage still persists batches, completed
-  reports, continuation state, area snapshots, item provenance, and Platform
-  Library Absence records through `libraryImportDatabasePath` /
-  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`; Source Entity Store state persists
-  through `materialStoreDatabasePath` /
-  `MINEMUSIC_MATERIAL_STORE_DB_PATH`. Deterministic integration coverage now
-  exercises Source Entity/Source Library writes, repeated import idempotency,
-  paged import/update continuation, partial-read absence guards, durable
-  Library Import path reuse, and Stage Interface / MCP tool exposure.
-- The `platform_library` capability slot contract is documented separately in
-  `docs/platform-library-provider/design.md`; Library Import consumes that slot
-  rather than defining provider behavior inside the import design. Shared
-  TypeScript contracts now define `PlatformLibraryProvider`, preview/read input
-  and output shapes, optional paged read output, item kinds, availability,
-  per-area read status, count certainty, provider area ordering descriptors,
-  and standard provider issue codes. Platform Library Providers are registered
-  through the shared Plugin Registry under the `platform_library` slot;
-  registry tests cover slot-scoped registration and lookup for that slot.
-  Platform Library Provider progress lives in
-  `docs/platform-library-provider/progress.md`; historical provider planning is
-  archived under `docs/archive/platform-library-provider/`. Library Import port
-  boundaries live in `docs/library-import/ports.md`, detailed implementation
-  status lives in `docs/library-import/progress.md`, and historical import
-  planning is archived under `docs/archive/library-import/`.
-- NetEase platform-library provider implementation is current:
-  the existing NetEase adapter now exports a shared
-  requester/options shape for source and platform-library provider factories,
-  and `createNetEasePlatformLibraryProvider(...)` returns a
-  `PlatformLibraryProvider` with stable `id: "netease"` plus callable
-  `preview`, `readItems`, and optional `readPage` methods. Those methods
-  resolve the current local NetEase API session account identity through
-  `/login/status` and return structured `login_required` issues when no usable
-  account or requested account match can be proven. `readItems` and `readPage`
-  map `saved_source_tracks`, `saved_source_releases`, and
-  `saved_source_artists` into generic provider item facts with stable NetEase
-  source refs and canonical hints, including artist/release source refs for
-  saved source tracks, liked-playlist newest-first reads, batched
-  `song/detail` reads, and paginated saved source release / followed artist
-  reads. Saved-source-track reads use liked playlist detail `trackIds[].at` as
-  provider add-time evidence and do not use `/likelist` as the current Source
-  Library track import/update fact source. They also best-effort fetch
-  `/album?id=<albumId>` once per distinct album id to populate
-  platform-neutral `canonicalHints.releaseDate` and
-  `canonicalHints.trackPosition`. Saved-release reads now use the same album
-  detail endpoint to populate `canonicalHints.releaseDate` and a structured
-  release `tracklist`; failed album enrichment does not fail the read.
-  `preview` reports readable availability, counts, bounded lightweight samples,
-  and unsupported discovery areas. `readItems` now reports complete, failed,
-  partial, and unavailable per-area statuses so one area failure does not erase
-  successful reads from other requested areas. Account, preview, and item-read
-  failures now map requester errors and local API payloads into standard
-  platform-library issue codes such as `provider_unavailable`, `timeout`,
-  `rate_limited`, `malformed_response`, `partial_read`, and `login_required`.
-  Deterministic tests also verify NetEase registration through the
-  `platform_library` plugin slot, and `docs/source-providers/netease.md`
-  records that the adapter exposes both `source` and `platform_library` slot
-  providers and documents the current liked-playlist mapping.
-  The current local live
-  NetEase API service at `http://127.0.0.1:3000` now reads the Docker-side
-  account setting from `/Users/jiajuzang/Documents/Codex/NetEaseCloudMusicAPI/.env`;
-  live platform-library `preview` and `readItems` prove the account and return
-  matching counts of 1372 saved source tracks, 466 saved source releases, and
-  179 saved source artists.
-- Music Knowledge is exported from `src/knowledge/index.ts` as a provider query
-  service returning `KnowledgeResult`. The shared Knowledge contracts now expose
-  `StructuredKnowledge`, `TextKnowledge`, graph nodes, endpoint-based
-  `KnowledgeRelation` objects, source attribution, `canonicalRef`,
-  `providerRef`, `tagQuery`, `fieldQuery`, tag filters, formats, expansion
-  controls, and opaque cursor continuation. The service validates mutually
-  exclusive query entries,
-  tag-filter normalization, supported `relationFocus` values, and cursor-query
-  compatibility; it aggregates provider knowledge items, preserves provider
-  warnings, passes Canonical Store context to providers for `canonicalRef`
-  queries, routes direct provider refs without Canonical Store context, and
-  wraps provider-local continuation state into public
-  `KnowledgeResult.nextCursor` tokens. Knowledge provider descriptors can now
-  describe supported formats, entity kinds, expansions, and boundary notes, and
-  Handbook rendering includes those capabilities on the dedicated Knowledge
-  instrument.
-  The read-only `knowledge.query` Stage Interface tool is exposed through
-  stable tool descriptors, dispatch, input schema, Stage Core wiring, and MCP
-  tool definitions. Generic Provider HTTP Cache storage now exists as a shared
-  repository contract with in-memory and SQLite-backed implementations. Cache
-  reads update `lastUsedAt`, and maintenance methods can list least-recently
-  used entries, delete entries unused before a cutoff, delete one provider entry,
-  or clear one provider. Stage Core creates and exposes the Provider HTTP Cache
-  and accepts either repository injection or a SQLite database path; the service
-  runtime accepts an explicit cache path option. The first
-  MusicBrainz Knowledge Provider implementation now exists as an explicit
-  read-only provider factory. It supports structured text search across artist,
-  label, recording, release, release group, and work entities; Tag Query over
-  provider-attributed MusicBrainz tags; Field Query over mapped music-domain
-  fields; provider-local cursor continuation for search-backed text, tag, and
-  field queries; lookup through MusicBrainz source refs supplied by Canonical
-  context; release-group release browse and artist release-group browse
-  expansions; release tracklist, label/catalog, rating, tag, genre, annotation,
-  and selected relationship mapping; and successful-response caching through
-  the generic Provider HTTP Cache. Stage Core can now register explicit
-  Knowledge provider instances and
-  generic Knowledge provider factories; factories receive the Stage Core
-  Provider HTTP Cache, and the service runtime forwards
-  those explicit Knowledge provider options without adding a MusicBrainz-specific
-  environment variable. The service runtime now registers
-  the bundled MusicBrainz Knowledge provider when no explicit Knowledge
-  providers or factories are supplied, so the agent-facing
-  `minemusic.knowledge.query` tool can return MusicBrainz facts in the
-  installed plugin runtime. `KnowledgeQuery` now also
-  supports `relationFocus: ["members"]`; the Stage Interface schema and
-  Handbook expose that focus, Music Knowledge rejects unsupported focus values,
-  and the MusicBrainz provider returns relationship facts through
-  `StructuredKnowledge.relations`. MusicBrainz text queries can now use search
-  hits internally for supported expansion follow-up lookup or browse, so agents
-  can ask for expanded knowledge without knowing MBIDs. Membership-focused
-  artist queries now keep only backward MusicBrainz `member of band`
-  relationships and preserve MusicBrainz relation type, direction, endpoint
-  roles, dates, and attributes. Broad MusicBrainz relationship output uses root
-  and target node kinds as endpoint roles by default. A fresh streamable HTTP
-  MCP smoke against the restarted MineMusic server confirmed BCNR focused member
-  queries return `relations` without `edges` and exclude the forward
-  `black midi, New Road` relation from focused members, while broad relation
-  queries still return broad relations.
-  The structured query slice also adds public Handbook guidance for `tagQuery`,
-  `fieldQuery`, `filters.tags.include`, `filters.tags.exclude`, and cursor
-  continuation while keeping MusicBrainz endpoints, offsets, and query syntax
-  internal to the provider. A fresh streamable HTTP MCP smoke against the
-  restarted local MineMusic server confirmed the installed
-  `minemusic.knowledge.query` tool accepts Tag Query, Field Query, include-tag
-  filters, exclude-tag filters, and returns successful `Result<KnowledgeResult>`
-  payloads. Follow-up hardening now keeps MusicBrainz's structured-only format
-  capability strict, refills filtered-empty Tag Query provider pages before
-  exposing public chunks, uses simple provider-offset cursors with current-page
-  exact root de-duplication, and enforces `limit` as a global Knowledge response
-  cap across providers and MusicBrainz text-search root entity kinds. Cross-page
-  repeats may occur when MusicBrainz repeats a root at a later offset, but the
-  provider no longer uses approximate seen-root summaries that can skip unseen
-  roots. Public
-  Knowledge query validation now also rejects unsupported
-  `purpose`, `formats`, malformed `entityKinds`/`expand`, and non-integer or
-  above-cap `limit` values before provider lookup.
-  MusicBrainz's default HTTP requester preserves status codes from non-JSON
-  error bodies, so rate-limit responses still map to retryable
-  `knowledge.rate_limited` errors.
-  The current Knowledge Slot design authority lives in
-  `docs/knowledge-slot/design.md`; it records the shift from `MusicMaterial[]`
-  output to provider-attributed knowledge items while keeping identity
-  confirmation and canonical writes in Canonical Store review/apply flows. The
-  provider-specific MusicBrainz design authority lives in
-  `docs/knowledge-slot/musicbrainz-provider.md`; it specifies text search,
-  provider-ref lookup, and deterministic provider-internal browse for ref-based
-  list expansions behind the general `knowledge.query` tool. The Knowledge
-  Slot design now also records that text queries should honor requested
-  expansions through provider-internal follow-up lookup or browse, and that
-  `relationFocus: ["members"]` narrows broad relationships to membership facts
-  while preserving dates and role attributes. The design also records a future
-  generic persistent provider HTTP cache, defaulting to non-expiring entries
-  with explicit least-recently-used cleanup by `lastUsedAt`. Current Knowledge
-  implementation state lives in `docs/knowledge-slot/progress.md`; historical
-  implementation sequencing is archived under `docs/archive/knowledge-slot/`.
-  Future common plugin configuration should still be able to drive Knowledge
-  provider activation, but the first service runtime registers bundled
-  MusicBrainz directly and does not make a MusicBrainz-specific environment
-  variable decide provider activation.
-- Material Resolve is exported from `src/material/resolve/index.ts` with
-  canonical-first `MusicCandidate` to `MusicMaterial` resolution through
-  `MaterialStorePort`. It can accept `CollectionPort` for owner-scoped blocked
-  filtering, defaults missing `ownerScope` to `local_profile:default`, marks
-  blocked material refs as `blocked`, resolves source refs through Confirmed
-  Canonical Bindings, reads Source Library only when
-  `sourceLibraryScope` is explicit, and does not attach source refs or create
-  canonical identity.
-- Source Grounding is exported from `src/source/index.ts` with provider search,
-  playable-link refresh, canonical-ref lookup from source refs, and honest
-  `confirmed_playable` / `source_only_playable` states.
-- Session Context is exported from `src/stage/index.ts` through
-  `createSessionContext` and `SessionContextPort`, with session continuity,
-  dynamic session context, and `StageVibe` propagation through session state.
-- `stage.context.read` returns dynamic session context only: session state and
-  memory summaries. It does not embed or point at a Handbook.
-- The MineMusic Handbook is generated from current agent-visible
-  `InstrumentDescriptor` / `ToolDescriptor` entries. The live server exposes
-  Handbook lookup through MCP. The file `skills/minemusic/HANDBOOK.md` is a
-  skill-local snapshot, and Stage Core only writes a Handbook file when a caller
-  explicitly passes `handbookPath` or `handbookPaths`. The default server
-  runtime reads `MINEMUSIC_HANDBOOK_PATH` / `MINEMUSIC_HANDBOOK_PATHS` and can
-  write snapshots to multiple consumer-owned paths.
-- The `minemusic.handbook` instrument exposes `handbook.overview.read`,
-  `handbook.instrument.read`, and `handbook.tool.read` for on-demand Handbook
-  lookup.
-- Stage Interface owns stable tool names, instrument catalog, input schemas,
-  tool dispatch, runtime tool-contract enforcement, and the host-facing
-  callable facade under `src/stage_interface/**`.
-- Stage Interface Tool Definitions under
-  `src/stage_interface/tool_definitions/**` now own descriptor metadata, host
-  input schemas, availability rules, dispatch handlers, compact presentation
-  rules, and runtime payload validation. Stable tool names, agent descriptors,
-  and input schema aggregates are derived from the ordered definition list; MCP
-  consumes those Stage Interface definitions rather than owning tool contracts.
-- Stage Interface output modules under `src/stage_interface/outputs/**` now
-  own compact material and recommendation projection rules.
-- Tool Definitions now support optional typed input parsers alongside their
-  host-facing raw input schema shapes. The recommendation-posture tools
-  `music.material.select`, `stage.recommendation.present`, and
-  `memory.feedback.record` use typed parsers so handlers receive typed payloads
-  after shared dispatch validation instead of relying on local
-  `readPayload<T>` casts.
-- Stage Core public factory compatibility is exported from
-  `src/stage_core/index.ts`. Internal Runtime Kit code now owns repository
-  selection, options normalization, runtime seeding, service graph composition,
-  Handbook path normalization, and fixture source-provider behavior through
-  focused modules under `src/stage_core/**` and `src/fixtures/source_provider.ts`.
-- Stage Core exports `createFixtureMineMusicStageRuntime` and
-  `createMineMusicStageRuntimeWithSourceProvider` for production-facing callers
-  that only need `ready` plus Stage Interface dispatch.
-- Stage Core keeps full-harness compatibility factories and explicit harness
-  aliases for tests or integration fixtures that need internal services.
-- The fixture transcript runner is exported from `src/app/index.ts`.
-- Fixture integration data lives in `fixtures/integration/mvp-fixture.ts`.
-- Fixture end-to-end verification is documented in
-  `docs/mvp/verification-report.md`.
-- Wave 6 final review is documented in `docs/mvp/final-review.md`.
-- Stage Module public methods are covered for detached public-port usage.
-- The Wave 1-6 implementation branch was merged locally into `main`.
-- NetEase source-provider design, boundaries, and verification notes are
-  documented in `docs/source-providers/netease.md`.
-- NetEase source provider adapter is exported from
-  `src/providers/netease/index.ts`.
-- NetEase provider tests cover fixture payload mapping, blocked material,
-  Source Grounding plugin-slot integration, and source-ref link refresh.
-- `npm run smoke:netease` provides opt-in live validation and skips unless
-  `MINEMUSIC_LIVE_NETEASE=1`.
-- The Codex skill surface design, global MCP client boundary, and verification
-  notes are documented in `docs/host-adapters/codex-skill.md`.
-- `./scripts/reset-minemusic-launchd-runtime.sh` now preserves
-  `/tmp/minemusic` by default and only clears runtime state when called with
-  `--clear-runtime`.
-- `stage.recommendation.present` is the public recommendation presentation
-  boundary. `stage.materials.prepare` and the old Material Gate module are no
-  longer exposed as current Stage Interface / Instrument tools.
-- Tool Dispatch enforces current instrument availability through
-  `InstrumentCatalogPort`, not by compiling a Handbook. `stage.context.read`,
-  the `handbook.*` lookup tools, and `stage.session.update` remain available for
-  discovery/reference/recovery; other tools require the focused active
-  instrument that owns them.
-- Handbook provider capability sections are generated from
-  `InstrumentDescriptor.providers`; preview remains an internal runtime
-  capability, not an agent-facing tool.
-- The MCP surface is exported from `src/surfaces/mcp/server.ts`.
-  It prefixes tool names with `minemusic.` and delegates to
-  `MineMusicStageInterface`, not provider or repository internals. Argument-bearing
-  tools expose explicit input schemas rather than an empty passthrough shape.
-- The MineMusic server runtime is exported from `src/server/runtime.ts`, and
-  the streamable HTTP MCP server entrypoint is exported from
-  `src/server/index.ts`. `npm run server:minemusic` starts the server-held
-  Stage Runtime backed by Stage Core composition and exposes MCP at
+- MineMusic runs as a long-lived server process that owns Stage Core runtime
+  creation and server-level provider/database/cache/session configuration.
+- The server exposes MCP over streamable HTTP at
   `http://127.0.0.1:37373/mcp` by default.
-  The HTTP MCP transport is stateless per POST request: stale client
-  `mcp-session-id` headers are ignored so Codex/OpenClaw clients can continue
-  after a MineMusic server restart without depending on the old in-memory
-  session map.
-  `npm run mcp:minemusic:dev` remains an explicitly named embedded stdio
-  MCP dev/test path.
-- Local operation uses the user LaunchAgent `com.minemusic.server`, which starts
-  `npm run server:minemusic` from `/Users/jiajuzang/Documents/Codex/MineMusic`
-  and keeps the MineMusic server alive across Codex restarts. The operation
-  guide is `docs/operations/minemusic-server-launchd.md`.
-- `npm run server:minemusic` loads repo-root `.env` when present. `.env` is
-  local-only and ignored by git; `.env.example` documents the default server,
-  NetEase, SQLite path, and Handbook snapshot output settings.
-- Repo-local Codex plugin packaging has been removed. Codex uses the direct
-  workflow skill at `skills/minemusic/SKILL.md` plus a global MCP client entry
-  for `http://127.0.0.1:37373/mcp`.
-- The workflow skill triggers on music requests and routes agents through the
-  skill-local `HANDBOOK.md`,
-  `handbook.tool.read`, `stage.context.read`, materialId-producing music tools
-  such as `music.material.resolve`, optional `music.material.select`, and
-  `stage.recommendation.present`.
-- The workflow skill now distinguishes listening context from provider search
-  text. Environment terms such as writing code, study, walking, late night, or
-  not too sleepy are musical context for the agent to interpret, not literal
-  source-search strings.
-- The active Codex session can call the repo-local `minemusic.*` MCP tools for
-  a real user scenario: update session vibe, resolve music candidates through
-  NetEase, present returned material ids through
-  `stage.recommendation.present`, create an evidence-backed memory proposal,
-  and create an `open_link` effect proposal without executing the effect.
-- Fresh Codex session validation is reported complete by the user, so Wave 8 is
-  no longer blocked on MCP tool visibility. The repository evidence still
-  consists of deterministic skill/MCP tests plus active-session MCP tool calls.
+- Codex and OpenClaw are MCP clients of that server. They should not start the
+  MineMusic runtime for normal use.
+- On this machine the server is managed by user `launchd` agent
+  `com.minemusic.server`.
+- Stage Core production runtime exposes `ready` and `stageInterface`; explicit
+  harness factories remain for tests and diagnostics.
 
-## Not Yet Implemented
+## Public Agent Surface
 
-- Stage Interface can still be deepened with richer provider capability
-  metadata in `InstrumentDescriptor` / Handbook output.
-- Durable storage repositories beyond the direct SQLite-backed Material Store,
-  Collection, Library Import, and Provider HTTP Cache adapters and their opt-in
-  Stage Core / service runtime database-path wiring.
-- Packaged Plugin Slot adapters beyond the in-repo NetEase adapter.
-- CLI and Web UI peer transports over the server-held Stage Runtime.
-- Automatic Knowledge provider activation through future plugin `config.json`
-  remains future work.
-- More host-surface validation for Handbook snapshot refresh when tool
-  descriptors change.
-- Per-tool strict payload mode for Stage Interface remains future work; current
-  validation is intentionally passthrough.
+- Stage Interface owns tool names, descriptors, schemas, dispatch, Handbook
+  lookup, and compact output projection.
+- Public material handles are `materialId` values. Internal `materialRef`,
+  source refs, canonical refs, repository rows, and raw provider payloads stay
+  behind owning boundaries unless a diagnostic path explicitly exposes them.
+- The old `library.source.list` tool is no longer public. Source Library
+  browsing is through `music.pools.list` and `music.material.query`.
+- `stage.recommendation.present` is the final presentation boundary for
+  user-visible recommendations and typed `recommendation.presented` events.
+- The Codex workflow skill lives at `skills/minemusic/SKILL.md`; its
+  `HANDBOOK.md` is a snapshot. Live tool truth is available through
+  `minemusic.handbook.*` tools.
 
-## Verification
+## Core Capabilities
 
-- `npm run typecheck`, `npm test`, and `git diff --check` pass as of the
-  Material Store / Source Entity Store rewrite through Phase 7 on 2026-05-28.
-- `npm run typecheck`, `npm run build:test`,
-  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
-  `node .tmp-test/test/stage_interface/stage-interface.test.js`,
-  `node .tmp-test/test/surfaces/mcp-server.test.js`, and `npm test` pass as of
-  the Stage Interface tool contract refactor on 2026-05-29.
-- `npm run typecheck`,
-  `npm run build:test && node .tmp-test/test/storage/sqlite-material-registry.test.js && node .tmp-test/test/material_store/material-registry.test.js`,
-  `npm test`, and `git diff --check` pass as of the MusicMaterial PR 1
-  Material Registry foundation on 2026-05-30.
-- `npm test` and `git diff --check` pass as of recommendation-posture PR 5 on
-  2026-05-31.
-- `npm test` and `git diff --check` pass as of recommendation-posture PR 6 on
-  2026-05-31.
-- `npm test` and `git diff --check` pass as of recommendation-posture PR 7 on
-  2026-05-31.
-- Focused hardening tests pass as of the recommendation-posture follow-up on
-  2026-05-31:
-  `npm run build:test && node .tmp-test/test/source/source-grounding.test.js && node .tmp-test/test/material_resolve/material-relation-filtering.test.js && node .tmp-test/test/material_policy/material-policy.test.js && node .tmp-test/test/material_query/material-query.test.js && node .tmp-test/test/material_selection/material-selection.test.js && node .tmp-test/test/recommendation_presentation/recommendation-presentation.test.js && node .tmp-test/test/memory/memory-service.test.js && node .tmp-test/test/stage/stage-modules.test.js && node .tmp-test/test/stage_interface/stage-interface.test.js && node .tmp-test/test/integration/mvp-slice.test.js`.
-- `npm test` and `git diff --check` pass as of the recommendation-posture
-  follow-up hardening on 2026-05-31.
-- `npm test` passes as of the server/MCP boundary refactor on 2026-05-26.
-- `npm run typecheck` passes as of Wave 8 deterministic MCP/skill
-  implementation and is covered inside the latest `npm test` run.
-- `npm run smoke:netease` skips successfully unless explicitly enabled.
-- `MINEMUSIC_LIVE_NETEASE=1 npm run smoke:netease` passes against
-  `http://127.0.0.1:3000` in this session.
-- Active Codex MCP tool calls through `minemusic.music.material.resolve`,
-  `minemusic.stage.recommendation.present`,
-  `minemusic.memory.propose`, and `minemusic.stage.effects.propose` passed for a real
-  "quiet but not sleepy coding music" scenario, returning NetEase links such as
-  `https://music.163.com/#/song?id=22644323`.
-- After a 2026-05-28 launchd reset through
-  `./scripts/reset-minemusic-launchd-runtime.sh`, the live MineMusic handbook
-  exposed the then-current Library tool surface, including `library.source.list`,
-  `library.import.items.list`, and provider-area `ordering: newest_first`
-  metadata for the NetEase saved-source areas.
-- Live MCP calls against that restarted runtime confirmed compact Library
-  Import/Update output on real library data: bounded import/update status and
-  summary responses returned counts/progress without dumping item arrays, and a
-  repeated bounded update over an already imported saved artist kept
-  `alreadyPresentItems` at `0` while still reporting processed progress.
-- The same validation showed that MCP tool discovery can lag behind the
-  restarted server runtime in at least one host session: the server handbook
-  was up to date, but one Codex session in this thread still lacked
-  `library.source.list`, `library.import.items.list`, and `mode` on
-  `library.update.start` in its generated `mcp__minemusic__` wrappers. Treat
-  that as historical host-client discovery/session-refresh drift, not a
-  current MineMusic runtime regression.
-- Fresh Codex MCP tool visibility is confirmed by the user in this thread.
-  Treat this as host-app validation evidence, not a repo-command test.
-- `git diff --check` passes as of the Collection Service documentation/state
-  sync.
-- Branch integration for Waves 1 through 8 is complete on `main`.
+- Material Store owns Material Registry, Canonical Store, Source Entity Store,
+  Source Library, confirmed source-to-canonical bindings, material relations,
+  and material activity projections.
+- Material Flow owns material resolve, projection, materialization, query,
+  related retrieval, policy, sorting, selection, and recommendation
+  presentation.
+- Collection Service owns owner-scoped system/custom Collections and current
+  materialRef-backed CollectionItems. This current implementation conflicts
+  with ADR-0002's canonical-only Collection expectation; see `AI-001`.
+- Library Import/Update consumes `platform_library` providers and writes Source
+  Entity Store / Source Library state, import/update batches, provenance,
+  baselines, and absence records.
+- Canonical Maintenance Provisional Review is available through
+  `canonical.review.list`, `canonical.review.inspect`, and
+  `canonical.review.apply`.
+- Source Grounding still performs a direct Canonical Store source-ref lookup in
+  current code; this conflicts with ADR-0002's source-ref dependency cleanup
+  direction and is tracked as `AI-002`.
 
-## Known Constraints
+## Providers And Knowledge
 
-- Do not collapse source identity into canonical identity.
-- Do not treat knowledge material as playable until Source Grounding confirms
-  a usable playable link.
-- Do not turn weak LLM guesses into durable memory.
-- Do not treat normal link display as playback.
-- Do not build heavy recommender scoring into the MVP path.
-- Do not treat a `source_only_playable` event target as durable canonical
-  identity.
-- The 2026-05-25 live Library Import run predates the Source Entity Store
-  rewrite and is historical evidence only. Current import semantics keep
-  provider assets in Source Library and leave Collection unchanged.
+- NetEase is the bundled read-only source provider and platform-library
+  provider.
+- NetEase source search returns source-backed material facts and playable web
+  links when available; link display is not playback.
+- NetEase platform-library reads cover saved tracks, saved releases, and
+  followed artists. Playlists and listening history remain unsupported.
+- NetEase saved-track import/update facts come from liked playlist detail
+  `trackIds` and `trackIds[].at`, not `/likelist`.
+- Music Knowledge returns provider-attributed `KnowledgeResult` values, not
+  `MusicMaterial`.
+- MusicBrainz is the bundled read-only Knowledge provider. It supports
+  structured text search, provider-ref lookup, Canonical-context lookup/search,
+  Tag Query, Field Query, selected expansions, relation focus `members`, and
+  Provider HTTP Cache use.
+- Knowledge provider output does not confirm identity and does not write
+  Canonical Store state.
+
+## Storage
+
+- In-memory repositories remain the default when no database path is supplied.
+- SQLite-backed storage exists for Material Store canonical/source/material
+  registry state, material relations/activity, Collection, Library Import, and
+  Provider HTTP Cache.
+- Server env can configure database paths:
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH`, `MINEMUSIC_COLLECTION_DB_PATH`, and
+  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`.
+- Provider HTTP Cache can be configured through server runtime options and is
+  passed to Knowledge provider factories.
+
+## Open Architecture Inconsistencies
+
+- `AI-001`: current Collection Service uses materialRef-backed CollectionItems,
+  while ADR-0002 still says Collection should remain canonical-only unless a
+  later decision changes the boundary.
+- `AI-002`: Source Grounding still receives `CanonicalStorePort` and calls
+  `resolveSourceRef`, while ADR-0002 says ordinary source-ref lookup should move
+  away from Canonical Store APIs.
+
+Documentation is aligned to observed current code facts, but these open
+inconsistencies mean the architecture and code are not fully consistent.
+
+## Verification Pointers
+
+Current verification evidence is distributed across area progress documents.
+Broad project checks are:
+
+```bash
+npm test
+npm run typecheck
+git diff --check
+```
+
+The documentation alignment sweep used docs-only structural checks because the
+intended `npm run check:docs` / `scripts/check-docs.mjs` guard is documented
+but not implemented.

@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `src/ports/index.ts`, `docs/stage-interface/ports.md`, area `ports.md` documents
+> Use only for: historical MVP public-port baseline.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MVP Module Interface Specification
 
 This document is the module-level contract for parallel implementation.

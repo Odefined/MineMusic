@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `PROGRESS.md`, `CURRENT_STATE.md`, `docs/maintenance/documentation-alignment-plan.md`
+> Use only for: historical MVP phase sequencing evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic MVP Phase Plan
 
 ## Goal

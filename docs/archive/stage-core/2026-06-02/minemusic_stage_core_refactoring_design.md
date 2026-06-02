@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-core/design.md`, `docs/stage-core/ports.md`, `docs/stage-core/progress.md`, `ARCHITECTURE.md`
+> Use only for: historical Stage Core Runtime Kit refactor design evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Stage Core Refactoring Design
 
 ## 1. Executive Summary

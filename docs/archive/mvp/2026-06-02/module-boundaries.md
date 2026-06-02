@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `ARCHITECTURE.md`, `AGENTS.md`, area `design.md` and `ports.md` documents
+> Use only for: historical MVP module-boundary baseline.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MVP Module Boundaries
 
 This document defines strict module ownership for independent implementation

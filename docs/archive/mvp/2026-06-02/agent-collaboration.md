@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `AGENTS.md`, `docs/maintenance/documentation-architecture.md`, `INDEX.md`
+> Use only for: historical MVP multi-agent collaboration baseline.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # Agent Collaboration Protocol
 
 This protocol lets independent agents build MineMusic modules without breaking

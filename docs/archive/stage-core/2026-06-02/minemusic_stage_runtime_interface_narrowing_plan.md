@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `docs/stage-core/design.md`, `docs/stage-core/ports.md`, `docs/stage-core/progress.md`, `ARCHITECTURE.md`
+> Use only for: historical Stage Runtime interface narrowing plan evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MineMusic Stage Runtime Interface Narrowing Plan
 
 ## Purpose

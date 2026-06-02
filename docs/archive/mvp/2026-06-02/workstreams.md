@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `INDEX.md`, `AGENTS.md`, area current authority documents
+> Use only for: historical MVP workstream baseline.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MVP Workstreams
 
 Each workstream is an ownership area for a person or agent. It is not a task

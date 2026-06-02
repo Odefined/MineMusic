@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `ARCHITECTURE.md`, `docs/stage-interface/tool-contracts.md`, area `ports.md` documents
+> Use only for: historical MVP cross-module communication baseline.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MVP Cross-Module Communication Protocols
 
 This document defines how MineMusic modules talk to each other.

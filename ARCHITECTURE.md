@@ -234,8 +234,8 @@ ordering such as "resolve before present" but must not become a recommender.
 
 ## Module Port Model
 
-Each module is implemented behind a public port listed in
-`docs/mvp/module-interfaces.md`.
+Each module is implemented behind public ports in `src/ports/index.ts` and the
+current area `ports.md` documents listed in `INDEX.md`.
 
 Cross-module communication is limited to:
 
@@ -315,6 +315,10 @@ transports.
 Stage Core may know module factories because its job is composition. It should
 not absorb the internal implementation of Material Resolve, Source Grounding,
 Memory Service, Effect Boundary, or other Core Capabilities.
+
+Current Stage Core design, ports, and implementation status live in
+`docs/stage-core/design.md`, `docs/stage-core/ports.md`, and
+`docs/stage-core/progress.md`.
 
 ## Stage Interface Policy
 

@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `CURRENT_STATE.md`, `PROGRESS.md`, `docs/maintenance/architecture-inconsistency-log.md`
+> Use only for: historical fixture-MVP final review evidence.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MVP Final Review
 
 ## Terminology Note

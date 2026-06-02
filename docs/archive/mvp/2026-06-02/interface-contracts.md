@@ -1,3 +1,9 @@
+> Status: Archived
+> Archived on: 2026-06-02
+> Superseded by: `src/contracts/index.ts`, `docs/stage-interface/tool-contracts.md`, area `ports.md` documents
+> Use only for: historical MVP contract baseline.
+> Related audit: `docs/maintenance/documentation-alignment-audit.md`
+
 # MVP Shared Interface Contracts
 
 This file defines shared data contracts used by MineMusic modules.
