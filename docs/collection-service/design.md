@@ -298,7 +298,7 @@ within the owner scope.
 
 ## Public Port Shape
 
-Proposed public port:
+Current service port shape:
 
 ```text
 CollectionPort.addMaterialToSystemCollection(input)
@@ -312,6 +312,9 @@ CollectionPort.updateCollection(input)
 CollectionPort.removeCollection(input)
 CollectionPort.filterBlockedMaterials(input)
 ```
+
+Method-level authority lives in `docs/collection-service/ports.md` and
+`src/ports/index.ts`.
 
 `addMaterialToSystemCollection` input:
 

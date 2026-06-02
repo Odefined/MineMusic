@@ -544,6 +544,15 @@ export type SourceGroundingEvidenceStorePort = Pick<
   | "upsertSourceEntity"
 >;
 
+export type LibraryImportMaterialStorePort = Pick<
+  MaterialStorePort,
+  | "getSourceEntity"
+  | "upsertSourceEntity"
+  | "getSourceLibraryItem"
+  | "putSourceLibraryItem"
+  | "listSourceLibraryItems"
+>;
+
 export type StageInterfaceMaterialStorePort =
   MaterialProjectionStorePort &
   SourceLibraryReadStorePort;

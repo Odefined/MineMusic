@@ -12,6 +12,8 @@ The current implementation has:
 - public Stage Interface tools for import/update start, continue, status,
   summary, and item listing;
 - Source Entity Store and Source Library writes for observed provider items;
+- `LibraryImportMaterialStorePort` as the narrow Material Store dependency for
+  source entity and Source Library reads/writes;
 - no ordinary Collection writes during platform-library import/update;
 - no default provisional canonical creation during platform-library
   import/update;
@@ -35,6 +37,7 @@ through `music.pools.list` and `music.material.query`.
 - `test/storage/sqlite-library-import-repository.test.ts`
 - `test/storage/in-memory-library-import-repository.test.ts`
 - `test/integration/library-import-runtime.test.ts`
+- `test/architecture/material-boundary.test.ts`
 - Stage Interface / MCP library import/update schema tests
 
 ## Remaining Work

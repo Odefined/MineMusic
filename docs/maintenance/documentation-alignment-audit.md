@@ -1,5 +1,8 @@
 # Documentation Alignment Audit
 
+Status: Historical sweep ledger. Rows preserve sweep-time disposition and are
+not current architecture status.
+
 This document is the document-disposition ledger for the MineMusic
 documentation/code alignment sweep.
 
@@ -35,7 +38,7 @@ alignment sweep. A later 2026-06-02 code/ADR slice resolved `AI-001` and
 | `AGENTS.md` | Root | Repository operating rules | done | Root authority | No | Phase 0: read directly; Phase 6: retained | None | Existing rules route documentation-structure work through `docs/maintenance/documentation-architecture.md`. |
 | `ARCHITECTURE.md` | Root | Global architecture authority | done | Root authority | Completed | Phase 6: checked against current area docs, ADRs, and open `AI-*` entries | `AI-001`, `AI-002` | Kept as global architecture authority and updated to point module ports to current port docs. |
 | `CONTEXT.md` | Root | Project glossary | done | Root glossary | N/A | Phase 6: checked for current vocabulary role | None | Kept current; no edit needed. |
-| `CURRENT_STATE.md` | Root | Project implementation summary | done | Root state summary | Completed | Phase 6: consolidated into current implementation summary | `AI-001`, `AI-002` | Rewritten to remove PR-by-PR detail and summarize open inconsistencies. |
+| `CURRENT_STATE.md` | Root | Project implementation summary | done | Root state summary | Completed | Phase 6: consolidated into current implementation summary | `AI-001`, `AI-002` | Sweep-time row; current AI status is resolved in `docs/maintenance/architecture-inconsistency-log.md`. |
 | `INDEX.md` | Root | Current authority map | done | Root authority map | Completed | Phase 6: consolidated into current authority map | `AI-001`, `AI-002` | Rewritten to point to current authority documents and archive entrypoints. |
 | `PROGRESS.md` | Root | Project milestone index | done | Root milestone index | Completed | Phase 6: consolidated into milestone index | `AI-001`, `AI-002` | Rewritten to project-level milestones with area detail delegated to area progress docs. |
 | `README.md` | Root | Human entrypoint | done | Root entrypoint | Completed | Phase 6: consolidated after root archive moves | None | Rewritten as current project entrypoint. |

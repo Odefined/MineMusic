@@ -31,7 +31,7 @@ Stage Interface tool definitions.
 | --- | --- | --- | --- | --- |
 | `PluginRegistryPort` | Plugin Registry | Select `platform_library` provider | provider lookup | None |
 | `PlatformLibraryProvider` | Provider slot | Read external saved/followed library areas | provider-owned reads | None |
-| `MaterialStorePort` | Material Store | Source Entity Store, Source Library, and confirmed binding state | source entity/library/binding reads | source entity/library writes |
+| `LibraryImportMaterialStorePort` | Material Store | Source Entity Store and Source Library state | `getSourceEntity`, `getSourceLibraryItem`, `listSourceLibraryItems` | `upsertSourceEntity`, `putSourceLibraryItem` |
 | `LibraryImportRepository` | Storage | Batch working state and reports | batch/report/list reads | batch/report/snapshot/provenance/absence writes |
 | `EventPort` | Event Service | Factual import/update events | None | `record` |
 
@@ -42,8 +42,9 @@ Stage Interface tool definitions.
 - Imported provider items enter Source Entity Store and Source Library first.
 - Ordinary import/update does not create provisional canonical records and does
   not write Collection membership.
-- Confirmed Canonical Bindings can be read for reporting or future workflows,
-  but Source Library membership is the source-layer import success condition.
+- Confirmed Canonical Bindings are not part of the ordinary Library Import
+  material-store dependency; Source Library membership is the source-layer
+  import success condition.
 - Agent-facing outputs are compact status/summary/detail views; unchanged
   existing rows stay internal unless requested through item listing.
 
@@ -70,4 +71,7 @@ Current evidence includes:
 - `test/storage/sqlite-library-import-repository.test.ts`;
 - `test/storage/in-memory-library-import-repository.test.ts`;
 - `test/integration/library-import-runtime.test.ts`;
+- `test/architecture/material-boundary.test.ts` for the exact
+  `LibraryImportMaterialStorePort` key set and forbidden broad dependency
+  checks;
 - Stage Interface and MCP library import/update schema coverage.

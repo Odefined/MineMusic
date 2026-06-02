@@ -105,6 +105,9 @@ details live in area `progress.md` files listed in `INDEX.md`.
 - Resolved `AI-002` by moving Source Grounding canonicalRef normalization to
   `SourceGroundingEvidenceStorePort` confirmed canonical bindings and adding a
   Source Grounding architecture guard.
+- Addressed PR #44 review feedback by correcting Library Import / Collection
+  documentation drift and narrowing Library Import to
+  `LibraryImportMaterialStorePort` with architecture guards.
 
 ## Next
 

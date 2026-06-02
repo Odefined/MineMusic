@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import type {
+  LibraryImportMaterialStorePort,
   MaterialProjectionStorePort,
   MaterialQueryStorePort,
   MaterialResolveStorePort,
@@ -79,6 +80,15 @@ export type SourceGroundingEvidenceStorePortKeysAreExact = Assert<IsExact<
   | "upsertSourceEntity"
 >>;
 
+export type LibraryImportMaterialStorePortKeysAreExact = Assert<IsExact<
+  keyof LibraryImportMaterialStorePort,
+  | "getSourceEntity"
+  | "upsertSourceEntity"
+  | "getSourceLibraryItem"
+  | "putSourceLibraryItem"
+  | "listSourceLibraryItems"
+>>;
+
 export type StageInterfaceMaterialStorePortKeysAreExact = Assert<IsExact<
   keyof StageInterfaceMaterialStorePort,
   | "resolveMaterialRedirect"
@@ -113,6 +123,10 @@ const materialResolveRoots = [
 
 const sourceGroundingRoots = [
   "src/source",
+];
+
+const libraryImportRoots = [
+  "src/material/store/source_entity/library-import.ts",
 ];
 
 const materialMaterializationRoots = [
@@ -398,6 +412,47 @@ async function sourceGroundingDoesNotUseCanonicalStoreSourceRefBoundary(): Promi
   );
 }
 
+async function libraryImportUsesNarrowMaterialStoreBoundary(): Promise<void> {
+  const files = await sourceFilesUnderRoots(libraryImportRoots);
+  const failures: string[] = [];
+  const forbiddenImportedPortNames = [
+    "MaterialStorePort",
+    "CollectionPort",
+    "CanonicalStorePort",
+  ];
+  const forbiddenMaterialStoreMethodNames = [
+    ...registryMaterializationWriterNames,
+    "putConfirmedCanonicalBinding",
+    "getConfirmedCanonicalBinding",
+    "putMaterialRelation",
+    "putMaterialActivity",
+    "putMaterialSessionActivity",
+  ];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      for (const portName of forbiddenImportedPortNames) {
+        if (new RegExp(`\\b${portName}\\b`).test(importStatement.clause)) {
+          failures.push(`${relative(process.cwd(), file)} imports ${portName}`);
+        }
+      }
+    }
+
+    for (const methodName of forbiddenMaterialStoreMethodNames) {
+      if (new RegExp(`\\b${methodName}\\b`).test(text)) {
+        failures.push(`${relative(process.cwd(), file)} references ${methodName}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Library Import must use LibraryImportMaterialStorePort and avoid unrelated Material Store/Collection/Canonical capabilities:\n${failures.join("\n")}`,
+  );
+}
+
 async function movedProjectionConsumersDoNotImportMaterialQuery(): Promise<void> {
   const files = await sourceFilesUnderRoots(materialQueryProjectionFormerImportRoots);
   const failures: string[] = [];
@@ -543,6 +598,7 @@ await stageInterfaceDispatchDoesNotImportFullMaterialStorePort();
 await materialQueryDoesNotDirectlyMaterializeSourceRefs();
 await materialResolveDoesNotDirectlyUseRegistryMaterializationWriters();
 await sourceGroundingDoesNotUseCanonicalStoreSourceRefBoundary();
+await libraryImportUsesNarrowMaterialStoreBoundary();
 await movedProjectionConsumersDoNotImportMaterialQuery();
 await materializationBoundaryOwnsRegistryMaterialization();
 await materializationDoesNotImportForbiddenBoundaries();

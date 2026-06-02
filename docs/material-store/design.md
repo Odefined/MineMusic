@@ -65,9 +65,10 @@ Source Entity Store is the provider-neutral source layer. It stores source
 track/release/artist records, Source Library items, and confirmed bindings from
 source refs to canonical records.
 
-Library Import/Update writes observed provider items into Source Entity Store
-and Source Library first. It writes Collection only when a confirmed canonical
-binding already maps the source entity to a canonical record. The Library
+Library Import/Update writes observed provider items into Source Entity Store,
+Source Library, Library Import repository provenance/absence state, and factual
+events. Ordinary import/update does not write Collection membership and does
+not depend on Confirmed Canonical Bindings as its success condition. The Library
 Import implementation currently lives at
 `src/material/store/source_entity/library-import.ts`.
 

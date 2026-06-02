@@ -38,6 +38,8 @@ repositories. `materialStoreDatabasePath` /
 - Stage Interface and ordinary Material Flow services receive narrow store
   slices instead of full `MaterialStorePort` where architecture guards cover
   the boundary.
+- Library Import receives `LibraryImportMaterialStorePort` instead of full
+  `MaterialStorePort`.
 - ADR-0003 accepts materialRef-backed Collection items and supersedes
   ADR-0002's earlier canonical-only Collection consequence.
 - Source Grounding uses confirmed canonical bindings through a narrow
