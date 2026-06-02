@@ -1155,8 +1155,8 @@
   presentation items, and recording typed `recommendation.presented` events
   only after enough items survive.
 - Updated agent-facing `stage.events.record` to reject manual
-  `recommendation.presented` / `recommendation_presented` writes and point
-  callers to `stage.recommendation.present`.
+  `recommendation.presented` writes and point callers to
+  `stage.recommendation.present`.
 - Updated `stage.context.read` recentCards to derive from typed presentation
   payloads with `eventId`, `position`, and `presentedAt`, and migrated the
   fixture transcript off manual recommendation event recording.
@@ -1313,6 +1313,11 @@
   collection writes are materialId-only, `CollectionPort` no longer exposes
   canonicalRef adapter methods or canonicalRef-based `updateItem`, and Material
   Resolve / Material Policy use blocked material filtering only.
+- Completed the PR 4 event and SQLite compatibility deletion slice on branch
+  `codex/event-sqlite-compat-marking`: removed underscore event activity
+  projection aliases, removed the canonical source-ref legacy SQLite table
+  migration, and removed the CollectionItems material-target legacy SQLite
+  migration.
 
 ## Next
 

@@ -291,7 +291,7 @@ function eventRecordInput(payload: unknown): Result<Parameters<EventPort["record
   const input = payloadObject(payload);
   const event = input.event as Omit<StageEvent, "id" | "time"> | undefined;
 
-  if (event?.type === "recommendation.presented" || event?.type === "recommendation_presented") {
+  if (event?.type === "recommendation.presented") {
     return fail({
       code: "stage_interface.invalid_payload",
       message: "Use stage.recommendation.present for recommendation presentation events.",

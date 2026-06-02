@@ -258,102 +258,6 @@ async function usesIndexedSourceRefLookupWithoutFullRepositoryList(): Promise<vo
   }
 }
 
-async function migratesLegacySourceRefTableToSourceRefs(): Promise<void> {
-  const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-migration-"));
-  const databasePath = join(directory, "material-store.sqlite");
-  const sourceRef: Ref = {
-    namespace: "source:netease",
-    kind: "track",
-    id: "legacy-track",
-  };
-
-  try {
-    const legacyDatabase = new DatabaseSync(databasePath);
-
-    legacyDatabase.exec(`
-      CREATE TABLE canonical_entities (
-        id TEXT PRIMARY KEY,
-        namespace TEXT NOT NULL DEFAULT 'minemusic',
-        kind TEXT NOT NULL,
-        label TEXT NOT NULL,
-        normalized_label TEXT NOT NULL,
-        status TEXT NOT NULL,
-        merged_into_id TEXT,
-        disambiguation TEXT,
-        metadata_json TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        CHECK (status IN ('active', 'provisional', 'merged', 'rejected'))
-      );
-
-      CREATE TABLE canonical_external_refs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        canonical_id TEXT NOT NULL,
-        namespace TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        external_id TEXT NOT NULL,
-        label TEXT,
-        url TEXT,
-        confidence REAL,
-        evidence_event_id TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (canonical_id) REFERENCES canonical_entities(id),
-        UNIQUE(namespace, kind, external_id)
-      );
-
-      INSERT INTO canonical_entities (
-        id,
-        namespace,
-        kind,
-        label,
-        normalized_label,
-        status,
-        created_at,
-        updated_at
-      )
-      VALUES (
-        'legacy-canonical',
-        'minemusic',
-        'recording',
-        'Legacy Track',
-        'legacy track',
-        'provisional',
-        '2026-05-25T00:00:00.000Z',
-        '2026-05-25T00:00:00.000Z'
-      );
-
-      INSERT INTO canonical_external_refs (
-        canonical_id,
-        namespace,
-        kind,
-        external_id,
-        created_at
-      )
-      VALUES (
-        'legacy-canonical',
-        'source:netease',
-        'track',
-        'legacy-track',
-        '2026-05-25T00:00:00.000Z'
-      );
-    `);
-    legacyDatabase.close();
-
-    const store = createCanonicalStore({
-      repository: createSqliteCanonicalRecordRepository({ path: databasePath }),
-    });
-    const resolved = await assertOk(store.resolveSourceRef({ ref: sourceRef }));
-
-    assert(resolved?.ref.id === "legacy-canonical", "legacy source refs should migrate");
-    assert(
-      resolved?.sourceRefs?.[0]?.id === sourceRef.id,
-      "migrated canonical records should expose sourceRefs",
-    );
-  } finally {
-    await rm(directory, { force: true, recursive: true });
-  }
-}
-
 async function persistsCanonicalRelationsAcrossRepositoryReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-canonical-relations-"));
   const databasePath = join(directory, "material-store.sqlite");
@@ -723,7 +627,6 @@ await persistsCanonicalRecordsAcrossRepositoryReopen();
 await rejectsSourceRefConflictsAfterRepositoryReopen();
 await mapsSqliteSourceRefUniquenessFailureAtCanonicalBoundary();
 await usesIndexedSourceRefLookupWithoutFullRepositoryList();
-await migratesLegacySourceRefTableToSourceRefs();
 await persistsCanonicalRelationsAcrossRepositoryReopen();
 await persistsFactsAndProviderIdentitiesAcrossRepositoryReopen();
 await changesetDeletesOnlyRequestedRelations();

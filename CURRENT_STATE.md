@@ -87,10 +87,13 @@ now reads active owner/material relations after materialization: material-level
 blocks mark direct raw resolve results as `blocked`, source-level blocks and
 wrong-version feedback filter the matching source result, and source-level
 not-playable feedback removes matching playable links without blocking the
-whole material. Existing canonical Collection blocked filtering remains in
-place during migration. Event Service still records factual events and now also
-updates a recent Material Activity projection from recommendation/open/play/skip
-events when their target or payload cards include material refs.
+whole material. Collection blocked filtering now uses material refs. Event
+Service still records factual events and now also updates a recent Material
+Activity projection from recommendation/open/play/skip events when their target
+or payload cards include material refs. The PR4 cleanup removes underscore
+event-type projection aliases such as `recommendation_presented` and
+`material_played`; activity projection now follows the current dotted event
+type names only.
 Material Store merge migrates loser relations to the survivor material and
 combines loser activity into survivor activity, preserving source-only feedback
 and recentness after later canonical confirmation or material merge.
@@ -242,8 +245,8 @@ surviving order, applies `maxCards` / `minCards`, records a typed
 `recommendation.presented` event only when enough items survive, and returns
 domain presentation items that Stage Interface projects into exact compact
 cards to show. Agent-facing `stage.events.record` now rejects manual
-`recommendation.presented` / `recommendation_presented` events with a pointer
-to `stage.recommendation.present`, and `stage.context.read` `recentCards` are
+`recommendation.presented` events with a pointer to
+`stage.recommendation.present`, and `stage.context.read` `recentCards` are
 derived from the typed presentation payload.
 
 The 2026-05-31 recommendation-posture PR 5 workflow migration moves
@@ -420,11 +423,13 @@ host-facing and LLM-facing surface.
   still defaults to in-memory canonical storage, and its factories now accept
   optional `canonicalRepository` injection or
   `materialStoreDatabasePath` configuration for host surfaces or tests that need
-  durable canonical storage. SQLite initialization migrates the legacy
-  `canonical_external_refs.external_id` table shape to
-  `canonical_source_refs.source_id`. The Codex MCP default runtime accepts
-  `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize durable Material Store
-  storage.
+  durable canonical storage. Earlier local development builds migrated the
+  legacy `canonical_external_refs.external_id` table shape to
+  `canonical_source_refs.source_id`. PR4 removes that legacy table migration,
+  so fresh and retained durable canonical stores are expected to already use
+  the current `canonical_source_refs.source_id` shape. The Codex MCP default
+  runtime accepts `MINEMUSIC_MATERIAL_STORE_DB_PATH` to initialize durable
+  Material Store storage.
 - SQLite-backed Source Entity Store storage is implemented under
   `src/storage/sqlite/source-entity-schema.ts` and
   `src/storage/sqlite/source-entity-repository.ts`. It persists source
@@ -463,7 +468,9 @@ host-facing and LLM-facing surface.
   removed-record filtering, and returned-copy behavior. The default Codex MCP
   runtime accepts `MINEMUSIC_COLLECTION_DB_PATH` to initialize that durable
   Collection store; without it, Stage Core still defaults to in-memory
-  Collection storage. The source-of-truth design is
+  Collection storage. PR4 removes the legacy `collection_items` material-target
+  migration; fresh and retained durable Collection stores are expected to
+  already use the current material target columns. The source-of-truth design is
   `docs/collection-service/design.md`, task breakdown is
   `docs/collection-service/implementation-plan.md`, and detailed implementation
   status is tracked in `docs/collection-service/progress.md`.

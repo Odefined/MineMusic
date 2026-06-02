@@ -32,10 +32,13 @@ in memory or in the Material Store SQLite database path. Material Resolve reads
 active relations after materialization: material-level blocks mark direct raw
 resolve output as `blocked`; source-level `blocked` and `wrong_version`
 relations remove matching source results; source-level `not_playable` removes
-matching playable links without blocking the whole material. Existing canonical
-Collection blocked filtering still runs during migration. Material Activity is
-an Event Service projection for recommendation/open/play/skip recency and does
-not replace factual event history.
+matching playable links without blocking the whole material. The earlier
+canonical Collection blocked fallback has been replaced by material-ref
+Collection blocked filtering. Material Activity is an Event Service projection for
+recommendation/open/play/skip recency and does not replace factual event
+history. PR4 removes underscore event-type projection aliases such as
+`recommendation_presented`, `material_opened`, and `material_played`; activity
+projection now follows the current dotted event type names only.
 Material Store merge now migrates relation rows from the merged loser material
 to the survivor material and merges loser activity into survivor activity, so
 source-only feedback and recent activity survive later canonical confirmation
@@ -120,6 +123,10 @@ removed through the current survivor ref.
 Event Service accepts structured material snapshot targets, Memory Service
 accepts evidence-gated structured material targets, and Effect Boundary accepts
 compact material action targets.
+
+PR4 removes the Event Service underscore event aliases after the explicit
+compatibility decision that old underscore event rows do not need activity
+projection protection.
 
 Post-merge hardening is now implemented. Source Library import/update keeps an
 existing item `addedAt`, otherwise uses provider `providerAddedAt`, then falls

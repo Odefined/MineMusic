@@ -19,8 +19,8 @@ for derived aggregate tool facts.
 
 The Stage Tool Group now includes `stage.recommendation.present`, the
 agent-facing final boundary for user-visible recommendations. Manual
-`recommendation.presented` and `recommendation_presented` writes through
-`stage.events.record` are rejected before `EventPort.record` is called.
+`recommendation.presented` writes through `stage.events.record` are rejected
+before `EventPort.record` is called.
 `stage.materials.prepare` remains available, but its descriptor now frames it
 as a legacy non-final material sanitizer rather than the recommendation
 presentation boundary.

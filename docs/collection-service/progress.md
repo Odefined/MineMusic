@@ -76,6 +76,10 @@ Compatibility cleanup:
   historical/metadata fields on CollectionItems.
 - Material Resolve and Material Policy use `filterBlockedMaterials`; the old
   canonical `filterBlocked` port method was removed.
+- PR4 removes the SQLite `collection_items` material-target migration for older
+  local durable stores that predate materialRef-backed CollectionItems. Fresh
+  and retained durable Collection stores are expected to already use the
+  current material target columns.
 
 Design sync:
 

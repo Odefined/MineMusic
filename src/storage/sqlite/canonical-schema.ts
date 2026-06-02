@@ -24,8 +24,6 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
       ON canonical_entities(status);
   `);
 
-  migrateLegacySourceRefTable(database);
-
   database.exec(`
     CREATE TABLE IF NOT EXISTS canonical_source_refs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -146,74 +144,4 @@ export function initializeCanonicalSchema(database: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS canonical_recording_identity_review_state_outcome_idx
       ON canonical_recording_identity_review_state(outcome, updated_at);
   `);
-}
-
-function migrateLegacySourceRefTable(database: DatabaseSync): void {
-  if (!sqliteObjectExists(database, "table", "canonical_external_refs")) {
-    return;
-  }
-
-  if (!sqliteObjectExists(database, "table", "canonical_source_refs")) {
-    database.exec(`
-      ALTER TABLE canonical_external_refs RENAME TO canonical_source_refs;
-    `);
-
-    if (
-      tableHasColumn(database, "canonical_source_refs", "external_id") &&
-      !tableHasColumn(database, "canonical_source_refs", "source_id")
-    ) {
-      database.exec(`
-        ALTER TABLE canonical_source_refs RENAME COLUMN external_id TO source_id;
-      `);
-    }
-
-    return;
-  }
-
-  database.exec(`
-    INSERT OR IGNORE INTO canonical_source_refs (
-      canonical_id,
-      namespace,
-      kind,
-      source_id,
-      label,
-      url,
-      confidence,
-      evidence_event_id,
-      created_at
-    )
-    SELECT
-      canonical_id,
-      namespace,
-      kind,
-      external_id,
-      label,
-      url,
-      confidence,
-      evidence_event_id,
-      created_at
-    FROM canonical_external_refs;
-
-    DROP TABLE canonical_external_refs;
-  `);
-}
-
-function sqliteObjectExists(
-  database: DatabaseSync,
-  type: "table",
-  name: string,
-): boolean {
-  const row = database
-    .prepare("SELECT name FROM sqlite_master WHERE type = ? AND name = ?")
-    .get(type, name) as { name: string } | undefined;
-
-  return row !== undefined;
-}
-
-function tableHasColumn(database: DatabaseSync, table: string, column: string): boolean {
-  const columns = database
-    .prepare(`PRAGMA table_info(${table})`)
-    .all() as { name: string }[];
-
-  return columns.some((entry) => entry.name === column);
 }
