@@ -620,10 +620,6 @@ function mergeRefs(left: Ref[], right: Ref[]): Ref[] {
   return [...refsByKey.values()];
 }
 
-function sameRef(left: Ref, right: Ref): boolean {
-  return refKey(left) === refKey(right);
-}
-
 function refKey(ref: Ref): string {
   return `${ref.namespace}:${ref.kind}:${ref.id}`;
 }

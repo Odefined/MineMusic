@@ -7,7 +7,6 @@ import type {
   LibraryImportReport,
   LibraryImportScope,
   LibraryImportStatus,
-  LibraryImportSummaryView,
   MemoryProposal,
   MusicMaterial,
   Ref,
@@ -2804,23 +2803,6 @@ function libraryImportStatus({ batchId }: { batchId: string }): LibraryImportSta
     completedAt: "2026-05-25T00:00:00.000Z",
     counts: emptyImportCounts(),
     progress: emptyImportProgress(),
-  };
-}
-
-function libraryImportSummaryView({ batchId }: { batchId: string }): LibraryImportSummaryView {
-  return {
-    batchId,
-    batchKind: "initial_import",
-    status: "completed",
-    providerId: "fixture-library",
-    ownerScope: "local_profile:default",
-    scopes: ["saved_source_tracks"],
-    startedAt: "2026-05-25T00:00:00.000Z",
-    completedAt: "2026-05-25T00:00:00.000Z",
-    counts: emptyImportCounts(),
-    areas: [],
-    progress: emptyImportProgress(),
-    itemCount: 1,
   };
 }
 

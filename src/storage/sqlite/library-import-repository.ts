@@ -9,7 +9,6 @@ import type {
   LibraryImportItemProvenance,
   LibraryImportReport,
   PlatformLibraryAbsence,
-  Ref,
   Result,
   StageError,
 } from "../../contracts/index.js";

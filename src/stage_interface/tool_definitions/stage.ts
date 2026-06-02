@@ -326,18 +326,6 @@ function readRecommendationPresentation(
   return ok(recommendationPresentation);
 }
 
-function readPayload<TPayload extends object>(
-  payload: unknown,
-  defaults?: Partial<TPayload>,
-): TPayload {
-  const input = payloadObject(payload);
-
-  return {
-    ...(defaults ?? {}),
-    ...input,
-  } as TPayload;
-}
-
 function payloadObject(payload: unknown): Record<string, unknown> {
   const payloadObject =
     typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};

@@ -9,6 +9,7 @@ const testModules = [
   "./storage/sqlite-provider-http-cache-repository.test.js",
   "./storage/sqlite-source-entity-store.test.js",
   "./architecture/material-boundary.test.js",
+  "./contracts/wave1-contracts.test.js",
   "./plugins/plugin-registry.test.js",
   "./material_store/material-registry.test.js",
   "./material_store/material-relations.test.js",

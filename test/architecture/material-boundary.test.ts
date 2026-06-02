@@ -21,7 +21,7 @@ type IsExact<TActual, TExpected> =
 
 type Assert<TCondition extends true> = TCondition;
 
-type MaterialProjectionStorePortKeysAreExact = Assert<IsExact<
+export type MaterialProjectionStorePortKeysAreExact = Assert<IsExact<
   keyof MaterialProjectionStorePort,
   | "resolveMaterialRedirect"
   | "getMaterialRecord"
@@ -29,7 +29,7 @@ type MaterialProjectionStorePortKeysAreExact = Assert<IsExact<
   | "getCanonical"
 >>;
 
-type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
+export type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
   keyof MaterialQueryStorePort,
   | "resolveMaterialRedirect"
   | "getMaterialRecord"
@@ -40,7 +40,7 @@ type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
   | "getConfirmedCanonicalBinding"
 >>;
 
-type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
+export type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
   keyof MaterialResolveStorePort,
   | "getCanonical"
   | "findCanonicalByLabel"
@@ -49,7 +49,7 @@ type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
   | "listMaterialRelations"
 >>;
 
-type MaterialSourceMaterializerStorePortKeysAreExact = Assert<IsExact<
+export type MaterialSourceMaterializerStorePortKeysAreExact = Assert<IsExact<
   keyof MaterialSourceMaterializerStorePort,
   | "resolveMaterialRedirect"
   | "getMaterialRecord"
@@ -65,13 +65,13 @@ type MaterialSourceMaterializerStorePortKeysAreExact = Assert<IsExact<
   | "mergeMaterials"
 >>;
 
-type SourceLibraryReadStorePortKeysAreExact = Assert<IsExact<
+export type SourceLibraryReadStorePortKeysAreExact = Assert<IsExact<
   keyof SourceLibraryReadStorePort,
   | "listSourceLibraryItems"
   | "getSourceEntity"
 >>;
 
-type StageInterfaceMaterialStorePortKeysAreExact = Assert<IsExact<
+export type StageInterfaceMaterialStorePortKeysAreExact = Assert<IsExact<
   keyof StageInterfaceMaterialStorePort,
   | "resolveMaterialRedirect"
   | "getMaterialRecord"

@@ -5,7 +5,6 @@ import { DatabaseSync } from "node:sqlite";
 import type {
   Collection,
   CollectionItem,
-  Ref,
   Result,
   StageError,
 } from "../../contracts/index.js";

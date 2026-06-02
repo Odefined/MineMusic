@@ -6,14 +6,11 @@ import type {
   MaterialPoolsListOutput,
   MaterialQueryItem,
   MaterialQueryInput,
-  MaterialQueryOutput,
   MaterialResolveIssue,
   MaterialResolveUnresolvedItem,
   MaterialSelectInput,
   MaterialRelatedInput,
   MaterialRelatedOutput,
-  MaterialResolveCardsInput,
-  MaterialResolveCardsOutput,
   MusicCandidate,
   MusicMaterial,
   PlatformLibraryItemKind,
@@ -38,7 +35,6 @@ import type {
 import { sourceKindToMaterialKind } from "../kinds.js";
 import {
   currentMaterialRecordForRef,
-  materialForMaterialId,
   materialIdToRef,
   materialRefToMaterialId,
   projectMaterialRecord,
@@ -138,7 +134,6 @@ export function createMaterialQueryService({
 
       const selectable = await selectableMaterialsForQuery({
         materialStore,
-        ownerScope,
         materials: resolved.value,
         returnKind: input.returnKind,
         preferenceHints: input.preferenceHints,
@@ -756,14 +751,12 @@ type SelectableMaterialCandidate = {
 
 async function selectableMaterialsForQuery({
   materialStore,
-  ownerScope,
   materials,
   returnKind,
   preferenceHints,
   exclude,
 }: {
   materialStore: MaterialProjectionStorePort;
-  ownerScope: string;
   materials: MusicMaterial[];
   returnKind?: MaterialQueryInput["returnKind"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
@@ -894,7 +887,6 @@ async function relatedForInput({
 
   const selectable = await selectableMaterialsForQuery({
     materialStore,
-    ownerScope,
     materials: resolved.value.filter((material) =>
       !sameRef(material.materialRef, seedMaterialRef) && !sameRef(material.materialRef, currentSeedMaterialRef.value)
     ),

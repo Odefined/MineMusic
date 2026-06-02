@@ -1,7 +1,6 @@
 import type {
   MaterialSelectionItem,
   MaterialPolicyInput,
-  MaterialSelectCandidate,
   MaterialSelectDropped,
   MaterialSelectInput,
   MaterialSelectOutput,
