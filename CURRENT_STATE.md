@@ -62,9 +62,9 @@ the docs listed in `INDEX.md`.
   `canonicalRef`, `status`, `identityRequirement`, `materialSnapshot`, or
   `relationScope`.
 - Library Import/Update consumes `platform_library` providers and writes Source
-  Entity Store / Source Library state, eager source-backed MaterialRecords for
-  imported source refs, import/update batches, provenance, baselines, and
-  absence records.
+  Entity Store / Source Library state, durable MaterialRecords for imported
+  source refs, import/update batches, provenance, baselines, and absence
+  records.
 - Canonical Maintenance Provisional Review is available through
   `canonical.review.list`, `canonical.review.inspect`, and
   `canonical.review.apply`.

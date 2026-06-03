@@ -122,8 +122,8 @@ details live in area `progress.md` files listed in `INDEX.md`.
 - Extended `MaterialResolveStatus` with `wrong_version` and `not_playable`
   and added architecture guards that keep Query/Policy/Resolve off broad
   `CollectionPort`.
-- Moved durable source-backed MaterialRecord binding for imported library items
-  into Library Import by extending `LibraryImportMaterialStorePort` with
+- Moved durable MaterialRecord binding for imported library items into Library
+  Import by extending `LibraryImportMaterialStorePort` with
   `getOrCreateBySourceRef` and materializing each imported `sourceRef` during
   Source Library persistence.
 - Enforced the MVP invariant that

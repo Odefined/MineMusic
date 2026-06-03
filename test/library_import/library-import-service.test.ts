@@ -922,6 +922,10 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     "bound imported MaterialRecord should keep the imported sourceRef",
   );
   assert(
+    boundTrackMaterial?.canonicalRef !== undefined && sameRef(boundTrackMaterial.canonicalRef, boundCanonical.ref),
+    "bound imported MaterialRecord should keep the confirmed canonical ref",
+  );
+  assert(
     (newTrackMaterial?.sourceRefs ?? []).some((itemRef) => sameRef(itemRef, sourceRef("new-track"))),
     "newly imported MaterialRecord should keep the imported sourceRef",
   );
@@ -930,8 +934,8 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
     "weak imported MaterialRecord should keep the imported sourceRef",
   );
   assert(
-    boundTrackMaterial?.identityState === "source_backed",
-    "imported source-backed MaterialRecords should default to source_backed identity when no existing store behavior overrides it",
+    boundTrackMaterial?.identityState === "canonical_confirmed",
+    "imported MaterialRecords with a confirmed binding should be canonical-confirmed",
   );
   assert(
     newTrackMaterial?.identityState === "source_backed",
@@ -2425,7 +2429,7 @@ async function putConfirmedBinding(
   canonicalRef: Ref,
 ): Promise<void> {
   await assertOk(
-    environment.sourceEntityStore.putConfirmedCanonicalBinding({
+    environment.materialStore.putConfirmedCanonicalBinding({
       binding: confirmedBinding(sourceRef, canonicalRef),
     }),
   );

@@ -88,49 +88,13 @@ export function createMaterialStore({
     },
 
     async mergeMaterials(input) {
-      const merged = await registry.mergeMaterials(input);
-
-      if (!merged.ok) {
-        return merged;
-      }
-
-      const survivor = await registry.resolveMaterialRedirect({ materialRef: input.into });
-
-      if (!survivor.ok) {
-        return survivor;
-      }
-
-      const migratedRelations = await migrateMaterialRelations({
+      return mergeMaterialsAndMigrateState({
+        registry,
         relations,
-        from: input.from,
-        into: survivor.value,
-      });
-
-      if (!migratedRelations.ok) {
-        return migratedRelations;
-      }
-
-      const migratedActivity = await migrateMaterialActivity({
         activity,
-        from: input.from,
-        into: survivor.value,
-      });
-
-      if (!migratedActivity.ok) {
-        return migratedActivity;
-      }
-
-      const migratedSessionActivity = await migrateMaterialSessionActivity({
         sessionActivity,
-        from: input.from,
-        into: survivor.value,
+        ...input,
       });
-
-      if (!migratedSessionActivity.ok) {
-        return migratedSessionActivity;
-      }
-
-      return merged;
     },
 
     putMaterialRelation(input) {
@@ -205,6 +169,9 @@ export function createMaterialStore({
       const ensured = await ensureConfirmedBindingMaterialInvariant({
         canonicalStore,
         registry,
+        relations,
+        activity,
+        sessionActivity,
         binding: input.binding,
       });
 
@@ -224,10 +191,16 @@ export function createMaterialStore({
 async function ensureConfirmedBindingMaterialInvariant({
   canonicalStore,
   registry,
+  relations,
+  activity,
+  sessionActivity,
   binding,
 }: {
   canonicalStore: Pick<CanonicalStorePort, "get">;
   registry: MaterialRegistryPort;
+  relations: MusicMaterialRelationRepository;
+  activity: MaterialActivityRepository;
+  sessionActivity: MaterialSessionActivityRepository;
   binding: ConfirmedCanonicalBinding;
 }): Promise<Result<MaterialRecord>> {
   const canonical = await canonicalStore.get({ ref: binding.canonicalRef });
@@ -293,7 +266,11 @@ async function ensureConfirmedBindingMaterialInvariant({
     return okRecord(ensuredCanonicalRecord);
   }
 
-  const merged = await registry.mergeMaterials({
+  const merged = await mergeMaterialsAndMigrateState({
+    registry,
+    relations,
+    activity,
+    sessionActivity,
     from: ensuredSourceRecord.materialRef,
     into: ensuredCanonicalRecord.materialRef,
     reason: "confirmed_source_canonical_binding",
@@ -318,6 +295,72 @@ async function ensureConfirmedBindingMaterialInvariant({
   }
 
   return okRecord(reloadedCanonical.value);
+}
+
+async function mergeMaterialsAndMigrateState({
+  registry,
+  relations,
+  activity,
+  sessionActivity,
+  from,
+  into,
+  reason,
+}: {
+  registry: MaterialRegistryPort;
+  relations: MusicMaterialRelationRepository;
+  activity: MaterialActivityRepository;
+  sessionActivity: MaterialSessionActivityRepository;
+  from: Ref;
+  into: Ref;
+  reason: string;
+}): Promise<Result<MaterialRecord>> {
+  const merged = await registry.mergeMaterials({
+    from,
+    into,
+    reason,
+  });
+
+  if (!merged.ok) {
+    return merged;
+  }
+
+  const survivor = await registry.resolveMaterialRedirect({ materialRef: into });
+
+  if (!survivor.ok) {
+    return survivor;
+  }
+
+  const migratedRelations = await migrateMaterialRelations({
+    relations,
+    from,
+    into: survivor.value,
+  });
+
+  if (!migratedRelations.ok) {
+    return migratedRelations;
+  }
+
+  const migratedActivity = await migrateMaterialActivity({
+    activity,
+    from,
+    into: survivor.value,
+  });
+
+  if (!migratedActivity.ok) {
+    return migratedActivity;
+  }
+
+  const migratedSessionActivity = await migrateMaterialSessionActivity({
+    sessionActivity,
+    from,
+    into: survivor.value,
+  });
+
+  if (!migratedSessionActivity.ok) {
+    return migratedSessionActivity;
+  }
+
+  return merged;
 }
 
 function okRecord(record: MaterialRecord): Result<MaterialRecord> {

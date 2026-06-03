@@ -31,7 +31,7 @@ Stage Interface tool definitions.
 | --- | --- | --- | --- | --- |
 | `PluginRegistryPort` | Plugin Registry | Select `platform_library` provider | provider lookup | None |
 | `PlatformLibraryProvider` | Provider slot | Read external saved/followed library areas | provider-owned reads | None |
-| `LibraryImportMaterialStorePort` | Material Store | Source Entity Store, Source Library, and eager source-backed material binding state | `getSourceEntity`, `getSourceLibraryItem`, `listSourceLibraryItems` | `upsertSourceEntity`, `putSourceLibraryItem`, `getOrCreateBySourceRef` |
+| `LibraryImportMaterialStorePort` | Material Store | Source Entity Store, Source Library, and eager durable material binding state for imported source refs | `getSourceEntity`, `getSourceLibraryItem`, `listSourceLibraryItems` | `upsertSourceEntity`, `putSourceLibraryItem`, `getOrCreateBySourceRef` |
 | `LibraryImportRepository` | Storage | Batch working state and reports | batch/report/list reads | batch/report/snapshot/provenance/absence writes |
 | `EventPort` | Event Service | Factual import/update events | None | `record` |
 
@@ -40,8 +40,8 @@ Stage Interface tool definitions.
 - Library Import owns MineMusic batch continuation; provider cursors, offsets,
   and page tokens stay in repository state.
 - Imported provider items enter Source Entity Store and Source Library first,
-  then Library Import ensures a durable source-backed MaterialRecord exists
-  for the imported `sourceRef`.
+  then Library Import ensures a durable MaterialRecord exists for the imported
+  `sourceRef`.
 - Ordinary import/update does not create provisional canonical records and does
   not write Collection membership.
 - Confirmed Canonical Bindings are not part of the ordinary Library Import
