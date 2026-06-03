@@ -68,6 +68,8 @@ import type {
   MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
+  MaterialSearchInput,
+  MaterialSearchOutput,
   MaterialSelectInput,
   MaterialSelectOutput,
   MaterialSortInput,
@@ -477,6 +479,15 @@ export type MaterialQueryStorePort =
     | "getConfirmedCanonicalBinding"
   >;
 
+export type MaterialSearchStorePort =
+  MaterialProjectionStorePort &
+  Pick<
+    MaterialStorePort,
+    | "findMaterialBySourceRef"
+    | "listSourceLibraryItems"
+    | "listMaterialRelations"
+  >;
+
 export type MaterialSourceMaterializerStorePort =
   MaterialProjectionStorePort &
   Pick<
@@ -735,6 +746,13 @@ export type MaterialPolicyCollectionBlockPort = Pick<
   | "filterBlockedMaterials"
 >;
 
+export type MaterialSearchCollectionPort = Pick<
+  CollectionPort,
+  | "listCollections"
+  | "listItems"
+  | "filterBlockedMaterials"
+>;
+
 export interface LibraryImportPort {
   previewImport(input: LibraryImportPreviewInput): Promise<Result<LibraryImportPreview>>;
 
@@ -786,6 +804,10 @@ export interface MaterialResolvePort {
 
 export interface MaterialQueryPort {
   query(input: MaterialQueryInput): Promise<Result<MaterialQueryOutput>>;
+}
+
+export interface MaterialSearchPort {
+  search(input: MaterialSearchInput): Promise<Result<MaterialSearchOutput>>;
 }
 
 export interface MaterialRelatedPort {

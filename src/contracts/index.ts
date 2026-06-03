@@ -5,6 +5,7 @@ export type ModuleId =
   | "collection"
   | "library_import"
   | "material_store"
+  | "material_search"
   | "material_query"
   | "material_resolve"
   | "source"
@@ -51,6 +52,8 @@ export const stageErrorCodes = [
   "library_import.canonical_binding_failed",
   "material_registry.conflict",
   "material_registry.not_found",
+  "material_search.invalid_cursor",
+  "material_search.invalid_scope",
   "plugin.provider_not_found",
   "storage.unavailable",
 ] as const;
@@ -1119,6 +1122,108 @@ export type MaterialQueryItem = {
   material: MusicMaterial;
   score?: number;
   reason?: string;
+};
+
+export type MaterialSearchTargetKind =
+  | "recording"
+  | "release"
+  | "release_group"
+  | "artist"
+  | "work";
+
+export type MaterialSearchScope =
+  | { kind: "all" }
+  | {
+      kind: "source_library";
+      libraryKinds?: PlatformLibraryItemKind[];
+      providerId?: string;
+      providerAccountId?: string;
+    }
+  | {
+      kind: "collection";
+      ref?: string;
+      collectionId?: string;
+      label?: string;
+      relation?: "saved" | "favorite" | "custom" | "blocked";
+    };
+
+export type MaterialSearchEvidenceField =
+  | "canonical_label"
+  | "canonical_aliases"
+  | "source_title"
+  | "source_artist_labels"
+  | "source_release_label"
+  | "source_artist_aliases";
+
+export type MaterialSearchEvidence = {
+  field: MaterialSearchEvidenceField;
+  matchKind: "fts" | "substring";
+  snippet?: string;
+};
+
+export type MaterialSearchSourceLibraryProvenance = {
+  kind: "source_library";
+  sourceRef: Ref;
+  libraryKind: PlatformLibraryItemKind;
+  providerId: string;
+  providerAccountId: string;
+  addedAt?: string;
+  lastSeenAt?: string;
+};
+
+export type MaterialSearchCollectionProvenance = {
+  kind: "collection";
+  collectionId: string;
+  collectionKind: CollectionKind;
+  relationKind: CollectionRelationKind;
+  label: string;
+  itemId: string;
+  createdAt: string;
+  position?: number;
+};
+
+export type MaterialSearchProvenance =
+  | MaterialSearchSourceLibraryProvenance
+  | MaterialSearchCollectionProvenance;
+
+export type MaterialSearchWarning = {
+  code: "material_search.missing_material_record" | (string & {});
+  message: string;
+  sourceRef?: Ref;
+  materialRef?: Ref;
+};
+
+export type MaterialSearchHit = {
+  materialRef: Ref;
+  score?: number;
+  evidence?: MaterialSearchEvidence[];
+  provenance?: MaterialSearchProvenance[];
+};
+
+export type MaterialSearchInput = {
+  ownerScope?: string;
+  scopes?: MaterialSearchScope[];
+  text?: string;
+  targetKind?: MaterialSearchTargetKind;
+  limit?: number;
+  cursor?: string;
+};
+
+export type MaterialSearchOutput = {
+  hits: MaterialSearchHit[];
+  nextCursor?: string;
+  warnings?: MaterialSearchWarning[];
+};
+
+export type MaterialSearchDocument = {
+  materialRef: Ref;
+  kind: string;
+  canonicalLabel?: string;
+  canonicalAliases?: string[];
+  sourceTitle?: string[];
+  sourceArtistLabels?: string[];
+  sourceReleaseLabel?: string[];
+  sourceArtistAliases?: string[];
 };
 
 export type PublicMaterialResolveItem = {
