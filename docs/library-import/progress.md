@@ -12,8 +12,10 @@ The current implementation has:
 - public Stage Interface tools for import/update start, continue, status,
   summary, and item listing;
 - Source Entity Store and Source Library writes for observed provider items;
+- eager durable MaterialRecord creation/binding for imported `sourceRef`s
+  through `LibraryImportMaterialStorePort`;
 - `LibraryImportMaterialStorePort` as the narrow Material Store dependency for
-  source entity and Source Library reads/writes;
+  source entity, Source Library, and imported material writes;
 - no ordinary Collection writes during platform-library import/update;
 - no default provisional canonical creation during platform-library
   import/update;

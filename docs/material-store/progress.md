@@ -30,7 +30,8 @@ repositories. `materialStoreDatabasePath` /
 - Source Entity Store owns source tracks, releases, artists, Source Library
   items, and confirmed source-to-canonical bindings.
 - Library Import/Update writes observed provider items into Source Entity Store
-  and Source Library first.
+  and Source Library first, then ensures a durable MaterialRecord exists for
+  each imported source ref.
 - Material Resolve reads Source Library only through explicit resolve/query
   scope and no longer owns Library Import state.
 - Material Registry owns `materialRef` identity, redirects, source/canonical
@@ -47,6 +48,9 @@ repositories. `materialStoreDatabasePath` /
 - Source Grounding uses confirmed canonical bindings through a narrow
   `SourceGroundingEvidenceStorePort` instead of Canonical Store source-ref
   APIs.
+- `materialStore.putConfirmedCanonicalBinding(...)` now enforces the MVP
+  invariant that a confirmed binding implies a canonical-confirmed
+  `MaterialRecord` containing both the bound `canonicalRef` and `sourceRef`.
 - Deprecated aggregate owner-global session counters were removed from
   `MaterialActivity`; merge and tests now treat session counts as
   `MaterialSessionActivity`-only state.

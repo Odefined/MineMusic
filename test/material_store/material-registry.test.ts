@@ -360,6 +360,126 @@ async function materialStoreComposesRegistryMethods(): Promise<void> {
   assert(record.materialRef.id === "material-store-composed", "Material Store should expose Material Registry methods");
 }
 
+async function confirmedBindingCreatesCanonicalConfirmedMaterialInvariant(): Promise<void> {
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const canonicalRef = ref("minemusic", "recording", "binding-canonical");
+  const sourceRef = ref("source:fixture", "track", "binding-track");
+  await assertOk(
+    canonicalRepository.put({
+      ref: canonicalRef,
+      kind: "recording",
+      label: "Bound Canonical",
+      status: "active",
+      sourceRefs: [],
+    }),
+  );
+
+  const materialStore = createMaterialStore({
+    canonicalStore: createCanonicalStore({
+      repository: canonicalRepository,
+    }),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+
+  await assertOk(
+    materialStore.putConfirmedCanonicalBinding({
+      binding: {
+        sourceRef,
+        canonicalRef,
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
+
+  const record = await assertOk(materialStore.findMaterialBySourceRef({ sourceRef }));
+
+  assert(record !== null, "confirmed binding should create a material for the source ref");
+  assert(record.identityState === "canonical_confirmed", "confirmed binding should create a canonical-confirmed material");
+  assert(
+    record.canonicalRef !== undefined && sameRef(record.canonicalRef, canonicalRef),
+    "confirmed binding material should carry the canonical ref",
+  );
+  assert(
+    record.sourceRefs.some((candidate) => sameRef(candidate, sourceRef)),
+    "confirmed binding material should carry the source ref",
+  );
+}
+
+async function confirmedBindingPromotesOrMergesExistingSourceMaterial(): Promise<void> {
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const canonicalRef = ref("minemusic", "recording", "merge-canonical");
+  const sourceRef = ref("source:fixture", "track", "merge-track");
+  await assertOk(
+    canonicalRepository.put({
+      ref: canonicalRef,
+      kind: "recording",
+      label: "Merge Canonical",
+      status: "active",
+      sourceRefs: [sourceRef],
+    }),
+  );
+
+  const materialStore = createMaterialStore({
+    canonicalStore: createCanonicalStore({
+      repository: canonicalRepository,
+    }),
+    sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  const sourceRecord = await assertOk(
+    materialStore.getOrCreateBySourceRef({
+      sourceRef,
+      kind: "recording",
+    }),
+  );
+  const canonicalRecord = await assertOk(
+    materialStore.getOrCreateByCanonicalRef({
+      canonicalRef,
+      kind: "recording",
+    }),
+  );
+
+  await assertOk(
+    materialStore.putConfirmedCanonicalBinding({
+      binding: {
+        sourceRef,
+        canonicalRef,
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
+
+  const reboundSource = await assertOk(materialStore.findMaterialBySourceRef({ sourceRef }));
+  const reboundCanonical = await assertOk(materialStore.findMaterialByCanonicalRef({ canonicalRef }));
+  const redirectedSource = await assertOk(materialStore.resolveMaterialRedirect({ materialRef: sourceRecord.materialRef }));
+
+  assert(
+    reboundSource !== null && reboundCanonical !== null,
+    "confirmed binding should leave both source and canonical lookups addressable",
+  );
+  assert(
+    sameRef(reboundSource.materialRef, canonicalRecord.materialRef),
+    "confirmed binding should converge source lookup onto the canonical material",
+  );
+  assert(
+    sameRef(reboundCanonical.materialRef, canonicalRecord.materialRef),
+    "confirmed binding should keep canonical lookup on the canonical material",
+  );
+  assert(
+    sameRef(redirectedSource, canonicalRecord.materialRef),
+    "confirmed binding should redirect an old source-backed material to the canonical survivor",
+  );
+  assert(
+    reboundCanonical.identityState === "canonical_confirmed",
+    "merged survivor should remain canonical-confirmed",
+  );
+  assert(
+    reboundCanonical.sourceRefs.some((candidate) => sameRef(candidate, sourceRef)),
+    "merged survivor should retain the bound source ref",
+  );
+}
+
 function ref(namespace: string, kind: string, id: string): Ref {
   return { namespace, kind, id };
 }
@@ -375,3 +495,5 @@ await inMemoryRegistryRejectsSelfMerge();
 await inMemoryRegistryLookupsFollowMergeRedirects();
 await inMemoryRegistryTransfersSourceRefsToMergeSurvivor();
 await materialStoreComposesRegistryMethods();
+await confirmedBindingCreatesCanonicalConfirmedMaterialInvariant();
+await confirmedBindingPromotesOrMergesExistingSourceMaterial();

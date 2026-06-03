@@ -12,7 +12,7 @@ This document records the current Material Store port surface from
 | `SourceLibraryReadStorePort` | Source Library read paths | `listSourceLibraryItems`, `getSourceEntity`. |
 | `StageInterfaceMaterialStorePort` | Stage Interface dispatch/tool definitions | Projection reads plus Source Library read surface; no registry writers. |
 | `SourceGroundingEvidenceStorePort` | Source Grounding | Confirmed binding read plus source entity read/upsert. |
-| `LibraryImportMaterialStorePort` | Library Import | Source Entity Store and Source Library read/write methods used by import/update. |
+| `LibraryImportMaterialStorePort` | Library Import | Source Entity Store, Source Library, and `getOrCreateBySourceRef` used by import/update to durably bind imported source refs. |
 | Narrow material flow store ports | Material Flow services | Projection, query, resolve, policy, sorter, selection, and materialization-specific slices of `MaterialStorePort`. |
 
 The exact key sets for several narrow material ports are guarded in
@@ -29,7 +29,7 @@ The exact key sets for several narrow material ports are guarded in
 | Canonical reads | `getCanonical`, `findCanonicalByLabel` | Read |
 | Source Entity Store | `getSourceEntity`, `upsertSourceEntity`, `listSourceEntities` | Write/read |
 | Source Library | `getSourceLibraryItem`, `putSourceLibraryItem`, `listSourceLibraryItems` | Write/read |
-| Confirmed Canonical Bindings | `getConfirmedCanonicalBinding`, `putConfirmedCanonicalBinding`, `listConfirmedCanonicalBindings` | Write/read |
+| Confirmed Canonical Bindings | `getConfirmedCanonicalBinding`, `putConfirmedCanonicalBinding`, `listConfirmedCanonicalBindings` | Write/read; binding writes must leave a canonical-confirmed `MaterialRecord` containing both `canonicalRef` and `sourceRef` |
 
 ## Consumes
 

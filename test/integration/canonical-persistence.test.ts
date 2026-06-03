@@ -104,6 +104,21 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
         updatedAt: "2026-06-02T00:00:00.000Z",
       },
     }));
+    const firstBoundRecord = await assertOk(firstStageRuntime.materialStore.findMaterialBySourceRef({ sourceRef }));
+
+    assert(firstBoundRecord !== null, "confirmed binding should immediately materialize a durable material record");
+    assert(
+      firstBoundRecord.identityState === "canonical_confirmed",
+      "confirmed binding should immediately promote the material to canonical-confirmed",
+    );
+    assert(
+      firstBoundRecord.canonicalRef !== undefined && sameRef(firstBoundRecord.canonicalRef, canonicalRecord.ref),
+      "confirmed binding material should keep the canonical ref before restart",
+    );
+    assert(
+      firstBoundRecord.sourceRefs.some((candidate) => sameRef(candidate, sourceRef)),
+      "confirmed binding material should keep the source ref before restart",
+    );
 
     const firstResolve = await resolveSingleCandidate(firstStageRuntime, "Persisted Canonical Track");
     assert(
@@ -118,6 +133,21 @@ async function survivesStageCoreRecreationWithSqliteCanonicalStorage(): Promise<
       handbookPath: join(directory, "second-HANDBOOK.md"),
     });
     await recreatedStageRuntime.ready;
+    const recreatedBoundRecord = await assertOk(recreatedStageRuntime.materialStore.findMaterialBySourceRef({ sourceRef }));
+
+    assert(recreatedBoundRecord !== null, "confirmed binding material should persist across restart");
+    assert(
+      recreatedBoundRecord.identityState === "canonical_confirmed",
+      "confirmed binding material should stay canonical-confirmed after restart",
+    );
+    assert(
+      recreatedBoundRecord.canonicalRef !== undefined && sameRef(recreatedBoundRecord.canonicalRef, canonicalRecord.ref),
+      "confirmed binding material should keep the canonical ref after restart",
+    );
+    assert(
+      recreatedBoundRecord.sourceRefs.some((candidate) => sameRef(candidate, sourceRef)),
+      "confirmed binding material should keep the source ref after restart",
+    );
 
     const persistedResolve = await resolveSingleCandidate(recreatedStageRuntime, "Persisted Canonical Track");
 

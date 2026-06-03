@@ -99,6 +99,7 @@ export type LibraryImportMaterialStorePortKeysAreExact = Assert<IsExact<
   | "getSourceLibraryItem"
   | "putSourceLibraryItem"
   | "listSourceLibraryItems"
+  | "getOrCreateBySourceRef"
 >>;
 
 export type StageInterfaceMaterialStorePortKeysAreExact = Assert<IsExact<
@@ -533,7 +534,7 @@ async function libraryImportUsesNarrowMaterialStoreBoundary(): Promise<void> {
     "CanonicalStorePort",
   ];
   const forbiddenMaterialStoreMethodNames = [
-    ...registryMaterializationWriterNames,
+    ...registryMaterializationWriterNames.filter((name) => name !== "getOrCreateBySourceRef"),
     "putConfirmedCanonicalBinding",
     "getConfirmedCanonicalBinding",
     "putMaterialRelation",

@@ -44,6 +44,9 @@ the docs listed in `INDEX.md`.
 - Material Store owns Material Registry, Canonical Store, Source Entity Store,
   Source Library, confirmed source-to-canonical bindings, material relations,
   and material activity projections.
+- Writing a confirmed source-to-canonical binding through `MaterialStore`
+  now guarantees a canonical-confirmed `MaterialRecord` containing both the
+  bound `canonicalRef` and `sourceRef`.
 - Material Flow owns material resolve, projection, materialization, query,
   related retrieval, policy, sorting, selection, and recommendation
   presentation.
@@ -59,8 +62,9 @@ the docs listed in `INDEX.md`.
   `canonicalRef`, `status`, `identityRequirement`, `materialSnapshot`, or
   `relationScope`.
 - Library Import/Update consumes `platform_library` providers and writes Source
-  Entity Store / Source Library state, import/update batches, provenance,
-  baselines, and absence records.
+  Entity Store / Source Library state, durable MaterialRecords for imported
+  source refs, import/update batches, provenance, baselines, and absence
+  records.
 - Canonical Maintenance Provisional Review is available through
   `canonical.review.list`, `canonical.review.inspect`, and
   `canonical.review.apply`.

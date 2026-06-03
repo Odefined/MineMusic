@@ -65,6 +65,11 @@ Source Entity Store is the provider-neutral source layer. It stores source
 track/release/artist records, Source Library items, and confirmed bindings from
 source refs to canonical records.
 
+When MineMusic writes a Confirmed Canonical Binding through
+`MaterialStorePort.putConfirmedCanonicalBinding(...)`, that write must also
+leave Material Registry with a canonical-confirmed `MaterialRecord` containing
+both the bound `canonicalRef` and `sourceRef`.
+
 Library Import/Update writes observed provider items into Source Entity Store,
 Source Library, Library Import repository provenance/absence state, and factual
 events. Ordinary import/update does not write Collection membership and does

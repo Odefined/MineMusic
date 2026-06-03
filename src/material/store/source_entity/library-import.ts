@@ -48,6 +48,7 @@ import type {
   LibraryImportRepository,
   PluginRegistryPort,
 } from "../../../ports/index.js";
+import { sourceKindToMaterialKind } from "../../kinds.js";
 
 type LibraryImportServiceOptions = {
   pluginRegistry: PluginRegistryPort;
@@ -1375,6 +1376,16 @@ async function storeSourceEntityAndLibraryItem({
 
   if (!storedLibraryItem.ok) {
     return storedLibraryItem;
+  }
+
+  const materialRecord = await materialStore.getOrCreateBySourceRef({
+    sourceRef: item.sourceRef,
+    kind: sourceKindToMaterialKind(sourceEntity.kind),
+    primarySourceRef: item.sourceRef,
+  });
+
+  if (!materialRecord.ok) {
+    return materialRecord;
   }
 
   return ok({
