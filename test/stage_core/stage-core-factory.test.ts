@@ -9,6 +9,7 @@ import type {
   ProviderHttpCacheEntry,
   Ref,
   Result,
+  SourceEntity,
   SourceMaterial,
   SourceProvider,
   StageSession,
@@ -690,6 +691,81 @@ async function exposesLibraryImportWithInjectedPlatformLibraryProvider(): Promis
   );
 }
 
+async function wiresMaterialSearchWithTransientSqliteAndDirtyInvalidation(): Promise<void> {
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session,
+    sourceProvider: emptySourceProvider(),
+  });
+  await stageCore.ready;
+
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "search-dirty-track",
+  };
+  const initialSource: SourceEntity = {
+    kind: "track",
+    sourceRef,
+    providerId: "fixture",
+    label: "Blue Search Track",
+    title: "Blue Search Track",
+    createdAt: "2026-06-04T00:00:00.000Z",
+    updatedAt: "2026-06-04T00:00:00.000Z",
+  };
+
+  await assertOk(stageCore.materialStore.upsertSourceEntity({ entity: initialSource }));
+  await assertOk(stageCore.materialStore.getOrCreateBySourceRef({
+    sourceRef,
+    kind: "recording",
+    primarySourceRef: sourceRef,
+  }));
+  await assertOk(stageCore.materialStore.putSourceLibraryItem({
+    item: {
+      id: "search-dirty-library-item",
+      ownerScope: "local_profile:default",
+      providerId: "fixture",
+      providerAccountId: "acct",
+      sourceRef,
+      sourceKind: "track",
+      libraryKind: "saved_source_track",
+      label: "Library label should not be needed",
+      lastSeenAt: "2026-06-04T00:00:00.000Z",
+      status: "present",
+    },
+  }));
+
+  const blueSearch = await assertOk(stageCore.materialSearch.search({
+    ownerScope: "local_profile:default",
+    scopes: [{ kind: "source_library" }],
+    text: "Blue",
+  }));
+
+  assert(blueSearch.hits.length === 1, "Stage Core should wire Material Search with transient SQLite");
+
+  await assertOk(stageCore.materialStore.upsertSourceEntity({
+    entity: {
+      ...initialSource,
+      label: "Red Search Track",
+      title: "Red Search Track",
+      updatedAt: "2026-06-04T00:01:00.000Z",
+    },
+  }));
+
+  const redSearch = await assertOk(stageCore.materialSearch.search({
+    ownerScope: "local_profile:default",
+    scopes: [{ kind: "source_library" }],
+    text: "Red",
+  }));
+  const staleBlueSearch = await assertOk(stageCore.materialSearch.search({
+    ownerScope: "local_profile:default",
+    scopes: [{ kind: "source_library" }],
+    text: "Blue",
+  }));
+
+  assert(redSearch.hits.length === 1, "Stage Core dirty wrapper should refresh Search text after source updates");
+  assert(staleBlueSearch.hits.length === 0, "dirty refresh should remove stale Search text");
+}
+
 function emptySourceProvider(): SourceProvider {
   return {
     id: "stage-core-empty-source-provider",
@@ -727,3 +803,4 @@ await registersMusicBrainzKnowledgeProviderFactoryWithProviderHttpCache();
 await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
 await usesInjectedCollectionRepository();
 await exposesLibraryImportWithInjectedPlatformLibraryProvider();
+await wiresMaterialSearchWithTransientSqliteAndDirtyInvalidation();

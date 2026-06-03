@@ -156,6 +156,10 @@ export function createSqliteMaterialSearchIndex({
           if (document.value === null) {
             deleteDocument(database, materialRef);
           } else {
+            if (materialKey(document.value.materialRef) !== materialKey(materialRef)) {
+              deleteDocument(database, materialRef);
+            }
+
             upsertDocument(database, document.value);
           }
 
