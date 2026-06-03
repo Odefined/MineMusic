@@ -1,5 +1,7 @@
 import type {
+  ConfirmedCanonicalBinding,
   MaterialActivity,
+  MaterialRecord,
   MaterialSessionActivity,
   MusicMaterialRelation,
   Ref,
@@ -199,12 +201,140 @@ export function createMaterialStore({
       return sourceEntityStore.getConfirmedCanonicalBinding(input);
     },
 
-    putConfirmedCanonicalBinding(input) {
+    async putConfirmedCanonicalBinding(input) {
+      const ensured = await ensureConfirmedBindingMaterialInvariant({
+        canonicalStore,
+        registry,
+        binding: input.binding,
+      });
+
+      if (!ensured.ok) {
+        return ensured;
+      }
+
       return sourceEntityStore.putConfirmedCanonicalBinding(input);
     },
 
     listConfirmedCanonicalBindings(input) {
       return sourceEntityStore.listConfirmedCanonicalBindings(input);
+    },
+  };
+}
+
+async function ensureConfirmedBindingMaterialInvariant({
+  canonicalStore,
+  registry,
+  binding,
+}: {
+  canonicalStore: Pick<CanonicalStorePort, "get">;
+  registry: MaterialRegistryPort;
+  binding: ConfirmedCanonicalBinding;
+}): Promise<Result<MaterialRecord>> {
+  const canonical = await canonicalStore.get({ ref: binding.canonicalRef });
+
+  if (!canonical.ok) {
+    return canonical;
+  }
+
+  if (canonical.value === null) {
+    return materialStoreConflict(
+      `Confirmed canonical binding requires canonical ref '${refKey(binding.canonicalRef)}' to exist.`,
+    );
+  }
+
+  const sourceRecord = await registry.findMaterialBySourceRef({
+    sourceRef: binding.sourceRef,
+  });
+
+  if (!sourceRecord.ok) {
+    return sourceRecord;
+  }
+
+  const canonicalRecord = await registry.findMaterialByCanonicalRef({
+    canonicalRef: binding.canonicalRef,
+  });
+
+  if (!canonicalRecord.ok) {
+    return canonicalRecord;
+  }
+
+  if (sourceRecord.value === null && canonicalRecord.value === null) {
+    return registry.getOrCreateByCanonicalRef({
+      canonicalRef: binding.canonicalRef,
+      kind: canonical.value.kind,
+      sourceRefs: [binding.sourceRef],
+    });
+  }
+
+  if (sourceRecord.value !== null && canonicalRecord.value === null) {
+    return registry.promoteToCanonical({
+      materialRef: sourceRecord.value.materialRef,
+      canonicalRef: binding.canonicalRef,
+    });
+  }
+
+  if (sourceRecord.value === null && canonicalRecord.value !== null) {
+    return registry.attachSourceRef({
+      materialRef: canonicalRecord.value.materialRef,
+      sourceRef: binding.sourceRef,
+    });
+  }
+
+  const ensuredSourceRecord = sourceRecord.value;
+  const ensuredCanonicalRecord = canonicalRecord.value;
+
+  if (ensuredSourceRecord === null || ensuredCanonicalRecord === null) {
+    return materialStoreConflict(
+      `Confirmed canonical binding could not resolve both source '${refKey(binding.sourceRef)}' and canonical '${refKey(binding.canonicalRef)}' material records.`,
+    );
+  }
+
+  if (sameRef(ensuredSourceRecord.materialRef, ensuredCanonicalRecord.materialRef)) {
+    return okRecord(ensuredCanonicalRecord);
+  }
+
+  const merged = await registry.mergeMaterials({
+    from: ensuredSourceRecord.materialRef,
+    into: ensuredCanonicalRecord.materialRef,
+    reason: "confirmed_source_canonical_binding",
+  });
+
+  if (!merged.ok) {
+    return merged;
+  }
+
+  const reloadedCanonical = await registry.findMaterialByCanonicalRef({
+    canonicalRef: binding.canonicalRef,
+  });
+
+  if (!reloadedCanonical.ok) {
+    return reloadedCanonical;
+  }
+
+  if (reloadedCanonical.value === null) {
+    return materialStoreConflict(
+      `Confirmed canonical binding lost canonical material '${refKey(binding.canonicalRef)}' during merge.`,
+    );
+  }
+
+  return okRecord(reloadedCanonical.value);
+}
+
+function okRecord(record: MaterialRecord): Result<MaterialRecord> {
+  return {
+    ok: true,
+    value: record,
+  };
+}
+
+function materialStoreConflict(message: string): Result<never> {
+  return {
+    ok: false,
+    error: {
+      code: "material_store.binding_invariant_failed",
+      message,
+      module: "material_store",
+      retryable: false,
     },
   };
 }

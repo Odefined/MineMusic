@@ -126,6 +126,9 @@ details live in area `progress.md` files listed in `INDEX.md`.
   into Library Import by extending `LibraryImportMaterialStorePort` with
   `getOrCreateBySourceRef` and materializing each imported `sourceRef` during
   Source Library persistence.
+- Enforced the MVP invariant that
+  `putConfirmedCanonicalBinding(...)` must leave a canonical-confirmed
+  `MaterialRecord` containing both `canonicalRef` and `sourceRef`.
 
 ## Next
 

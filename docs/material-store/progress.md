@@ -48,6 +48,9 @@ repositories. `materialStoreDatabasePath` /
 - Source Grounding uses confirmed canonical bindings through a narrow
   `SourceGroundingEvidenceStorePort` instead of Canonical Store source-ref
   APIs.
+- `materialStore.putConfirmedCanonicalBinding(...)` now enforces the MVP
+  invariant that a confirmed binding implies a canonical-confirmed
+  `MaterialRecord` containing both the bound `canonicalRef` and `sourceRef`.
 - Deprecated aggregate owner-global session counters were removed from
   `MaterialActivity`; merge and tests now treat session counts as
   `MaterialSessionActivity`-only state.

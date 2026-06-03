@@ -29,7 +29,7 @@ The exact key sets for several narrow material ports are guarded in
 | Canonical reads | `getCanonical`, `findCanonicalByLabel` | Read |
 | Source Entity Store | `getSourceEntity`, `upsertSourceEntity`, `listSourceEntities` | Write/read |
 | Source Library | `getSourceLibraryItem`, `putSourceLibraryItem`, `listSourceLibraryItems` | Write/read |
-| Confirmed Canonical Bindings | `getConfirmedCanonicalBinding`, `putConfirmedCanonicalBinding`, `listConfirmedCanonicalBindings` | Write/read |
+| Confirmed Canonical Bindings | `getConfirmedCanonicalBinding`, `putConfirmedCanonicalBinding`, `listConfirmedCanonicalBindings` | Write/read; binding writes must leave a canonical-confirmed `MaterialRecord` containing both `canonicalRef` and `sourceRef` |
 
 ## Consumes
 
