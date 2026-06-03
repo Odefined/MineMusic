@@ -29,3 +29,9 @@ authority.
 | `docs/archive/material/2026-06-02/minemusic_narrow_material_policy_selection_ports_pr_plan.md` | `docs/material/ports.md`, `docs/material/progress.md` | Historical policy/selection port-narrowing plan. |
 | `docs/archive/material/2026-06-02/minemusic_stage_interface_output_ownership_design.md` | `docs/material/design.md`, `docs/stage-interface/design.md`, `docs/stage-interface/tool-contracts.md` | Historical output ownership design. |
 | `docs/archive/material/2026-06-02/minemusic_stage_interface_output_ownership_pr_plan.md` | `docs/material/progress.md`, `docs/stage-interface/progress.md` | Historical output ownership execution plan. |
+
+## Archived On 2026-06-04
+
+| Archived document | Superseded by | Notes |
+| --- | --- | --- |
+| `docs/archive/material/2026-06-04/material-search-grill-decisions.md` | Pending extraction into `docs/material/design.md`, `docs/material/ports.md`, and `docs/material/progress.md` when the MaterialSearch implementation slice starts. | Grill-session decision log for `minemusic_material_search_proposal_v3.md`; evidence only, not current authority. |

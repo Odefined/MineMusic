@@ -155,6 +155,24 @@ Other Core Capabilities use Material Store through a Material Store public port.
 Canonical Store ports are internal to the Material Store canonical subdomain
 except for explicit Canonical Maintenance workflows.
 
+### Local Material Catalog
+
+The owner-visible searchable set of durable active material objects backed by
+Material Store records.
+_Avoid_: global MaterialRecord listing, Source Library, provider search results.
+
+Local Material Catalog visibility comes from the owner's Source Library and
+kept or custom Collection relationships, not from blocked/problem feedback or
+listening activity.
+
+Blocked Collection membership and active material-level blocked relations keep
+materials out of ordinary Local Material Catalog search.
+
+### Target Kind
+
+The material kind a retrieval request must return.
+_Avoid_: return kind, type preference, ranking boost.
+
 ### Material Projection
 
 The Material Store read-side module that turns a `materialId`, `materialRef`,
