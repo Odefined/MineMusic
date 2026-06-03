@@ -43,7 +43,7 @@ async function recommendationEventUpdatesActivityFromPayloadCards(): Promise<voi
           ownerScope: "local_profile:night",
           cards: [
             {
-              ref: materialRef,
+              materialRef,
               title: "Activity Material",
             },
           ],
@@ -80,7 +80,6 @@ async function recommendationEventUpdatesActivityFromPayloadCards(): Promise<voi
   );
 
   assert(activity?.lastRecommendedAt === "2026-05-30T01:05:00.000Z", "recommendation cards should update lastRecommendedAt");
-  assert(activity?.recommendedCountSession === undefined, "aggregate activity should not store owner-global session counters");
   assert(sessionActivity?.recommendedCount === 2, "recommendation cards should increment session recommendation count");
 }
 

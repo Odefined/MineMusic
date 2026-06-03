@@ -944,9 +944,9 @@ async function recentOpenedAndPlayedHardExcludeWorksByWindow(): Promise<void> {
   await putLibraryTrack(materialStore, openedRef, "Opened Track");
   await putLibraryTrack(materialStore, playedRef, "Played Track");
   await putLibraryTrack(materialStore, keptRef, "Old Track");
-  await putActivityForSource(materialStore, openedRef, { lastOpenedAt: "2026-05-30T01:30:00.000Z", openedCountSession: 1 });
-  await putActivityForSource(materialStore, playedRef, { lastPlayedAt: "2026-05-30T01:45:00.000Z", playedCountSession: 1 });
-  await putActivityForSource(materialStore, keptRef, { lastOpenedAt: "2026-05-29T01:30:00.000Z", openedCountSession: 1 });
+  await putActivityForSource(materialStore, openedRef, { lastOpenedAt: "2026-05-30T01:30:00.000Z" });
+  await putActivityForSource(materialStore, playedRef, { lastPlayedAt: "2026-05-30T01:45:00.000Z" });
+  await putActivityForSource(materialStore, keptRef, { lastOpenedAt: "2026-05-29T01:30:00.000Z" });
 
   const output = await assertOk(
     materialQuery.query({
@@ -1369,9 +1369,7 @@ async function putActivityForSource(
   sourceRef: Ref,
   activity: {
     lastOpenedAt?: string;
-    openedCountSession?: number;
     lastPlayedAt?: string;
-    playedCountSession?: number;
   },
 ): Promise<void> {
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
@@ -1401,7 +1399,6 @@ async function putRecommendedActivityForSource(
         ownerScope: "local_profile:default",
         materialRef: record.materialRef,
         lastRecommendedAt,
-        recommendedCountSession: 1,
         updatedAt: lastRecommendedAt,
       },
     }),

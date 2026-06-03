@@ -18,6 +18,8 @@ The current implementation has:
   `src/material/store/source_entity/library-import.ts`;
 - material relation, aggregate activity, and session activity persistence
   through Material Store repositories.
+- aggregate `MaterialActivity` now stores only owner/material recent timestamps;
+  session counts live in `MaterialSessionActivity`.
 
 Stage Core creates one Material Store from canonical and source-entity
 repositories. `materialStoreDatabasePath` /
@@ -45,6 +47,9 @@ repositories. `materialStoreDatabasePath` /
 - Source Grounding uses confirmed canonical bindings through a narrow
   `SourceGroundingEvidenceStorePort` instead of Canonical Store source-ref
   APIs.
+- Deprecated aggregate owner-global session counters were removed from
+  `MaterialActivity`; merge and tests now treat session counts as
+  `MaterialSessionActivity`-only state.
 
 ## Verification Evidence
 
@@ -55,6 +60,8 @@ repositories. `materialStoreDatabasePath` /
 - `test/library_import/library-import-service.test.ts`
 - `test/integration/library-import-runtime.test.ts`
 - `test/architecture/material-boundary.test.ts`
+- `test/events/material-activity.test.ts`
+- `test/material_query/material-query.test.ts`
 
 ## Remaining Work
 

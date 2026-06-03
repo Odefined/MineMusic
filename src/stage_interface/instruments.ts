@@ -13,7 +13,7 @@ import {
   memoryToolDescriptors,
   musicToolDescriptors,
   stageToolDescriptors,
-} from "./tools.js";
+} from "./tool_definitions/index.js";
 
 export type InstrumentCatalogOptions = {
   plugins?: PluginRegistryPort;

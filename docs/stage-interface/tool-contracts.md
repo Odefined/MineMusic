@@ -22,9 +22,9 @@ contract source for:
 
 `stableToolNames`, `agentToolDescriptors`, and
 `stageInterfaceToolInputSchemas` are derived from the ordered Tool Definition
-list in `src/stage_interface/tool_definitions/index.ts`. Compatibility exports
-in `src/stage_interface/tools.ts` and `src/stage_interface/schemas.ts` are not
-separate authorities.
+list in `src/stage_interface/tool_definitions/index.ts`. The public
+`src/stage_interface/index.ts` barrel re-exports those derived facts; it is not
+a second source of tool truth.
 
 MCP exposes the same tools with the `minemusic.` prefix through
 `src/surfaces/mcp/server.ts`.

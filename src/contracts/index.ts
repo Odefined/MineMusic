@@ -274,12 +274,6 @@ export type MaterialActivity = {
   lastOpenedAt?: string;
   lastPlayedAt?: string;
   lastSkippedAt?: string;
-  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
-  recommendedCountSession?: number;
-  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
-  openedCountSession?: number;
-  /** @deprecated Owner-global session counters were never truly session-scoped. Use MaterialSessionActivity. */
-  playedCountSession?: number;
   updatedAt: string;
 };
 

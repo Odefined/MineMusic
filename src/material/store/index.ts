@@ -385,9 +385,6 @@ function mergeActivity({
     ...latestOptional("lastOpenedAt", loser, survivor),
     ...latestOptional("lastPlayedAt", loser, survivor),
     ...latestOptional("lastSkippedAt", loser, survivor),
-    ...sumOptional("recommendedCountSession", loser, survivor),
-    ...sumOptional("openedCountSession", loser, survivor),
-    ...sumOptional("playedCountSession", loser, survivor),
     updatedAt: latestTimestamp(loser.updatedAt, survivor?.updatedAt) ?? loser.updatedAt,
   };
 }
@@ -431,16 +428,6 @@ function latestOptional(
   const timestamp = latestTimestamp(loser[key], survivor?.[key]);
 
   return timestamp === undefined ? {} : { [key]: timestamp };
-}
-
-function sumOptional(
-  key: "recommendedCountSession" | "openedCountSession" | "playedCountSession",
-  loser: MaterialActivity,
-  survivor: MaterialActivity | null,
-): Partial<MaterialActivity> {
-  const total = (loser[key] ?? 0) + (survivor?.[key] ?? 0);
-
-  return total === 0 ? {} : { [key]: total };
 }
 
 function latestTimestamp(left: string | undefined, right: string | undefined): string | undefined {

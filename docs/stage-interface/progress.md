@@ -131,9 +131,12 @@ listing keeps `sourceRef`.
 - Registry-first dispatch for Canonical Review tools.
 - Registry-first dispatch for Memory tools.
 - Fallback dispatch switch removed after every stable tool migrated.
-- Compatibility exports for Stage, Handbook, Knowledge, Music, Library,
-  Canonical Review, and Memory descriptors and schemas derived from the
-  registry.
+- Public `src/stage_interface/index.ts` re-exports for Stage, Handbook,
+  Knowledge, Music, Library, Canonical Review, and Memory descriptors and
+  schemas derived from the registry.
+- Deleted the temporary `src/stage_interface/tools.ts` and
+  `src/stage_interface/schemas.ts` compatibility barrels after retargeting
+  current internal callers to `src/stage_interface/tool_definitions/index.ts`.
 - Co-located compact Canonical Review output presentation rules.
 - Focused registry dispatch test coverage.
 - Runtime payload validation through each Tool Definition's `inputSchema`.
@@ -205,6 +208,10 @@ listing keeps `sourceRef`.
 - `npm run typecheck`, `npm run build:test`, and focused Stage Interface,
   material query, contract, integration, MCP, Stage Core factory, and server MCP
   tests pass for the Stage Interface language-normalization implementation.
+- `npm run build:test`, `node .tmp-test/test/stage_interface/stage-interface.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
+  `node .tmp-test/test/surfaces/mcp-server.test.js`, and `npm test` pass for
+  the Stage Interface compatibility-barrel removal.
 
 ## Documentation Alignment Evidence
 

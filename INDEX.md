@@ -22,6 +22,8 @@ This index points to current authority documents. Archived evidence lives under
   ledger for the sweep.
 - `docs/maintenance/architecture-inconsistency-log.md`: architecture
   inconsistency ledger.
+- `docs/maintenance/clean-up-report.md`: current audit of remaining cleanup
+  and legacy-risk items.
 - `docs/maintenance/dead-code-compatibility-cleanup-plan.md`: active cleanup
   plan outside this docs alignment sweep.
 

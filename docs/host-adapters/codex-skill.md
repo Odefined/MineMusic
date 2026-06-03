@@ -54,7 +54,7 @@ The Codex skill does not own:
 | Server runtime | `src/server/runtime.ts` |
 | Server entrypoint | `src/server/index.ts` |
 | Stage Core | `src/stage_core/index.ts` |
-| Stage Interface tools | `src/stage_interface/tools.ts` |
+| Stage Interface tools | `src/stage_interface/index.ts` |
 | Stage Interface dispatch | `src/stage_interface/dispatch.ts` |
 | Instrument catalog | `src/stage_interface/instruments.ts` |
 | Handbook renderer | `src/handbook/index.ts` |

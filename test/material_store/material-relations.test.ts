@@ -78,12 +78,11 @@ async function activityRepositoryStoresByOwnerAndMaterial(): Promise<void> {
     ownerScope: "local_profile:default",
     materialRef,
     lastRecommendedAt: "2026-05-30T00:00:00.000Z",
-    recommendedCountSession: 1,
     updatedAt: "2026-05-30T00:00:00.000Z",
   };
 
   const stored = await assertOk(repository.putActivity({ activity }));
-  stored.recommendedCountSession = 100;
+  stored.lastRecommendedAt = "2099-01-01T00:00:00.000Z";
 
   const loaded = await assertOk(
     repository.getActivity({
@@ -93,7 +92,7 @@ async function activityRepositoryStoresByOwnerAndMaterial(): Promise<void> {
   );
   const listed = await assertOk(repository.listActivity({ ownerScope: "local_profile:default" }));
 
-  assert(loaded?.recommendedCountSession === 1, "activity repository should return defensive activity copies");
+  assert(loaded?.lastRecommendedAt === "2026-05-30T00:00:00.000Z", "activity repository should return defensive activity copies");
   assert(listed.length === 1 && listed[0]?.materialRef.id === "material-1", "activity repository should list by owner scope");
 }
 
@@ -172,8 +171,6 @@ async function materialStoreMergeMovesRelationsAndActivityToSurvivor(): Promise<
         materialRef: loser.materialRef,
         lastRecommendedAt: "2026-05-30T00:01:00.000Z",
         lastOpenedAt: "2026-05-30T00:02:00.000Z",
-        recommendedCountSession: 2,
-        openedCountSession: 1,
         updatedAt: "2026-05-30T00:02:00.000Z",
       },
     }),
@@ -223,7 +220,7 @@ async function materialStoreMergeMovesRelationsAndActivityToSurvivor(): Promise<
   assert(survivorRelations.length === 1, "merge should move active loser relations to the survivor material");
   assert(survivorRelations[0]?.id === "relation-merge", "relation migration should preserve relation identity");
   assert(survivorActivity?.lastRecommendedAt === "2026-05-30T00:01:00.000Z", "merge should copy loser recommendation activity to survivor");
-  assert(survivorActivity.openedCountSession === 1, "merge should copy loser activity counters to survivor");
+  assert(survivorActivity?.lastOpenedAt === "2026-05-30T00:02:00.000Z", "merge should copy loser opened activity to survivor");
   assert(survivorSessionActivity?.recommendedCount === 2, "merge should copy loser session recommendation activity to survivor");
   assert(survivorSessionActivity?.openedCount === 1, "merge should copy loser session opened activity to survivor");
 }
@@ -255,8 +252,6 @@ async function materialStoreMergeCombinesSurvivorAndLoserActivity(): Promise<voi
         ownerScope: "local_profile:default",
         materialRef: loser.materialRef,
         lastRecommendedAt: "2026-05-30T00:03:00.000Z",
-        recommendedCountSession: 2,
-        playedCountSession: 1,
         updatedAt: "2026-05-30T00:03:00.000Z",
       },
     }),
@@ -280,8 +275,6 @@ async function materialStoreMergeCombinesSurvivorAndLoserActivity(): Promise<voi
         materialRef: survivor.materialRef,
         lastRecommendedAt: "2026-05-30T00:01:00.000Z",
         lastOpenedAt: "2026-05-30T00:04:00.000Z",
-        recommendedCountSession: 1,
-        openedCountSession: 3,
         updatedAt: "2026-05-30T00:04:00.000Z",
       },
     }),
@@ -317,9 +310,6 @@ async function materialStoreMergeCombinesSurvivorAndLoserActivity(): Promise<voi
 
   assert(activity?.lastRecommendedAt === "2026-05-30T00:03:00.000Z", "merge should keep latest recommendation time");
   assert(activity.lastOpenedAt === "2026-05-30T00:04:00.000Z", "merge should keep latest survivor-only opened time");
-  assert(activity.recommendedCountSession === 3, "merge should sum recommendation counters");
-  assert(activity.openedCountSession === 3, "merge should preserve survivor counters");
-  assert(activity.playedCountSession === 1, "merge should preserve loser-only counters");
   assert(sessionActivity?.recommendedCount === 3, "merge should sum session recommendation counters for the same session");
   assert(sessionActivity?.openedCount === 3, "merge should preserve survivor session counters");
   assert(sessionActivity?.playedCount === 1, "merge should preserve loser-only session counters");
