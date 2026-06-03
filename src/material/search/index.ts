@@ -18,6 +18,7 @@ import type {
 import type {
   MaterialSearchCollectionPort,
   MaterialSearchDocumentProviderPort,
+  MaterialSearchIndexPort,
   MaterialSearchPort,
   MaterialSearchStorePort,
 } from "../../ports/index.js";
@@ -32,6 +33,7 @@ const defaultLimit = 50;
 export type MaterialSearchServiceOptions = {
   materialStore: MaterialSearchStorePort;
   collection: MaterialSearchCollectionPort;
+  searchIndex?: MaterialSearchIndexPort;
 };
 
 export function createMaterialSearchService(
@@ -64,15 +66,271 @@ export function createMaterialSearchService(
       }
 
       const hits = eligible.value
-        .sort((left, right) => refKey(left.materialRef).localeCompare(refKey(right.materialRef)))
-        .slice(0, normalizeLimit(input.limit));
+        .sort((left, right) => refKey(left.materialRef).localeCompare(refKey(right.materialRef)));
+      const page = await pageHits({
+        searchIndex: options.searchIndex,
+        ownerScope,
+        input,
+        hits,
+      });
+
+      if (!page.ok) {
+        return page;
+      }
 
       return ok({
-        hits,
+        hits: page.value.hits,
+        ...(page.value.nextCursor === undefined ? {} : { nextCursor: page.value.nextCursor }),
         ...(pool.value.warnings.length === 0 ? {} : { warnings: pool.value.warnings }),
       });
     },
   };
+}
+
+type SearchPage = {
+  hits: MaterialSearchHit[];
+  nextCursor?: string;
+};
+
+type DecodedSearchCursor = {
+  v: 1;
+  offset: number;
+  fingerprint: string;
+};
+
+async function pageHits({
+  searchIndex,
+  ownerScope,
+  input,
+  hits,
+}: {
+  searchIndex: MaterialSearchIndexPort | undefined;
+  ownerScope: string;
+  input: MaterialSearchInput;
+  hits: MaterialSearchHit[];
+}): Promise<Result<SearchPage>> {
+  const limit = normalizeLimit(input.limit);
+  const text = normalizeSearchText(input.text);
+  const fingerprint = cursorFingerprint({ ownerScope, input, text, limit });
+  const cursor = parseCursor(input.cursor);
+
+  if (!cursor.ok) {
+    return cursor;
+  }
+
+  if (cursor.value !== null && cursor.value.fingerprint !== fingerprint) {
+    return invalidCursor("Material Search cursor does not match the current search shape.");
+  }
+
+  const offset = cursor.value?.offset ?? 0;
+
+  if (text.length === 0) {
+    const sorted = sortBrowseHits(hits);
+    const page = sorted.slice(offset, offset + limit);
+    const nextCursor = offset + limit < sorted.length
+      ? encodeCursor({ v: 1, offset: offset + limit, fingerprint })
+      : undefined;
+
+    return ok({
+      hits: page,
+      ...(nextCursor === undefined ? {} : { nextCursor }),
+    });
+  }
+
+  if (searchIndex === undefined) {
+    return fail({
+      code: "storage.unavailable",
+      message: "Material Search text matching requires a SearchIndex.",
+      module: "material_search",
+      retryable: false,
+    });
+  }
+
+  const materialRefs = hits.map((hit) => hit.materialRef);
+  const refreshed = await searchIndex.refreshDirty({ materialRefs });
+
+  if (!refreshed.ok) {
+    return refreshed;
+  }
+
+  const indexed = await searchIndex.search({
+    text,
+    candidateMaterialRefs: materialRefs,
+    limit: offset + limit + 1,
+  });
+
+  if (!indexed.ok) {
+    return indexed;
+  }
+
+  const provenanceByRef = new Map(hits.map((hit) => [refKey(hit.materialRef), hit.provenance ?? []]));
+  const rankedHits = indexed.value.hits.map((hit) => ({
+    materialRef: hit.materialRef,
+    score: hit.score,
+    evidence: hit.evidence,
+    provenance: provenanceByRef.get(refKey(hit.materialRef)) ?? [],
+  }));
+  const page = rankedHits.slice(offset, offset + limit);
+  const nextCursor = rankedHits.length > offset + limit
+    ? encodeCursor({ v: 1, offset: offset + limit, fingerprint })
+    : undefined;
+
+  return ok({
+    hits: page,
+    ...(nextCursor === undefined ? {} : { nextCursor }),
+  });
+}
+
+function sortBrowseHits(hits: MaterialSearchHit[]): MaterialSearchHit[] {
+  return [...hits].sort((left, right) => {
+    const leftSort = browseSortKey(left);
+    const rightSort = browseSortKey(right);
+
+    return leftSort.priority - rightSort.priority ||
+      rightSort.descTimestamp.localeCompare(leftSort.descTimestamp) ||
+      leftSort.label.localeCompare(rightSort.label) ||
+      leftSort.position - rightSort.position ||
+      leftSort.ascTimestamp.localeCompare(rightSort.ascTimestamp) ||
+      refKey(left.materialRef).localeCompare(refKey(right.materialRef));
+  });
+}
+
+function browseSortKey(hit: MaterialSearchHit): {
+  priority: number;
+  descTimestamp: string;
+  label: string;
+  position: number;
+  ascTimestamp: string;
+} {
+  const provenance = [...(hit.provenance ?? [])].sort((left, right) =>
+    provenancePriority(left) - provenancePriority(right)
+  )[0];
+
+  if (provenance === undefined) {
+    return {
+      priority: 99,
+      descTimestamp: "",
+      label: "",
+      position: Number.POSITIVE_INFINITY,
+      ascTimestamp: "",
+    };
+  }
+
+  if (provenance.kind === "source_library") {
+    return {
+      priority: provenancePriority(provenance),
+      descTimestamp: provenance.addedAt ?? provenance.lastSeenAt ?? "",
+      label: "",
+      position: Number.POSITIVE_INFINITY,
+      ascTimestamp: "",
+    };
+  }
+
+  if (provenance.relationKind === "custom") {
+    return {
+      priority: provenancePriority(provenance),
+      descTimestamp: "",
+      label: provenance.label,
+      position: provenance.position ?? Number.POSITIVE_INFINITY,
+      ascTimestamp: provenance.createdAt,
+    };
+  }
+
+  return {
+    priority: provenancePriority(provenance),
+    descTimestamp: provenance.createdAt,
+    label: provenance.label,
+    position: provenance.position ?? Number.POSITIVE_INFINITY,
+    ascTimestamp: provenance.createdAt,
+  };
+}
+
+function provenancePriority(provenance: MaterialSearchProvenance): number {
+  if (provenance.kind === "source_library") {
+    return 3;
+  }
+
+  switch (provenance.relationKind) {
+    case "favorite":
+      return 0;
+    case "saved":
+      return 1;
+    case "custom":
+      return 2;
+    case "blocked":
+      return 4;
+  }
+}
+
+function parseCursor(cursor: string | undefined): Result<DecodedSearchCursor | null> {
+  if (cursor === undefined) {
+    return ok(null);
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as Partial<DecodedSearchCursor>;
+
+    if (parsed.v !== 1 ||
+      typeof parsed.offset !== "number" ||
+      !Number.isInteger(parsed.offset) ||
+      parsed.offset < 0 ||
+      typeof parsed.fingerprint !== "string") {
+      return invalidCursor("Material Search cursor is malformed.");
+    }
+
+    return ok({
+      v: 1,
+      offset: parsed.offset,
+      fingerprint: parsed.fingerprint,
+    });
+  } catch {
+    return invalidCursor("Material Search cursor is malformed.");
+  }
+}
+
+function encodeCursor(cursor: DecodedSearchCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function cursorFingerprint({
+  ownerScope,
+  input,
+  text,
+  limit,
+}: {
+  ownerScope: string;
+  input: MaterialSearchInput;
+  text: string;
+  limit: number;
+}): string {
+  return stableStringify({
+    ownerScope,
+    scopes: input.scopes === undefined || input.scopes.length === 0 ? [{ kind: "all" }] : input.scopes,
+    targetKind: input.targetKind,
+    text,
+    limit,
+  });
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  }
+
+  if (value !== null && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object)
+      .sort()
+      .filter((key) => object[key] !== undefined)
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(object[key])}`)
+      .join(",")}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+function normalizeSearchText(text: string | undefined): string {
+  return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
 type CandidatePool = {
@@ -556,6 +814,15 @@ function isPositiveCollection(collection: Collection): boolean {
 function invalidScope<T>(message: string): Result<T> {
   return fail({
     code: "material_search.invalid_scope",
+    message,
+    module: "material_search",
+    retryable: false,
+  });
+}
+
+function invalidCursor<T>(message: string): Result<T> {
+  return fail({
+    code: "material_search.invalid_cursor",
     message,
     module: "material_search",
     retryable: false,
