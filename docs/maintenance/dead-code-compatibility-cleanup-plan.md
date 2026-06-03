@@ -2,8 +2,7 @@
 
 This is the current execution plan for MineMusic compatibility cleanup.
 It supersedes the deleted stale version and keeps only work that still exists
-in the current repository. The companion audit is
-`docs/maintenance/clean-up-report.md`.
+in the current repository.
 
 ## Goal
 
