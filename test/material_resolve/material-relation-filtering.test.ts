@@ -83,15 +83,10 @@ async function sourceLevelBlockFiltersOnlyThatSource(): Promise<void> {
   );
 
   const resolved = await assertOk(resolve("Any Source"));
+  const material = firstMaterial(resolved);
 
-  assert(
-    resolved.materials.some((material) => material.sourceRefs?.[0]?.id === keptSourceRef.id),
-    "source-level blocked relation should keep the unblocked source result",
-  );
-  assert(
-    resolved.materials.some((material) => (material.sourceRefs?.length ?? 0) === 0 && (material.playableLinks?.length ?? 0) === 0),
-    "source-level blocked relation should preserve the blocked result without remaining source links",
-  );
+  assert(resolved.materials.length === 1, "source-level blocked relation should remove diagnostic-only blocked remnants");
+  assert(material.sourceRefs?.[0]?.id === keptSourceRef.id, "source-level blocked relation should keep the unblocked source result");
   assert(resolved.status === "source_only", "mixed blocked and clean source results should keep source-only status");
 }
 
@@ -109,10 +104,8 @@ async function sourceNotPlayableRemovesPlayableLinkWithoutBlockingMaterial(): Pr
   );
 
   const resolved = await assertOk(resolve("Not Playable Source"));
-  const material = firstMaterial(resolved);
 
-  assert(material.state !== "blocked", "source-level not_playable should not block the whole material");
-  assert((material.playableLinks ?? []).length === 0, "source-level not_playable should remove matching playable links");
+  assert(resolved.materials.length === 0, "source-level not_playable should not keep a diagnostic-only material card");
   assert(resolved.status === "not_playable", "source-level not_playable should surface candidate-level not_playable status");
 }
 
@@ -134,15 +127,10 @@ async function sourceWrongVersionFiltersMatchingSource(): Promise<void> {
   );
 
   const resolved = await assertOk(resolve("Versioned Source"));
+  const material = firstMaterial(resolved);
 
-  assert(
-    resolved.materials.some((material) => material.sourceRefs?.[0]?.id === keptSourceRef.id),
-    "source-level wrong_version should keep the non-wrong-version source result",
-  );
-  assert(
-    resolved.materials.some((material) => (material.sourceRefs?.length ?? 0) === 0 && (material.playableLinks?.length ?? 0) === 0),
-    "source-level wrong_version should preserve the wrong-version result without remaining source links",
-  );
+  assert(resolved.materials.length === 1, "source-level wrong_version should remove diagnostic-only wrong-version remnants");
+  assert(material.sourceRefs?.[0]?.id === keptSourceRef.id, "source-level wrong_version should keep the non-wrong-version source result");
   assert(resolved.status === "source_only", "mixed wrong-version and clean source results should keep source-only status");
 }
 
@@ -170,9 +158,7 @@ async function sourceWrongVersionSurvivesMaterialMerge(): Promise<void> {
 
   const resolved = await assertOk(resolve("Merged Wrong Version"));
 
-  assert(resolved.materials.length === 1, "source-level wrong_version should preserve the survivor projection for inspection");
-  assert((resolved.materials[0]?.sourceRefs?.length ?? 0) === 0, "wrong-version survivor should not keep the removed source ref");
-  assert((resolved.materials[0]?.playableLinks?.length ?? 0) === 0, "wrong-version survivor should not keep the removed playable link");
+  assert(resolved.materials.length === 0, "source-level wrong_version should not keep a diagnostic-only survivor material");
   assert(resolved.status === "wrong_version", "single wrong-version survivor should surface wrong_version candidate status");
 }
 

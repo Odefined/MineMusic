@@ -163,10 +163,12 @@ async function resolveCandidate({
       return relationFilteredLibraryMaterials;
     }
 
+    const resolvedLibraryMaterials = resolveDisplayableMaterials(relationFilteredLibraryMaterials.value);
+
     return ok({
       candidate: structuredClone(candidate),
-      materials: relationFilteredLibraryMaterials.value.map((outcome) => outcome.material),
-      status: statusForResolvedMaterials(relationFilteredLibraryMaterials.value),
+      materials: resolvedLibraryMaterials.materials,
+      status: resolvedLibraryMaterials.status,
       ...(relationFilteredLibraryMaterials.value[0]?.material.canonicalRef === undefined
         ? {}
         : { canonicalRef: relationFilteredLibraryMaterials.value[0].material.canonicalRef }),
@@ -218,13 +220,14 @@ async function resolveCandidate({
     return relationFilteredMaterials;
   }
 
-  const materials = relationFilteredMaterials.value.map((outcome) => outcome.material);
+  const resolvedMaterials = resolveDisplayableMaterials(relationFilteredMaterials.value);
+  const materials = resolvedMaterials.materials;
   const issues = [...noMatchIssues, ...projectedMaterials.value.issues];
 
   return ok({
     candidate: structuredClone(candidate),
     materials,
-    status: statusForResolvedMaterials(relationFilteredMaterials.value),
+    status: resolvedMaterials.status,
     ...(canonical === null ? {} : { canonicalRef: canonical.ref }),
     ...(materials.length === 0 ? { reason: "No source-backed material matched this candidate." } : {}),
     ...(issues.length === 0 ? {} : { issues }),
@@ -458,27 +461,57 @@ function stateWithCanonical(material: SourceMaterial): MusicMaterial["state"] {
   return (material.playableLinks?.length ?? 0) > 0 ? "confirmed_playable" : "grounded";
 }
 
-function statusForResolvedMaterials(outcomes: MaterialResolutionOutcome[]): MaterialResolveStatus {
-  if (outcomes.length === 0) {
+function resolveDisplayableMaterials(
+  outcomes: MaterialResolutionOutcome[],
+): { materials: MusicMaterial[]; status: MaterialResolveStatus } {
+  const keptOutcomes = outcomes.filter(shouldKeepResolvedMaterial);
+  const materials = keptOutcomes.map((outcome) => outcome.material);
+
+  if (materials.length > 0) {
+    return {
+      materials,
+      status: statusForDisplayableMaterials(materials),
+    };
+  }
+
+  if (outcomes.some((outcome) => outcome.warnings.includes("blocked") && hasNoRemainingSources(outcome.material))) {
+    return { materials, status: "blocked" };
+  }
+
+  if (outcomes.some((outcome) => outcome.warnings.includes("wrong_version") && hasNoRemainingSources(outcome.material))) {
+    return { materials, status: "wrong_version" };
+  }
+
+  if (outcomes.some((outcome) => outcome.warnings.includes("not_playable") && (outcome.material.playableLinks?.length ?? 0) === 0)) {
+    return { materials, status: "not_playable" };
+  }
+
+  return { materials, status: "unresolved" };
+}
+
+function shouldKeepResolvedMaterial(outcome: MaterialResolutionOutcome): boolean {
+  if (outcome.warnings.includes("wrong_version") && hasNoRemainingSources(outcome.material)) {
+    return false;
+  }
+
+  if (outcome.warnings.includes("blocked") && hasNoRemainingSources(outcome.material)) {
+    return false;
+  }
+
+  if (outcome.warnings.includes("not_playable") && (outcome.material.playableLinks?.length ?? 0) === 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function statusForDisplayableMaterials(materials: MusicMaterial[]): MaterialResolveStatus {
+  if (materials.length === 0) {
     return "unresolved";
   }
 
-  const materials = outcomes.map((outcome) => outcome.material);
-
   if (materials.every((material) => material.state === "blocked")) {
     return "blocked";
-  }
-
-  if (outcomes.every((outcome) =>
-    outcome.warnings.includes("wrong_version") && hasNoRemainingSources(outcome.material)
-  )) {
-    return "wrong_version";
-  }
-
-  if (outcomes.every((outcome) =>
-    outcome.warnings.includes("not_playable") && (outcome.material.playableLinks?.length ?? 0) === 0
-  )) {
-    return "not_playable";
   }
 
   if (
