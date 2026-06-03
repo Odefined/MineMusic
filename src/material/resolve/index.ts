@@ -4,6 +4,7 @@ import type {
   MaterialResolveRequest,
   MaterialResolveResult,
   MaterialResolveStatus,
+  MaterialPolicyDecision,
   MusicCandidate,
   MusicMaterial,
   Ref,
@@ -14,27 +15,26 @@ import type {
   SourceQuery,
 } from "../../contracts/index.js";
 import type {
-  CollectionPort,
+  MaterialPolicyEvaluatorPort,
   MaterialResolveStorePort,
   MaterialResolvePort,
   MaterialSourceMaterializerPort,
   SourceGroundingPort,
 } from "../../ports/index.js";
 import { sourceKindToMaterialKind } from "../kinds.js";
-import { projectMaterialRelations } from "../policy/relation_projection.js";
 
 type MaterialResolveServiceOptions = {
   materialStore: MaterialResolveStorePort;
   sourceGrounding: SourceGroundingPort;
   sourceMaterializer: MaterialSourceMaterializerPort;
-  collection?: CollectionPort;
+  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
 };
 
 export function createMaterialResolveService({
   materialStore,
   sourceGrounding,
   sourceMaterializer,
-  collection,
+  materialPolicyEvaluator,
 }: MaterialResolveServiceOptions): MaterialResolvePort {
   return {
     async resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>> {
@@ -50,7 +50,7 @@ export function createMaterialResolveService({
           materialStore,
           sourceGrounding,
           sourceMaterializer,
-          ...(collection === undefined ? {} : { collection }),
+          materialPolicyEvaluator,
         });
 
         if (!result.ok) {
@@ -75,7 +75,7 @@ export function createMaterialResolveService({
           materialStore,
           sourceGrounding,
           sourceMaterializer,
-          ...(collection === undefined ? {} : { collection }),
+          materialPolicyEvaluator,
         });
 
         if (!result.ok) {
@@ -102,7 +102,7 @@ async function resolveCandidate({
   materialStore,
   sourceGrounding,
   sourceMaterializer,
-  collection,
+  materialPolicyEvaluator,
 }: {
   candidate: MusicCandidate;
   sessionId?: string;
@@ -112,7 +112,7 @@ async function resolveCandidate({
   materialStore: MaterialResolveStorePort;
   sourceGrounding: SourceGroundingPort;
   sourceMaterializer: MaterialSourceMaterializerPort;
-  collection?: CollectionPort;
+  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
 }): Promise<Result<ResolvedCandidate>> {
   const canonicalResult = await findCanonicalForCandidate(materialStore, candidate);
 
@@ -153,8 +153,8 @@ async function resolveCandidate({
       return projectedLibraryMaterials;
     }
 
-    const relationFilteredLibraryMaterials = await applyMaterialRelationFiltering({
-      materialStore,
+    const relationFilteredLibraryMaterials = await applyMaterialResolutionPolicy({
+      materialPolicyEvaluator,
       materials: projectedLibraryMaterials.value.materials,
       ownerScope,
     });
@@ -163,23 +163,15 @@ async function resolveCandidate({
       return relationFilteredLibraryMaterials;
     }
 
-    const blockedLibraryMaterials = await applyBlockedFiltering({
-      materials: relationFilteredLibraryMaterials.value,
-      ownerScope,
-      ...(collection === undefined ? {} : { collection }),
-    });
-
-    if (!blockedLibraryMaterials.ok) {
-      return blockedLibraryMaterials;
-    }
+    const resolvedLibraryMaterials = resolveDisplayableMaterials(relationFilteredLibraryMaterials.value);
 
     return ok({
       candidate: structuredClone(candidate),
-      materials: blockedLibraryMaterials.value,
-      status: statusForResolvedMaterials(blockedLibraryMaterials.value),
-      ...(blockedLibraryMaterials.value[0]?.canonicalRef === undefined
+      materials: resolvedLibraryMaterials.materials,
+      status: resolvedLibraryMaterials.status,
+      ...(relationFilteredLibraryMaterials.value[0]?.material.canonicalRef === undefined
         ? {}
-        : { canonicalRef: blockedLibraryMaterials.value[0].canonicalRef }),
+        : { canonicalRef: relationFilteredLibraryMaterials.value[0].material.canonicalRef }),
       ...(projectedLibraryMaterials.value.issues.length === 0
         ? {}
         : { issues: projectedLibraryMaterials.value.issues }),
@@ -218,8 +210,8 @@ async function resolveCandidate({
     return projectedMaterials;
   }
 
-  const relationFilteredMaterials = await applyMaterialRelationFiltering({
-    materialStore,
+  const relationFilteredMaterials = await applyMaterialResolutionPolicy({
+    materialPolicyEvaluator,
     materials: projectedMaterials.value.materials,
     ownerScope,
   });
@@ -228,104 +220,59 @@ async function resolveCandidate({
     return relationFilteredMaterials;
   }
 
-  const blockedFilterResult = await applyBlockedFiltering({
-    materials: relationFilteredMaterials.value,
-    ownerScope,
-    ...(collection === undefined ? {} : { collection }),
-  });
-
-  if (!blockedFilterResult.ok) {
-    return blockedFilterResult;
-  }
-
-  const materials = blockedFilterResult.value;
+  const resolvedMaterials = resolveDisplayableMaterials(relationFilteredMaterials.value);
+  const materials = resolvedMaterials.materials;
   const issues = [...noMatchIssues, ...projectedMaterials.value.issues];
 
   return ok({
     candidate: structuredClone(candidate),
     materials,
-    status: statusForResolvedMaterials(materials),
+    status: resolvedMaterials.status,
     ...(canonical === null ? {} : { canonicalRef: canonical.ref }),
     ...(materials.length === 0 ? { reason: "No source-backed material matched this candidate." } : {}),
     ...(issues.length === 0 ? {} : { issues }),
   });
 }
 
-async function applyMaterialRelationFiltering({
-  materialStore,
+type MaterialResolutionOutcome = {
+  material: MusicMaterial;
+  warnings: string[];
+};
+
+async function applyMaterialResolutionPolicy({
+  materialPolicyEvaluator,
   materials,
   ownerScope,
 }: {
-  materialStore: MaterialResolveStorePort;
+  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   materials: MusicMaterial[];
   ownerScope: string;
-}): Promise<Result<MusicMaterial[]>> {
-  const filtered: MusicMaterial[] = [];
+}): Promise<Result<MaterialResolutionOutcome[]>> {
+  const projected: MaterialResolutionOutcome[] = [];
 
   for (const material of materials) {
-    const relations = await materialStore.listMaterialRelations({
+    const decision = await materialPolicyEvaluator.evaluate({
       ownerScope,
-      materialRef: material.materialRef,
-      status: "active",
-    });
-
-    if (!relations.ok) {
-      return relations;
-    }
-
-    const projected = projectMaterialRelations({
+      materialId: material.materialRef.id,
       material,
-      relations: relations.value,
-      shouldApplyRelation: (relation) =>
-        relation.relationKind === "blocked" ||
-        relation.relationKind === "wrong_version" ||
-        relation.relationKind === "not_playable" ||
-        relation.relationKind === "bad_match",
-      materialBlockedBehavior: "mark",
-      dropWhenNotPlayableLeavesNoLinks: false,
-      dropWhenSourceRemovedToEmpty: true,
+      policy: {
+        purpose: "material_resolution",
+        excludeRelations: ["blocked", "wrong_version", "not_playable"],
+      },
     });
 
-    if (projected.decision !== "drop") {
-      filtered.push(projected.material);
+    if (!decision.ok) {
+      return decision;
     }
+
+    if (decision.value.decision === "drop") {
+      continue;
+    }
+
+    projected.push(materialResolutionOutcome(decision.value));
   }
 
-  return ok(filtered);
-}
-
-async function applyBlockedFiltering({
-  materials,
-  ownerScope,
-  collection,
-}: {
-  materials: MusicMaterial[];
-  ownerScope: string;
-  collection?: CollectionPort;
-}): Promise<Result<MusicMaterial[]>> {
-  if (collection === undefined) {
-    return ok(materials);
-  }
-
-  const materialRefs = mergeRefs(
-    [],
-    materials.map((material) => material.materialRef),
-  );
-  const blockedMaterials = await collection.filterBlockedMaterials({
-    ownerScope,
-    materialRefs,
-  });
-
-  if (!blockedMaterials.ok) {
-    return blockedMaterials;
-  }
-
-  const blockedMaterialRefKeys = new Set(blockedMaterials.value.map(refKey));
-  return ok(materials.map((material) =>
-    blockedMaterialRefKeys.has(refKey(material.materialRef))
-      ? { ...material, state: "blocked" as const }
-      : material,
-  ));
+  return ok(projected);
 }
 
 async function findCanonicalForCandidate(
@@ -514,7 +461,51 @@ function stateWithCanonical(material: SourceMaterial): MusicMaterial["state"] {
   return (material.playableLinks?.length ?? 0) > 0 ? "confirmed_playable" : "grounded";
 }
 
-function statusForResolvedMaterials(materials: MusicMaterial[]): MaterialResolveStatus {
+function resolveDisplayableMaterials(
+  outcomes: MaterialResolutionOutcome[],
+): { materials: MusicMaterial[]; status: MaterialResolveStatus } {
+  const keptOutcomes = outcomes.filter(shouldKeepResolvedMaterial);
+  const materials = keptOutcomes.map((outcome) => outcome.material);
+
+  if (materials.length > 0) {
+    return {
+      materials,
+      status: statusForDisplayableMaterials(materials),
+    };
+  }
+
+  if (outcomes.some((outcome) => outcome.warnings.includes("blocked") && hasNoRemainingSources(outcome.material))) {
+    return { materials, status: "blocked" };
+  }
+
+  if (outcomes.some((outcome) => outcome.warnings.includes("wrong_version") && hasNoRemainingSources(outcome.material))) {
+    return { materials, status: "wrong_version" };
+  }
+
+  if (outcomes.some((outcome) => outcome.warnings.includes("not_playable") && (outcome.material.playableLinks?.length ?? 0) === 0)) {
+    return { materials, status: "not_playable" };
+  }
+
+  return { materials, status: "unresolved" };
+}
+
+function shouldKeepResolvedMaterial(outcome: MaterialResolutionOutcome): boolean {
+  if (outcome.warnings.includes("wrong_version") && hasNoRemainingSources(outcome.material)) {
+    return false;
+  }
+
+  if (outcome.warnings.includes("blocked") && hasNoRemainingSources(outcome.material)) {
+    return false;
+  }
+
+  if (outcome.warnings.includes("not_playable") && (outcome.material.playableLinks?.length ?? 0) === 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function statusForDisplayableMaterials(materials: MusicMaterial[]): MaterialResolveStatus {
   if (materials.length === 0) {
     return "unresolved";
   }
@@ -544,6 +535,13 @@ function statusForResolvedMaterials(materials: MusicMaterial[]): MaterialResolve
   }
 
   return "unresolved";
+}
+
+function materialResolutionOutcome(decision: Exclude<MaterialPolicyDecision, { decision: "drop" }>): MaterialResolutionOutcome {
+  return {
+    material: decision.material,
+    warnings: decision.warnings ?? [],
+  };
 }
 
 function canonicalKindForCandidate(candidate: MusicCandidate): string | undefined {
@@ -585,14 +583,14 @@ function mergeRefs(left: Ref[], right: Ref[]): Ref[] {
   const refsByKey = new Map<string, Ref>();
 
   for (const ref of [...left, ...right]) {
-    refsByKey.set(refKey(ref), ref);
+    refsByKey.set(`${ref.namespace}:${ref.kind}:${ref.id}`, ref);
   }
 
   return [...refsByKey.values()];
 }
 
-function refKey(ref: Ref): string {
-  return `${ref.namespace}:${ref.kind}:${ref.id}`;
+function hasNoRemainingSources(material: MusicMaterial): boolean {
+  return (material.sourceRefs?.length ?? 0) === 0 && (material.playableLinks?.length ?? 0) === 0;
 }
 
 function ok<T>(value: T): Result<T> {

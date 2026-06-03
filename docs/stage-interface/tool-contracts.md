@@ -129,7 +129,9 @@ internal resolve request. Public resolve output is compact:
 
 - `items` with material cards carrying `materialId`, title, optional subtitle,
   and material `state`;
-- optional unresolved text diagnostics when no materialized item exists.
+- optional unresolved text diagnostics when no public material card exists,
+  including candidates that resolve only to diagnostic internal statuses such
+  as wrong-version or not-playable.
 
 `music.material.query` and `music.pools.list` are the ordinary public Source
 Library browsing path. Public source-library pools use `libraryKinds` and

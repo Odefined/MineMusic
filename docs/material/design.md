@@ -47,8 +47,9 @@ flowchart TD
     MQ --> MM["Materialization"]
     MR --> SG["Source Grounding"]
     MR --> MM
+    MR --> POL["Policy + Sorter"]
     MQ --> MP["Material Projection"]
-    MSel --> POL["Policy + Sorter"]
+    MSel --> POL
     RP --> POL
     RP --> EV["Event Port"]
     MM --> STORE["Material Store ports"]
@@ -66,13 +67,15 @@ Interface output modules.
 `src/material/resolve/index.ts` implements `MaterialResolvePort`.
 
 Resolve performs canonical-first lookup, Source Library scoped discovery,
-provider grounding, relation filtering, and optional Collection blocked
-filtering. It delegates source-backed material creation and projection to
+provider grounding, and candidate-level resolve status aggregation. It
+delegates source-backed material creation and projection to
 `MaterialSourceMaterializerPort` instead of receiving registry writer methods
-directly.
+directly, and it delegates resolution-time blocked/wrong-version/not-playable
+projection to `MaterialPolicyEvaluatorPort` through the internal
+`material_resolution` policy purpose.
 
 Resolve consumes `MaterialResolveStorePort`, `SourceGroundingPort`,
-`MaterialSourceMaterializerPort`, and optionally `CollectionPort`.
+`MaterialSourceMaterializerPort`, and `MaterialPolicyEvaluatorPort`.
 
 ### Query, Related, Context, And Pools
 
@@ -87,7 +90,8 @@ selector. Source Library pool items are materialized through
 
 Query consumes `MaterialQueryStorePort`, `MaterialResolvePort`,
 `MaterialSelectorPort`, `MaterialSourceLibraryMaterializerPort`, and optionally
-`CollectionPort`. It does not receive full `MaterialStorePort` and does not
+`MaterialQueryCollectionReadPort`. It does not receive full
+`MaterialStorePort`, does not receive collection write authority, and does not
 perform registry materialization writes directly.
 
 ### Projection
@@ -114,7 +118,11 @@ Resolve uses `MaterialSourceMaterializerPort`. Query uses
 
 `src/material/policy/index.ts` implements the per-material policy evaluator and
 the sorter. It uses projection helpers for record-to-domain projection instead
-of carrying local record projection code.
+of carrying local record projection code. Policy consumes
+`MaterialPolicyCollectionBlockPort` for collection-backed blocked membership
+evidence and owns the internal `material_resolution` purpose that Resolve uses
+to mark blocked materials and preserve wrong-version/not-playable results
+without dropping them.
 
 `src/material/selection/index.ts` composes policy evaluation, sorting,
 diversity, and limiting over materialId candidates.
@@ -148,12 +156,17 @@ Observed public-surface facts relevant to Material Flow:
 `test/architecture/material-boundary.test.ts` verifies the material boundary:
 
 - material port key sets are exact for projection, query, resolve,
-  materialization, Source Library reads, and Stage Interface material reads;
+  materialization, Source Library reads, Stage Interface material reads, and
+  narrow collection seams used by Query and Policy;
 - material modules do not import Stage Interface output DTOs or legacy
   material card modules;
 - legacy root material directories are removed;
 - query, policy, selection, and resolve avoid full material-store dependencies
   and hidden materialization writers;
+- query cannot import broad `CollectionPort` or collection writer/block
+  methods, policy cannot import broad `CollectionPort` or collection
+  list/write methods, and resolve cannot read Collection or relation-projection
+  internals directly;
 - materialization avoids imports from query, resolve, Stage Interface,
   presentation, library import, and memory.
 

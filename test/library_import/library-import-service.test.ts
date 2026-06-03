@@ -988,6 +988,7 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
       materialStore: environment.materialStore,
       sourceGrounding: sourceGroundingForProviderItems(providerItems),
       sourceMaterializer: materializationService,
+      materialPolicyEvaluator,
     }),
     materialSelector,
     sourceLibraryMaterializer: materializationService,

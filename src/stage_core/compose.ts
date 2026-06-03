@@ -62,20 +62,20 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const materializationService = createMaterializationService({
     materialStore,
   });
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({
+    materialStore,
+    collection,
+  });
   const materialResolve = createMaterialResolveService({
     materialStore,
     sourceGrounding: source,
     sourceMaterializer: materializationService,
-    collection,
-  });
-  const materialQueryPolicyEvaluator = createMaterialPolicyEvaluator({
-    materialStore,
-    collection,
+    materialPolicyEvaluator,
   });
   const materialSorter = createMaterialSorter({ materialStore });
   const materialSelector = createMaterialSelector({
     materialStore,
-    materialPolicyEvaluator: materialQueryPolicyEvaluator,
+    materialPolicyEvaluator,
     materialSorter,
   });
   const materialQuery = createMaterialQueryService({
@@ -104,13 +104,9 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     memory,
     events,
   });
-  const recommendationPolicyEvaluator = createMaterialPolicyEvaluator({
-    materialStore,
-    collection,
-  });
   const recommendationPresentation = createRecommendationPresentationService({
     sessionContext,
-    materialPolicyEvaluator: recommendationPolicyEvaluator,
+    materialPolicyEvaluator,
     events,
   });
   const canonicalMaintenance = createCanonicalMaintenance({

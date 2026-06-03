@@ -497,7 +497,6 @@ export type MaterialResolveStorePort = Pick<
   | "findCanonicalByLabel"
   | "getConfirmedCanonicalBinding"
   | "listSourceLibraryItems"
-  | "listMaterialRelations"
 >;
 
 export type ProjectedSourceMaterial = {
@@ -723,6 +722,17 @@ export interface CollectionPort {
     materialRefs: Ref[];
   }): Promise<Result<Ref[]>>;
 }
+
+export type MaterialQueryCollectionReadPort = Pick<
+  CollectionPort,
+  | "listCollections"
+  | "listItems"
+>;
+
+export type MaterialPolicyCollectionBlockPort = Pick<
+  CollectionPort,
+  | "filterBlockedMaterials"
+>;
 
 export interface LibraryImportPort {
   previewImport(input: LibraryImportPreviewInput): Promise<Result<LibraryImportPreview>>;

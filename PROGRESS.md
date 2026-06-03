@@ -113,6 +113,16 @@ details live in area `progress.md` files listed in `INDEX.md`.
   removal, compact Stage Interface collection outputs, guards, and final docs
   sync.
 
+## 2026-06-03
+
+- Narrowed Material-facing collection capabilities to
+  `MaterialQueryCollectionReadPort` and `MaterialPolicyCollectionBlockPort`.
+- Routed Resolve relation and collection-block projection through
+  `MaterialPolicyEvaluatorPort` with internal `material_resolution`.
+- Extended `MaterialResolveStatus` with `wrong_version` and `not_playable`
+  and added architecture guards that keep Query/Policy/Resolve off broad
+  `CollectionPort`.
+
 ## Next
 
 - Implement the documented docs guard (`npm run check:docs` /

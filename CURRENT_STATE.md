@@ -47,6 +47,11 @@ the docs listed in `INDEX.md`.
 - Material Flow owns material resolve, projection, materialization, query,
   related retrieval, policy, sorting, selection, and recommendation
   presentation.
+- Material Query now reads collection pools through the narrow
+  `MaterialQueryCollectionReadPort`, Material Policy reads collection-backed
+  blocked membership through `MaterialPolicyCollectionBlockPort`, and Resolve
+  routes resolution-time blocked/wrong-version/not-playable projection through
+  `MaterialPolicyEvaluatorPort`.
 - Collection Service owns owner-scoped system/custom Collections and current
   materialRef-backed CollectionItems. ADR-0003 accepts this boundary and
   supersedes ADR-0002's earlier canonical-only Collection consequence.

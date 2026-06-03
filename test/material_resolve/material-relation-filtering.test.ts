@@ -7,9 +7,10 @@ import type {
   SourceMaterial,
 } from "../../src/contracts/index.js";
 import { createMaterializationService } from "../../src/material/materialization/index.js";
+import { createMaterialPolicyEvaluator } from "../../src/material/policy/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { createMaterialResolveService } from "../../src/material/resolve/index.js";
-import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
+import type { MaterialPolicyCollectionBlockPort, SourceGroundingPort } from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemorySourceEntityStoreRepository,
@@ -82,12 +83,11 @@ async function sourceLevelBlockFiltersOnlyThatSource(): Promise<void> {
   );
 
   const resolved = await assertOk(resolve("Any Source"));
+  const material = firstMaterial(resolved);
 
-  assert(
-    resolved.materials.length === 1 && resolved.materials[0]?.sourceRefs?.[0]?.id === keptSourceRef.id,
-    "source-level blocked relation should filter only the matching source result",
-  );
-  assert(resolved.status === "source_only", "remaining source material should keep source-only status");
+  assert(resolved.materials.length === 1, "source-level blocked relation should remove diagnostic-only blocked remnants");
+  assert(material.sourceRefs?.[0]?.id === keptSourceRef.id, "source-level blocked relation should keep the unblocked source result");
+  assert(resolved.status === "source_only", "mixed blocked and clean source results should keep source-only status");
 }
 
 async function sourceNotPlayableRemovesPlayableLinkWithoutBlockingMaterial(): Promise<void> {
@@ -104,10 +104,9 @@ async function sourceNotPlayableRemovesPlayableLinkWithoutBlockingMaterial(): Pr
   );
 
   const resolved = await assertOk(resolve("Not Playable Source"));
-  const material = firstMaterial(resolved);
 
-  assert(material.state !== "blocked", "source-level not_playable should not block the whole material");
-  assert((material.playableLinks ?? []).length === 0, "source-level not_playable should remove matching playable links");
+  assert(resolved.materials.length === 0, "source-level not_playable should not keep a diagnostic-only material card");
+  assert(resolved.status === "not_playable", "source-level not_playable should surface candidate-level not_playable status");
 }
 
 async function sourceWrongVersionFiltersMatchingSource(): Promise<void> {
@@ -128,11 +127,11 @@ async function sourceWrongVersionFiltersMatchingSource(): Promise<void> {
   );
 
   const resolved = await assertOk(resolve("Versioned Source"));
+  const material = firstMaterial(resolved);
 
-  assert(
-    resolved.materials.length === 1 && resolved.materials[0]?.sourceRefs?.[0]?.id === keptSourceRef.id,
-    "source-level wrong_version should filter the matching source result",
-  );
+  assert(resolved.materials.length === 1, "source-level wrong_version should remove diagnostic-only wrong-version remnants");
+  assert(material.sourceRefs?.[0]?.id === keptSourceRef.id, "source-level wrong_version should keep the non-wrong-version source result");
+  assert(resolved.status === "source_only", "mixed wrong-version and clean source results should keep source-only status");
 }
 
 async function sourceWrongVersionSurvivesMaterialMerge(): Promise<void> {
@@ -159,8 +158,8 @@ async function sourceWrongVersionSurvivesMaterialMerge(): Promise<void> {
 
   const resolved = await assertOk(resolve("Merged Wrong Version"));
 
-  assert(resolved.materials.length === 0, "source-level wrong_version should survive merge and filter the survivor projection");
-  assert(resolved.status === "unresolved", "filtering the only source projection should make the candidate unresolved");
+  assert(resolved.materials.length === 0, "source-level wrong_version should not keep a diagnostic-only survivor material");
+  assert(resolved.status === "wrong_version", "single wrong-version survivor should surface wrong_version candidate status");
 }
 
 async function canonicalResolvedMaterialCollectionBlockedFilteringStillWorks(): Promise<void> {
@@ -175,10 +174,10 @@ async function canonicalResolvedMaterialCollectionBlockedFilteringStillWorks(): 
   const sourceRef = ref("source:fixture", "track", "canonical-source");
   const collection = {
     filterBlockedMaterials: async ({ materialRefs }: { materialRefs: Ref[] }) => ({ ok: true, value: materialRefs }),
-  } as unknown as CollectionPort;
+  } as MaterialPolicyCollectionBlockPort;
   const { resolve } = createTestResolve([sourceMaterial("Canonical Blocked", sourceRef)], {
     canonicalRepository,
-    collection,
+    collectionBlock: collection,
   });
 
   const resolved = await assertOk(resolve("Canonical Blocked"));
@@ -191,7 +190,7 @@ function createTestResolve(
   materials: SourceMaterial[],
   options: {
     canonicalRepository?: ReturnType<typeof createInMemoryCanonicalRecordRepository>;
-    collection?: CollectionPort;
+    collectionBlock?: MaterialPolicyCollectionBlockPort;
   } = {},
 ) {
   let nextId = 1;
@@ -213,7 +212,10 @@ function createTestResolve(
     materialStore,
     sourceGrounding,
     sourceMaterializer: createMaterializationService({ materialStore }),
-    ...(options.collection === undefined ? {} : { collection: options.collection }),
+    materialPolicyEvaluator: createMaterialPolicyEvaluator({
+      materialStore,
+      ...(options.collectionBlock === undefined ? {} : { collection: options.collectionBlock }),
+    }),
   });
 
   return {

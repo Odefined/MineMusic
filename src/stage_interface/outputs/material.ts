@@ -112,6 +112,14 @@ export function compactPublicMaterialResolveOutput(
   const unresolved: CompactPublicMaterialResolveOutput["unresolved"] = [];
 
   for (const resolved of results) {
+    if (isPublicResolveDiagnosticStatus(resolved.status)) {
+      unresolved.push({
+        text: resolved.candidate.label,
+        reason: resolved.reason ?? publicResolveDiagnosticReason(resolved.status),
+      });
+      continue;
+    }
+
     for (const material of resolved.materials) {
       const card = compactCandidateMaterialCard(material);
       byMaterialId.set(card.materialId, card);
@@ -129,6 +137,20 @@ export function compactPublicMaterialResolveOutput(
     items: [...byMaterialId.values()],
     ...(unresolved.length === 0 ? {} : { unresolved }),
   };
+}
+
+function isPublicResolveDiagnosticStatus(
+  status: ResolvedCandidate["status"],
+): status is Extract<ResolvedCandidate["status"], "wrong_version" | "not_playable"> {
+  return status === "wrong_version" || status === "not_playable";
+}
+
+function publicResolveDiagnosticReason(
+  status: Extract<ResolvedCandidate["status"], "wrong_version" | "not_playable">,
+): string {
+  return status === "wrong_version"
+    ? "Resolved candidate is marked as the wrong version."
+    : "Resolved candidate does not have a playable result.";
 }
 
 export function compactMaterialQueryOutput(output: MaterialQueryOutput): CompactMaterialQueryOutput {

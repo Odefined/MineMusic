@@ -10,6 +10,7 @@ import {
   createMaterialSorter,
 } from "../../src/material/policy/index.js";
 import type {
+  MaterialPolicyCollectionBlockPort,
   MaterialPolicyStorePort,
   MaterialSorterStorePort,
   MaterialStorePort,
@@ -51,10 +52,14 @@ function createHarness(): {
   return { materialActivity, materialStore };
 }
 
-function createTestPolicyEvaluator(materialStore: MaterialPolicyStorePort, clock?: () => string) {
+function createTestPolicyEvaluator(
+  materialStore: MaterialPolicyStorePort,
+  options: { clock?: () => string; collectionBlock?: MaterialPolicyCollectionBlockPort } = {},
+) {
   return createMaterialPolicyEvaluator({
     materialStore,
-    ...(clock === undefined ? {} : { clock }),
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
+    ...(options.collectionBlock === undefined ? {} : { collection: options.collectionBlock }),
   });
 }
 
@@ -211,6 +216,69 @@ async function evaluatorDropsMaterialLevelBlockedForPresentation(): Promise<void
   assert(decision.code === "blocked", "presentation block should report blocked");
 }
 
+async function evaluatorMarksBlockedForMaterialResolution(): Promise<void> {
+  const { materialStore } = createHarness();
+  const sourceRef = ref("source:fixture", "track", "blocked-resolution");
+  const { material, record } = await putSourceBackedMaterial(materialStore, "Blocked Resolution", [sourceRef]);
+  await assertOk(
+    materialStore.putMaterialRelation({
+      relation: {
+        id: "blocked-resolution-relation",
+        ownerScope: "local_profile:default",
+        materialRef: record.materialRef,
+        relationKind: "blocked",
+        scope: { level: "material" },
+        source: "user_explicit",
+        status: "active",
+        createdAt: "2026-05-31T00:00:00.000Z",
+        updatedAt: "2026-05-31T00:00:00.000Z",
+      },
+    }),
+  );
+  const evaluator = createTestPolicyEvaluator(materialStore);
+
+  const decision = await assertOk(
+    evaluator.evaluate({
+      ownerScope: "local_profile:default",
+      materialId: record.materialRef.id,
+      material,
+      policy: {
+        purpose: "material_resolution",
+        excludeRelations: ["blocked", "wrong_version", "not_playable"],
+      },
+    }),
+  );
+
+  assert(decision.decision !== "drop", "material_resolution should not drop blocked materials");
+  assert(decision.material.state === "blocked", "material_resolution should mark blocked materials");
+}
+
+async function evaluatorMarksCollectionBlockedForMaterialResolution(): Promise<void> {
+  const { materialStore } = createHarness();
+  const sourceRef = ref("source:fixture", "track", "collection-blocked-resolution");
+  const { material, record } = await putSourceBackedMaterial(materialStore, "Collection Blocked Resolution", [sourceRef]);
+  const collectionBlock: MaterialPolicyCollectionBlockPort = {
+    filterBlockedMaterials: async () => ({ ok: true, value: [record.materialRef] }),
+  };
+  const evaluator = createTestPolicyEvaluator(materialStore, { collectionBlock });
+
+  const decision = await assertOk(
+    evaluator.evaluate({
+      ownerScope: "local_profile:default",
+      materialId: record.materialRef.id,
+      material,
+      policy: {
+        purpose: "material_resolution",
+        excludeRelations: ["blocked", "wrong_version", "not_playable"],
+      },
+    }),
+  );
+
+  assert(decision.decision === "degrade", "collection-blocked material_resolution should degrade rather than drop");
+  assert(decision.material.state === "blocked", "collection-blocked material_resolution should mark blocked state");
+  assert(decision.warnings.includes("blocked"), "collection-blocked material_resolution should report blocked warning");
+}
+
 async function evaluatorHidesNotPlayableSourceWhenOtherSourceRemains(): Promise<void> {
   const { materialStore } = createHarness();
   const blockedSource = ref("source:fixture", "track", "not-playable-source");
@@ -293,6 +361,44 @@ async function evaluatorDropsNotPlayableWhenNoDisplayableSourceRemains(): Promis
   assert(decision.code === "not_playable", "drop should report not_playable");
 }
 
+async function evaluatorKeepsNotPlayableForMaterialResolution(): Promise<void> {
+  const { materialStore } = createHarness();
+  const sourceRef = ref("source:fixture", "track", "resolution-not-playable");
+  const { material, record } = await putSourceBackedMaterial(materialStore, "Resolution Not Playable", [sourceRef]);
+  await assertOk(
+    materialStore.putMaterialRelation({
+      relation: {
+        id: "resolution-not-playable-relation",
+        ownerScope: "local_profile:default",
+        materialRef: record.materialRef,
+        relationKind: "not_playable",
+        scope: { level: "source", sourceRef },
+        source: "user_explicit",
+        status: "active",
+        createdAt: "2026-05-31T00:00:00.000Z",
+        updatedAt: "2026-05-31T00:00:00.000Z",
+      },
+    }),
+  );
+  const evaluator = createTestPolicyEvaluator(materialStore);
+
+  const decision = await assertOk(
+    evaluator.evaluate({
+      ownerScope: "local_profile:default",
+      materialId: record.materialRef.id,
+      material,
+      policy: {
+        purpose: "material_resolution",
+        excludeRelations: ["blocked", "wrong_version", "not_playable"],
+      },
+    }),
+  );
+
+  assert(decision.decision === "degrade", "material_resolution should preserve not_playable materials");
+  assert((decision.material.playableLinks?.length ?? 0) === 0, "material_resolution should still remove not_playable links");
+  assert(decision.warnings.includes("not_playable"), "material_resolution should report not_playable warning");
+}
+
 async function evaluatorRemovesWrongVersionSourceWithoutBlockingWholeMaterial(): Promise<void> {
   const { materialStore } = createHarness();
   const wrongSource = ref("source:fixture", "track", "wrong-version-source");
@@ -335,6 +441,45 @@ async function evaluatorRemovesWrongVersionSourceWithoutBlockingWholeMaterial():
   assert(decision.material.sourceRefs?.[0]?.id === keptSource.id, "kept source ref should remain");
 }
 
+async function evaluatorKeepsWrongVersionForMaterialResolution(): Promise<void> {
+  const { materialStore } = createHarness();
+  const sourceRef = ref("source:fixture", "track", "resolution-wrong-version");
+  const { material, record } = await putSourceBackedMaterial(materialStore, "Resolution Wrong Version", [sourceRef]);
+  await assertOk(
+    materialStore.putMaterialRelation({
+      relation: {
+        id: "resolution-wrong-version-relation",
+        ownerScope: "local_profile:default",
+        materialRef: record.materialRef,
+        relationKind: "wrong_version",
+        scope: { level: "source", sourceRef },
+        source: "user_explicit",
+        status: "active",
+        createdAt: "2026-05-31T00:00:00.000Z",
+        updatedAt: "2026-05-31T00:00:00.000Z",
+      },
+    }),
+  );
+  const evaluator = createTestPolicyEvaluator(materialStore);
+
+  const decision = await assertOk(
+    evaluator.evaluate({
+      ownerScope: "local_profile:default",
+      materialId: record.materialRef.id,
+      material,
+      policy: {
+        purpose: "material_resolution",
+        excludeRelations: ["blocked", "wrong_version", "not_playable"],
+      },
+    }),
+  );
+
+  assert(decision.decision === "degrade", "material_resolution should preserve wrong_version materials");
+  assert((decision.material.sourceRefs?.length ?? 0) === 0, "material_resolution should remove wrong-version source refs");
+  assert((decision.material.playableLinks?.length ?? 0) === 0, "material_resolution should remove wrong-version playable links");
+  assert(decision.warnings.includes("wrong_version"), "material_resolution should report wrong_version warning");
+}
+
 async function evaluatorDropsRecentHardButAllowsFreshnessOff(): Promise<void> {
   const { materialStore } = createHarness();
   const sourceRef = ref("source:fixture", "track", "recent-policy-source");
@@ -349,7 +494,7 @@ async function evaluatorDropsRecentHardButAllowsFreshnessOff(): Promise<void> {
       },
     }),
   );
-  const evaluator = createTestPolicyEvaluator(materialStore, () => "2026-05-31T01:30:00.000Z");
+  const evaluator = createTestPolicyEvaluator(materialStore, { clock: () => "2026-05-31T01:30:00.000Z" });
 
   const hardDecision = await assertOk(
     evaluator.evaluate({
@@ -477,9 +622,13 @@ await evaluatorDropsMissingMaterial();
 await evaluatorDoesNotAcceptSnapshotWhenLiveRecordIsMissing();
 await evaluatorProjectsLiveRecordWhenSnapshotIsAbsent();
 await evaluatorDropsMaterialLevelBlockedForPresentation();
+await evaluatorMarksBlockedForMaterialResolution();
+await evaluatorMarksCollectionBlockedForMaterialResolution();
 await evaluatorHidesNotPlayableSourceWhenOtherSourceRemains();
 await evaluatorDropsNotPlayableWhenNoDisplayableSourceRemains();
+await evaluatorKeepsNotPlayableForMaterialResolution();
 await evaluatorRemovesWrongVersionSourceWithoutBlockingWholeMaterial();
+await evaluatorKeepsWrongVersionForMaterialResolution();
 await evaluatorDropsRecentHardButAllowsFreshnessOff();
 await sorterPreservesOrder();
 await sorterUsesScoreWithoutDroppingBlockedItems();

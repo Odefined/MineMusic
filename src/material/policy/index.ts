@@ -3,6 +3,7 @@ import type {
   MaterialPolicyDecision,
   MaterialPolicyDropCode,
   MaterialPolicyEvaluationInput,
+  MaterialPolicyPurpose,
   MaterialRecord,
   MaterialSortCandidate,
   MaterialSortInput,
@@ -12,8 +13,8 @@ import type {
   Result,
 } from "../../contracts/index.js";
 import type {
-  CollectionPort,
   MaterialPolicyEvaluatorPort,
+  MaterialPolicyCollectionBlockPort,
   MaterialPolicyStorePort,
   MaterialSorterPort,
   MaterialSorterStorePort,
@@ -23,7 +24,7 @@ import { projectMaterialRelations } from "./relation_projection.js";
 
 type MaterialPolicyEvaluatorOptions = {
   materialStore: MaterialPolicyStorePort;
-  collection?: CollectionPort;
+  collection?: MaterialPolicyCollectionBlockPort;
   clock?: () => string;
 };
 
@@ -66,7 +67,7 @@ async function evaluateMaterialPolicy({
   now,
 }: {
   materialStore: MaterialPolicyStorePort;
-  collection?: CollectionPort;
+  collection?: MaterialPolicyCollectionBlockPort;
   input: MaterialPolicyEvaluationInput;
   now: string;
 }): Promise<Result<MaterialPolicyDecision>> {
@@ -101,8 +102,8 @@ async function evaluateMaterialPolicy({
     materialStore,
     ownerScope: input.ownerScope,
     material: material.value,
+    purpose: input.policy.purpose,
     excludeRelations: input.policy.excludeRelations ?? [],
-    dropBlockedByDefault: input.policy.purpose === "recommendation_presentation",
   });
 
   if (!relationEvaluated.ok) {
@@ -120,7 +121,8 @@ async function evaluateMaterialPolicy({
     ...(collection === undefined ? {} : { collection }),
     ownerScope: input.ownerScope,
     material: evaluatedMaterial,
-    shouldApply: input.policy.purpose === "recommendation_presentation" ||
+    shouldApply: input.policy.purpose === "material_resolution" ||
+      input.policy.purpose === "recommendation_presentation" ||
       (input.policy.excludeRelations ?? []).includes("blocked"),
   });
 
@@ -129,7 +131,12 @@ async function evaluateMaterialPolicy({
   }
 
   if (collectionBlocked.value) {
-    return ok(drop("blocked", "Material is blocked by collection policy."));
+    if (input.policy.purpose === "material_resolution") {
+      evaluatedMaterial = { ...evaluatedMaterial, state: "blocked" };
+      pushWarning(warnings, "blocked");
+    } else {
+      return ok(drop("blocked", "Material is blocked by collection policy."));
+    }
   }
 
   if (input.policy.availability === "playable" && (evaluatedMaterial.playableLinks?.length ?? 0) === 0) {
@@ -177,20 +184,26 @@ async function applyRelationPolicy({
   materialStore,
   ownerScope,
   material,
+  purpose,
   excludeRelations,
-  dropBlockedByDefault,
 }: {
   materialStore: MaterialPolicyStorePort;
   ownerScope: string;
   material: MusicMaterial;
+  purpose: MaterialPolicyPurpose;
   excludeRelations: NonNullable<MaterialPolicyEvaluationInput["policy"]["excludeRelations"]>;
-  dropBlockedByDefault: boolean;
 }): Promise<Result<MaterialPolicyDecision>> {
-  if (material.state === "blocked" && (dropBlockedByDefault || excludeRelations.includes("blocked"))) {
+  const relationMode = relationModeForPurpose(purpose);
+
+  if (
+    material.state === "blocked" &&
+    relationMode.materialBlockedBehavior === "drop" &&
+    (relationMode.dropBlockedByDefault || excludeRelations.includes("blocked"))
+  ) {
     return ok(drop("blocked", "Material is blocked."));
   }
 
-  if (excludeRelations.length === 0 && !dropBlockedByDefault) {
+  if (excludeRelations.length === 0 && !relationMode.dropBlockedByDefault) {
     return ok({ decision: "allow", material });
   }
 
@@ -208,12 +221,12 @@ async function applyRelationPolicy({
     material,
     relations: relations.value,
     shouldApplyRelation: (relation) =>
-      relation.relationKind === "blocked" && dropBlockedByDefault
+      relation.relationKind === "blocked" && relationMode.dropBlockedByDefault
         ? true
         : excludeRelations.includes(relation.relationKind as never),
-    materialBlockedBehavior: "drop",
-    dropWhenNotPlayableLeavesNoLinks: true,
-    dropWhenSourceRemovedToEmpty: true,
+    materialBlockedBehavior: relationMode.materialBlockedBehavior,
+    dropWhenNotPlayableLeavesNoLinks: relationMode.dropWhenNotPlayableLeavesNoLinks,
+    dropWhenSourceRemovedToEmpty: relationMode.dropWhenSourceRemovedToEmpty,
   });
 
   if (projected.decision === "drop") {
@@ -241,7 +254,7 @@ async function blockedByCollection({
   material,
   shouldApply,
 }: {
-  collection?: CollectionPort;
+  collection?: MaterialPolicyCollectionBlockPort;
   ownerScope: string;
   material: MusicMaterial;
   shouldApply: boolean;
@@ -264,6 +277,35 @@ async function blockedByCollection({
   }
 
   return ok(false);
+}
+
+function relationModeForPurpose(purpose: MaterialPolicyPurpose): {
+  materialBlockedBehavior: "mark" | "drop";
+  dropWhenNotPlayableLeavesNoLinks: boolean;
+  dropWhenSourceRemovedToEmpty: boolean;
+  dropBlockedByDefault: boolean;
+} {
+  if (purpose === "material_resolution") {
+    return {
+      materialBlockedBehavior: "mark",
+      dropWhenNotPlayableLeavesNoLinks: false,
+      dropWhenSourceRemovedToEmpty: false,
+      dropBlockedByDefault: false,
+    };
+  }
+
+  return {
+    materialBlockedBehavior: "drop",
+    dropWhenNotPlayableLeavesNoLinks: true,
+    dropWhenSourceRemovedToEmpty: true,
+    dropBlockedByDefault: purpose === "recommendation_presentation",
+  };
+}
+
+function pushWarning(warnings: string[], warning: string): void {
+  if (!warnings.includes(warning)) {
+    warnings.push(warning);
+  }
 }
 
 async function evaluateFreshness({

@@ -280,6 +280,7 @@ export type MaterialActivity = {
 export type MaterialPolicyPurpose =
   | "candidate_selection"
   | "recommendation_presentation"
+  | "material_resolution"
   | "feedback_target";
 
 export type MaterialFreshnessWindow =
@@ -1050,7 +1051,9 @@ export type MaterialResolveStatus =
   | "resolved"
   | "source_only"
   | "unresolved"
-  | "blocked";
+  | "blocked"
+  | "wrong_version"
+  | "not_playable";
 
 export type MaterialResolveIssue =
   | {
