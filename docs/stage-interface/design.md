@@ -24,7 +24,7 @@ service output records.
 | Stage Interface facade | `src/stage_interface/facade.ts` |
 | Governed dispatch | `src/stage_interface/dispatch.ts` |
 | Tool definitions | `src/stage_interface/tool_definitions/**` |
-| Stable names, descriptors, schemas | `src/stage_interface/tool_definitions/index.ts`, compatibility exports in `src/stage_interface/tools.ts` and `src/stage_interface/schemas.ts` |
+| Stable names, descriptors, schemas | `src/stage_interface/tool_definitions/index.ts`, public re-exports in `src/stage_interface/index.ts` |
 | Compact output projection | `src/stage_interface/outputs/**`, `src/stage_interface/outputs.ts` |
 | MCP adapter | `src/surfaces/mcp/server.ts` |
 | Handbook rendering | `src/handbook/index.ts`, `skills/minemusic/HANDBOOK.md` |

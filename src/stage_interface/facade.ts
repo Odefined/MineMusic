@@ -1,6 +1,6 @@
 import type { Result } from "../contracts/index.js";
 import type { ToolDispatchPort } from "../ports/index.js";
-import { stableToolNames, type StableToolName } from "./tools.js";
+import { stableToolNames, type StableToolName } from "./tool_definitions/index.js";
 
 export type MineMusicStageInterface = {
   tools: Record<StableToolName, (payload: unknown) => Promise<Result<unknown>>>;

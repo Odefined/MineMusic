@@ -7,17 +7,17 @@ export {
   musicToolDescriptors,
   stableToolNames,
   stageToolDescriptors,
-} from "./tools.js";
+  stageInterfaceToolInputSchemas,
+} from "./tool_definitions/index.js";
 export type {
   StableToolDescriptor,
   StableToolName,
-} from "./tools.js";
-export {
-  stageInterfaceToolInputSchemas,
-} from "./schemas.js";
-export type {
   StageInterfaceToolInputSchema,
-} from "./schemas.js";
+} from "./tool_definitions/index.js";
+export type {
+  MineMusicStageInterface,
+  MineMusicStageInterfaceOptions,
+} from "./facade.js";
 export { createInstrumentCatalog } from "./instruments.js";
 export { createToolDispatch } from "./dispatch.js";
 export { createMineMusicStageInterface } from "./facade.js";
@@ -38,10 +38,6 @@ export {
   stageToolDefinitions,
   stageToolNames,
 } from "./tool_definitions/index.js";
-export type {
-  MineMusicStageInterface,
-  MineMusicStageInterfaceOptions,
-} from "./facade.js";
 export type {
   BoundStageInterfaceToolDefinition,
   CanonicalReviewToolName,
