@@ -225,6 +225,49 @@ function publicMaterialResolveOutputCompactsDomainItemsAndUnresolved(): void {
   assert(!("sourceRef" in (output.unresolved?.[0] as Record<string, unknown>)), "unresolved query should not expose source refs");
 }
 
+function publicMaterialResolveOutputKeepsDiagnosticStatusesOutOfItems(): void {
+  const result: MaterialResolveResult = {
+    kind: "candidate_set",
+    results: [
+      {
+        candidate: { id: "query:wrong", label: "Wrong Version Seed", query: { text: "Wrong Version Seed" } },
+        status: "wrong_version",
+        materials: [
+          material("grounded", {
+            label: "Wrong Version Track",
+            sourceRefs: [],
+            playableLinks: [],
+          }),
+        ],
+      },
+      {
+        candidate: { id: "query:muted", label: "Not Playable Seed", query: { text: "Not Playable Seed" } },
+        status: "not_playable",
+        materials: [
+          material("grounded", {
+            label: "Muted Track",
+            playableLinks: [],
+          }),
+        ],
+      },
+    ],
+  };
+
+  const output = compactPublicMaterialResolveOutput(result);
+
+  assert(output.items.length === 0, "diagnostic-only resolve statuses should not become public material cards");
+  assert(output.unresolved?.[0]?.text === "Wrong Version Seed", "wrong_version candidate should move to unresolved diagnostics");
+  assert(
+    output.unresolved?.[0]?.reason === "Resolved candidate is marked as the wrong version.",
+    "wrong_version diagnostic should explain why no public card was emitted",
+  );
+  assert(output.unresolved?.[1]?.text === "Not Playable Seed", "not_playable candidate should move to unresolved diagnostics");
+  assert(
+    output.unresolved?.[1]?.reason === "Resolved candidate does not have a playable result.",
+    "not_playable diagnostic should explain why no public card was emitted",
+  );
+}
+
 function recommendationPresentOutputCompactsDomainItemsToCards(): void {
   const sourceRef = ref("source:fixture", "track", "presented-track");
   const output: RecommendationPresentOutput = {
@@ -268,4 +311,5 @@ materialQueryOutputsCompactDomainItems();
 materialRelatedOutputsCompactDomainItems();
 materialSelectOutputCompactsDomainItems();
 publicMaterialResolveOutputCompactsDomainItemsAndUnresolved();
+publicMaterialResolveOutputKeepsDiagnosticStatusesOutOfItems();
 recommendationPresentOutputCompactsDomainItemsToCards();

@@ -3,7 +3,9 @@
 Repository reviewed: `Odefined/MineMusic`  
 Review date: 2026-06-02  
 Scope: context documents, ADRs, and targeted source/tests around candidate architecture seams. No implementation was performed.
-Status sync: 2026-06-03. Candidate 1 has since been implemented on current `main` by PR #52 (`Clean up collection item boundary`), so GitHub issue #45 is closed as completed.
+Historical note: current implementation state and sequencing decisions live in
+`CURRENT_STATE.md`, `PROGRESS.md`, and area `progress.md` documents. This file
+captures the architecture review itself rather than live branch/PR status.
 
 ## Scope and governing constraints read
 
@@ -48,20 +50,18 @@ The constraints are explicit. `AGENTS.md` says ordinary modules should receive t
 
 ## Candidate ranking
 
-| Status / Rank | Candidate | Strength |
+| Rank | Candidate | Strength |
 |---:|---|---|
-| Resolved | Compact collection outputs at the Stage Interface Seam | Strong; implemented by PR #52 |
-| Resolved | Narrow Material-facing Collection capabilities and route Resolve relation policy through Policy | Strong; implemented on `codex/material-collection-policy-handoff` |
-| 1 | Split the monolithic music Tool Group by work area, not by tool count | Worth exploring |
-| 2 | Deepen Material Query internals around related-candidate and pool-catalog behavior | Worth exploring |
-| 3 | Treat source-library pool output as a public protocol decision | Speculative |
-| 4 | Move misplaced Stage Interface output/input helpers into their owning Modules | Worth exploring |
+| 1 | Compact collection outputs at the Stage Interface Seam | Strong |
+| 2 | Narrow Material-facing Collection capabilities and route Resolve relation policy through Policy | Strong |
+| 3 | Split the monolithic music Tool Group by work area, not by tool count | Worth exploring |
+| 4 | Deepen Material Query internals around related-candidate and pool-catalog behavior | Worth exploring |
+| 5 | Treat source-library pool output as a public protocol decision | Speculative |
+| 6 | Move misplaced Stage Interface output/input helpers into their owning Modules | Worth exploring |
 
 ---
 
 ## Candidate 1: Compact collection outputs at the Stage Interface Seam
-
-**Status:** Resolved on current `main` by PR #52 (`Clean up collection item boundary`). GitHub issue #45 is closed as completed after the 2026-06-03 sync.
 
 **Original recommendation strength:** Strong
 
@@ -104,8 +104,6 @@ The normal public collection surface no longer returns raw `Collection` or `Coll
 
 ### Remaining follow-up
 
-No implementation follow-up remains for issue #45.
-
 If a future diagnostic or audit view needs raw-ish Collection Service details, it should be introduced as an explicit diagnostic surface rather than by widening the ordinary `music.collection.*` outputs.
 
 ### Before/After diagram
@@ -135,8 +133,6 @@ flowchart LR
 ---
 
 ## Candidate 2: Narrow Material-facing Collection capabilities and route Resolve relation policy through Policy
-
-**Status:** Implemented on branch `codex/material-collection-policy-handoff`; GitHub issue #46 can be closed on merge.
 
 **Recommendation strength:** Strong
 
@@ -804,11 +800,17 @@ flowchart LR
 
 ## Top recommendation and why
 
-After the 2026-06-03 implementation sync, **Candidate 1: Compact collection outputs at the Stage Interface Seam** is complete on current `main`, and **Candidate 2: narrow Material-facing Collection capabilities and route Resolve relation policy through Policy** is implemented on branch `codex/material-collection-policy-handoff`.
+At review time, the strongest next slice after collection-output cleanup was
+**Candidate 2: narrow Material-facing Collection capabilities and route Resolve
+relation policy through Policy**.
 
-Start next with **Candidate 3: split the monolithic music Tool Group by work area, not by tool count**.
-
-Reason: the strongest remaining issue is now Stage Interface surface shape rather than an unresolved capability leak. Candidate 3 is the next slice that can improve agent comprehension and tool ownership without reopening the just-finished Material Flow boundary work.
+Reason: Material Query was receiving full `CollectionPort` even though it only
+read `listCollections` and `listItems`; Material Policy also received broad
+collection authority even though it only needed blocked-membership evidence;
+and Material Resolve directly read Collection blocked membership and relation
+projection logic even though those semantics belonged to Material Policy.
+Narrowing those dependencies was the cleanest architecture move available in
+this review.
 
 ## What not to change yet
 
@@ -828,5 +830,8 @@ Do not hide provider/account fields in `music.pools.list` without owner judgment
 4. Should Material Query expose `contextBrief` and `listPools` as optional capabilities on the same created service, or should Stage Interface receive them as separate capabilities for better availability?
 
 ## Which candidate should we explore first?
+
+This review answered that question at review time. Current sequencing belongs
+in the project and area progress documents rather than this report.
 
 Pick one: **Material-facing Collection capability narrowing and Resolve policy handoff** for the highest-Leverage architecture guard, or **music Tool Group internal split** if Stage Interface locality should take priority over Material Flow boundaries.
