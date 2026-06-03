@@ -136,6 +136,40 @@ Library browsing path. Public source-library pools use `libraryKinds` and
 optional `target`. The old public `areas` / `expand` Source Library browsing
 language is archived.
 
+## Collection Output Policy
+
+Public collection actions use `materialId` inputs and return compact public
+outputs owned by Stage Interface.
+
+Collection write outputs expose only:
+
+```ts
+{
+  itemId: string;
+  collectionId: string;
+  materialId: string;
+}
+```
+
+`music.collection.list` exposes only:
+
+```ts
+{
+  collections: Array<{ collectionId: string; label: string }>;
+  items: Array<{
+    itemId: string;
+    collectionId: string;
+    materialId: string;
+    label: string;
+  }>;
+}
+```
+
+Ordinary public collection outputs must not expose raw `materialRef`,
+`canonicalRef`, source refs, material snapshots, relation scopes, identity
+requirements, stored status fields, storage timestamps, or repository-shaped
+rows.
+
 ## Presentation And Feedback
 
 `stage.recommendation.present` is the public final presentation boundary. It

@@ -72,6 +72,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function assertCompactCollectionItemOutput(value: unknown, message: string): asserts value is {
+  itemId: string;
+  collectionId: string;
+  materialId: string;
+} {
+  assert(isRecord(value), message);
+  assert(value.itemId === "collection-item-1", `${message}: itemId`);
+  assert(value.collectionId === "collection-saved-recordings", `${message}: collectionId`);
+  assert(value.materialId === "quiet-track", `${message}: materialId`);
+  assert(!("materialRef" in value), `${message}: should hide materialRef`);
+  assert(!("canonicalRef" in value), `${message}: should hide canonicalRef`);
+  assert(!("createdAt" in value), `${message}: should hide storage timestamps`);
+}
+
 async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
@@ -126,7 +140,7 @@ const collectionRef: Ref = {
 const collectionItem: CollectionItem = {
   id: "collection-item-1",
   collectionId: "collection-saved-recordings",
-  canonicalRef: collectionRef,
+  materialRef: { namespace: "minemusic", kind: "material", id: "quiet-track" },
   label: "Quiet Track",
   createdAt: "2026-05-24T00:00:00.000Z",
 };
@@ -1048,7 +1062,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     materialStore,
   });
 
-  await assertOk(
+  const saved = await assertOk(
     dispatch.call({
       sessionId: session.id,
       toolName: "music.collection.save",
@@ -1113,6 +1127,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     calls.includes("add-material:local_profile:default:saved:quiet-track"),
     "collection save should default missing owner scope",
   );
+  assertCompactCollectionItemOutput(saved, "collection save should return compact item output");
   assert(calls.includes("label:saved:Quiet Track"), "collection save should derive labels from material projection");
   assert(
     calls.includes("remove-material:local_profile:default:saved:quiet-track"),
@@ -1343,6 +1358,26 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
       Array.isArray((listed as { items?: unknown }).items),
     "collection list should return collections and items",
   );
+  const listedOutput = listed as {
+    collections: Array<Record<string, unknown>>;
+    items: Array<Record<string, unknown>>;
+  };
+  assert(
+    listedOutput.collections[0]?.collectionId === customCollection.id &&
+      listedOutput.collections[0]?.label === "Night coding" &&
+      !("ownerScope" in listedOutput.collections[0]) &&
+      !("relationKind" in listedOutput.collections[0]),
+    "collection list should return compact collection output",
+  );
+  assert(
+    listedOutput.items[0]?.itemId === "collection-item-1" &&
+      listedOutput.items[0]?.collectionId === customCollection.id &&
+      listedOutput.items[0]?.materialId === "quiet-track" &&
+      listedOutput.items[0]?.label === "Quiet Track" &&
+      !("materialRef" in listedOutput.items[0]) &&
+      !("createdAt" in listedOutput.items[0]),
+    "collection list should return compact item output",
+  );
 }
 
 async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<void> {
@@ -1424,15 +1459,14 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
     payload: {
       collectionId: custom.id,
       materialId: artist.materialRef.id,
-      canonicalRef: { namespace: "minemusic", kind: "recording", id: "fake-recording" },
       label: "Artist One",
     },
   });
 
-  assert(!added.ok, "compact custom collection add should reject mismatched material kind even with a fake canonical hint");
+  assert(!added.ok, "compact custom collection add should reject mismatched material kind");
   assert(
     added.ok === false && added.error.code === "collection.kind_mismatch",
-    "compact custom collection add should ignore public target hints and validate against the material record kind",
+    "compact custom collection add should validate against the material record kind",
   );
 }
 

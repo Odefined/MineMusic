@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 import type {
+  Collection,
   CollectionItem,
   CollectionKind,
   CollectionRelationKind,
@@ -42,11 +43,14 @@ import type {
 } from "./types.js";
 import { materialForMaterialId, materialIdToRef } from "../../material/projection/index.js";
 import {
+  compactCollectionItemOutput,
+  compactCollectionListOutput,
+  compactCollectionOutput,
   compactMaterialQueryOutput,
   compactMaterialRelatedOutput,
   compactPublicMaterialResolveOutput,
   compactMaterialSelectOutput,
-} from "../outputs/material.js";
+} from "../outputs/index.js";
 import { publicDisplayLinksForMaterial } from "../outputs/links.js";
 import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.js";
 
@@ -477,7 +481,7 @@ export const musicToolDefinitions = [
     name: "music.collection.save",
     description: "Save a material to the owner's saved system collection.",
     inputSchemaRef: "CollectionSystemItemInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -488,12 +492,13 @@ export const musicToolDefinitions = [
     handler({ context, payload }) {
       return dispatchSystemCollectionAdd(context, payload, "saved");
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.unsave",
     description: "Remove a material from the owner's saved system collection.",
     inputSchemaRef: "CollectionSystemRemoveInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -503,12 +508,13 @@ export const musicToolDefinitions = [
     handler({ context, payload }) {
       return dispatchSystemCollectionRemove(context.collection, payload, "saved");
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.favorite",
     description: "Favorite a material in the owner's favorite system collection.",
     inputSchemaRef: "CollectionSystemItemInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -519,12 +525,13 @@ export const musicToolDefinitions = [
     handler({ context, payload }) {
       return dispatchSystemCollectionAdd(context, payload, "favorite");
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.unfavorite",
     description: "Remove a material from the owner's favorite system collection.",
     inputSchemaRef: "CollectionSystemRemoveInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -534,12 +541,13 @@ export const musicToolDefinitions = [
     handler({ context, payload }) {
       return dispatchSystemCollectionRemove(context.collection, payload, "favorite");
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.block",
     description: "Block a material from future recommendations for the owner.",
     inputSchemaRef: "CollectionSystemItemInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -550,12 +558,13 @@ export const musicToolDefinitions = [
     handler({ context, payload }) {
       return dispatchSystemCollectionAdd(context, payload, "blocked");
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.unblock",
     description: "Remove a material from the owner's blocked system collection.",
     inputSchemaRef: "CollectionSystemRemoveInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -565,12 +574,13 @@ export const musicToolDefinitions = [
     handler({ context, payload }) {
       return dispatchSystemCollectionRemove(context.collection, payload, "blocked");
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.item.add",
     description: "Add a material to a custom collection by collection id.",
     inputSchemaRef: "CollectionItemAddInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       collectionId: z.string(),
@@ -604,12 +614,13 @@ export const musicToolDefinitions = [
         ...(input.description === undefined ? {} : { description: input.description }),
       });
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.item.remove",
     description: "Remove a material from a custom collection by collection id.",
     inputSchemaRef: "CollectionItemRemoveInput",
-    outputSchemaRef: "CollectionItem",
+    outputSchemaRef: "CompactCollectionItemOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       collectionId: z.string(),
@@ -634,12 +645,13 @@ export const musicToolDefinitions = [
         materialRef,
       });
     },
+    present: (value) => compactCollectionItemOutput(value as CollectionItem),
   },
   {
     name: "music.collection.create",
     description: "Create a user-owned custom collection for one collection kind.",
     inputSchemaRef: "CollectionCreateInput",
-    outputSchemaRef: "Collection",
+    outputSchemaRef: "CompactCollectionOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -659,12 +671,13 @@ export const musicToolDefinitions = [
         relationKind: "custom",
       });
     },
+    present: (value) => compactCollectionOutput(value as Collection),
   },
   {
     name: "music.collection.update",
     description: "Update a user-created custom collection label or description.",
     inputSchemaRef: "CollectionUpdateInput",
-    outputSchemaRef: "Collection",
+    outputSchemaRef: "CompactCollectionOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       collectionId: z.string(),
@@ -682,12 +695,13 @@ export const musicToolDefinitions = [
         readPayload<CollectionUpdatePayload>(payload),
       );
     },
+    present: (value) => compactCollectionOutput(value as Collection),
   },
   {
     name: "music.collection.delete",
     description: "Soft-remove a user-created custom collection.",
     inputSchemaRef: "CollectionDeleteInput",
-    outputSchemaRef: "Collection",
+    outputSchemaRef: "CompactCollectionOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       collectionId: z.string(),
@@ -703,12 +717,13 @@ export const musicToolDefinitions = [
         readPayload<{ collectionId: string }>(payload),
       );
     },
+    present: (value) => compactCollectionOutput(value as Collection),
   },
   {
     name: "music.collection.list",
     description: "List owner collections and matching collection items.",
     inputSchemaRef: "CollectionListInput",
-    outputSchemaRef: "CollectionListOutput",
+    outputSchemaRef: "CompactCollectionListOutput",
     availability: "requires_active_instrument",
     inputSchema: {
       ownerScope: z.string().optional(),
@@ -744,6 +759,7 @@ export const musicToolDefinitions = [
         items: items.value,
       });
     },
+    present: (value) => compactCollectionListOutput(value as { collections: Collection[]; items: CollectionItem[] }),
   },
 ] satisfies readonly StageInterfaceToolDefinition<MusicToolName, MusicToolGroupContext>[];
 

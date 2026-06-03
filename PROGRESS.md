@@ -108,6 +108,10 @@ details live in area `progress.md` files listed in `INDEX.md`.
 - Addressed PR #44 review feedback by correcting Library Import / Collection
   documentation drift and narrowing Library Import to
   `LibraryImportMaterialStorePort` with architecture guards.
+- Completed PR 4 Collection Item boundary cleanup: pre-code docs sync,
+  CollectionItem compatibility-field deletion, collection query fallback
+  removal, compact Stage Interface collection outputs, guards, and final docs
+  sync.
 
 ## Next
 

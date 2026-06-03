@@ -24,18 +24,10 @@ export function initializeCollectionSchema(database: DatabaseSync): void {
     CREATE TABLE IF NOT EXISTS collection_items (
       id TEXT PRIMARY KEY,
       collection_id TEXT NOT NULL,
-      canonical_namespace TEXT,
-      canonical_kind TEXT,
-      canonical_id TEXT,
-      canonical_ref_json TEXT,
-      material_namespace TEXT,
-      material_kind TEXT,
-      material_id TEXT,
-      material_ref_json TEXT,
-      material_snapshot_json TEXT,
-      relation_scope_json TEXT,
-      identity_requirement TEXT,
-      status TEXT,
+      material_namespace TEXT NOT NULL,
+      material_kind TEXT NOT NULL,
+      material_id TEXT NOT NULL,
+      material_ref_json TEXT NOT NULL,
       label TEXT NOT NULL,
       description TEXT,
       position INTEGER,
@@ -43,9 +35,6 @@ export function initializeCollectionSchema(database: DatabaseSync): void {
       removed_at TEXT,
       updated_at TEXT NOT NULL
     );
-
-    CREATE INDEX IF NOT EXISTS collection_items_membership_idx
-      ON collection_items(collection_id, canonical_namespace, canonical_kind, canonical_id, removed_at);
 
     CREATE INDEX IF NOT EXISTS collection_items_collection_idx
       ON collection_items(collection_id, removed_at);

@@ -172,6 +172,10 @@ listing keeps `sourceRef`.
   related pools.
 - Public collection add/save/favorite/block schemas hide `canonicalRef`,
   `materialRef`, and `label`; handlers derive labels from material projection.
+- Public collection outputs are compact Stage Interface projections:
+  collection item actions return `itemId`, `collectionId`, and `materialId`;
+  `music.collection.list` returns collection ids/labels and item ids,
+  collection ids, material ids, and item labels.
 - Public presentation links without raw `sourceRef` exposure; feedback binding
   source refs remain in persisted presentation snapshots.
 - Stage Interface output modules for material and recommendation compact
@@ -194,15 +198,15 @@ listing keeps `sourceRef`.
 
 ## Verification
 
-- `npm run typecheck` passes as of recommendation-posture PR 7.
-- `npm run build:test` passes as of recommendation-posture PR 7.
+- `npm run typecheck` passes as of PR 4 Collection Item boundary cleanup.
+- `npm run build:test` passes as of PR 4 Collection Item boundary cleanup.
 - `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
-  passes as of recommendation-posture PR 7.
+  passes as of PR 4 Collection Item boundary cleanup.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
-  recommendation-posture PR 7.
+  PR 4 Collection Item boundary cleanup.
 - `node .tmp-test/test/surfaces/mcp-server.test.js` passes as of the Stage
   Interface recommendation presentation, feedback, and typed parser coverage.
-- `npm test` passes as of recommendation-posture PR 7.
+- `npm test` passes as of PR 4 Collection Item boundary cleanup.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js` passes as of
   the recommendation-posture follow-up schema drift regression.
 - `npm run typecheck`, `npm run build:test`, and focused Stage Interface,

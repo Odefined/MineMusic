@@ -119,62 +119,62 @@ Output: `MusicLinksRefreshOutput`
 
 Description: Save a material to the owner's saved system collection.
 Input: `CollectionSystemItemInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.unsave`
 
 Description: Remove a material from the owner's saved system collection.
 Input: `CollectionSystemRemoveInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.favorite`
 
 Description: Favorite a material in the owner's favorite system collection.
 Input: `CollectionSystemItemInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.unfavorite`
 
 Description: Remove a material from the owner's favorite system collection.
 Input: `CollectionSystemRemoveInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.block`
 
 Description: Block a material from future recommendations for the owner.
 Input: `CollectionSystemItemInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.unblock`
 
 Description: Remove a material from the owner's blocked system collection.
 Input: `CollectionSystemRemoveInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.item.add`
 
 Description: Add a material to a custom collection by collection id.
 Input: `CollectionItemAddInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.item.remove`
 
 Description: Remove a material from a custom collection by collection id.
 Input: `CollectionItemRemoveInput`
-Output: `CollectionItem`
+Output: `CompactCollectionItemOutput`
 #### `music.collection.create`
 
 Description: Create a user-owned custom collection for one collection kind.
 Input: `CollectionCreateInput`
-Output: `Collection`
+Output: `CompactCollectionOutput`
 #### `music.collection.update`
 
 Description: Update a user-created custom collection label or description.
 Input: `CollectionUpdateInput`
-Output: `Collection`
+Output: `CompactCollectionOutput`
 #### `music.collection.delete`
 
 Description: Soft-remove a user-created custom collection.
 Input: `CollectionDeleteInput`
-Output: `Collection`
+Output: `CompactCollectionOutput`
 #### `music.collection.list`
 
 Description: List owner collections and matching collection items.
 Input: `CollectionListInput`
-Output: `CollectionListOutput`
+Output: `CompactCollectionListOutput`
 ### MineMusic Library (`minemusic.library`)
 
 #### Providers

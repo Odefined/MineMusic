@@ -46,9 +46,11 @@ source/canonical/evidence details stay behind internal Material Store and
 Material Resolve boundaries unless a diagnostic tool explicitly asks for them.
 Stage Interface collection tools accept `materialId`
 for material actions without exposing internal
-snapshot/relation-scope fields in the normal public schemas, and Collection
-Service uses Material Registry redirects plus MaterialRecord kind inference
-when filtering, adding, or removing material-backed collection items.
+snapshot/relation-scope fields in the normal public schemas. Collection
+outputs are also owned by Stage Interface and should be compact public ids and
+labels rather than raw Collection Service records. Collection Service uses
+Material Registry redirects plus MaterialRecord kind inference when filtering,
+adding, or removing material-backed collection items.
 Compact cards expose the domain `MaterialState` directly as `state`, while
 display links indicate playable-link availability and identity certainty stays
 in internal event snapshots and detail tools. Link refresh is also material-id
@@ -171,7 +173,7 @@ Stage Interface depends on the specific port it needs.
 | Material Activity inside Material Store | Recent recommendation/open/play/skip projection keyed by owner scope and `materialRef` for future dedupe and ranking | factual event history, platform listening history, final recommendation judgment |
 | Canonical Store inside Material Store | MineMusic-owned canonical records, identity anchors, Canonical Maintenance review/apply policy, provisional review facts, and canonical graph maintenance | provider account library state, Source Library membership, ordinary Library Import source binding |
 | Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
-| Collection Service | owner-scoped Collections, materialRef-backed CollectionItems, saved/favorite/blocked/custom membership, and blocked material membership lookup | canonical identity, source refs, provider search, final recommendation selection |
+| Collection Service | owner-scoped Collections, materialRef-backed CollectionItems, saved/favorite/blocked/custom membership, and blocked material membership lookup | canonical identity, source refs, provider search, final recommendation selection, public compact output projection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
 | Material Resolve | canonical-first candidate lookup, Source Grounding orchestration, explicit Source Library scoped discovery, material relation filtering, `MaterialResolveResult` status, confirmed binding lookup, and resolve issue/status aggregation; delegates registry materialization | provider internals, playable-link refresh, canonical writes, Collection writes, registry materialization writes, final recommendation selection |
 | Material Projection | `materialId` / `materialRef` / current `MaterialRecord` to domain `MusicMaterial` projection through narrow projection reads, including label, source refs, playable links, and projected material state | query orchestration, registry writes, Stage Interface compact DTOs, recommendation presentation |

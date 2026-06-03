@@ -676,10 +676,6 @@ export interface CollectionPort {
     materialRef: Ref;
     label: string;
     collectionKind?: CollectionKind;
-    canonicalRef?: Ref;
-    materialSnapshot?: CollectionItem["materialSnapshot"];
-    relationScope?: CollectionItem["relationScope"];
-    identityRequirement?: CollectionItem["identityRequirement"];
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
@@ -694,10 +690,6 @@ export interface CollectionPort {
     collectionId: string;
     materialRef: Ref;
     label: string;
-    canonicalRef?: Ref;
-    materialSnapshot?: CollectionItem["materialSnapshot"];
-    relationScope?: CollectionItem["relationScope"];
-    identityRequirement?: CollectionItem["identityRequirement"];
     description?: string;
   }): Promise<Result<CollectionItem>>;
 
@@ -903,12 +895,6 @@ export interface CollectionRepository {
   getItem(input: { itemId: string }): Promise<Result<CollectionItem | null>>;
 
   putItem(input: { item: CollectionItem }): Promise<Result<CollectionItem>>;
-
-  findItemByMembership(input: {
-    collectionId: string;
-    canonicalRef: Ref;
-    includeRemoved?: boolean;
-  }): Promise<Result<CollectionItem | null>>;
 
   findItemByMaterialMembership(input: {
     collectionId: string;

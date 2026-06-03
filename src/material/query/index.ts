@@ -71,7 +71,6 @@ export function createMaterialQueryService({
       const resolved = pool.kind === "collection"
         ? await collectionMaterials({
             materialStore,
-            materialResolve,
             ...(collection === undefined ? {} : { collection }),
             ownerScope,
             pool,
@@ -373,14 +372,12 @@ function validateSourceLibraryPoolTarget(
 
 async function collectionMaterials({
   materialStore,
-  materialResolve,
   collection,
   ownerScope,
   pool,
   q,
 }: {
   materialStore: MaterialProjectionStorePort;
-  materialResolve: MaterialResolvePort;
   collection?: CollectionPort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "collection" }>;
@@ -401,7 +398,6 @@ async function collectionMaterials({
   for (const item of items.value.filter((entry) => matchesQueryText(entry.label, q))) {
     const itemMaterials = await materialForCollectionItem({
       materialStore,
-      materialResolve,
       ownerScope,
       item,
     });
@@ -450,36 +446,18 @@ async function collectionItemsForPool({
 
 async function materialForCollectionItem({
   materialStore,
-  materialResolve,
   ownerScope,
   item,
 }: {
   materialStore: MaterialProjectionStorePort;
-  materialResolve: MaterialResolvePort;
   ownerScope: string;
   item: CollectionItem;
 }): Promise<Result<MusicMaterial[]>> {
-  if (item.materialRef !== undefined) {
-    const material = await materialForCollectionMaterialRef({
-      materialStore,
-      ownerScope,
-      item,
-      materialRef: item.materialRef,
-    });
-
-    if (!material.ok || material.value.length > 0 || item.canonicalRef === undefined) {
-      return material;
-    }
-  }
-
-  if (item.canonicalRef === undefined) {
-    return ok([]);
-  }
-
-  return resolveCandidates({
-    materialResolve,
+  return materialForCollectionMaterialRef({
+    materialStore,
     ownerScope,
-    candidates: [candidateForCollectionItem(item)],
+    item,
+    materialRef: item.materialRef,
   });
 }
 
@@ -507,7 +485,7 @@ async function materialForCollectionMaterialRef({
   const material = await projectMaterialRecord(materialStore, record.value, {
     ownerScope,
     purpose: "collection.snapshot",
-    fallbackLabel: item.materialSnapshot?.label ?? item.label,
+    fallbackLabel: item.label,
   });
 
   return material.ok ? ok([material.value]) : material;
@@ -563,25 +541,6 @@ async function tracklistCandidatesForReleaseItem(
         },
       }]),
   );
-}
-
-function candidateForCollectionItem(item: CollectionItem): MusicCandidate {
-  const canonicalRef = item.canonicalRef;
-
-  if (canonicalRef === undefined) {
-    throw new Error("Collection material-only items cannot be resolved through canonical collection compatibility.");
-  }
-
-  return {
-    id: `collection:${item.id}`,
-    label: item.label,
-    expectedKind: canonicalRef.kind,
-    canonicalRef,
-    query: {
-      text: item.label,
-      canonicalRef,
-    },
-  };
 }
 
 type SelectableMaterialCandidate = {

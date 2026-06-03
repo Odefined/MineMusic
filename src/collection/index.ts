@@ -115,10 +115,6 @@ export function createCollectionService({
       materialRef,
       label,
       collectionKind,
-      canonicalRef,
-      materialSnapshot,
-      relationScope,
-      identityRequirement,
       description,
     }) {
       const currentMaterialRef = await resolveCurrentMaterialRef(materialStore, materialRef);
@@ -131,8 +127,6 @@ export function createCollectionService({
         materialStore,
         materialRef: currentMaterialRef.value,
         ...(collectionKind === undefined ? {} : { collectionKind }),
-        ...(canonicalRef === undefined ? {} : { canonicalRef }),
-        ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
       });
 
       if (!resolvedCollectionKind.ok) {
@@ -144,8 +138,6 @@ export function createCollectionService({
         materialRef: currentMaterialRef.value,
         collectionKind: resolvedCollectionKind.value,
         rejectUnknownMaterial: collectionKind === undefined,
-        ...(canonicalRef === undefined ? {} : { canonicalRef }),
-        ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
       });
 
       if (!kindMatch.ok) {
@@ -186,11 +178,6 @@ export function createCollectionService({
         collection: collection.value,
         materialRef: currentMaterialRef.value,
         label,
-        relationKind,
-        ...(canonicalRef === undefined ? {} : { canonicalRef }),
-        ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
-        relationScope: relationScope ?? { level: "material" },
-        identityRequirement: identityRequirementForMaterialRelation(relationKind, identityRequirement),
         ...(description === undefined ? {} : { description }),
       });
     },
@@ -253,10 +240,6 @@ export function createCollectionService({
       collectionId,
       materialRef,
       label,
-      canonicalRef,
-      materialSnapshot,
-      relationScope,
-      identityRequirement,
       description,
     }) {
       const collection = await getActiveCollection(repository, collectionId);
@@ -276,8 +259,6 @@ export function createCollectionService({
         materialRef: currentMaterialRef.value,
         collectionKind: collection.value.collectionKind,
         rejectUnknownMaterial: true,
-        ...(canonicalRef === undefined ? {} : { canonicalRef }),
-        ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
       });
 
       if (!kindMatch.ok) {
@@ -293,14 +274,6 @@ export function createCollectionService({
         collection: collection.value,
         materialRef: currentMaterialRef.value,
         label,
-        relationKind: collection.value.relationKind,
-        ...(canonicalRef === undefined ? {} : { canonicalRef }),
-        ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
-        relationScope: relationScope ?? { level: "material" },
-        identityRequirement: identityRequirementForMaterialRelation(
-          collection.value.relationKind,
-          identityRequirement,
-        ),
         ...(description === undefined ? {} : { description }),
       });
     },
@@ -469,7 +442,7 @@ export function createCollectionService({
             return item;
           }
 
-          if (item.value !== null && (item.value.status ?? "active") === "active") {
+          if (item.value !== null) {
             blockedRefs.push(materialRef);
             break;
           }
@@ -563,11 +536,6 @@ async function addMaterialToResolvedCollection({
   clock,
   collection,
   materialRef,
-  canonicalRef,
-  materialSnapshot,
-  relationScope,
-  identityRequirement,
-  relationKind,
   label,
   description,
 }: {
@@ -578,11 +546,6 @@ async function addMaterialToResolvedCollection({
   clock: () => string;
   collection: Collection;
   materialRef: Ref;
-  canonicalRef?: Ref;
-  materialSnapshot?: CollectionItem["materialSnapshot"];
-  relationScope: CollectionItem["relationScope"];
-  identityRequirement: NonNullable<CollectionItem["identityRequirement"]>;
-  relationKind: CollectionRelationKind;
   label: string;
   description?: string;
 }): Promise<Result<CollectionItem>> {
@@ -598,22 +561,12 @@ async function addMaterialToResolvedCollection({
     return existing;
   }
 
-  const status = collectionItemStatusForMaterial({
-    relationKind,
-    identityRequirement,
-    ...(canonicalRef === undefined ? {} : { canonicalRef }),
-  });
   const item =
     existing.value === null
       ? {
           id: idFactory(),
           collectionId: collection.id,
           materialRef,
-          ...(canonicalRef === undefined ? {} : { canonicalRef }),
-          ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
-          ...(relationScope === undefined ? {} : { relationScope }),
-          identityRequirement,
-          status,
           label,
           ...(description === undefined ? {} : { description }),
           createdAt: clock(),
@@ -621,11 +574,6 @@ async function addMaterialToResolvedCollection({
       : activeCollectionItem({
           ...existing.value,
           materialRef,
-          ...(canonicalRef === undefined ? {} : { canonicalRef }),
-          ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
-          ...(relationScope === undefined ? {} : { relationScope }),
-          identityRequirement,
-          status,
           label,
           ...(description === undefined ? {} : { description }),
         });
@@ -755,7 +703,6 @@ async function removeMaterialFromResolvedCollection({
   const removed = await repository.putItem({
     item: {
       ...item.value,
-      status: "removed",
       removedAt: clock(),
     },
   });
@@ -779,14 +726,6 @@ async function removeMaterialFromResolvedCollection({
 
 function activeCollectionItem(item: CollectionItem): CollectionItem {
   const { removedAt: _removedAt, ...activeItem } = item;
-
-  if (activeItem.status === "removed") {
-    return {
-      ...activeItem,
-      status: "active",
-    };
-  }
-
   return activeItem;
 }
 
@@ -842,10 +781,6 @@ async function findMaterialCollectionItemByCurrentRef({
   }
 
   for (const item of items.value) {
-    if (item.materialRef === undefined) {
-      continue;
-    }
-
     const itemCurrentMaterialRef = await resolveCurrentMaterialRef(materialStore, item.materialRef);
 
     if (!itemCurrentMaterialRef.ok) {
@@ -868,14 +803,10 @@ async function collectionKindForMaterialInput({
   materialStore,
   materialRef,
   collectionKind,
-  canonicalRef,
-  materialSnapshot,
 }: {
   materialStore: CollectionMaterialStore | undefined;
   materialRef: Ref;
   collectionKind?: CollectionKind;
-  canonicalRef?: Ref;
-  materialSnapshot?: CollectionItem["materialSnapshot"];
 }): Promise<Result<CollectionKind>> {
   if (collectionKind !== undefined) {
     return ok(collectionKind);
@@ -886,8 +817,6 @@ async function collectionKindForMaterialInput({
     materialRef,
     rejectUnknownMaterial: true,
     fallbackKind: "recording",
-    ...(canonicalRef === undefined ? {} : { canonicalRef }),
-    ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
   });
 
   if (!inferred.ok) {
@@ -903,15 +832,11 @@ async function ensureMaterialMatchesCollectionKind({
   materialStore,
   materialRef,
   collectionKind,
-  canonicalRef,
-  materialSnapshot,
   rejectUnknownMaterial,
 }: {
   materialStore: CollectionMaterialStore | undefined;
   materialRef: Ref;
   collectionKind: CollectionKind;
-  canonicalRef?: Ref;
-  materialSnapshot?: CollectionItem["materialSnapshot"];
   rejectUnknownMaterial: boolean;
 }): Promise<Result<void>> {
   const materialKind = await materialKindForCollectionTarget({
@@ -919,8 +844,6 @@ async function ensureMaterialMatchesCollectionKind({
     materialRef,
     rejectUnknownMaterial,
     ...(rejectUnknownMaterial ? { fallbackKind: "recording" as const } : {}),
-    ...(canonicalRef === undefined ? {} : { canonicalRef }),
-    ...(materialSnapshot === undefined ? {} : { materialSnapshot }),
   });
 
   if (!materialKind.ok) {
@@ -939,31 +862,15 @@ async function ensureMaterialMatchesCollectionKind({
 async function materialKindForCollectionTarget({
   materialStore,
   materialRef,
-  canonicalRef,
-  materialSnapshot,
   rejectUnknownMaterial,
   fallbackKind,
 }: {
   materialStore: CollectionMaterialStore | undefined;
   materialRef: Ref;
-  canonicalRef?: Ref;
-  materialSnapshot?: CollectionItem["materialSnapshot"];
   rejectUnknownMaterial: boolean;
   fallbackKind?: CollectionKind;
 }): Promise<Result<CollectionKind | null>> {
   const hints: CollectionKind[] = [];
-
-  if (canonicalRef !== undefined) {
-    if (!isCollectionKind(canonicalRef.kind)) {
-      return failKindMismatch(`Unsupported collection kind '${canonicalRef.kind}'.`);
-    }
-
-    hints.push(canonicalRef.kind);
-  }
-
-  if (materialSnapshot !== undefined && isCollectionKind(materialSnapshot.kind)) {
-    hints.push(materialSnapshot.kind);
-  }
 
   if (materialStore !== undefined) {
     const record = await materialStore.getMaterialRecord({ materialRef });
@@ -1006,33 +913,6 @@ async function materialKindForCollectionTarget({
   return fallbackKind === undefined ? ok(null) : ok(fallbackKind);
 }
 
-function identityRequirementForMaterialRelation(
-  relationKind: CollectionRelationKind,
-  requested: CollectionItem["identityRequirement"],
-): NonNullable<CollectionItem["identityRequirement"]> {
-  if (requested !== undefined) {
-    return requested;
-  }
-
-  return relationKind === "blocked" ? "none" : "canonical_confirmed";
-}
-
-function collectionItemStatusForMaterial({
-  relationKind,
-  identityRequirement,
-  canonicalRef,
-}: {
-  relationKind: CollectionRelationKind;
-  identityRequirement: NonNullable<CollectionItem["identityRequirement"]>;
-  canonicalRef?: Ref;
-}): NonNullable<CollectionItem["status"]> {
-  if (relationKind === "blocked" || identityRequirement === "none" || canonicalRef !== undefined) {
-    return "active";
-  }
-
-  return "pending_identity";
-}
-
 async function recordCollectionEvent(
   events: EventPort,
   input:
@@ -1059,13 +939,7 @@ async function recordCollectionEvent(
         ...("item" in input
           ? {
               collectionItemId: input.item.id,
-              ...(input.item.canonicalRef === undefined
-                ? {}
-                : { canonicalRef: input.item.canonicalRef }),
-              ...(input.item.materialRef === undefined
-                ? {}
-                : { materialRef: input.item.materialRef }),
-              ...(input.item.status === undefined ? {} : { status: input.item.status }),
+              materialRef: input.item.materialRef,
               itemLabel: input.item.label,
             }
           : {}),

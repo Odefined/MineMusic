@@ -277,7 +277,6 @@ async function coversFirstSliceImportAndUpdateThroughStageInterface(): Promise<v
         ownerScope: "local_profile:default",
         relationKind: "saved",
         materialRef: savedMaterial.materialRef,
-        canonicalRef: savedBoundRecord.ref,
         label: savedBoundRecord.label,
       }),
     );

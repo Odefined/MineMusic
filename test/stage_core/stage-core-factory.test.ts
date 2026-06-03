@@ -553,7 +553,6 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
       ownerScope: "local_profile:default",
       relationKind: "blocked",
       materialRef: blockedRecord.materialRef,
-      canonicalRef: canonicalRecord.ref,
       label: canonicalRecord.label,
     }),
   );

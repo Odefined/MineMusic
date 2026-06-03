@@ -177,10 +177,9 @@ recordings, works, release groups, releases, and artists.
 Collection Service is distinct from Memory Service, Event Service, Material
 Store, Material Resolve, Source Grounding, and Session Context. A Collection is
 an owner-scoped group of long-lived relationships to material objects; a
-Collection Item is a member of that Collection and should prefer `materialRef`
-as the product-level target. During migration, Collection Items may still carry
-legacy or derived `canonicalRef` for canonical compatibility. Source refs and
-Source Library are external library/source state, not Collection identity.
+Collection Item is a member of that Collection whose product-level target is
+`materialRef`. Canonical identity, source refs, and Source Library are external
+identity/source state, not Collection identity.
 
 ### Source Entity Store
 
