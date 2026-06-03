@@ -14,6 +14,7 @@ The current implementation has:
 - shared SourceMaterial and Source Library item materialization behind explicit
   materializer ports;
 - Material Policy, Sorter, and Selector services;
+- narrow Query and Policy collection capability seams;
 - Recommendation Presentation behind `RecommendationPresentationPort`;
 - Stage Interface ownership of compact MaterialCard-like output DTOs.
 
@@ -35,6 +36,15 @@ The public material handle remains `materialId`. Internal material identity is
   `src/material/projection/index.ts`.
 - Material Policy imports the projection module for record projection instead
   of carrying local projection helpers.
+- Material Query receives `MaterialQueryCollectionReadPort` instead of broad
+  `CollectionPort`.
+- Material Policy receives `MaterialPolicyCollectionBlockPort` instead of
+  broad `CollectionPort`.
+- Material Resolve receives `MaterialPolicyEvaluatorPort` and no longer reads
+  Collection blocked membership or relation-projection internals directly.
+- `MaterialPolicyPurpose` now includes the internal `material_resolution`
+  mode, and `MaterialResolveStatus` now includes `wrong_version` and
+  `not_playable` for candidate-level resolve outcomes.
 - Stage Core wires policy, sorter, selector, query, resolve, materialization,
   and presentation separately in `src/stage_core/compose.ts`.
 - Recommendation Presentation evaluates intended materialId order, applies
@@ -65,13 +75,18 @@ Current architecture guards live in
 - no material imports of Stage Interface output DTOs or legacy card DTO names;
 - no legacy root material directories;
 - no full `MaterialStorePort` dependency in query, policy, or selection;
+- exact Query/Policy collection seam key sets;
+- no broad `CollectionPort` dependency in query, policy, or resolve;
+- no direct resolve import of Material Policy relation-projection internals;
 - no hidden materialization writers in query or resolve;
 - materialization import isolation.
 
 Focused behavior evidence exists in:
 
+- `test/material_policy/material-policy.test.ts`;
 - `test/material_query/material-query.test.ts`;
 - `test/material_resolve/material-resolve.test.ts`;
+- `test/material_resolve/material-relation-filtering.test.ts`;
 - `test/recommendation_presentation/recommendation-presentation.test.ts`.
 
 ## Remaining Work

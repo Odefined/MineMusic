@@ -30,7 +30,7 @@ and `materialForMaterialId`.
 | --- | --- | --- |
 | `MaterialProjectionStorePort` | `resolveMaterialRedirect`, `getMaterialRecord`, `getSourceEntity`, `getCanonical` | Projection helpers and adjacent materialId reads. |
 | `MaterialQueryStorePort` | Projection reads plus Source Library listing, Source Entity listing, and confirmed canonical binding reads | Material Query. |
-| `MaterialResolveStorePort` | Canonical lookup, confirmed binding reads, Source Library item listing, and material relation listing | Material Resolve. |
+| `MaterialResolveStorePort` | Canonical lookup, confirmed binding reads, and Source Library item listing | Material Resolve. |
 | `MaterialSourceMaterializerStorePort` | Projection reads plus registry materialization writers | Materialization boundary only. |
 | `StageInterfaceMaterialStorePort` | Projection and Source Library read surface with no registry writer methods | Stage Interface dispatch/tool definitions. |
 | `SourceLibraryReadStorePort` | `listSourceLibraryItems`, `getSourceEntity` | Source Library read paths. |
@@ -43,7 +43,9 @@ The exact method sets are type-asserted in
 | Port | Consumer | Purpose |
 | --- | --- | --- |
 | `SourceGroundingPort` | Material Resolve | Ground unresolved candidates through provider/source search. |
-| `CollectionPort` | Resolve, Query, Policy | Optional blocked filtering, collection pool reads, and policy evidence. |
+| `MaterialPolicyEvaluatorPort` | Material Resolve | Apply internal `material_resolution` policy projection during resolve. |
+| `MaterialQueryCollectionReadPort` | Material Query | Read collection headers and items for collection pools and pool listing. |
+| `MaterialPolicyCollectionBlockPort` | Material Policy | Read collection-backed blocked membership evidence. |
 | `EventPort` | Recommendation Presentation | Record typed `recommendation.presented` events. |
 | `SessionContextPort` | Recommendation Presentation | Resolve session context when presentation input needs it. |
 
@@ -59,6 +61,13 @@ Current guards enforce that:
   `MaterialCard*` names;
 - `src/material/query/**`, `src/material/policy/**`, and
   `src/material/selection/**` do not import full `MaterialStorePort`;
+- `src/material/query/**` does not import broad `CollectionPort` or reference
+  collection writer/block methods;
+- `src/material/policy/**` does not import broad `CollectionPort` or reference
+  collection list/write methods;
+- `src/material/resolve/**` does not import broad `CollectionPort`, call
+  `filterBlockedMaterials`, or import Material Policy relation-projection
+  internals directly;
 - query does not reference registry materialization writers such as
   `getOrCreateBySourceRef`;
 - resolve does not reference registry materialization writer methods directly;
@@ -70,11 +79,12 @@ Current guards enforce that:
 `src/stage_core/compose.ts` wires Material Flow in this order:
 
 1. create the materialization service from the material store;
-2. create Material Resolve with the source materializer;
-3. create Material Policy evaluator and Material Sorter;
+2. create the shared Material Policy evaluator from the material store plus
+   collection-block seam;
+3. create Material Resolve with the source materializer and policy evaluator;
 4. create Material Selector;
-5. create Material Query with resolve, selector, and Source Library
-   materializer;
+5. create Material Query with resolve, selector, Source Library materializer,
+   and the collection-read seam;
 6. create Recommendation Presentation with policy and event/session ports;
 7. pass narrow material capabilities to Stage Interface dispatch.
 

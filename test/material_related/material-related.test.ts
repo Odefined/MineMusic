@@ -240,10 +240,13 @@ function createMaterialResolveService({
   materialStore: MaterialStorePort;
   sourceGrounding: SourceGroundingPort;
 }) {
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({ materialStore });
+
   return createMaterialResolveServiceBase({
     materialStore,
     sourceGrounding,
     sourceMaterializer: createMaterializationService({ materialStore }),
+    materialPolicyEvaluator,
   });
 }
 

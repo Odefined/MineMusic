@@ -1,5 +1,6 @@
 import type {
-  CollectionPort,
+  MaterialPolicyCollectionBlockPort,
+  MaterialQueryCollectionReadPort,
   MaterialResolvePort,
   MaterialSelectorPort,
   MaterialStorePort,
@@ -466,7 +467,7 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
       materialStore,
       sourceGrounding,
     }),
-    collection,
+    collectionRead: collection,
   });
 
   const output = await assertOk(
@@ -510,7 +511,7 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
       materialStore,
       sourceGrounding,
     }),
-    collection,
+    collectionRead: collection,
   });
 
   const output = await assertOk(
@@ -574,7 +575,7 @@ async function queryCollectionPoolSkipsUnprojectableMaterialRefs(): Promise<void
       materialStore,
       sourceGrounding,
     }),
-    collection,
+    collectionRead: collection,
   });
 
   const output = await assertOk(
@@ -675,9 +676,8 @@ async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<voi
     materialResolve: createMaterialResolveService({
       materialStore,
       sourceGrounding,
-      collection,
     }),
-    collection,
+    collectionBlock: collection,
   });
 
   const output = await assertOk(
@@ -1017,7 +1017,11 @@ function createMaterialQueryHarness(sourceMaterials: SourceMaterial[]): {
 
 function createMaterialQueryServiceHarness(
   sourceMaterials: SourceMaterial[],
-  options: { clock?: () => string; collection?: CollectionPort } = {},
+  options: {
+    clock?: () => string;
+    collectionRead?: MaterialQueryCollectionReadPort;
+    collectionBlock?: MaterialPolicyCollectionBlockPort;
+  } = {},
 ) {
   const { canonicalRepository, materialActivity, materialSessionActivity, materialStore, sourceGrounding } =
     createMaterialQueryHarness(sourceMaterials);
@@ -1027,7 +1031,8 @@ function createMaterialQueryServiceHarness(
       materialStore,
       sourceGrounding,
     }),
-    ...(options.collection === undefined ? {} : { collection: options.collection }),
+    ...(options.collectionRead === undefined ? {} : { collectionRead: options.collectionRead }),
+    ...(options.collectionBlock === undefined ? {} : { collectionBlock: options.collectionBlock }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
   });
 
@@ -1037,19 +1042,21 @@ function createMaterialQueryServiceHarness(
 function createMaterialQueryService({
   materialStore,
   materialResolve,
-  collection,
+  collectionRead,
+  collectionBlock,
   clock,
   materialSelector,
 }: {
   materialStore: MaterialStorePort;
   materialResolve: MaterialResolvePort;
-  collection?: CollectionPort;
+  collectionRead?: MaterialQueryCollectionReadPort;
+  collectionBlock?: MaterialPolicyCollectionBlockPort;
   clock?: () => string;
   materialSelector?: MaterialSelectorPort;
 }) {
   const selector = materialSelector ?? createMaterialSelectorForTest({
     materialStore,
-    ...(collection === undefined ? {} : { collection }),
+    ...(collectionBlock === undefined ? {} : { collectionBlock }),
     ...(clock === undefined ? {} : { clock }),
   });
 
@@ -1058,39 +1065,39 @@ function createMaterialQueryService({
     materialResolve,
     materialSelector: selector,
     sourceLibraryMaterializer: createMaterializationService({ materialStore }),
-    ...(collection === undefined ? {} : { collection }),
+    ...(collectionRead === undefined ? {} : { collection: collectionRead }),
   });
 }
 
 function createMaterialResolveService({
   materialStore,
   sourceGrounding,
-  collection,
 }: {
   materialStore: MaterialStorePort;
   sourceGrounding: SourceGroundingPort;
-  collection?: CollectionPort;
 }) {
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({ materialStore });
+
   return createMaterialResolveServiceBase({
     materialStore,
     sourceGrounding,
     sourceMaterializer: createMaterializationService({ materialStore }),
-    ...(collection === undefined ? {} : { collection }),
+    materialPolicyEvaluator,
   });
 }
 
 function createMaterialSelectorForTest({
   materialStore,
-  collection,
+  collectionBlock,
   clock,
 }: {
   materialStore: MaterialStorePort;
-  collection?: CollectionPort;
+  collectionBlock?: MaterialPolicyCollectionBlockPort;
   clock?: () => string;
 }): MaterialSelectorPort {
   const materialPolicyEvaluator = createMaterialPolicyEvaluator({
     materialStore,
-    ...(collection === undefined ? {} : { collection }),
+    ...(collectionBlock === undefined ? {} : { collection: collectionBlock }),
     ...(clock === undefined ? {} : { clock }),
   });
   const materialSorter = createMaterialSorter({ materialStore });
@@ -1136,19 +1143,17 @@ async function createCollectionMaterialRefFixture({
       materialStore,
       sourceGrounding,
     }),
-    collection,
+    collectionRead: collection,
   });
 
   return { collectionRecord, materialQuery, record };
 }
 
-function createCollectionPortStub(collections: Collection[], items: CollectionItem[]): CollectionPort {
+function createCollectionPortStub(
+  collections: Collection[],
+  items: CollectionItem[],
+): MaterialQueryCollectionReadPort {
   return {
-    initializeOwnerCollections: async () => ({ ok: true, value: [] }),
-    addMaterialToSystemCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
-    removeMaterialFromSystemCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
-    addMaterialToCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
-    removeMaterialFromCollection: async () => ({ ok: true, value: items[0] as CollectionItem }),
     listItems: async ({ ownerScope, collectionId, relationKind }) => ({
       ok: true,
       value: items.filter((item) =>
@@ -1167,10 +1172,6 @@ function createCollectionPortStub(collections: Collection[], items: CollectionIt
           (includeRemoved === true || collection.removedAt === undefined),
       ),
     }),
-    createCollection: async () => ({ ok: true, value: collections[0] as Collection }),
-    updateCollection: async () => ({ ok: true, value: collections[0] as Collection }),
-    removeCollection: async () => ({ ok: true, value: collections[0] as Collection }),
-    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
 }
 

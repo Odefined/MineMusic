@@ -9,8 +9,9 @@ import type {
 } from "../../src/contracts/index.js";
 import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
+import { createMaterialPolicyEvaluator } from "../../src/material/policy/index.js";
 import { createMaterialResolveService as createMaterialResolveServiceBase } from "../../src/material/resolve/index.js";
-import type { CollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
+import type { MaterialPolicyCollectionBlockPort, SourceGroundingPort } from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemorySourceEntityStoreRepository,
@@ -44,17 +45,22 @@ function sameRef(left: Ref, right: Ref): boolean {
 function createMaterialResolveService({
   materialStore,
   sourceGrounding,
-  collection,
+  collectionBlock,
 }: {
   materialStore: ReturnType<typeof createMaterialStore>;
   sourceGrounding: SourceGroundingPort;
-  collection?: CollectionPort;
+  collectionBlock?: MaterialPolicyCollectionBlockPort;
 }) {
+  const materialPolicyEvaluator = createMaterialPolicyEvaluator({
+    materialStore,
+    ...(collectionBlock === undefined ? {} : { collection: collectionBlock }),
+  });
+
   return createMaterialResolveServiceBase({
     materialStore,
     sourceGrounding,
     sourceMaterializer: createMaterializationService({ materialStore }),
-    ...(collection === undefined ? {} : { collection }),
+    materialPolicyEvaluator,
   });
 }
 
@@ -208,7 +214,7 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
 
       return { ok: true, value: materialRefs };
     },
-  } as unknown as CollectionPort;
+  } as MaterialPolicyCollectionBlockPort;
   const sourceGrounding: SourceGroundingPort = {
     ground: async () => ({
       ok: true,
@@ -236,7 +242,7 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
       sourceEntityStore,
     }),
     sourceGrounding,
-    collection,
+    collectionBlock: collection,
   });
   const resolved = await assertOk(
     materialResolve.resolve({
@@ -301,7 +307,7 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
         value: materialRefs,
       };
     },
-  } as unknown as CollectionPort;
+  } as MaterialPolicyCollectionBlockPort;
   const sourceGrounding: SourceGroundingPort = {
     ground: async () => ({
       ok: true,
@@ -329,7 +335,7 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
       sourceEntityStore,
     }),
     sourceGrounding,
-    collection,
+    collectionBlock: collection,
   });
   const resolved = await assertOk(
     materialResolve.resolve({

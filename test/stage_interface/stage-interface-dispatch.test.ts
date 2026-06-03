@@ -1620,6 +1620,14 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       policy: { purpose: "feedback_target" },
     },
   });
+  const resolutionPurposeSelect = await dispatch.call({
+    sessionId: "session-current",
+    toolName: "music.material.select",
+    payload: {
+      candidates: [{ materialId: "seed" }],
+      policy: { purpose: "material_resolution" },
+    },
+  });
 
   assert(calls.includes("query:session-current"), "material query should receive current dispatch session id by default");
   assert(calls.includes("query:caller-session"), "material query should preserve explicit caller session id");
@@ -1645,6 +1653,7 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
   assertCompactMaterialOutput(resolveOutput, "material resolve should compact domain resolved text-query items at the Stage Interface boundary");
   assert(!presentationPurposeSelect.ok, "music.material.select should reject recommendation_presentation policy purpose");
   assert(!feedbackPurposeSelect.ok, "music.material.select should reject feedback_target policy purpose");
+  assert(!resolutionPurposeSelect.ok, "music.material.select should reject material_resolution policy purpose");
 }
 
 function assertCompactMaterialOutput(output: unknown, message: string): void {

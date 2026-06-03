@@ -3,6 +3,7 @@
 Repository reviewed: `Odefined/MineMusic`  
 Review date: 2026-06-02  
 Scope: context documents, ADRs, and targeted source/tests around candidate architecture seams. No implementation was performed.
+Status sync: 2026-06-03. Candidate 1 has since been implemented on current `main` by PR #52 (`Clean up collection item boundary`), so GitHub issue #45 is closed as completed.
 
 ## Scope and governing constraints read
 
@@ -47,115 +48,65 @@ The constraints are explicit. `AGENTS.md` says ordinary modules should receive t
 
 ## Candidate ranking
 
-| Rank | Candidate | Strength |
+| Status / Rank | Candidate | Strength |
 |---:|---|---|
-| 1 | Compact collection outputs at the Stage Interface Seam | Strong |
-| 2 | Narrow Material Query’s Collection dependency to a read Seam | Strong |
-| 3 | Split the monolithic music Tool Group by work area, not by tool count | Worth exploring |
-| 4 | Deepen Material Query internals around related-candidate and pool-catalog behavior | Worth exploring |
-| 5 | Treat source-library pool output as a public protocol decision | Speculative |
-| 6 | Move misplaced Stage Interface output/input helpers into their owning Modules | Worth exploring |
+| Resolved | Compact collection outputs at the Stage Interface Seam | Strong; implemented by PR #52 |
+| Resolved | Narrow Material-facing Collection capabilities and route Resolve relation policy through Policy | Strong; implemented on `codex/material-collection-policy-handoff` |
+| 1 | Split the monolithic music Tool Group by work area, not by tool count | Worth exploring |
+| 2 | Deepen Material Query internals around related-candidate and pool-catalog behavior | Worth exploring |
+| 3 | Treat source-library pool output as a public protocol decision | Speculative |
+| 4 | Move misplaced Stage Interface output/input helpers into their owning Modules | Worth exploring |
 
 ---
 
 ## Candidate 1: Compact collection outputs at the Stage Interface Seam
 
-**Recommendation strength:** Strong
+**Status:** Resolved on current `main` by PR #52 (`Clean up collection item boundary`). GitHub issue #45 is closed as completed after the 2026-06-03 sync.
+
+**Original recommendation strength:** Strong
 
 ### Files
 
 - `src/stage_interface/tool_definitions/music.ts`
+- `src/stage_interface/outputs/collection.ts`
 - `src/stage_interface/outputs/material.ts`
 - `src/stage_interface/outputs/recommendation.ts`
 - `src/contracts/index.ts`
 - `test/stage_interface/stage-interface-dispatch.test.ts`
+- `test/stage_interface/stage-interface.test.ts`
 - `test/architecture/material-boundary.test.ts`
 - Governing evidence: `AGENTS.md`, `ARCHITECTURE.md`, `docs/adr/0003-materialref-backed-collections.md`
 
-### Current shape
+### Current main shape
 
-`src/stage_interface/tool_definitions/music.ts` defines collection tools inside the same music Tool Group as material query, related, selection, link refresh, and resolve. The collection tools currently advertise raw domain schema refs such as `CollectionItem`, `Collection`, and `CollectionListOutput`, and their handlers return the `CollectionPort` result directly.
+Stage Interface now owns compact collection projection in `src/stage_interface/outputs/collection.ts`.
 
-Concrete examples in `src/stage_interface/tool_definitions/music.ts`:
+Collection action tools in `src/stage_interface/tool_definitions/music.ts` now use compact output schema refs:
 
-- `music.collection.save` has `outputSchemaRef: "CollectionItem"` and returns `dispatchSystemCollectionAdd(...)`.
-- `music.collection.unsave`, `favorite`, `unfavorite`, `block`, `unblock`, `item.add`, and `item.remove` also use `CollectionItem`.
-- `music.collection.create`, `update`, and `delete` return `Collection`.
-- `music.collection.list` returns `{ collections, items }` directly from `CollectionPort.listCollections(...)` and `CollectionPort.listItems(...)`.
+- `music.collection.save`, `unsave`, `favorite`, `unfavorite`, `block`, `unblock`, `item.add`, and `item.remove` use `CompactCollectionItemOutput`.
+- `music.collection.create`, `update`, and `delete` use `CompactCollectionOutput`.
+- `music.collection.list` uses `CompactCollectionListOutput`.
 
-`src/contracts/index.ts` defines `CollectionItem` with internal fields:
+The compact outputs expose public ids and labels only:
 
-```ts
-materialRef?: Ref;
-materialSnapshot?: MusicMaterialSnapshot;
-relationScope?: MusicMaterialRelationScope;
-identityRequirement?: "none" | "source_backed" | "canonical_confirmed";
-status?: "active" | "pending_identity" | "removed";
-canonicalRef?: Ref;
-```
+- item output: `itemId`, `collectionId`, `materialId`.
+- list item output: `itemId`, `collectionId`, `materialId`, `label`.
+- collection output: `collectionId`, `label`.
 
-`src/contracts/index.ts` also defines `Collection` with storage-facing fields such as `ownerScope`, `collectionKind`, `relationKind`, `createdAt`, and `removedAt`.
+The normal public collection surface no longer returns raw `Collection` or `CollectionItem` records.
 
-Material output has a better existing pattern: `src/stage_interface/outputs/material.ts` maps domain `MusicMaterial` into compact cards with `materialId`, `title`, `subtitle`, and `state`. `src/stage_interface/outputs/recommendation.ts` maps presented materials and strips internal playable-link shape through `publicDisplayLinksForMaterial(...)`.
+### Resolution evidence
 
-### Problem
+- `src/stage_interface/outputs/collection.ts` projects `Collection` and `CollectionItem` into compact public collection outputs.
+- `src/stage_interface/tool_definitions/music.ts` applies those projections through each collection tool definition's `present` function.
+- `test/stage_interface/stage-interface-dispatch.test.ts` asserts compact collection action/list outputs and checks that list items do not expose `materialRef` or storage timestamps.
+- `test/stage_interface/stage-interface.test.ts` asserts public collection input schemas expose `materialId` rather than raw `canonicalRef`, `materialRef`, `materialSnapshot`, `relationScope`, or `identityRequirement`.
 
-This is a public/tool-facing output leak. The Stage Interface Module currently lets Collection Implementation shape escape as the tool contract.
+### Remaining follow-up
 
-That directly rubs against three repository rules:
+No implementation follow-up remains for issue #45.
 
-1. `AGENTS.md` says agent-facing output must be compact and must not expose internal storage/provider shape.
-2. `ARCHITECTURE.md` says Stage Interface collection tools accept `materialId` without exposing internal snapshot or relation-scope fields in normal public schemas.
-3. `ADR-0003` says public collection writes use `materialId` and must not expose raw `materialRef`, source refs, repository rows, material snapshots, or relation-scope internals as ordinary public collection fields.
-
-The existing tests catch this for material output but not for collection output. In `test/stage_interface/stage-interface-dispatch.test.ts`, `assertCompactMaterialOutput(...)` asserts that material query/related/select/resolve outputs do not contain `material`, `materialRef`, `sourceRefs`, or `playableLinks`. The collection tests mostly assert that tools route calls correctly and that `music.collection.list` returns arrays. They do not assert that returned collection items lack `materialRef`, `canonicalRef`, `materialSnapshot`, or `relationScope`.
-
-### Deletion test
-
-Deleting the collection tools would spread collection writes and reads to the host or remove a real capability. That is not useful.
-
-Deleting the raw pass-through output behavior removes complexity. Stage Interface already has an output-projection pattern for material and recommendation results. A compact collection Adapter would concentrate public shape decisions in one place instead of letting the Collection Implementation define the public Interface by accident.
-
-### Deepening opportunity
-
-Move collection result projection behind a Stage Interface collection-output Seam. In plain English: collection tools should return public collection views, not Collection domain records.
-
-Do not invent a large new Interface yet. The first useful move is narrower: Stage Interface owns a small Adapter that turns internal `Collection` and `CollectionItem` values into compact public output and strips internal refs, snapshots, relation scopes, identity requirements, and storage timestamps unless an explicit diagnostic view is added later.
-
-### Benefits
-
-**Locality:** Public collection shape changes move to Stage Interface output code. Collection Implementation can evolve internal fields without changing the host-facing protocol.
-
-**Leverage:** The same collection output Adapter can be reused by system collection actions, custom collection item actions, and `music.collection.list`.
-
-**Availability:** Hosts can depend on stable collection output even when Collection Implementation adds fields for identity repair, material snapshots, or relation scope.
-
-**Test improvement:** A single output-leak test can protect all collection tools, similar to the existing material compact-output assertions.
-
-### Risks/tradeoffs
-
-- Existing tests or downstream host expectations may already depend on raw `Collection` or `CollectionItem` fields. That should be treated as public protocol debt, not ignored.
-- Compacting too aggressively could remove fields agents need for safe follow-up actions, such as `collectionId` or item id. Owner judgment is needed on the minimal public fields.
-- Diagnostic or audit views may still need raw-ish details. Those should be separate tools or explicit view modes, not the default collection action output.
-
-### Architecture guard
-
-Add a Stage Interface output guard:
-
-- Dispatch each collection tool against a fake `CollectionPort` returning a `CollectionItem` with `materialRef`, `canonicalRef`, `materialSnapshot`, `relationScope`, `identityRequirement`, and `removedAt`.
-- Assert public tool results do not contain those keys.
-- Add an import/schema guard in `test/architecture/material-boundary.test.ts` or a new Stage Interface architecture test: ordinary public collection tool definitions must not use raw `CollectionItem` or raw `Collection` as `outputSchemaRef` unless the tool name is explicitly whitelisted as diagnostic.
-
-### Minimal migration slice
-
-First PR:
-
-1. Add a compact collection-output Adapter under Stage Interface output ownership.
-2. Apply it only to `music.collection.save` and `music.collection.list`.
-3. Add one dispatch test proving internal collection fields do not leak.
-4. Keep current tool names and input payloads unchanged.
-
-Then migrate the remaining collection tools in small follow-up PRs.
+If a future diagnostic or audit view needs raw-ish Collection Service details, it should be introduced as an explicit diagnostic surface rather than by widening the ordinary `music.collection.*` outputs.
 
 ### Before/After diagram
 
@@ -183,20 +134,29 @@ flowchart LR
 
 ---
 
-## Candidate 2: Narrow Material Query’s Collection dependency to a read Seam
+## Candidate 2: Narrow Material-facing Collection capabilities and route Resolve relation policy through Policy
+
+**Status:** Implemented on branch `codex/material-collection-policy-handoff`; GitHub issue #46 can be closed on merge.
 
 **Recommendation strength:** Strong
 
 ### Files
 
 - `src/material/query/index.ts`
+- `src/material/resolve/index.ts`
+- `src/material/policy/index.ts`
 - `src/ports/index.ts`
 - `src/stage_core/compose.ts`
 - `test/material_query/material-query.test.ts`
+- `test/material_resolve/material-resolve.test.ts`
+- `test/material_resolve/material-relation-filtering.test.ts`
+- `test/material_policy/material-policy.test.ts`
 - `test/architecture/material-boundary.test.ts`
 - Governing evidence: `AGENTS.md`, `ARCHITECTURE.md`, `docs/adr/0003-materialref-backed-collections.md`
 
 ### Current shape
+
+This candidate started as a Query-only broad-port issue, but owner review on 2026-06-03 exposed a deeper boundary conflict: Resolve currently reaches into Collection blocked filtering directly and projects material relations itself, while the architecture says Material Policy owns relation and collection-block policy.
 
 `src/material/query/index.ts` defines:
 
@@ -216,12 +176,16 @@ export type MaterialQueryServiceOptions = {
 };
 ```
 
-Material Query only uses `collection` for read paths:
+Material Query only uses `collection` for collection pool read paths:
 
 - `collectionItemsForPool(...)` calls `collection.listCollections(...)` and `collection.listItems(...)`.
 - `listPoolsForInput(...)` calls `collection.listCollections(...)` and `collection.listItems(...)` to build collection pool options and counts.
 
-But `CollectionPort` in `src/ports/index.ts` also exposes write and mutation capabilities:
+`src/material/resolve/index.ts` also receives `collection?: CollectionPort`, but only uses `collection.filterBlockedMaterials(...)` to mark resolved materials as blocked. Resolve also imports relation projection logic from Material Policy internals to apply `blocked`, `wrong_version`, `not_playable`, and `bad_match` relations.
+
+`src/material/policy/index.ts` receives `collection?: CollectionPort` and uses `collection.filterBlockedMaterials(...)` for collection-backed blocked policy.
+
+`CollectionPort` in `src/ports/index.ts` exposes all of these capabilities:
 
 - `initializeOwnerCollections`
 - `addMaterialToSystemCollection`
@@ -233,17 +197,21 @@ But `CollectionPort` in `src/ports/index.ts` also exposes write and mutation cap
 - `removeCollection`
 - `filterBlockedMaterials`
 
-The tests show the cost. `test/material_query/material-query.test.ts` has `createCollectionPortStub(...)`, which must implement write methods even though Material Query only needs collection reads.
+The tests show the cost. `test/material_query/material-query.test.ts` has `createCollectionPortStub(...)`, which must implement write methods even though Material Query only needs collection reads. Resolve tests cast partial objects to `CollectionPort` even though they only provide `filterBlockedMaterials`.
 
 ### Problem
 
-This is a broad-port leak into a read-like Module.
+This is a broad-port leak across Material-facing modules, and Resolve has a responsibility leak.
 
 Material Query is supposed to be a Deep retrieval Module: it resolves pools, expands source-library tracks, delegates materialization, filters candidates, and delegates final selection. It should not even be able to write collections. The current Interface gives it that ability.
 
-The existing architecture guard catches broad `MaterialStorePort` imports under `src/material/query`, and it catches direct registry materialization writers. It does not catch `CollectionPort` under `src/material/query`.
+Material Resolve is supposed to own candidate lookup, Source Grounding orchestration, materialization, and resolve status aggregation. It should not directly read Collection blocked membership or apply relation policy evidence. `ARCHITECTURE.md` says Material Policy / Sort / Select owns relation, collection-block, availability, identity, and freshness policy. Resolve currently duplicates part of that policy responsibility.
 
-That leaves an avoidable testability and maintainability hole: a future change can call `createCollection(...)`, `addMaterialToCollection(...)`, or `removeMaterialFromCollection(...)` from a query path without a type-level failure.
+The existing architecture guard catches broad `MaterialStorePort` imports under `src/material/query`, and it catches direct registry materialization writers. It does not catch `CollectionPort` under Material Query, Resolve, or Policy. That leaves avoidable testability and maintainability holes:
+
+- a future Query change can call `createCollection(...)`, `addMaterialToCollection(...)`, or `removeMaterialFromCollection(...)` from a retrieval path without a type-level failure;
+- Resolve can continue to bypass Material Policy for resolution-time relation and collection-block semantics;
+- Policy tests and Resolve tests need broad or casted `CollectionPort` stubs for one method.
 
 ### Deletion test
 
@@ -251,34 +219,48 @@ Deleting Material Query would spread pool resolution, related lookup, candidate 
 
 Deleting `CollectionPort` from Material Query’s options and replacing it with a read-only collection Seam removes complexity. It does not spread behavior; it removes unused write authority.
 
+Deleting direct relation and Collection blocked filtering from Resolve also removes complexity. Resolve still returns material-level `MaterialState` and candidate-level `MaterialResolveStatus`, but the decision about how resolution-time relation evidence is projected belongs in Material Policy.
+
 ### Deepening opportunity
 
 Keep Material Query as the Deep Module for retrieval orchestration, but change the Collection boundary it sees. In plain English: Material Query should see “read collection items and collection headers for an owner,” not “the whole Collection capability.”
 
-Stage Core can still wire the concrete Collection Implementation into Material Query. The Adapter belongs at composition time: full Collection Implementation in, narrow read capability out.
+Keep Material Policy as the owner of relation and collection-block semantics. Policy should see “blocked membership evidence,” not “the whole Collection capability.”
+
+Resolve should call Policy for resolution-time policy projection instead of reading Collection directly or applying relation projection itself. Introduce an internal `material_resolution` policy purpose. Under that purpose, `blocked`, `wrong_version`, and `not_playable` do not drop the material. `blocked` can still mark material-level `state: "blocked"`. `wrong_version` and `not_playable` should be represented at candidate level through `MaterialResolveStatus`, because they describe the result of resolving the candidate rather than the material's primary state. `bad_match` is not part of this slice.
+
+Stage Core can still wire the concrete Collection Implementation into these narrow consumers by passing the concrete service directly. The repo's current pattern is type-level narrowing plus architecture guards, not runtime adapter objects.
 
 ### Benefits
 
 **Locality:** Query code cannot accidentally perform collection writes. Collection write behavior remains in Collection Service and Stage Interface collection tools.
 
-**Leverage:** A narrow read Seam can support both collection pools and pool listing. It also becomes reusable for policy/selection reads if owner decides those reads should share the same shape.
+**Leverage:** A narrow Query collection read seam supports both collection pools and pool listing. A separate Policy collection-block seam supports collection-backed block evidence without mixing that evidence with collection pool reads.
 
 **Availability:** Read-only collection pool browsing remains available even if collection write tools are unavailable or intentionally not wired in a future host.
 
-**Test improvement:** Material Query tests can use smaller stubs with only `listCollections` and `listItems`, making failing tests easier to interpret.
+**Responsibility clarity:** Resolve no longer bypasses Material Policy. Relation and collection-block semantics live in one policy owner, while Resolve keeps candidate lookup and status aggregation.
+
+**Test improvement:** Material Query tests can use smaller stubs with only `listCollections` and `listItems`. Resolve tests no longer need `CollectionPort` stubs. Policy tests can stub only `filterBlockedMaterials`.
 
 ### Risks/tradeoffs
 
 - If future Material Query behavior genuinely needs collection write semantics, this will force an explicit architecture decision instead of a local call. That is a feature, not a bug, but it adds friction.
 - The repo already has many narrow Material Store port aliases. Adding another alias has naming cost; avoid a proliferation of tiny one-method aliases.
-- Policy and selection also use collection concepts. Do not collapse all collection read needs into one broad pseudo-read Interface until usage is verified.
+- Moving Resolve relation handling through Policy changes a call path. Resolution-time policy projection must not drop `blocked`, `wrong_version`, or `not_playable` materials. Blocked material remains visible as material-level `state: "blocked"` and candidate-level `status: "blocked"` when every resolved material is blocked. `wrong_version` and `not_playable` should become candidate-level `MaterialResolveStatus` values, not material-level `MaterialState` values.
+- Do not collapse Query collection reads and Policy blocked evidence into one broad pseudo-read Interface. They are different capabilities.
+- Do not add new `bad_match` resolve behavior in this slice. A provider no-match remains `unresolved` with resolve issues; `bad_match` is not the same concept and needs a separate owner decision before it becomes part of resolution semantics.
 
 ### Architecture guard
 
-Add two guards:
+Add these guards:
 
-1. Type keyset assertion for the new collection-read capability: exactly `listCollections` and `listItems`.
-2. Import/reference guard: files under `src/material/query` must not import `CollectionPort` and must not reference collection writer methods.
+1. Type keyset assertion for `MaterialQueryCollectionReadPort`: exactly `listCollections` and `listItems`.
+2. Type keyset assertion for `MaterialPolicyCollectionBlockPort`: exactly `filterBlockedMaterials`.
+3. Import/reference guard: files under `src/material/query` must not import `CollectionPort` and must not reference collection writer/filter methods outside `listCollections` and `listItems`.
+4. Import/reference guard: files under `src/material/resolve` must not import `CollectionPort`, must not reference `filterBlockedMaterials`, and must not import Material Policy relation-projection internals directly.
+5. Import/reference guard: files under `src/material/policy` must not import broad `CollectionPort` or collection writer/list methods.
+6. Public Stage Interface schema guard: `material_resolution` must not be exposed through `music.material.select` policy input.
 
 The existing `test/architecture/material-boundary.test.ts` is the right place because it already enforces narrow Material Store ports and direct writer bans.
 
@@ -286,12 +268,17 @@ The existing `test/architecture/material-boundary.test.ts` is the right place be
 
 First PR:
 
-1. Add a narrow collection-read type in `src/ports/index.ts` using existing input/output contract types.
-2. Change `MaterialQueryServiceOptions.collection` from `CollectionPort` to that read capability.
-3. Update Material Query tests so stubs only implement read methods.
-4. Add the architecture guard.
+1. Add `MaterialQueryCollectionReadPort` and `MaterialPolicyCollectionBlockPort` in `src/ports/index.ts`.
+2. Change Material Query's `collection` option from `CollectionPort` to `MaterialQueryCollectionReadPort`.
+3. Change Material Policy's `collection` option from `CollectionPort` to `MaterialPolicyCollectionBlockPort`.
+4. Add internal `MaterialPolicyPurpose` value `material_resolution`.
+5. Extend `MaterialResolveStatus` with `wrong_version` and `not_playable`. Do not add `bad_match`.
+6. Route Resolve relation policy through `MaterialPolicyEvaluatorPort` using `purpose: "material_resolution"`; remove Resolve's direct `CollectionPort` dependency and direct relation-projection import.
+7. Update Material Query, Resolve, and Policy tests to use narrow stubs and preserve resolution-time behavior: `blocked`, `wrong_version`, and `not_playable` do not drop materials under `material_resolution`; `wrong_version` and `not_playable` are reported through candidate-level resolve status.
+8. Add architecture guards.
+9. Update `docs/material/design.md`, `docs/material/ports.md`, and area progress docs for the new boundary.
 
-No behavior change.
+No public Stage Interface tool names or input schemas change. The resolve output object shape stays the same, but `MaterialResolveStatus` gains `wrong_version` and `not_playable` values.
 
 ### Before/After diagram
 
@@ -299,20 +286,28 @@ No behavior change.
 flowchart LR
   subgraph Before
     SC1["Stage Core compose"] --> MQ1["Material Query Module"]
+    SC1 --> MR1["Material Resolve Module"]
+    SC1 --> MP1["Material Policy Module"]
     MQ1 --> CP1["CollectionPort"]
     CP1 --> R1["listCollections / listItems"]
     CP1 --> W1["add / remove / create / update / delete"]
+    MR1 --> CP1
+    MP1 --> CP1
+    CP1 --> B1["filterBlockedMaterials"]
   end
 ```
 
 ```mermaid
 flowchart LR
   subgraph After
-    SC2["Stage Core compose"] --> AD2["Composition Adapter"]
-    AD2 --> MQ2["Material Query Module"]
+    SC2["Stage Core compose"] --> MQ2["Material Query Module"]
+    SC2 --> MP2["Material Policy Module"]
+    SC2 --> MR2["Material Resolve Module"]
     MQ2 --> CR2["Collection read Seam"]
     CR2 --> R2["listCollections / listItems only"]
-    AD2 -. concrete wiring .-> CP2["Collection Implementation"]
+    MP2 --> CB2["Collection block Seam"]
+    CB2 --> B2["filterBlockedMaterials only"]
+    MR2 --> MP2
   end
 ```
 
@@ -762,7 +757,7 @@ Plain English: output Modules should shape outputs; input handle normalization s
 ### Risks/tradeoffs
 
 - The first migration is mostly file movement, so it can look cosmetic. Keep it small and tied to the concrete misplaced helper.
-- Splitting output files before compact collection outputs may distract from the higher-value public output leak.
+- Splitting output files before higher-value public protocol or boundary work may create low-leverage churn.
 - Barrel exports must preserve existing imports.
 
 ### Architecture guard
@@ -809,11 +804,11 @@ flowchart LR
 
 ## Top recommendation and why
 
-Start with **Candidate 1: Compact collection outputs at the Stage Interface Seam**.
+After the 2026-06-03 implementation sync, **Candidate 1: Compact collection outputs at the Stage Interface Seam** is complete on current `main`, and **Candidate 2: narrow Material-facing Collection capabilities and route Resolve relation policy through Policy** is implemented on branch `codex/material-collection-policy-handoff`.
 
-Reason: it is the clearest public contract risk. The repo already states that Stage Interface owns compact outputs and that public collection fields should not expose raw `materialRef`, snapshots, relation scope, or repository row shape. Material output has compact guards. Collection output does not. This is not a style issue; it is direct friction between current tool behavior and documented architecture.
+Start next with **Candidate 3: split the monolithic music Tool Group by work area, not by tool count**.
 
-The next best candidate is **Candidate 2: narrow Material Query’s Collection dependency** because it is a small, type-level correction with high Leverage. It closes an architecture guard gap and removes write authority from a read-like Module.
+Reason: the strongest remaining issue is now Stage Interface surface shape rather than an unresolved capability leak. Candidate 3 is the next slice that can improve agent comprehension and tool ownership without reopening the just-finished Material Flow boundary work.
 
 ## What not to change yet
 
@@ -827,12 +822,11 @@ Do not hide provider/account fields in `music.pools.list` without owner judgment
 
 ## Questions that need owner judgment before implementation
 
-1. For collection outputs, what is the minimal public collection item shape? At minimum it likely needs collection id, item id, label, relation kind, status, and `materialId` when present, but owner judgment is required.
-2. Are provider ids and provider account ids intended to be stable public protocol fields for agents, or should they be hidden behind public pool selectors?
-3. Should `music.collection.*` remain under the `minemusic.music` instrument externally even if internal Tool Definition Modules split? The report assumes yes.
-4. Are collection diagnostic/audit views planned? If yes, raw-ish collection details should be a separate explicit view, not the default action output.
-5. Should Material Query expose `contextBrief` and `listPools` as optional capabilities on the same created service, or should Stage Interface receive them as separate capabilities for better availability?
+1. Are provider ids and provider account ids intended to be stable public protocol fields for agents, or should they be hidden behind public pool selectors?
+2. Should `music.collection.*` remain under the `minemusic.music` instrument externally even if internal Tool Definition Modules split? The report assumes yes.
+3. Are collection diagnostic/audit views planned? If yes, raw-ish collection details should be a separate explicit view, not the default action output.
+4. Should Material Query expose `contextBrief` and `listPools` as optional capabilities on the same created service, or should Stage Interface receive them as separate capabilities for better availability?
 
 ## Which candidate should we explore first?
 
-Pick one: **collection compact outputs** for public protocol safety, or **Material Query collection-read Seam** for the smallest high-Leverage architecture guard.
+Pick one: **Material-facing Collection capability narrowing and Resolve policy handoff** for the highest-Leverage architecture guard, or **music Tool Group internal split** if Stage Interface locality should take priority over Material Flow boundaries.

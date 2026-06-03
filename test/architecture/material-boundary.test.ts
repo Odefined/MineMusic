@@ -3,7 +3,9 @@ import { join, relative } from "node:path";
 
 import type {
   LibraryImportMaterialStorePort,
+  MaterialPolicyCollectionBlockPort,
   MaterialProjectionStorePort,
+  MaterialQueryCollectionReadPort,
   MaterialQueryStorePort,
   MaterialResolveStorePort,
   MaterialSourceMaterializerStorePort,
@@ -48,7 +50,17 @@ export type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
   | "findCanonicalByLabel"
   | "getConfirmedCanonicalBinding"
   | "listSourceLibraryItems"
-  | "listMaterialRelations"
+>>;
+
+export type MaterialQueryCollectionReadPortKeysAreExact = Assert<IsExact<
+  keyof MaterialQueryCollectionReadPort,
+  | "listCollections"
+  | "listItems"
+>>;
+
+export type MaterialPolicyCollectionBlockPortKeysAreExact = Assert<IsExact<
+  keyof MaterialPolicyCollectionBlockPort,
+  | "filterBlockedMaterials"
 >>;
 
 export type MaterialSourceMaterializerStorePortKeysAreExact = Assert<IsExact<
@@ -186,6 +198,17 @@ const registryMaterializationWriterNames = [
   "mergeMaterials",
 ];
 
+const forbiddenCollectionWriterNames = [
+  "initializeOwnerCollections",
+  "addMaterialToSystemCollection",
+  "removeMaterialFromSystemCollection",
+  "addMaterialToCollection",
+  "removeMaterialFromCollection",
+  "createCollection",
+  "updateCollection",
+  "removeCollection",
+];
+
 const forbiddenMaterializationImportFragments = [
   "material/query",
   "material/resolve",
@@ -308,6 +331,35 @@ async function materialQueryDoesNotImportFullMaterialStorePort(): Promise<void> 
   );
 }
 
+async function materialQueryUsesNarrowCollectionReadPort(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialQueryRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bCollectionPort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports CollectionPort`);
+      }
+    }
+
+    for (const methodName of [
+      ...forbiddenCollectionWriterNames,
+      "filterBlockedMaterials",
+    ]) {
+      if (new RegExp(`\\b${methodName}\\b`).test(text)) {
+        failures.push(`${relative(process.cwd(), file)} references ${methodName}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material query must use MaterialQueryCollectionReadPort only:\n${failures.join("\n")}`,
+  );
+}
+
 async function stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort(): Promise<void> {
   const files = await sourceFilesUnderRoots(stageInterfaceMaterialStoreNarrowingRoots);
   const failures: string[] = [];
@@ -383,6 +435,66 @@ async function materialResolveDoesNotDirectlyUseRegistryMaterializationWriters()
   assert(
     failures.length === 0,
     `Material resolve must delegate registry materialization writers:\n${failures.join("\n")}`,
+  );
+}
+
+async function materialResolveUsesPolicyInsteadOfCollectionAndRelationProjection(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialResolveRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bCollectionPort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports CollectionPort`);
+      }
+
+      if (importStatement.source.includes("relation_projection")) {
+        failures.push(`${relative(process.cwd(), file)} imports ${importStatement.source}`);
+      }
+    }
+
+    for (const forbiddenName of ["filterBlockedMaterials", "projectMaterialRelations"]) {
+      if (new RegExp(`\\b${forbiddenName}\\b`).test(text)) {
+        failures.push(`${relative(process.cwd(), file)} references ${forbiddenName}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material resolve must route relation and collection-block policy through Material Policy:\n${failures.join("\n")}`,
+  );
+}
+
+async function materialPolicyUsesNarrowCollectionBlockPort(): Promise<void> {
+  const files = await sourceFilesUnderRoots(["src/material/policy"]);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bCollectionPort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports CollectionPort`);
+      }
+    }
+
+    for (const methodName of [
+      ...forbiddenCollectionWriterNames,
+      "listCollections",
+      "listItems",
+    ]) {
+      if (new RegExp(`\\b${methodName}\\b`).test(text)) {
+        failures.push(`${relative(process.cwd(), file)} references ${methodName}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material policy must use MaterialPolicyCollectionBlockPort only:\n${failures.join("\n")}`,
   );
 }
 
@@ -593,10 +705,13 @@ await legacyMaterialRootDirectoriesAreRemoved();
 await materialPolicyAndSelectionDoNotImportFullMaterialStorePort();
 await materialPolicyUsesMaterialProjectionForRecordProjection();
 await materialQueryDoesNotImportFullMaterialStorePort();
+await materialQueryUsesNarrowCollectionReadPort();
+await materialPolicyUsesNarrowCollectionBlockPort();
 await stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort();
 await stageInterfaceDispatchDoesNotImportFullMaterialStorePort();
 await materialQueryDoesNotDirectlyMaterializeSourceRefs();
 await materialResolveDoesNotDirectlyUseRegistryMaterializationWriters();
+await materialResolveUsesPolicyInsteadOfCollectionAndRelationProjection();
 await sourceGroundingDoesNotUseCanonicalStoreSourceRefBoundary();
 await libraryImportUsesNarrowMaterialStoreBoundary();
 await movedProjectionConsumersDoNotImportMaterialQuery();

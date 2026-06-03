@@ -18,8 +18,8 @@ import type {
   SourceLibraryItem,
 } from "../../contracts/index.js";
 import type {
-  CollectionPort,
   MaterialContextBriefPort,
+  MaterialQueryCollectionReadPort,
   MaterialPoolsPort,
   MaterialQueryPort,
   MaterialProjectionStorePort,
@@ -53,7 +53,7 @@ export type MaterialQueryServiceOptions = {
   materialResolve: MaterialResolvePort;
   materialSelector: MaterialSelectorPort;
   sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
-  collection?: CollectionPort;
+  collection?: MaterialQueryCollectionReadPort;
 };
 
 export function createMaterialQueryService({
@@ -378,7 +378,7 @@ async function collectionMaterials({
   q,
 }: {
   materialStore: MaterialProjectionStorePort;
-  collection?: CollectionPort;
+  collection?: MaterialQueryCollectionReadPort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "collection" }>;
   q?: string;
@@ -417,7 +417,7 @@ async function collectionItemsForPool({
   ownerScope,
   pool,
 }: {
-  collection: CollectionPort;
+  collection: MaterialQueryCollectionReadPort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "collection" }>;
 }): Promise<Result<CollectionItem[]>> {
@@ -1086,7 +1086,7 @@ async function listPoolsForInput({
   input,
 }: {
   materialStore: SourceLibraryReadStorePort;
-  collection?: CollectionPort;
+  collection?: MaterialQueryCollectionReadPort;
   input: MaterialPoolsListInput;
 }): Promise<Result<MaterialPoolsListOutput>> {
   const ownerScope = input.ownerScope ?? defaultOwnerScope;

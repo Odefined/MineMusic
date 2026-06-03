@@ -280,6 +280,13 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     "material select public schema should not expose feedback target policy purpose",
   );
   assert(
+    !selectPayloadSchema.safeParse({
+      candidates: [{ materialId: "material-1" }],
+      policy: { purpose: "material_resolution" },
+    }).success,
+    "material select public schema should not expose material_resolution policy purpose",
+  );
+  assert(
     !queryPayloadSchema.safeParse({
       pool: { kind: "related", materialId: "seed", relation: "same_release" },
     }).success,
