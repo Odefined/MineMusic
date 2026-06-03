@@ -7,11 +7,13 @@ import type {
 } from "../../src/contracts/index.js";
 import type {
   MaterialResolvePort,
+  MaterialSearchCollectionPort,
   MaterialSelectorPort,
   MaterialStorePort,
   SourceGroundingPort,
 } from "../../src/ports/index.js";
 import { createMaterializationService } from "../../src/material/materialization/index.js";
+import { createMaterialSearchDocumentProvider, createMaterialSearchService } from "../../src/material/search/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import { createMaterialQueryService as createMaterialQueryServiceBase } from "../../src/material/query/index.js";
@@ -21,6 +23,7 @@ import { createMaterialSelector } from "../../src/material/selection/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemorySourceEntityStoreRepository,
+  createSqliteMaterialSearchIndex,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -37,6 +40,10 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
   return awaited.value;
+}
+
+function ok<T>(value: T): Result<T> {
+  return { ok: true, value };
 }
 
 async function relatedSameArtistUsesCanonicalArtistWhenAvailable(): Promise<void> {
@@ -224,13 +231,28 @@ function createMaterialQueryService({
     materialPolicyEvaluator,
     materialSorter,
   });
+  const materialSearchDocuments = createMaterialSearchDocumentProvider({ materialStore });
+  const materialSearchIndex = createSqliteMaterialSearchIndex({ documents: materialSearchDocuments });
+  const materialSearch = createMaterialSearchService({
+    materialStore,
+    collection: emptyMaterialSearchCollection(),
+    searchIndex: materialSearchIndex,
+  });
 
   return createMaterialQueryServiceBase({
     materialStore,
     materialResolve,
+    materialSearch,
     materialSelector,
-    sourceLibraryMaterializer: createMaterializationService({ materialStore }),
   });
+}
+
+function emptyMaterialSearchCollection(): MaterialSearchCollectionPort {
+  return {
+    listCollections: async () => ok([]),
+    listItems: async () => ok([]),
+    filterBlockedMaterials: async () => ok([]),
+  };
 }
 
 function createMaterialResolveService({

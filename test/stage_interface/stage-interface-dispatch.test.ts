@@ -1573,6 +1573,16 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
       payload: { sessionId: "caller-session", pool: { kind: "all" } },
     }),
   );
+  const legacyQQuery = await dispatch.call({
+    sessionId: "session-current",
+    toolName: "music.material.query",
+    payload: { q: "ambient", pool: { kind: "all" } },
+  });
+  const legacyReturnKindQuery = await dispatch.call({
+    sessionId: "session-current",
+    toolName: "music.material.query",
+    payload: { returnKind: "recording", pool: { kind: "all" } },
+  });
   const relatedOutput = await assertOk(
     dispatch.call({
       sessionId: "session-current",
@@ -1637,6 +1647,8 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     !Object.prototype.hasOwnProperty.call(queryPayloads[0], "preferenceHints"),
     "material query should strip hidden preferenceHints at the public tool boundary",
   );
+  assert(!legacyQQuery.ok, "material query should reject legacy q aliases at the public tool boundary");
+  assert(!legacyReturnKindQuery.ok, "material query should reject legacy returnKind aliases at the public tool boundary");
   assert(
     !Object.prototype.hasOwnProperty.call(relatedPayloads[0], "preferenceHints"),
     "material related should strip hidden preferenceHints at the public tool boundary",

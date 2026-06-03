@@ -104,8 +104,8 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const materialQuery = createMaterialQueryService({
     materialStore,
     materialResolve,
+    materialSearch,
     materialSelector,
-    sourceLibraryMaterializer: materializationService,
     collection,
   });
   const libraryImport = createLibraryImportService({

@@ -214,6 +214,20 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     "material query public schema should not advertise experimental preferenceHints",
   );
   assert(
+    Object.prototype.hasOwnProperty.call(querySchema, "text") &&
+      Object.prototype.hasOwnProperty.call(querySchema, "targetKind"),
+    "material query public schema should expose text and targetKind",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(querySchema, "q") &&
+      !Object.prototype.hasOwnProperty.call(querySchema, "returnKind"),
+    "material query public schema should not expose legacy q or returnKind aliases",
+  );
+  assert(
+    queryPayloadSchema.safeParse({ text: "Quiet Track", targetKind: "recording" }).success,
+    "material query public schema should accept text and targetKind",
+  );
+  assert(
     !Object.prototype.hasOwnProperty.call(relatedSchema, "preferenceHints"),
     "material related public schema should not advertise experimental preferenceHints",
   );

@@ -1271,7 +1271,7 @@ export type MaterialPoolSpec =
   | { kind: "all" }
   | {
       kind: "source_library";
-      libraryKinds: PlatformLibraryItemKind[];
+      libraryKinds?: PlatformLibraryItemKind[];
       providerId?: string;
       providerAccountId?: string;
       target?: SourceLibraryPoolTarget;
@@ -1289,8 +1289,8 @@ export type MaterialPoolSpec =
     };
 
 export type MaterialQueryInput = {
-  q?: string;
-  returnKind?: "recording" | "artist" | "album" | "release" | "release_group";
+  text?: string;
+  targetKind?: "recording" | "artist" | "album" | "release" | "release_group";
   pool?: MaterialPoolSpec;
   constraints?: {
     availability?: "playable" | "any";

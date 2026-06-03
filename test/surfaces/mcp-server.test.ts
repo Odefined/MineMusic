@@ -173,9 +173,16 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "pool") &&
+      hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "text") &&
+      hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "targetKind") &&
       hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "exclude") &&
       hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "constraints"),
-    "material query schema should declare pool, exclusion, and constraint inputs",
+    "material query schema should declare text, targetKind, pool, exclusion, and constraint inputs",
+  );
+  assert(
+    !hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "q") &&
+      !hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "returnKind"),
+    "material query schema should not declare legacy q or returnKind aliases",
   );
   assert(
     !hasSchemaKey(schemasByName.get("minemusic.music.material.query"), "preferenceHints"),

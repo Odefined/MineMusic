@@ -1,9 +1,11 @@
 import type {
-  CollectionItem,
   MaterialContextBriefInput,
   MaterialContextBriefOutput,
   MaterialPoolsListInput,
   MaterialPoolsListOutput,
+  MaterialSearchHit,
+  MaterialSearchInput,
+  MaterialSearchScope,
   MaterialQueryItem,
   MaterialQueryInput,
   MaterialSelectInput,
@@ -26,8 +28,8 @@ import type {
   MaterialQueryStorePort,
   MaterialRelatedPort,
   MaterialResolvePort,
+  MaterialSearchPort,
   MaterialSelectorPort,
-  MaterialSourceLibraryMaterializerPort,
   SourceLibraryReadStorePort,
 } from "../../ports/index.js";
 import { sourceKindToMaterialKind } from "../kinds.js";
@@ -51,53 +53,53 @@ export type MaterialQueryService =
 export type MaterialQueryServiceOptions = {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
+  materialSearch: MaterialSearchPort;
   materialSelector: MaterialSelectorPort;
-  sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
   collection?: MaterialQueryCollectionReadPort;
 };
 
 export function createMaterialQueryService({
   materialStore,
   materialResolve,
+  materialSearch,
   materialSelector,
-  sourceLibraryMaterializer,
   collection,
 }: MaterialQueryServiceOptions): MaterialQueryService {
   const service: MaterialQueryService = {
     async query(input) {
       const ownerScope = input.ownerScope ?? defaultOwnerScope;
       const limit = normalizeLimit(input.limit);
+      const offset = parseCursor(input.cursor);
       const pool = input.pool ?? { kind: "all" };
-      const resolved = pool.kind === "collection"
-        ? await collectionMaterials({
-            materialStore,
-            ...(collection === undefined ? {} : { collection }),
-            ownerScope,
-            pool,
-            ...(input.q === undefined ? {} : { q: input.q }),
-          })
-        : pool.kind === "source_library"
-        ? await sourceLibraryMaterials({
-            materialStore,
-            materialResolve,
-            sourceLibraryMaterializer,
-            ownerScope,
-            pool,
-            ...(input.q === undefined ? {} : { q: input.q }),
-          })
-        : pool.kind === "all"
-        ? await allSourceLibraryMaterials({
-            materialStore,
-            sourceLibraryMaterializer,
-            ownerScope,
-            ...(input.q === undefined ? {} : { q: input.q }),
-          })
-        : await materialsForCandidatePool({
-            materialStore,
-            materialResolve,
-            ownerScope,
-            pool,
-          });
+      let resolved: Result<SelectableMaterialCandidate[]>;
+
+      if (usesMaterialSearch(pool)) {
+        resolved = await searchCandidatesForQuery({
+          materialStore,
+          materialSearch,
+          ownerScope,
+          pool,
+          input,
+          limit: searchRetrievalLimit(limit, offset),
+        });
+      } else if (pool.kind === "source_library") {
+        resolved = await sourceLibraryMaterials({
+          materialStore,
+          materialResolve,
+          ownerScope,
+          pool,
+          ...(input.text === undefined ? {} : { text: input.text }),
+        });
+      } else if (pool.kind === "related") {
+        resolved = await materialsForCandidatePool({
+          materialStore,
+          materialResolve,
+          ownerScope,
+          pool,
+        });
+      } else {
+        resolved = ok([]);
+      }
 
       if (!resolved.ok) {
         return resolved;
@@ -105,8 +107,8 @@ export function createMaterialQueryService({
 
       const selectable = await selectableMaterialsForQuery({
         materialStore,
-        materials: resolved.value,
-        returnKind: input.returnKind,
+        candidates: resolved.value,
+        targetKind: input.targetKind,
         preferenceHints: input.preferenceHints,
         exclude: input.exclude,
       });
@@ -115,7 +117,6 @@ export function createMaterialQueryService({
         return selectable;
       }
 
-      const offset = parseCursor(input.cursor);
       const selected = await materialSelector.select({
         ownerScope,
         candidates: selectable.value.map((candidate) => ({
@@ -204,6 +205,79 @@ async function resolveCandidates({
   );
 }
 
+async function searchCandidatesForQuery({
+  materialStore,
+  materialSearch,
+  ownerScope,
+  pool,
+  input,
+  limit,
+}: {
+  materialStore: MaterialProjectionStorePort;
+  materialSearch: MaterialSearchPort;
+  ownerScope: string;
+  pool: NonNullable<MaterialQueryInput["pool"]>;
+  input: MaterialQueryInput;
+  limit: number;
+}): Promise<Result<SelectableMaterialCandidate[]>> {
+  const targetKind = materialSearchTargetKind(input.targetKind);
+  const searched = await materialSearch.search({
+    ownerScope,
+    scopes: [materialSearchScopeForPool(pool)],
+    ...(input.text === undefined ? {} : { text: input.text }),
+    ...(targetKind === undefined ? {} : { targetKind }),
+    limit,
+  });
+
+  if (!searched.ok) {
+    return searched;
+  }
+
+  const candidates: SelectableMaterialCandidate[] = [];
+
+  for (const hit of searched.value.hits) {
+    const material = await materialForSearchHit({ materialStore, ownerScope, hit });
+
+    if (!material.ok) {
+      return material;
+    }
+
+    if (material.value !== null) {
+      candidates.push({
+        material: material.value,
+        ...(hit.score === undefined ? {} : { score: hit.score }),
+      });
+    }
+  }
+
+  return ok(candidates);
+}
+
+async function materialForSearchHit({
+  materialStore,
+  ownerScope,
+  hit,
+}: {
+  materialStore: MaterialProjectionStorePort;
+  ownerScope: string;
+  hit: MaterialSearchHit;
+}): Promise<Result<MusicMaterial | null>> {
+  const record = await currentMaterialRecordForRef(materialStore, hit.materialRef);
+
+  if (!record.ok) {
+    return record;
+  }
+
+  if (record.value === null) {
+    return ok(null);
+  }
+
+  return projectMaterialRecord(materialStore, record.value, {
+    ownerScope,
+    purpose: "material.query",
+  });
+}
+
 async function materialsForCandidatePool({
   materialStore,
   materialResolve,
@@ -214,7 +288,7 @@ async function materialsForCandidatePool({
   materialResolve: MaterialResolvePort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
-}): Promise<Result<MusicMaterial[]>> {
+}): Promise<Result<SelectableMaterialCandidate[]>> {
   const candidates = await relatedPoolCandidates({
     materialStore,
     ownerScope,
@@ -225,28 +299,28 @@ async function materialsForCandidatePool({
     return candidates;
   }
 
-  return resolveCandidates({
+  const resolved = await resolveCandidates({
     materialResolve,
     ownerScope,
     candidates: candidates.value,
   });
+
+  return resolved.ok ? ok(materialsToSelectableCandidates(resolved.value)) : resolved;
 }
 
 async function sourceLibraryMaterials({
   materialStore,
   materialResolve,
-  sourceLibraryMaterializer,
   ownerScope,
   pool,
-  q,
+  text,
 }: {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
-  sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>;
-  q?: string;
-}): Promise<Result<MusicMaterial[]>> {
+  text?: string;
+}): Promise<Result<SelectableMaterialCandidate[]>> {
   const target = pool.target ?? "library_item";
   const validation = validateSourceLibraryPoolTarget(pool);
 
@@ -256,7 +330,7 @@ async function sourceLibraryMaterials({
 
   const materials: MusicMaterial[] = [];
 
-  for (const libraryKind of pool.libraryKinds) {
+  for (const libraryKind of pool.libraryKinds ?? []) {
     const items = await materialStore.listSourceLibraryItems({
       ownerScope,
       status: "present",
@@ -280,7 +354,7 @@ async function sourceLibraryMaterials({
         const resolved = await resolveCandidates({
           materialResolve,
           ownerScope,
-          candidates: expanded.value.filter((candidate) => matchesQueryText(candidate.label, q)),
+          candidates: expanded.value.filter((candidate) => matchesQueryText(candidate.label, text)),
         });
 
         if (!resolved.ok) {
@@ -290,63 +364,10 @@ async function sourceLibraryMaterials({
         materials.push(...resolved.value);
         continue;
       }
-
-      if (!matchesQueryText(item.label, q)) {
-        continue;
-      }
-
-      const material = await sourceLibraryMaterializer.materialForSourceLibraryItem({
-        ownerScope,
-        item,
-      });
-
-      if (!material.ok) {
-        return material;
-      }
-
-      materials.push(material.value);
     }
   }
 
-  return ok(dedupeMaterials(materials));
-}
-
-async function allSourceLibraryMaterials({
-  materialStore,
-  sourceLibraryMaterializer,
-  ownerScope,
-  q,
-}: {
-  materialStore: MaterialQueryStorePort;
-  sourceLibraryMaterializer: MaterialSourceLibraryMaterializerPort;
-  ownerScope: string;
-  q?: string;
-}): Promise<Result<MusicMaterial[]>> {
-  const items = await materialStore.listSourceLibraryItems({
-    ownerScope,
-    status: "present",
-  });
-
-  if (!items.ok) {
-    return items;
-  }
-
-  const materials: MusicMaterial[] = [];
-
-  for (const item of items.value.filter((entry) => matchesQueryText(entry.label, q))) {
-    const material = await sourceLibraryMaterializer.materialForSourceLibraryItem({
-      ownerScope,
-      item,
-    });
-
-    if (!material.ok) {
-      return material;
-    }
-
-    materials.push(material.value);
-  }
-
-  return ok(dedupeMaterials(materials));
+  return ok(materialsToSelectableCandidates(dedupeMaterials(materials)));
 }
 
 function validateSourceLibraryPoolTarget(
@@ -354,7 +375,7 @@ function validateSourceLibraryPoolTarget(
 ): Result<void> {
   if (
     pool.target === "release_tracks" &&
-    (pool.libraryKinds.length !== 1 || pool.libraryKinds[0] !== "saved_source_release")
+    (pool.libraryKinds?.length !== 1 || pool.libraryKinds[0] !== "saved_source_release")
   ) {
     return {
       ok: false,
@@ -368,127 +389,6 @@ function validateSourceLibraryPoolTarget(
   }
 
   return ok(undefined);
-}
-
-async function collectionMaterials({
-  materialStore,
-  collection,
-  ownerScope,
-  pool,
-  q,
-}: {
-  materialStore: MaterialProjectionStorePort;
-  collection?: MaterialQueryCollectionReadPort;
-  ownerScope: string;
-  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "collection" }>;
-  q?: string;
-}): Promise<Result<MusicMaterial[]>> {
-  if (collection === undefined) {
-    return ok([]);
-  }
-
-  const items = await collectionItemsForPool({ collection, ownerScope, pool });
-
-  if (!items.ok) {
-    return items;
-  }
-
-  const materials: MusicMaterial[] = [];
-
-  for (const item of items.value.filter((entry) => matchesQueryText(entry.label, q))) {
-    const itemMaterials = await materialForCollectionItem({
-      materialStore,
-      ownerScope,
-      item,
-    });
-
-    if (!itemMaterials.ok) {
-      return itemMaterials;
-    }
-
-    materials.push(...itemMaterials.value);
-  }
-
-  return ok(dedupeMaterials(materials));
-}
-
-async function collectionItemsForPool({
-  collection,
-  ownerScope,
-  pool,
-}: {
-  collection: MaterialQueryCollectionReadPort;
-  ownerScope: string;
-  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "collection" }>;
-}): Promise<Result<CollectionItem[]>> {
-  let collectionId = pool.ref;
-
-  if (collectionId === undefined && pool.label !== undefined) {
-    const collections = await collection.listCollections({ ownerScope, includeRemoved: false });
-
-    if (!collections.ok) {
-      return collections;
-    }
-
-    collectionId = collections.value.find((entry) => entry.label === pool.label)?.id;
-
-    if (collectionId === undefined) {
-      return ok([]);
-    }
-  }
-
-  return collection.listItems({
-    ownerScope,
-    ...(collectionId === undefined ? {} : { collectionId }),
-    ...(pool.relation === undefined ? {} : { relationKind: pool.relation }),
-  });
-}
-
-async function materialForCollectionItem({
-  materialStore,
-  ownerScope,
-  item,
-}: {
-  materialStore: MaterialProjectionStorePort;
-  ownerScope: string;
-  item: CollectionItem;
-}): Promise<Result<MusicMaterial[]>> {
-  return materialForCollectionMaterialRef({
-    materialStore,
-    ownerScope,
-    item,
-    materialRef: item.materialRef,
-  });
-}
-
-async function materialForCollectionMaterialRef({
-  materialStore,
-  ownerScope,
-  item,
-  materialRef,
-}: {
-  materialStore: MaterialProjectionStorePort;
-  ownerScope: string;
-  item: CollectionItem;
-  materialRef: Ref;
-}): Promise<Result<MusicMaterial[]>> {
-  const record = await currentMaterialRecordForRef(materialStore, materialRef);
-
-  if (!record.ok) {
-    return record;
-  }
-
-  if (record.value === null) {
-    return ok([]);
-  }
-
-  const material = await projectMaterialRecord(materialStore, record.value, {
-    ownerScope,
-    purpose: "collection.snapshot",
-    fallbackLabel: item.label,
-  });
-
-  return material.ok ? ok([material.value]) : material;
 }
 
 async function relatedPoolCandidates({
@@ -550,14 +450,14 @@ type SelectableMaterialCandidate = {
 
 async function selectableMaterialsForQuery({
   materialStore,
-  materials,
-  returnKind,
+  candidates,
+  targetKind,
   preferenceHints,
   exclude,
 }: {
   materialStore: MaterialProjectionStorePort;
-  materials: MusicMaterial[];
-  returnKind?: MaterialQueryInput["returnKind"];
+  candidates: SelectableMaterialCandidate[];
+  targetKind?: MaterialQueryInput["targetKind"];
   preferenceHints?: MaterialQueryInput["preferenceHints"];
   exclude?: MaterialQueryInput["exclude"];
 }): Promise<Result<SelectableMaterialCandidate[]>> {
@@ -573,22 +473,25 @@ async function selectableMaterialsForQuery({
   const preferHints = preferredHints(preferenceHints);
   const filtered: SelectableMaterialCandidate[] = [];
 
-  for (const material of dedupeMaterials(materials)) {
-    if (!matchesReturnKind(material, returnKind)) {
+  for (const candidate of dedupeSelectableCandidates(candidates)) {
+    if (!matchesTargetKind(candidate.material, targetKind)) {
       continue;
     }
 
-    if (excludedMaterialIds.value.has(materialRefToMaterialId(material.materialRef))) {
+    if (excludedMaterialIds.value.has(materialRefToMaterialId(candidate.material.materialRef))) {
       continue;
     }
 
-    if (matchesAnyHint(material, avoidHints(preferenceHints))) {
+    if (matchesAnyHint(candidate.material, avoidHints(preferenceHints))) {
       continue;
     }
 
+    const hintScoreValue = hintScore(candidate.material, preferHints);
     filtered.push({
-      material,
-      ...(preferHints.length === 0 ? {} : { score: hintScore(material, preferHints) }),
+      material: candidate.material,
+      ...(candidate.score === undefined && preferHints.length === 0
+        ? {}
+        : { score: (candidate.score ?? 0) + hintScoreValue }),
     });
   }
 
@@ -686,9 +589,9 @@ async function relatedForInput({
 
   const selectable = await selectableMaterialsForQuery({
     materialStore,
-    materials: resolved.value.filter((material) =>
+    candidates: materialsToSelectableCandidates(resolved.value.filter((material) =>
       !sameRef(material.materialRef, seedMaterialRef) && !sameRef(material.materialRef, currentSeedMaterialRef.value)
-    ),
+    )),
     exclude: {
       ...input.exclude,
       materialIds: [
@@ -1254,8 +1157,8 @@ function appliedLabels(input: MaterialQueryInput): string[] {
     applied.push(`identity:${input.constraints.identity}`);
   }
 
-  if (input.returnKind !== undefined) {
-    applied.push(`returnKind:${input.returnKind}`);
+  if (input.targetKind !== undefined) {
+    applied.push(`targetKind:${input.targetKind}`);
   }
 
   if (input.preferenceHints?.prefer !== undefined) {
@@ -1311,7 +1214,7 @@ function poolLabel(pool: NonNullable<MaterialQueryInput["pool"]>): string {
   if (pool.kind === "source_library") {
     return [
       "source_library",
-      pool.libraryKinds.join(","),
+      (pool.libraryKinds ?? ["all"]).join(","),
       pool.target ?? "library_item",
     ].join(":");
   }
@@ -1327,8 +1230,76 @@ function poolLabel(pool: NonNullable<MaterialQueryInput["pool"]>): string {
   return "all";
 }
 
-function matchesQueryText(label: string, q: string | undefined): boolean {
-  return q === undefined || label.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase());
+function usesMaterialSearch(pool: NonNullable<MaterialQueryInput["pool"]>): boolean {
+  return pool.kind === "all" ||
+    pool.kind === "collection" ||
+    (pool.kind === "source_library" && pool.target !== "release_tracks");
+}
+
+function materialSearchScopeForPool(pool: NonNullable<MaterialQueryInput["pool"]>): MaterialSearchScope {
+  switch (pool.kind) {
+    case "all":
+      return { kind: "all" };
+    case "source_library":
+      return {
+        kind: "source_library",
+        ...(pool.libraryKinds === undefined ? {} : { libraryKinds: pool.libraryKinds }),
+        ...(pool.providerId === undefined ? {} : { providerId: pool.providerId }),
+        ...(pool.providerAccountId === undefined ? {} : { providerAccountId: pool.providerAccountId }),
+      };
+    case "collection":
+      return {
+        kind: "collection",
+        ...(pool.ref === undefined ? {} : { ref: pool.ref }),
+        ...(pool.label === undefined ? {} : { label: pool.label }),
+        ...(pool.relation === undefined ? {} : { relation: pool.relation }),
+      };
+    case "related":
+      throw new Error("related pools do not use Material Search");
+  }
+}
+
+function materialSearchTargetKind(
+  targetKind: MaterialQueryInput["targetKind"],
+): MaterialSearchInput["targetKind"] | undefined {
+  switch (targetKind) {
+    case undefined:
+      return undefined;
+    case "album":
+      return "release";
+    default:
+      return targetKind;
+  }
+}
+
+function searchRetrievalLimit(queryLimit: number, offset: number): number {
+  return Math.min(500, Math.max(100, queryLimit * 10, offset + queryLimit));
+}
+
+function materialsToSelectableCandidates(materials: MusicMaterial[]): SelectableMaterialCandidate[] {
+  return materials.map((material) => ({ material }));
+}
+
+function dedupeSelectableCandidates(candidates: SelectableMaterialCandidate[]): SelectableMaterialCandidate[] {
+  const seen = new Set<string>();
+  const unique: SelectableMaterialCandidate[] = [];
+
+  for (const candidate of candidates) {
+    const key = materialRefToMaterialId(candidate.material.materialRef);
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(candidate);
+  }
+
+  return unique;
+}
+
+function matchesQueryText(label: string, text: string | undefined): boolean {
+  return text === undefined || label.toLocaleLowerCase().includes(text.trim().toLocaleLowerCase());
 }
 
 function matchesAnyHint(material: MusicMaterial, hints: string[] | undefined): boolean {
@@ -1397,20 +1368,20 @@ function normalizeHints(hints: string[]): string[] {
     .filter((hint) => hint.length > 0);
 }
 
-function matchesReturnKind(material: MusicMaterial, returnKind: MaterialQueryInput["returnKind"]): boolean {
-  if (returnKind === undefined) {
+function matchesTargetKind(material: MusicMaterial, targetKind: MaterialQueryInput["targetKind"]): boolean {
+  if (targetKind === undefined) {
     return true;
   }
 
-  return normalizedReturnKinds(returnKind).has(material.kind);
+  return normalizedTargetKinds(targetKind).has(material.kind);
 }
 
-function normalizedReturnKinds(returnKind: NonNullable<MaterialQueryInput["returnKind"]>): Set<string> {
-  switch (returnKind) {
+function normalizedTargetKinds(targetKind: NonNullable<MaterialQueryInput["targetKind"]>): Set<string> {
+  switch (targetKind) {
     case "album":
-      return new Set(["release", "release_group"]);
+      return new Set(["release"]);
     default:
-      return new Set([returnKind]);
+      return new Set([targetKind]);
   }
 }
 

@@ -15,15 +15,17 @@ import { createMaterializationService } from "../../src/material/materialization
 import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
 import { createMaterialQueryService } from "../../src/material/query/index.js";
 import { createMaterialResolveService } from "../../src/material/resolve/index.js";
+import { createMaterialSearchDocumentProvider, createMaterialSearchService } from "../../src/material/search/index.js";
 import { createMaterialSelector } from "../../src/material/selection/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
-import type { SourceGroundingPort } from "../../src/ports/index.js";
+import type { MaterialSearchCollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
   createInMemoryEventRepository,
   createInMemoryLibraryImportRepository,
   createInMemorySourceEntityStoreRepository,
+  createSqliteMaterialSearchIndex,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -1031,6 +1033,18 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
   const materializationService = createMaterializationService({
     materialStore: environment.materialStore,
   });
+  const materialSearchDocuments = createMaterialSearchDocumentProvider({ materialStore: environment.materialStore });
+  const materialSearchIndex = createSqliteMaterialSearchIndex({ documents: materialSearchDocuments });
+  const materialSearchCollection: MaterialSearchCollectionPort = {
+    listCollections: async () => ({ ok: true, value: [] }),
+    listItems: async () => ({ ok: true, value: [] }),
+    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
+  };
+  const materialSearch = createMaterialSearchService({
+    materialStore: environment.materialStore,
+    collection: materialSearchCollection,
+    searchIndex: materialSearchIndex,
+  });
   const materialQuery = createMaterialQueryService({
     materialStore: environment.materialStore,
     materialResolve: createMaterialResolveService({
@@ -1039,8 +1053,8 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
       sourceMaterializer: materializationService,
       materialPolicyEvaluator,
     }),
+    materialSearch,
     materialSelector,
-    sourceLibraryMaterializer: materializationService,
   });
   const ordered = await assertOk(
     materialQuery.query({
