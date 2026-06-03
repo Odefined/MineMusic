@@ -272,8 +272,6 @@ function materialRefsFromPayload(payload: unknown): Ref[] {
 
   refs.push(...refValue(payload.materialRef));
   refs.push(...materialIdValue(payload.materialId));
-  refs.push(...refValue(payload.ref));
-  refs.push(...refValue(payload.material));
 
   if (Array.isArray(payload.cards)) {
     for (const card of payload.cards) {
@@ -283,8 +281,6 @@ function materialRefsFromPayload(payload: unknown): Ref[] {
 
       refs.push(...refValue(card.materialRef));
       refs.push(...materialIdValue(card.materialId));
-      refs.push(...refValue(card.ref));
-      refs.push(...refValue(card.material));
     }
   }
 

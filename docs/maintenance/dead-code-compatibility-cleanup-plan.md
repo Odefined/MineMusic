@@ -21,11 +21,10 @@ surface, without smuggling in larger behavior redesigns.
   re-exports in `src/stage_interface/index.ts`. The temporary
   `src/stage_interface/tools.ts` and `src/stage_interface/schemas.ts`
   compatibility barrels are gone.
-- Aggregate `MaterialActivity` still carries deprecated
-  `recommendedCountSession`, `openedCountSession`, and `playedCountSession`
-  through contracts, merge logic, and tests.
-- `src/events/index.ts` still reads legacy material payload aliases:
-  `payload.ref`, `payload.material`, `card.ref`, and `card.material`.
+- Aggregate `MaterialActivity` now keeps only timestamp-style aggregate fields;
+  session counts live in `MaterialSessionActivity`.
+- `src/events/index.ts` now reads only current material-target shapes
+  (`materialId`, `materialRef`, and `MaterialEventTarget`).
 - Collection `canonicalRef` still participates in current collection status,
   query fallback, repository/storage contracts, and tests. It is not treated as
   routine dead code in this plan.
@@ -42,9 +41,7 @@ surface, without smuggling in larger behavior redesigns.
 
 ## Execution Order
 
-1. PR 2: remove deprecated aggregate `MaterialActivity` session counters.
-2. PR 3: remove legacy EventService material payload aliases.
-3. Separate follow-up only if explicitly reopened: Collection `canonicalRef`
+1. Separate follow-up only if explicitly reopened: Collection `canonicalRef`
    behavior decision.
 
 ## Completed: PR 1 Remove Stage Interface Compatibility Barrels
@@ -53,134 +50,16 @@ This slice is done. Current source imports and docs point at
 `src/stage_interface/tool_definitions/index.ts` and the public
 `src/stage_interface/index.ts` barrel instead of the deleted wrapper modules.
 
-## PR 2: Remove Deprecated Aggregate MaterialActivity Session Counters
+## Completed: PR 2 Remove Deprecated Aggregate MaterialActivity Session Counters
 
-### Goal
-
-Delete deprecated owner-global pseudo-session counters from aggregate
-`MaterialActivity` and keep session counting only in
+This slice is done. Aggregate `MaterialActivity` no longer carries the old
+owner-global pseudo-session counters, and session counts live only in
 `MaterialSessionActivity`.
 
-### Owned Bounded Context
+## Completed: PR 3 Remove Legacy EventService Material Payload Aliases
 
-Material Store activity projection.
-
-### Allowed Read Capabilities
-
-- `src/contracts/index.ts`
-- `src/material/store/index.ts`
-- activity-related tests under `test/material_store`, `test/material_query`,
-  and `test/events`
-
-### Allowed Write Capabilities
-
-- remove deprecated fields from `MaterialActivity`
-- remove merge logic that exists only for those fields
-- update tests to assert the current aggregate/session split
-
-### Files Expected To Change
-
-- `src/contracts/index.ts`
-- `src/material/store/index.ts`
-- `test/material_store/material-relations.test.ts`
-- `test/material_query/material-query.test.ts`
-- `test/events/material-activity.test.ts`
-
-### Explicitly Out Of Scope
-
-- `MaterialSessionActivity`
-- recommendation ranking policy
-- storage schema redesign
-- event payload shape changes
-
-### Architecture Guard
-
-Aggregate `MaterialActivity` remains an owner/material recent-activity view.
-Session counts live only in `MaterialSessionActivity`; they must not migrate
-back into aggregate activity through helper reuse or merge logic.
-
-### Verification
-
-```bash
-npm run build:test
-node .tmp-test/test/material_store/material-relations.test.js
-node .tmp-test/test/material_query/material-query.test.js
-node .tmp-test/test/events/material-activity.test.js
-npm test
-git diff --check
-git diff --name-only
-```
-
-### Acceptance Criteria
-
-- `MaterialActivity` no longer declares
-  `recommendedCountSession/openedCountSession/playedCountSession`.
-- `src/material/store/index.ts` no longer merges or copies those fields.
-- Tests only assert session counts through `MaterialSessionActivity`.
-
-## PR 3: Remove Legacy EventService Material Payload Aliases
-
-### Goal
-
-Stop reading legacy material aliases from event payloads and keep only current
-material handles.
-
-### Owned Bounded Context
-
-Event Service material-target extraction.
-
-### Allowed Read Capabilities
-
-- `src/events/index.ts`
-- `test/events/material-activity.test.ts`
-- `test/stage_interface/stage-interface-dispatch.test.ts`
-- current docs/examples for manual event payloads, if any
-
-### Allowed Write Capabilities
-
-- delete extraction of `payload.ref`, `payload.material`, `card.ref`, and
-  `card.material`
-- migrate tests and current examples to `materialId`, `materialRef`, or
-  `MaterialEventTarget`
-- update docs only where current examples still show the removed aliases
-
-### Files Expected To Change
-
-- `src/events/index.ts`
-- `test/events/material-activity.test.ts`
-- `test/stage_interface/stage-interface-dispatch.test.ts`
-- current docs/examples only if they mention the removed aliases
-
-### Explicitly Out Of Scope
-
-- recommendation presentation behavior
-- public tool renames
-- storage schema work
-
-### Architecture Guard
-
-Current public compact material handle stays `materialId`. Internal event
-projection may still read `materialRef` and `MaterialEventTarget`, but should
-not keep dead alias branches once current callers/tests stop using them.
-
-### Verification
-
-```bash
-npm run build:test
-node .tmp-test/test/events/material-activity.test.js
-node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js
-npm test
-git diff --check
-git diff --name-only
-```
-
-### Acceptance Criteria
-
-- `src/events/index.ts` no longer reads `payload.ref`, `payload.material`,
-  `card.ref`, or `card.material`.
-- Tests use current material-target shapes only.
-- Any current docs/examples mentioning the removed aliases are updated or
-  deleted.
+This slice is done. EventService now reads only current material-target shapes
+instead of the old `ref` / `material` aliases.
 
 ## Deferred: Collection canonicalRef
 
