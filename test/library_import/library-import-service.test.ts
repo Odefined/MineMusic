@@ -870,6 +870,21 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   const importEvents = await assertOk(
     environment.events.listBySession({ sessionId: `library_import:${report.batchId}` }),
   );
+  const boundTrackMaterial = await assertOk(
+    environment.materialStore.findMaterialBySourceRef({
+      sourceRef: sourceRef("bound-track"),
+    }),
+  );
+  const newTrackMaterial = await assertOk(
+    environment.materialStore.findMaterialBySourceRef({
+      sourceRef: sourceRef("new-track"),
+    }),
+  );
+  const unresolvedTrackMaterial = await assertOk(
+    environment.materialStore.findMaterialBySourceRef({
+      sourceRef: sourceRef("unresolved-track"),
+    }),
+  );
 
   assert(report.status === "completed", "source-library import should complete cleanly when all items persist");
   assert(status.status === report.status, "status should expose the completed batch state");
@@ -896,6 +911,36 @@ async function importsReadableItemsIntoMineMusicStateAndRecordsFacts(): Promise<
   assert(savedItems.length === 1, "import should only keep confirmed canonical Collection items");
   assert(sourceEntities.length === 3, "import should upsert a Source Entity for every observed provider item");
   assert(sourceLibraryItems.length === 3, "import should put every observed provider item in Source Library");
+  assert(boundTrackMaterial !== null, "import should bind an existing library item to a durable MaterialRecord");
+  assert(newTrackMaterial !== null, "import should create a durable MaterialRecord for a newly imported source item");
+  assert(
+    unresolvedTrackMaterial !== null,
+    "import should create a durable MaterialRecord even when the source item has weak labels",
+  );
+  assert(
+    (boundTrackMaterial?.sourceRefs ?? []).some((itemRef) => sameRef(itemRef, sourceRef("bound-track"))),
+    "bound imported MaterialRecord should keep the imported sourceRef",
+  );
+  assert(
+    (newTrackMaterial?.sourceRefs ?? []).some((itemRef) => sameRef(itemRef, sourceRef("new-track"))),
+    "newly imported MaterialRecord should keep the imported sourceRef",
+  );
+  assert(
+    (unresolvedTrackMaterial?.sourceRefs ?? []).some((itemRef) => sameRef(itemRef, sourceRef("unresolved-track"))),
+    "weak imported MaterialRecord should keep the imported sourceRef",
+  );
+  assert(
+    boundTrackMaterial?.identityState === "source_backed",
+    "imported source-backed MaterialRecords should default to source_backed identity when no existing store behavior overrides it",
+  );
+  assert(
+    newTrackMaterial?.identityState === "source_backed",
+    "newly imported MaterialRecords should default to source_backed identity",
+  );
+  assert(
+    unresolvedTrackMaterial?.identityState === "source_backed",
+    "weak imported MaterialRecords should default to source_backed identity",
+  );
   assert(
     sourceEntities.find((entity) => entity.sourceRef.id === "new-track")?.label === "New Track - Fixture Artist",
     "Source Entity should keep the provider-facing source label",
@@ -1041,6 +1086,84 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
   assert(
     reimportedItems.find((item) => item.sourceRef.id === "newer-provider-track")?.addedAt === "2026-01-01T00:00:00.000Z",
     "re-import should not overwrite addedAt with newer providerAddedAt",
+  );
+}
+
+async function repeatedImportReusesExistingSourceBackedMaterialRecord(): Promise<void> {
+  const registry = createPluginRegistry();
+  const provider: PlatformLibraryProvider = {
+    id: "fixture-library",
+    async preview() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          areas: [],
+        },
+      };
+    },
+    async readItems() {
+      return {
+        ok: true,
+        value: {
+          providerId: "fixture-library",
+          account: {
+            providerAccountId: "fixture-account",
+            stable: true,
+          },
+          areas: [
+            {
+              area: "saved_source_tracks",
+              status: "complete",
+              items: [providerItem("repeat-track", "Repeat Track")],
+            },
+          ],
+        },
+      };
+    },
+  };
+  await assertOk(registry.registerProvider({ slot: "platform_library", providerId: provider.id, provider }));
+
+  const environment = createTestLibraryImportEnvironment(registry);
+
+  await assertOk(
+    environment.libraryImport.startImport({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  const firstMaterial = await assertOk(
+    environment.materialStore.findMaterialBySourceRef({
+      sourceRef: sourceRef("repeat-track"),
+    }),
+  );
+
+  assert(firstMaterial !== null, "first import should create a durable MaterialRecord");
+
+  await assertOk(
+    environment.libraryImport.startUpdate({
+      providerId: provider.id,
+      scopes: ["saved_source_tracks"],
+    }),
+  );
+  const secondMaterial = await assertOk(
+    environment.materialStore.findMaterialBySourceRef({
+      sourceRef: sourceRef("repeat-track"),
+    }),
+  );
+
+  assert(secondMaterial !== null, "update should keep the imported MaterialRecord addressable");
+  assert(
+    sameRef(secondMaterial.materialRef, firstMaterial.materialRef),
+    "repeated import/update should reuse the existing MaterialRecord instead of creating a duplicate",
+  );
+  assert(
+    secondMaterial.identityState === "source_backed",
+    "reused imported MaterialRecord should keep source_backed identity when no existing store behavior overrides it",
+  );
+  assert(
+    (secondMaterial.sourceRefs ?? []).some((itemRef) => sameRef(itemRef, sourceRef("repeat-track"))),
+    "reused imported MaterialRecord should keep the imported sourceRef",
   );
 }
 
@@ -2455,6 +2578,7 @@ await estimatesReadableImportPreviewWithoutWritingMineMusicState();
 await previewsDiscoveryWithoutReadingProviderItems();
 await importsReadableItemsIntoMineMusicStateAndRecordsFacts();
 await importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder();
+await repeatedImportReusesExistingSourceBackedMaterialRecord();
 await importsSameLabelDifferentSourceRefsAsSeparateSourceEntities();
 await importsSavedReleaseTracklistIntoSourceEntityStore();
 await cachesSavedCollectionMembershipDuringImportBatch();

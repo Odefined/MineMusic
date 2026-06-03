@@ -30,7 +30,8 @@ repositories. `materialStoreDatabasePath` /
 - Source Entity Store owns source tracks, releases, artists, Source Library
   items, and confirmed source-to-canonical bindings.
 - Library Import/Update writes observed provider items into Source Entity Store
-  and Source Library first.
+  and Source Library first, then ensures a durable source-backed MaterialRecord
+  exists for each imported source ref.
 - Material Resolve reads Source Library only through explicit resolve/query
   scope and no longer owns Library Import state.
 - Material Registry owns `materialRef` identity, redirects, source/canonical

@@ -550,6 +550,7 @@ export type LibraryImportMaterialStorePort = Pick<
   | "getSourceLibraryItem"
   | "putSourceLibraryItem"
   | "listSourceLibraryItems"
+  | "getOrCreateBySourceRef"
 >;
 
 export type StageInterfaceMaterialStorePort =

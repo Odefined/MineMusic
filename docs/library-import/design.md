@@ -70,8 +70,9 @@ decisions; it is not the main Library Import function.
 
 Library Import is a Source Entity Store flow inside Material Store. Its direct
 job is to put provider library facts into Source Entity Store and Source
-Library. Ordinary import/update does not write Collection or depend on
-Confirmed Canonical Bindings.
+Library, then ensure a durable source-backed MaterialRecord exists for each
+imported `sourceRef`. Ordinary import/update does not write Collection or
+depend on Confirmed Canonical Bindings.
 
 ```mermaid
 flowchart TD
