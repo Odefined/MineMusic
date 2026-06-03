@@ -8,7 +8,10 @@ export {
 } from "./store/index.js";
 export { createMaterialResolveService } from "./resolve/index.js";
 export { createMaterializationService } from "./materialization/index.js";
-export { createMaterialSearchService } from "./search/index.js";
+export {
+  createMaterialSearchDocumentProvider,
+  createMaterialSearchService,
+} from "./search/index.js";
 export { createMaterialQueryService } from "./query/index.js";
 export {
   materialForMaterialId,
