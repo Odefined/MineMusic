@@ -237,3 +237,4 @@ Output: `MemoryFeedbackRecordOutput`
 Description: Advanced memory proposal tool; for user feedback on shown recommendations, use memory.feedback.record with remember_preference.
 Input: `MemoryProposalDraft`
 Output: `MemoryProposal`
+
