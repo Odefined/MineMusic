@@ -15,7 +15,7 @@ The current implementation has:
 - eager durable MaterialRecord creation/binding for imported `sourceRef`s
   through `LibraryImportMaterialStorePort`;
 - `LibraryImportMaterialStorePort` as the narrow Material Store dependency for
-  source entity, Source Library, and imported source-backed material writes;
+  source entity, Source Library, and imported material writes;
 - no ordinary Collection writes during platform-library import/update;
 - no default provisional canonical creation during platform-library
   import/update;
