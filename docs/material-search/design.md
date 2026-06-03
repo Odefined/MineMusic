@@ -26,7 +26,7 @@ Material Search does not own:
 - policy evaluation, final selection, or recommendation presentation;
 - semantic mood, vibe, genre, tag, or recommendation-intent interpretation.
 
-`music.material.query` is the first consumer. It should use Material Search for
+`music.material.query` is the first consumer. It uses Material Search for
 `all`, ordinary `source_library`, and `collection` retrieval. `related` and
 `source_library` with `target: "release_tracks"` remain on their existing paths.
 
@@ -35,16 +35,16 @@ Material Search does not own:
 Material Search itself is an internal Material Flow capability. It does not add
 a public Search tool.
 
-`music.material.query` should normalize its public language when it integrates
-Material Search:
+`music.material.query` uses normalized public language:
 
 - `q` becomes `text`;
 - `returnKind` becomes `targetKind`;
 - compatibility aliases are not kept.
 
-`targetKind` is a hard material-kind filter, not a ranking boost. `track` and
-`song` normalize to `recording`; `album` normalizes to `release`. If no
-`targetKind` is provided, text search is cross-kind.
+`targetKind` is a hard material-kind filter, not a ranking boost. Public Query
+accepts `recording`, `artist`, `album`, `release`, and `release_group`; `album`
+normalizes to internal Search target `release`. It does not keep `track` or
+`song` aliases. If no `targetKind` is provided, text search is cross-kind.
 
 `text` is trimmed. Missing, empty, or all-whitespace `text` means browse the
 selected scope rather than invalid input.
@@ -320,7 +320,7 @@ export type MaterialSearchCollectionPort = Pick<
 >;
 ```
 
-Architecture guards should prevent `src/material/search/**` from importing:
+Architecture guards prevent `src/material/search/**` from importing:
 
 - broad `MaterialStorePort`;
 - broad `CollectionPort`;

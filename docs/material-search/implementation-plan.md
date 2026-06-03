@@ -3,6 +3,9 @@
 This is an implementation plan, not current design authority. Current design
 authority lives in `docs/material-search/design.md`.
 
+Implementation state now lives in `docs/material-search/progress.md`. Keep this
+plan as execution history rather than a live status ledger.
+
 ## Goal
 
 Implement Material Search v1 as an internal Material Flow capability backed by

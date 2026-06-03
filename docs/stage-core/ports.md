@@ -30,9 +30,9 @@ The MineMusic server should depend on this narrow runtime shape.
 
 `MineMusicStageCoreHarness` additionally exposes internal services such as
 dispatch, Session Context, Material Store, Collection, Material Resolve,
-Material Query, Source Grounding, Knowledge, Library Import, Events, Memory,
-Effects, Plugin Registry, and Provider HTTP Cache. This is not the normal
-production surface.
+Material Search, Material Query, Source Grounding, Knowledge, Library Import,
+Events, Memory, Effects, Plugin Registry, and Provider HTTP Cache. This is not
+the normal production surface.
 
 ## Consumed Capabilities
 
@@ -41,7 +41,7 @@ root:
 
 | Capability | Consumed from | Notes |
 | --- | --- | --- |
-| Material Store, materialization, policy, sort, select, query, resolve, recommendation presentation, canonical maintenance | `src/material/index.ts` | Domain behavior stays in Material modules. |
+| Material Store, materialization, search, policy, sort, select, query, resolve, recommendation presentation, canonical maintenance | `src/material/index.ts` | Domain behavior stays in Material modules. |
 | Collection Service | `src/collection/index.ts` | Stage Core wires repository/events/material store dependencies. |
 | Source Grounding | `src/source/index.ts` | Stage Core injects Plugin Registry and source evidence writer. |
 | Music Knowledge | `src/knowledge/index.ts` | Stage Core injects Plugin Registry and Canonical Store context reader. |
@@ -67,6 +67,7 @@ The rule applies to:
 - material relations;
 - material activity;
 - material session activity;
+- Material Search SQLite FTS index;
 - Source Entity Store repository;
 - Collection repository;
 - Library Import repository;

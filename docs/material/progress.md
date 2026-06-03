@@ -10,6 +10,7 @@ The current implementation has:
 - Material Resolve behind `MaterialResolvePort`;
 - Material Query, Related, Context Brief, and Pools behind their material
   ports;
+- Material Search behind `MaterialSearchPort`;
 - Material Projection behind `MaterialProjectionStorePort`;
 - shared SourceMaterial and Source Library item materialization behind explicit
   materializer ports;
@@ -46,7 +47,11 @@ The public material handle remains `materialId`. Internal material identity is
   mode, and `MaterialResolveStatus` now includes `wrong_version` and
   `not_playable` for candidate-level resolve outcomes.
 - Stage Core wires policy, sorter, selector, query, resolve, materialization,
-  and presentation separately in `src/stage_core/compose.ts`.
+  search, and presentation separately in `src/stage_core/compose.ts`.
+- Material Search v1 retrieves `all`, ordinary `source_library`, and
+  `collection` Query pools from owner-visible durable material refs through
+  SQLite FTS-backed search. Query no longer materializes ordinary Source
+  Library rows during retrieval.
 - Recommendation Presentation evaluates intended materialId order, applies
   presentation policy and limits, records typed `recommendation.presented`
   events, and returns domain presentation items to Stage Interface.
@@ -79,11 +84,17 @@ Current architecture guards live in
 - no broad `CollectionPort` dependency in query, policy, or resolve;
 - no direct resolve import of Material Policy relation-projection internals;
 - no hidden materialization writers in query or resolve;
+- exact Material Search port key sets and forbidden imports;
 - materialization import isolation.
 
 Focused behavior evidence exists in:
 
 - `test/material_policy/material-policy.test.ts`;
+- `test/material_search/material-search-document.test.ts`;
+- `test/material_search/material-search-visibility.test.ts`;
+- `test/material_search/material-search-eligibility.test.ts`;
+- `test/material_search/material-search-query.test.ts`;
+- `test/material_search/material-search-cursor.test.ts`;
 - `test/material_query/material-query.test.ts`;
 - `test/material_resolve/material-resolve.test.ts`;
 - `test/material_resolve/material-relation-filtering.test.ts`;

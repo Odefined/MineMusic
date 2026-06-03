@@ -138,6 +138,10 @@ Library browsing path. Public source-library pools use `libraryKinds` and
 optional `target`. The old public `areas` / `expand` Source Library browsing
 language is archived.
 
+Public `music.material.query` uses `text` for text retrieval and `targetKind`
+for hard material-kind filtering. The old `q` and `returnKind` names are not
+compatibility aliases and are rejected by Query's public validation.
+
 ## Collection Output Policy
 
 Public collection actions use `materialId` inputs and return compact public

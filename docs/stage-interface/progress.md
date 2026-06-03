@@ -170,6 +170,8 @@ listing keeps `sourceRef`.
 - Public material pool schemas normalized to `libraryKinds` plus optional
   `target`; `music.pools.list` now returns query-ready `pool` specs and hides
   related pools.
+- Public `music.material.query` schema now uses `text` and `targetKind`; the
+  old `q` and `returnKind` names are rejected rather than kept as aliases.
 - Public collection add/save/favorite/block schemas hide `canonicalRef`,
   `materialRef`, and `label`; handlers derive labels from material projection.
 - Public collection outputs are compact Stage Interface projections:
@@ -216,6 +218,10 @@ listing keeps `sourceRef`.
   `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
   `node .tmp-test/test/surfaces/mcp-server.test.js`, and `npm test` pass for
   the Stage Interface compatibility-barrel removal.
+- `node .tmp-test/test/stage_interface/stage-interface.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`, and
+  `node .tmp-test/test/surfaces/mcp-server.test.js` pass for the Material
+  Search Query schema rename.
 
 ## Documentation Alignment Evidence
 
