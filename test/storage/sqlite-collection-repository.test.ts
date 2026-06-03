@@ -34,7 +34,6 @@ async function persistsCollectionsAndItemsAcrossRepositoryReopen(): Promise<void
   const item: CollectionItem = {
     id: "collection-item-1",
     collectionId: savedRecordings.id,
-    canonicalRef: canonicalRef("recording", "quiet-track"),
     materialRef: materialRef("quiet-track-material"),
     label: "Quiet Track",
     description: "Persist me",
@@ -55,12 +54,6 @@ async function persistsCollectionsAndItemsAcrossRepositoryReopen(): Promise<void
       reopenedRepository.getCollection({ collectionId: "collection-saved-recordings" }),
     );
     const loadedItem = await assertOk(reopenedRepository.getItem({ itemId: "collection-item-1" }));
-    const membership = await assertOk(
-      reopenedRepository.findItemByMembership({
-        collectionId: "collection-saved-recordings",
-        canonicalRef: canonicalRef("recording", "quiet-track"),
-      }),
-    );
     const materialMembership = await assertOk(
       reopenedRepository.findItemByMaterialMembership({
         collectionId: "collection-saved-recordings",
@@ -70,8 +63,7 @@ async function persistsCollectionsAndItemsAcrossRepositoryReopen(): Promise<void
 
     assert(loadedCollection?.label === "Saved recordings", "SQLite collection repository should persist collections");
     assert(loadedItem?.label === "Quiet Track", "SQLite collection repository should persist items");
-    assert(loadedItem?.materialRef?.id === "quiet-track-material", "SQLite collection repository should persist materialRef");
-    assert(membership?.id === item.id, "SQLite collection repository should find persisted membership");
+    assert(loadedItem?.materialRef.id === "quiet-track-material", "SQLite collection repository should persist materialRef");
     assert(materialMembership?.id === item.id, "SQLite collection repository should find persisted material membership");
 
     loadedItem.label = "Mutated after get";
@@ -180,14 +172,14 @@ async function queriesItemsByCollectionAndCollectionStateAfterReopen(): Promise<
   const activeItem = item({
     id: "item-active",
     collectionId: savedRecordings.id,
-    canonicalRef: canonicalRef("recording", "active-track"),
+    materialRef: materialRef("active-track"),
     label: "Active Track",
   });
   const removedItem: CollectionItem = {
     ...item({
       id: "item-removed",
       collectionId: savedRecordings.id,
-      canonicalRef: canonicalRef("recording", "removed-track"),
+      materialRef: materialRef("removed-track"),
       label: "Removed Track",
     }),
     removedAt: "2026-05-24T01:00:00.000Z",
@@ -195,13 +187,13 @@ async function queriesItemsByCollectionAndCollectionStateAfterReopen(): Promise<
   const artistItem = item({
     id: "item-artist",
     collectionId: favoriteArtists.id,
-    canonicalRef: canonicalRef("artist", "artist-1"),
+    materialRef: materialRef("artist-1"),
     label: "Artist 1",
   });
   const guestItem = item({
     id: "item-guest",
     collectionId: guestSavedRecordings.id,
-    canonicalRef: canonicalRef("recording", "guest-track"),
+    materialRef: materialRef("guest-track"),
     label: "Guest Track",
   });
 
@@ -232,15 +224,15 @@ async function queriesItemsByCollectionAndCollectionStateAfterReopen(): Promise<
       }),
     );
     const removedMembership = await assertOk(
-      reopenedRepository.findItemByMembership({
+      reopenedRepository.findItemByMaterialMembership({
         collectionId: removedItem.collectionId,
-        canonicalRef: removedItem.canonicalRef ?? canonicalRef("recording", "removed-track"),
+        materialRef: removedItem.materialRef,
       }),
     );
     const includedRemovedMembership = await assertOk(
-      reopenedRepository.findItemByMembership({
+      reopenedRepository.findItemByMaterialMembership({
         collectionId: removedItem.collectionId,
-        canonicalRef: removedItem.canonicalRef ?? canonicalRef("recording", "removed-track"),
+        materialRef: removedItem.materialRef,
         includeRemoved: true,
       }),
     );
@@ -280,28 +272,20 @@ function collection({
 function item({
   id,
   collectionId,
-  canonicalRef,
+  materialRef,
   label,
 }: {
   id: string;
   collectionId: string;
-  canonicalRef: Ref;
+  materialRef: Ref;
   label: string;
 }): CollectionItem {
   return {
     id,
     collectionId,
-    canonicalRef,
+    materialRef,
     label,
     createdAt: "2026-05-24T00:00:00.000Z",
-  };
-}
-
-function canonicalRef(kind: Ref["kind"], id: string): Ref {
-  return {
-    namespace: "minemusic",
-    kind,
-    id,
   };
 }
 

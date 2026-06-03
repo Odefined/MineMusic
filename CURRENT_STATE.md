@@ -31,6 +31,10 @@ the docs listed in `INDEX.md`.
   browsing is through `music.pools.list` and `music.material.query`.
 - `stage.recommendation.present` is the final presentation boundary for
   user-visible recommendations and typed `recommendation.presented` events.
+- Public collection tools return compact Stage Interface-owned outputs:
+  collection item actions expose `itemId`, `collectionId`, and `materialId`;
+  collection lists expose collection ids/labels and item ids, collection ids,
+  material ids, and item labels.
 - The Codex workflow skill lives at `skills/minemusic/SKILL.md`; its
   `HANDBOOK.md` is a snapshot. Live tool truth is available through
   `minemusic.handbook.*` tools.
@@ -46,6 +50,9 @@ the docs listed in `INDEX.md`.
 - Collection Service owns owner-scoped system/custom Collections and current
   materialRef-backed CollectionItems. ADR-0003 accepts this boundary and
   supersedes ADR-0002's earlier canonical-only Collection consequence.
+- Current CollectionItems require `materialRef` and no longer store
+  `canonicalRef`, `status`, `identityRequirement`, `materialSnapshot`, or
+  `relationScope`.
 - Library Import/Update consumes `platform_library` providers and writes Source
   Entity Store / Source Library state, import/update batches, provenance,
   baselines, and absence records.

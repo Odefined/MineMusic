@@ -8,7 +8,6 @@ import type {
 import type {
   Collection,
   CollectionItem,
-  CanonicalRecord,
   Ref,
   Result,
   SourceReleaseTracklistItem,
@@ -441,13 +440,6 @@ async function queryPreferenceHintsFilterAndRankMaterials(): Promise<void> {
 
 async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
   const sourceRef = ref("source:fixture", "track", "collection-label-source-track");
-  const canonicalRef = ref("minemusic", "recording", "collection-label-canonical-track");
-  const canonical: CanonicalRecord = {
-    ref: canonicalRef,
-    kind: "recording",
-    label: "Collection Label Track",
-    status: "active",
-  };
   const collectionRecord: Collection = {
     id: "collection-night-coding",
     ownerScope: "local_profile:default",
@@ -456,19 +448,26 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
     label: "Night coding",
     createdAt: "2026-05-30T00:00:00.000Z",
   };
+  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
+    sourceMaterial("Collection Label Track", sourceRef),
+  ]);
+  const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
   const collectionItem: CollectionItem = {
     id: "collection-item-night-track",
     collectionId: collectionRecord.id,
-    canonicalRef,
+    materialRef: record.materialRef,
     label: "Collection Label Track",
     createdAt: "2026-05-30T00:00:00.000Z",
   };
   const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
-  const { canonicalRepository, materialQuery } = createMaterialQueryServiceHarness(
-    [sourceMaterial("Collection Label Track", sourceRef)],
-    { collection },
-  );
-  await assertOk(canonicalRepository.put(canonical));
+  const materialQuery = createMaterialQueryService({
+    materialStore,
+    materialResolve: createMaterialResolveService({
+      materialStore,
+      sourceGrounding,
+    }),
+    collection,
+  });
 
   const output = await assertOk(
     materialQuery.query({
@@ -501,8 +500,6 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
     id: "collection-item-material-only",
     collectionId: collectionRecord.id,
     materialRef: record.materialRef,
-    identityRequirement: "none",
-    status: "active",
     label: "Source Only Collection Track",
     createdAt: "2026-05-30T00:00:00.000Z",
   };
@@ -552,31 +549,21 @@ async function queryCollectionMaterialRefsUseStoredPlayableLinks(): Promise<void
   assert(itemMaterialState(output.items[0]) === "source_only_playable", "collection materialRef query should return source_only_playable material from stored SourceEntity providerUrl");
 }
 
-async function queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds(): Promise<void> {
-  const snapshotRef = ref("minemusic", "material", "snapshot-only-track");
+async function queryCollectionPoolSkipsUnprojectableMaterialRefs(): Promise<void> {
+  const missingRef = ref("minemusic", "material", "missing-collection-track");
   const collectionRecord: Collection = {
-    id: "collection-snapshot-only",
+    id: "collection-missing-material",
     ownerScope: "local_profile:default",
     collectionKind: "recording",
     relationKind: "custom",
-    label: "Snapshot-only collection",
+    label: "Missing material collection",
     createdAt: "2026-05-30T00:00:00.000Z",
   };
   const collectionItem: CollectionItem = {
-    id: "collection-item-snapshot-only",
+    id: "collection-item-missing-material",
     collectionId: collectionRecord.id,
-    materialRef: snapshotRef,
-    materialSnapshot: {
-      id: "snapshot-only-track",
-      materialRef: snapshotRef,
-      kind: "recording",
-      label: "Snapshot Only Track",
-      state: "source_only_playable",
-      identityState: "source_backed",
-    },
-    identityRequirement: "none",
-    status: "active",
-    label: "Snapshot Only Track",
+    materialRef: missingRef,
+    label: "Missing Material Track",
     createdAt: "2026-05-30T00:00:00.000Z",
   };
   const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
@@ -599,7 +586,7 @@ async function queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds(): Promis
     }),
   );
 
-  assert(output.items.length === 0, "collection pool should not turn snapshot-only items into recommendation candidates");
+  assert(output.items.length === 0, "collection pool should skip items that cannot project from Material Store");
 }
 
 async function explicitPoolDoesNotFallbackOutsidePool(): Promise<void> {
@@ -681,7 +668,6 @@ async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<voi
       materialRef: blockedRecord.materialRef,
       collectionKind: "recording",
       label: "Collection Blocked Track",
-      identityRequirement: "none",
     }),
   );
   const materialQuery = createMaterialQueryService({
@@ -1141,8 +1127,6 @@ async function createCollectionMaterialRefFixture({
     id: `${sourceId}-collection-item`,
     collectionId: collectionRecord.id,
     materialRef: record.materialRef,
-    identityRequirement: "none",
-    status: "active",
     label,
     createdAt: "2026-05-30T00:00:00.000Z",
   }]);
@@ -1445,7 +1429,7 @@ await queryPreferenceHintsFilterAndRankMaterials();
 await queryCollectionPoolCanResolveByLabel();
 await queryCollectionPoolReturnsMaterialOnlyItems();
 await queryCollectionMaterialRefsUseStoredPlayableLinks();
-await queryCollectionPoolDoesNotReturnSnapshotOnlyMaterialIds();
+await queryCollectionPoolSkipsUnprojectableMaterialRefs();
 await explicitPoolDoesNotFallbackOutsidePool();
 await relationExclusionsRemoveBlockedWrongVersionAndNotPlayable();
 await relationExclusionsRemoveCollectionBlockedMaterials();

@@ -2323,7 +2323,6 @@ async function addCanonicalToSavedSystemCollection(
       ownerScope: "local_profile:default",
       relationKind: "saved",
       materialRef: material.materialRef,
-      canonicalRef: canonical.ref,
       label: canonical.label,
     }),
   );

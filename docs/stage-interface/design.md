@@ -83,6 +83,8 @@ Examples:
 
 - Material query/related/selection results become compact cards in
   `src/stage_interface/outputs/material.ts`.
+- Collection action/list results become compact public collection outputs at
+  the Stage Interface boundary.
 - Public display links are projected through
   `src/stage_interface/outputs/links.ts`.
 - Recommendation presentation output is projected through
@@ -105,6 +107,14 @@ The public surface must not expose these as ordinary agent handles:
 - raw `MusicMaterial` records;
 - stored Collection internals;
 - persisted recommendation feedback-binding internals.
+
+Ordinary collection outputs must not expose raw `materialRef`, source refs,
+canonical refs, stored CollectionItem rows, material snapshots, relation scopes,
+identity requirements, stored status fields, or storage timestamps. Collection
+write outputs should return only the ids needed for follow-up actions:
+`itemId`, `collectionId`, and public `materialId`. Collection list output
+should keep collection labels and item labels because list is the ordinary
+display surface.
 
 Source Library browsing is agent-facing through `music.pools.list` and
 `music.material.query`, not through `library.source.list`. Library tools are

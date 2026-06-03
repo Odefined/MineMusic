@@ -273,9 +273,19 @@ export type _collectionRelationKindsMatchDesignedRelations = Expect<
   Equal<CollectionRelationKind, "saved" | "favorite" | "blocked" | "custom">
 >;
 
-export type _collectionItemSupportsMaterialAndLegacyCanonicalRefs = Expect<
-  Equal<CollectionItem["materialRef"], Ref | undefined> &
-    Equal<CollectionItem["canonicalRef"], Ref | undefined>
+export type _collectionItemHasMaterialRefOnlyBoundary = Expect<
+  Equal<
+    keyof CollectionItem,
+    | "id"
+    | "collectionId"
+    | "materialRef"
+    | "label"
+    | "description"
+    | "position"
+    | "createdAt"
+    | "removedAt"
+  > &
+    Equal<CollectionItem["materialRef"], Ref>
 >;
 
 export type _materialResolveRequestCarriesOwnerScope = Expect<
@@ -1426,12 +1436,11 @@ export type _collectionRepositoryMethods = Expect<
     | "getCollection"
     | "putCollection"
     | "listCollections"
-    | "findActiveCollectionByLabel"
-    | "getItem"
-    | "putItem"
-    | "findItemByMembership"
-    | "findItemByMaterialMembership"
-    | "listItems"
+	    | "findActiveCollectionByLabel"
+	    | "getItem"
+	    | "putItem"
+	    | "findItemByMaterialMembership"
+	    | "listItems"
   >
 >;
 
@@ -1439,12 +1448,11 @@ export type _collectionRepositoryMethodsUseSingleObjectInputs = Expect<
   MethodAcceptsSingleObject<CollectionRepository, "getCollection"> &
     MethodAcceptsSingleObject<CollectionRepository, "putCollection"> &
     MethodAcceptsSingleObject<CollectionRepository, "listCollections"> &
-    MethodAcceptsSingleObject<CollectionRepository, "findActiveCollectionByLabel"> &
-    MethodAcceptsSingleObject<CollectionRepository, "getItem"> &
-    MethodAcceptsSingleObject<CollectionRepository, "putItem"> &
-    MethodAcceptsSingleObject<CollectionRepository, "findItemByMembership"> &
-    MethodAcceptsSingleObject<CollectionRepository, "findItemByMaterialMembership"> &
-    MethodAcceptsSingleObject<CollectionRepository, "listItems">
+	    MethodAcceptsSingleObject<CollectionRepository, "findActiveCollectionByLabel"> &
+	    MethodAcceptsSingleObject<CollectionRepository, "getItem"> &
+	    MethodAcceptsSingleObject<CollectionRepository, "putItem"> &
+	    MethodAcceptsSingleObject<CollectionRepository, "findItemByMaterialMembership"> &
+	    MethodAcceptsSingleObject<CollectionRepository, "listItems">
 >;
 
 export type _musicMaterialIdentityStateValues = Expect<
@@ -1660,7 +1668,7 @@ const collection: Collection = {
 const collectionItem: CollectionItem = {
   id: "collection-item-1",
   collectionId: collection.id,
-  canonicalRef: ref,
+  materialRef: { namespace: "minemusic", kind: "material", id: "material-1" },
   label: ref.label ?? ref.id,
   createdAt: "2026-05-17T00:00:00.000Z",
 };
@@ -2083,7 +2091,6 @@ const collectionRepository: CollectionRepository = {
   findActiveCollectionByLabel: async () => ({ ok: true, value: collection }),
   getItem: async () => ({ ok: true, value: collectionItem }),
   putItem: async ({ item }) => ({ ok: true, value: item }),
-  findItemByMembership: async () => ({ ok: true, value: collectionItem }),
   findItemByMaterialMembership: async () => ({ ok: true, value: collectionItem }),
   listItems: async () => ({ ok: true, value: [collectionItem] }),
 };

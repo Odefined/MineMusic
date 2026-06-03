@@ -4,8 +4,6 @@ import { join } from "node:path";
 
 import type {
   CanonicalRecord,
-  Collection,
-  CollectionItem,
   Ref,
   Result,
   SourceMaterial,
@@ -13,13 +11,11 @@ import type {
 } from "../../src/contracts/index.js";
 import { createFixtureMineMusicStageRuntime } from "../../src/stage_core/index.js";
 import type {
+  CompactCollectionItemOutput,
+  CompactCollectionListOutput,
+  CompactCollectionOutput,
   CompactPublicMaterialResolveOutput,
 } from "../../src/stage_interface/outputs/index.js";
-
-type CollectionListOutput = {
-  collections: Collection[];
-  items: CollectionItem[];
-};
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -118,18 +114,22 @@ async function listsDefaultOwnerSystemCollectionsThroughStageInterface(): Promis
 
   try {
     const output = await assertOk(
-      stageRuntime.stageInterface.tools["music.collection.list"]({}) as Promise<Result<CollectionListOutput>>,
+      stageRuntime.stageInterface.tools["music.collection.list"]({}) as Promise<Result<CompactCollectionListOutput>>,
+    );
+    const savedRecordings = await assertOk(
+      stageRuntime.stageInterface.tools["music.collection.list"]({
+        collectionKind: "recording",
+        relationKind: "saved",
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
 
     assert(output.collections.length === 15, "Stage Interface should list the default owner's system collections");
     assert(
-      output.collections.some(
-        (collection) =>
-          collection.ownerScope === "local_profile:default" &&
-          collection.relationKind === "saved" &&
-          collection.collectionKind === "recording",
-      ),
-      "Stage Interface should expose the default saved recording system collection",
+      savedRecordings.collections.length === 1 &&
+        savedRecordings.collections[0]?.label === "saved recordings" &&
+        !("relationKind" in savedRecordings.collections[0]) &&
+        !("ownerScope" in savedRecordings.collections[0]),
+      "Stage Interface should expose the default saved recording system collection as compact output",
     );
     assert(output.items.length === 0, "New default owner system collections should start without items");
   } finally {
@@ -150,44 +150,44 @@ async function blocksCanonicalRecordingAndClearsSavedFavoriteMemberships(): Prom
       stageRuntime.stageInterface.tools["music.collection.save"]({
         materialId,
         label: "Quiet Canonical Recording",
-      }) as Promise<Result<CollectionItem>>,
+      }) as Promise<Result<CompactCollectionItemOutput>>,
     );
     await assertOk(
       stageRuntime.stageInterface.tools["music.collection.favorite"]({
         materialId,
         label: "Quiet Canonical Recording",
-      }) as Promise<Result<CollectionItem>>,
+      }) as Promise<Result<CompactCollectionItemOutput>>,
     );
     await assertOk(
       stageRuntime.stageInterface.tools["music.collection.block"]({
         materialId,
         label: "Quiet Canonical Recording",
-      }) as Promise<Result<CollectionItem>>,
+      }) as Promise<Result<CompactCollectionItemOutput>>,
     );
 
     const saved = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.list"]({
         collectionKind: "recording",
         relationKind: "saved",
-      }) as Promise<Result<CollectionListOutput>>,
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
     const favorites = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.list"]({
         collectionKind: "recording",
         relationKind: "favorite",
-      }) as Promise<Result<CollectionListOutput>>,
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
     const blocked = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.list"]({
         collectionKind: "recording",
         relationKind: "blocked",
-      }) as Promise<Result<CollectionListOutput>>,
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
 
     assert(saved.items.length === 0, "Blocking a recording should remove saved system membership");
     assert(favorites.items.length === 0, "Blocking a recording should remove favorite system membership");
     assert(
-      blocked.items.some((item) => item.materialRef?.id === materialId),
+      blocked.items.some((item) => item.materialId === materialId),
       "Blocking a recording should keep blocked system membership",
     );
   } finally {
@@ -207,57 +207,57 @@ async function managesCustomCollectionLifecycleThroughStageInterface(): Promise<
       stageRuntime.stageInterface.tools["music.collection.create"]({
         collectionKind: "recording",
         label: "Night coding",
-      }) as Promise<Result<Collection>>,
+      }) as Promise<Result<CompactCollectionOutput>>,
     );
     await assertOk(
       stageRuntime.stageInterface.tools["music.collection.item.add"]({
-        collectionId: created.id,
+        collectionId: created.collectionId,
         materialId,
         label: "Quiet Canonical Recording",
-      }) as Promise<Result<CollectionItem>>,
+      }) as Promise<Result<CompactCollectionItemOutput>>,
     );
     const withItem = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.list"]({
-        collectionId: created.id,
-      }) as Promise<Result<CollectionListOutput>>,
+        collectionId: created.collectionId,
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
     const updated = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.update"]({
-        collectionId: created.id,
+        collectionId: created.collectionId,
         label: "Late night coding",
-      }) as Promise<Result<Collection>>,
+      }) as Promise<Result<CompactCollectionOutput>>,
     );
     const removed = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.delete"]({
-        collectionId: created.id,
-      }) as Promise<Result<Collection>>,
+        collectionId: created.collectionId,
+      }) as Promise<Result<CompactCollectionOutput>>,
     );
     const activeCustom = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.list"]({
         relationKind: "custom",
-      }) as Promise<Result<CollectionListOutput>>,
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
     const removedCustom = await assertOk(
       stageRuntime.stageInterface.tools["music.collection.list"]({
         relationKind: "custom",
         includeRemoved: true,
-      }) as Promise<Result<CollectionListOutput>>,
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
 
-    assert(created.ownerScope === "local_profile:default", "Custom collection create should default owner scope");
-    assert(created.relationKind === "custom", "Custom collection create should use custom relation kind");
+    assert(created.collectionId !== undefined, "Custom collection create should return a compact collection id");
+    assert(created.label === "Night coding", "Custom collection create should return compact collection output");
     assert(
-      withItem.items.some((item) => item.collectionId === created.id && item.materialRef?.id === materialId),
+      withItem.items.some((item) => item.collectionId === created.collectionId && item.materialId === materialId),
       "Custom collection list should include the added item",
     );
     assert(updated.label === "Late night coding", "Custom collection update should change label");
-    assert(removed.removedAt !== undefined, "Custom collection delete should soft-remove the collection");
+    assert(removed.collectionId === created.collectionId, "Custom collection delete should return compact collection output");
     assert(
-      !activeCustom.collections.some((collection) => collection.id === created.id),
+      !activeCustom.collections.some((collection) => collection.collectionId === created.collectionId),
       "Default custom collection list should hide soft-removed collections",
     );
     assert(
-      removedCustom.collections.some((collection) => collection.id === created.id && collection.removedAt !== undefined),
+      removedCustom.collections.some((collection) => collection.collectionId === created.collectionId),
       "includeRemoved custom collection list should expose soft-removed collections",
     );
   } finally {
@@ -278,7 +278,7 @@ async function materialResolveReportsBlockedCanonicalCandidateThroughStageInterf
       stageRuntime.stageInterface.tools["music.collection.block"]({
         materialId,
         label: "Quiet Canonical Recording",
-      }) as Promise<Result<CollectionItem>>,
+      }) as Promise<Result<CompactCollectionItemOutput>>,
     );
 
     const resolveResult = await assertOk(
@@ -315,14 +315,14 @@ async function persistsCollectionStateThroughStageRuntimeDatabasePath(): Promise
       firstStageRuntime.stageInterface.tools["music.collection.create"]({
         collectionKind: "recording",
         label: "Persistent coding",
-      }) as Promise<Result<Collection>>,
+      }) as Promise<Result<CompactCollectionOutput>>,
     );
     await assertOk(
       firstStageRuntime.stageInterface.tools["music.collection.item.add"]({
-        collectionId: created.id,
+        collectionId: created.collectionId,
         materialId,
         label: "Quiet Canonical Recording",
-      }) as Promise<Result<CollectionItem>>,
+      }) as Promise<Result<CompactCollectionItemOutput>>,
     );
 
     const recreatedStageRuntime = createFixtureMineMusicStageRuntime({
@@ -336,15 +336,15 @@ async function persistsCollectionStateThroughStageRuntimeDatabasePath(): Promise
     const persisted = await assertOk(
       recreatedStageRuntime.stageInterface.tools["music.collection.list"]({
         relationKind: "custom",
-      }) as Promise<Result<CollectionListOutput>>,
+      }) as Promise<Result<CompactCollectionListOutput>>,
     );
 
     assert(
-      persisted.collections.some((collection) => collection.id === created.id),
+      persisted.collections.some((collection) => collection.collectionId === created.collectionId),
       "recreated Stage Runtime should read persisted custom collections",
     );
     assert(
-      persisted.items.some((item) => item.collectionId === created.id),
+      persisted.items.some((item) => item.collectionId === created.collectionId),
       "recreated Stage Runtime should read persisted collection items",
     );
   } finally {

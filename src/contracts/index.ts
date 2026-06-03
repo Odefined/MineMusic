@@ -1003,12 +1003,7 @@ export type Collection = {
 export type CollectionItem = {
   id: string;
   collectionId: string;
-  materialRef?: Ref;
-  materialSnapshot?: MusicMaterialSnapshot;
-  relationScope?: MusicMaterialRelationScope;
-  identityRequirement?: "none" | "source_backed" | "canonical_confirmed";
-  status?: "active" | "pending_identity" | "removed";
-  canonicalRef?: Ref;
+  materialRef: Ref;
   label: string;
   description?: string;
   position?: number;

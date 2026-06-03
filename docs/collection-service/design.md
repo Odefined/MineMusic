@@ -44,8 +44,9 @@ those actions are listable, removable, sortable, and syncable later.
 Collection Service does not own the music object itself. Material Store owns
 the product-level material target and Canonical Store owns accepted canonical
 identity; Collection owns user-scoped collections and their members. New
-Collection writes require `materialRef`; `canonicalRef` is optional stored
-metadata, not a public write handle.
+Collection writes require `materialRef`. Canonical refs, source refs, material
+snapshots, relation scopes, identity requirements, and derived status are not
+Collection item identity.
 
 ADR-0003 accepts this materialRef-backed Collection boundary and supersedes
 ADR-0002's earlier canonical-only Collection consequence.
@@ -140,8 +141,7 @@ without making Collection ownership session-scoped.
 Collection Service owns:
 
 - collections for long-lived owner-to-music-object relationships.
-- collection items as members of those collections, preferably keyed by
-  `materialRef` and optionally carrying a material snapshot.
+- collection items as members of those collections keyed by `materialRef`.
 - list/remove semantics for collection items.
 - collection and collection item lifecycle state.
 - local durable collection repository.
@@ -177,11 +177,6 @@ Collection item:
 id
 collectionId
 materialRef
-materialSnapshot?
-relationScope?
-identityRequirement?
-status?
-canonicalRef?
 label
 description?
 position?
@@ -192,11 +187,9 @@ removedAt?
 Rules:
 
 - Collection ids are Collection-owned, not provider ids.
-- New Collection item writes require `materialRef`. `canonicalRef` can remain
-  on stored items as optional identity metadata for material-backed or
-  historical rows, but it is not the public write handle.
-- A known item's material kind, canonical kind, snapshot kind, or explicit
-  `collectionKind` must agree with the Collection's `collectionKind`.
+- New Collection item writes require `materialRef`.
+- A known item's current MaterialRecord kind or explicit `collectionKind` must
+  agree with the Collection's `collectionKind`.
 - `relationKind` describes the user's long-lived relationship to the material
   objects in a Collection.
 - System Collections use `saved`, `favorite`, or `blocked`.
@@ -222,6 +215,8 @@ Rules:
 - Source refs belong to Canonical Store source refs and Library Import/Event
   provenance, not Collection item identity.
 - `removedAt` marks removal without physical deletion.
+- Active/removed item membership is represented by `removedAt`; Collection
+  Service does not store a separate item status.
 - Collection item ids are Collection-owned, not provider ids.
 - Item membership is idempotent by `collectionId + materialRef` after following
   Material Registry redirects. Re-adding the same material object updates the
@@ -324,10 +319,6 @@ relationKind: saved | favorite | blocked
 materialRef
 label
 collectionKind?
-canonicalRef?
-materialSnapshot?
-relationScope?
-identityRequirement?
 description?
 ```
 
@@ -346,10 +337,6 @@ collectionKind?
 collectionId
 materialRef
 label
-canonicalRef?
-materialSnapshot?
-relationScope?
-identityRequirement?
 description?
 ```
 

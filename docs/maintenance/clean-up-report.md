@@ -11,24 +11,25 @@ already done:
 3. deprecated aggregate `MaterialActivity` session counters were removed;
 4. EventService legacy material payload aliases were removed.
 
-**[Fact]** The only remaining cleanup topic that is still open from this audit
-is Collection `canonicalRef`. It is not routine dead-code cleanup; it is an
-explicit behavior decision touching collection status semantics, query
-fallback, contracts, storage, and docs.
+**[Fact]** The Collection Item boundary cleanup from this audit is now done.
+CollectionItems are `materialRef`-backed membership records only, and stored
+`canonicalRef`, `status`, `identityRequirement`, `materialSnapshot`, and
+`relationScope` are gone from the current Collection contract.
 
 **[Fact]** Local verification on the current branch includes:
 
+- `npm run typecheck`
 - `npm run build:test`
 - `node .tmp-test/test/material_store/material-relations.test.js`
 - `node .tmp-test/test/material_query/material-query.test.js`
 - `node .tmp-test/test/events/material-activity.test.js`
 - `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
 - `npm test`
+- `git diff --check`
 
 **[Recommendation]** Do not open more “routine cleanup” work from this report.
-If cleanup continues, the next slice should be a dedicated Collection
-`canonicalRef` behavior-decision PR with synchronized contract, storage, test,
-and documentation updates.
+Choose the next product/runtime slice from current area progress docs rather
+than reopening this cleanup audit.
 
 ---
 
@@ -72,30 +73,34 @@ Current event-target extraction keeps only `materialId`, `materialRef`, and
 
 ## 3. Remaining Open Item
 
-### 3.1 Collection `canonicalRef` needs an explicit behavior decision
+### 3.1 Collection Item boundary cleanup is done
 
 **[Fact] current behavior**
 
-Public Stage Interface collection writes are already `materialId`-based. But
-deeper collection/runtime layers still use stored `canonicalRef` for:
+Public Stage Interface collection writes are `materialId`-based. Deeper
+collection/runtime layers now store only Collection-owned facts plus required
+`materialRef`; they no longer use stored `canonicalRef` for:
 
 - status decisions such as `pending_identity` vs `active`;
 - query fallback when an item does not project from `materialRef`;
 - repository/storage contracts and tests.
 
+**[Decision] implemented behavior**
+
+- CollectionItems are material membership records keyed by required
+  `materialRef`.
+- Stored `canonicalRef`, `status`, `identityRequirement`, `materialSnapshot`,
+  and `relationScope` have left the Collection contract.
+- Ordinary collection query skips items whose `materialRef` cannot be projected
+  from current Material Store state.
+- Stage Interface collection outputs become compact public outputs owned by
+  Stage Interface.
+
 **[Inference] why this is not routine cleanup**
 
-Removing these paths would change current collection behavior, not just delete
-an unused alias.
-
-**[Required decisions before code deletion]**
-
-1. Should collection item status derive from current
-   `MaterialRecord.identityState` via `materialRef`?
-2. Should canonical-only collection query fallback remain current product
-   behavior?
-3. If `canonicalRef` leaves contracts/storage, is SQLite handled by rebuild
-   assumption or explicit migration?
+Removing these paths changed collection behavior, not just unused aliases. The
+completed slice updated contracts, storage, behavior tests, public outputs, and
+docs together.
 
 **[Likely files]**
 
@@ -108,7 +113,9 @@ an unused alias.
 - collection/material-query tests
 - `docs/collection-service/design.md`
 - `docs/collection-service/ports.md`
-- possibly `docs/adr/0003-materialref-backed-collections.md`
+- `docs/stage-interface/design.md`
+- `docs/stage-interface/tool-contracts.md`
+- `docs/stage-interface/progress.md`
 
 **[Required verification]**
 
@@ -143,7 +150,7 @@ contracts, storage, and docs.
 
 | Item | Classification | Evidence | Next action | Risk |
 | --- | --- | --- | --- | --- |
-| Collection `canonicalRef` input/item/storage/fallback | Explicit behavior decision required | Public tools are materialId-based, but current collection status, query fallback, repository/storage, docs, and tests still depend on deeper `canonicalRef` paths. | Open a dedicated behavior-decision slice and update contracts/storage/tests/docs together. | High |
+| Collection Item compatibility fields and raw collection outputs | Done | Current code stores required `materialRef` only for CollectionItem identity, skips unprojectable collection items in Material Query, and compacts public collection outputs. | Keep guards/tests current. | Medium |
 | Stage Core runtime/factories | MVP Required | Server runtime and tests still compose through Stage Core. | Keep. | High if removed |
 | Stage Interface tool-definition facts and public barrel | MVP Required / static false positive | Public tool truth and MCP surface still derive from them. | Keep. | High if removed |
 | `MaterialSessionActivity` | MVP Required | Current session counting lives here after deprecated aggregate counters were removed. | Keep. | Medium if removed |

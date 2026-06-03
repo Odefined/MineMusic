@@ -462,16 +462,11 @@ async function collectionRepositoryRejectsDuplicateActiveLabelsWithinOwnerScope(
 
 async function collectionRepositoryStoresItemsByIdAndMembership(): Promise<void> {
   const repository = createInMemoryCollectionRepository();
-  const canonicalRef: Ref = {
-    namespace: "minemusic",
-    kind: "recording",
-    id: "canonical-quiet-track",
-  };
+  const materialRef: Ref = { namespace: "minemusic", kind: "material", id: "material-quiet-track" };
   const item: CollectionItem = {
     id: "collection-item-1",
     collectionId: "collection-1",
-    canonicalRef,
-    materialRef: { namespace: "minemusic", kind: "material", id: "material-quiet-track" },
+    materialRef,
     label: "Quiet Track",
     createdAt: "2026-05-24T00:00:00.000Z",
   };
@@ -487,19 +482,12 @@ async function collectionRepositoryStoresItemsByIdAndMembership(): Promise<void>
   const secondRead = await assertOk(repository.getItem({ itemId: item.id }));
   assert(secondRead?.label === "Quiet Track", "collection repository should return item copies");
 
-  const membership = await assertOk(
-    repository.findItemByMembership({
-      collectionId: item.collectionId,
-      canonicalRef,
-    }),
-  );
   const materialMembership = await assertOk(
     repository.findItemByMaterialMembership({
       collectionId: item.collectionId,
-      materialRef: { namespace: "minemusic", kind: "material", id: "material-quiet-track" },
+      materialRef,
     }),
   );
-  assert(membership?.id === item.id, "collection repository should find items by collection id and canonical ref");
   assert(materialMembership?.id === item.id, "collection repository should find items by collection id and material ref");
 }
 
@@ -529,14 +517,14 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
   const activeItem: CollectionItem = {
     id: "item-active",
     collectionId: savedRecordings.id,
-    canonicalRef: { namespace: "minemusic", kind: "recording", id: "active-track" },
+    materialRef: { namespace: "minemusic", kind: "material", id: "active-track" },
     label: "Active Track",
     createdAt: "2026-05-24T00:00:00.000Z",
   };
   const removedItem: CollectionItem = {
     ...activeItem,
     id: "item-removed",
-    canonicalRef: { namespace: "minemusic", kind: "recording", id: "removed-track" },
+    materialRef: { namespace: "minemusic", kind: "material", id: "removed-track" },
     label: "Removed Track",
     removedAt: "2026-05-24T01:00:00.000Z",
   };
@@ -544,13 +532,13 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
     ...activeItem,
     id: "item-artist",
     collectionId: favoriteArtists.id,
-    canonicalRef: { namespace: "minemusic", kind: "artist", id: "artist-1" },
+    materialRef: { namespace: "minemusic", kind: "material", id: "artist-1" },
   };
   const guestItem: CollectionItem = {
     ...activeItem,
     id: "item-guest",
     collectionId: guestSavedRecordings.id,
-    canonicalRef: { namespace: "minemusic", kind: "recording", id: "guest-track" },
+    materialRef: { namespace: "minemusic", kind: "material", id: "guest-track" },
   };
 
   await assertOk(repository.putCollection({ collection: savedRecordings }));
@@ -560,8 +548,6 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
   await assertOk(repository.putItem({ item: removedItem }));
   await assertOk(repository.putItem({ item: artistItem }));
   await assertOk(repository.putItem({ item: guestItem }));
-  const removedCanonicalRef = removedItem.canonicalRef;
-  assert(removedCanonicalRef !== undefined, "removed fixture item should keep canonicalRef");
 
   const activeSavedItems = await assertOk(
     repository.listItems({
@@ -588,17 +574,17 @@ async function collectionRepositoryQueriesItemsByCollectionAndCollectionState():
   );
 
   const removedMembership = await assertOk(
-    repository.findItemByMembership({
+    repository.findItemByMaterialMembership({
       collectionId: removedItem.collectionId,
-      canonicalRef: removedCanonicalRef,
+      materialRef: removedItem.materialRef,
     }),
   );
   assert(removedMembership === null, "membership lookup should hide removed items by default");
 
   const includedRemovedMembership = await assertOk(
-    repository.findItemByMembership({
+    repository.findItemByMaterialMembership({
       collectionId: removedItem.collectionId,
-      canonicalRef: removedCanonicalRef,
+      materialRef: removedItem.materialRef,
       includeRemoved: true,
     }),
   );

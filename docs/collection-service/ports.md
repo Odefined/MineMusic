@@ -38,8 +38,34 @@ This document records the current Collection Service port surface from
 
 Stage Interface collection tools accept public `materialId` handles and resolve
 them to internal `materialRef` before calling Collection Service. Raw
-`materialRef`, `canonicalRef`, `materialSnapshot`, `relationScope`, and
-`identityRequirement` are not public Stage Interface write fields.
+`materialRef`, `canonicalRef`, `materialSnapshot`, `relationScope`,
+`identityRequirement`, storage timestamps, and stored status fields are not
+public Stage Interface fields.
+
+Stage Interface collection tools should project Collection Service results into
+compact public output. Collection write outputs expose only the ids needed for
+follow-up actions: `itemId`, `collectionId`, and public `materialId`.
+`music.collection.list` exposes only collection ids/labels and item ids,
+collection ids, material ids, and item labels.
+
+## Collection Item Boundary
+
+Current CollectionItems are material membership records. The intended key set
+is:
+
+```text
+id
+collectionId
+materialRef
+label
+description?
+position?
+createdAt
+removedAt?
+```
+
+`canonicalRef`, `materialSnapshot`, `relationScope`, `identityRequirement`, and
+stored item status do not belong to the Collection item contract.
 
 ## Accepted Boundary
 
