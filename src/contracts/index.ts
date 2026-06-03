@@ -1226,6 +1226,22 @@ export type MaterialSearchDocument = {
   sourceArtistAliases?: string[];
 };
 
+export type MaterialSearchIndexHit = {
+  materialRef: Ref;
+  score: number;
+  evidence: MaterialSearchEvidence[];
+};
+
+export type MaterialSearchIndexSearchInput = {
+  text: string;
+  candidateMaterialRefs: Ref[];
+  limit?: number;
+};
+
+export type MaterialSearchIndexSearchOutput = {
+  hits: MaterialSearchIndexHit[];
+};
+
 export type PublicMaterialResolveItem = {
   materialId: string;
   title: string;

@@ -15,6 +15,8 @@ export {
   createSqliteMusicMaterialRelationRepository,
 } from "./material-relations-repository.js";
 export type { SqliteMaterialRelationsRepositoryOptions } from "./material-relations-repository.js";
+export { createSqliteMaterialSearchIndex } from "./material-search-index.js";
+export type { SqliteMaterialSearchIndexOptions } from "./material-search-index.js";
 export { createSqliteProviderHttpCacheRepository } from "./provider-http-cache-repository.js";
 export type { SqliteProviderHttpCacheRepositoryOptions } from "./provider-http-cache-repository.js";
 export { createSqliteSourceEntityStoreRepository } from "./source-entity-repository.js";

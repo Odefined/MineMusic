@@ -69,7 +69,10 @@ import type {
   MaterialResolveRequest,
   MaterialResolveResult,
   MaterialSearchInput,
+  MaterialSearchIndexSearchInput,
+  MaterialSearchIndexSearchOutput,
   MaterialSearchOutput,
+  MaterialSearchDocument,
   MaterialSelectInput,
   MaterialSelectOutput,
   MaterialSortInput,
@@ -808,6 +811,24 @@ export interface MaterialQueryPort {
 
 export interface MaterialSearchPort {
   search(input: MaterialSearchInput): Promise<Result<MaterialSearchOutput>>;
+}
+
+export interface MaterialSearchDocumentProviderPort {
+  buildSearchDocument(input: {
+    materialRef: Ref;
+  }): Promise<Result<MaterialSearchDocument | null>>;
+
+  buildAllSearchDocuments(): Promise<Result<MaterialSearchDocument[]>>;
+}
+
+export interface MaterialSearchIndexPort {
+  markDirty(input: { materialRef: Ref }): Promise<Result<void>>;
+
+  refreshDirty(input: { materialRefs: Ref[] }): Promise<Result<void>>;
+
+  rebuildAll(): Promise<Result<void>>;
+
+  search(input: MaterialSearchIndexSearchInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
 }
 
 export interface MaterialRelatedPort {
