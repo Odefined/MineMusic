@@ -262,11 +262,18 @@ function createMaterialResolveService({
   sourceGrounding: SourceGroundingPort;
 }) {
   const materialPolicyEvaluator = createMaterialPolicyEvaluator({ materialStore });
+  const materialSearchDocuments = createMaterialSearchDocumentProvider({ materialStore });
+  const materialSearchIndex = createSqliteMaterialSearchIndex({ documents: materialSearchDocuments });
+  const materialSearch = createMaterialSearchService({
+    materialStore,
+    collection: emptyMaterialSearchCollection(),
+    searchIndex: materialSearchIndex,
+  });
 
   return createMaterialResolveServiceBase({
     materialStore,
+    materialSearch,
     sourceGrounding,
-    sourceMaterializer: createMaterializationService({ materialStore }),
     materialPolicyEvaluator,
   });
 }

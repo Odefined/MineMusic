@@ -1030,9 +1030,6 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
     materialPolicyEvaluator,
     materialSorter,
   });
-  const materializationService = createMaterializationService({
-    materialStore: environment.materialStore,
-  });
   const materialSearchDocuments = createMaterialSearchDocumentProvider({ materialStore: environment.materialStore });
   const materialSearchIndex = createSqliteMaterialSearchIndex({ documents: materialSearchDocuments });
   const materialSearchCollection: MaterialSearchCollectionPort = {
@@ -1048,8 +1045,8 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
     materialStore: environment.materialStore,
     materialResolve: createMaterialResolveService({
       materialStore: environment.materialStore,
+      materialSearch,
       sourceGrounding: sourceGroundingForProviderItems(providerItems),
-      sourceMaterializer: materializationService,
       materialPolicyEvaluator,
     }),
     materialSearch,

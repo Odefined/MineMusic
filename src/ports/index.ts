@@ -507,10 +507,13 @@ export type MaterialSourceMaterializerStorePort =
 
 export type MaterialResolveStorePort = Pick<
   MaterialStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
   | "getCanonical"
-  | "findCanonicalByLabel"
   | "getConfirmedCanonicalBinding"
-  | "listSourceLibraryItems"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
 >;
 
 export type EphemeralMaterialEntry = {

@@ -86,13 +86,6 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     materialStore,
     collection,
   });
-  const materialResolve = createMaterialResolveService({
-    materialStore,
-    sourceGrounding: source,
-    sourceMaterializer: materializationService,
-    materialPolicyEvaluator,
-    ephemeralMaterialStore,
-  });
   const materialSorter = createMaterialSorter({ materialStore });
   const materialSelector = createMaterialSelector({
     materialStore,
@@ -103,6 +96,13 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     materialStore,
     collection,
     searchIndex: materialSearchIndex,
+  });
+  const materialResolve = createMaterialResolveService({
+    materialStore,
+    materialSearch,
+    sourceGrounding: source,
+    materialPolicyEvaluator,
+    ephemeralMaterialStore,
   });
   const materialQuery = createMaterialQueryService({
     materialStore,

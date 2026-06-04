@@ -62,10 +62,13 @@ export type MaterialSearchStorePortKeysAreExact = Assert<IsExact<
 
 export type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
   keyof MaterialResolveStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
   | "getCanonical"
-  | "findCanonicalByLabel"
   | "getConfirmedCanonicalBinding"
-  | "listSourceLibraryItems"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
 >>;
 
 export type EphemeralMaterialStorePortKeysAreExact = Assert<IsExact<

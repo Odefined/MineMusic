@@ -35,7 +35,7 @@ and `materialForMaterialId`.
 | `MaterialSearchStorePort` | Projection reads plus `findMaterialBySourceRef`, `listSourceLibraryItems`, and `listMaterialRelations` | Material Search. |
 | `MaterialSearchDocumentProviderPort` | `buildSearchDocument`, `buildAllSearchDocuments` | SQLite SearchIndex document refresh and rebuild. |
 | `MaterialSearchIndexPort` | `markDirty`, `refreshDirty`, `rebuildAll`, and scoped `search` | Material Search service and Stage Core dirty invalidation wiring. |
-| exact existing-material resolve lookup seam | Projection reads plus exact durable matching by grounded `sourceRef` / `canonicalRef` evidence | Material Resolve. |
+| `MaterialResolveStorePort` | Projection reads plus exact durable matching by grounded `sourceRef` / `canonicalRef` evidence and confirmed canonical bindings | Material Resolve. |
 | `MaterialSourceMaterializerStorePort` | Projection reads plus registry materialization writers | Materialization boundary only. |
 | `StageInterfaceMaterialStorePort` | Projection and Source Library read surface with no registry writer methods | Stage Interface dispatch/tool definitions. |
 | `SourceLibraryReadStorePort` | `listSourceLibraryItems`, `getSourceEntity` | Source Library read paths. |
