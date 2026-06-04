@@ -251,7 +251,6 @@ function emptyMaterialSearchCollection(): MaterialSearchCollectionPort {
   return {
     listCollections: async () => ok([]),
     listItems: async () => ok([]),
-    filterBlockedMaterials: async () => ok([]),
   };
 }
 

@@ -43,7 +43,6 @@ Allowed Material Search reads:
 - `listMaterialRelations`
 - `listCollections`
 - `listItems`
-- `filterBlockedMaterials`
 
 Allowed Material Search writes:
 
@@ -81,8 +80,7 @@ Tasks:
 - Add `MaterialSearchPort`.
 - Add `MaterialSearchStorePort` with the exact narrow store capabilities from
   the design.
-- Add `MaterialSearchCollectionPort` with `listCollections`, `listItems`, and
-  `filterBlockedMaterials`.
+- Add `MaterialSearchCollectionPort` with `listCollections` and `listItems`.
 - Add architecture/type guards for exact port key sets and forbidden imports.
 
 Acceptance criteria:
@@ -199,8 +197,7 @@ Tasks:
 - Implement collection scope by ref/id, label, relation, and bare collection.
 - Resolve redirects, dedupe by current `materialRef`, and skip missing durable
   records with warnings.
-- Enforce blocked material relation and Collection blocked membership for
-  ordinary search.
+- Enforce active material-level blocked relation for ordinary search.
 - Preserve explicit blocked collection scope as audit/view exception.
 - Do not hard-exclude `wrong_version`, `not_playable`, or `bad_match`.
 - Do not call `MaterialPolicyEvaluator`.
@@ -209,8 +206,8 @@ Acceptance criteria:
 
 - `all` does not mean global MaterialRecord listing.
 - Search never materializes Source Library items during retrieval.
-- Positive Collection visibility plus blocked Collection membership resolves
-  to blocked override for ordinary search.
+- Blocked Collection membership does not act as a global Search post-filter;
+  collection-backed blocked policy remains outside Material Search.
 
 Verification:
 

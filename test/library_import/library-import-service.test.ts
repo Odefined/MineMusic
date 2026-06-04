@@ -1038,7 +1038,6 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
   const materialSearchCollection: MaterialSearchCollectionPort = {
     listCollections: async () => ({ ok: true, value: [] }),
     listItems: async () => ({ ok: true, value: [] }),
-    filterBlockedMaterials: async () => ({ ok: true, value: [] }),
   };
   const materialSearch = createMaterialSearchService({
     materialStore: environment.materialStore,

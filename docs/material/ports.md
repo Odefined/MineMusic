@@ -49,7 +49,7 @@ The exact method sets are type-asserted in
 | `SourceGroundingPort` | Material Resolve | Ground unresolved candidates through provider/source search. |
 | `MaterialPolicyEvaluatorPort` | Material Resolve | Apply internal `material_resolution` policy projection during resolve. |
 | `MaterialQueryCollectionReadPort` | Material Query | Read collection headers and items for collection pools and pool listing. |
-| `MaterialSearchCollectionPort` | Material Search | Read collection membership and blocked-material membership for Search visibility and eligibility. |
+| `MaterialSearchCollectionPort` | Material Search | Read collection headers and items for Search visibility. |
 | `MaterialPolicyCollectionBlockPort` | Material Policy | Read collection-backed blocked membership evidence. |
 | `EventPort` | Recommendation Presentation | Record typed `recommendation.presented` events. |
 | `SessionContextPort` | Recommendation Presentation | Resolve session context when presentation input needs it. |

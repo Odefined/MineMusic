@@ -140,24 +140,6 @@ export class FakeMaterialSearchCollection implements MaterialSearchCollectionPor
         .map((item) => structuredClone(item)),
     );
   }
-
-  async filterBlockedMaterials(input: { ownerScope: string; materialRefs: Ref[] }): Promise<Result<Ref[]>> {
-    const blockedCollectionIds = new Set(
-      this.collections
-        .filter((collection) => collection.ownerScope === input.ownerScope)
-        .filter((collection) => collection.relationKind === "blocked")
-        .filter((collection) => collection.removedAt === undefined)
-        .map((collection) => collection.id),
-    );
-    const blockedMaterialKeys = new Set(
-      this.items
-        .filter((item) => blockedCollectionIds.has(item.collectionId))
-        .filter((item) => item.removedAt === undefined)
-        .map((item) => refKey(item.materialRef)),
-    );
-
-    return ok(input.materialRefs.filter((ref) => blockedMaterialKeys.has(refKey(ref))));
-  }
 }
 
 export function activeMaterial(materialRef: Ref, kind = "recording", sourceRefs: Ref[] = []): MaterialRecord {
@@ -227,13 +209,14 @@ export function relation(
   materialRef: Ref,
   relationKind: MusicMaterialRelation["relationKind"],
   ownerScope = "local_profile:default",
+  scope: MusicMaterialRelation["scope"] = { level: "material" },
 ): MusicMaterialRelation {
   return {
     id: `relation-${relationKind}-${materialRef.id}`,
     ownerScope,
     materialRef,
     relationKind,
-    scope: { level: "material" },
+    scope,
     source: "user_explicit",
     status: "active",
     createdAt: "2026-06-04T00:00:00.000Z",

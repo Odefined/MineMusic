@@ -24,10 +24,18 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
 
 class MutableSearchDocuments implements MaterialSearchDocumentProviderPort {
   readonly documents = new Map<string, MaterialSearchDocument>();
+  readonly fullRebuildKeys: Set<string> | null;
   buildAllCount = 0;
   buildOneCount = 0;
 
-  constructor(documents: MaterialSearchDocument[]) {
+  constructor(
+    documents: MaterialSearchDocument[],
+    options: { fullRebuildRefs?: Ref[] } = {},
+  ) {
+    this.fullRebuildKeys = options.fullRebuildRefs === undefined
+      ? null
+      : new Set(options.fullRebuildRefs.map(refKey));
+
     for (const document of documents) {
       this.documents.set(refKey(document.materialRef), structuredClone(document));
     }
@@ -41,7 +49,9 @@ class MutableSearchDocuments implements MaterialSearchDocumentProviderPort {
 
   async buildAllSearchDocuments(): Promise<Result<MaterialSearchDocument[]>> {
     this.buildAllCount += 1;
-    return ok([...this.documents.values()].map((document) => structuredClone(document)));
+    const documents = [...this.documents.values()]
+      .filter((document) => this.fullRebuildKeys === null || this.fullRebuildKeys.has(refKey(document.materialRef)));
+    return ok(documents.map((document) => structuredClone(document)));
   }
 }
 
@@ -179,6 +189,58 @@ async function sqliteSearchIndexRefreshesDirtyDocumentsAndDeletesMissingOnes(): 
   );
 }
 
+async function sqliteSearchIndexBuildsMissingCandidateDocumentsOnDemand(): Promise<void> {
+  const collectionOnly = materialRef("collection-only");
+  const documents = new MutableSearchDocuments(
+    [{
+      materialRef: collectionOnly,
+      kind: "recording",
+      sourceTitle: ["Collection Only Lantern"],
+    }],
+    { fullRebuildRefs: [] },
+  );
+  const index = createSqliteMaterialSearchIndex({ documents });
+
+  const search = await assertOk(index.search({
+    text: "Lantern",
+    candidateMaterialRefs: [collectionOnly],
+    limit: 10,
+  }));
+
+  assert(documents.buildAllCount === 1, "empty SearchIndex should still perform owner-neutral bootstrap");
+  assert(documents.buildOneCount === 1, "missing candidate documents should be built on demand");
+  assert(search.hits[0]?.materialRef.id === collectionOnly.id, "on-demand candidate document should be searchable");
+}
+
+async function sqliteSearchIndexSubstringSearchScansCompleteCandidatePool(): Promise<void> {
+  const target = materialRef("zz-substring-tail");
+  const fillerDocuments = Array.from({ length: 80 }, (_, index): MaterialSearchDocument => ({
+    materialRef: materialRef(`aa-filler-${String(index).padStart(3, "0")}`),
+    kind: "recording",
+    sourceTitle: [`Filler ${index}`],
+  }));
+  const documents = new MutableSearchDocuments([
+    ...fillerDocuments,
+    {
+      materialRef: target,
+      kind: "recording",
+      sourceTitle: ["尾部命中"],
+    },
+  ]);
+  const index = createSqliteMaterialSearchIndex({ documents });
+
+  const search = await assertOk(index.search({
+    text: "部命",
+    candidateMaterialRefs: [...fillerDocuments.map((document) => document.materialRef), target],
+    limit: 10,
+  }));
+
+  assert(
+    search.hits.length === 1 && search.hits[0]?.materialRef.id === target.id,
+    "substring fallback must not miss matches beyond the first limit-scaled candidate slice",
+  );
+}
+
 async function sqliteSearchIndexPersistsDirtyRowsAcrossReopen(): Promise<void> {
   const directory = await mkdtemp(join(tmpdir(), "minemusic-material-search-"));
   const databasePath = join(directory, "material-search.sqlite");
@@ -244,4 +306,6 @@ function ok<T>(value: T): Result<T> {
 await sqliteSearchIndexBootstrapsAndSearchesOnlyCandidateRefs();
 await sqliteSearchIndexReturnsFieldSpecificEvidence();
 await sqliteSearchIndexRefreshesDirtyDocumentsAndDeletesMissingOnes();
+await sqliteSearchIndexBuildsMissingCandidateDocumentsOnDemand();
+await sqliteSearchIndexSubstringSearchScansCompleteCandidatePool();
 await sqliteSearchIndexPersistsDirtyRowsAcrossReopen();

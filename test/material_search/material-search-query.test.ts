@@ -71,6 +71,40 @@ async function textSearchUsesSearchIndexAndPreservesInternalEvidence(): Promise<
   );
 }
 
+async function textSearchFindsCollectionOnlyMaterial(): Promise<void> {
+  const store = new FakeMaterialSearchStore();
+  const collections = new FakeMaterialSearchCollection();
+  const material = materialRef("collection-only-lantern");
+  const source = sourceRef("track", "collection-only-lantern-source");
+  store.putMaterial(activeMaterial(material, "recording", [source]));
+  store.putSource({
+    kind: "track",
+    sourceRef: source,
+    providerId: "fixture",
+    label: "Collection Only Lantern",
+    title: "Collection Only Lantern",
+    createdAt: "2026-06-04T00:00:00.000Z",
+    updatedAt: "2026-06-04T00:00:00.000Z",
+  });
+  collections.putCollection(collection({ id: "custom", relationKind: "custom" }));
+  collections.putItem(collectionItem("custom", material));
+  const documentProvider = createMaterialSearchDocumentProvider({ materialStore: store });
+  const searchIndex = createSqliteMaterialSearchIndex({ documents: documentProvider });
+  const search = createMaterialSearchService({ materialStore: store, collection: collections, searchIndex });
+
+  const result = await assertOk(search.search({
+    ownerScope: "local_profile:default",
+    scopes: [{ kind: "collection", relation: "custom" }],
+    text: "Lantern",
+    limit: 10,
+  }));
+
+  assert(
+    result.hits.length === 1 && result.hits[0]?.materialRef.id === material.id,
+    "text search should build and match SearchDocuments for collection-only visible materials",
+  );
+}
+
 async function emptyTextBrowseSortsByProvenancePriority(): Promise<void> {
   const store = new FakeMaterialSearchStore();
   const collections = new FakeMaterialSearchCollection();
@@ -111,4 +145,5 @@ async function emptyTextBrowseSortsByProvenancePriority(): Promise<void> {
 }
 
 await textSearchUsesSearchIndexAndPreservesInternalEvidence();
+await textSearchFindsCollectionOnlyMaterial();
 await emptyTextBrowseSortsByProvenancePriority();

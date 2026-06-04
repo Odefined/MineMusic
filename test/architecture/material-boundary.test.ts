@@ -80,7 +80,6 @@ export type MaterialSearchCollectionPortKeysAreExact = Assert<IsExact<
   keyof MaterialSearchCollectionPort,
   | "listCollections"
   | "listItems"
-  | "filterBlockedMaterials"
 >>;
 
 export type MaterialSourceMaterializerStorePortKeysAreExact = Assert<IsExact<

@@ -753,7 +753,6 @@ export type MaterialSearchCollectionPort = Pick<
   CollectionPort,
   | "listCollections"
   | "listItems"
-  | "filterBlockedMaterials"
 >;
 
 export interface LibraryImportPort {

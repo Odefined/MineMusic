@@ -9,29 +9,33 @@ import {
   FakeMaterialSearchStore,
   materialRef,
   relation,
+  sourceRef,
 } from "./material-search-test-harness.js";
 
-async function ordinarySearchExcludesBlockedButKeepsRepairableRelations(): Promise<void> {
+async function ordinarySearchExcludesOnlyMaterialLevelBlockedRelations(): Promise<void> {
   const store = new FakeMaterialSearchStore();
   const collections = new FakeMaterialSearchCollection();
   const allowed = materialRef("allowed");
-  const blockedRelation = materialRef("blocked-relation");
-  const blockedCollection = materialRef("blocked-collection");
+  const materialBlocked = materialRef("material-blocked");
+  const sourceBlocked = materialRef("source-blocked");
+  const blockedCollectionMember = materialRef("blocked-collection-member");
   const wrongVersion = materialRef("wrong-version");
   const notPlayable = materialRef("not-playable");
+  const blockedSource = sourceRef("track", "source-blocked-source");
 
-  for (const ref of [allowed, blockedRelation, blockedCollection, wrongVersion, notPlayable]) {
+  for (const ref of [allowed, materialBlocked, sourceBlocked, blockedCollectionMember, wrongVersion, notPlayable]) {
     store.putMaterial(activeMaterial(ref));
   }
-  store.putRelation(relation(blockedRelation, "blocked"));
+  store.putRelation(relation(materialBlocked, "blocked"));
+  store.putRelation(relation(sourceBlocked, "blocked", "local_profile:default", { level: "source", sourceRef: blockedSource }));
   store.putRelation(relation(wrongVersion, "wrong_version"));
   store.putRelation(relation(notPlayable, "not_playable"));
   collections.putCollection(collection({ id: "saved", relationKind: "saved" }));
   collections.putCollection(collection({ id: "blocked", relationKind: "blocked" }));
-  for (const ref of [allowed, blockedRelation, blockedCollection, wrongVersion, notPlayable]) {
+  for (const ref of [allowed, materialBlocked, sourceBlocked, blockedCollectionMember, wrongVersion, notPlayable]) {
     collections.putItem(collectionItem("saved", ref));
   }
-  collections.putItem(collectionItem("blocked", blockedCollection));
+  collections.putItem(collectionItem("blocked", blockedCollectionMember));
 
   const search = createMaterialSearchService({ materialStore: store, collection: collections });
   const result = await assertOk(search.search({
@@ -41,8 +45,9 @@ async function ordinarySearchExcludesBlockedButKeepsRepairableRelations(): Promi
   const hitIds = result.hits.map((hit) => hit.materialRef.id);
 
   assert(hitIds.includes(allowed.id), "ordinary collection search should include eligible positive membership");
-  assert(!hitIds.includes(blockedRelation.id), "active material-level blocked relation should hard-exclude ordinary search");
-  assert(!hitIds.includes(blockedCollection.id), "blocked Collection membership should override positive visibility");
+  assert(!hitIds.includes(materialBlocked.id), "active material-level blocked relation should hard-exclude ordinary search");
+  assert(hitIds.includes(sourceBlocked.id), "source-level blocked relation should not exclude the whole material from Search");
+  assert(hitIds.includes(blockedCollectionMember.id), "blocked Collection membership should not globally post-filter Search candidates");
   assert(hitIds.includes(wrongVersion.id), "wrong_version should remain a policy/repair concern, not Search hard exclusion");
   assert(hitIds.includes(notPlayable.id), "not_playable should remain a policy/repair concern, not Search hard exclusion");
 }
@@ -86,6 +91,6 @@ async function targetKindIsHardEligibilityFilter(): Promise<void> {
   assert(result.hits.length === 1 && result.hits[0]?.materialRef.id === release.id, "targetKind should be a hard material-kind filter");
 }
 
-await ordinarySearchExcludesBlockedButKeepsRepairableRelations();
+await ordinarySearchExcludesOnlyMaterialLevelBlockedRelations();
 await explicitBlockedCollectionScopeIsAuditException();
 await targetKindIsHardEligibilityFilter();

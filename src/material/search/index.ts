@@ -55,7 +55,6 @@ export function createMaterialSearchService(
 
       const eligible = await eligibleCandidateHits({
         materialStore: options.materialStore,
-        collection: options.collection,
         ownerScope,
         entries: pool.value.entries,
         targetKind: input.targetKind,
@@ -626,13 +625,11 @@ async function collectCollectionItems({
 
 async function eligibleCandidateHits({
   materialStore,
-  collection,
   ownerScope,
   entries,
   targetKind,
 }: {
   materialStore: MaterialSearchStorePort;
-  collection: MaterialSearchCollectionPort;
   ownerScope: string;
   entries: CandidatePoolEntry[];
   targetKind?: MaterialSearchInput["targetKind"];
@@ -663,36 +660,15 @@ async function eligibleCandidateHits({
   }
 
   const deduped = mergeCandidateEntries({ entries: currentEntries, warnings: [] }).entries;
-  const relationEligible: CandidatePoolEntry[] = [];
+  const blocked = await materialLevelBlockedMaterialRefs({ materialStore, ownerScope });
 
-  for (const entry of deduped) {
-    const blockedByRelation = entry.explicitBlockedScope
-      ? ok(false)
-      : await hasActiveBlockedRelation(materialStore, ownerScope, entry.materialRef);
-
-    if (!blockedByRelation.ok) {
-      return blockedByRelation;
-    }
-
-    if (!blockedByRelation.value) {
-      relationEligible.push(entry);
-    }
+  if (!blocked.ok) {
+    return blocked;
   }
-
-  const ordinaryRefs = relationEligible
-    .filter((entry) => !entry.explicitBlockedScope)
-    .map((entry) => entry.materialRef);
-  const blockedByCollection = await collection.filterBlockedMaterials({ ownerScope, materialRefs: ordinaryRefs });
-
-  if (!blockedByCollection.ok) {
-    return blockedByCollection;
-  }
-
-  const collectionBlockedKeys = new Set(blockedByCollection.value.map(refKey));
 
   return ok(
-    relationEligible
-      .filter((entry) => entry.explicitBlockedScope || !collectionBlockedKeys.has(refKey(entry.materialRef)))
+    deduped
+      .filter((entry) => entry.explicitBlockedScope || !blocked.value.has(refKey(entry.materialRef)))
       .map((entry) => ({
         materialRef: entry.materialRef,
         provenance: entry.provenance,
@@ -700,19 +676,24 @@ async function eligibleCandidateHits({
   );
 }
 
-async function hasActiveBlockedRelation(
-  materialStore: MaterialSearchStorePort,
-  ownerScope: string,
-  materialRef: Ref,
-): Promise<Result<boolean>> {
+async function materialLevelBlockedMaterialRefs({
+  materialStore,
+  ownerScope,
+}: {
+  materialStore: MaterialSearchStorePort;
+  ownerScope: string;
+}): Promise<Result<Set<string>>> {
   const relations = await materialStore.listMaterialRelations({
     ownerScope,
-    materialRef,
     relationKind: "blocked",
     status: "active",
   });
 
-  return relations.ok ? ok(relations.value.length > 0) : relations;
+  return relations.ok
+    ? ok(new Set(relations.value
+        .filter((relation) => relation.scope.level === "material")
+        .map((relation) => refKey(relation.materialRef))))
+    : relations;
 }
 
 function mergeCandidateEntries(pool: CandidatePool): CandidatePool {

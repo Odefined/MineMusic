@@ -54,11 +54,12 @@ type FtsHitRow = IndexedDocumentRow & {
 };
 
 type DirtyRow = {
-  material_ref_json: string;
+  material_key: string;
 };
 
 const defaultLimit = 50;
 const bootstrappedMetadataKey = "bootstrapped";
+const candidatePoolTableName = "temp_material_search_pool";
 
 const searchFields: SearchField[] = [
   {
@@ -139,7 +140,11 @@ export function createSqliteMaterialSearchIndex({
     },
 
     async refreshDirty({ materialRefs }) {
-      const dirtyRefs = await readResult(() => dirtyRefsForCandidates(database, materialRefs));
+      const candidateRefs = uniqueRefs(materialRefs);
+      const dirtyRefs = await readResult(() => {
+        prepareCandidatePool(database, candidateRefs.map(materialKey));
+        return dirtyRefsForCandidatePool(database, candidateRefs);
+      });
 
       if (!dirtyRefs.ok) {
         return dirtyRefs;
@@ -209,14 +214,29 @@ export function createSqliteMaterialSearchIndex({
         return bootstrapped;
       }
 
+      const preparedPool = await readResult(() => {
+        prepareCandidatePool(database, candidateRefs.map(materialKey));
+        return undefined;
+      });
+
+      if (!preparedPool.ok) {
+        return preparedPool;
+      }
+
+      const ensuredCandidates = await ensureCandidateDocuments(database, documents, candidateRefs);
+
+      if (!ensuredCandidates.ok) {
+        return ensuredCandidates;
+      }
+
       const limit = normalizeLimit(input.limit);
-      const ftsHits = await readResult(() => searchFts(database, normalizedText, candidateRefs, limit));
+      const ftsHits = await readResult(() => searchFts(database, normalizedText, limit));
 
       if (!ftsHits.ok) {
         return ftsHits;
       }
 
-      const substringHits = await readResult(() => searchSubstring(database, normalizedText, candidateRefs, limit));
+      const substringHits = await readResult(() => searchSubstring(database, normalizedText));
 
       if (!substringHits.ok) {
         return substringHits;
@@ -263,10 +283,40 @@ async function ensureBootstrapped(
   });
 }
 
+async function ensureCandidateDocuments(
+  database: DatabaseSync,
+  documents: MaterialSearchDocumentProviderPort,
+  candidateRefs: Ref[],
+): Promise<Result<void>> {
+  const missingRefs = await readResult(() => missingCandidateRefsForPool(database, candidateRefs));
+
+  if (!missingRefs.ok) {
+    return missingRefs;
+  }
+
+  for (const materialRef of missingRefs.value) {
+    const document = await documents.buildSearchDocument({ materialRef });
+
+    if (!document.ok) {
+      return document;
+    }
+
+    const written = await readResult(() => {
+      writeDocumentForCandidate(database, materialRef, document.value);
+      return undefined;
+    });
+
+    if (!written.ok) {
+      return written;
+    }
+  }
+
+  return ok(undefined);
+}
+
 function searchFts(
   database: DatabaseSync,
   normalizedText: string,
-  candidateRefs: Ref[],
   limit: number,
 ): MaterialSearchIndexHit[] {
   const ftsQuery = ftsQueryForText(normalizedText);
@@ -275,19 +325,18 @@ function searchFts(
     return [];
   }
 
-  const candidateKeys = candidateRefs.map(materialKey);
   const rows = database
     .prepare(`
       SELECT
-        material_key,
-        material_ref_json,
-        kind,
-        canonical_label,
-        canonical_aliases,
-        source_title,
-        source_artist_labels,
-        source_release_label,
-        source_artist_aliases,
+        material_search_fts.material_key AS material_key,
+        material_search_fts.material_ref_json AS material_ref_json,
+        material_search_fts.kind AS kind,
+        material_search_fts.canonical_label AS canonical_label,
+        material_search_fts.canonical_aliases AS canonical_aliases,
+        material_search_fts.source_title AS source_title,
+        material_search_fts.source_artist_labels AS source_artist_labels,
+        material_search_fts.source_release_label AS source_release_label,
+        material_search_fts.source_artist_aliases AS source_artist_aliases,
         -bm25(material_search_fts, 8.0, 5.0, 6.0, 2.0, 2.0, 1.0, 0.0, 0.0, 0.0) AS rank_score,
         snippet(material_search_fts, 0, '[[', ']]', '...', 8) AS canonical_label_snippet,
         snippet(material_search_fts, 1, '[[', ']]', '...', 8) AS canonical_aliases_snippet,
@@ -296,12 +345,13 @@ function searchFts(
         snippet(material_search_fts, 4, '[[', ']]', '...', 8) AS source_release_label_snippet,
         snippet(material_search_fts, 5, '[[', ']]', '...', 8) AS source_artist_aliases_snippet
       FROM material_search_fts
+      JOIN ${candidatePoolTableName} AS pool
+        ON pool.material_key = material_search_fts.material_key
       WHERE material_search_fts MATCH ?
-        AND material_key IN (${placeholders(candidateKeys.length)})
-      ORDER BY rank_score DESC, material_key ASC
+      ORDER BY rank_score DESC, material_search_fts.material_key ASC
       LIMIT ?
     `)
-    .all(ftsQuery, ...candidateKeys, limit) as FtsHitRow[];
+    .all(ftsQuery, limit) as FtsHitRow[];
 
   return rows.map((row) => {
     const evidence = ftsEvidenceForRow(row, normalizedText);
@@ -316,28 +366,25 @@ function searchFts(
 function searchSubstring(
   database: DatabaseSync,
   normalizedText: string,
-  candidateRefs: Ref[],
-  limit: number,
 ): MaterialSearchIndexHit[] {
-  const candidateKeys = candidateRefs.map(materialKey);
   const rows = database
     .prepare(`
       SELECT
-        material_key,
-        material_ref_json,
-        kind,
-        canonical_label,
-        canonical_aliases,
-        source_title,
-        source_artist_labels,
-        source_release_label,
-        source_artist_aliases
+        material_search_fts.material_key AS material_key,
+        material_search_fts.material_ref_json AS material_ref_json,
+        material_search_fts.kind AS kind,
+        material_search_fts.canonical_label AS canonical_label,
+        material_search_fts.canonical_aliases AS canonical_aliases,
+        material_search_fts.source_title AS source_title,
+        material_search_fts.source_artist_labels AS source_artist_labels,
+        material_search_fts.source_release_label AS source_release_label,
+        material_search_fts.source_artist_aliases AS source_artist_aliases
       FROM material_search_fts
-      WHERE material_key IN (${placeholders(candidateKeys.length)})
-      ORDER BY material_key ASC
-      LIMIT ?
+      JOIN ${candidatePoolTableName} AS pool
+        ON pool.material_key = material_search_fts.material_key
+      ORDER BY material_search_fts.material_key ASC
     `)
-    .all(...candidateKeys, Math.max(limit * 5, limit)) as IndexedDocumentRow[];
+    .all() as IndexedDocumentRow[];
 
   return rows.flatMap((row): MaterialSearchIndexHit[] => {
     const evidence = substringEvidenceForRow(row, normalizedText);
@@ -395,8 +442,62 @@ function deleteDocument(database: DatabaseSync, materialRef: Ref): void {
     .run(materialKey(materialRef));
 }
 
-function dirtyRefsForCandidates(database: DatabaseSync, materialRefs: Ref[]): Ref[] {
-  const candidateRefs = uniqueRefs(materialRefs);
+function writeDocumentForCandidate(
+  database: DatabaseSync,
+  candidateRef: Ref,
+  document: MaterialSearchDocument | null,
+): void {
+  if (document === null) {
+    deleteDocument(database, candidateRef);
+    return;
+  }
+
+  if (materialKey(document.materialRef) !== materialKey(candidateRef)) {
+    deleteDocument(database, candidateRef);
+  }
+
+  upsertDocument(database, document);
+}
+
+function prepareCandidatePool(database: DatabaseSync, candidateKeys: string[]): void {
+  database.exec(`
+    CREATE TEMP TABLE IF NOT EXISTS ${candidatePoolTableName} (
+      material_key TEXT PRIMARY KEY
+    )
+  `);
+  database.exec(`DELETE FROM ${candidatePoolTableName}`);
+
+  const insert = database.prepare(`
+    INSERT OR IGNORE INTO ${candidatePoolTableName} (material_key)
+    VALUES (?)
+  `);
+
+  for (const key of candidateKeys) {
+    insert.run(key);
+  }
+}
+
+function missingCandidateRefsForPool(database: DatabaseSync, candidateRefs: Ref[]): Ref[] {
+  const candidateByKey = new Map(candidateRefs.map((ref) => [materialKey(ref), ref]));
+  const rows = database
+    .prepare(`
+      SELECT pool.material_key AS material_key
+      FROM ${candidatePoolTableName} AS pool
+      LEFT JOIN material_search_fts
+        ON material_search_fts.material_key = pool.material_key
+      WHERE material_search_fts.material_key IS NULL
+      ORDER BY pool.material_key ASC
+    `)
+    .all() as Array<{ material_key: string }>;
+
+  return rows.flatMap((row) => {
+    const ref = candidateByKey.get(row.material_key);
+    return ref === undefined ? [] : [ref];
+  });
+}
+
+function dirtyRefsForCandidatePool(database: DatabaseSync, candidateRefs: Ref[]): Ref[] {
+  const candidateByKey = new Map(candidateRefs.map((ref) => [materialKey(ref), ref]));
 
   if (candidateRefs.length === 0) {
     return [];
@@ -404,14 +505,18 @@ function dirtyRefsForCandidates(database: DatabaseSync, materialRefs: Ref[]): Re
 
   const rows = database
     .prepare(`
-      SELECT material_ref_json
+      SELECT material_search_dirty.material_key AS material_key
       FROM material_search_dirty
-      WHERE material_key IN (${placeholders(candidateRefs.length)})
-      ORDER BY material_key ASC
+      JOIN ${candidatePoolTableName} AS pool
+        ON pool.material_key = material_search_dirty.material_key
+      ORDER BY material_search_dirty.material_key ASC
     `)
-    .all(...candidateRefs.map(materialKey)) as DirtyRow[];
+    .all() as DirtyRow[];
 
-  return rows.map((row) => fromJson<Ref>(row.material_ref_json));
+  return rows.flatMap((row) => {
+    const ref = candidateByKey.get(row.material_key);
+    return ref === undefined ? [] : [ref];
+  });
 }
 
 function clearDirty(database: DatabaseSync, materialRef: Ref): void {
@@ -605,10 +710,6 @@ function uniqueRefs(refs: Ref[]): Ref[] {
   }
 
   return unique;
-}
-
-function placeholders(count: number): string {
-  return Array.from({ length: count }, () => "?").join(", ");
 }
 
 function materialKey(ref: Ref): string {

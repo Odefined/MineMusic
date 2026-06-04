@@ -102,13 +102,12 @@ Material Search hard eligibility checks are:
 
 - current active `MaterialRecord`;
 - `targetKind` match;
-- not blocked by active material-level blocked relation;
-- not blocked by Collection Service blocked membership.
+- not blocked by active material-level blocked relation.
 
 `blocked` does not grant ordinary visibility and is excluded from ordinary
-`all`, `source_library`, and default `collection` search. If positive
-Collection visibility and blocked Collection membership both exist for the same
-owner/material, blocked membership overrides ordinary visibility.
+`all`, `source_library`, and default `collection` search. Blocked Collection
+membership is not a global post-filter for Material Search; collection-backed
+blocked policy remains a Material Policy / Selector concern.
 
 Material Search does not hard-exclude `wrong_version`, `not_playable`, or
 `bad_match`. Those remain Policy/Selector or repair/detail concerns. Material
@@ -266,6 +265,8 @@ than silently restarting from the first page.
 Query keeps its own selector-level cursor and may internally overfetch through
 Search pages to fill the current Query page, bounded by
 `max(100, queryLimit * 10)` and a hard cap of `500` Search candidates.
+In v1, Query may under-fill a page if selector/policy drops too many candidates
+inside that bounded overfetch window.
 
 ## Output And Evidence
 
@@ -316,7 +317,6 @@ export type MaterialSearchCollectionPort = Pick<
   CollectionPort,
   | "listCollections"
   | "listItems"
-  | "filterBlockedMaterials"
 >;
 ```
 

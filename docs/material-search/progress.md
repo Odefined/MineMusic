@@ -15,6 +15,7 @@ Implemented:
 - Owner-neutral SearchDocument construction keyed by `materialRef`.
 - Owner-visible pool construction and eligibility for `all`, ordinary
   `source_library`, and `collection` scopes.
+- Active material-level blocked relation filtering for ordinary Search.
 - Search execution with internal score, field-specific evidence, provenance,
   warnings, and opaque Search cursor.
 - Stage Core wiring with centralized dirty invalidation wrappers and optional

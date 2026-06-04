@@ -1074,7 +1074,6 @@ function createMaterialQueryService({
     materialStore,
     collection: materialSearchCollectionPort({
       ...(collectionRead === undefined ? {} : { collectionRead }),
-      ...(collectionBlock === undefined ? {} : { collectionBlock }),
     }),
     searchIndex: materialSearchIndex,
   });
@@ -1090,15 +1089,12 @@ function createMaterialQueryService({
 
 function materialSearchCollectionPort({
   collectionRead,
-  collectionBlock,
 }: {
   collectionRead?: MaterialQueryCollectionReadPort;
-  collectionBlock?: MaterialPolicyCollectionBlockPort;
 }): MaterialSearchCollectionPort {
   return {
     listItems: collectionRead?.listItems ?? (async () => ok([])),
     listCollections: collectionRead?.listCollections ?? (async () => ok([])),
-    filterBlockedMaterials: collectionBlock?.filterBlockedMaterials ?? (async () => ok([])),
   };
 }
 
