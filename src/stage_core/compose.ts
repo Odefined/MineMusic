@@ -136,6 +136,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     materialPolicyEvaluator,
     events,
     ephemeralMaterialStore,
+    materialization: materializationService,
   });
   const canonicalMaintenance = createCanonicalMaintenance({
     repository: repositories.canonicalRepository,

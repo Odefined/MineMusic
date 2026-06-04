@@ -12,6 +12,7 @@ import type {
   MaterialResolveEphemeralWritePort,
   MaterialQueryStorePort,
   MaterialResolveStorePort,
+  RecommendationPresentationMaterializePort,
   MaterialSearchCollectionPort,
   MaterialSearchStorePort,
   RecommendationPresentationEphemeralReadPort,
@@ -109,6 +110,11 @@ export type RecommendationPresentationEphemeralReadPortKeysAreExact = Assert<IsE
   keyof RecommendationPresentationEphemeralReadPort,
   | "get"
   | "delete"
+>>;
+
+export type RecommendationPresentationMaterializePortKeysAreExact = Assert<IsExact<
+  keyof RecommendationPresentationMaterializePort,
+  | "materializeSourceMaterial"
 >>;
 
 export type MaterialQueryCollectionReadPortKeysAreExact = Assert<IsExact<

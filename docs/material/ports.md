@@ -19,7 +19,7 @@ This document is the current ports authority for Material Flow. It is based on
 | `MaterialSorterPort` | `src/material/policy/index.ts` | Sort already usable material candidates. |
 | `MaterialSelectorPort` | `src/material/selection/index.ts` | Apply policy, sorting, diversity, and limits while preserving the projected public material handle kind. |
 | `RecommendationPresentationPort` | `src/material/presentation/index.ts` | Final recommendation-domain presentation boundary. |
-| narrow presentation materialization capability | `src/material/materialization/index.ts` | Materialize only selected `ephemeral_material` presentation items into durable materials. |
+| narrow presentation materialization capability (`RecommendationPresentationMaterializePort`) | `src/material/materialization/index.ts` | Materialize only selected `ephemeral_material` presentation items into durable materials. |
 | `MaterialSourceLibraryMaterializerPort` | `src/material/materialization/index.ts` | Materialize Source Library items only for explicit non-Resolve callers when needed; ordinary Query retrieval does not consume it. |
 
 `src/material/index.ts` is the bounded-context barrel for these factories and
@@ -52,6 +52,7 @@ The exact method sets are type-asserted in
 | `MaterialResolveEphemeralWritePort` | Material Resolve | Put exact `ephemeral_material` entries and clean stale session-scoped entries without gaining durable registry writers. |
 | `MaterialQueryEphemeralWritePort` | Material Query | Allocate exact `ephemeral_material` entries for source-backed Query/Related rows that need a handle but do not already have a durable material. |
 | `RecommendationPresentationEphemeralReadPort` | Recommendation Presentation | Read and delete exact `ephemeral_material` entries during final presentation without gaining broad material-store access. |
+| `RecommendationPresentationMaterializePort` | Recommendation Presentation | Materialize only selected valid `ephemeral_material` entries after card limits are applied. |
 | `EphemeralMaterialStorePort` | Stage Core composition | Provide the shared process-local in-memory implementation behind the narrow resolve/presentation seams. |
 | `MaterialPolicyEvaluatorPort` | Material Resolve, Recommendation Presentation | Apply internal `material_resolution` policy during resolve for durable results and presentation policy for final durable items. |
 | `MaterialQueryCollectionReadPort` | Material Query | Read collection headers and items for collection pools and pool listing. |

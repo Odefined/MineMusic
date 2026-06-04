@@ -573,6 +573,11 @@ export type RecommendationPresentationEphemeralReadPort = Pick<
   | "delete"
 >;
 
+export type RecommendationPresentationMaterializePort = Pick<
+  MaterialSourceMaterializerPort,
+  | "materializeSourceMaterial"
+>;
+
 export type ProjectedSourceMaterial = {
   material: MusicMaterial | null;
   issues: MaterialResolveIssue[];

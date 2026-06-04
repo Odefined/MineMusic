@@ -194,7 +194,10 @@ rows.
 
 `stage.recommendation.present` is the public final presentation boundary. It
 calls `RecommendationPresentationPort.present`, then Stage Interface projects
-the result into compact public cards.
+the result into compact public cards. Input `items[].materialId` may reference
+either durable `mat:*` handles or ephemeral `emat:*` handles, but successful
+public cards and internal `recommendation.presented` payload cards must use
+final durable `mat:*` handles only.
 
 `stage.events.record` rejects manual `recommendation.presented` events.
 

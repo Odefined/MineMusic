@@ -172,9 +172,11 @@ their exact `mat:*` / `emat:*` identity.
 
 `src/material/presentation/index.ts` implements
 `RecommendationPresentationPort`. It evaluates the intended ordered materialId
-list with presentation policy, routes exact `mat:*` / `emat:*` handles,
-preserves the surviving order, applies card limits, materializes only selected
-ephemeral items into durable `mat:*` results, records typed
+list with presentation policy, routes exact `mat:*` / `emat:*` handles, keeps
+`mat:*` items on the durable policy path, validates `emat:*` items through the
+ephemeral store without durable relation policy, preserves the surviving
+order, applies card limits, materializes only selected ephemeral items into
+durable `mat:*` results, records typed
 `recommendation.presented` events, and returns domain presentation items.
 Stage Interface performs compact output projection.
 
