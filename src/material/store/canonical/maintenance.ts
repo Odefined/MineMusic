@@ -41,6 +41,7 @@ type CanonicalMaintenanceOptions = {
   sessionContext: SessionContextPort;
   knowledge?: MusicKnowledgePort;
   events?: EventPort;
+  onCanonicalRecordsChanged?: (refs: Ref[]) => Promise<Result<void>>;
   idFactory?: () => string;
   clock?: () => string;
   inspectionTtlMs?: number;
@@ -78,6 +79,7 @@ export function createCanonicalMaintenance({
   sessionContext,
   knowledge,
   events,
+  onCanonicalRecordsChanged,
   idFactory = createDefaultIdFactory("inspection"),
   clock = () => new Date().toISOString(),
   inspectionTtlMs = defaultInspectionTtlMs,
@@ -269,6 +271,7 @@ export function createCanonicalMaintenance({
         return applyUpdateDecision({
           storage,
           events,
+          onCanonicalRecordsChanged,
           input,
           inspection: commonGate.value.inspection,
           selectedProviderRef: updateGate.value,
@@ -298,6 +301,7 @@ export function createCanonicalMaintenance({
           storage,
           knowledge,
           events,
+          onCanonicalRecordsChanged,
           snapshots,
           runs: autoUpdateRuns,
           sessionId: input.sessionId,
@@ -316,6 +320,7 @@ export function createCanonicalMaintenance({
         storage,
         knowledge,
         events,
+        onCanonicalRecordsChanged,
         snapshots,
         sessionId: input.sessionId,
         subjectRef: input.subjectRef,
@@ -495,6 +500,7 @@ async function reviewAutoUpdateSingleSubject({
   storage,
   knowledge,
   events,
+  onCanonicalRecordsChanged,
   snapshots,
   sessionId,
   subjectRef,
@@ -506,6 +512,7 @@ async function reviewAutoUpdateSingleSubject({
   storage: ReturnType<typeof createCanonicalStorage>;
   knowledge: MusicKnowledgePort | undefined;
   events: EventPort | undefined;
+  onCanonicalRecordsChanged: ((refs: Ref[]) => Promise<Result<void>>) | undefined;
   snapshots: Map<string, ReviewSnapshot>;
   sessionId: string;
   subjectRef: Ref;
@@ -591,6 +598,7 @@ async function reviewAutoUpdateSingleSubject({
   const applied = await applyUpdateDecision({
     storage,
     events,
+    onCanonicalRecordsChanged,
     input: {
       sessionId,
       inspectionId: inspection.inspectionId,
@@ -657,6 +665,7 @@ async function reviewAutoUpdateBatch({
   storage,
   knowledge,
   events,
+  onCanonicalRecordsChanged,
   snapshots,
   runs,
   sessionId,
@@ -672,6 +681,7 @@ async function reviewAutoUpdateBatch({
   storage: ReturnType<typeof createCanonicalStorage>;
   knowledge: MusicKnowledgePort | undefined;
   events: EventPort | undefined;
+  onCanonicalRecordsChanged: ((refs: Ref[]) => Promise<Result<void>>) | undefined;
   snapshots: Map<string, ReviewSnapshot>;
   runs: Map<string, AutoUpdateRunState>;
   sessionId: string;
@@ -736,6 +746,7 @@ async function reviewAutoUpdateBatch({
         storage,
         knowledge,
         events,
+        onCanonicalRecordsChanged,
         snapshots,
         sessionId,
         subjectRef,
@@ -1163,6 +1174,7 @@ function validateUpdateDecision(
 async function applyUpdateDecision({
   storage,
   events,
+  onCanonicalRecordsChanged,
   input,
   inspection,
   selectedProviderRef,
@@ -1170,6 +1182,7 @@ async function applyUpdateDecision({
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
+  onCanonicalRecordsChanged: ((refs: Ref[]) => Promise<Result<void>>) | undefined;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
   selectedProviderRef: Ref;
@@ -1200,6 +1213,7 @@ async function applyUpdateDecision({
     return activateSubject({
       storage,
       events,
+      onCanonicalRecordsChanged,
       input,
       inspection,
       selectedProviderRef,
@@ -1221,6 +1235,7 @@ async function applyUpdateDecision({
   return mergeSubject({
     storage,
     events,
+    onCanonicalRecordsChanged,
     input,
     inspection,
     selectedProviderRef,
@@ -1232,6 +1247,7 @@ async function applyUpdateDecision({
 async function activateSubject({
   storage,
   events,
+  onCanonicalRecordsChanged,
   input,
   inspection,
   selectedProviderRef,
@@ -1239,6 +1255,7 @@ async function activateSubject({
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
+  onCanonicalRecordsChanged: ((refs: Ref[]) => Promise<Result<void>>) | undefined;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
   selectedProviderRef: Ref;
@@ -1267,6 +1284,12 @@ async function activateSubject({
 
   if (!committed.ok) {
     return committed;
+  }
+
+  const changed = await notifyCanonicalRecordsChanged(onCanonicalRecordsChanged, [activated.ref]);
+
+  if (!changed.ok) {
+    return changed;
   }
 
   const warnings = await recordUpdateEvent(events, {
@@ -1299,6 +1322,7 @@ async function activateSubject({
 async function mergeSubject({
   storage,
   events,
+  onCanonicalRecordsChanged,
   input,
   inspection,
   selectedProviderRef,
@@ -1307,6 +1331,7 @@ async function mergeSubject({
 }: {
   storage: ReturnType<typeof createCanonicalStorage>;
   events: EventPort | undefined;
+  onCanonicalRecordsChanged: ((refs: Ref[]) => Promise<Result<void>>) | undefined;
   input: Extract<ProvisionalReviewApplyInput, { action: "update" }>;
   inspection: ProvisionalReviewInspection;
   selectedProviderRef: Ref;
@@ -1368,6 +1393,15 @@ async function mergeSubject({
     return committed;
   }
 
+  const changed = await notifyCanonicalRecordsChanged(onCanonicalRecordsChanged, [
+    mergedSubject.ref,
+    survivingTarget.ref,
+  ]);
+
+  if (!changed.ok) {
+    return changed;
+  }
+
   const warnings = await recordUpdateEvent(events, {
     sessionId: input.sessionId,
     actor: "stage",
@@ -1394,6 +1428,17 @@ async function mergeSubject({
   };
 
   return ok(output);
+}
+
+async function notifyCanonicalRecordsChanged(
+  onCanonicalRecordsChanged: ((refs: Ref[]) => Promise<Result<void>>) | undefined,
+  refs: Ref[],
+): Promise<Result<void>> {
+  if (onCanonicalRecordsChanged === undefined) {
+    return ok(undefined);
+  }
+
+  return onCanonicalRecordsChanged(uniqueRefs(refs));
 }
 
 async function findMergeSourceRefConflict({

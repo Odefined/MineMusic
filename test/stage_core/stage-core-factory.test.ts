@@ -5,6 +5,8 @@ import { join } from "node:path";
 import type {
   CanonicalRecord,
   Collection,
+  KnowledgeItem,
+  KnowledgeProvider,
   PlatformLibraryProvider,
   ProviderHttpCacheEntry,
   Ref,
@@ -766,6 +768,205 @@ async function wiresMaterialSearchWithTransientSqliteAndDirtyInvalidation(): Pro
   assert(staleBlueSearch.hits.length === 0, "dirty refresh should remove stale Search text");
 }
 
+async function canonicalMaintenanceDirtyInvalidatesMaterialSearch(): Promise<void> {
+  const reviewSession: StageSession = {
+    id: "stage-core-canonical-search-review-session",
+    posture: "canonical_review",
+    activeInstruments: [],
+  };
+  const freshCanonicalLabel = "Fresh Canonical Search Track";
+  const sourceRef: Ref = {
+    namespace: "source:fixture",
+    kind: "track",
+    id: "canonical-search-track",
+  };
+  const knowledgeProvider: KnowledgeProvider = {
+    id: "stage-core-canonical-search-knowledge",
+    async query() {
+      return {
+        ok: true,
+        value: {
+          items: [
+            stageCoreQualificationKnowledgeItem({
+              id: "mb-canonical-search-recording",
+              title: freshCanonicalLabel,
+              artistLabel: "Fresh Search Artist",
+              durationMs: 123000,
+              releaseTitle: "Fresh Search Release",
+              releaseDate: "2026-06-04",
+            }),
+          ],
+        },
+      };
+    },
+  };
+  const stageCore = createMineMusicStageCoreWithSourceProvider({
+    session: reviewSession,
+    sourceProvider: emptySourceProvider(),
+    knowledgeProviders: [knowledgeProvider],
+  });
+  await stageCore.ready;
+
+  const subject = await assertOk(stageCore.canonical.createProvisional({
+    kind: "recording",
+    label: "Old Canonical Search Track",
+    evidence: [sourceRef],
+  }));
+  await assertOk(stageCore.canonical.recordProvisionalHints({
+    subjectRef: subject.ref,
+    sourceRef,
+    hints: [
+      {
+        kind: "source_recording_context",
+        facts: {
+          title: freshCanonicalLabel,
+          artistLabels: ["Fresh Search Artist"],
+          releaseLabel: "Fresh Search Release",
+          releaseDate: "2026-06-04",
+          durationMs: 123000,
+        },
+      },
+    ],
+  }));
+  await assertOk(stageCore.materialStore.putConfirmedCanonicalBinding({
+    binding: {
+      sourceRef,
+      canonicalRef: subject.ref,
+      createdAt: "2026-06-04T00:00:00.000Z",
+      updatedAt: "2026-06-04T00:00:00.000Z",
+    },
+  }));
+  await assertOk(stageCore.materialStore.putSourceLibraryItem({
+    item: {
+      id: "canonical-search-library-item",
+      ownerScope: "local_profile:default",
+      providerId: "fixture",
+      providerAccountId: "acct",
+      sourceRef,
+      sourceKind: "track",
+      libraryKind: "saved_source_track",
+      label: "Canonical search library item",
+      lastSeenAt: "2026-06-04T00:00:00.000Z",
+      status: "present",
+    },
+  }));
+
+  const oldCanonicalSearch = await assertOk(stageCore.materialSearch.search({
+    ownerScope: "local_profile:default",
+    scopes: [{ kind: "source_library" }],
+    text: "Old Canonical",
+  }));
+
+  assert(oldCanonicalSearch.hits.length === 1, "initial Search should index the original canonical label");
+
+  const updated = await assertOk(stageCore.canonicalMaintenance.reviewAutoUpdate({
+    sessionId: reviewSession.id,
+    subjectRef: subject.ref,
+  }));
+  const freshCanonicalSearch = await assertOk(stageCore.materialSearch.search({
+    ownerScope: "local_profile:default",
+    scopes: [{ kind: "source_library" }],
+    text: "Fresh Canonical",
+  }));
+
+  assert(updated.mode === "single" && updated.item.outcome === "updated", "canonical maintenance fixture should update");
+  assert(
+    freshCanonicalSearch.hits.length === 1,
+    "canonical maintenance updates should dirty-refresh Material Search canonical text",
+  );
+}
+
+function stageCoreQualificationKnowledgeItem({
+  id,
+  title,
+  artistLabel,
+  durationMs,
+  releaseTitle,
+  releaseDate,
+}: {
+  id: string;
+  title: string;
+  artistLabel: string;
+  durationMs: number;
+  releaseTitle: string;
+  releaseDate: string;
+}): KnowledgeItem {
+  const recordingRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "recording",
+    id,
+    label: title,
+  };
+  const artistRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "artist",
+    id: `${id}-artist`,
+    label: artistLabel,
+  };
+  const releaseRef: Ref = {
+    namespace: "musicbrainz",
+    kind: "release",
+    id: `${id}-release`,
+    label: releaseTitle,
+  };
+
+  return {
+    id: `knowledge-${id}`,
+    kind: "structured",
+    providerId: "musicbrainz",
+    source: { ref: recordingRef },
+    rootNodeId: `recording:${id}`,
+    nodes: [
+      {
+        id: `recording:${id}`,
+        type: "recording",
+        ref: recordingRef,
+        label: title,
+        properties: {
+          title,
+          durationMs,
+          artistCreditText: artistLabel,
+        },
+      },
+      {
+        id: `artist:${id}-artist`,
+        type: "artist",
+        ref: artistRef,
+        label: artistLabel,
+        properties: {
+          name: artistLabel,
+        },
+      },
+      {
+        id: `release:${id}-release`,
+        type: "release",
+        ref: releaseRef,
+        label: releaseTitle,
+        properties: {
+          title: releaseTitle,
+          date: releaseDate,
+        },
+      },
+    ],
+    relations: [
+      {
+        type: "artist_credit",
+        endpoints: [
+          { nodeId: `recording:${id}`, role: "credited_entity" },
+          { nodeId: `artist:${id}-artist`, role: "artist" },
+        ],
+      },
+      {
+        type: "release_appearance",
+        endpoints: [
+          { nodeId: `recording:${id}`, role: "recording" },
+          { nodeId: `release:${id}-release`, role: "release" },
+        ],
+      },
+    ],
+  };
+}
+
 function emptySourceProvider(): SourceProvider {
   return {
     id: "stage-core-empty-source-provider",
@@ -804,3 +1005,4 @@ await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
 await usesInjectedCollectionRepository();
 await exposesLibraryImportWithInjectedPlatformLibraryProvider();
 await wiresMaterialSearchWithTransientSqliteAndDirtyInvalidation();
+await canonicalMaintenanceDirtyInvalidatesMaterialSearch();

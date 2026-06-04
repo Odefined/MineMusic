@@ -20,6 +20,8 @@ Implemented:
   warnings, and opaque Search cursor.
 - Stage Core wiring with centralized dirty invalidation wrappers and optional
   `MINEMUSIC_MATERIAL_SEARCH_DB_PATH` runtime configuration.
+- Canonical Maintenance review apply/auto-update writes notify Stage Core so
+  canonical label/alias/status changes dirty-refresh affected SearchDocuments.
 - `music.material.query` integration for `all`, ordinary `source_library`,
   and `collection`; `related` and `source_library target: "release_tracks"`
   remain on their existing paths.

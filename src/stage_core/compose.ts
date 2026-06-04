@@ -137,6 +137,8 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     sessionContext,
     knowledge,
     events,
+    onCanonicalRecordsChanged: (canonicalRefs) =>
+      markMaterialsByCanonicalRefsDirty(materialStore, materialSearchIndex, canonicalRefs),
   });
   const dispatch = createToolDispatch({
     sessionContext,
@@ -352,6 +354,22 @@ async function markMaterialByCanonicalRef(
   return record.value === null
     ? ok(undefined)
     : markMaterialRefsDirty(searchIndex, [record.value.materialRef]);
+}
+
+async function markMaterialsByCanonicalRefsDirty(
+  materialStore: MaterialStorePort,
+  searchIndex: MaterialSearchIndexPort,
+  canonicalRefs: Ref[],
+): Promise<Result<void>> {
+  for (const canonicalRef of canonicalRefs) {
+    const dirty = await markMaterialByCanonicalRef(materialStore, searchIndex, canonicalRef);
+
+    if (!dirty.ok) {
+      return dirty;
+    }
+  }
+
+  return ok(undefined);
 }
 
 async function markMaterialRefsDirty(

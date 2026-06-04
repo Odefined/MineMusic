@@ -136,6 +136,8 @@ details live in area `progress.md` files listed in `INDEX.md`.
   by SQLite FTS, including contracts, ports, guards, SearchDocument building,
   owner-visible visibility/eligibility, execution/evidence/cursor handling,
   Stage Core dirty invalidation wiring, and Query integration.
+- Extended Stage Core dirty invalidation to Canonical Maintenance
+  review apply/auto-update writes so canonical text changes refresh Search.
 - Updated public `music.material.query` language to `text` and `targetKind`
   without keeping `q` or `returnKind` aliases.
 
