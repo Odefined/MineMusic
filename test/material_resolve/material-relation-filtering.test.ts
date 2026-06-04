@@ -6,14 +6,19 @@ import type {
   Result,
   SourceMaterial,
 } from "../../src/contracts/index.js";
-import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createMaterialPolicyEvaluator } from "../../src/material/policy/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { createMaterialResolveService } from "../../src/material/resolve/index.js";
-import type { MaterialPolicyCollectionBlockPort, SourceGroundingPort } from "../../src/ports/index.js";
+import { createMaterialSearchDocumentProvider, createMaterialSearchService } from "../../src/material/search/index.js";
+import type {
+  MaterialPolicyCollectionBlockPort,
+  MaterialSearchCollectionPort,
+  SourceGroundingPort,
+} from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemorySourceEntityStoreRepository,
+  createSqliteMaterialSearchIndex,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -126,7 +131,7 @@ async function sourceWrongVersionFiltersMatchingSource(): Promise<void> {
     }),
   );
 
-  const resolved = await assertOk(resolve("Versioned Source"));
+  const resolved = await assertOk(resolve("Version"));
   const material = firstMaterial(resolved);
 
   assert(resolved.materials.length === 1, "source-level wrong_version should remove diagnostic-only wrong-version remnants");
@@ -175,10 +180,31 @@ async function canonicalResolvedMaterialCollectionBlockedFilteringStillWorks(): 
   const collection = {
     filterBlockedMaterials: async ({ materialRefs }: { materialRefs: Ref[] }) => ({ ok: true, value: materialRefs }),
   } as MaterialPolicyCollectionBlockPort;
-  const { resolve } = createTestResolve([sourceMaterial("Canonical Blocked", sourceRef)], {
+  const { materialStore, resolve } = createTestResolve([sourceMaterial("Canonical Blocked", sourceRef, canonical.ref)], {
     canonicalRepository,
     collectionBlock: collection,
   });
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label: "Canonical Blocked",
+        title: "Canonical Blocked",
+        providerUrl: "https://example.test/canonical-source",
+        createdAt: "2026-05-30T00:00:00.000Z",
+        updatedAt: "2026-05-30T00:00:00.000Z",
+      },
+    }),
+  );
+  await assertOk(
+    materialStore.getOrCreateByCanonicalRef({
+      canonicalRef: canonical.ref,
+      kind: "recording",
+      sourceRefs: [sourceRef],
+    }),
+  );
 
   const resolved = await assertOk(resolve("Canonical Blocked"));
 
@@ -210,8 +236,14 @@ function createTestResolve(
   });
   const materialResolve = createMaterialResolveService({
     materialStore,
+    materialSearch: createMaterialSearchService({
+      materialStore,
+      collection: emptyMaterialSearchCollection(),
+      searchIndex: createSqliteMaterialSearchIndex({
+        documents: createMaterialSearchDocumentProvider({ materialStore }),
+      }),
+    }),
     sourceGrounding,
-    sourceMaterializer: createMaterializationService({ materialStore }),
     materialPolicyEvaluator: createMaterialPolicyEvaluator({
       materialStore,
       ...(options.collectionBlock === undefined ? {} : { collection: options.collectionBlock }),
@@ -222,21 +254,22 @@ function createTestResolve(
     materialStore,
     async resolve(label: string) {
       const result = await materialResolve.resolve({
-        kind: "single",
         ownerScope: "local_profile:default",
-        candidate: {
+        queries: [{
           id: `candidate-${label}`,
-          label,
-          expectedKind: "track",
-        },
+          text: label,
+          targetKind: "recording",
+        }],
       });
 
       if (!result.ok) {
         return result;
       }
 
-      assert(result.value.kind === "single", "test helper expects single resolve");
-      return { ok: true, value: result.value.result } as const;
+      const resolved = result.value.results[0];
+
+      assert(resolved !== undefined, "test helper expects one resolve result");
+      return { ok: true, value: resolved } as const;
     },
   };
 }
@@ -255,6 +288,13 @@ function sourceMaterial(label: string, sourceRef: Ref, canonicalRef?: Ref): Sour
         sourceRef,
       },
     ],
+  };
+}
+
+function emptyMaterialSearchCollection(): MaterialSearchCollectionPort {
+  return {
+    listCollections: async () => ({ ok: true, value: [] }),
+    listItems: async () => ({ ok: true, value: [] }),
   };
 }
 

@@ -48,18 +48,35 @@ the docs listed in `INDEX.md`.
   now guarantees a canonical-confirmed `MaterialRecord` containing both the
   bound `canonicalRef` and `sourceRef`.
 - Material Flow owns material resolve, projection, materialization, query,
-  related retrieval, policy, sorting, selection, and recommendation
-  presentation.
+  policy, sorting, selection, and recommendation presentation.
 - Material Search is implemented as an internal Material Flow capability.
-  `music.material.query` uses it for `all`, ordinary `source_library`, and
-  `collection` retrieval; `related` and
-  `source_library target: "release_tracks"` remain on their existing paths.
-  Public Query input uses `text` and `targetKind`, not `q` or `returnKind`.
+  `music.material.query` uses durable-pool `search(...)` for `all`, ordinary
+  `source_library`, and `collection` retrieval, while Resolve uses separate
+  request-scoped `rerank(...)` over prepared durable/ephemeral candidate
+  corpora. `source_library target: "release_tracks"` keeps source-backed rows
+  on Query-owned paths: it reuses existing durable materials when present and
+  otherwise allocates process-local `emat:*` handles without query-time
+  durable materialization. Public Query input uses `text` and `targetKind`,
+  not `q` or `returnKind`.
 - Material Query now reads collection pools through the narrow
   `MaterialQueryCollectionReadPort`, Material Policy reads collection-backed
   blocked membership through `MaterialPolicyCollectionBlockPort`, and Resolve
   routes resolution-time blocked/wrong-version/not-playable projection through
   `MaterialPolicyEvaluatorPort`.
+- Public `music.material.related` is removed from the current stable surface.
+  Query no longer depends on Resolve and no longer accepts or constructs
+  related pools.
+- Public `music.material.resolve` is now a text-query contract over
+  `queries[].text` with optional `queries[].targetKind`. It returns compact
+  `mat:*` or `emat:*` handles and does not accept public `kind`, `purpose`,
+  `sourceRef`, `canonicalRef`, `materialRef`, or `sourceLibraryScope`.
+  Resolve always performs provider expansion, reuses existing durable material
+  identity when found, allocates `emat:*` only for still-non-durable provider
+  candidates, and then routes local durable recall plus provider-expanded
+  candidates through Material Search rerank before applying resolve policy.
+- `stage.recommendation.present` now consumes both durable `mat:*` and
+  ephemeral `emat:*` handles, but only selected valid `emat:*` items are
+  materialized into final durable `mat:*` cards and event payloads.
 - Collection Service owns owner-scoped system/custom Collections and current
   materialRef-backed CollectionItems. ADR-0003 accepts this boundary and
   supersedes ADR-0002's earlier canonical-only Collection consequence.

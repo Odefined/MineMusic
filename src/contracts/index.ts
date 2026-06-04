@@ -966,13 +966,6 @@ export type SourceLibraryItem = {
   status: SourceLibraryItemStatus;
 };
 
-export type SourceLibraryResolveScope = {
-  providerId?: string;
-  providerAccountId?: string;
-  libraryKind?: PlatformLibraryItemKind;
-  status?: SourceLibraryItemStatus;
-};
-
 export type ConfirmedCanonicalBinding = {
   sourceRef: Ref;
   canonicalRef: Ref;
@@ -1022,33 +1015,26 @@ export type SourceQuery = {
   limit?: number;
 };
 
-export type MusicCandidate = {
-  id: string;
-  label: string;
-  expectedKind?: "track" | "recording" | "artist" | "album" | "playlist" | string;
-  query?: SourceQuery;
-  canonicalRef?: Ref;
-  sourceRef?: Ref;
-  sourceLibraryScope?: SourceLibraryResolveScope;
+export type MaterialResolveTargetKind =
+  | "recording"
+  | "release_group"
+  | "release"
+  | "artist"
+  | "work";
+
+export type MaterialResolveQuery = {
+  id?: string;
+  text: string;
+  targetKind?: MaterialResolveTargetKind;
   reason?: string;
-  context?: string;
 };
 
 export type MaterialResolveRequest = {
   sessionId?: string;
   ownerScope?: string;
-  sourceLibraryScope?: SourceLibraryResolveScope;
-  limitPerCandidate?: number;
-} & (
-  | {
-      kind: "single";
-      candidate: MusicCandidate;
-    }
-  | {
-      kind: "candidate_set";
-      candidates: MusicCandidate[];
-    }
-);
+  limit?: number;
+  queries: MaterialResolveQuery[];
+};
 
 export type MaterialResolveStatus =
   | "resolved"
@@ -1078,41 +1064,29 @@ export type MaterialResolveIssue =
       query?: SourceQuery;
     };
 
-export type ResolvedCandidate = {
-  candidate: MusicCandidate;
+export type MaterialResolvedQuery = {
+  query: MaterialResolveQuery;
   materials: MusicMaterial[];
   status: MaterialResolveStatus;
-  canonicalRef?: Ref;
   reason?: string;
   issues?: MaterialResolveIssue[];
 };
 
-export type MaterialResolveResult =
-  | {
-      kind: "single";
-      result: ResolvedCandidate;
-    }
-  | {
-      kind: "candidate_set";
-      results: ResolvedCandidate[];
-    };
+export type MaterialResolveResult = {
+  results: MaterialResolvedQuery[];
+};
 
-export type PublicMaterialResolveQueryKind =
-  | "recording"
-  | "release_group"
-  | "release"
-  | "artist"
-  | "work";
+export type PublicMaterialResolveQueryKind = MaterialResolveTargetKind;
 
 export type PublicMaterialResolveQuery = {
+  id?: string;
   text: string;
-  kind?: PublicMaterialResolveQueryKind;
+  targetKind?: PublicMaterialResolveQueryKind;
   reason?: string;
 };
 
 export type PublicMaterialResolveInput = {
   queries: PublicMaterialResolveQuery[];
-  purpose?: "recommend" | "lookup" | "play";
   ownerScope?: string;
   limit?: number;
 };
@@ -1215,6 +1189,18 @@ export type MaterialSearchOutput = {
   warnings?: MaterialSearchWarning[];
 };
 
+export type MaterialSearchRerankInput = {
+  text: string;
+  targetKind?: MaterialSearchTargetKind;
+  materials: MusicMaterial[];
+  limit?: number;
+};
+
+export type MaterialSearchRerankOutput = {
+  hits: MaterialSearchHit[];
+  warnings?: MaterialSearchWarning[];
+};
+
 export type MaterialSearchDocument = {
   materialRef: Ref;
   kind: string;
@@ -1242,6 +1228,12 @@ export type MaterialSearchIndexSearchOutput = {
   hits: MaterialSearchIndexHit[];
 };
 
+export type MaterialSearchIndexRerankInput = {
+  text: string;
+  documents: MaterialSearchDocument[];
+  limit?: number;
+};
+
 export type PublicMaterialResolveItem = {
   materialId: string;
   title: string;
@@ -1250,6 +1242,7 @@ export type PublicMaterialResolveItem = {
 };
 
 export type PublicMaterialResolveUnresolvedItem = {
+  id?: string;
   text: string;
   reason?: string;
 };
@@ -1281,11 +1274,6 @@ export type MaterialPoolSpec =
       ref?: string;
       label?: string;
       relation?: "saved" | "favorite" | "custom" | "blocked";
-    }
-  | {
-      kind: "related";
-      materialId: string;
-      relation: "same_artist" | "same_album" | "similar";
     };
 
 export type MaterialQueryInput = {
@@ -1336,34 +1324,6 @@ export type MaterialQueryOutput = {
   nextCursor?: string;
 };
 
-export type MaterialRelatedInput = {
-  materialId: string;
-  // same_release and same_release_group remain internal-only Stage Query
-  // options; the public Stage Interface currently exposes same_artist,
-  // same_album, and similar only.
-  relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
-  exclude?: MaterialQueryInput["exclude"];
-  constraints?: MaterialQueryInput["constraints"];
-  preferenceHints?: MaterialQueryInput["preferenceHints"];
-  ownerScope?: string;
-  sessionId?: string;
-  limit?: number;
-};
-
-export type MaterialRelatedOutput = {
-  basis:
-    | "confirmed_artist"
-    | "source_artist"
-    | "confirmed_album"
-    | "source_album"
-    | "knowledge_similarity"
-    | "library_similarity"
-    | "fallback_text";
-  basisLabel?: string;
-  warning?: string;
-  items: MaterialQueryItem[];
-};
-
 export type MaterialContextBriefInput = {
   materialId: string;
   fields: Array<"artist" | "album" | "version" | "status">;
@@ -1391,7 +1351,7 @@ export type MaterialPoolsListInput = {
 export type MaterialPoolsListOutput = {
   pools: Array<{
     label: string;
-    pool: Exclude<MaterialPoolSpec, { kind: "related" }>;
+    pool: MaterialPoolSpec;
     returnKinds: string[];
     count?: number;
   }>;
@@ -2267,7 +2227,6 @@ export type ToolName =
   | "stage.effects.propose"
   | "music.material.resolve"
   | "music.material.query"
-  | "music.material.related"
   | "music.material.select"
   | "music.material.context.brief"
   | "music.pools.list"

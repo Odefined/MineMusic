@@ -35,7 +35,7 @@ MCP exposes the same tools with the `minemusic.` prefix through
 | --- | --- | --- |
 | Stage | `stage.context.read`, `stage.recommendation.present`, `stage.session.update`, `stage.events.record`, `stage.effects.propose` | `src/stage_interface/tool_definitions/stage.ts` |
 | Handbook | `handbook.overview.read`, `handbook.instrument.read`, `handbook.tool.read` | `src/stage_interface/tool_definitions/handbook.ts` |
-| Music | `music.material.resolve`, `music.material.query`, `music.material.related`, `music.material.select`, `music.material.context.brief`, `music.pools.list`, `music.links.refresh`, collection tools | `src/stage_interface/tool_definitions/music.ts` |
+| Music | `music.material.resolve`, `music.material.query`, `music.material.select`, `music.material.context.brief`, `music.pools.list`, `music.links.refresh`, collection tools | `src/stage_interface/tool_definitions/music.ts` |
 | Knowledge | `knowledge.query` | `src/stage_interface/tool_definitions/knowledge.ts` |
 | Library | `library.import.start`, `library.import.continue`, `library.update.start`, `library.update.continue`, `library.import.status`, `library.import.summary`, `library.import.items.list` | `src/stage_interface/tool_definitions/library.ts` |
 | Canonical Review | `canonical.review.list`, `canonical.review.inspect`, `canonical.review.apply`, `canonical.review.auto_update` | `src/stage_interface/tool_definitions/canonical_review.ts` |
@@ -58,7 +58,6 @@ stage.effects.propose
 music.material.resolve
 knowledge.query
 music.material.query
-music.material.related
 music.material.select
 music.material.context.brief
 music.pools.list
@@ -115,6 +114,12 @@ unknown fields is a future per-tool decision, not the default public policy.
 
 Ordinary public material actions use `materialId`.
 
+Public `materialId` handles are opaque encoded values owned by Material
+Projection:
+
+- `mat:<id>` for durable `materialRef.kind === "material"`;
+- `emat:<id>` for process-local `materialRef.kind === "ephemeral_material"`.
+
 Public material tools must not ask agents to construct:
 
 - internal `materialRef`;
@@ -124,14 +129,22 @@ Public material tools must not ask agents to construct:
 - raw Source Library rows;
 - provider payloads.
 
-Public `music.material.resolve` accepts text `queries` and adapts them to the
-internal resolve request. Public resolve output is compact:
+Public `music.material.resolve` accepts text `queries` with
+`queries[].text`, optional `queries[].targetKind`, optional `queries[].reason`,
+and optional request-level `ownerScope`, `limit`, and `sessionId`. Public
+resolve does not accept query-level legacy kind aliases, request-level legacy
+source-library scoping, `sourceRef`, `canonicalRef`, or `materialRef`.
+
+Public resolve output is compact:
 
 - `items` with material cards carrying `materialId`, title, optional subtitle,
   and material `state`;
-- optional unresolved text diagnostics when no public material card exists,
-  including candidates that resolve only to diagnostic internal statuses such
-  as wrong-version or not-playable.
+- optional unresolved text diagnostics when no public material card exists.
+
+Ordinary public resolve output may contain durable `mat:*` handles or
+ephemeral `emat:*` handles, but it must not expose raw `materialRef`,
+`sourceRef`, `canonicalRef`, Search evidence, confidence, provenance, or
+provider payloads.
 
 `music.material.query` and `music.pools.list` are the ordinary public Source
 Library browsing path. Public source-library pools use `libraryKinds` and
@@ -180,7 +193,10 @@ rows.
 
 `stage.recommendation.present` is the public final presentation boundary. It
 calls `RecommendationPresentationPort.present`, then Stage Interface projects
-the result into compact public cards.
+the result into compact public cards. Input `items[].materialId` may reference
+either durable `mat:*` handles or ephemeral `emat:*` handles, but successful
+public cards and internal `recommendation.presented` payload cards must use
+final durable `mat:*` handles only.
 
 `stage.events.record` rejects manual `recommendation.presented` events.
 
@@ -204,6 +220,9 @@ source handles.
 
 MCP tool names are `minemusic.` plus the stable Stage Interface tool name.
 `internalToolNameFor` rejects unprefixed names and removed public names.
+
+Public `music.material.resolve` schema parity must preserve
+`queries[].targetKind` and the absence of `purpose`.
 
 `test/surfaces/mcp-server.test.ts` verifies that MCP definitions expose every
 stable Stage Interface tool and reuse Stage Interface schemas.

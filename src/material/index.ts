@@ -6,6 +6,7 @@ export {
   createLibraryImportService,
   createMaterialStore,
 } from "./store/index.js";
+export { createInMemoryEphemeralMaterialStore } from "./ephemeral/index.js";
 export { createMaterialResolveService } from "./resolve/index.js";
 export { createMaterializationService } from "./materialization/index.js";
 export {

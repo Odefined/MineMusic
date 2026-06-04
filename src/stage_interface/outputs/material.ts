@@ -1,7 +1,7 @@
 import type {
+  MaterialResolvedQuery,
   MaterialResolveIssue,
   MaterialQueryOutput,
-  MaterialRelatedOutput,
   MaterialResolveResult,
   MaterialResolveStatus,
   MaterialState,
@@ -9,9 +9,8 @@ import type {
   MaterialSelectOutput,
   MaterialSelectWarning,
   MusicMaterial,
-  Ref,
-  ResolvedCandidate,
 } from "../../contracts/index.js";
+import { materialRefToMaterialId } from "../../material/projection/index.js";
 
 export type CompactMaterialCard = {
   materialId?: string;
@@ -25,28 +24,22 @@ export type CompactCandidateMaterialCard = CompactMaterialCard & {
 };
 
 export type CompactResolvedCandidate = {
-  candidateId: string;
-  label: string;
+  id?: string;
+  text: string;
   status: MaterialResolveStatus;
-  canonicalRef?: Ref;
   reason?: string;
   issues?: MaterialResolveIssue[];
   items: CompactMaterialCard[];
 };
 
-export type CompactMaterialResolveOutput =
-  | {
-      kind: "single";
-      result: CompactResolvedCandidate;
-    }
-  | {
-      kind: "candidate_set";
-      results: CompactResolvedCandidate[];
-    };
+export type CompactMaterialResolveOutput = {
+  results: CompactResolvedCandidate[];
+};
 
 export type CompactPublicMaterialResolveOutput = {
   items: CompactCandidateMaterialCard[];
   unresolved?: Array<{
+    id?: string;
     text: string;
     reason?: string;
   }>;
@@ -56,13 +49,6 @@ export type CompactMaterialQueryOutput = {
   basis?: MaterialQueryOutput["basis"];
   items: CompactCandidateMaterialCard[];
   nextCursor?: string;
-};
-
-export type CompactMaterialRelatedOutput = {
-  basis: MaterialRelatedOutput["basis"];
-  basisLabel?: string;
-  warning?: string;
-  items: CompactCandidateMaterialCard[];
 };
 
 export type CompactMaterialSelectOutput = {
@@ -76,7 +62,7 @@ export function compactMaterialCard(material: MusicMaterial): CompactMaterialCar
   const subtitle = subtitleForMaterial(material);
 
   return {
-    materialId: material.materialRef.id,
+    materialId: materialRefToMaterialId(material.materialRef),
     title: material.label,
     ...(subtitle === undefined ? {} : { subtitle }),
     state: material.state,
@@ -86,20 +72,12 @@ export function compactMaterialCard(material: MusicMaterial): CompactMaterialCar
 export function compactCandidateMaterialCard(material: MusicMaterial): CompactCandidateMaterialCard {
   return {
     ...compactMaterialCard(material),
-    materialId: material.materialRef.id,
+    materialId: materialRefToMaterialId(material.materialRef),
   };
 }
 
 export function compactMaterialResolveOutput(result: MaterialResolveResult): CompactMaterialResolveOutput {
-  if (result.kind === "single") {
-    return {
-      kind: "single",
-      result: compactResolvedCandidate(result.result),
-    };
-  }
-
   return {
-    kind: "candidate_set",
     results: result.results.map(compactResolvedCandidate),
   };
 }
@@ -107,14 +85,14 @@ export function compactMaterialResolveOutput(result: MaterialResolveResult): Com
 export function compactPublicMaterialResolveOutput(
   result: MaterialResolveResult,
 ): CompactPublicMaterialResolveOutput {
-  const results = result.kind === "candidate_set" ? result.results : [result.result];
   const byMaterialId = new Map<string, CompactCandidateMaterialCard>();
   const unresolved: CompactPublicMaterialResolveOutput["unresolved"] = [];
 
-  for (const resolved of results) {
+  for (const resolved of result.results) {
     if (isPublicResolveDiagnosticStatus(resolved.status)) {
       unresolved.push({
-        text: resolved.candidate.label,
+        ...(resolved.query.id === undefined ? {} : { id: resolved.query.id }),
+        text: resolved.query.text,
         reason: resolved.reason ?? publicResolveDiagnosticReason(resolved.status),
       });
       continue;
@@ -127,7 +105,8 @@ export function compactPublicMaterialResolveOutput(
 
     if (resolved.materials.length === 0) {
       unresolved.push({
-        text: resolved.candidate.label,
+        ...(resolved.query.id === undefined ? {} : { id: resolved.query.id }),
+        text: resolved.query.text,
         ...(resolved.reason === undefined ? {} : { reason: resolved.reason }),
       });
     }
@@ -140,13 +119,13 @@ export function compactPublicMaterialResolveOutput(
 }
 
 function isPublicResolveDiagnosticStatus(
-  status: ResolvedCandidate["status"],
-): status is Extract<ResolvedCandidate["status"], "wrong_version" | "not_playable"> {
+  status: MaterialResolvedQuery["status"],
+): status is Extract<MaterialResolvedQuery["status"], "wrong_version" | "not_playable"> {
   return status === "wrong_version" || status === "not_playable";
 }
 
 function publicResolveDiagnosticReason(
-  status: Extract<ResolvedCandidate["status"], "wrong_version" | "not_playable">,
+  status: Extract<MaterialResolvedQuery["status"], "wrong_version" | "not_playable">,
 ): string {
   return status === "wrong_version"
     ? "Resolved candidate is marked as the wrong version."
@@ -161,15 +140,6 @@ export function compactMaterialQueryOutput(output: MaterialQueryOutput): Compact
   };
 }
 
-export function compactMaterialRelatedOutput(output: MaterialRelatedOutput): CompactMaterialRelatedOutput {
-  return {
-    basis: output.basis,
-    ...(output.basisLabel === undefined ? {} : { basisLabel: output.basisLabel }),
-    ...(output.warning === undefined ? {} : { warning: output.warning }),
-    items: output.items.map((item) => compactCandidateMaterialCard(item.material)),
-  };
-}
-
 export function compactMaterialSelectOutput(output: MaterialSelectOutput): CompactMaterialSelectOutput {
   return {
     items: output.items.map((item) => compactCandidateMaterialCard(item.material)),
@@ -179,12 +149,11 @@ export function compactMaterialSelectOutput(output: MaterialSelectOutput): Compa
   };
 }
 
-function compactResolvedCandidate(candidate: ResolvedCandidate): CompactResolvedCandidate {
+function compactResolvedCandidate(candidate: MaterialResolvedQuery): CompactResolvedCandidate {
   return {
-    candidateId: candidate.candidate.id,
-    label: candidate.candidate.label,
+    ...(candidate.query.id === undefined ? {} : { id: candidate.query.id }),
+    text: candidate.query.text,
     status: candidate.status,
-    ...(candidate.canonicalRef === undefined ? {} : { canonicalRef: candidate.canonicalRef }),
     ...(candidate.reason === undefined ? {} : { reason: candidate.reason }),
     ...(candidate.issues === undefined ? {} : { issues: candidate.issues }),
     items: candidate.materials.map(compactMaterialCard),

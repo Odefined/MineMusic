@@ -17,6 +17,7 @@ import type {
   SourceEntity,
   SourceMaterial,
 } from "../../src/contracts/index.js";
+import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import { runRecommendationTranscript } from "../../src/app/index.js";
 import { createFixtureMineMusicStageCoreHarness } from "../../src/stage_core/index.js";
 import type { MineMusicStageCoreHarness } from "../../src/stage_core/index.js";
@@ -126,9 +127,13 @@ async function provesGroundedRecommendationMvpSlice(): Promise<void> {
       ),
       "source-backed playable material should be considered through presentation cards, not the old prepare gate",
     );
+    const sourceOnlyPresentedMaterial = transcript.presentedMaterials.find(
+      (material) => material.label === fixtureSourceOnlyPlayableMaterial.label,
+    );
     assert(
       transcript.presentedCards.some((card) =>
-        card.materialId === transcript.presentedMaterials.find((material) => material.label === fixtureSourceOnlyPlayableMaterial.label)?.materialRef.id &&
+        sourceOnlyPresentedMaterial !== undefined &&
+        card.materialId === materialRefToMaterialId(sourceOnlyPresentedMaterial.materialRef) &&
         card.state === "source_only_playable" &&
         card.links?.some((link) => link.url === "https://fixture.example/play/source-only-track")
       ),

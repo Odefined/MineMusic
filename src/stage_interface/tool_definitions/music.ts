@@ -10,11 +10,9 @@ import type {
   MaterialPoolsListInput,
   MaterialQueryOutput,
   MaterialQueryInput,
-  MaterialRelatedOutput,
-  MaterialRelatedInput,
+  MaterialResolveQuery,
   MaterialResolveRequest,
   MaterialResolveResult,
-  MusicCandidate,
   MusicLinksRefreshOutput,
   PublicMaterialResolveInput,
   PublicMaterialResolveQueryKind,
@@ -31,7 +29,6 @@ import type {
   MaterialPoolsPort,
   MaterialQueryPort,
   MaterialResolvePort,
-  MaterialRelatedPort,
   MaterialSelectorPort,
   MaterialProjectionStorePort,
   SourceGroundingPort,
@@ -47,7 +44,6 @@ import {
   compactCollectionListOutput,
   compactCollectionOutput,
   compactMaterialQueryOutput,
-  compactMaterialRelatedOutput,
   compactPublicMaterialResolveOutput,
   compactMaterialSelectOutput,
 } from "../outputs/index.js";
@@ -57,7 +53,6 @@ import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.j
 export const musicToolNames = [
   "music.material.resolve",
   "music.material.query",
-  "music.material.related",
   "music.material.select",
   "music.material.context.brief",
   "music.pools.list",
@@ -80,7 +75,7 @@ export type MusicToolName = (typeof musicToolNames)[number];
 
 export type MusicToolGroupContext = {
   materialResolve: MaterialResolvePort;
-  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort;
+  materialQuery?: MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort;
   materialSelector?: MaterialSelectorPort;
   materialStore?: MaterialProjectionStorePort;
   source: SourceGroundingPort;
@@ -158,10 +153,11 @@ const publicMaterialResolveQueryKindSchema = z.enum([
   "work",
 ]);
 const publicMaterialResolveQuerySchema = z.object({
+  id: z.string().trim().min(1).optional(),
   text: z.string().trim().min(1),
-  kind: publicMaterialResolveQueryKindSchema.optional(),
+  targetKind: publicMaterialResolveQueryKindSchema.optional(),
   reason: z.string().trim().min(1).optional(),
-});
+}).strict();
 const sourceLibraryPoolSchema = z.object({
   kind: z.literal("source_library"),
   libraryKinds: z.array(platformLibraryItemKindSchema).min(1).optional(),
@@ -185,11 +181,6 @@ const materialPoolSchema = z.union([
     ref: z.string().optional(),
     label: z.string().optional(),
     relation: z.enum(["saved", "favorite", "custom", "blocked"]).optional(),
-  }),
-  z.object({
-    kind: z.literal("related"),
-    materialId: materialIdSchema,
-    relation: z.enum(["same_artist", "same_album", "similar"]),
   }),
 ]);
 const materialConstraintsSchema = z.object({
@@ -247,7 +238,6 @@ type PublicMaterialResolvePayload = PublicMaterialResolveInput & {
 };
 const publicMaterialResolveInputSchema = {
   queries: z.array(publicMaterialResolveQuerySchema).min(1),
-  purpose: z.enum(["recommend", "lookup", "play"]).optional(),
   ownerScope: z.string().optional(),
   limit: z.number().int().positive().optional(),
   sessionId: z.string().optional(),
@@ -262,12 +252,55 @@ export const musicToolDefinitions = [
     PublicMaterialResolvePayload
   >({
     name: "music.material.resolve",
-    description: "Resolve text music queries into compact material items through canonical-first material resolution.",
+    description: "Resolve text music queries into compact material items through local material search and source grounding.",
     inputSchemaRef: "PublicMaterialResolveInput",
     outputSchemaRef: "PublicMaterialResolveOutput",
     availability: "requires_active_instrument",
     inputSchema: publicMaterialResolveInputSchema,
     inputParser: publicMaterialResolveInputParser,
+    validatePayload(payload) {
+      const input = readPayload<Record<string, unknown>>(payload);
+
+      if (Object.prototype.hasOwnProperty.call(input, "purpose")) {
+        return invalidPayload("music.material.resolve does not accept purpose.");
+      }
+
+      if (Object.prototype.hasOwnProperty.call(input, "sourceLibraryScope")) {
+        return invalidPayload("music.material.resolve does not accept source-library scoped resolve input.");
+      }
+
+      if (Object.prototype.hasOwnProperty.call(input, "candidate")
+        || Object.prototype.hasOwnProperty.call(input, "candidates")
+        || Object.prototype.hasOwnProperty.call(input, "kind")) {
+        return invalidPayload("music.material.resolve uses query arrays, not candidate-shaped resolve input.");
+      }
+
+      const queries = Array.isArray(input.queries) ? input.queries : [];
+
+      for (const query of queries) {
+        if (!isRecord(query)) {
+          continue;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "kind")) {
+          return invalidPayload("music.material.resolve uses targetKind; kind is not a supported alias.");
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "sourceRef")) {
+          return invalidPayload("music.material.resolve does not accept sourceRef input.");
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "canonicalRef")) {
+          return invalidPayload("music.material.resolve does not accept canonicalRef input.");
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "materialRef")) {
+          return invalidPayload("music.material.resolve does not accept materialRef input.");
+        }
+      }
+
+      return ok(payload);
+    },
     handler({ context, sessionId, payload }) {
       return context.materialResolve.resolve(
         publicMaterialResolveRequest({ ...payload, sessionId: payload.sessionId ?? sessionId }),
@@ -277,7 +310,7 @@ export const musicToolDefinitions = [
   }),
   {
     name: "music.material.query",
-    description: "Retrieve compact material cards from pools, collections, source library, related pools, or all available material.",
+    description: "Retrieve compact material cards from pools, collections, source library, or all available local material.",
     inputSchemaRef: "MaterialQueryInput",
     outputSchemaRef: "CompactMaterialQueryOutput",
     availability: "requires_active_instrument",
@@ -320,36 +353,6 @@ export const musicToolDefinitions = [
       );
     },
     present: (value) => compactMaterialQueryOutput(value as MaterialQueryOutput),
-  },
-  {
-    name: "music.material.related",
-    description: "Find compact material cards related to one material id.",
-    inputSchemaRef: "MaterialRelatedInput",
-    outputSchemaRef: "CompactMaterialRelatedOutput",
-    availability: "requires_active_instrument",
-    inputSchema: {
-      materialId: materialIdSchema,
-      relation: z.enum(["same_artist", "same_album", "similar"]),
-      exclude: materialExcludeSchema.optional(),
-      constraints: materialConstraintsSchema.optional(),
-      ownerScope: z.string().optional(),
-      sessionId: z.string().optional(),
-      limit: z.number().int().positive().optional(),
-    },
-    handler({ context, sessionId, payload }) {
-      const materialQuery = readMaterialQuery(context.materialQuery);
-
-      if (!materialQuery.ok) {
-        return materialQuery;
-      }
-
-      return materialQuery.value.related(
-        stripPublicMaterialPreferenceHints(
-          readPayload<MaterialRelatedInput>(payload, { sessionId }),
-        ),
-      );
-    },
-    present: (value) => compactMaterialRelatedOutput(value as MaterialRelatedOutput),
   },
   defineStageInterfaceTool<
     "music.material.select",
@@ -786,30 +789,27 @@ export const musicToolInputSchemas = Object.fromEntries(
 
 function publicMaterialResolveRequest(input: PublicMaterialResolvePayload): MaterialResolveRequest {
   return {
-    kind: "candidate_set",
-    candidates: input.queries.map(publicQueryToCandidate),
+    queries: input.queries.map(publicQueryToResolveQuery),
     ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
     ...(input.ownerScope === undefined ? {} : { ownerScope: input.ownerScope }),
-    ...(input.limit === undefined ? {} : { limitPerCandidate: input.limit }),
+    ...(input.limit === undefined ? {} : { limit: input.limit }),
   };
 }
 
-function publicQueryToCandidate(
+function publicQueryToResolveQuery(
   query: PublicMaterialResolveInput["queries"][number],
-  index: number,
-): MusicCandidate {
+): MaterialResolveQuery {
   return {
-    id: `query:${index + 1}`,
-    label: query.text,
-    ...(query.kind === undefined ? {} : { expectedKind: expectedKindForPublicResolve(query.kind) }),
-    query: {
-      text: query.text,
-    },
+    ...(query.id === undefined ? {} : { id: query.id }),
+    text: query.text,
+    ...(query.targetKind === undefined ? {} : { targetKind: expectedKindForPublicResolve(query.targetKind) }),
     ...(query.reason === undefined ? {} : { reason: query.reason }),
   };
 }
 
-function expectedKindForPublicResolve(kind: PublicMaterialResolveQueryKind): string {
+function expectedKindForPublicResolve(
+  kind: PublicMaterialResolveQueryKind,
+): NonNullable<MaterialResolveQuery["targetKind"]> {
   return kind;
 }
 
@@ -932,8 +932,8 @@ function readCollection(collection: CollectionPort | undefined): Result<Collecti
 }
 
 function readMaterialQuery(
-  materialQuery: (MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort) | undefined,
-): Result<MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort> {
+  materialQuery: (MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort) | undefined,
+): Result<MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort> {
   if (materialQuery === undefined) {
     return materialQueryUnavailable("Material query tools are not available.");
   }
@@ -1026,6 +1026,10 @@ function readPayload<TPayload extends object>(
     ...(defaults ?? {}),
     ...payloadObject,
   } as TPayload;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function ok<T>(value: T): Result<T> {

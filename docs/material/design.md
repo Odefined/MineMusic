@@ -11,7 +11,7 @@ posture refactors is preserved under `docs/archive/material/2026-06-02/` and
 
 ## Boundary
 
-Material Flow owns the runtime path from candidate/source-library/collection
+Material Flow owns the runtime path from text-query/source-library/collection
 inputs to domain `MusicMaterial` results and final recommendation-domain
 presentation items. It includes:
 
@@ -45,15 +45,19 @@ flowchart TD
     SI --> RP["Recommendation Presentation"]
     MQ --> MS["Material Search"]
     MQ --> MR
-    MQ --> MM["Materialization"]
+    MQ --> EPH["Ephemeral Store"]
     MR --> SG["Source Grounding"]
-    MR --> MM
+    MR --> MS
+    MR --> EPH
     MR --> POL["Policy + Sorter"]
     MQ --> MP["Material Projection"]
     MSel --> POL
     RP --> POL
+    RP --> EPH
+    RP --> MM["Materialization"]
     RP --> EV["Event Port"]
     MM --> STORE["Material Store ports"]
+    EPH --> STORE
     MP --> STORE
 ```
 
@@ -67,34 +71,39 @@ Interface output modules.
 
 `src/material/resolve/index.ts` implements `MaterialResolvePort`.
 
-Resolve performs canonical-first lookup, Source Library scoped discovery,
-provider grounding, and candidate-level resolve status aggregation. It
-delegates source-backed material creation and projection to
-`MaterialSourceMaterializerPort` instead of receiving registry writer methods
-directly, and it delegates resolution-time blocked/wrong-version/not-playable
-projection to `MaterialPolicyEvaluatorPort` through the internal
-`material_resolution` policy purpose.
+Resolve performs text-query grounding over local Material Search hits,
+read-only existing-material evidence lookup, provider grounding expansion,
+request-scoped reranking, and query-level resolve status aggregation. Resolve
+uses Material Search `search()` for local durable recall and Material Search
+`rerank()` for the final request-scoped ranking corpus. Provider-backed results
+that do not already match a durable `MaterialRecord` are returned with
+`materialRef.kind === "ephemeral_material"` and process-local `emat:*` handles.
 
-Resolve consumes `MaterialResolveStorePort`, `SourceGroundingPort`,
-`MaterialSourceMaterializerPort`, and `MaterialPolicyEvaluatorPort`.
+Resolve consumes Material Search, narrow projection/existing-material lookup
+reads, `SourceGroundingPort`, `MaterialPolicyEvaluatorPort` for durable
+results, and an internal ephemeral-store writer. Resolve does not read Source
+Library rows, does not look up canonical labels directly, and does not call a
+durable materialization boundary.
 
-### Query, Related, Context, And Pools
+### Query, Context, And Pools
 
 `src/material/query/index.ts` implements `MaterialQueryPort`,
-`MaterialRelatedPort`, `MaterialContextBriefPort`, and `MaterialPoolsPort`.
+`MaterialContextBriefPort`, and `MaterialPoolsPort`.
 
 Query gathers domain material candidates from all-material, source-library,
-collection, and related pools. It uses Material Search for `all`, ordinary
+and collection pools. It uses Material Search for `all`, ordinary
 `source_library`, and `collection` retrieval, then projects Search hits through
 Material Projection and delegates policy/order/limit behavior to the selector.
-`related` and `source_library target: "release_tracks"` remain on the existing
-Resolve/materialization paths. Query applies `targetKind`, relation and
-recent-activity exclusions, cursor pagination, and ordering through the
-selector.
+Query owns Source Library constrained retrieval. Release-track source-backed
+paths may allocate ephemeral material handles when they need a handle for a
+non-durable source-backed row, but they must not create durable
+`MaterialRecord`s merely because a row was listed. Query applies `targetKind`,
+relation and recent-activity exclusions, cursor pagination, and ordering
+through the selector.
 
-Query consumes `MaterialQueryStorePort`, `MaterialResolvePort`,
-`MaterialSearchPort`, `MaterialSelectorPort`, and optionally
-`MaterialQueryCollectionReadPort` for pool listing. It does not receive full
+Query consumes `MaterialQueryStorePort`, `MaterialSearchPort`,
+`MaterialSelectorPort`, and optionally `MaterialQueryCollectionReadPort` for
+pool listing. It does not receive Resolve, does not receive full
 `MaterialStorePort`, does not receive collection write authority, and does not
 perform registry materialization writes directly.
 
@@ -102,17 +111,20 @@ perform registry materialization writes directly.
 
 `src/material/search/index.ts` implements `MaterialSearchPort`.
 
-Search owns local durable retrieval for owner-visible material refs. It builds
-owner-neutral SearchDocuments, applies strict owner visibility and eligibility,
-uses the SQLite FTS-backed SearchIndex for text matching, and returns internal
-hits with score, evidence, provenance, warnings, and opaque Search cursor.
-Ordinary Query output does not expose Search evidence, provenance, or Search
-cursor.
+Search owns local durable retrieval for owner-visible material refs and
+request-scoped reranking for Resolve-provided material candidates. Its ordinary
+`search()` method builds owner-neutral SearchDocuments, applies strict owner
+visibility and eligibility, uses the SQLite FTS-backed SearchIndex for text
+matching, and returns internal hits with score, evidence, provenance, warnings,
+and opaque Search cursor. Its `rerank()` method ranks the finite
+Resolve-provided request corpus through a transient SQLite-backed scorer and
+returns the same Search hit shape without a cursor. Ordinary Query output does
+not expose Search evidence, provenance, or Search cursor.
 
 Search consumes `MaterialSearchStorePort`, `MaterialSearchCollectionPort`, and
 `MaterialSearchIndexPort`. It does not call providers, Resolve, Source
-Grounding, Material Policy, Stage Interface output helpers, or registry
-materialization writers.
+Grounding, Material Policy, Stage Interface output helpers, registry
+materialization writers, or ephemeral-store writers.
 
 ### Projection
 
@@ -120,21 +132,25 @@ materialization writers.
 `materialRef`, public `materialId`, current `MaterialRecord`, and domain
 `MusicMaterial`.
 
+Public handle encoding must preserve ref kind. Durable refs project to
+`mat:*`; process-local ephemeral refs project to `emat:*`. Decode must route
+by exact handle prefix rather than raw id fallback.
+
 Projection reads through `MaterialProjectionStorePort`. Shared helpers such as
 `materialIdToRef`, `materialRefToMaterialId`, and `materialForMaterialId` are
 exported from `src/material/index.ts` for narrow consumers.
 
 ### Materialization
 
-`src/material/materialization/index.ts` owns SourceMaterial and Source Library
-item materialization. It is the shared writer boundary that can call registry
-creation, attachment, promotion, and merge methods through
-`MaterialSourceMaterializerStorePort`.
+`src/material/materialization/index.ts` owns durable material creation from
+selected source/provider facts. It is the shared writer boundary that can call
+registry creation, attachment, promotion, and merge methods through narrow
+writer capabilities.
 
-Resolve uses `MaterialSourceMaterializerPort`. Ordinary Query no longer uses
-Source Library item materialization for v1 Search-backed pools; release-track
-expansion still resolves track candidates through the Resolve/materialization
-path.
+Resolve does not use a durable materialization port. Ordinary Query does not
+materialize intermediate Source Library rows during retrieval. Only final
+Recommendation Presentation may materialize selected `ephemeral_material`
+items into durable `MaterialRecord`s.
 
 ### Policy, Sort, And Selection
 
@@ -144,18 +160,28 @@ of carrying local record projection code. Policy consumes
 `MaterialPolicyCollectionBlockPort` for collection-backed blocked membership
 evidence and owns the internal `material_resolution` purpose that Resolve uses
 to mark blocked materials and preserve wrong-version/not-playable results
-without dropping them.
+without dropping them. Policy routes by decoded material handle kind: durable
+`mat:*` inputs use the existing record-backed relation, collection-block, and
+freshness path; `emat:*` inputs must use the supplied inline `MusicMaterial`
+snapshot and must not try to look up a durable `MaterialRecord`, relation
+state, or collection-block state that does not exist yet.
 
 `src/material/selection/index.ts` composes policy evaluation, sorting,
-diversity, and limiting over materialId candidates.
+diversity, and limiting over materialId candidates. Selector must preserve the
+public handle distinction from Projection so selected and dropped items keep
+their exact `mat:*` / `emat:*` identity.
 
 ### Recommendation Presentation
 
 `src/material/presentation/index.ts` implements
 `RecommendationPresentationPort`. It evaluates the intended ordered materialId
-list with presentation policy, preserves the surviving order, applies card
-limits, records typed `recommendation.presented` events, and returns domain
-presentation items. Stage Interface performs compact output projection.
+list with presentation policy, routes exact `mat:*` / `emat:*` handles, keeps
+`mat:*` items on the durable policy path, validates `emat:*` items through the
+ephemeral store without durable relation policy, preserves the surviving
+order, applies card limits, materializes only selected ephemeral items into
+durable `mat:*` results, records typed
+`recommendation.presented` events, and returns domain presentation items.
+Stage Interface performs compact output projection.
 
 ## Public Surface Notes
 
@@ -164,8 +190,7 @@ are documented in `docs/stage-interface/tool-contracts.md`.
 
 Observed public-surface facts relevant to Material Flow:
 
-- `music.material.query`, `music.material.related`,
-  `music.material.context.brief`, `music.pools.list`,
+- `music.material.query`, `music.material.context.brief`, `music.pools.list`,
   `music.material.select`, and `stage.recommendation.present` are Stage
   Interface tools backed by material ports.
 - `music.material.resolve.cards`, `library.source.list`, and public

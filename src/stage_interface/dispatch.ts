@@ -17,7 +17,6 @@ import type {
   MaterialPoolsPort,
   MaterialQueryPort,
   MaterialResolvePort,
-  MaterialRelatedPort,
   MaterialSelectorPort,
   MemoryPort,
   MusicKnowledgePort,
@@ -36,7 +35,7 @@ type ToolDispatchOptions = {
   recommendationPresentation?: RecommendationPresentationPort;
   instruments: InstrumentCatalogPort;
   materialResolve: MaterialResolvePort;
-  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort;
+  materialQuery?: MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort;
   materialSelector?: MaterialSelectorPort;
   source: SourceGroundingPort;
   knowledge?: MusicKnowledgePort;

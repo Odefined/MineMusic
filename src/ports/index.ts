@@ -62,15 +62,16 @@ import type {
   MaterialPoolsListOutput,
   MaterialQueryInput,
   MaterialQueryOutput,
-  MaterialRelatedInput,
-  MaterialRelatedOutput,
   MaterialRecord,
   MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
   MaterialSearchInput,
+  MaterialSearchRerankInput,
+  MaterialSearchRerankOutput,
   MaterialSearchIndexSearchInput,
   MaterialSearchIndexSearchOutput,
+  MaterialSearchIndexRerankInput,
   MaterialSearchOutput,
   MaterialSearchDocument,
   MaterialSelectInput,
@@ -473,14 +474,27 @@ export type MaterialProjectionStorePort = Pick<
   | "getCanonical"
 >;
 
-export type MaterialQueryStorePort =
+export type MaterialQuerySourceBackedLookupPort =
   MaterialProjectionStorePort &
+  Pick<
+    MaterialStorePort,
+    | "getConfirmedCanonicalBinding"
+    | "findMaterialBySourceRef"
+    | "findMaterialByCanonicalRef"
+  >;
+
+export type MaterialQueryStorePort =
+  MaterialQuerySourceBackedLookupPort &
   Pick<
     MaterialStorePort,
     | "listSourceLibraryItems"
     | "listSourceEntities"
-    | "getConfirmedCanonicalBinding"
   >;
+
+export type MaterialQueryEphemeralWritePort = Pick<
+  EphemeralMaterialStorePort,
+  | "put"
+>;
 
 export type MaterialSearchStorePort =
   MaterialProjectionStorePort &
@@ -507,10 +521,61 @@ export type MaterialSourceMaterializerStorePort =
 
 export type MaterialResolveStorePort = Pick<
   MaterialStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
   | "getCanonical"
-  | "findCanonicalByLabel"
-  | "getConfirmedCanonicalBinding"
-  | "listSourceLibraryItems"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
+>;
+
+export type EphemeralMaterialEntry = {
+  materialRef: Ref;
+  material: SourceMaterial;
+  ownerScope: string;
+  sessionId?: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type EphemeralMaterialCleanupInput = {
+  ownerScope?: string;
+  sessionId?: string;
+  keepMaterialRefs?: Ref[];
+  now?: string;
+};
+
+export interface EphemeralMaterialStorePort {
+  put(input: {
+    materialRef: Ref;
+    material: SourceMaterial;
+    ownerScope: string;
+    sessionId?: string;
+    expiresAt?: string;
+  }): Promise<Result<EphemeralMaterialEntry>>;
+
+  get(input: { materialRef: Ref }): Promise<Result<EphemeralMaterialEntry | null>>;
+
+  delete(input: { materialRef: Ref }): Promise<Result<boolean>>;
+
+  cleanup(input?: EphemeralMaterialCleanupInput): Promise<Result<number>>;
+}
+
+export type MaterialResolveEphemeralWritePort = Pick<
+  EphemeralMaterialStorePort,
+  | "put"
+  | "cleanup"
+>;
+
+export type RecommendationPresentationEphemeralReadPort = Pick<
+  EphemeralMaterialStorePort,
+  | "get"
+  | "delete"
+>;
+
+export type RecommendationPresentationMaterializePort = Pick<
+  MaterialSourceMaterializerPort,
+  | "materializeSourceMaterial"
 >;
 
 export type ProjectedSourceMaterial = {
@@ -810,6 +875,8 @@ export interface MaterialQueryPort {
 
 export interface MaterialSearchPort {
   search(input: MaterialSearchInput): Promise<Result<MaterialSearchOutput>>;
+
+  rerank(input: MaterialSearchRerankInput): Promise<Result<MaterialSearchRerankOutput>>;
 }
 
 export interface MaterialSearchDocumentProviderPort {
@@ -828,10 +895,8 @@ export interface MaterialSearchIndexPort {
   rebuildAll(): Promise<Result<void>>;
 
   search(input: MaterialSearchIndexSearchInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
-}
 
-export interface MaterialRelatedPort {
-  related(input: MaterialRelatedInput): Promise<Result<MaterialRelatedOutput>>;
+  rerankDocuments(input: MaterialSearchIndexRerankInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
 }
 
 export interface MaterialContextBriefPort {

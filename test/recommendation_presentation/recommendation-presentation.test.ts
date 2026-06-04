@@ -3,10 +3,14 @@ import type {
   MusicMaterial,
   Ref,
   Result,
+  SourceMaterial,
   StageSession,
 } from "../../src/contracts/index.js";
 import { createEventService } from "../../src/events/index.js";
+import { createInMemoryEphemeralMaterialStore } from "../../src/material/ephemeral/index.js";
+import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createMaterialPolicyEvaluator } from "../../src/material/policy/index.js";
+import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { createRecommendationPresentationService } from "../../src/material/presentation/index.js";
 import type {
@@ -45,6 +49,7 @@ function createHarness(): {
   eventRepository: EventRepository;
   materialActivity: ReturnType<typeof createInMemoryMaterialActivityRepository>;
   materialStore: MaterialStorePort;
+  ephemeralMaterialStore: ReturnType<typeof createInMemoryEphemeralMaterialStore>;
   presenter: RecommendationPresentationPort;
 } {
   let nextEventId = 1;
@@ -61,6 +66,9 @@ function createHarness(): {
     materialActivity,
     materialSessionActivity,
     sourceEntityStore: createInMemorySourceEntityStoreRepository(),
+  });
+  const ephemeralMaterialStore = createInMemoryEphemeralMaterialStore({
+    now: () => "2026-05-31T03:00:00.000Z",
   });
   const events = createEventService({
     repository: eventRepository,
@@ -89,14 +97,17 @@ function createHarness(): {
     materialStore,
     clock: () => "2026-05-31T03:00:00.000Z",
   });
+  const materialization = createMaterializationService({ materialStore });
   const presenter = createRecommendationPresentationService({
     sessionContext,
     materialPolicyEvaluator,
     events,
+    ephemeralMaterialStore,
+    materialization,
     clock: () => "2026-05-31T03:00:00.000Z",
   });
 
-  return { eventRepository, materialActivity, materialStore, presenter };
+  return { eventRepository, materialActivity, materialStore, ephemeralMaterialStore, presenter };
 }
 
 async function putTrack(
@@ -171,6 +182,7 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
   );
 
   assert(output.presented, "presenter should present when enough cards survive");
+  assert(output.items[0]?.materialId === materialRefToMaterialId(first.record.materialRef), "presenter should return encoded durable material ids");
   assert(output.items.map((item) => item.material.label).join(",") === "First,Third", "presenter should preserve surviving input order");
   assert(output.items[0]?.materialRef.kind === "material", "presenter should return domain material refs");
   assert(output.items[0]?.warnings.length === 0, "presenter should keep domain warning lists on items");
@@ -213,7 +225,7 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
   assert(payload.request === "coding music", "event payload should keep request context");
   assert(
     payload.basis?.map((item) => `${item.materialId}:${item.kind}`).join(",") ===
-      `${first.record.materialRef.id}:query,${third.record.materialRef.id}:related`,
+      `${materialRefToMaterialId(first.record.materialRef)}:query,${materialRefToMaterialId(third.record.materialRef)}:related`,
     "event payload basis should describe only presented cards",
   );
 
@@ -227,6 +239,176 @@ async function presenterPreservesOrderAfterDropsAndRecordsTypedEvent(): Promise<
   }));
   assert(firstActivity?.lastRecommendedAt === "2026-05-31T03:00:00.000Z", "recommendation event should update first activity");
   assert(thirdActivity?.lastRecommendedAt === "2026-05-31T03:00:00.000Z", "recommendation event should update third activity");
+}
+
+async function presenterMaterializesSelectedEphemeralItemsAndDeletesConsumedEntries(): Promise<void> {
+  const { eventRepository, materialStore, ephemeralMaterialStore, presenter } = createHarness();
+  const entry = await putEphemeralTrack(
+    materialStore,
+    ephemeralMaterialStore,
+    "Ephemeral First",
+    ref("source:fixture", "track", "ephemeral-first"),
+  );
+
+  const output = await assertOk(
+    presenter.present({
+      sessionId: session.id,
+      items: [{ materialId: entry.materialId, reason: "fresh", basis: { kind: "query" } }],
+    }),
+  );
+
+  assert(output.presented, "presenter should present playable ephemeral items");
+  assert(output.items[0]?.materialId.startsWith("mat:"), "presenter should convert selected ephemeral handles into durable material ids");
+  assert(output.items[0]?.materialRef.kind === "material", "presenter should emit durable material refs after materialization");
+  const durable = await assertOk(materialStore.findMaterialBySourceRef({ sourceRef: entry.sourceRef }));
+  assert(durable !== null, "presenter should materialize a durable record for the selected ephemeral source");
+  const consumedEntry = await assertOk(ephemeralMaterialStore.get({ materialRef: entry.materialRef }));
+  assert(consumedEntry === null, "presenter should delete consumed ephemeral entries after successful presentation");
+
+  const events = await assertOk(eventRepository.list());
+  const payload = events[0]?.payload as { cards?: Array<{ materialId?: string; materialRef?: Ref }> };
+  assert(payload.cards?.[0]?.materialId === output.items[0]?.materialId, "presentation event cards should use the final durable material id");
+  assert(payload.cards?.[0]?.materialRef?.kind === "material", "presentation event cards should use the final durable material ref");
+}
+
+async function presenterDoesNotMaterializeMaxCardDroppedEphemeralItems(): Promise<void> {
+  const { materialStore, ephemeralMaterialStore, presenter } = createHarness();
+  const first = await putEphemeralTrack(
+    materialStore,
+    ephemeralMaterialStore,
+    "Ephemeral Keep",
+    ref("source:fixture", "track", "ephemeral-keep"),
+  );
+  const second = await putEphemeralTrack(
+    materialStore,
+    ephemeralMaterialStore,
+    "Ephemeral Drop",
+    ref("source:fixture", "track", "ephemeral-drop"),
+  );
+
+  const output = await assertOk(
+    presenter.present({
+      sessionId: session.id,
+      items: [{ materialId: first.materialId }, { materialId: second.materialId }],
+      maxCards: 1,
+    }),
+  );
+
+  assert(output.presented, "presenter should still present when one ephemeral item survives maxCards");
+  assert(output.items.length === 1, "presenter should keep only the selected ephemeral card");
+  assert(output.dropped?.[0]?.materialId === second.materialId, "presenter should report max-card dropped ephemeral handles by their original emat id");
+  assert(output.dropped?.[0]?.code === "max_cards", "presenter should label max-card drops explicitly");
+  const firstDurable = await assertOk(materialStore.findMaterialBySourceRef({ sourceRef: first.sourceRef }));
+  const secondDurable = await assertOk(materialStore.findMaterialBySourceRef({ sourceRef: second.sourceRef }));
+  assert(firstDurable !== null, "presenter should materialize the selected ephemeral item");
+  assert(secondDurable === null, "presenter should not materialize max-card dropped ephemeral items");
+  const keptEntry = await assertOk(ephemeralMaterialStore.get({ materialRef: second.materialRef }));
+  assert(keptEntry !== null, "presenter should leave max-card dropped ephemeral entries untouched");
+}
+
+async function presenterDropsMissingAndUnplayableEphemeralItemsWithoutMaterializingThem(): Promise<void> {
+  const { eventRepository, materialStore, ephemeralMaterialStore, presenter } = createHarness();
+  const missingRef = ref("minemusic", "ephemeral_material", "ephemeral-missing");
+  const missingMaterialId = materialRefToMaterialId(missingRef);
+  const unplayable = await putEphemeralTrack(
+    materialStore,
+    ephemeralMaterialStore,
+    "Ephemeral Grounded",
+    ref("source:fixture", "track", "ephemeral-grounded"),
+    { playable: false },
+  );
+
+  const output = await assertOk(
+    presenter.present({
+      sessionId: session.id,
+      items: [{ materialId: missingMaterialId }, { materialId: unplayable.materialId }],
+      minCards: 1,
+    }),
+  );
+
+  assert(!output.presented, "presenter should fail when no ephemeral items survive final presentation");
+  assert(output.dropped?.some((item) => item.materialId === missingMaterialId && item.code === "material_not_found"), "presenter should report missing ephemeral handles explicitly");
+  assert(output.dropped?.some((item) => item.materialId === unplayable.materialId && item.code === "not_available"), "presenter should drop unplayable ephemeral handles before materialization");
+  const durable = await assertOk(materialStore.findMaterialBySourceRef({ sourceRef: unplayable.sourceRef }));
+  assert(durable === null, "presenter should not materialize invalid ephemeral items");
+  const retainedEntry = await assertOk(ephemeralMaterialStore.get({ materialRef: unplayable.materialRef }));
+  assert(retainedEntry !== null, "presenter should not delete invalid ephemeral entries when presentation does not succeed");
+  const events = await assertOk(eventRepository.list());
+  assert(events.length === 0, "presenter should not record recommendation events when all ephemeral items are dropped");
+}
+
+async function presenterRejectsEphemeralItemsFromAnotherOwnerOrSession(): Promise<void> {
+  const { materialStore, ephemeralMaterialStore, presenter } = createHarness();
+  const wrongOwnerRef = ref("minemusic", "ephemeral_material", "ephemeral-wrong-owner");
+  const wrongSessionRef = ref("minemusic", "ephemeral_material", "ephemeral-wrong-session");
+  const sharedSourceRef = ref("source:fixture", "track", "ephemeral-shared");
+
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef: sharedSourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label: "Scoped Ephemeral",
+        title: "Scoped Ephemeral",
+        providerUrl: "https://example.test/ephemeral-shared",
+        createdAt: "2026-05-31T00:00:00.000Z",
+        updatedAt: "2026-05-31T00:00:00.000Z",
+      },
+    }),
+  );
+
+  const scopedMaterial: SourceMaterial = {
+    id: "source:ephemeral-shared",
+    kind: "recording",
+    label: "Scoped Ephemeral",
+    state: "source_only_playable",
+    sourceRefs: [sharedSourceRef],
+    playableLinks: [{
+      url: "https://example.test/ephemeral-shared",
+      sourceRef: sharedSourceRef,
+    }],
+  };
+
+  await assertOk(
+    ephemeralMaterialStore.put({
+      materialRef: wrongOwnerRef,
+      material: scopedMaterial,
+      ownerScope: "local_profile:other",
+      sessionId: session.id,
+    }),
+  );
+  await assertOk(
+    ephemeralMaterialStore.put({
+      materialRef: wrongSessionRef,
+      material: scopedMaterial,
+      ownerScope: "local_profile:default",
+      sessionId: "other-session",
+    }),
+  );
+
+  const output = await assertOk(
+    presenter.present({
+      sessionId: session.id,
+      items: [
+        { materialId: materialRefToMaterialId(wrongOwnerRef) },
+        { materialId: materialRefToMaterialId(wrongSessionRef) },
+      ],
+      minCards: 1,
+    }),
+  );
+
+  assert(!output.presented, "presenter should not consume ephemeral handles outside the current owner/session scope");
+  assert(
+    output.dropped?.every((item) =>
+      item.code === "material_not_found" &&
+      item.reason === "Ephemeral material was not valid for the current owner or session."
+    ),
+    "presenter should reject owner/session-mismatched ephemeral handles explicitly",
+  );
+  const wrongOwnerEntry = await assertOk(ephemeralMaterialStore.get({ materialRef: wrongOwnerRef }));
+  const wrongSessionEntry = await assertOk(ephemeralMaterialStore.get({ materialRef: wrongSessionRef }));
+  assert(wrongOwnerEntry !== null && wrongSessionEntry !== null, "invalid-scope ephemeral entries should remain untouched");
 }
 
 async function presenterDegradesNotPlayableSourceWhenAnotherLinkRemains(): Promise<void> {
@@ -341,7 +523,78 @@ function ref(namespace: string, kind: string, id: string): Ref {
   return { namespace, kind, id };
 }
 
+async function putEphemeralTrack(
+  materialStore: MaterialStorePort,
+  ephemeralMaterialStore: ReturnType<typeof createInMemoryEphemeralMaterialStore>,
+  label: string,
+  sourceRef: Ref,
+  options: {
+    playable?: boolean;
+  } = {},
+): Promise<{
+  materialRef: Ref;
+  materialId: string;
+  material: SourceMaterial;
+  sourceRef: Ref;
+}> {
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label,
+        title: label,
+        ...(options.playable === false ? {} : { providerUrl: `https://example.test/${sourceRef.id}` }),
+        createdAt: "2026-05-31T00:00:00.000Z",
+        updatedAt: "2026-05-31T00:00:00.000Z",
+      },
+    }),
+  );
+
+  const materialRef: Ref = {
+    namespace: "minemusic",
+    kind: "ephemeral_material",
+    id: `ephemeral:${sourceRef.id}`,
+  };
+  const material: SourceMaterial = {
+    id: `source:${sourceRef.id}`,
+    kind: "recording",
+    label,
+    state: options.playable === false ? "grounded" : "source_only_playable",
+    sourceRefs: [sourceRef],
+    ...(options.playable === false
+      ? {}
+      : {
+          playableLinks: [{
+            url: `https://example.test/${sourceRef.id}`,
+            sourceRef,
+          }],
+        }),
+  };
+
+  await assertOk(
+    ephemeralMaterialStore.put({
+      materialRef,
+      material,
+      ownerScope: "local_profile:default",
+      sessionId: session.id,
+    }),
+  );
+
+  return {
+    materialRef,
+    materialId: materialRefToMaterialId(materialRef),
+    material,
+    sourceRef,
+  };
+}
+
 await presenterPreservesOrderAfterDropsAndRecordsTypedEvent();
+await presenterMaterializesSelectedEphemeralItemsAndDeletesConsumedEntries();
+await presenterDoesNotMaterializeMaxCardDroppedEphemeralItems();
+await presenterDropsMissingAndUnplayableEphemeralItemsWithoutMaterializingThem();
+await presenterRejectsEphemeralItemsFromAnotherOwnerOrSession();
 await presenterDegradesNotPlayableSourceWhenAnotherLinkRemains();
 await presenterDegradesWrongVersionSourceWithoutDroppingWholeMaterial();
 await presenterDoesNotRecordWhenMinCardsIsNotMet();

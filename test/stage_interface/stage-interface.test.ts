@@ -66,7 +66,6 @@ async function stableToolNamesRemainInPublishedOrder(): Promise<void> {
     "music.material.resolve",
     "knowledge.query",
     "music.material.query",
-    "music.material.related",
     "music.material.select",
     "music.material.context.brief",
     "music.pools.list",
@@ -172,8 +171,7 @@ async function materialResolveSchemaUsesPublicTextQueries(): Promise<void> {
   );
   assert(
     resolvePayloadSchema.safeParse({
-      queries: [{ text: "Quiet Track", kind: "recording", reason: "fits" }],
-      purpose: "recommend",
+      queries: [{ id: "query:1", text: "Quiet Track", targetKind: "recording", reason: "fits" }],
       limit: 3,
     }).success,
     "material resolve public schema should accept public text queries",
@@ -183,8 +181,12 @@ async function materialResolveSchemaUsesPublicTextQueries(): Promise<void> {
     "material resolve public schema should reject empty query arrays",
   );
   assert(
-    !resolvePayloadSchema.safeParse({ queries: [{ text: "Quiet Track", kind: "song" }] }).success,
+    !resolvePayloadSchema.safeParse({ queries: [{ text: "Quiet Track", targetKind: "song" }] }).success,
     "material resolve public schema should reject legacy or internal kind hints",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(resolveSchema, "purpose"),
+    "material resolve public schema should not expose purpose",
   );
   assert(
     !resolveSchemaText.includes("\"materialId\"") &&
@@ -193,18 +195,18 @@ async function materialResolveSchemaUsesPublicTextQueries(): Promise<void> {
       !resolveSchemaText.includes("\"sourceLibraryScope\"") &&
       !resolveSchemaText.includes("\"candidate\"") &&
       !resolveSchemaText.includes("\"candidates\"") &&
-      !resolveSchemaText.includes("\"SourceQuery\""),
+      !resolveSchemaText.includes("\"SourceQuery\"") &&
+      resolveSchemaText.includes("\"targetKind\"") &&
+      !resolveSchemaText.includes("\"kind\""),
     "material resolve public schema should not advertise internal resolve inputs",
   );
 }
 
 async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<void> {
   const querySchema = stageInterfaceToolInputSchemas["music.material.query"];
-  const relatedSchema = stageInterfaceToolInputSchemas["music.material.related"];
   const selectSchema = stageInterfaceToolInputSchemas["music.material.select"];
   const poolsListSchema = stageInterfaceToolInputSchemas["music.pools.list"];
   const queryPayloadSchema = z.object(querySchema).passthrough();
-  const relatedPayloadSchema = z.object(relatedSchema).passthrough();
   const selectPayloadSchema = z.object(selectSchema).passthrough();
   const querySchemaText = inputSchemaText(querySchema);
   const poolsListSchemaText = inputSchemaText(poolsListSchema);
@@ -228,30 +230,12 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     "material query public schema should accept text and targetKind",
   );
   assert(
-    !Object.prototype.hasOwnProperty.call(relatedSchema, "preferenceHints"),
-    "material related public schema should not advertise experimental preferenceHints",
-  );
-  assert(
     !queryPayloadSchema.safeParse({ order: "library_order" }).success,
     "material query public schema should not advertise library_order",
   );
   assert(
     queryPayloadSchema.safeParse({ order: "recently_added" }).success,
     "material query public schema should keep supported ordering options",
-  );
-  assert(
-    !relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_release" }).success,
-    "material related public schema should not advertise same_release",
-  );
-  assert(
-    !relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_release_group" }).success,
-    "material related public schema should not advertise same_release_group",
-  );
-  assert(
-    relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_artist" }).success &&
-      relatedPayloadSchema.safeParse({ materialId: "seed", relation: "same_album" }).success &&
-      relatedPayloadSchema.safeParse({ materialId: "seed", relation: "similar" }).success,
-    "material related public schema should keep supported relation options",
   );
   assert(
     Object.prototype.hasOwnProperty.call(selectSchema, "candidates") &&
@@ -304,7 +288,7 @@ async function materialQuerySchemasHideExperimentalPreferenceHints(): Promise<vo
     !queryPayloadSchema.safeParse({
       pool: { kind: "related", materialId: "seed", relation: "same_release" },
     }).success,
-    "material query related pool public schema should not advertise same_release",
+    "material query public schema should reject removed related pools",
   );
   assert(
     !querySchemaText.includes("\"areas\"") && !querySchemaText.includes("\"expand\""),

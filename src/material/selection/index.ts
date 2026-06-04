@@ -17,6 +17,7 @@ import type {
   MaterialSelectorPort,
   MaterialSorterPort,
 } from "../../ports/index.js";
+import { materialRefToMaterialId } from "../projection/index.js";
 
 const defaultOwnerScope = "local_profile:default";
 
@@ -327,10 +328,6 @@ function defaultPolicy(): MaterialPolicyInput {
 
 function materialUniqueKey(material: MusicMaterial): string {
   return `material:${refKey(material.materialRef)}`;
-}
-
-function materialRefToMaterialId(materialRef: Ref): string {
-  return materialRef.id;
 }
 
 function uniqueKeys(keys: string[]): string[] {

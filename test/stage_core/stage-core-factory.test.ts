@@ -305,7 +305,7 @@ async function usesInjectedCanonicalRepositoryForMaterialResolve(): Promise<void
 
   const resolveResult = await assertOk(
     stageCore.stageInterface.tools["music.material.resolve"]({
-      queries: [{ text: "Known Canonical Track", kind: "recording" }],
+      queries: [{ text: "Known Canonical Track", targetKind: "recording" }],
     }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
 
@@ -502,7 +502,7 @@ async function registersMusicBrainzKnowledgeProviderFactoryWithProviderHttpCache
   }
 }
 
-async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering(): Promise<void> {
+async function keepsNonDurableProviderResolveResultsOutOfCollectionBlockedFiltering(): Promise<void> {
   const canonicalRecord: CanonicalRecord = {
     ref: {
       namespace: "minemusic",
@@ -562,13 +562,14 @@ async function routesMaterialResolveThroughStageCoreCollectionBlockedFiltering()
 
   const resolveResult = await assertOk(
     stageCore.stageInterface.tools["music.material.resolve"]({
-      queries: [{ text: "Blocked Canonical Track", kind: "recording" }],
+      queries: [{ text: "Blocked Canonical Track", targetKind: "recording" }],
     }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
 
   assert(
-    resolveResult.items[0]?.state === "blocked",
-    "Stage Core Material Resolve should use Collection blocked membership",
+    resolveResult.items[0]?.materialId.startsWith("emat:") &&
+      resolveResult.items[0]?.state === "source_only_playable",
+    "Stage Core Material Resolve should keep non-durable provider results on the ephemeral source-backed path",
   );
 }
 
@@ -1001,7 +1002,7 @@ await exposesInjectedProviderHttpCacheRepository();
 await usesProviderHttpCacheDatabasePath();
 await injectedProviderHttpCacheRepositoryBeatsDatabasePath();
 await registersMusicBrainzKnowledgeProviderFactoryWithProviderHttpCache();
-await routesMaterialResolveThroughStageCoreCollectionBlockedFiltering();
+await keepsNonDurableProviderResolveResultsOutOfCollectionBlockedFiltering();
 await usesInjectedCollectionRepository();
 await exposesLibraryImportWithInjectedPlatformLibraryProvider();
 await wiresMaterialSearchWithTransientSqliteAndDirtyInvalidation();

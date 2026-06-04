@@ -9,29 +9,27 @@ import type {
   MaterialQueryItem,
   MaterialQueryInput,
   MaterialSelectInput,
-  MaterialRelatedInput,
-  MaterialRelatedOutput,
-  MusicCandidate,
   MusicMaterial,
   PlatformLibraryItemKind,
   Ref,
   Result,
-  SourceEntity,
+  SourceMaterial,
   SourceLibraryItem,
 } from "../../contracts/index.js";
 import type {
   MaterialContextBriefPort,
   MaterialQueryCollectionReadPort,
+  MaterialQueryEphemeralWritePort,
+  MaterialQuerySourceBackedLookupPort,
   MaterialPoolsPort,
   MaterialQueryPort,
   MaterialProjectionStorePort,
   MaterialQueryStorePort,
-  MaterialRelatedPort,
-  MaterialResolvePort,
   MaterialSearchPort,
   MaterialSelectorPort,
   SourceLibraryReadStorePort,
 } from "../../ports/index.js";
+import { createInMemoryEphemeralMaterialStore } from "../ephemeral/index.js";
 import { sourceKindToMaterialKind } from "../kinds.js";
 import {
   currentMaterialRecordForRef,
@@ -46,23 +44,28 @@ const defaultLimit = 10;
 
 export type MaterialQueryService =
   MaterialQueryPort &
-  MaterialRelatedPort &
   MaterialContextBriefPort &
   MaterialPoolsPort;
 
+type SourceBackedTrackSeed = {
+  id: string;
+  label: string;
+  sourceRef: Ref;
+};
+
 export type MaterialQueryServiceOptions = {
   materialStore: MaterialQueryStorePort;
-  materialResolve: MaterialResolvePort;
   materialSearch: MaterialSearchPort;
   materialSelector: MaterialSelectorPort;
+  ephemeralMaterialStore?: MaterialQueryEphemeralWritePort;
   collection?: MaterialQueryCollectionReadPort;
 };
 
 export function createMaterialQueryService({
   materialStore,
-  materialResolve,
   materialSearch,
   materialSelector,
+  ephemeralMaterialStore = createInMemoryEphemeralMaterialStore(),
   collection,
 }: MaterialQueryServiceOptions): MaterialQueryService {
   const service: MaterialQueryService = {
@@ -85,17 +88,11 @@ export function createMaterialQueryService({
       } else if (pool.kind === "source_library") {
         resolved = await sourceLibraryMaterials({
           materialStore,
-          materialResolve,
+          ephemeralMaterialStore,
           ownerScope,
           pool,
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
           ...(input.text === undefined ? {} : { text: input.text }),
-        });
-      } else if (pool.kind === "related") {
-        resolved = await materialsForCandidatePool({
-          materialStore,
-          materialResolve,
-          ownerScope,
-          pool,
         });
       } else {
         resolved = ok([]);
@@ -146,16 +143,6 @@ export function createMaterialQueryService({
       });
     },
 
-    async related(input) {
-      return relatedForInput({
-        materialStore,
-        materialResolve,
-        materialSelector,
-        ownerScope: input.ownerScope ?? defaultOwnerScope,
-        input,
-      });
-    },
-
     async contextBrief(input) {
       return contextBriefForInput(materialStore, input);
     },
@@ -170,39 +157,6 @@ export function createMaterialQueryService({
   };
 
   return service;
-}
-
-async function resolveCandidates({
-  materialResolve,
-  ownerScope,
-  candidates,
-  limitPerCandidate,
-}: {
-  materialResolve: MaterialResolvePort;
-  ownerScope: string;
-  candidates: MusicCandidate[];
-  limitPerCandidate?: number;
-}): Promise<Result<MusicMaterial[]>> {
-  if (candidates.length === 0) {
-    return ok([]);
-  }
-
-  const resolved = await materialResolve.resolve({
-    kind: "candidate_set",
-    ownerScope,
-    candidates,
-    ...(limitPerCandidate === undefined ? {} : { limitPerCandidate }),
-  });
-
-  if (!resolved.ok) {
-    return resolved;
-  }
-
-  return ok(
-    resolved.value.kind === "candidate_set"
-      ? dedupeMaterials(resolved.value.results.flatMap((result) => result.materials))
-      : resolved.value.result.materials,
-  );
 }
 
 async function searchCandidatesForQuery({
@@ -278,46 +232,18 @@ async function materialForSearchHit({
   });
 }
 
-async function materialsForCandidatePool({
-  materialStore,
-  materialResolve,
-  ownerScope,
-  pool,
-}: {
-  materialStore: MaterialQueryStorePort;
-  materialResolve: MaterialResolvePort;
-  ownerScope: string;
-  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
-}): Promise<Result<SelectableMaterialCandidate[]>> {
-  const candidates = await relatedPoolCandidates({
-    materialStore,
-    ownerScope,
-    pool,
-  });
-
-  if (!candidates.ok) {
-    return candidates;
-  }
-
-  const resolved = await resolveCandidates({
-    materialResolve,
-    ownerScope,
-    candidates: candidates.value,
-  });
-
-  return resolved.ok ? ok(materialsToSelectableCandidates(resolved.value)) : resolved;
-}
-
 async function sourceLibraryMaterials({
   materialStore,
-  materialResolve,
+  ephemeralMaterialStore,
   ownerScope,
+  sessionId,
   pool,
   text,
 }: {
   materialStore: MaterialQueryStorePort;
-  materialResolve: MaterialResolvePort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
   ownerScope: string;
+  sessionId?: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>;
   text?: string;
 }): Promise<Result<SelectableMaterialCandidate[]>> {
@@ -351,10 +277,12 @@ async function sourceLibraryMaterials({
           return expanded;
         }
 
-        const resolved = await resolveCandidates({
-          materialResolve,
+        const resolved = await sourceBackedTrackMaterials({
+          materialStore,
+          ephemeralMaterialStore,
           ownerScope,
-          candidates: expanded.value.filter((candidate) => matchesQueryText(candidate.label, text)),
+          ...(sessionId === undefined ? {} : { sessionId }),
+          seeds: expanded.value.filter((candidate) => matchesQueryText(candidate.label, text)),
         });
 
         if (!resolved.ok) {
@@ -391,33 +319,10 @@ function validateSourceLibraryPoolTarget(
   return ok(undefined);
 }
 
-async function relatedPoolCandidates({
-  materialStore,
-  ownerScope,
-  pool,
-}: {
-  materialStore: MaterialQueryStorePort;
-  ownerScope: string;
-  pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
-}): Promise<Result<MusicCandidate[]>> {
-  const related = await relatedCandidates({
-    materialStore,
-    ownerScope,
-    materialId: pool.materialId,
-    relation: pool.relation,
-  });
-
-  if (!related.ok) {
-    return related;
-  }
-
-  return ok(related.value.candidates);
-}
-
 async function tracklistCandidatesForReleaseItem(
   materialStore: MaterialProjectionStorePort,
   item: SourceLibraryItem,
-): Promise<Result<MusicCandidate[]>> {
+): Promise<Result<SourceBackedTrackSeed[]>> {
   const entity = await materialStore.getSourceEntity({ sourceRef: item.sourceRef });
 
   if (!entity.ok) {
@@ -430,17 +335,231 @@ async function tracklistCandidatesForReleaseItem(
 
   return ok(
     (entity.value.tracklist ?? [])
-      .flatMap((track, index): MusicCandidate[] => track.sourceRef === undefined ? [] : [{
+      .flatMap((track, index): SourceBackedTrackSeed[] => track.sourceRef === undefined ? [] : [{
         id: `source-library:${item.id}:track:${index}`,
         label: track.title,
-        expectedKind: "recording",
         sourceRef: track.sourceRef,
-        query: {
-          text: track.title,
-          sourceRef: track.sourceRef,
-        },
       }]),
   );
+}
+
+async function sourceBackedTrackMaterials({
+  materialStore,
+  ephemeralMaterialStore,
+  ownerScope,
+  sessionId,
+  seeds,
+}: {
+  materialStore: MaterialQuerySourceBackedLookupPort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
+  ownerScope: string;
+  sessionId?: string;
+  seeds: SourceBackedTrackSeed[];
+}): Promise<Result<MusicMaterial[]>> {
+  const materials: MusicMaterial[] = [];
+
+  for (const seed of seeds) {
+    const material = await sourceBackedMaterialForTrackSeed({
+      materialStore,
+      ephemeralMaterialStore,
+      ownerScope,
+      ...(sessionId === undefined ? {} : { sessionId }),
+      seed,
+    });
+
+    if (!material.ok) {
+      return material;
+    }
+
+    materials.push(material.value);
+  }
+
+  return ok(dedupeMaterials(materials));
+}
+
+async function sourceBackedMaterialForTrackSeed({
+  materialStore,
+  ephemeralMaterialStore,
+  ownerScope,
+  sessionId,
+  seed,
+}: {
+  materialStore: MaterialQuerySourceBackedLookupPort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
+  ownerScope: string;
+  sessionId?: string;
+  seed: SourceBackedTrackSeed;
+}): Promise<Result<MusicMaterial>> {
+  const sourceMaterial = await sourceMaterialForTrackSeed(materialStore, seed);
+
+  if (!sourceMaterial.ok) {
+    return sourceMaterial;
+  }
+
+  const existing = await existingMaterialForSourceBackedTrack({
+    materialStore,
+    ownerScope,
+    material: sourceMaterial.value,
+  });
+
+  if (!existing.ok) {
+    return existing;
+  }
+
+  if (existing.value !== null) {
+    return ok(existing.value);
+  }
+
+  const materialRef = ephemeralMaterialRefForTrackSeed({
+    ownerScope,
+    ...(sessionId === undefined ? {} : { sessionId }),
+    sourceRef: seed.sourceRef,
+  });
+  const stored = await ephemeralMaterialStore.put({
+    materialRef,
+    material: sourceMaterial.value,
+    ownerScope,
+    ...(sessionId === undefined ? {} : { sessionId }),
+  });
+
+  if (!stored.ok) {
+    return stored;
+  }
+
+  return ok(ephemeralMaterialFromSourceMaterial(stored.value.materialRef, stored.value.material));
+}
+
+async function sourceMaterialForTrackSeed(
+  materialStore: MaterialQuerySourceBackedLookupPort,
+  seed: SourceBackedTrackSeed,
+): Promise<Result<SourceMaterial>> {
+  const entity = await materialStore.getSourceEntity({ sourceRef: seed.sourceRef });
+
+  if (!entity.ok) {
+    return entity;
+  }
+
+  const canonicalRef = await canonicalRefForSourceRef(materialStore, seed.sourceRef);
+
+  if (!canonicalRef.ok) {
+    return canonicalRef;
+  }
+
+  if (entity.value?.kind === "track") {
+    return ok({
+      id: `source-track:${seed.sourceRef.id}`,
+      kind: "recording",
+      label: entity.value.label,
+      state: entity.value.providerUrl === undefined ? "grounded" : "source_only_playable",
+      ...(canonicalRef.value === undefined ? {} : { canonicalRef: canonicalRef.value }),
+      sourceRefs: [seed.sourceRef],
+      ...(entity.value.providerUrl === undefined
+        ? {}
+        : {
+            playableLinks: [{
+              url: entity.value.providerUrl,
+              label: entity.value.label,
+              sourceRef: seed.sourceRef,
+            }],
+          }),
+    });
+  }
+
+  return ok({
+    id: `source-track:${seed.sourceRef.id}`,
+    kind: "recording",
+    label: seed.label,
+    state: "grounded",
+    ...(canonicalRef.value === undefined ? {} : { canonicalRef: canonicalRef.value }),
+    sourceRefs: [seed.sourceRef],
+  });
+}
+
+async function canonicalRefForSourceRef(
+  materialStore: Pick<MaterialQuerySourceBackedLookupPort, "getConfirmedCanonicalBinding">,
+  sourceRef: Ref,
+): Promise<Result<Ref | undefined>> {
+  const binding = await materialStore.getConfirmedCanonicalBinding({ sourceRef });
+
+  if (!binding.ok) {
+    return binding;
+  }
+
+  return ok(binding.value?.canonicalRef);
+}
+
+async function existingMaterialForSourceBackedTrack({
+  materialStore,
+  ownerScope,
+  material,
+}: {
+  materialStore: MaterialQuerySourceBackedLookupPort;
+  ownerScope: string;
+  material: SourceMaterial;
+}): Promise<Result<MusicMaterial | null>> {
+  if (material.canonicalRef !== undefined) {
+    const canonical = await materialStore.findMaterialByCanonicalRef({
+      canonicalRef: material.canonicalRef,
+    });
+
+    if (!canonical.ok) {
+      return canonical;
+    }
+
+    if (canonical.value !== null) {
+      return projectMaterialRecord(materialStore, canonical.value, {
+        ownerScope,
+        purpose: "material.query",
+      });
+    }
+  }
+
+  const source = await materialStore.findMaterialBySourceRef({ sourceRef: material.sourceRefs?.[0] as Ref });
+
+  if (!source.ok) {
+    return source;
+  }
+
+  if (source.value === null) {
+    return ok(null);
+  }
+
+  return projectMaterialRecord(materialStore, source.value, {
+    ownerScope,
+    purpose: "material.query",
+  });
+}
+
+function ephemeralMaterialRefForTrackSeed({
+  ownerScope,
+  sessionId,
+  sourceRef,
+}: {
+  ownerScope: string;
+  sessionId?: string;
+  sourceRef: Ref;
+}): Ref {
+  return {
+    namespace: "minemusic",
+    kind: "ephemeral_material",
+    id: `${ownerScope}:${sessionId ?? ""}:track:${sourceRef.namespace}:${sourceRef.kind}:${sourceRef.id}`,
+  };
+}
+
+function ephemeralMaterialFromSourceMaterial(materialRef: Ref, material: SourceMaterial): MusicMaterial {
+  return {
+    id: materialRef.id,
+    materialRef,
+    kind: sourceKindToMaterialKind("track"),
+    label: material.label,
+    state: material.state,
+    identityState: "source_backed",
+    ...(material.canonicalRef === undefined ? {} : { canonicalRef: material.canonicalRef }),
+    ...(material.sourceRefs === undefined ? {} : { sourceRefs: structuredClone(material.sourceRefs) }),
+    ...(material.playableLinks === undefined ? {} : { playableLinks: structuredClone(material.playableLinks) }),
+    ...(material.notes === undefined ? {} : { notes: material.notes }),
+    ...(material.evidence === undefined ? {} : { evidence: structuredClone(material.evidence) }),
+  };
 }
 
 type SelectableMaterialCandidate = {
@@ -498,7 +617,7 @@ async function selectableMaterialsForQuery({
   return ok(filtered);
 }
 
-function selectorPolicyForQuery(input: MaterialQueryInput | MaterialRelatedInput): NonNullable<MaterialSelectInput["policy"]> {
+function selectorPolicyForQuery(input: MaterialQueryInput): NonNullable<MaterialSelectInput["policy"]> {
   return {
     purpose: "candidate_selection",
     ...(input.constraints?.availability === undefined ? {} : { availability: input.constraints.availability }),
@@ -546,359 +665,10 @@ async function excludedMaterialIdsForInput({
   return ok(excludedMaterialIds);
 }
 
-async function relatedForInput({
-  materialStore,
-  materialResolve,
-  materialSelector,
-  ownerScope,
-  input,
-}: {
-  materialStore: MaterialQueryStorePort;
-  materialResolve: MaterialResolvePort;
-  materialSelector: MaterialSelectorPort;
-  ownerScope: string;
-  input: MaterialRelatedInput;
-}): Promise<Result<MaterialRelatedOutput>> {
-  const related = await relatedCandidates({
-    materialStore,
-    ownerScope,
-    materialId: input.materialId,
-    relation: input.relation,
-  });
-
-  if (!related.ok) {
-    return related;
-  }
-
-  const resolved = await resolveCandidates({
-    materialResolve,
-    ownerScope,
-    candidates: related.value.candidates,
-  });
-
-  if (!resolved.ok) {
-    return resolved;
-  }
-
-  const seedMaterialRef = materialIdToRef(input.materialId);
-  const currentSeedMaterialRef = await materialStore.resolveMaterialRedirect({ materialRef: seedMaterialRef });
-
-  if (!currentSeedMaterialRef.ok) {
-    return currentSeedMaterialRef;
-  }
-
-  const selectable = await selectableMaterialsForQuery({
-    materialStore,
-    candidates: materialsToSelectableCandidates(resolved.value.filter((material) =>
-      !sameRef(material.materialRef, seedMaterialRef) && !sameRef(material.materialRef, currentSeedMaterialRef.value)
-    )),
-    exclude: {
-      ...input.exclude,
-      materialIds: [
-        ...(input.exclude?.materialIds ?? []),
-        input.materialId,
-        materialRefToMaterialId(currentSeedMaterialRef.value),
-      ],
-    },
-  });
-
-  if (!selectable.ok) {
-    return selectable;
-  }
-
-  const selected = await materialSelector.select({
-    ownerScope,
-    candidates: selectable.value.map((candidate) => ({
-      materialId: materialRefToMaterialId(candidate.material.materialRef),
-      material: candidate.material,
-      ...(candidate.score === undefined ? {} : { score: candidate.score }),
-    })),
-    policy: selectorPolicyForQuery(input),
-    sort: { order: "preserve" },
-    limit: normalizeLimit(input.limit),
-    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-  });
-
-  if (!selected.ok) {
-    return selected;
-  }
-
-  return ok({
-    basis: related.value.basis,
-    ...(related.value.basisLabel === undefined ? {} : { basisLabel: related.value.basisLabel }),
-    items: selected.value.items,
-  });
-}
-
 function materialToQueryItem(material: MusicMaterial): MaterialQueryItem {
   return {
     materialId: materialRefToMaterialId(material.materialRef),
     material,
-  };
-}
-
-async function relatedCandidates({
-  materialStore,
-  materialId,
-  relation,
-}: {
-  materialStore: MaterialQueryStorePort;
-  ownerScope: string;
-  materialId: string;
-  relation: MaterialRelatedInput["relation"];
-}): Promise<Result<{
-  basis: MaterialRelatedOutput["basis"];
-  basisLabel?: string;
-  candidates: MusicCandidate[];
-}>> {
-  const seedRecord = await currentMaterialRecordForRef(materialStore, materialIdToRef(materialId));
-
-  if (!seedRecord.ok) {
-    return seedRecord;
-  }
-
-  if (seedRecord.value === null) {
-    return ok({ basis: "fallback_text", candidates: [] });
-  }
-
-  if (relation === "same_artist" || relation === "similar") {
-    const sameArtist = await sameArtistCandidates(materialStore, seedRecord.value.sourceRefs);
-
-    if (!sameArtist.ok) {
-      return sameArtist;
-    }
-
-    if (sameArtist.value.candidates.length > 0 || relation === "same_artist") {
-      return sameArtist;
-    }
-  }
-
-  const sameAlbum = await sameAlbumCandidates(materialStore, seedRecord.value.sourceRefs);
-
-  if (!sameAlbum.ok) {
-    return sameAlbum;
-  }
-
-  return sameAlbum.value.candidates.length > 0
-    ? sameAlbum
-    : ok({ basis: "fallback_text", candidates: [] });
-}
-
-async function sameArtistCandidates(
-  materialStore: MaterialQueryStorePort,
-  sourceRefs: Ref[],
-): Promise<Result<{
-  basis: "confirmed_artist" | "source_artist" | "fallback_text";
-  basisLabel?: string;
-  candidates: MusicCandidate[];
-}>> {
-  const seedTracks = await sourceEntitiesForRefs(materialStore, sourceRefs);
-
-  if (!seedTracks.ok) {
-    return seedTracks;
-  }
-
-  const seedArtistRefs = seedTracks.value
-    .filter((entity) => entity.kind === "track")
-    .flatMap((entity) => entity.artistSourceRefs ?? []);
-  const canonicalArtists = await canonicalArtistRefsForSourceArtistRefs(materialStore, seedArtistRefs);
-
-  if (!canonicalArtists.ok) {
-    return canonicalArtists;
-  }
-
-  if (canonicalArtists.value.length > 0) {
-    const candidates = await trackCandidatesForCanonicalArtist(materialStore, canonicalArtists.value[0] as Ref, sourceRefs);
-
-    if (!candidates.ok) {
-      return candidates;
-    }
-
-    const canonical = await materialStore.getCanonical({ ref: canonicalArtists.value[0] as Ref });
-
-    if (!canonical.ok) {
-      return canonical;
-    }
-
-    return ok({
-      basis: "confirmed_artist",
-      ...(canonical.value?.label === undefined ? {} : { basisLabel: canonical.value.label }),
-      candidates: candidates.value,
-    });
-  }
-
-  const sourceArtistRef = seedArtistRefs[0];
-
-  if (sourceArtistRef === undefined) {
-    return ok({ basis: "fallback_text", candidates: [] });
-  }
-
-  const candidates = await trackCandidatesForSourceArtist(materialStore, sourceArtistRef, sourceRefs);
-
-  if (!candidates.ok) {
-    return candidates;
-  }
-
-  const artist = await materialStore.getSourceEntity({ sourceRef: sourceArtistRef });
-
-  if (!artist.ok) {
-    return artist;
-  }
-
-  return ok({
-    basis: "source_artist",
-    ...(artist.value?.label === undefined ? {} : { basisLabel: artist.value.label }),
-    candidates: candidates.value,
-  });
-}
-
-async function sameAlbumCandidates(
-  materialStore: MaterialProjectionStorePort,
-  sourceRefs: Ref[],
-): Promise<Result<{
-  basis: "source_album" | "fallback_text";
-  basisLabel?: string;
-  candidates: MusicCandidate[];
-}>> {
-  const seedEntities = await sourceEntitiesForRefs(materialStore, sourceRefs);
-
-  if (!seedEntities.ok) {
-    return seedEntities;
-  }
-
-  const releaseRef =
-    seedEntities.value.find((entity) => entity.kind === "release")?.sourceRef ??
-    seedEntities.value
-      .filter((entity) => entity.kind === "track")
-      .find((entity) => entity.releaseSourceRef !== undefined)?.releaseSourceRef;
-
-  if (releaseRef === undefined) {
-    return ok({ basis: "fallback_text", candidates: [] });
-  }
-
-  const release = await materialStore.getSourceEntity({ sourceRef: releaseRef });
-
-  if (!release.ok) {
-    return release;
-  }
-
-  if (release.value?.kind !== "release") {
-    return ok({ basis: "fallback_text", candidates: [] });
-  }
-
-  const seedRefKeys = new Set(sourceRefs.map(refKey));
-  const candidates = (release.value.tracklist ?? [])
-    .flatMap((track, index): MusicCandidate[] =>
-      track.sourceRef === undefined || seedRefKeys.has(refKey(track.sourceRef))
-        ? []
-        : [{
-      id: `related:${release.value?.sourceRef.id}:track:${index}`,
-      label: track.title,
-      expectedKind: "recording",
-      sourceRef: track.sourceRef,
-      query: {
-        text: track.title,
-        sourceRef: track.sourceRef,
-      },
-    }]);
-
-  return ok({
-    basis: "source_album",
-    basisLabel: release.value.label,
-    candidates,
-  });
-}
-
-async function canonicalArtistRefsForSourceArtistRefs(
-  materialStore: MaterialQueryStorePort,
-  sourceArtistRefs: Ref[],
-): Promise<Result<Ref[]>> {
-  const refs: Ref[] = [];
-
-  for (const sourceRef of sourceArtistRefs) {
-    const binding = await materialStore.getConfirmedCanonicalBinding({ sourceRef });
-
-    if (!binding.ok) {
-      return binding;
-    }
-
-    if (binding.value?.canonicalRef.kind === "artist") {
-      refs.push(binding.value.canonicalRef);
-    }
-  }
-
-  return ok(dedupeRefs(refs));
-}
-
-async function trackCandidatesForCanonicalArtist(
-  materialStore: MaterialQueryStorePort,
-  canonicalArtistRef: Ref,
-  excludeSourceRefs: Ref[],
-): Promise<Result<MusicCandidate[]>> {
-  const tracks = await materialStore.listSourceEntities({ kind: "track" });
-
-  if (!tracks.ok) {
-    return tracks;
-  }
-
-  const excludeKeys = new Set(excludeSourceRefs.map(refKey));
-  const candidates: MusicCandidate[] = [];
-
-  for (const entity of tracks.value.filter((entity) => entity.kind === "track")) {
-    if (excludeKeys.has(refKey(entity.sourceRef))) {
-      continue;
-    }
-
-    const artistRefs = entity.artistSourceRefs ?? [];
-    const canonicalArtists = await canonicalArtistRefsForSourceArtistRefs(materialStore, artistRefs);
-
-    if (!canonicalArtists.ok) {
-      return canonicalArtists;
-    }
-
-    if (canonicalArtists.value.some((artistRef) => sameRef(artistRef, canonicalArtistRef))) {
-      candidates.push(candidateForSourceEntity(entity));
-    }
-  }
-
-  return ok(candidates);
-}
-
-async function trackCandidatesForSourceArtist(
-  materialStore: MaterialQueryStorePort,
-  sourceArtistRef: Ref,
-  excludeSourceRefs: Ref[],
-): Promise<Result<MusicCandidate[]>> {
-  const tracks = await materialStore.listSourceEntities({ kind: "track" });
-
-  if (!tracks.ok) {
-    return tracks;
-  }
-
-  const excludeKeys = new Set(excludeSourceRefs.map(refKey));
-
-  return ok(
-    tracks.value
-      .filter(
-        (entity) =>
-          entity.kind === "track" &&
-          !excludeKeys.has(refKey(entity.sourceRef)) &&
-          (entity.artistSourceRefs ?? []).some((artistRef) => sameRef(artistRef, sourceArtistRef)),
-      )
-      .map(candidateForSourceEntity),
-  );
-}
-
-function candidateForSourceEntity(entity: SourceEntity): MusicCandidate {
-  return {
-    id: `source-entity:${entity.sourceRef.id}`,
-    label: entity.label,
-    expectedKind: sourceKindToMaterialKind(entity.kind),
-    sourceRef: entity.sourceRef,
-    query: {
-      text: entity.label,
-      sourceRef: entity.sourceRef,
-    },
   };
 }
 
@@ -1223,10 +993,6 @@ function poolLabel(pool: NonNullable<MaterialQueryInput["pool"]>): string {
     return `collection:${pool.ref ?? pool.label ?? pool.relation ?? "all"}`;
   }
 
-  if (pool.kind === "related") {
-    return `related:${pool.relation}`;
-  }
-
   return "all";
 }
 
@@ -1254,8 +1020,6 @@ function materialSearchScopeForPool(pool: NonNullable<MaterialQueryInput["pool"]
         ...(pool.label === undefined ? {} : { label: pool.label }),
         ...(pool.relation === undefined ? {} : { relation: pool.relation }),
       };
-    case "related":
-      throw new Error("related pools do not use Material Search");
   }
 }
 

@@ -18,11 +18,11 @@ write capabilities, composition points, and forbidden dependencies.
 | --- | --- | --- | --- | --- |
 | `SessionContextPort` | Stage Module / Session Context | Context read, session update, instrument availability, Handbook context | `getSession`, `readContext` | `updateSession` |
 | `InstrumentCatalogPort` | Stage Interface instruments / Handbook | Availability checks and Handbook rendering | `list` | None |
-| `RecommendationPresentationPort` | Material Presentation | Final public recommendation presentation | None | `present` records presentation through the underlying service |
+| `RecommendationPresentationPort` | Material Presentation | Final public recommendation presentation | None | `present` records presentation through the underlying service and may materialize selected `emat:*` handles into durable `mat:*` results |
 | `EventPort` | Event Service | Factual event recording | None | `record` |
 | `EffectBoundaryPort` | Effect Boundary | Durable-write and external-action proposals | None | `propose` |
-| `MaterialResolvePort` | Material Resolve | Public text resolve | `resolve` returns domain resolve results | Materialization side effects remain inside Material Resolve/materialization boundaries, not Stage Interface |
-| `MaterialQueryPort`, `MaterialRelatedPort`, `MaterialContextBriefPort`, `MaterialPoolsPort` | Material Query / Related / Context / Pools | Public query, related, context brief, pool listing | `query`, `related`, optional `contextBrief`, optional `listPools` | None |
+| `MaterialResolvePort` | Material Resolve | Public text resolve | `resolve` returns query-keyed domain resolve results for public `queries[].text` plus optional `queries[].targetKind`, and may contain durable or ephemeral material handles | Resolve may allocate process-local ephemeral entries for provider-backed non-durable results; durable materialization remains inside Recommendation Presentation |
+| `MaterialQueryPort`, `MaterialContextBriefPort`, `MaterialPoolsPort` | Material Query / Context / Pools | Public query, context brief, pool listing | `query`, optional `contextBrief`, optional `listPools` | None |
 | `MaterialSelectorPort` | Material Selection | Public candidate selection helper | `select` over material ids and policy inputs | None |
 | `StageInterfaceMaterialStorePort` | Material Store narrow read surface | Project material ids, resolve redirects, derive collection labels, inspect source-library-backed material facts | `resolveMaterialRedirect`, `getMaterialRecord`, `getSourceEntity`, `getCanonical`, `listSourceLibraryItems` | None |
 | `SourceGroundingPort` | Source Grounding | Refresh playable links for `music.links.refresh` | `refreshPlayableLinks` through projected material | Link refresh may persist source evidence inside Source Grounding; Stage Interface does not write provider state directly |
@@ -38,9 +38,9 @@ write capabilities, composition points, and forbidden dependencies.
 | --- | --- | --- | --- | --- |
 | Public tool dispatch | `ToolDispatchPort.call` | Read/write depends on tool | Stage Interface facade | Dispatch owns schema and availability boundary before domain calls. |
 | Public schema/descriptor exposure | `stableToolNames`, `agentToolDescriptors`, `stageInterfaceToolInputSchemas` | Read | MCP, Handbook, tests | Derived from Tool Definitions. |
-| Material id projection | `StageInterfaceMaterialStorePort` methods | Read | Music Tool Group only | Narrow read surface; no registry writer capability. |
+| Material id projection | `StageInterfaceMaterialStorePort` methods | Read | Music Tool Group only | Narrow read surface; no registry writer capability. Public handles remain opaque `mat:*` / `emat:*` values. |
 | Collection writes | `CollectionPort` add/remove/create/update/remove methods | Write | Music Tool Group only | Public inputs are materialId/collection labels; handlers derive internal refs. |
-| Recommendation presentation | `RecommendationPresentationPort.present` | Write through presentation service | Stage Tool Group only | Manual `recommendation.presented` event writes are rejected by Stage Interface. |
+| Recommendation presentation | `RecommendationPresentationPort.present` | Write through presentation service | Stage Tool Group only | Manual `recommendation.presented` event writes are rejected by Stage Interface. Final presentation is the only public boundary that may consume `emat:*` handles and return final durable cards. |
 | Library import/update management | `LibraryImportPort` start/continue methods | Write | Library Tool Group only | Preview methods exist on the port but are not public stable tools. |
 | Canonical review maintenance | `CanonicalMaintenancePort` review apply/auto-update | Write | Canonical Review Tool Group only | Tool availability is posture/instrument gated. |
 

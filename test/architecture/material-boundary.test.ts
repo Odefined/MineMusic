@@ -2,14 +2,22 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import type {
+  EphemeralMaterialStorePort,
   LibraryImportMaterialStorePort,
   MaterialPolicyCollectionBlockPort,
   MaterialProjectionStorePort,
   MaterialQueryCollectionReadPort,
+  MaterialQueryEphemeralWritePort,
+  MaterialQuerySourceBackedLookupPort,
+  MaterialResolveEphemeralWritePort,
   MaterialQueryStorePort,
   MaterialResolveStorePort,
+  MaterialSearchIndexPort,
+  MaterialSearchPort,
+  RecommendationPresentationMaterializePort,
   MaterialSearchCollectionPort,
   MaterialSearchStorePort,
+  RecommendationPresentationEphemeralReadPort,
   MaterialSourceMaterializerStorePort,
   SourceGroundingEvidenceStorePort,
   SourceLibraryReadStorePort,
@@ -41,9 +49,27 @@ export type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
   | "getMaterialRecord"
   | "getSourceEntity"
   | "getCanonical"
+  | "getConfirmedCanonicalBinding"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
   | "listSourceLibraryItems"
   | "listSourceEntities"
+>>;
+
+export type MaterialQuerySourceBackedLookupPortKeysAreExact = Assert<IsExact<
+  keyof MaterialQuerySourceBackedLookupPort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
   | "getConfirmedCanonicalBinding"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
+>>;
+
+export type MaterialQueryEphemeralWritePortKeysAreExact = Assert<IsExact<
+  keyof MaterialQueryEphemeralWritePort,
+  | "put"
 >>;
 
 export type MaterialSearchStorePortKeysAreExact = Assert<IsExact<
@@ -59,10 +85,52 @@ export type MaterialSearchStorePortKeysAreExact = Assert<IsExact<
 
 export type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
   keyof MaterialResolveStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
   | "getCanonical"
-  | "findCanonicalByLabel"
-  | "getConfirmedCanonicalBinding"
-  | "listSourceLibraryItems"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
+>>;
+
+export type MaterialSearchPortKeysAreExact = Assert<IsExact<
+  keyof MaterialSearchPort,
+  | "search"
+  | "rerank"
+>>;
+
+export type MaterialSearchIndexPortKeysAreExact = Assert<IsExact<
+  keyof MaterialSearchIndexPort,
+  | "markDirty"
+  | "refreshDirty"
+  | "rebuildAll"
+  | "search"
+  | "rerankDocuments"
+>>;
+
+export type EphemeralMaterialStorePortKeysAreExact = Assert<IsExact<
+  keyof EphemeralMaterialStorePort,
+  | "put"
+  | "get"
+  | "delete"
+  | "cleanup"
+>>;
+
+export type MaterialResolveEphemeralWritePortKeysAreExact = Assert<IsExact<
+  keyof MaterialResolveEphemeralWritePort,
+  | "put"
+  | "cleanup"
+>>;
+
+export type RecommendationPresentationEphemeralReadPortKeysAreExact = Assert<IsExact<
+  keyof RecommendationPresentationEphemeralReadPort,
+  | "get"
+  | "delete"
+>>;
+
+export type RecommendationPresentationMaterializePortKeysAreExact = Assert<IsExact<
+  keyof RecommendationPresentationMaterializePort,
+  | "materializeSourceMaterial"
 >>;
 
 export type MaterialQueryCollectionReadPortKeysAreExact = Assert<IsExact<
@@ -169,6 +237,10 @@ const materialMaterializationRoots = [
   "src/material/materialization",
 ];
 
+const materialPresentationRoots = [
+  "src/material/presentation",
+];
+
 const stageInterfaceMaterialStoreNarrowingRoots = [
   "src/stage_interface/tool_definitions/stage.ts",
   "src/stage_interface/tool_definitions/music.ts",
@@ -249,6 +321,11 @@ const forbiddenMaterialSearchImportFragments = [
   "../source",
   "../../source",
   "material/materialization",
+];
+
+const forbiddenResolveStorageImportFragments = [
+  "storage",
+  "sqlite",
 ];
 
 const forbiddenMaterialPolicyRecordProjectionHelpers = [
@@ -494,6 +571,16 @@ async function materialResolveDoesNotDirectlyUseRegistryMaterializationWriters()
   for (const file of files) {
     const text = await readFile(file, "utf8");
 
+    for (const importStatement of importStatements(text)) {
+      const fragment = forbiddenResolveStorageImportFragments.find((candidate) =>
+        importStatement.source.includes(candidate)
+      );
+
+      if (fragment !== undefined) {
+        failures.push(`${relative(process.cwd(), file)} imports ${fragment} via ${importStatement.source}`);
+      }
+    }
+
     for (const writerName of registryMaterializationWriterNames) {
       if (new RegExp(`\\b${writerName}\\b`).test(text)) {
         failures.push(`${relative(process.cwd(), file)} references ${writerName}`);
@@ -504,6 +591,26 @@ async function materialResolveDoesNotDirectlyUseRegistryMaterializationWriters()
   assert(
     failures.length === 0,
     `Material resolve must delegate registry materialization writers:\n${failures.join("\n")}`,
+  );
+}
+
+async function materialPresentationDoesNotImportFullMaterialStorePort(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialPresentationRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      if (/\bMaterialStorePort\b/.test(importStatement.clause)) {
+        failures.push(`${relative(process.cwd(), file)} imports MaterialStorePort`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Recommendation presentation must not import full MaterialStorePort:\n${failures.join("\n")}`,
   );
 }
 
@@ -781,6 +888,7 @@ await stageInterfaceDispatchDoesNotImportFullMaterialStorePort();
 await materialQueryDoesNotDirectlyMaterializeSourceRefs();
 await materialSearchUsesOnlyNarrowBoundaries();
 await materialResolveDoesNotDirectlyUseRegistryMaterializationWriters();
+await materialPresentationDoesNotImportFullMaterialStorePort();
 await materialResolveUsesPolicyInsteadOfCollectionAndRelationProjection();
 await sourceGroundingDoesNotUseCanonicalStoreSourceRefBoundary();
 await libraryImportUsesNarrowMaterialStoreBoundary();

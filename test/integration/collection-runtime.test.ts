@@ -15,6 +15,7 @@ import type {
   CompactCollectionListOutput,
   CompactCollectionOutput,
   CompactPublicMaterialResolveOutput,
+  CompactRecommendationPresentOutput,
 } from "../../src/stage_interface/outputs/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -97,7 +98,7 @@ async function resolveCanonicalRecordingMaterialId(
   const cards = await assertOk(
     stageRuntime.stageInterface.tools["music.material.resolve"]({
       queries: [{
-        kind: "recording",
+        targetKind: "recording",
         text: "Quiet Canonical Recording",
       }],
     }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
@@ -105,6 +106,18 @@ async function resolveCanonicalRecordingMaterialId(
   const materialId = cards.items[0]?.materialId;
 
   assert(materialId !== undefined, "Material resolve should expose a materialId for collection writes");
+
+  if (materialId.startsWith("emat:")) {
+    const presented = await assertOk(
+      stageRuntime.stageInterface.tools["stage.recommendation.present"]({
+        items: [{ materialId }],
+      }) as Promise<Result<CompactRecommendationPresentOutput>>,
+    );
+    const durableMaterialId = presented.cards[0]?.materialId;
+
+    assert(durableMaterialId !== undefined, "Recommendation presentation should materialize a durable materialId for collection writes");
+    return durableMaterialId;
+  }
 
   return materialId;
 }
@@ -283,7 +296,7 @@ async function materialResolveReportsBlockedCanonicalCandidateThroughStageInterf
 
     const resolveResult = await assertOk(
       stageRuntime.stageInterface.tools["music.material.resolve"]({
-        queries: [{ text: "Quiet Canonical Recording", kind: "recording" }],
+        queries: [{ text: "Quiet Canonical Recording", targetKind: "recording" }],
       }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
     );
 

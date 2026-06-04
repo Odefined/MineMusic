@@ -84,6 +84,7 @@ import type {
   MaterialPoolsListInput,
   MaterialPoolsListOutput,
   MaterialSessionActivity,
+  PublicMaterialResolveQueryKind,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -115,7 +116,6 @@ import type {
   SourceEntity,
   SourceEntityKind,
   SourceLibraryPoolTarget,
-  SourceLibraryResolveScope,
   SourceLibraryItemStatus,
   SourceMaterial,
   SourceProvider,
@@ -289,8 +289,10 @@ export type _collectionItemHasMaterialRefOnlyBoundary = Expect<
 >;
 
 export type _materialResolveRequestCarriesOwnerScope = Expect<
-  Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
-    Equal<NonNullable<MaterialResolveRequest["sourceLibraryScope"]>, SourceLibraryResolveScope>
+  Equal<keyof MaterialResolveRequest, "sessionId" | "ownerScope" | "limit" | "queries"> &
+    Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
+    Equal<NonNullable<MaterialResolveRequest["limit"]>, number> &
+    Equal<MaterialResolveRequest["queries"][number]["targetKind"], PublicMaterialResolveQueryKind | undefined>
 >;
 
 export type _materialPoolSpecUsesQueryReadySourceLibraryLanguage = Expect<
@@ -304,8 +306,7 @@ export type _materialPoolSpecUsesQueryReadySourceLibraryLanguage = Expect<
     Equal<
       keyof Extract<MaterialPoolSpec, { kind: "collection" }>,
       "kind" | "ref" | "label" | "relation"
-    > &
-    Equal<Extract<MaterialPoolSpec, { kind: "related" }>["relation"], "same_artist" | "same_album" | "similar">
+    >
 >;
 
 export type _materialPoolsListReturnsQueryReadyNonSeedPools = Expect<
@@ -315,7 +316,7 @@ export type _materialPoolsListReturnsQueryReadyNonSeedPools = Expect<
       keyof MaterialPoolsListOutput["pools"][number],
       "label" | "pool" | "returnKinds" | "count"
     > &
-    Equal<MaterialPoolsListOutput["pools"][number]["pool"], Exclude<MaterialPoolSpec, { kind: "related" }>>
+    Equal<MaterialPoolsListOutput["pools"][number]["pool"], MaterialPoolSpec>
 >;
 
 export type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<
@@ -1208,10 +1209,6 @@ export type _sourceEntityUnion = Expect<
 
 export type _sourceLibraryItemStatus = Expect<Equal<SourceLibraryItemStatus, "present" | "absent">>;
 
-export type _sourceLibraryResolveScopeKeys = Expect<
-  Equal<keyof SourceLibraryResolveScope, "providerId" | "providerAccountId" | "libraryKind" | "status">
->;
-
 export type _confirmedCanonicalBindingKeys = Expect<
   Equal<keyof ConfirmedCanonicalBinding, "sourceRef" | "canonicalRef" | "createdAt" | "updatedAt">
 >;
@@ -1674,8 +1671,7 @@ const collectionItem: CollectionItem = {
 };
 
 const materialResolveRequest: MaterialResolveRequest = {
-  kind: "single",
-  candidate: { id: "candidate-1", label: "Quiet Track", canonicalRef: ref },
+  queries: [{ id: "candidate-1", text: "Quiet Track", targetKind: "recording" }],
   ownerScope: collection.ownerScope,
 };
 
@@ -1854,9 +1850,9 @@ const instrumentCatalog: InstrumentCatalogPort = {
         tools: [
           {
             name: "music.material.resolve",
-            description: "Resolve music candidates through canonical-first material resolution.",
-            inputSchemaRef: "MaterialResolveRequest",
-            outputSchemaRef: "CompactMaterialResolveOutput",
+            description: "Resolve text music queries through local search and source grounding.",
+            inputSchemaRef: "PublicMaterialResolveInput",
+            outputSchemaRef: "PublicMaterialResolveOutput",
           },
         ],
       },
@@ -1877,9 +1873,9 @@ const handbookToolEntry: HandbookToolEntry = {
   },
   tool: {
     name: toolName,
-    description: "Resolve music candidates through canonical-first material resolution.",
-    inputSchemaRef: "MaterialResolveRequest",
-    outputSchemaRef: "CompactMaterialResolveOutput",
+    description: "Resolve text music queries through local search and source grounding.",
+    inputSchemaRef: "PublicMaterialResolveInput",
+    outputSchemaRef: "PublicMaterialResolveOutput",
   },
   content: "#### `music.material.resolve`\n",
 };
@@ -2010,12 +2006,11 @@ const materialResolve: MaterialResolvePort = {
   resolve: async () => ({
     ok: true,
     value: {
-      kind: "single",
-      result: {
-        candidate: { id: "candidate", label: "Candidate" },
+      results: [{
+        query: { id: "candidate", text: "Candidate" },
         materials: [],
         status: "unresolved",
-      },
+      }],
     } satisfies MaterialResolveResult,
   }),
 };

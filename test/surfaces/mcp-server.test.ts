@@ -81,10 +81,6 @@ async function mapsInternalToolsToCodexPrefixedMcpTools(): Promise<void> {
     "MCP should expose compact material query with the MineMusic prefix",
   );
   assert(
-    codexToolNameFor("music.material.related") === "minemusic.music.material.related",
-    "MCP should expose compact material related with the MineMusic prefix",
-  );
-  assert(
     codexToolNameFor("knowledge.query") === "minemusic.knowledge.query",
     "MCP should expose Knowledge query through the Knowledge instrument prefix",
   );
@@ -192,15 +188,6 @@ async function exposesUsefulInputSchemasForArgumentBearingTools(): Promise<void>
     !inputSchemaText(schemasByName.get("minemusic.music.material.query")).includes("\"areas\"") &&
       !inputSchemaText(schemasByName.get("minemusic.music.material.query")).includes("\"expand\""),
     "material query MCP schema should not advertise Source Library areas or expand",
-  );
-  assert(
-    hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "materialId") &&
-      hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "relation"),
-    "material related schema should declare materialId and relation inputs",
-  );
-  assert(
-    !hasSchemaKey(schemasByName.get("minemusic.music.material.related"), "preferenceHints"),
-    "material related schema should not advertise experimental preferenceHints",
   );
   assert(
     hasSchemaKey(schemasByName.get("minemusic.music.material.select"), "candidates") &&

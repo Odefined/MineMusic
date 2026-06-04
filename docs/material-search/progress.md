@@ -12,6 +12,12 @@ Implemented:
 - Contracts, narrow ports, and architecture guards for Material Search.
 - SQLite FTS-backed `MaterialSearchIndex` with transient SQLite support for
   tests and harnesses.
+- Separate `MaterialSearchPort.rerank(...)` and
+  `MaterialSearchRerankInput/Output` for Resolve-owned request-scoped
+  candidate corpora.
+- Request-scoped SQLite rerank over transient SearchDocuments, exposed through
+  `MaterialSearchIndexPort.rerankDocuments(...)` and hidden behind
+  `MaterialSearchPort.rerank(...)`.
 - Owner-neutral SearchDocument construction keyed by `materialRef`.
 - Owner-visible pool construction and eligibility for `all`, ordinary
   `source_library`, and `collection` scopes.
@@ -25,6 +31,8 @@ Implemented:
 - `music.material.query` integration for `all`, ordinary `source_library`,
   and `collection`; `related` and `source_library target: "release_tracks"`
   remain on their existing paths.
+- `music.material.resolve` integration for provider-expanded durable/ephemeral
+  candidate rerank, without changing ordinary durable `search(...)` behavior.
 - Public Query schema rename from `q` to `text` and from `returnKind` to
   `targetKind`; old aliases are not accepted by the public Stage Interface
   boundary.
@@ -48,6 +56,12 @@ Current known non-goals:
 - No public exposure of Search evidence, provenance, or Search cursor through
   ordinary Query output.
 
+Implementation note:
+
+- `docs/material-search/resolve-rerank-plan.md` is the implementation plan
+  that led to the current rerank/Resolve integration. It is no longer a
+  pending-work marker.
+
 Verification used during implementation:
 
 ```bash
@@ -60,7 +74,9 @@ node .tmp-test/test/material_search/material-search-document.test.js
 node .tmp-test/test/material_search/material-search-visibility.test.js
 node .tmp-test/test/material_search/material-search-eligibility.test.js
 node .tmp-test/test/material_search/material-search-query.test.js
+node .tmp-test/test/material_search/material-search-rerank.test.js
 node .tmp-test/test/material_search/material-search-cursor.test.js
+node .tmp-test/test/material_resolve/material-resolve.test.js
 node .tmp-test/test/material_query/material-query.test.js
 node .tmp-test/test/stage_interface/stage-interface.test.js
 node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js

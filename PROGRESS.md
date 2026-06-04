@@ -140,6 +140,31 @@ details live in area `progress.md` files listed in `INDEX.md`.
   review apply/auto-update writes so canonical text changes refresh Search.
 - Updated public `music.material.query` language to `text` and `targetKind`
   without keeping `q` or `returnKind` aliases.
+- Replaced candidate-shaped public/internal Material Resolve with text-query
+  Resolve over Material Search plus provider fallback, including encoded
+  `mat:*` / `emat:*` material handles.
+- Added process-local ephemeral material storage for provider/source-backed
+  non-durable results, reused by Resolve and Query source-backed rows,
+  and final Recommendation Presentation.
+- Changed Query source-backed release-track paths to reuse durable materials
+  when present and allocate `emat:*` handles otherwise, without query-time
+  durable materialization.
+- Restricted final durable materialization of `emat:*` handles to
+  `stage.recommendation.present`, which now materializes only selected valid
+  ephemeral items and emits final durable `mat:*` cards/events.
+- Extended Material Search with Resolve-only request-scoped rerank over
+  prepared durable/ephemeral candidate corpora, keeping ordinary durable
+  `search(...)` behavior unchanged.
+- Refactored Material Resolve to always provider-expand, reuse existing
+  durable material identity before allocating `emat:*`, rerank local recall
+  plus provider-expanded candidates through Material Search, and then apply
+  resolve policy/status projection.
+- Removed the `music.material.related` tool, deleted Query's Resolve
+  dependency, and narrowed Material Query to local Search-backed retrieval,
+  source-library expansion, context, and pool listing only.
+- Verified the slice with `npm run typecheck`, `npm run build:test`,
+  focused material resolve/query/presentation tests, Stage Interface output /
+  dispatch / MCP tests, and architecture guards.
 
 ## Next
 

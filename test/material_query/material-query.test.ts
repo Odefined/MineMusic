@@ -1,7 +1,6 @@
 import type {
   MaterialPolicyCollectionBlockPort,
   MaterialQueryCollectionReadPort,
-  MaterialResolvePort,
   MaterialSearchCollectionPort,
   MaterialSelectorPort,
   MaterialStorePort,
@@ -18,13 +17,11 @@ import type {
 } from "../../src/contracts/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
-import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createMaterialSearchDocumentProvider, createMaterialSearchService } from "../../src/material/search/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import { createMaterialQueryService as createMaterialQueryServiceBase } from "../../src/material/query/index.js";
 import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
-import { createMaterialResolveService as createMaterialResolveServiceBase } from "../../src/material/resolve/index.js";
 import { createMaterialSelector } from "../../src/material/selection/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
@@ -65,7 +62,7 @@ function ok<T>(value: T): Result<T> {
 async function querySavedTracksReturnsOnlySavedTrackMaterials(): Promise<void> {
   const savedSourceRef = ref("source:fixture", "track", "saved-track");
   const outsideSourceRef = ref("source:fixture", "track", "outside-track");
-  const { materialStore, sourceGrounding } = createMaterialQueryHarness([
+  const { materialStore } = createMaterialQueryHarness([
     sourceMaterial("Saved Track", savedSourceRef),
     sourceMaterial("Outside Track", outsideSourceRef),
   ]);
@@ -73,10 +70,6 @@ async function querySavedTracksReturnsOnlySavedTrackMaterials(): Promise<void> {
 
   const materialQuery = createMaterialQueryService({
     materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
   });
   const output = await assertOk(
     materialQuery.query({
@@ -118,73 +111,6 @@ async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGroundi
   assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "domain query items should not expose identity confidence");
 }
 
-async function querySkipsUnbackedProviderResults(): Promise<void> {
-  const seedRef = ref("source:fixture", "track", "unbacked-query-seed");
-  const relatedRef = ref("source:fixture", "track", "unbacked-query-related");
-  const releaseRef = ref("source:fixture", "release", "unbacked-query-release");
-  const { materialStore } = createMaterialQueryHarness([]);
-  await assertOk(
-    materialStore.upsertSourceEntity({
-      entity: {
-        sourceRef: seedRef,
-        providerId: "fixture",
-        kind: "track",
-        label: "Unbacked Query Seed",
-        title: "Unbacked Query Seed",
-        releaseSourceRef: releaseRef,
-        createdAt: "2026-05-30T00:00:00.000Z",
-        updatedAt: "2026-05-30T00:00:00.000Z",
-      },
-    }),
-  );
-  await assertOk(
-    materialStore.upsertSourceEntity({
-      entity: {
-        sourceRef: releaseRef,
-        providerId: "fixture",
-        kind: "release",
-        label: "Unbacked Query Release",
-        title: "Unbacked Query Release",
-        tracklist: [{ sourceRef: relatedRef, title: "Unbacked Query Track" }],
-        createdAt: "2026-05-30T00:00:00.000Z",
-        updatedAt: "2026-05-30T00:00:00.000Z",
-      },
-    }),
-  );
-  const seedRecord = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef: seedRef, kind: "recording" }));
-  const sourceGrounding: SourceGroundingPort = {
-    ground: async () => ({
-      ok: true,
-      value: [
-        {
-          id: "unbacked-query-result",
-          kind: "recording",
-          label: "Unbacked Query Track",
-          state: "unresolved",
-        },
-      ],
-    }),
-    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
-  };
-  const materialQuery = createMaterialQueryService({
-    materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
-  });
-
-  const output = await assertOk(
-    materialQuery.query({
-      ownerScope: "local_profile:default",
-      pool: { kind: "related", materialId: materialRefToMaterialId(seedRecord.materialRef), relation: "same_album" },
-      limit: 10,
-    }),
-  );
-
-  assert(output.items.length === 0, "query should not emit cards for unbacked provider results");
-}
-
 async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<void> {
   const releaseRef = ref("source:fixture", "release", "saved-release");
   const firstTrackRef = ref("source:fixture", "track", "album-track-1");
@@ -207,11 +133,41 @@ async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<
   );
 
   assert(output.items.length === 2, "expanded saved albums should return track cards");
-  assert(output.items.every((item) => itemMaterialState(item) === "source_only_playable"), "expanded album tracks should resolve as source_only_playable recording materials");
+  assert(output.items.every((item) => itemMaterialState(item) === "grounded"), "expanded album tracks should stay grounded when only the release tracklist row is available");
+  assert(output.items.every((item) => item.materialId.startsWith("emat:")), "expanded album tracks without durable materials should keep ephemeral material ids");
   assert(
     (output.items.map(itemTitle)).join(",") === "Album Track One,Album Track Two",
     "expanded album query should preserve release tracklist order",
   );
+}
+
+async function querySavedAlbumsExpandedToTracksKeepsExistingDurableMaterials(): Promise<void> {
+  const releaseRef = ref("source:fixture", "release", "saved-release-durable");
+  const durableTrackRef = ref("source:fixture", "track", "album-track-durable");
+  const ephemeralTrackRef = ref("source:fixture", "track", "album-track-ephemeral");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
+    sourceMaterial("Durable Album Track", durableTrackRef),
+    sourceMaterial("Ephemeral Album Track", ephemeralTrackRef),
+  ]);
+  await putLibraryRelease(materialStore, releaseRef, "Saved Album Durable Mix", [
+    { sourceRef: durableTrackRef, title: "Durable Album Track" },
+    { sourceRef: ephemeralTrackRef, title: "Ephemeral Album Track" },
+  ]);
+  const durableRecord = await assertOk(
+    materialStore.getOrCreateBySourceRef({ sourceRef: durableTrackRef, kind: "recording" }),
+  );
+
+  const output = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "source_library", libraryKinds: ["saved_source_release"], target: "release_tracks" },
+      limit: 10,
+    }),
+  );
+
+  assert(output.items.length === 2, "expanded saved albums should keep both durable and ephemeral track rows");
+  assert(output.items[0]?.materialId === materialRefToMaterialId(durableRecord.materialRef), "expanded album tracks should reuse an existing durable material when present");
+  assert(output.items[1]?.materialId.startsWith("emat:"), "expanded album tracks should allocate an ephemeral handle only for rows without a durable material");
 }
 
 async function queryTargetKindFiltersResolvedMaterials(): Promise<void> {
@@ -456,7 +412,7 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
     label: "Night coding",
     createdAt: "2026-05-30T00:00:00.000Z",
   };
-  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
+  const { materialStore } = createMaterialQueryServiceHarness([
     sourceMaterial("Collection Label Track", sourceRef),
   ]);
   await putSourceTrack(materialStore, sourceRef, "Collection Label Track");
@@ -471,10 +427,6 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
   const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
   const materialQuery = createMaterialQueryService({
     materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
     collectionRead: collection,
   });
 
@@ -501,7 +453,7 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
     label: "Material-only collection",
     createdAt: "2026-05-30T00:00:00.000Z",
   };
-  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
+  const { materialStore } = createMaterialQueryServiceHarness([
     sourceMaterial("Source Only Collection Track", sourceRef),
   ]);
   await putSourceTrack(materialStore, sourceRef, "Source Only Collection Track");
@@ -516,10 +468,6 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
   const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
   const queryWithCollection = createMaterialQueryService({
     materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
     collectionRead: collection,
   });
 
@@ -577,13 +525,9 @@ async function queryCollectionPoolSkipsUnprojectableMaterialRefs(): Promise<void
     createdAt: "2026-05-30T00:00:00.000Z",
   };
   const collection = createCollectionPortStub([collectionRecord], [collectionItem]);
-  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([]);
+  const { materialStore } = createMaterialQueryServiceHarness([]);
   const queryWithCollection = createMaterialQueryService({
     materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
     collectionRead: collection,
   });
 
@@ -651,7 +595,7 @@ async function relationExclusionsRemoveBlockedWrongVersionAndNotPlayable(): Prom
 async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<void> {
   const blockedRef = ref("source:fixture", "track", "collection-blocked-track");
   const keptRef = ref("source:fixture", "track", "collection-kept-track");
-  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
+  const { materialStore } = createMaterialQueryServiceHarness([
     sourceMaterial("Collection Blocked Track", blockedRef),
     sourceMaterial("Collection Kept Track", keptRef),
   ]);
@@ -682,10 +626,6 @@ async function relationExclusionsRemoveCollectionBlockedMaterials(): Promise<voi
   );
   const materialQuery = createMaterialQueryService({
     materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
     collectionBlock: collection,
   });
 
@@ -1036,10 +976,6 @@ function createMaterialQueryServiceHarness(
     createMaterialQueryHarness(sourceMaterials);
   const materialQuery = createMaterialQueryService({
     materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
     ...(options.collectionRead === undefined ? {} : { collectionRead: options.collectionRead }),
     ...(options.collectionBlock === undefined ? {} : { collectionBlock: options.collectionBlock }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
@@ -1050,14 +986,12 @@ function createMaterialQueryServiceHarness(
 
 function createMaterialQueryService({
   materialStore,
-  materialResolve,
   collectionRead,
   collectionBlock,
   clock,
   materialSelector,
 }: {
   materialStore: MaterialStorePort;
-  materialResolve: MaterialResolvePort;
   collectionRead?: MaterialQueryCollectionReadPort;
   collectionBlock?: MaterialPolicyCollectionBlockPort;
   clock?: () => string;
@@ -1080,7 +1014,6 @@ function createMaterialQueryService({
 
   return createMaterialQueryServiceBase({
     materialStore,
-    materialResolve,
     materialSearch,
     materialSelector: selector,
     ...(collectionRead === undefined ? {} : { collection: collectionRead }),
@@ -1096,23 +1029,6 @@ function materialSearchCollectionPort({
     listItems: collectionRead?.listItems ?? (async () => ok([])),
     listCollections: collectionRead?.listCollections ?? (async () => ok([])),
   };
-}
-
-function createMaterialResolveService({
-  materialStore,
-  sourceGrounding,
-}: {
-  materialStore: MaterialStorePort;
-  sourceGrounding: SourceGroundingPort;
-}) {
-  const materialPolicyEvaluator = createMaterialPolicyEvaluator({ materialStore });
-
-  return createMaterialResolveServiceBase({
-    materialStore,
-    sourceGrounding,
-    sourceMaterializer: createMaterializationService({ materialStore }),
-    materialPolicyEvaluator,
-  });
 }
 
 function createMaterialSelectorForTest({
@@ -1156,7 +1072,7 @@ async function createCollectionMaterialRefFixture({
     label: `${label} collection`,
     createdAt: "2026-05-30T00:00:00.000Z",
   };
-  const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([]);
+  const { materialStore } = createMaterialQueryServiceHarness([]);
   await putLibraryTrack(materialStore, sourceRef, label, "2026-05-30T00:00:00.000Z", { providerUrl });
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
   const collection = createCollectionPortStub([collectionRecord], [{
@@ -1168,10 +1084,6 @@ async function createCollectionMaterialRefFixture({
   }]);
   const materialQuery = createMaterialQueryService({
     materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore,
-      sourceGrounding,
-    }),
     collectionRead: collection,
   });
 
@@ -1449,8 +1361,8 @@ function sameRef(left: Ref, right: Ref): boolean {
 await querySavedTracksReturnsOnlySavedTrackMaterials();
 await materialQueryServiceDoesNotExposeSelectorCapability();
 await querySavedTracksProjectsStoredPlayableLinksWithoutProviderGrounding();
-await querySkipsUnbackedProviderResults();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
+await querySavedAlbumsExpandedToTracksKeepsExistingDurableMaterials();
 await queryTargetKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();
 await queryRejectsInvalidReleaseTracksSourceLibraryPool();

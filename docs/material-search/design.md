@@ -2,9 +2,11 @@
 
 This document is the current design authority for Material Search.
 
-Material Search is local durable material retrieval. It is not provider search,
-material resolve, recommendation selection, public output projection, or a new
-Stage Interface tool.
+Material Search owns Search scoring for material candidates. Its ordinary
+`search()` path remains local durable material retrieval. It may also expose a
+separate request-scoped `rerank()` path for Resolve-provided material
+candidates. It is not provider search, material resolve, recommendation
+selection, public output projection, or a new Stage Interface tool.
 
 ## Responsibility
 
@@ -15,20 +17,26 @@ Material Search owns:
 - strict owner visibility before text index search;
 - owner-neutral SearchDocument construction;
 - SQLite FTS-backed text matching;
+- request-scoped reranking over caller-supplied `MusicMaterial` candidates for
+  Material Resolve;
 - Search-owned score, evidence, provenance, warnings, and cursor handling.
 
 Material Search does not own:
 
 - provider/source search;
 - source grounding or material resolve;
+- durable identity lookup or `emat:*` allocation for provider results;
 - registry materialization writes;
 - public compact card projection;
 - policy evaluation, final selection, or recommendation presentation;
 - semantic mood, vibe, genre, tag, or recommendation-intent interpretation.
 
-`music.material.query` is the first consumer. It uses Material Search for
-`all`, ordinary `source_library`, and `collection` retrieval. `related` and
-`source_library` with `target: "release_tracks"` remain on their existing paths.
+`music.material.query` uses Material Search `search()` for `all`, ordinary
+`source_library`, and `collection` retrieval. `related` and `source_library`
+with `target: "release_tracks"` remain on their existing paths.
+
+Material Resolve uses Material Search `search()` for local durable recall and
+`rerank()` for the final request-scoped ranking corpus assembled by Resolve.
 
 ## Public Language
 
@@ -122,6 +130,41 @@ SearchDocument indexing and `rebuildAll()` include only active current
 `MaterialRecord`s. Merged losers and rejected records are not indexed; merged
 refs resolve to survivors during pool/candidate handling.
 
+## Request-Scoped Rerank
+
+`rerank()` is a separate `MaterialSearchPort` method for Material Resolve. It
+does not change `search()` behavior.
+
+Resolve owns the request corpus:
+
+- call ordinary `search()` when it needs local durable recall;
+- call Source Grounding for provider expansion;
+- read identity keys already present on provider `SourceMaterial` values;
+- look up existing durable `MusicMaterial` values from those identity keys;
+- leave provider `SourceMaterial` identity unchanged;
+- allocate `emat:*` handles only for provider results with no existing durable
+  material;
+- assemble the request corpus before calling `rerank()`;
+- run resolve policy and status aggregation after ranked hits return.
+
+`rerank()` owns only request-scoped scoring:
+
+- input is `MaterialSearchRerankInput`: required `text`, optional
+  `targetKind`, finite `materials: MusicMaterial[]`, and optional `limit`;
+- `rerank()` input does not include `ownerScope` or `cursor`;
+- `text` is required because Resolve rerank is not a browse path;
+- candidates may be durable `mat:*` materials or process-local `emat:*`
+  materials;
+- `targetKind` remains a hard material-kind filter;
+- output is `MaterialSearchRerankOutput` with `MaterialSearchHit[]`, not
+  `MusicMaterial[]`;
+- it does not call Source Grounding, allocate ephemeral refs, materialize
+  durable records, or call `MaterialPolicyEvaluator`;
+- it has no cursor.
+
+Resolve maps returned hits back to durable projection results or request
+snapshots. Search evidence and score remain internal Search facts.
+
 ## Search Documents
 
 SearchDocument is owner-neutral and keyed by `materialRef: Ref`. Storage may
@@ -193,6 +236,10 @@ Text matching belongs inside `MaterialSearchIndex.search()`, including
 SQLite-backed CJK or normalized substring matching. Scope collectors and
 SearchService do not perform text filtering.
 
+Request-scoped `rerank()` must use the same SQLite-backed scoring direction
+through a transient request corpus. It must not introduce a Map-based or
+hand-written scorer that behaves differently from SQLite-backed Search.
+
 Because there is no in-memory fallback, tests should validate the SQLite
 adapter behavior directly instead of maintaining cross-adapter parity.
 
@@ -257,6 +304,10 @@ Material Search has its own opaque, fingerprinted cursor. Cursor fingerprints
 include query shape, such as owner scope, scopes, `targetKind`, `text`, order,
 filters, and page size. They do not include per-refresh index freshness/version,
 so lazy dirty refresh does not unnecessarily invalidate pagination.
+
+`rerank()` has no cursor. Resolve performs one provider expansion and one
+request-scoped rerank per query, then returns the top result window after
+Resolve-owned policy/status processing.
 
 Cursor fingerprint mismatch returns a non-retryable invalid-cursor error rather
 than silently restarting from the first page.
