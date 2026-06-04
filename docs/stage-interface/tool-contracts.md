@@ -35,7 +35,7 @@ MCP exposes the same tools with the `minemusic.` prefix through
 | --- | --- | --- |
 | Stage | `stage.context.read`, `stage.recommendation.present`, `stage.session.update`, `stage.events.record`, `stage.effects.propose` | `src/stage_interface/tool_definitions/stage.ts` |
 | Handbook | `handbook.overview.read`, `handbook.instrument.read`, `handbook.tool.read` | `src/stage_interface/tool_definitions/handbook.ts` |
-| Music | `music.material.resolve`, `music.material.query`, `music.material.related`, `music.material.select`, `music.material.context.brief`, `music.pools.list`, `music.links.refresh`, collection tools | `src/stage_interface/tool_definitions/music.ts` |
+| Music | `music.material.resolve`, `music.material.query`, `music.material.select`, `music.material.context.brief`, `music.pools.list`, `music.links.refresh`, collection tools | `src/stage_interface/tool_definitions/music.ts` |
 | Knowledge | `knowledge.query` | `src/stage_interface/tool_definitions/knowledge.ts` |
 | Library | `library.import.start`, `library.import.continue`, `library.update.start`, `library.update.continue`, `library.import.status`, `library.import.summary`, `library.import.items.list` | `src/stage_interface/tool_definitions/library.ts` |
 | Canonical Review | `canonical.review.list`, `canonical.review.inspect`, `canonical.review.apply`, `canonical.review.auto_update` | `src/stage_interface/tool_definitions/canonical_review.ts` |
@@ -58,7 +58,6 @@ stage.effects.propose
 music.material.resolve
 knowledge.query
 music.material.query
-music.material.related
 music.material.select
 music.material.context.brief
 music.pools.list

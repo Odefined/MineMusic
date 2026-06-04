@@ -10,8 +10,6 @@ import type {
   MaterialPoolsListInput,
   MaterialQueryOutput,
   MaterialQueryInput,
-  MaterialRelatedOutput,
-  MaterialRelatedInput,
   MaterialResolveQuery,
   MaterialResolveRequest,
   MaterialResolveResult,
@@ -31,7 +29,6 @@ import type {
   MaterialPoolsPort,
   MaterialQueryPort,
   MaterialResolvePort,
-  MaterialRelatedPort,
   MaterialSelectorPort,
   MaterialProjectionStorePort,
   SourceGroundingPort,
@@ -47,7 +44,6 @@ import {
   compactCollectionListOutput,
   compactCollectionOutput,
   compactMaterialQueryOutput,
-  compactMaterialRelatedOutput,
   compactPublicMaterialResolveOutput,
   compactMaterialSelectOutput,
 } from "../outputs/index.js";
@@ -57,7 +53,6 @@ import { defineStageInterfaceTool, descriptorForToolDefinition } from "./types.j
 export const musicToolNames = [
   "music.material.resolve",
   "music.material.query",
-  "music.material.related",
   "music.material.select",
   "music.material.context.brief",
   "music.pools.list",
@@ -80,7 +75,7 @@ export type MusicToolName = (typeof musicToolNames)[number];
 
 export type MusicToolGroupContext = {
   materialResolve: MaterialResolvePort;
-  materialQuery?: MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort;
+  materialQuery?: MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort;
   materialSelector?: MaterialSelectorPort;
   materialStore?: MaterialProjectionStorePort;
   source: SourceGroundingPort;
@@ -186,11 +181,6 @@ const materialPoolSchema = z.union([
     ref: z.string().optional(),
     label: z.string().optional(),
     relation: z.enum(["saved", "favorite", "custom", "blocked"]).optional(),
-  }),
-  z.object({
-    kind: z.literal("related"),
-    materialId: materialIdSchema,
-    relation: z.enum(["same_artist", "same_album", "similar"]),
   }),
 ]);
 const materialConstraintsSchema = z.object({
@@ -320,7 +310,7 @@ export const musicToolDefinitions = [
   }),
   {
     name: "music.material.query",
-    description: "Retrieve compact material cards from pools, collections, source library, related pools, or all available material.",
+    description: "Retrieve compact material cards from pools, collections, source library, or all available local material.",
     inputSchemaRef: "MaterialQueryInput",
     outputSchemaRef: "CompactMaterialQueryOutput",
     availability: "requires_active_instrument",
@@ -363,36 +353,6 @@ export const musicToolDefinitions = [
       );
     },
     present: (value) => compactMaterialQueryOutput(value as MaterialQueryOutput),
-  },
-  {
-    name: "music.material.related",
-    description: "Find compact material cards related to one material id.",
-    inputSchemaRef: "MaterialRelatedInput",
-    outputSchemaRef: "CompactMaterialRelatedOutput",
-    availability: "requires_active_instrument",
-    inputSchema: {
-      materialId: materialIdSchema,
-      relation: z.enum(["same_artist", "same_album", "similar"]),
-      exclude: materialExcludeSchema.optional(),
-      constraints: materialConstraintsSchema.optional(),
-      ownerScope: z.string().optional(),
-      sessionId: z.string().optional(),
-      limit: z.number().int().positive().optional(),
-    },
-    handler({ context, sessionId, payload }) {
-      const materialQuery = readMaterialQuery(context.materialQuery);
-
-      if (!materialQuery.ok) {
-        return materialQuery;
-      }
-
-      return materialQuery.value.related(
-        stripPublicMaterialPreferenceHints(
-          readPayload<MaterialRelatedInput>(payload, { sessionId }),
-        ),
-      );
-    },
-    present: (value) => compactMaterialRelatedOutput(value as MaterialRelatedOutput),
   },
   defineStageInterfaceTool<
     "music.material.select",
@@ -972,8 +932,8 @@ function readCollection(collection: CollectionPort | undefined): Result<Collecti
 }
 
 function readMaterialQuery(
-  materialQuery: (MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort) | undefined,
-): Result<MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort> {
+  materialQuery: (MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort) | undefined,
+): Result<MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort> {
   if (materialQuery === undefined) {
     return materialQueryUnavailable("Material query tools are not available.");
   }

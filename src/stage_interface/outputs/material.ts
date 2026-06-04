@@ -2,7 +2,6 @@ import type {
   MaterialResolvedQuery,
   MaterialResolveIssue,
   MaterialQueryOutput,
-  MaterialRelatedOutput,
   MaterialResolveResult,
   MaterialResolveStatus,
   MaterialState,
@@ -50,13 +49,6 @@ export type CompactMaterialQueryOutput = {
   basis?: MaterialQueryOutput["basis"];
   items: CompactCandidateMaterialCard[];
   nextCursor?: string;
-};
-
-export type CompactMaterialRelatedOutput = {
-  basis: MaterialRelatedOutput["basis"];
-  basisLabel?: string;
-  warning?: string;
-  items: CompactCandidateMaterialCard[];
 };
 
 export type CompactMaterialSelectOutput = {
@@ -145,15 +137,6 @@ export function compactMaterialQueryOutput(output: MaterialQueryOutput): Compact
     ...(output.basis === undefined ? {} : { basis: output.basis }),
     items: output.items.map((item) => compactCandidateMaterialCard(item.material)),
     ...(output.nextCursor === undefined ? {} : { nextCursor: output.nextCursor }),
-  };
-}
-
-export function compactMaterialRelatedOutput(output: MaterialRelatedOutput): CompactMaterialRelatedOutput {
-  return {
-    basis: output.basis,
-    ...(output.basisLabel === undefined ? {} : { basisLabel: output.basisLabel }),
-    ...(output.warning === undefined ? {} : { warning: output.warning }),
-    items: output.items.map((item) => compactCandidateMaterialCard(item.material)),
   };
 }
 

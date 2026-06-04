@@ -28,7 +28,6 @@ import type {
   MaterialContextBriefPort,
   MaterialPoolsPort,
   MaterialQueryPort,
-  MaterialRelatedPort,
   MaterialSelectorPort,
   MaterialResolvePort,
   MaterialStorePort,
@@ -1471,7 +1470,6 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
 async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void> {
   const calls: string[] = [];
   const queryPayloads: Array<Record<string, unknown>> = [];
-  const relatedPayloads: Array<Record<string, unknown>> = [];
   const material: MusicMaterial = {
     id: "dispatch-material",
     materialRef: { namespace: "minemusic", kind: "material", id: "dispatch-material", label: "Dispatch Material" },
@@ -1490,18 +1488,12 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     readContext: async ({ sessionId }) => ({ ok: true, value: { session: { ...session, id: sessionId }, memorySummaries: [] } }),
     updateSession: async ({ patch }) => ({ ok: true, value: { ...session, ...patch } }),
   };
-  const materialQuery: MaterialQueryPort & MaterialRelatedPort & MaterialContextBriefPort & MaterialPoolsPort = {
+  const materialQuery: MaterialQueryPort & MaterialContextBriefPort & MaterialPoolsPort = {
     query: async (input) => {
       queryPayloads.push(input as Record<string, unknown>);
       const { sessionId } = input;
       calls.push(`query:${sessionId ?? "missing"}`);
       return { ok: true, value: { items: [{ materialId: material.materialRef.id, material }] } };
-    },
-    related: async (input) => {
-      relatedPayloads.push(input as Record<string, unknown>);
-      const { sessionId } = input;
-      calls.push(`related:${sessionId ?? "missing"}`);
-      return { ok: true, value: { basis: "fallback_text", items: [{ materialId: material.materialRef.id, material }] } };
     },
   };
   const materialSelector: MaterialSelectorPort = {
@@ -1578,13 +1570,6 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     toolName: "music.material.query",
     payload: { returnKind: "recording", pool: { kind: "all" } },
   });
-  const relatedOutput = await assertOk(
-    dispatch.call({
-      sessionId: "session-current",
-      toolName: "music.material.related",
-      payload: { materialId: "seed", relation: "similar", preferenceHints: { prefer: ["ambient"] } },
-    }),
-  );
   const selectOutput = await assertOk(
     dispatch.call({
       sessionId: "session-current",
@@ -1636,7 +1621,6 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
 
   assert(calls.includes("query:session-current"), "material query should receive current dispatch session id by default");
   assert(calls.includes("query:caller-session"), "material query should preserve explicit caller session id");
-  assert(calls.includes("related:session-current"), "material related should receive current dispatch session id by default");
   assert(calls.includes("resolve:session-current"), "material resolve should receive current dispatch session id by default");
   assert(
     !Object.prototype.hasOwnProperty.call(queryPayloads[0], "preferenceHints"),
@@ -1644,10 +1628,6 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
   );
   assert(!legacyQQuery.ok, "material query should reject legacy q aliases at the public tool boundary");
   assert(!legacyReturnKindQuery.ok, "material query should reject legacy returnKind aliases at the public tool boundary");
-  assert(
-    !Object.prototype.hasOwnProperty.call(relatedPayloads[0], "preferenceHints"),
-    "material related should strip hidden preferenceHints at the public tool boundary",
-  );
   assert(!("select" in materialQuery), "dispatch material query stub should not expose selector capability");
   assert(calls.includes("select:session-current"), "material select should receive current dispatch session id by default");
   assert(
@@ -1655,7 +1635,6 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
     "material select should normalize public policy to candidate_selection",
   );
   assertCompactMaterialOutput(queryOutput, "material query should compact domain query items at the Stage Interface boundary");
-  assertCompactMaterialOutput(relatedOutput, "material related should compact domain related items at the Stage Interface boundary");
   assertCompactMaterialOutput(selectOutput, "material select should compact domain selection items at the Stage Interface boundary");
   assertCompactMaterialOutput(resolveOutput, "material resolve should compact domain resolved text-query items at the Stage Interface boundary");
   assert(!presentationPurposeSelect.ok, "music.material.select should reject recommendation_presentation policy purpose");

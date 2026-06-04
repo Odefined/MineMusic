@@ -306,8 +306,7 @@ export type _materialPoolSpecUsesQueryReadySourceLibraryLanguage = Expect<
     Equal<
       keyof Extract<MaterialPoolSpec, { kind: "collection" }>,
       "kind" | "ref" | "label" | "relation"
-    > &
-    Equal<Extract<MaterialPoolSpec, { kind: "related" }>["relation"], "same_artist" | "same_album" | "similar">
+    >
 >;
 
 export type _materialPoolsListReturnsQueryReadyNonSeedPools = Expect<
@@ -317,7 +316,7 @@ export type _materialPoolsListReturnsQueryReadyNonSeedPools = Expect<
       keyof MaterialPoolsListOutput["pools"][number],
       "label" | "pool" | "returnKinds" | "count"
     > &
-    Equal<MaterialPoolsListOutput["pools"][number]["pool"], Exclude<MaterialPoolSpec, { kind: "related" }>>
+    Equal<MaterialPoolsListOutput["pools"][number]["pool"], MaterialPoolSpec>
 >;
 
 export type _knowledgeQuerySupportsTextOrCanonicalRef = Expect<

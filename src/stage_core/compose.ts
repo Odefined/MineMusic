@@ -106,7 +106,6 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   });
   const materialQuery = createMaterialQueryService({
     materialStore,
-    materialResolve,
     materialSearch,
     materialSelector,
     ephemeralMaterialStore,

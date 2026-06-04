@@ -36,7 +36,6 @@ const testModules = [
   "./material_search/material-search-cursor.test.js",
   "./recommendation_presentation/recommendation-presentation.test.js",
   "./material_query/material-query.test.js",
-  "./material_related/material-related.test.js",
   "./providers/netease-source-provider.test.js",
   "./providers/netease-platform-library-provider.test.js",
   "./providers/recommendation-fixture-provider.test.js",

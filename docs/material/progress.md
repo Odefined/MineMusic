@@ -77,9 +77,8 @@ The current public tool surface is documented in
 `docs/stage-interface/tool-contracts.md`.
 
 Material Flow backs current Stage Interface tools such as
-`music.material.query`, `music.material.related`,
-`music.material.context.brief`, `music.pools.list`, `music.material.select`,
-and `stage.recommendation.present`.
+`music.material.query`, `music.material.context.brief`, `music.pools.list`,
+`music.material.select`, and `stage.recommendation.present`.
 
 Public `music.material.resolve` now accepts text `queries[]` with optional
 `targetKind`; it does not accept public `kind`, `purpose`, `sourceRef`,

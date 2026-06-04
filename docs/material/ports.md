@@ -13,7 +13,6 @@ guards should be checked against `src/ports/index.ts`, `src/material/**`,
 | --- | --- | --- |
 | `MaterialResolvePort` | `src/material/resolve/index.ts` | Resolve text queries into domain `MusicMaterial` results without durable materialization. |
 | `MaterialQueryPort` | `src/material/query/index.ts` | Query material pools and return domain query items. |
-| `MaterialRelatedPort` | `src/material/query/index.ts` | Find related domain materials. |
 | `MaterialContextBriefPort` | `src/material/query/index.ts` | Return compact material context details. |
 | `MaterialPoolsPort` | `src/material/query/index.ts` | List query-ready material pools. |
 | `MaterialSearchPort` | `src/material/search/index.ts` | Retrieve owner-visible local durable materials through Search-backed scopes and rerank Resolve-provided request material corpora. |
@@ -53,7 +52,7 @@ The exact method sets are type-asserted in
 | `MaterialSearchPort` | Material Resolve, Material Query | Retrieve local durable materials by text for Query and Resolve, and rerank Resolve-provided request material corpora. |
 | `SourceGroundingPort` | Material Resolve | Expand text queries through provider/source search before Resolve-owned corpus assembly. |
 | `MaterialResolveEphemeralWritePort` | Material Resolve | Put exact `ephemeral_material` entries and clean stale session-scoped entries without gaining durable registry writers. |
-| `MaterialQueryEphemeralWritePort` | Material Query | Allocate exact `ephemeral_material` entries for source-backed Query/Related rows that need a handle but do not already have a durable material. |
+| `MaterialQueryEphemeralWritePort` | Material Query | Allocate exact `ephemeral_material` entries for source-backed Query rows that need a handle but do not already have a durable material. |
 | `RecommendationPresentationEphemeralReadPort` | Recommendation Presentation | Read and delete exact `ephemeral_material` entries during final presentation without gaining broad material-store access. |
 | `RecommendationPresentationMaterializePort` | Recommendation Presentation | Materialize only selected valid `ephemeral_material` entries after card limits are applied. |
 | `EphemeralMaterialStorePort` | Stage Core composition | Provide the shared process-local in-memory implementation behind the narrow resolve/presentation seams. |
@@ -110,7 +109,7 @@ Current guards enforce that:
    rerank support, and collection visibility seam;
 6. create Material Resolve with search/rerank, read-only evidence lookup, the
    ephemeral store, source grounding, and policy evaluation;
-7. create Material Query with resolve, search, selector, and the
+7. create Material Query with search, selector, and the
    collection-read seam for pool listing;
 8. create Recommendation Presentation with policy, event/session ports, the
    ephemeral store, and narrow selected-item materialization;

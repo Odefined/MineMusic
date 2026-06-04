@@ -1274,11 +1274,6 @@ export type MaterialPoolSpec =
       ref?: string;
       label?: string;
       relation?: "saved" | "favorite" | "custom" | "blocked";
-    }
-  | {
-      kind: "related";
-      materialId: string;
-      relation: "same_artist" | "same_album" | "similar";
     };
 
 export type MaterialQueryInput = {
@@ -1329,34 +1324,6 @@ export type MaterialQueryOutput = {
   nextCursor?: string;
 };
 
-export type MaterialRelatedInput = {
-  materialId: string;
-  // same_release and same_release_group remain internal-only Stage Query
-  // options; the public Stage Interface currently exposes same_artist,
-  // same_album, and similar only.
-  relation: "same_artist" | "same_album" | "same_release" | "same_release_group" | "similar";
-  exclude?: MaterialQueryInput["exclude"];
-  constraints?: MaterialQueryInput["constraints"];
-  preferenceHints?: MaterialQueryInput["preferenceHints"];
-  ownerScope?: string;
-  sessionId?: string;
-  limit?: number;
-};
-
-export type MaterialRelatedOutput = {
-  basis:
-    | "confirmed_artist"
-    | "source_artist"
-    | "confirmed_album"
-    | "source_album"
-    | "knowledge_similarity"
-    | "library_similarity"
-    | "fallback_text";
-  basisLabel?: string;
-  warning?: string;
-  items: MaterialQueryItem[];
-};
-
 export type MaterialContextBriefInput = {
   materialId: string;
   fields: Array<"artist" | "album" | "version" | "status">;
@@ -1384,7 +1351,7 @@ export type MaterialPoolsListInput = {
 export type MaterialPoolsListOutput = {
   pools: Array<{
     label: string;
-    pool: Exclude<MaterialPoolSpec, { kind: "related" }>;
+    pool: MaterialPoolSpec;
     returnKinds: string[];
     count?: number;
   }>;
@@ -2260,7 +2227,6 @@ export type ToolName =
   | "stage.effects.propose"
   | "music.material.resolve"
   | "music.material.query"
-  | "music.material.related"
   | "music.material.select"
   | "music.material.context.brief"
   | "music.pools.list"

@@ -1,6 +1,5 @@
 import type {
   MaterialQueryOutput,
-  MaterialRelatedOutput,
   MaterialResolveResult,
   MaterialSelectOutput,
   MusicMaterial,
@@ -10,7 +9,6 @@ import type {
 import {
   compactMaterialCard,
   compactMaterialQueryOutput,
-  compactMaterialRelatedOutput,
   compactMaterialResolveOutput,
   compactPublicMaterialResolveOutput,
   compactMaterialSelectOutput,
@@ -143,28 +141,6 @@ function materialQueryOutputsCompactDomainItems(): void {
   assert(!("material" in item), "query compact item should not expose raw material");
   assert(!("score" in item), "query compact item should not expose internal score");
   assert(!("reason" in item), "query compact item should not expose internal reason");
-}
-
-function materialRelatedOutputsCompactDomainItems(): void {
-  const related: MaterialRelatedOutput = {
-    basis: "fallback_text",
-    basisLabel: "Fallback",
-    warning: "weak_relation",
-    items: [{
-      materialId: "related-material",
-      material: material("grounded", { label: "Related Track" }),
-    }],
-  };
-
-  const output = compactMaterialRelatedOutput(related);
-  const item = output.items[0] as Record<string, unknown> | undefined;
-
-  assert(output.basis === "fallback_text", "related basis should be preserved");
-  assert(output.basisLabel === "Fallback", "related basis label should be preserved");
-  assert(output.warning === "weak_relation", "related warning should be preserved");
-  assert(item?.title === "Related Track", "related domain material should compact to card title");
-  assert(item.state === "grounded", "related compact state should be copied from material state");
-  assert(!("material" in item), "related compact item should not expose raw material");
 }
 
 function materialSelectOutputCompactsDomainItems(): void {
@@ -339,7 +315,6 @@ materialCardMapsMaterialStates();
 materialCardKeepsOnlyCompactFields();
 materialResolveOutputCompactsCandidates();
 materialQueryOutputsCompactDomainItems();
-materialRelatedOutputsCompactDomainItems();
 materialSelectOutputCompactsDomainItems();
 publicMaterialResolveOutputCompactsDomainItemsAndUnresolved();
 publicMaterialResolveOutputKeepsDiagnosticStatusesOutOfItems();

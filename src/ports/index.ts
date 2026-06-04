@@ -62,8 +62,6 @@ import type {
   MaterialPoolsListOutput,
   MaterialQueryInput,
   MaterialQueryOutput,
-  MaterialRelatedInput,
-  MaterialRelatedOutput,
   MaterialRecord,
   MaterialResolveIssue,
   MaterialResolveRequest,
@@ -899,10 +897,6 @@ export interface MaterialSearchIndexPort {
   search(input: MaterialSearchIndexSearchInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
 
   rerankDocuments(input: MaterialSearchIndexRerankInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
-}
-
-export interface MaterialRelatedPort {
-  related(input: MaterialRelatedInput): Promise<Result<MaterialRelatedOutput>>;
 }
 
 export interface MaterialContextBriefPort {

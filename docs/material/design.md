@@ -85,25 +85,25 @@ results, and an internal ephemeral-store writer. Resolve does not read Source
 Library rows, does not look up canonical labels directly, and does not call a
 durable materialization boundary.
 
-### Query, Related, Context, And Pools
+### Query, Context, And Pools
 
 `src/material/query/index.ts` implements `MaterialQueryPort`,
-`MaterialRelatedPort`, `MaterialContextBriefPort`, and `MaterialPoolsPort`.
+`MaterialContextBriefPort`, and `MaterialPoolsPort`.
 
 Query gathers domain material candidates from all-material, source-library,
-collection, and related pools. It uses Material Search for `all`, ordinary
+and collection pools. It uses Material Search for `all`, ordinary
 `source_library`, and `collection` retrieval, then projects Search hits through
 Material Projection and delegates policy/order/limit behavior to the selector.
-Query owns Source Library constrained retrieval. Related and release-track
-source-backed paths may allocate ephemeral material handles when they need a
-handle for a non-durable source-backed row, but they must not create durable
+Query owns Source Library constrained retrieval. Release-track source-backed
+paths may allocate ephemeral material handles when they need a handle for a
+non-durable source-backed row, but they must not create durable
 `MaterialRecord`s merely because a row was listed. Query applies `targetKind`,
 relation and recent-activity exclusions, cursor pagination, and ordering
 through the selector.
 
-Query consumes `MaterialQueryStorePort`, `MaterialResolvePort`,
-`MaterialSearchPort`, `MaterialSelectorPort`, and optionally
-`MaterialQueryCollectionReadPort` for pool listing. It does not receive full
+Query consumes `MaterialQueryStorePort`, `MaterialSearchPort`,
+`MaterialSelectorPort`, and optionally `MaterialQueryCollectionReadPort` for
+pool listing. It does not receive Resolve, does not receive full
 `MaterialStorePort`, does not receive collection write authority, and does not
 perform registry materialization writes directly.
 
@@ -190,8 +190,7 @@ are documented in `docs/stage-interface/tool-contracts.md`.
 
 Observed public-surface facts relevant to Material Flow:
 
-- `music.material.query`, `music.material.related`,
-  `music.material.context.brief`, `music.pools.list`,
+- `music.material.query`, `music.material.context.brief`, `music.pools.list`,
   `music.material.select`, and `stage.recommendation.present` are Stage
   Interface tools backed by material ports.
 - `music.material.resolve.cards`, `library.source.list`, and public

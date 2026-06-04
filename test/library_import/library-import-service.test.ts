@@ -5,7 +5,6 @@ import type {
   PlatformLibraryPreviewInput,
   PlatformLibraryProvider,
   Ref,
-  SourceMaterial,
 } from "../../src/contracts/index.js";
 import { createCanonicalStore, createMaterialStore } from "../../src/material/store/index.js";
 import { createCollectionService } from "../../src/collection/index.js";
@@ -14,11 +13,10 @@ import { createLibraryImportService } from "../../src/material/index.js";
 import { createMaterializationService } from "../../src/material/materialization/index.js";
 import { createMaterialPolicyEvaluator, createMaterialSorter } from "../../src/material/policy/index.js";
 import { createMaterialQueryService } from "../../src/material/query/index.js";
-import { createMaterialResolveService } from "../../src/material/resolve/index.js";
 import { createMaterialSearchDocumentProvider, createMaterialSearchService } from "../../src/material/search/index.js";
 import { createMaterialSelector } from "../../src/material/selection/index.js";
 import { createPluginRegistry } from "../../src/plugins/index.js";
-import type { MaterialSearchCollectionPort, SourceGroundingPort } from "../../src/ports/index.js";
+import type { MaterialSearchCollectionPort } from "../../src/ports/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryCollectionRepository,
@@ -1043,12 +1041,6 @@ async function importUsesProviderAddedAtForSourceLibraryRecentlyAddedOrder(): Pr
   });
   const materialQuery = createMaterialQueryService({
     materialStore: environment.materialStore,
-    materialResolve: createMaterialResolveService({
-      materialStore: environment.materialStore,
-      materialSearch,
-      sourceGrounding: sourceGroundingForProviderItems(providerItems),
-      materialPolicyEvaluator,
-    }),
     materialSearch,
     materialSelector,
   });
@@ -2539,40 +2531,6 @@ function releaseSourceRef(id: string, label: string): Ref {
     kind: "album",
     id,
     label,
-  };
-}
-
-function sourceGroundingForProviderItems(items: PlatformLibraryItem[]): SourceGroundingPort {
-  const materials = items.map(sourceMaterialForProviderItem);
-
-  return {
-    ground: async ({ query }) => ({
-      ok: true,
-      value: structuredClone(
-        query.sourceRef === undefined
-          ? materials
-          : materials.filter((material) =>
-              (material.sourceRefs ?? []).some((sourceRef) => sameRef(sourceRef, query.sourceRef as Ref)),
-            ),
-      ),
-    }),
-    refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
-  };
-}
-
-function sourceMaterialForProviderItem(item: PlatformLibraryItem): SourceMaterial {
-  return {
-    id: item.sourceRef.id,
-    kind: item.targetKind,
-    label: item.label,
-    state: "source_only_playable",
-    sourceRefs: [item.sourceRef],
-    playableLinks: [
-      {
-        url: `https://example.test/${item.sourceRef.id}`,
-        sourceRef: item.sourceRef,
-      },
-    ],
   };
 }
 
