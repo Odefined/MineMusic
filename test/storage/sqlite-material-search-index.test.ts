@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import type {
   MaterialSearchDocument,
@@ -287,6 +288,103 @@ async function sqliteSearchIndexPersistsDirtyRowsAcrossReopen(): Promise<void> {
   }
 }
 
+async function sqliteSearchIndexRerankUsesTransientCorpusInPersistentDatabase(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-material-search-"));
+  const databasePath = join(directory, "material-search.sqlite");
+  const ephemeral = ephemeralMaterialRef("provider-candidate");
+
+  try {
+    const index = createSqliteMaterialSearchIndex({
+      path: databasePath,
+      documents: new MutableSearchDocuments([]),
+    });
+    const reranked = await assertOk(index.rerankDocuments({
+      text: "Private Lantern",
+      documents: [{
+        materialRef: ephemeral,
+        kind: "recording",
+        sourceTitle: ["Private Lantern Candidate"],
+      }],
+      limit: 10,
+    }));
+
+    assert(reranked.hits[0]?.materialRef.id === ephemeral.id, "rerank should search request documents");
+    assert(
+      persistentTableExists(databasePath, "material_search_request_fts") === false,
+      "rerank request corpus must not be created in the persistent main database",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
+async function sqliteSearchIndexDropsLegacyPersistentRequestCorpusOnOpen(): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "minemusic-material-search-"));
+  const databasePath = join(directory, "material-search.sqlite");
+
+  try {
+    const database = new DatabaseSync(databasePath);
+    database.exec(`
+      CREATE VIRTUAL TABLE material_search_request_fts USING fts5(
+        canonical_label,
+        canonical_aliases,
+        source_title,
+        source_artist_labels,
+        source_release_label,
+        source_artist_aliases,
+        material_key UNINDEXED,
+        material_ref_json UNINDEXED,
+        kind UNINDEXED,
+        tokenize = 'unicode61'
+      )
+    `);
+    database
+      .prepare(`
+        INSERT INTO material_search_request_fts (
+          canonical_label,
+          canonical_aliases,
+          source_title,
+          source_artist_labels,
+          source_release_label,
+          source_artist_aliases,
+          material_key,
+          material_ref_json,
+          kind
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        "",
+        "",
+        "Legacy Private Candidate",
+        "",
+        "",
+        "",
+        "minemusic:ephemeral_material:legacy-provider-candidate",
+        JSON.stringify(ephemeralMaterialRef("legacy-provider-candidate")),
+        "recording",
+      );
+    database.close();
+
+    assert(
+      persistentTableExists(databasePath, "material_search_request_fts"),
+      "test setup should create the legacy persistent request corpus table",
+    );
+
+    createSqliteMaterialSearchIndex({
+      path: databasePath,
+      documents: new MutableSearchDocuments([]),
+    });
+
+    assert(
+      persistentTableExists(databasePath, "material_search_request_fts") === false,
+      "SearchIndex open should delete the legacy persistent request corpus table",
+    );
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function materialRef(id: string): Ref {
   return {
     namespace: "minemusic",
@@ -295,8 +393,35 @@ function materialRef(id: string): Ref {
   };
 }
 
+function ephemeralMaterialRef(id: string): Ref {
+  return {
+    namespace: "minemusic",
+    kind: "ephemeral_material",
+    id,
+  };
+}
+
 function refKey(ref: Ref): string {
   return `${ref.namespace}:${ref.kind}:${ref.id}`;
+}
+
+function persistentTableExists(databasePath: string, tableName: string): boolean {
+  const database = new DatabaseSync(databasePath);
+
+  try {
+    const row = database
+      .prepare(`
+        SELECT name
+        FROM sqlite_schema
+        WHERE type = 'table'
+          AND name = ?
+      `)
+      .get(tableName) as { name: string } | undefined;
+
+    return row !== undefined;
+  } finally {
+    database.close();
+  }
 }
 
 function ok<T>(value: T): Result<T> {
@@ -309,3 +434,5 @@ await sqliteSearchIndexRefreshesDirtyDocumentsAndDeletesMissingOnes();
 await sqliteSearchIndexBuildsMissingCandidateDocumentsOnDemand();
 await sqliteSearchIndexSubstringSearchScansCompleteCandidatePool();
 await sqliteSearchIndexPersistsDirtyRowsAcrossReopen();
+await sqliteSearchIndexRerankUsesTransientCorpusInPersistentDatabase();
+await sqliteSearchIndexDropsLegacyPersistentRequestCorpusOnOpen();
