@@ -119,6 +119,7 @@ export function createSqliteMaterialSearchIndex({
 
   const database = new DatabaseSync(path);
   initializeMaterialSearchSchema(database);
+  dropPersistentRequestCorpusTable(database);
 
   return {
     async markDirty({ materialRef }) {
@@ -276,28 +277,29 @@ export function createSqliteMaterialSearchIndex({
 
       return readResult(() => {
         ensureRequestCorpusTable(database);
-        clearTable(database, requestCorpusTableName);
+        try {
+          for (const document of documents) {
+            upsertDocument(database, requestCorpusTableName, document);
+          }
 
-        for (const document of documents) {
-          upsertDocument(database, requestCorpusTableName, document);
+          const hits = mergeHits([
+            ...searchFtsInTable({
+              database,
+              tableName: requestCorpusTableName,
+              normalizedText,
+              limit,
+            }),
+            ...searchSubstringInTable({
+              database,
+              tableName: requestCorpusTableName,
+              normalizedText,
+            }),
+          ]).slice(0, limit);
+
+          return { hits };
+        } finally {
+          dropTempRequestCorpusTable(database);
         }
-
-        const hits = mergeHits([
-          ...searchFtsInTable({
-            database,
-            tableName: requestCorpusTableName,
-            normalizedText,
-            limit,
-          }),
-          ...searchSubstringInTable({
-            database,
-            tableName: requestCorpusTableName,
-            normalizedText,
-          }),
-        ]).slice(0, limit);
-
-        clearTable(database, requestCorpusTableName);
-        return { hits };
       });
     },
   };
@@ -543,8 +545,9 @@ function writeDocumentForCandidate(
 }
 
 function ensureRequestCorpusTable(database: DatabaseSync): void {
+  dropTempRequestCorpusTable(database);
   database.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS ${requestCorpusTableName} USING fts5(
+    CREATE VIRTUAL TABLE temp.${requestCorpusTableName} USING fts5(
       canonical_label,
       canonical_aliases,
       source_title,
@@ -559,8 +562,12 @@ function ensureRequestCorpusTable(database: DatabaseSync): void {
   `);
 }
 
-function clearTable(database: DatabaseSync, tableName: string): void {
-  database.exec(`DELETE FROM ${tableName}`);
+function dropTempRequestCorpusTable(database: DatabaseSync): void {
+  database.exec(`DROP TABLE IF EXISTS temp.${requestCorpusTableName}`);
+}
+
+function dropPersistentRequestCorpusTable(database: DatabaseSync): void {
+  database.exec(`DROP TABLE IF EXISTS main.${requestCorpusTableName}`);
 }
 
 function prepareCandidatePool(database: DatabaseSync, candidateKeys: string[]): void {
