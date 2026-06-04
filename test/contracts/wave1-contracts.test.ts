@@ -116,7 +116,6 @@ import type {
   SourceEntity,
   SourceEntityKind,
   SourceLibraryPoolTarget,
-  SourceLibraryResolveScope,
   SourceLibraryItemStatus,
   SourceMaterial,
   SourceProvider,
@@ -1210,10 +1209,6 @@ export type _sourceEntityUnion = Expect<
 >;
 
 export type _sourceLibraryItemStatus = Expect<Equal<SourceLibraryItemStatus, "present" | "absent">>;
-
-export type _sourceLibraryResolveScopeKeys = Expect<
-  Equal<keyof SourceLibraryResolveScope, "providerId" | "providerAccountId" | "libraryKind" | "status">
->;
 
 export type _confirmedCanonicalBindingKeys = Expect<
   Equal<keyof ConfirmedCanonicalBinding, "sourceRef" | "canonicalRef" | "createdAt" | "updatedAt">

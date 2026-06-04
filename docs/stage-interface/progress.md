@@ -83,9 +83,12 @@ Public schemas no longer advertise Source Library `areas`/`expand` or
 CollectionPort label before writing.
 The same normalization removes `music.material.resolve.cards`; public
 `music.material.resolve` now accepts text `queries` and returns
-`PublicMaterialResolveOutput` compact items. Library import summary output uses
-top-level `scopeReports` and compact `absentItems`, while detailed import-item
-listing keeps `sourceRef`.
+`PublicMaterialResolveOutput` compact items. Public Resolve uses
+`queries[].text` plus optional `queries[].targetKind`, rejects public `kind`
+and `purpose`, and may return compact `mat:*` or `emat:*` handles without
+exposing raw refs. Library import summary output uses top-level `scopeReports`
+and compact `absentItems`, while detailed import-item listing keeps
+`sourceRef`.
 
 ## Established Decisions
 
@@ -151,9 +154,10 @@ listing keeps `sourceRef`.
 - Registry-primary dispatch lookup.
 - Low-risk Stage Tool Group payload handling cleanup after dispatch validation.
 - `music.material.resolve` public validation requires non-empty text
-  `queries`, validates optional query `kind`, and adapts those public queries
-  to the internal candidate-set resolve request before `MaterialResolvePort` is
-  called.
+  `queries`, validates optional query `targetKind`, rejects legacy public
+  `kind` / `purpose` / exact-anchor fields, and adapts public query entries
+  directly to the internal query-keyed resolve request before
+  `MaterialResolvePort` is called.
 - MCP schema parity and stable tool aggregate tests.
 - `stage.recommendation.present` dispatch to `RecommendationPresentationPort`.
 - Manual recommendation presentation event rejection in `stage.events.record`.
@@ -218,6 +222,11 @@ listing keeps `sourceRef`.
   `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`,
   `node .tmp-test/test/surfaces/mcp-server.test.js`, and `npm test` pass for
   the Stage Interface compatibility-barrel removal.
+- `npm run typecheck`, `npm run build:test`,
+  `node .tmp-test/test/stage_interface/stage-interface-outputs.test.js`,
+  `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`, and
+  `node .tmp-test/test/surfaces/mcp-server.test.js` pass on 2026-06-04 for the
+  query-keyed Material Resolve / encoded-handle public surface.
 - `node .tmp-test/test/stage_interface/stage-interface.test.js`,
   `node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`, and
   `node .tmp-test/test/surfaces/mcp-server.test.js` pass for the Material

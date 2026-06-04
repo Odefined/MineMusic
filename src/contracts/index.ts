@@ -966,13 +966,6 @@ export type SourceLibraryItem = {
   status: SourceLibraryItemStatus;
 };
 
-export type SourceLibraryResolveScope = {
-  providerId?: string;
-  providerAccountId?: string;
-  libraryKind?: PlatformLibraryItemKind;
-  status?: SourceLibraryItemStatus;
-};
-
 export type ConfirmedCanonicalBinding = {
   sourceRef: Ref;
   canonicalRef: Ref;
@@ -1020,18 +1013,6 @@ export type SourceQuery = {
   canonicalRef?: Ref;
   sourceRef?: Ref;
   limit?: number;
-};
-
-export type MusicCandidate = {
-  id: string;
-  label: string;
-  expectedKind?: "track" | "recording" | "artist" | "album" | "playlist" | string;
-  query?: SourceQuery;
-  canonicalRef?: Ref;
-  sourceRef?: Ref;
-  sourceLibraryScope?: SourceLibraryResolveScope;
-  reason?: string;
-  context?: string;
 };
 
 export type MaterialResolveTargetKind =
@@ -1082,15 +1063,6 @@ export type MaterialResolveIssue =
       retryable: true;
       query?: SourceQuery;
     };
-
-export type ResolvedCandidate = {
-  candidate: MusicCandidate;
-  materials: MusicMaterial[];
-  status: MaterialResolveStatus;
-  canonicalRef?: Ref;
-  reason?: string;
-  issues?: MaterialResolveIssue[];
-};
 
 export type MaterialResolvedQuery = {
   query: MaterialResolveQuery;

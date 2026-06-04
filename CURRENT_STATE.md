@@ -52,14 +52,24 @@ the docs listed in `INDEX.md`.
   presentation.
 - Material Search is implemented as an internal Material Flow capability.
   `music.material.query` uses it for `all`, ordinary `source_library`, and
-  `collection` retrieval; `related` and
-  `source_library target: "release_tracks"` remain on their existing paths.
-  Public Query input uses `text` and `targetKind`, not `q` or `returnKind`.
+  `collection` retrieval. Related and
+  `source_library target: "release_tracks"` now keep source-backed rows on
+  Query-owned paths: they reuse existing durable materials when present and
+  otherwise allocate process-local `emat:*` handles without query-time durable
+  materialization. Public Query input uses `text` and `targetKind`, not `q`
+  or `returnKind`.
 - Material Query now reads collection pools through the narrow
   `MaterialQueryCollectionReadPort`, Material Policy reads collection-backed
   blocked membership through `MaterialPolicyCollectionBlockPort`, and Resolve
   routes resolution-time blocked/wrong-version/not-playable projection through
   `MaterialPolicyEvaluatorPort`.
+- Public `music.material.resolve` is now a text-query contract over
+  `queries[].text` with optional `queries[].targetKind`. It returns compact
+  `mat:*` or `emat:*` handles and does not accept public `kind`, `purpose`,
+  `sourceRef`, `canonicalRef`, `materialRef`, or `sourceLibraryScope`.
+- `stage.recommendation.present` now consumes both durable `mat:*` and
+  ephemeral `emat:*` handles, but only selected valid `emat:*` items are
+  materialized into final durable `mat:*` cards and event payloads.
 - Collection Service owns owner-scoped system/custom Collections and current
   materialRef-backed CollectionItems. ADR-0003 accepts this boundary and
   supersedes ADR-0002's earlier canonical-only Collection consequence.
