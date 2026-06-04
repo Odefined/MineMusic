@@ -8,18 +8,19 @@ This document is the current ports authority for Material Flow. It is based on
 
 | Port | Implemented by | Purpose |
 | --- | --- | --- |
-| `MaterialResolvePort` | `src/material/resolve/index.ts` | Resolve candidates into domain `MusicMaterial` results. |
+| `MaterialResolvePort` | `src/material/resolve/index.ts` | Resolve text queries into domain `MusicMaterial` results without durable materialization. |
 | `MaterialQueryPort` | `src/material/query/index.ts` | Query material pools and return domain query items. |
 | `MaterialRelatedPort` | `src/material/query/index.ts` | Find related domain materials. |
 | `MaterialContextBriefPort` | `src/material/query/index.ts` | Return compact material context details. |
 | `MaterialPoolsPort` | `src/material/query/index.ts` | List query-ready material pools. |
 | `MaterialSearchPort` | `src/material/search/index.ts` | Retrieve owner-visible local durable materials through Search-backed scopes. |
+| `EphemeralMaterialStorePort` | `src/material/ephemeral/**` | Hold process-local provider/source-backed material facts behind exact `ephemeral_material` refs until presentation consumes or drops them. |
 | `MaterialPolicyEvaluatorPort` | `src/material/policy/index.ts` | Evaluate one material against policy. |
 | `MaterialSorterPort` | `src/material/policy/index.ts` | Sort already usable material candidates. |
 | `MaterialSelectorPort` | `src/material/selection/index.ts` | Apply policy, sorting, diversity, and limits. |
 | `RecommendationPresentationPort` | `src/material/presentation/index.ts` | Final recommendation-domain presentation boundary. |
-| `MaterialSourceMaterializerPort` | `src/material/materialization/index.ts` | Materialize source/provider results for resolve. |
-| `MaterialSourceLibraryMaterializerPort` | `src/material/materialization/index.ts` | Materialize Source Library items through the explicit materialization boundary when needed; ordinary Query v1 retrieval does not consume it. |
+| narrow presentation materialization capability | `src/material/materialization/index.ts` | Materialize only selected `ephemeral_material` presentation items into durable materials. |
+| `MaterialSourceLibraryMaterializerPort` | `src/material/materialization/index.ts` | Materialize Source Library items only for explicit non-Resolve callers when needed; ordinary Query retrieval does not consume it. |
 
 `src/material/index.ts` is the bounded-context barrel for these factories and
 for projection helpers such as `materialIdToRef`, `materialRefToMaterialId`,
@@ -34,7 +35,7 @@ and `materialForMaterialId`.
 | `MaterialSearchStorePort` | Projection reads plus `findMaterialBySourceRef`, `listSourceLibraryItems`, and `listMaterialRelations` | Material Search. |
 | `MaterialSearchDocumentProviderPort` | `buildSearchDocument`, `buildAllSearchDocuments` | SQLite SearchIndex document refresh and rebuild. |
 | `MaterialSearchIndexPort` | `markDirty`, `refreshDirty`, `rebuildAll`, and scoped `search` | Material Search service and Stage Core dirty invalidation wiring. |
-| `MaterialResolveStorePort` | Canonical lookup, confirmed binding reads, and Source Library item listing | Material Resolve. |
+| exact existing-material resolve lookup seam | Projection reads plus exact durable matching by grounded `sourceRef` / `canonicalRef` evidence | Material Resolve. |
 | `MaterialSourceMaterializerStorePort` | Projection reads plus registry materialization writers | Materialization boundary only. |
 | `StageInterfaceMaterialStorePort` | Projection and Source Library read surface with no registry writer methods | Stage Interface dispatch/tool definitions. |
 | `SourceLibraryReadStorePort` | `listSourceLibraryItems`, `getSourceEntity` | Source Library read paths. |
@@ -46,8 +47,10 @@ The exact method sets are type-asserted in
 
 | Port | Consumer | Purpose |
 | --- | --- | --- |
-| `SourceGroundingPort` | Material Resolve | Ground unresolved candidates through provider/source search. |
-| `MaterialPolicyEvaluatorPort` | Material Resolve | Apply internal `material_resolution` policy projection during resolve. |
+| `MaterialSearchPort` | Material Resolve, Material Query | Retrieve local durable materials by text before fallback paths. |
+| `SourceGroundingPort` | Material Resolve | Ground unresolved or low-confidence text queries through provider/source search. |
+| `EphemeralMaterialStorePort` | Material Resolve, Recommendation Presentation | Put exact `ephemeral_material` entries during resolve and get/delete them during final presentation. |
+| `MaterialPolicyEvaluatorPort` | Material Resolve, Recommendation Presentation | Apply internal `material_resolution` policy during resolve for durable results and presentation policy for final durable items. |
 | `MaterialQueryCollectionReadPort` | Material Query | Read collection headers and items for collection pools and pool listing. |
 | `MaterialSearchCollectionPort` | Material Search | Read collection headers and items for Search visibility. |
 | `MaterialPolicyCollectionBlockPort` | Material Policy | Read collection-backed blocked membership evidence. |
@@ -75,6 +78,8 @@ Current guards enforce that:
 - `src/material/resolve/**` does not import broad `CollectionPort`, call
   `filterBlockedMaterials`, or import Material Policy relation-projection
   internals directly;
+- resolve does not reference canonical-label lookup, Source Library listing, or
+  durable materialization writers as part of the text-query path;
 - query does not reference registry materialization writers such as
   `getOrCreateBySourceRef`;
 - search does not import provider/source grounding, Stage Interface output
@@ -87,17 +92,20 @@ Current guards enforce that:
 
 `src/stage_core/compose.ts` wires Material Flow in this order:
 
-1. create the materialization service from the material store;
-2. create the shared Material Policy evaluator from the material store plus
+1. create the shared process-local ephemeral store;
+2. create the materialization service from the material store;
+3. create the shared Material Policy evaluator from the material store plus
    collection-block seam;
-3. create Material Resolve with the source materializer and policy evaluator;
 4. create Material Selector;
 5. create Material Search with the search index, document provider, and
    collection visibility seam;
-6. create Material Query with resolve, search, selector, and the
+6. create Material Resolve with search, read-only evidence lookup, the
+   ephemeral store, source grounding, and policy evaluation;
+7. create Material Query with resolve, search, selector, and the
    collection-read seam for pool listing;
-7. create Recommendation Presentation with policy and event/session ports;
-8. pass narrow material capabilities to Stage Interface dispatch.
+8. create Recommendation Presentation with policy, event/session ports, the
+   ephemeral store, and narrow selected-item materialization;
+9. pass narrow material capabilities to Stage Interface dispatch.
 
 This keeps broad concrete store assembly at the composition root while ordinary
 domain services receive narrow capability ports.

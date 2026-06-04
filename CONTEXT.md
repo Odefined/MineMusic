@@ -308,20 +308,29 @@ memory evidence without becoming a Collection item.
 
 ### Material Resolve
 
-The candidate-to-material resolution path that turns music candidates into
-resolved `MusicMaterial` results for recommendation or presentation.
+The text-query grounding path that turns uncertain music descriptions into
+`MusicMaterial` results for recommendation or presentation.
 
-Material Resolve starts from uncertain music candidates or exact source/canonical
-anchors. A `materialId` is already a MineMusic material handle, not a resolve
-candidate.
+Material Resolve starts from uncertain text queries. A `materialId` is already a
+MineMusic material handle, and `sourceRef` / `canonicalRef` are source or
+identity anchors handled by projection or materialization boundaries rather than
+Resolve's text-query path.
 
-Material Resolve is where canonical identity, source evidence, playable material
-state, and user collection constraints such as `blocked` come together before
-materials are returned to Stage Interface.
+Material Resolve is where text, local durable material search, provider/source
+evidence, playable material state, and material-resolution policy come together
+before materials are returned to Stage Interface.
 
-Material Resolve may read Source Library only when the request explicitly scopes
-material resolution to an owner-scoped source library. It does not choose the
-final recommendation, write Collection state, or create canonical identity.
+Source Library constrained retrieval belongs to Material Query and Material
+Search, not Material Resolve. Material Resolve does not choose the final
+recommendation, write Collection state, create durable `MaterialRecord`
+identity, or create canonical identity.
+
+Provider-backed results that do not already match a durable `MaterialRecord`
+may be returned as `MusicMaterial` values whose `materialRef.kind` is
+`"ephemeral_material"`. These refs are backed by process-local ephemeral state,
+not durable material records. Only the final recommendation presentation
+boundary may consume a selected `ephemeral_material` and turn it into a durable
+material record.
 
 ### Music Knowledge
 

@@ -59,6 +59,10 @@ display links indicate playable-link availability and identity certainty stays
 in internal event snapshots and detail tools. Link refresh is also material-id
 based at the Stage Interface boundary, so callers do not need to construct full
 `MusicMaterial` payloads for ordinary link-problem recovery.
+Public `materialId` handles are encoded by Material Projection so durable and
+ephemeral identities remain distinct: `mat:*` decodes to durable
+`materialRef.kind === "material"` and `emat:*` decodes to process-local
+`materialRef.kind === "ephemeral_material"`.
 Recommendation Presentation is the final user-visible recommendation boundary:
 `stage.recommendation.present` evaluates the intended ordered material ids,
 preserves surviving order, records the typed `recommendation.presented` event,
@@ -179,12 +183,12 @@ Stage Interface depends on the specific port it needs.
 | Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
 | Collection Service | owner-scoped Collections, materialRef-backed CollectionItems, saved/favorite/blocked/custom membership, and blocked material membership lookup | canonical identity, source refs, provider search, final recommendation selection, public compact output projection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, eager durable source-backed material binding for imported source refs, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
-| Material Resolve | canonical-first candidate lookup, Source Grounding orchestration, explicit Source Library scoped discovery, `MaterialResolveResult` status aggregation, confirmed binding lookup, and resolve issue/status aggregation; delegates registry materialization and resolution-time relation/collection-block projection to owned ports | provider internals, playable-link refresh, canonical writes, Collection writes, direct relation policy evaluation internals, registry materialization writes, final recommendation selection |
-| Material Projection | `materialId` / `materialRef` / current `MaterialRecord` to domain `MusicMaterial` projection through narrow projection reads, including label, source refs, playable links, and projected material state | query orchestration, registry writes, Stage Interface compact DTOs, recommendation presentation |
-| Material Materialization | Source/provider `SourceMaterial` and Source Library item materialization into `MaterialRecord` / domain `MusicMaterial` through explicit registry writer capabilities | candidate discovery, relation/block filtering, Stage Interface output projection, Recommendation Presentation, Library Import, Memory |
+| Material Resolve | text-query grounding over local Material Search hits, read-only existing-material evidence lookup, Source Grounding fallback, durable/ephemeral resolve status aggregation, and process-local ephemeral handle allocation for provider-backed non-durable results | provider internals, playable-link refresh, Source Library scoped retrieval, canonical-label lookup, canonical writes, Collection writes, direct relation policy evaluation internals, registry materialization writes, final recommendation selection |
+| Material Projection | public `materialId` encoding/decoding plus `materialId` / `materialRef` / current `MaterialRecord` to domain `MusicMaterial` projection through narrow projection reads, including label, source refs, playable links, projected material state, and exact `mat:*` / `emat:*` handle routing | query orchestration, registry writes, Stage Interface compact DTOs, recommendation presentation |
+| Material Materialization | explicit durable writer boundary for imported source-backed materials and for final presentation of selected `ephemeral_material` items into durable `MaterialRecord` / domain `MusicMaterial` | candidate discovery, relation/block filtering, Stage Interface output projection, intermediate Resolve results, Library Import read orchestration, Memory |
 | Material Search | local durable material retrieval over owner-visible material refs, strict owner visibility, owner-neutral SearchDocuments, SQLite FTS-backed text matching, Search-owned score/evidence/provenance/cursor, and read-only retrieval for `all`, ordinary `source_library`, and `collection` pools | provider/source search, material resolve, registry materialization writes, public compact output projection, final recommendation selection, semantic mood/vibe/tag interpretation, general MaterialSorter behavior |
 | Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy, including internal `material_resolution` projection for Resolve; sorting of already usable material candidates; materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment, compact output projection |
-| Recommendation Presentation | final presentation gate for intended ordered materialId recommendations, typed `recommendation.presented` event creation with feedback-binding facts, min/max enforcement, accepted/dropped decisions | candidate discovery, sorting, selector delegation, final recommendation judgment, compact output projection |
+| Recommendation Presentation | final presentation gate for intended ordered `materialId` recommendations, exact `mat:*` / `emat:*` routing, typed `recommendation.presented` event creation with feedback-binding facts, min/max enforcement, accepted/dropped decisions, and durable materialization only for selected ephemeral items | candidate discovery, sorting, selector delegation, final recommendation judgment, compact output projection |
 | Material Query / Related | domain material retrieval through narrow query/projection/search dependencies, Search-backed retrieval for `all`, ordinary `source_library`, and `collection`, related candidate generation, release-track expansion, selector delegation, and materialId result handles | raw source/canonical graph exposure, provider internals, canonical writes, ordinary query-time registry materialization writes, broad Material Store mutation authority, tag/style-hint interpretation without real semantic data, final recommendation selection, compact output projection, public Source Library row listing |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization, and persistence of provider-returned source evidence into Source Entity Store through a narrow writer | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
@@ -211,28 +215,29 @@ Stage Interface depends on the specific port it needs.
 7. LLM or host client interprets the musical situation.
 8. MCP client calls Stage Interface tools through the server's MCP surface.
 9. Stage Interface reads Session Context and Handbook entries when needed.
-10. Stage Interface sends music candidates to Material Resolve.
-11. Material Resolve checks Material Store first: canonical lookup stays
-   canonical-first, source refs resolve through Confirmed Canonical Bindings,
-   Source Library is read only for explicit source-library scoped requests, and
-   Material Registry materializes stable `materialRef` / `identityState`
-   projections. Source Grounding is used as source evidence when needed.
-   Provider results without stable source or canonical grounding are reported
-   as resolve diagnostics rather than ghost material identities.
+10. Stage Interface sends text queries to Material Resolve.
+11. Material Resolve checks local durable material search first through
+   Material Search. High-confidence local durable hits stay on the local path;
+   lower-confidence or empty local results fall back to Source Grounding for
+   provider/source evidence. Source Library constrained retrieval belongs to
+   Material Query / Material Search, not Resolve.
 12. Source Grounding uses Source Slot adapters for source refs and playable
    links, and persists source-backed provider evidence so later Material Store
    projections can reconstruct playable links from `materialId`.
-13. Material Resolve returns `MusicMaterial` with stable material identity,
-   honest material state, and candidate-level resolve status. Resolution-time
-   blocked, wrong-version, and not-playable projection is evaluated through
-   Material Policy's internal `material_resolution` purpose rather than direct
+13. Material Resolve returns `MusicMaterial` values with either durable
+   `mat:*` handles or process-local `emat:*` handles. Resolve may allocate
+   ephemeral entries for provider-backed non-durable results, but it must not
+   create durable `MaterialRecord`s. Resolution-time blocked, wrong-version,
+   and not-playable projection is evaluated through Material Policy's internal
+   `material_resolution` purpose for durable results rather than direct
    Resolve-to-Collection or Resolve-to-policy-helper imports.
 14. Stage Interface projects public material outputs directly and keeps raw
    `MusicMaterial` records behind Stage Interface output helpers.
 15. LLM chooses the intended recommendation order, then calls
    `stage.recommendation.present` for the final presentation gate.
 16. Recommendation Presentation records the typed `recommendation.presented`
-   event when enough cards survive and returns the exact cards to show.
+   event when enough cards survive, materializes only selected `emat:*`
+   entries into durable `mat:*` handles, and returns the exact cards to show.
 17. Stage Interface or the LLM records other factual events and proposes memory or
    effects when appropriate.
 18. Event Service, Memory Service, and Effect Boundary keep consequences

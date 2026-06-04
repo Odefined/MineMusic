@@ -115,6 +115,12 @@ unknown fields is a future per-tool decision, not the default public policy.
 
 Ordinary public material actions use `materialId`.
 
+Public `materialId` handles are opaque encoded values owned by Material
+Projection:
+
+- `mat:<id>` for durable `materialRef.kind === "material"`;
+- `emat:<id>` for process-local `materialRef.kind === "ephemeral_material"`.
+
 Public material tools must not ask agents to construct:
 
 - internal `materialRef`;
@@ -124,14 +130,22 @@ Public material tools must not ask agents to construct:
 - raw Source Library rows;
 - provider payloads.
 
-Public `music.material.resolve` accepts text `queries` and adapts them to the
-internal resolve request. Public resolve output is compact:
+Public `music.material.resolve` accepts text `queries` with
+`queries[].text`, optional `queries[].targetKind`, optional `queries[].reason`,
+and optional request-level `ownerScope`, `limit`, and `sessionId`. Public
+resolve does not accept query-level legacy kind aliases, request-level legacy
+source-library scoping, `sourceRef`, `canonicalRef`, or `materialRef`.
+
+Public resolve output is compact:
 
 - `items` with material cards carrying `materialId`, title, optional subtitle,
   and material `state`;
-- optional unresolved text diagnostics when no public material card exists,
-  including candidates that resolve only to diagnostic internal statuses such
-  as wrong-version or not-playable.
+- optional unresolved text diagnostics when no public material card exists.
+
+Ordinary public resolve output may contain durable `mat:*` handles or
+ephemeral `emat:*` handles, but it must not expose raw `materialRef`,
+`sourceRef`, `canonicalRef`, Search evidence, confidence, provenance, or
+provider payloads.
 
 `music.material.query` and `music.pools.list` are the ordinary public Source
 Library browsing path. Public source-library pools use `libraryKinds` and
@@ -204,6 +218,9 @@ source handles.
 
 MCP tool names are `minemusic.` plus the stable Stage Interface tool name.
 `internalToolNameFor` rejects unprefixed names and removed public names.
+
+Public `music.material.resolve` schema parity must preserve
+`queries[].targetKind` and the absence of `purpose`.
 
 `test/surfaces/mcp-server.test.ts` verifies that MCP definitions expose every
 stable Stage Interface tool and reuse Stage Interface schemas.
