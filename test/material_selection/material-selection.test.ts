@@ -14,6 +14,7 @@ import type {
   MaterialSorterStorePort,
   MaterialStorePort,
 } from "../../src/ports/index.js";
+import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import {
   createInMemoryCanonicalRecordRepository,
   createInMemoryMaterialActivityRepository,
@@ -286,7 +287,7 @@ async function selectorReturnsDomainItems(): Promise<void> {
   );
   const item = output.items[0] as unknown as Record<string, unknown>;
 
-  assert(item.materialId === material.record.materialRef.id, "selected domain item should expose materialId");
+  assert(item.materialId === materialRefToMaterialId(material.record.materialRef), "selected domain item should expose encoded materialId");
   assert(item.reason === "fits the moment", "selected domain item should preserve candidate reason");
   assert((item.material as MusicMaterial | undefined)?.label === "Compact Card Track", "selected domain item should carry material");
   assert(!("title" in item), "selected domain item should not expose card title at top level");

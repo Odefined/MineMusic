@@ -59,7 +59,6 @@ export async function runRecommendationTranscript(
 
   const resolved = resolvedResult.value as CompactPublicMaterialResolveOutput;
   const resolvedCards = resolved.items;
-  const groundedMaterials = await materialsForResolvedCards(stageCore, resolvedCards);
 
   const presentResult = await stageCore.stageInterface.tools["stage.recommendation.present"]({
     request: input.request,
@@ -78,9 +77,6 @@ export async function runRecommendationTranscript(
   }
 
   const presentation = presentResult.value as CompactRecommendationPresentOutput;
-  const groundedByMaterialId = new Map(
-    groundedMaterials.map((material) => [material.materialRef.id, material]),
-  );
 
   if (!presentation.presented) {
     const eventsResult = await stageCore.events.listBySession({ sessionId: input.sessionId });
@@ -103,11 +99,7 @@ export async function runRecommendationTranscript(
     };
   }
 
-  const presentedMaterials = presentation.cards.flatMap((card) => {
-    const material = groundedByMaterialId.get(card.materialId);
-
-    return material === undefined ? [] : [material];
-  });
+  const presentedMaterials = await materialsForResolvedCards(stageCore, presentation.cards);
   const response = buildRecommendationResponse(presentation.cards);
   const firstPresentedCard = presentation.cards[0];
 

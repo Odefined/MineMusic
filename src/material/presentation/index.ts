@@ -511,6 +511,18 @@ function invalidEphemeralPresentationDrop(
   materialId: string,
   material: SourceMaterial,
 ): DroppedMaterial | null {
+  if (
+    material.state !== "grounded" &&
+    material.state !== "source_only_playable" &&
+    material.state !== "confirmed_playable"
+  ) {
+    return {
+      materialId,
+      code: "not_available",
+      reason: "Ephemeral material is not in a presentation-ready state.",
+    };
+  }
+
   if (material.kind.trim().length === 0 || material.label.trim().length === 0) {
     return {
       materialId,

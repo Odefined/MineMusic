@@ -218,7 +218,7 @@ async function resolveSingleCandidate(
 ): Promise<CompactPublicMaterialResolveOutput> {
   const resolveResult = await assertOk(
     stageRuntime.stageInterface.tools["music.material.resolve"]({
-      queries: [{ text, kind: "recording" }],
+      queries: [{ text, targetKind: "recording" }],
     }) as Promise<Result<CompactPublicMaterialResolveOutput>>,
   );
 
