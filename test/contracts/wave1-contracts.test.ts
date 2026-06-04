@@ -84,6 +84,7 @@ import type {
   MaterialPoolsListInput,
   MaterialPoolsListOutput,
   MaterialSessionActivity,
+  PublicMaterialResolveQueryKind,
   MaterialResolveRequest,
   MaterialResolveResult,
   MemoryEntry,
@@ -289,8 +290,10 @@ export type _collectionItemHasMaterialRefOnlyBoundary = Expect<
 >;
 
 export type _materialResolveRequestCarriesOwnerScope = Expect<
-  Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
-    Equal<NonNullable<MaterialResolveRequest["sourceLibraryScope"]>, SourceLibraryResolveScope>
+  Equal<keyof MaterialResolveRequest, "sessionId" | "ownerScope" | "limit" | "queries"> &
+    Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
+    Equal<NonNullable<MaterialResolveRequest["limit"]>, number> &
+    Equal<MaterialResolveRequest["queries"][number]["targetKind"], PublicMaterialResolveQueryKind | undefined>
 >;
 
 export type _materialPoolSpecUsesQueryReadySourceLibraryLanguage = Expect<
@@ -1674,8 +1677,7 @@ const collectionItem: CollectionItem = {
 };
 
 const materialResolveRequest: MaterialResolveRequest = {
-  kind: "single",
-  candidate: { id: "candidate-1", label: "Quiet Track", canonicalRef: ref },
+  queries: [{ id: "candidate-1", text: "Quiet Track", targetKind: "recording" }],
   ownerScope: collection.ownerScope,
 };
 
@@ -1854,9 +1856,9 @@ const instrumentCatalog: InstrumentCatalogPort = {
         tools: [
           {
             name: "music.material.resolve",
-            description: "Resolve music candidates through canonical-first material resolution.",
-            inputSchemaRef: "MaterialResolveRequest",
-            outputSchemaRef: "CompactMaterialResolveOutput",
+            description: "Resolve text music queries through local search and source grounding.",
+            inputSchemaRef: "PublicMaterialResolveInput",
+            outputSchemaRef: "PublicMaterialResolveOutput",
           },
         ],
       },
@@ -1877,9 +1879,9 @@ const handbookToolEntry: HandbookToolEntry = {
   },
   tool: {
     name: toolName,
-    description: "Resolve music candidates through canonical-first material resolution.",
-    inputSchemaRef: "MaterialResolveRequest",
-    outputSchemaRef: "CompactMaterialResolveOutput",
+    description: "Resolve text music queries through local search and source grounding.",
+    inputSchemaRef: "PublicMaterialResolveInput",
+    outputSchemaRef: "PublicMaterialResolveOutput",
   },
   content: "#### `music.material.resolve`\n",
 };
@@ -2010,12 +2012,11 @@ const materialResolve: MaterialResolvePort = {
   resolve: async () => ({
     ok: true,
     value: {
-      kind: "single",
-      result: {
-        candidate: { id: "candidate", label: "Candidate" },
+      results: [{
+        query: { id: "candidate", text: "Candidate" },
         materials: [],
         status: "unresolved",
-      },
+      }],
     } satisfies MaterialResolveResult,
   }),
 };

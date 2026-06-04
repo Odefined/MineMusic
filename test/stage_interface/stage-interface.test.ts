@@ -172,8 +172,7 @@ async function materialResolveSchemaUsesPublicTextQueries(): Promise<void> {
   );
   assert(
     resolvePayloadSchema.safeParse({
-      queries: [{ text: "Quiet Track", kind: "recording", reason: "fits" }],
-      purpose: "recommend",
+      queries: [{ id: "query:1", text: "Quiet Track", targetKind: "recording", reason: "fits" }],
       limit: 3,
     }).success,
     "material resolve public schema should accept public text queries",
@@ -183,8 +182,12 @@ async function materialResolveSchemaUsesPublicTextQueries(): Promise<void> {
     "material resolve public schema should reject empty query arrays",
   );
   assert(
-    !resolvePayloadSchema.safeParse({ queries: [{ text: "Quiet Track", kind: "song" }] }).success,
+    !resolvePayloadSchema.safeParse({ queries: [{ text: "Quiet Track", targetKind: "song" }] }).success,
     "material resolve public schema should reject legacy or internal kind hints",
+  );
+  assert(
+    !Object.prototype.hasOwnProperty.call(resolveSchema, "purpose"),
+    "material resolve public schema should not expose purpose",
   );
   assert(
     !resolveSchemaText.includes("\"materialId\"") &&
@@ -193,7 +196,9 @@ async function materialResolveSchemaUsesPublicTextQueries(): Promise<void> {
       !resolveSchemaText.includes("\"sourceLibraryScope\"") &&
       !resolveSchemaText.includes("\"candidate\"") &&
       !resolveSchemaText.includes("\"candidates\"") &&
-      !resolveSchemaText.includes("\"SourceQuery\""),
+      !resolveSchemaText.includes("\"SourceQuery\"") &&
+      resolveSchemaText.includes("\"targetKind\"") &&
+      !resolveSchemaText.includes("\"kind\""),
     "material resolve public schema should not advertise internal resolve inputs",
   );
 }

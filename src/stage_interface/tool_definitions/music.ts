@@ -12,9 +12,9 @@ import type {
   MaterialQueryInput,
   MaterialRelatedOutput,
   MaterialRelatedInput,
+  MaterialResolveQuery,
   MaterialResolveRequest,
   MaterialResolveResult,
-  MusicCandidate,
   MusicLinksRefreshOutput,
   PublicMaterialResolveInput,
   PublicMaterialResolveQueryKind,
@@ -158,10 +158,11 @@ const publicMaterialResolveQueryKindSchema = z.enum([
   "work",
 ]);
 const publicMaterialResolveQuerySchema = z.object({
+  id: z.string().trim().min(1).optional(),
   text: z.string().trim().min(1),
-  kind: publicMaterialResolveQueryKindSchema.optional(),
+  targetKind: publicMaterialResolveQueryKindSchema.optional(),
   reason: z.string().trim().min(1).optional(),
-});
+}).strict();
 const sourceLibraryPoolSchema = z.object({
   kind: z.literal("source_library"),
   libraryKinds: z.array(platformLibraryItemKindSchema).min(1).optional(),
@@ -247,7 +248,6 @@ type PublicMaterialResolvePayload = PublicMaterialResolveInput & {
 };
 const publicMaterialResolveInputSchema = {
   queries: z.array(publicMaterialResolveQuerySchema).min(1),
-  purpose: z.enum(["recommend", "lookup", "play"]).optional(),
   ownerScope: z.string().optional(),
   limit: z.number().int().positive().optional(),
   sessionId: z.string().optional(),
@@ -262,12 +262,55 @@ export const musicToolDefinitions = [
     PublicMaterialResolvePayload
   >({
     name: "music.material.resolve",
-    description: "Resolve text music queries into compact material items through canonical-first material resolution.",
+    description: "Resolve text music queries into compact material items through local material search and source grounding.",
     inputSchemaRef: "PublicMaterialResolveInput",
     outputSchemaRef: "PublicMaterialResolveOutput",
     availability: "requires_active_instrument",
     inputSchema: publicMaterialResolveInputSchema,
     inputParser: publicMaterialResolveInputParser,
+    validatePayload(payload) {
+      const input = readPayload<Record<string, unknown>>(payload);
+
+      if (Object.prototype.hasOwnProperty.call(input, "purpose")) {
+        return invalidPayload("music.material.resolve does not accept purpose.");
+      }
+
+      if (Object.prototype.hasOwnProperty.call(input, "sourceLibraryScope")) {
+        return invalidPayload("music.material.resolve does not accept source-library scoped resolve input.");
+      }
+
+      if (Object.prototype.hasOwnProperty.call(input, "candidate")
+        || Object.prototype.hasOwnProperty.call(input, "candidates")
+        || Object.prototype.hasOwnProperty.call(input, "kind")) {
+        return invalidPayload("music.material.resolve uses query arrays, not candidate-shaped resolve input.");
+      }
+
+      const queries = Array.isArray(input.queries) ? input.queries : [];
+
+      for (const query of queries) {
+        if (!isRecord(query)) {
+          continue;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "kind")) {
+          return invalidPayload("music.material.resolve uses targetKind; kind is not a supported alias.");
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "sourceRef")) {
+          return invalidPayload("music.material.resolve does not accept sourceRef input.");
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "canonicalRef")) {
+          return invalidPayload("music.material.resolve does not accept canonicalRef input.");
+        }
+
+        if (Object.prototype.hasOwnProperty.call(query, "materialRef")) {
+          return invalidPayload("music.material.resolve does not accept materialRef input.");
+        }
+      }
+
+      return ok(payload);
+    },
     handler({ context, sessionId, payload }) {
       return context.materialResolve.resolve(
         publicMaterialResolveRequest({ ...payload, sessionId: payload.sessionId ?? sessionId }),
@@ -786,30 +829,27 @@ export const musicToolInputSchemas = Object.fromEntries(
 
 function publicMaterialResolveRequest(input: PublicMaterialResolvePayload): MaterialResolveRequest {
   return {
-    kind: "candidate_set",
-    candidates: input.queries.map(publicQueryToCandidate),
+    queries: input.queries.map(publicQueryToResolveQuery),
     ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
     ...(input.ownerScope === undefined ? {} : { ownerScope: input.ownerScope }),
-    ...(input.limit === undefined ? {} : { limitPerCandidate: input.limit }),
+    ...(input.limit === undefined ? {} : { limit: input.limit }),
   };
 }
 
-function publicQueryToCandidate(
+function publicQueryToResolveQuery(
   query: PublicMaterialResolveInput["queries"][number],
-  index: number,
-): MusicCandidate {
+): MaterialResolveQuery {
   return {
-    id: `query:${index + 1}`,
-    label: query.text,
-    ...(query.kind === undefined ? {} : { expectedKind: expectedKindForPublicResolve(query.kind) }),
-    query: {
-      text: query.text,
-    },
+    ...(query.id === undefined ? {} : { id: query.id }),
+    text: query.text,
+    ...(query.targetKind === undefined ? {} : { targetKind: expectedKindForPublicResolve(query.targetKind) }),
     ...(query.reason === undefined ? {} : { reason: query.reason }),
   };
 }
 
-function expectedKindForPublicResolve(kind: PublicMaterialResolveQueryKind): string {
+function expectedKindForPublicResolve(
+  kind: PublicMaterialResolveQueryKind,
+): NonNullable<MaterialResolveQuery["targetKind"]> {
   return kind;
 }
 
@@ -1026,6 +1066,10 @@ function readPayload<TPayload extends object>(
     ...(defaults ?? {}),
     ...payloadObject,
   } as TPayload;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function ok<T>(value: T): Result<T> {

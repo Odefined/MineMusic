@@ -188,10 +188,9 @@ async function resolveCandidates({
   }
 
   const resolved = await materialResolve.resolve({
-    kind: "candidate_set",
     ownerScope,
-    candidates,
-    ...(limitPerCandidate === undefined ? {} : { limitPerCandidate }),
+    queries: candidates.map(materialResolveQueryForCandidate),
+    ...(limitPerCandidate === undefined ? {} : { limit: limitPerCandidate }),
   });
 
   if (!resolved.ok) {
@@ -199,10 +198,38 @@ async function resolveCandidates({
   }
 
   return ok(
-    resolved.value.kind === "candidate_set"
-      ? dedupeMaterials(resolved.value.results.flatMap((result) => result.materials))
-      : resolved.value.result.materials,
+    dedupeMaterials(resolved.value.results.flatMap((result) => result.materials)),
   );
+}
+
+function materialResolveQueryForCandidate(candidate: MusicCandidate) {
+  const targetKind = materialResolveTargetKindForExpectedKind(candidate.expectedKind);
+
+  return {
+    id: candidate.id,
+    text: candidate.query?.text ?? candidate.label,
+    ...(targetKind === undefined ? {} : { targetKind }),
+    ...(candidate.reason === undefined ? {} : { reason: candidate.reason }),
+  };
+}
+
+function materialResolveTargetKindForExpectedKind(
+  expectedKind: MusicCandidate["expectedKind"],
+) {
+  switch (expectedKind) {
+    case "track":
+    case "recording":
+      return "recording" as const;
+    case "album":
+      return "release_group" as const;
+    case "release":
+    case "release_group":
+    case "artist":
+    case "work":
+      return expectedKind;
+    default:
+      return undefined;
+  }
 }
 
 async function searchCandidatesForQuery({

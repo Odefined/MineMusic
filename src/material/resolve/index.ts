@@ -1,5 +1,7 @@
 import type {
   CanonicalRecord,
+  MaterialResolveQuery,
+  MaterialResolvedQuery,
   MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
@@ -40,12 +42,13 @@ export function createMaterialResolveService({
     async resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>> {
       const ownerScope = input.ownerScope ?? "local_profile:default";
 
-      if (input.kind === "single") {
+      const results: MaterialResolvedQuery[] = [];
+
+      for (const query of input.queries) {
         const result = await resolveCandidate({
-          candidate: input.candidate,
+          candidate: candidateForResolveQuery(query),
           ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-          ...(input.limitPerCandidate === undefined ? {} : { limitPerCandidate: input.limitPerCandidate }),
-          ...(input.sourceLibraryScope === undefined ? {} : { sourceLibraryScope: input.sourceLibraryScope }),
+          ...(input.limit === undefined ? {} : { limitPerCandidate: input.limit }),
           ownerScope,
           materialStore,
           sourceGrounding,
@@ -57,40 +60,41 @@ export function createMaterialResolveService({
           return result;
         }
 
-        return ok({
-          kind: "single",
-          result: result.value,
-        });
+        results.push(resolvedQueryFromCandidateResult(query, result.value));
       }
 
-      const results: ResolvedCandidate[] = [];
-
-      for (const candidate of input.candidates) {
-        const result = await resolveCandidate({
-          candidate,
-          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-          ...(input.limitPerCandidate === undefined ? {} : { limitPerCandidate: input.limitPerCandidate }),
-          ...(input.sourceLibraryScope === undefined ? {} : { sourceLibraryScope: input.sourceLibraryScope }),
-          ownerScope,
-          materialStore,
-          sourceGrounding,
-          sourceMaterializer,
-          materialPolicyEvaluator,
-        });
-
-        if (!result.ok) {
-          return result;
-        }
-
-        results.push(result.value);
-      }
-
-      return ok({
-        kind: "candidate_set",
-        results,
-      });
+      return ok({ results });
     },
   };
+}
+
+function candidateForResolveQuery(query: MaterialResolveQuery): MusicCandidate {
+  return {
+    id: query.id ?? query.text,
+    label: query.text,
+    ...(query.targetKind === undefined ? {} : { expectedKind: expectedKindForResolveQuery(query.targetKind) }),
+    query: {
+      text: query.text,
+    },
+    ...(query.reason === undefined ? {} : { reason: query.reason }),
+  };
+}
+
+function resolvedQueryFromCandidateResult(
+  query: MaterialResolveQuery,
+  result: ResolvedCandidate,
+): MaterialResolvedQuery {
+  return {
+    query: structuredClone(query),
+    materials: result.materials,
+    status: result.status,
+    ...(result.reason === undefined ? {} : { reason: result.reason }),
+    ...(result.issues === undefined ? {} : { issues: result.issues }),
+  };
+}
+
+function expectedKindForResolveQuery(kind: NonNullable<MaterialResolveQuery["targetKind"]>): string {
+  return kind;
 }
 
 async function resolveCandidate({

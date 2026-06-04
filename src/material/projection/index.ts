@@ -16,10 +16,34 @@ type MaterialProjectionPurpose =
   | "policy.evaluation";
 
 export function materialRefToMaterialId(materialRef: Ref): string {
+  if (materialRef.namespace === "minemusic" && materialRef.kind === "material") {
+    return `mat:${materialRef.id}`;
+  }
+
+  if (materialRef.namespace === "minemusic" && materialRef.kind === "ephemeral_material") {
+    return `emat:${materialRef.id}`;
+  }
+
   return materialRef.id;
 }
 
 export function materialIdToRef(materialId: string): Ref {
+  if (materialId.startsWith("mat:")) {
+    return {
+      namespace: "minemusic",
+      kind: "material",
+      id: materialId.slice(4),
+    };
+  }
+
+  if (materialId.startsWith("emat:")) {
+    return {
+      namespace: "minemusic",
+      kind: "ephemeral_material",
+      id: materialId.slice(5),
+    };
+  }
+
   return {
     namespace: "minemusic",
     kind: "material",

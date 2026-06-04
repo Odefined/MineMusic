@@ -222,21 +222,22 @@ function createTestResolve(
     materialStore,
     async resolve(label: string) {
       const result = await materialResolve.resolve({
-        kind: "single",
         ownerScope: "local_profile:default",
-        candidate: {
+        queries: [{
           id: `candidate-${label}`,
-          label,
-          expectedKind: "track",
-        },
+          text: label,
+          targetKind: "recording",
+        }],
       });
 
       if (!result.ok) {
         return result;
       }
 
-      assert(result.value.kind === "single", "test helper expects single resolve");
-      return { ok: true, value: result.value.result } as const;
+      const resolved = result.value.results[0];
+
+      assert(resolved !== undefined, "test helper expects one resolve result");
+      return { ok: true, value: resolved } as const;
     },
   };
 }

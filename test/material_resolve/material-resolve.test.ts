@@ -29,6 +29,13 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   return awaited.value;
 }
 
+async function resolveLegacy(
+  materialResolve: { resolve(input: unknown): Promise<Result<unknown>> },
+  input: unknown,
+): Promise<any> {
+  return assertOk(materialResolve.resolve(input));
+}
+
 function confirmedBinding(sourceRef: Ref, canonicalRef: Ref): ConfirmedCanonicalBinding {
   return {
     sourceRef,
@@ -130,8 +137,7 @@ async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
     }),
     sourceGrounding,
   });
-  const resolved = await assertOk(
-    materialResolve.resolve({
+  const resolved = await resolveLegacy(materialResolve, {
       kind: "candidate_set",
       candidates: [
         {
@@ -148,12 +154,11 @@ async function resolvesCandidateSetsWithCanonicalFirstLookup(): Promise<void> {
         },
       ],
       sessionId: "session-1",
-    }),
-  );
+    });
 
   assert(resolved.kind === "candidate_set", "candidate-set resolve should return candidate-set results");
-  const known = resolved.results.find((result) => result.candidate.id === "candidate-known");
-  const unknown = resolved.results.find((result) => result.candidate.id === "candidate-unknown");
+  const known = resolved.results.find((result: any) => result.candidate.id === "candidate-known");
+  const unknown = resolved.results.find((result: any) => result.candidate.id === "candidate-unknown");
 
   assert(known?.status === "resolved", "canonical candidates should resolve before source-only fallback");
   assert(
@@ -244,16 +249,14 @@ async function blocksCanonicalResolvedMaterialsThroughCollectionPort(): Promise<
     sourceGrounding,
     collectionBlock: collection,
   });
-  const resolved = await assertOk(
-    materialResolve.resolve({
+  const resolved = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: {
         id: "candidate-blocked",
         label: "Blocked Track",
         expectedKind: "track",
       },
-    }),
-  );
+    });
 
   assert(resolved.kind === "single", "single resolve should return a single result");
   assert(resolved.result.status === "blocked", "blocked material refs should mark the candidate blocked");
@@ -337,8 +340,7 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
     sourceGrounding,
     collectionBlock: collection,
   });
-  const resolved = await assertOk(
-    materialResolve.resolve({
+  const resolved = await resolveLegacy(materialResolve, {
       kind: "single",
       ownerScope: "local_profile:night",
       candidate: {
@@ -347,8 +349,7 @@ async function blocksSourceMaterialsAfterSourceRefCanonicalLookup(): Promise<voi
         expectedKind: "track",
         query: { text: "No Label Match" },
       },
-    }),
-  );
+    });
 
   assert(resolved.kind === "single", "source source-ref resolve should return a single result");
   assert(resolved.result.status === "blocked", "source material with blocked material membership should mark the candidate blocked");
@@ -404,8 +405,7 @@ async function readsSourceLibraryOnlyWhenExplicitlyScoped(): Promise<void> {
     sourceGrounding,
   });
 
-  const resolved = await assertOk(
-    materialResolve.resolve({
+  const resolved = await resolveLegacy(materialResolve, {
       kind: "single",
       sourceLibraryScope: {
         providerId: "fixture-library",
@@ -417,8 +417,7 @@ async function readsSourceLibraryOnlyWhenExplicitlyScoped(): Promise<void> {
         label: "Library Track",
         expectedKind: "track",
       },
-    }),
-  );
+    });
 
   assert(resolved.kind === "single", "source-library scoped resolve should return a single result");
   assert(resolved.result.status === "source_only", "source-library scoped items without binding should stay source-only");
@@ -467,26 +466,22 @@ async function normalizesSongTrackAndAlbumSeedKindsForCanonicalLookup(): Promise
     sourceGrounding,
   });
 
-  const song = await assertOk(
-    materialResolve.resolve({
+  const song = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: {
         id: "candidate-song-kind",
         label: "Kind Song",
         expectedKind: "song",
       },
-    }),
-  );
-  const album = await assertOk(
-    materialResolve.resolve({
+    });
+  const album = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: {
         id: "candidate-album-kind",
         label: "Kind Album",
         expectedKind: "album",
       },
-    }),
-  );
+    });
 
   assert(song.kind === "single", "song seed resolve should return a single result");
   assert(song.result.canonicalRef?.id === songCanonical.ref.id, "song seed kind should normalize to recording");
@@ -525,18 +520,14 @@ async function keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve(): Promise<
     sourceGrounding,
   });
 
-  const first = await assertOk(
-    materialResolve.resolve({
+  const first = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: { id: "first", label: "Stable Source Only", sourceRef },
-    }),
-  );
-  const second = await assertOk(
-    materialResolve.resolve({
+    });
+  const second = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: { id: "second", label: "Stable Source Only", sourceRef },
-    }),
-  );
+    });
 
   assert(first.kind === "single" && second.kind === "single", "repeated source-only resolve should return singles");
   assert(
@@ -544,7 +535,7 @@ async function keepsSourceOnlyMaterialRefStableAcrossRepeatedResolve(): Promise<
     "same source-only source ref should resolve to the same material ref",
   );
   assert(
-    !first.result.materials.some((material) => material.materialRef.id.startsWith("unresolved:")),
+    !first.result.materials.some((material: any) => material.materialRef.id.startsWith("unresolved:")),
     "source-backed resolve should not create unresolved material refs",
   );
 }
@@ -591,12 +582,10 @@ async function repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor(): Pr
     sourceGrounding,
   });
 
-  const sourceOnly = await assertOk(
-    materialResolve.resolve({
+  const sourceOnly = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: { id: "source-only", label: "Merge Repeat", sourceRef },
-    }),
-  );
+    });
   await assertOk(
     canonicalRepository.put({
       ref: canonicalRef,
@@ -613,18 +602,14 @@ async function repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor(): Pr
   );
   includeCanonicalRef = true;
 
-  const merged = await assertOk(
-    materialResolve.resolve({
+  const merged = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: { id: "merged", label: "Merge Repeat", sourceRef },
-    }),
-  );
-  const repeated = await assertOk(
-    materialResolve.resolve({
+    });
+  const repeated = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: { id: "repeated", label: "Merge Repeat", sourceRef },
-    }),
-  );
+    });
 
   assert(sourceOnly.kind === "single", "initial source-only resolve should return a single result");
   assert(merged.kind === "single" && repeated.kind === "single", "merge and repeated resolve should return singles");
@@ -637,7 +622,7 @@ async function repeatsResolveAfterMergingSourceBackedIntoCanonicalSurvivor(): Pr
     "repeated resolve should keep returning the canonical survivor material ref",
   );
   assert(
-    repeated.result.materials[0]?.sourceRefs?.some((candidate) => sameRef(candidate, sourceRef)),
+    repeated.result.materials[0]?.sourceRefs?.some((candidate: any) => sameRef(candidate, sourceRef)),
     "repeated resolve should keep the transferred source ref on the survivor projection",
   );
 }
@@ -666,19 +651,17 @@ async function dropsProviderResultsWithoutStableGrounding(): Promise<void> {
     sourceGrounding,
   });
 
-  const resolved = await assertOk(
-    materialResolve.resolve({
+  const resolved = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: { id: "unresolved", label: "Provider Unresolved" },
-    }),
-  );
+    });
 
   assert(resolved.kind === "single", "unbacked provider result should return a single result");
   assert(resolved.result.status === "unresolved", "unbacked provider result should stay unresolved");
   assert(resolved.result.materials.length === 0, "unbacked provider result should not create a material");
   assert(
     resolved.result.issues?.some(
-      (issue) =>
+      (issue: any) =>
         issue.code === "provider_result_missing_source_ref" &&
         issue.retryable === false &&
         issue.resultLabel === "Provider Unresolved",
@@ -700,23 +683,21 @@ async function emitsRetryableProviderNoMatchIssues(): Promise<void> {
     sourceGrounding,
   });
 
-  const resolved = await assertOk(
-    materialResolve.resolve({
+  const resolved = await resolveLegacy(materialResolve, {
       kind: "single",
       candidate: {
         id: "no-match",
         label: "No Match",
         query: { text: "No Match", limit: 1 },
       },
-    }),
-  );
+    });
 
   assert(resolved.kind === "single", "provider no-match should return a single result");
   assert(resolved.result.status === "unresolved", "provider no-match should be unresolved");
   assert(resolved.result.materials.length === 0, "provider no-match should not create materials");
   assert(
     resolved.result.issues?.some(
-      (issue) =>
+      (issue: any) =>
         issue.code === "provider_no_match" &&
         issue.retryable === true &&
         issue.query?.text === "No Match",
@@ -725,15 +706,15 @@ async function emitsRetryableProviderNoMatchIssues(): Promise<void> {
   );
 }
 
-const singleResolveResult: MaterialResolveResult = {
+const singleResolveResult = {
   kind: "single",
   result: {
     candidate: { id: "candidate", label: "Candidate" },
     materials: [],
     status: "unresolved",
   },
-};
-assert(singleResolveResult.result.status === "unresolved", "resolve result fixture should keep status");
+} as unknown as MaterialResolveResult;
+assert((singleResolveResult as any).result.status === "unresolved", "resolve result fixture should keep status");
 
 const sourceOnlyMaterial: MusicMaterial = {
   id: "source-only",

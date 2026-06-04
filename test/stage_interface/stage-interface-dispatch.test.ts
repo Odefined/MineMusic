@@ -80,7 +80,7 @@ function assertCompactCollectionItemOutput(value: unknown, message: string): ass
   assert(isRecord(value), message);
   assert(value.itemId === "collection-item-1", `${message}: itemId`);
   assert(value.collectionId === "collection-saved-recordings", `${message}: collectionId`);
-  assert(value.materialId === "quiet-track", `${message}: materialId`);
+  assert(value.materialId === "mat:quiet-track", `${message}: materialId`);
   assert(!("materialRef" in value), `${message}: should hide materialRef`);
   assert(!("canonicalRef" in value), `${message}: should hide canonicalRef`);
   assert(!("createdAt" in value), `${message}: should hide storage timestamps`);
@@ -171,8 +171,8 @@ async function listsStableLlmVisibleToolsWithoutProviderDetails(): Promise<void>
     .find((tool) => tool.name === "music.material.resolve");
   assert(groundTool !== undefined, "catalog should expose the material resolve tool");
   assert(
-    groundTool.description.includes("canonical-first"),
-    "resolve tool description should make canonical-first orchestration explicit",
+    groundTool.description.includes("local material search"),
+    "resolve tool description should make local-search grounding explicit",
   );
   assert(
     descriptors.some((descriptor) => descriptor.id === "minemusic.handbook"),
@@ -416,7 +416,6 @@ async function registersMigratedToolDefinitions(): Promise<void> {
         resolve: async () => ({
           ok: true,
           value: {
-            kind: "candidate_set",
             results: [],
           },
         }),
@@ -574,7 +573,6 @@ async function dispatchesStableToolNamesThroughInjectedPorts(): Promise<void> {
       return {
         ok: true,
         value: {
-          kind: "candidate_set",
           results: [],
         },
       };
@@ -869,7 +867,7 @@ async function rejectsManualRecommendationPresentedEvents(): Promise<void> {
     sessionContext,
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -938,7 +936,7 @@ async function dispatchesInstrumentToolsRegardlessOfActiveInstrumentHints(): Pro
     sessionContext,
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -1035,7 +1033,7 @@ async function dispatchesCollectionSystemToolsWithDefaultOwnerScope(): Promise<v
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -1236,7 +1234,7 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -1372,7 +1370,7 @@ async function dispatchesCustomCollectionAndItemToolsWithDefaultOwnerScope(): Pr
   assert(
     listedOutput.items[0]?.itemId === "collection-item-1" &&
       listedOutput.items[0]?.collectionId === customCollection.id &&
-      listedOutput.items[0]?.materialId === "quiet-track" &&
+      listedOutput.items[0]?.materialId === "mat:quiet-track" &&
       listedOutput.items[0]?.label === "Quiet Track" &&
       !("materialRef" in listedOutput.items[0]) &&
       !("createdAt" in listedOutput.items[0]),
@@ -1426,7 +1424,7 @@ async function dispatchRejectsCompactCustomCollectionKindMismatch(): Promise<voi
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -1522,11 +1520,8 @@ async function dispatchesMaterialQueryToolsWithCurrentSessionId(): Promise<void>
         return {
           ok: true,
           value: {
-            kind: "candidate_set",
             results: [{
-              candidate: input.kind === "candidate_set"
-                ? input.candidates[0] ?? { id: "query:1", label: "Dispatch Material" }
-                : input.candidate,
+              query: input.queries[0] ?? { id: "query:1", text: "Dispatch Material" },
               status: "resolved",
               materials: [material],
             }],
@@ -1674,7 +1669,7 @@ function assertCompactMaterialOutput(output: unknown, message: string): void {
   const first = output.items[0] as Record<string, unknown> | undefined;
 
   assert(first !== undefined, message);
-  assert(first.materialId === "dispatch-material", message);
+  assert(first.materialId === "mat:dispatch-material", message);
   assert(first.title === "Dispatch Material", message);
   assert(first.state === "source_only_playable", message);
   assert(!("material" in first), "compact Stage Interface output should not expose raw material");
@@ -1776,7 +1771,7 @@ async function dispatchesLibraryImportToolsWithDefaultOwnerScope(): Promise<void
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -1893,7 +1888,7 @@ async function dispatchRejectsRemovedSourceLibraryListTool(): Promise<void> {
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -2166,7 +2161,7 @@ async function dispatchesCanonicalReviewToolsWithCurrentSessionId(): Promise<voi
     },
     instruments: createInstrumentCatalog(),
     materialResolve: {
-      resolve: async () => ({ ok: true, value: { kind: "candidate_set", results: [] } }),
+      resolve: async () => ({ ok: true, value: { results: [] } }),
     },
     source: {
       ground: async () => ({ ok: true, value: [] }),
@@ -2418,7 +2413,7 @@ async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promis
     materialResolve: {
       resolve: async () => {
         resolveCalls += 1;
-        return { ok: true, value: { kind: "candidate_set", results: [] } };
+        return { ok: true, value: { results: [] } };
       },
     },
     source: {} as SourceGroundingPort,
@@ -2445,7 +2440,32 @@ async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promis
   const invalidKind = await dispatch.call({
     sessionId: session.id,
     toolName: "music.material.resolve",
-    payload: { queries: [{ text: "Quiet Track", kind: "song" }] },
+    payload: { queries: [{ text: "Quiet Track", targetKind: "song" }] },
+  });
+  const legacyKindAlias = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { queries: [{ text: "Quiet Track", kind: "recording" }] },
+  });
+  const purposePayload = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { queries: [{ text: "Quiet Track" }], purpose: "recommend" },
+  });
+  const sourceLibraryScopePayload = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { queries: [{ text: "Quiet Track" }], sourceLibraryScope: { providerId: "fixture" } },
+  });
+  const sourceRefPayload = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { queries: [{ text: "Quiet Track", sourceRef: { namespace: "source:fixture", kind: "track", id: "quiet-track" } }] },
+  });
+  const canonicalRefPayload = await dispatch.call({
+    sessionId: session.id,
+    toolName: "music.material.resolve",
+    payload: { queries: [{ text: "Quiet Track", canonicalRef: { namespace: "minemusic", kind: "recording", id: "quiet-track" } }] },
   });
 
   assert(!missingQueries.ok, "public material resolve should require queries");
@@ -2460,6 +2480,11 @@ async function invalidMaterialResolveConditionalPayloadsFailAtBoundary(): Promis
   );
   assert(!emptyText.ok, "public material resolve should reject empty query text");
   assert(!invalidKind.ok, "public material resolve should reject internal or legacy kind names");
+  assert(!legacyKindAlias.ok, "public material resolve should reject legacy kind alias fields");
+  assert(!purposePayload.ok, "public material resolve should reject purpose");
+  assert(!sourceLibraryScopePayload.ok, "public material resolve should reject source-library scoped payloads");
+  assert(!sourceRefPayload.ok, "public material resolve should reject sourceRef payloads");
+  assert(!canonicalRefPayload.ok, "public material resolve should reject canonicalRef payloads");
   assert(resolveCalls === 0, "invalid material resolve payloads should not call MaterialResolvePort");
 }
 

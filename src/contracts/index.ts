@@ -1034,21 +1034,26 @@ export type MusicCandidate = {
   context?: string;
 };
 
+export type MaterialResolveTargetKind =
+  | "recording"
+  | "release_group"
+  | "release"
+  | "artist"
+  | "work";
+
+export type MaterialResolveQuery = {
+  id?: string;
+  text: string;
+  targetKind?: MaterialResolveTargetKind;
+  reason?: string;
+};
+
 export type MaterialResolveRequest = {
   sessionId?: string;
   ownerScope?: string;
-  sourceLibraryScope?: SourceLibraryResolveScope;
-  limitPerCandidate?: number;
-} & (
-  | {
-      kind: "single";
-      candidate: MusicCandidate;
-    }
-  | {
-      kind: "candidate_set";
-      candidates: MusicCandidate[];
-    }
-);
+  limit?: number;
+  queries: MaterialResolveQuery[];
+};
 
 export type MaterialResolveStatus =
   | "resolved"
@@ -1087,32 +1092,29 @@ export type ResolvedCandidate = {
   issues?: MaterialResolveIssue[];
 };
 
-export type MaterialResolveResult =
-  | {
-      kind: "single";
-      result: ResolvedCandidate;
-    }
-  | {
-      kind: "candidate_set";
-      results: ResolvedCandidate[];
-    };
+export type MaterialResolvedQuery = {
+  query: MaterialResolveQuery;
+  materials: MusicMaterial[];
+  status: MaterialResolveStatus;
+  reason?: string;
+  issues?: MaterialResolveIssue[];
+};
 
-export type PublicMaterialResolveQueryKind =
-  | "recording"
-  | "release_group"
-  | "release"
-  | "artist"
-  | "work";
+export type MaterialResolveResult = {
+  results: MaterialResolvedQuery[];
+};
+
+export type PublicMaterialResolveQueryKind = MaterialResolveTargetKind;
 
 export type PublicMaterialResolveQuery = {
+  id?: string;
   text: string;
-  kind?: PublicMaterialResolveQueryKind;
+  targetKind?: PublicMaterialResolveQueryKind;
   reason?: string;
 };
 
 export type PublicMaterialResolveInput = {
   queries: PublicMaterialResolveQuery[];
-  purpose?: "recommend" | "lookup" | "play";
   ownerScope?: string;
   limit?: number;
 };
@@ -1250,6 +1252,7 @@ export type PublicMaterialResolveItem = {
 };
 
 export type PublicMaterialResolveUnresolvedItem = {
+  id?: string;
   text: string;
   reason?: string;
 };
