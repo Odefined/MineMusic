@@ -2,6 +2,7 @@ import type {
   MaterialPolicyCollectionBlockPort,
   MaterialQueryCollectionReadPort,
   MaterialResolvePort,
+  MaterialSearchCollectionPort,
   MaterialSelectorPort,
   MaterialStorePort,
   SourceGroundingPort,
@@ -18,6 +19,7 @@ import type {
 import { createCollectionService } from "../../src/collection/index.js";
 import { createEventService } from "../../src/events/index.js";
 import { createMaterializationService } from "../../src/material/materialization/index.js";
+import { createMaterialSearchDocumentProvider, createMaterialSearchService } from "../../src/material/search/index.js";
 import { createCanonicalStore, createInMemoryMaterialRegistry, createMaterialStore } from "../../src/material/store/index.js";
 import { materialRefToMaterialId } from "../../src/material/projection/index.js";
 import { createMaterialQueryService as createMaterialQueryServiceBase } from "../../src/material/query/index.js";
@@ -31,6 +33,7 @@ import {
   createInMemoryMaterialActivityRepository,
   createInMemoryMaterialSessionActivityRepository,
   createInMemorySourceEntityStoreRepository,
+  createSqliteMaterialSearchIndex,
 } from "../../src/storage/index.js";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -53,6 +56,10 @@ async function assertOk<T>(result: Promise<Result<T>>): Promise<T> {
   const awaited = await result;
   assert(awaited.ok, awaited.ok ? "unreachable" : awaited.error.message);
   return awaited.value;
+}
+
+function ok<T>(value: T): Result<T> {
+  return { ok: true, value };
 }
 
 async function querySavedTracksReturnsOnlySavedTrackMaterials(): Promise<void> {
@@ -207,7 +214,7 @@ async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<
   );
 }
 
-async function queryReturnKindFiltersResolvedMaterials(): Promise<void> {
+async function queryTargetKindFiltersResolvedMaterials(): Promise<void> {
   const trackRef = ref("source:fixture", "track", "return-kind-track");
   const artistRef = ref("source:fixture", "artist", "return-kind-artist");
   const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
@@ -221,7 +228,7 @@ async function queryReturnKindFiltersResolvedMaterials(): Promise<void> {
     materialQuery.query({
       ownerScope: "local_profile:default",
       pool: { kind: "source_library", libraryKinds: ["saved_source_track", "saved_source_artist"] },
-      returnKind: "recording",
+      targetKind: "recording",
       limit: 10,
     }),
   );
@@ -229,13 +236,13 @@ async function queryReturnKindFiltersResolvedMaterials(): Promise<void> {
     materialQuery.query({
       ownerScope: "local_profile:default",
       pool: { kind: "source_library", libraryKinds: ["saved_source_track", "saved_source_artist"] },
-      returnKind: "artist",
+      targetKind: "artist",
       limit: 10,
     }),
   );
 
-  assert(recordings.items.length === 1 && itemTitle(recordings.items[0]) === "Return Kind Track", "returnKind recording should keep only recording materials");
-  assert(artists.items.length === 1 && itemTitle(artists.items[0]) === "Return Kind Artist", "returnKind artist should keep only artist materials");
+  assert(recordings.items.length === 1 && itemTitle(recordings.items[0]) === "Return Kind Track", "targetKind recording should keep only recording materials");
+  assert(artists.items.length === 1 && itemTitle(artists.items[0]) === "Return Kind Artist", "targetKind artist should keep only artist materials");
 }
 
 async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<void> {
@@ -255,13 +262,13 @@ async function querySavedAlbumsAppliesTrackLevelTextAfterExpansion(): Promise<vo
     materialQuery.query({
       ownerScope: "local_profile:default",
       pool: { kind: "source_library", libraryKinds: ["saved_source_release"], target: "release_tracks" },
-      q: "Lantern",
-      returnKind: "recording",
+      text: "Lantern",
+      targetKind: "recording",
       limit: 10,
     }),
   );
 
-  assert(output.items.length === 1, "saved album expansion should apply q to expanded track labels");
+  assert(output.items.length === 1, "saved album expansion should apply text to expanded track labels");
   assert(itemTitle(output.items[0]) === "Bright Lantern", "saved album expansion should find matching track labels");
 }
 
@@ -452,6 +459,7 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
   const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
     sourceMaterial("Collection Label Track", sourceRef),
   ]);
+  await putSourceTrack(materialStore, sourceRef, "Collection Label Track");
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
   const collectionItem: CollectionItem = {
     id: "collection-item-night-track",
@@ -474,7 +482,7 @@ async function queryCollectionPoolCanResolveByLabel(): Promise<void> {
     materialQuery.query({
       ownerScope: "local_profile:default",
       pool: { kind: "collection", label: "Night coding" },
-      returnKind: "recording",
+      targetKind: "recording",
       limit: 10,
     }),
   );
@@ -496,6 +504,7 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
   const { materialStore, sourceGrounding } = createMaterialQueryServiceHarness([
     sourceMaterial("Source Only Collection Track", sourceRef),
   ]);
+  await putSourceTrack(materialStore, sourceRef, "Source Only Collection Track");
   const record = await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
   const collectionItem: CollectionItem = {
     id: "collection-item-material-only",
@@ -518,7 +527,7 @@ async function queryCollectionPoolReturnsMaterialOnlyItems(): Promise<void> {
     queryWithCollection.query({
       ownerScope: "local_profile:default",
       pool: { kind: "collection", ref: collectionRecord.id },
-      returnKind: "recording",
+      targetKind: "recording",
       limit: 10,
     }),
   );
@@ -540,7 +549,7 @@ async function queryCollectionMaterialRefsUseStoredPlayableLinks(): Promise<void
       ownerScope: "local_profile:default",
       pool: { kind: "collection", ref: fixture.collectionRecord.id },
       constraints: { availability: "playable" },
-      returnKind: "recording",
+      targetKind: "recording",
       limit: 10,
     }),
   );
@@ -582,7 +591,7 @@ async function queryCollectionPoolSkipsUnprojectableMaterialRefs(): Promise<void
     queryWithCollection.query({
       ownerScope: "local_profile:default",
       pool: { kind: "collection", ref: collectionRecord.id },
-      returnKind: "recording",
+      targetKind: "recording",
       limit: 10,
     }),
   );
@@ -1059,14 +1068,34 @@ function createMaterialQueryService({
     ...(collectionBlock === undefined ? {} : { collectionBlock }),
     ...(clock === undefined ? {} : { clock }),
   });
+  const materialSearchDocuments = createMaterialSearchDocumentProvider({ materialStore });
+  const materialSearchIndex = createSqliteMaterialSearchIndex({ documents: materialSearchDocuments });
+  const materialSearch = createMaterialSearchService({
+    materialStore,
+    collection: materialSearchCollectionPort({
+      ...(collectionRead === undefined ? {} : { collectionRead }),
+    }),
+    searchIndex: materialSearchIndex,
+  });
 
   return createMaterialQueryServiceBase({
     materialStore,
     materialResolve,
+    materialSearch,
     materialSelector: selector,
-    sourceLibraryMaterializer: createMaterializationService({ materialStore }),
     ...(collectionRead === undefined ? {} : { collection: collectionRead }),
   });
+}
+
+function materialSearchCollectionPort({
+  collectionRead,
+}: {
+  collectionRead?: MaterialQueryCollectionReadPort;
+}): MaterialSearchCollectionPort {
+  return {
+    listItems: collectionRead?.listItems ?? (async () => ok([])),
+    listCollections: collectionRead?.listCollections ?? (async () => ok([])),
+  };
 }
 
 function createMaterialResolveService({
@@ -1248,6 +1277,7 @@ async function putLibraryTrack(
       },
     }),
   );
+  await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "recording" }));
 }
 
 async function putLibraryRelease(
@@ -1286,6 +1316,7 @@ async function putLibraryRelease(
       },
     }),
   );
+  await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "release" }));
 }
 
 async function putLibraryArtist(
@@ -1322,6 +1353,7 @@ async function putLibraryArtist(
       },
     }),
   );
+  await assertOk(materialStore.getOrCreateBySourceRef({ sourceRef, kind: "artist" }));
 }
 
 async function putRelationForSource(
@@ -1419,7 +1451,7 @@ await materialQueryServiceDoesNotExposeSelectorCapability();
 await querySavedTracksProjectsStoredPlayableLinksWithoutProviderGrounding();
 await querySkipsUnbackedProviderResults();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
-await queryReturnKindFiltersResolvedMaterials();
+await queryTargetKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();
 await queryRejectsInvalidReleaseTracksSourceLibraryPool();
 await listPoolsDisambiguatesProviderAccountsInSourceLibraryLabels();

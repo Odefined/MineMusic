@@ -68,6 +68,11 @@ import type {
   MaterialResolveIssue,
   MaterialResolveRequest,
   MaterialResolveResult,
+  MaterialSearchInput,
+  MaterialSearchIndexSearchInput,
+  MaterialSearchIndexSearchOutput,
+  MaterialSearchOutput,
+  MaterialSearchDocument,
   MaterialSelectInput,
   MaterialSelectOutput,
   MaterialSortInput,
@@ -477,6 +482,15 @@ export type MaterialQueryStorePort =
     | "getConfirmedCanonicalBinding"
   >;
 
+export type MaterialSearchStorePort =
+  MaterialProjectionStorePort &
+  Pick<
+    MaterialStorePort,
+    | "findMaterialBySourceRef"
+    | "listSourceLibraryItems"
+    | "listMaterialRelations"
+  >;
+
 export type MaterialSourceMaterializerStorePort =
   MaterialProjectionStorePort &
   Pick<
@@ -735,6 +749,12 @@ export type MaterialPolicyCollectionBlockPort = Pick<
   | "filterBlockedMaterials"
 >;
 
+export type MaterialSearchCollectionPort = Pick<
+  CollectionPort,
+  | "listCollections"
+  | "listItems"
+>;
+
 export interface LibraryImportPort {
   previewImport(input: LibraryImportPreviewInput): Promise<Result<LibraryImportPreview>>;
 
@@ -786,6 +806,28 @@ export interface MaterialResolvePort {
 
 export interface MaterialQueryPort {
   query(input: MaterialQueryInput): Promise<Result<MaterialQueryOutput>>;
+}
+
+export interface MaterialSearchPort {
+  search(input: MaterialSearchInput): Promise<Result<MaterialSearchOutput>>;
+}
+
+export interface MaterialSearchDocumentProviderPort {
+  buildSearchDocument(input: {
+    materialRef: Ref;
+  }): Promise<Result<MaterialSearchDocument | null>>;
+
+  buildAllSearchDocuments(): Promise<Result<MaterialSearchDocument[]>>;
+}
+
+export interface MaterialSearchIndexPort {
+  markDirty(input: { materialRef: Ref }): Promise<Result<void>>;
+
+  refreshDirty(input: { materialRefs: Ref[] }): Promise<Result<void>>;
+
+  rebuildAll(): Promise<Result<void>>;
+
+  search(input: MaterialSearchIndexSearchInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
 }
 
 export interface MaterialRelatedPort {

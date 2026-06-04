@@ -29,7 +29,8 @@ turning source-backed facts into registry-backed domain materials.
 It provides:
 
 - `MaterialSourceMaterializerPort` for Material Resolve;
-- `MaterialSourceLibraryMaterializerPort` for Material Query;
+- `MaterialSourceLibraryMaterializerPort` for explicit Source Library item
+  materialization callers when needed;
 - `createMaterializationService(...)` as the factory wired by Stage Core.
 
 The materialization service can call registry writer capabilities through
@@ -44,10 +45,11 @@ Source Library discovery, and provider grounding. It delegates known-canonical
 attachment and source/provider materialization to
 `MaterialSourceMaterializerPort`.
 
-Material Query uses Source Library materialization when a pool returns stored
-library items. This lets saved-track, followed-artist, saved-release,
-release-track, all-material, and collection-backed pools return domain
-materials without re-grounding provider search in the recommendation path.
+Material Query no longer materializes ordinary Source Library rows during
+retrieval. `all`, ordinary `source_library`, and `collection` pools retrieve
+through Material Search and project durable MaterialRecords. The
+`source_library target: "release_tracks"` path remains on the existing
+Resolve/materialization path for expanded track candidates.
 
 ## Stage Context And Recent Cards
 

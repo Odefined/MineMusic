@@ -44,6 +44,9 @@ Material Query returns domain result items, Stage Interface output modules
 project those results into compact agent-facing outputs, and raw
 source/canonical/evidence details stay behind internal Material Store and
 Material Resolve boundaries unless a diagnostic tool explicitly asks for them.
+For `all`, ordinary `source_library`, and `collection` pools, Material Query
+retrieves through internal Material Search over owner-visible durable material
+refs; Search evidence, provenance, and Search cursor stay internal.
 Stage Interface collection tools accept `materialId`
 for material actions without exposing internal
 snapshot/relation-scope fields in the normal public schemas. Collection
@@ -106,6 +109,7 @@ MineMusic Server Process
      -> Core Capability Layer
      -> Material Store
      -> Collection Service
+     -> Material Search
      -> Material Resolve
      -> Material Policy / Sort / Select
      -> Recommendation Presentation
@@ -178,9 +182,10 @@ Stage Interface depends on the specific port it needs.
 | Material Resolve | canonical-first candidate lookup, Source Grounding orchestration, explicit Source Library scoped discovery, `MaterialResolveResult` status aggregation, confirmed binding lookup, and resolve issue/status aggregation; delegates registry materialization and resolution-time relation/collection-block projection to owned ports | provider internals, playable-link refresh, canonical writes, Collection writes, direct relation policy evaluation internals, registry materialization writes, final recommendation selection |
 | Material Projection | `materialId` / `materialRef` / current `MaterialRecord` to domain `MusicMaterial` projection through narrow projection reads, including label, source refs, playable links, and projected material state | query orchestration, registry writes, Stage Interface compact DTOs, recommendation presentation |
 | Material Materialization | Source/provider `SourceMaterial` and Source Library item materialization into `MaterialRecord` / domain `MusicMaterial` through explicit registry writer capabilities | candidate discovery, relation/block filtering, Stage Interface output projection, Recommendation Presentation, Library Import, Memory |
+| Material Search | local durable material retrieval over owner-visible material refs, strict owner visibility, owner-neutral SearchDocuments, SQLite FTS-backed text matching, Search-owned score/evidence/provenance/cursor, and read-only retrieval for `all`, ordinary `source_library`, and `collection` pools | provider/source search, material resolve, registry materialization writes, public compact output projection, final recommendation selection, semantic mood/vibe/tag interpretation, general MaterialSorter behavior |
 | Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy, including internal `material_resolution` projection for Resolve; sorting of already usable material candidates; materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment, compact output projection |
 | Recommendation Presentation | final presentation gate for intended ordered materialId recommendations, typed `recommendation.presented` event creation with feedback-binding facts, min/max enforcement, accepted/dropped decisions | candidate discovery, sorting, selector delegation, final recommendation judgment, compact output projection |
-| Material Query / Related | domain material retrieval through narrow query/projection store dependencies, query-ready Source Library / Collection-compatible retrieval, related candidate generation, selector delegation, materialId result handles, and source-library item materialization delegation | raw source/canonical graph exposure, provider internals, canonical writes, registry materialization writes, broad Material Store mutation authority, tag/style-hint interpretation without real semantic data, final recommendation selection, compact output projection, public Source Library row listing |
+| Material Query / Related | domain material retrieval through narrow query/projection/search dependencies, Search-backed retrieval for `all`, ordinary `source_library`, and `collection`, related candidate generation, release-track expansion, selector delegation, and materialId result handles | raw source/canonical graph exposure, provider internals, canonical writes, ordinary query-time registry materialization writes, broad Material Store mutation authority, tag/style-hint interpretation without real semantic data, final recommendation selection, compact output projection, public Source Library row listing |
 | Source Grounding | source provider search, source refs, availability, playable links, source-backed state normalization, and persistence of provider-returned source evidence into Source Entity Store through a narrow writer | canonical authority, memory decisions, candidate-level material resolution |
 | Music Knowledge | provider-attributed knowledge items, including structured knowledge and text knowledge | playability claims, canonical writes, identity confirmation |
 | Event Service | factual event history and Material Activity projection updates from material-targeted events | derived preference claims, query-time ranking policy |

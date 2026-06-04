@@ -53,6 +53,9 @@ export function createDefaultMineMusicServerRuntime(
     ...(env.MINEMUSIC_MATERIAL_STORE_DB_PATH === undefined
       ? {}
       : { materialStoreDatabasePath: env.MINEMUSIC_MATERIAL_STORE_DB_PATH }),
+    ...(env.MINEMUSIC_MATERIAL_SEARCH_DB_PATH === undefined
+      ? {}
+      : { materialSearchDatabasePath: env.MINEMUSIC_MATERIAL_SEARCH_DB_PATH }),
     ...(env.MINEMUSIC_COLLECTION_DB_PATH === undefined
       ? {}
       : { collectionDatabasePath: env.MINEMUSIC_COLLECTION_DB_PATH }),

@@ -50,6 +50,11 @@ the docs listed in `INDEX.md`.
 - Material Flow owns material resolve, projection, materialization, query,
   related retrieval, policy, sorting, selection, and recommendation
   presentation.
+- Material Search is implemented as an internal Material Flow capability.
+  `music.material.query` uses it for `all`, ordinary `source_library`, and
+  `collection` retrieval; `related` and
+  `source_library target: "release_tracks"` remain on their existing paths.
+  Public Query input uses `text` and `targetKind`, not `q` or `returnKind`.
 - Material Query now reads collection pools through the narrow
   `MaterialQueryCollectionReadPort`, Material Policy reads collection-backed
   blocked membership through `MaterialPolicyCollectionBlockPort`, and Resolve
@@ -96,10 +101,11 @@ the docs listed in `INDEX.md`.
 - In-memory repositories remain the default when no database path is supplied.
 - SQLite-backed storage exists for Material Store canonical/source/material
   registry state, material relations/activity, Collection, Library Import, and
-  Provider HTTP Cache.
+  Provider HTTP Cache. Material Search uses the SQLite FTS-backed SearchIndex;
+  harnesses can use transient SQLite for the same adapter behavior.
 - Server env can configure database paths:
-  `MINEMUSIC_MATERIAL_STORE_DB_PATH`, `MINEMUSIC_COLLECTION_DB_PATH`, and
-  `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`.
+  `MINEMUSIC_MATERIAL_STORE_DB_PATH`, `MINEMUSIC_MATERIAL_SEARCH_DB_PATH`,
+  `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`.
 - Provider HTTP Cache can be configured through server runtime options and is
   passed to Knowledge provider factories.
 

@@ -13,12 +13,13 @@ This document is the current ports authority for Material Flow. It is based on
 | `MaterialRelatedPort` | `src/material/query/index.ts` | Find related domain materials. |
 | `MaterialContextBriefPort` | `src/material/query/index.ts` | Return compact material context details. |
 | `MaterialPoolsPort` | `src/material/query/index.ts` | List query-ready material pools. |
+| `MaterialSearchPort` | `src/material/search/index.ts` | Retrieve owner-visible local durable materials through Search-backed scopes. |
 | `MaterialPolicyEvaluatorPort` | `src/material/policy/index.ts` | Evaluate one material against policy. |
 | `MaterialSorterPort` | `src/material/policy/index.ts` | Sort already usable material candidates. |
 | `MaterialSelectorPort` | `src/material/selection/index.ts` | Apply policy, sorting, diversity, and limits. |
 | `RecommendationPresentationPort` | `src/material/presentation/index.ts` | Final recommendation-domain presentation boundary. |
 | `MaterialSourceMaterializerPort` | `src/material/materialization/index.ts` | Materialize source/provider results for resolve. |
-| `MaterialSourceLibraryMaterializerPort` | `src/material/materialization/index.ts` | Materialize Source Library items for query. |
+| `MaterialSourceLibraryMaterializerPort` | `src/material/materialization/index.ts` | Materialize Source Library items through the explicit materialization boundary when needed; ordinary Query v1 retrieval does not consume it. |
 
 `src/material/index.ts` is the bounded-context barrel for these factories and
 for projection helpers such as `materialIdToRef`, `materialRefToMaterialId`,
@@ -30,6 +31,9 @@ and `materialForMaterialId`.
 | --- | --- | --- |
 | `MaterialProjectionStorePort` | `resolveMaterialRedirect`, `getMaterialRecord`, `getSourceEntity`, `getCanonical` | Projection helpers and adjacent materialId reads. |
 | `MaterialQueryStorePort` | Projection reads plus Source Library listing, Source Entity listing, and confirmed canonical binding reads | Material Query. |
+| `MaterialSearchStorePort` | Projection reads plus `findMaterialBySourceRef`, `listSourceLibraryItems`, and `listMaterialRelations` | Material Search. |
+| `MaterialSearchDocumentProviderPort` | `buildSearchDocument`, `buildAllSearchDocuments` | SQLite SearchIndex document refresh and rebuild. |
+| `MaterialSearchIndexPort` | `markDirty`, `refreshDirty`, `rebuildAll`, and scoped `search` | Material Search service and Stage Core dirty invalidation wiring. |
 | `MaterialResolveStorePort` | Canonical lookup, confirmed binding reads, and Source Library item listing | Material Resolve. |
 | `MaterialSourceMaterializerStorePort` | Projection reads plus registry materialization writers | Materialization boundary only. |
 | `StageInterfaceMaterialStorePort` | Projection and Source Library read surface with no registry writer methods | Stage Interface dispatch/tool definitions. |
@@ -45,6 +49,7 @@ The exact method sets are type-asserted in
 | `SourceGroundingPort` | Material Resolve | Ground unresolved candidates through provider/source search. |
 | `MaterialPolicyEvaluatorPort` | Material Resolve | Apply internal `material_resolution` policy projection during resolve. |
 | `MaterialQueryCollectionReadPort` | Material Query | Read collection headers and items for collection pools and pool listing. |
+| `MaterialSearchCollectionPort` | Material Search | Read collection headers and items for Search visibility. |
 | `MaterialPolicyCollectionBlockPort` | Material Policy | Read collection-backed blocked membership evidence. |
 | `EventPort` | Recommendation Presentation | Record typed `recommendation.presented` events. |
 | `SessionContextPort` | Recommendation Presentation | Resolve session context when presentation input needs it. |
@@ -61,6 +66,8 @@ Current guards enforce that:
   `MaterialCard*` names;
 - `src/material/query/**`, `src/material/policy/**`, and
   `src/material/selection/**` do not import full `MaterialStorePort`;
+- `src/material/search/**` does not import full `MaterialStorePort` or broad
+  `CollectionPort`;
 - `src/material/query/**` does not import broad `CollectionPort` or reference
   collection writer/block methods;
 - `src/material/policy/**` does not import broad `CollectionPort` or reference
@@ -70,6 +77,8 @@ Current guards enforce that:
   internals directly;
 - query does not reference registry materialization writers such as
   `getOrCreateBySourceRef`;
+- search does not import provider/source grounding, Stage Interface output
+  modules, storage adapters, or registry materialization writers;
 - resolve does not reference registry materialization writer methods directly;
 - `src/material/materialization/**` does not import material query, material
   resolve, Stage Interface, presentation, library import, or memory modules.
@@ -83,10 +92,12 @@ Current guards enforce that:
    collection-block seam;
 3. create Material Resolve with the source materializer and policy evaluator;
 4. create Material Selector;
-5. create Material Query with resolve, selector, Source Library materializer,
-   and the collection-read seam;
-6. create Recommendation Presentation with policy and event/session ports;
-7. pass narrow material capabilities to Stage Interface dispatch.
+5. create Material Search with the search index, document provider, and
+   collection visibility seam;
+6. create Material Query with resolve, search, selector, and the
+   collection-read seam for pool listing;
+7. create Recommendation Presentation with policy and event/session ports;
+8. pass narrow material capabilities to Stage Interface dispatch.
 
 This keeps broad concrete store assembly at the composition root while ordinary
 domain services receive narrow capability ports.

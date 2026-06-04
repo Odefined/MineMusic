@@ -24,6 +24,9 @@ The current implementation has:
 - Material Store consumes only `get` and `findByLabel` from Canonical Store.
 - Stage Interface canonical review tools route through
   `CanonicalMaintenancePort`.
+- Canonical Maintenance review apply/auto-update activates and merges notify
+  Stage Core of changed canonical refs so downstream Search freshness remains
+  composition-owned.
 - Current Provisional Review docs describe the implemented
   list/inspect/apply/auto-update surface.
 - Historical v1/v2/v3 review drafts, implementation plans, source-entity

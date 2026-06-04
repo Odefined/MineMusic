@@ -130,6 +130,17 @@ details live in area `progress.md` files listed in `INDEX.md`.
   `putConfirmedCanonicalBinding(...)` must leave a canonical-confirmed
   `MaterialRecord` containing both `canonicalRef` and `sourceRef`.
 
+## 2026-06-04
+
+- Implemented Material Search v1 as an internal Material Flow capability backed
+  by SQLite FTS, including contracts, ports, guards, SearchDocument building,
+  owner-visible visibility/eligibility, execution/evidence/cursor handling,
+  Stage Core dirty invalidation wiring, and Query integration.
+- Extended Stage Core dirty invalidation to Canonical Maintenance
+  review apply/auto-update writes so canonical text changes refresh Search.
+- Updated public `music.material.query` language to `text` and `targetKind`
+  without keeping `q` or `returnKind` aliases.
+
 ## Next
 
 - Implement the documented docs guard (`npm run check:docs` /

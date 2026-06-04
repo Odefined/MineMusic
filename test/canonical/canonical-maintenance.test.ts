@@ -1885,11 +1885,16 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
       };
     },
   };
+  const changedRefs: Ref[][] = [];
   const maintenance = createCanonicalMaintenance({
     repository,
     sessionContext: createSessionContextFor(reviewSession),
     knowledge,
     events,
+    onCanonicalRecordsChanged: async (refs) => {
+      changedRefs.push(refs);
+      return { ok: true, value: undefined };
+    },
     idFactory: () => "update-gate-inspection",
     clock: () => "2026-05-27T00:00:00.000Z",
   });
@@ -1959,6 +1964,8 @@ async function updateGateRejectsUnsupportedOrUngroundedDecisions(): Promise<void
   assert(!emptyReason.ok, "update should reject empty reason");
   assert(activated.appliedAction === "activate", "valid update should activate when no current record has the MB ref");
   assert(activated.selectedProviderRefToken.id === "mbrec-1", "update output should preserve the selected token");
+  assert(changedRefs.length === 1, "activation should notify canonical record changes once");
+  assert(changedRefs[0]?.[0]?.id === subject.ref.id, "activation should notify the activated canonical ref");
   assert(loaded?.status === "active", "activation should make the subject active");
   assert(loaded?.label === "Update Gate Track", "activation should use the MusicBrainz recording title as label");
   assert(
@@ -2866,11 +2873,16 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
     }),
   );
 
+  const changedRefs: Ref[][] = [];
   const maintenance = createCanonicalMaintenance({
     repository,
     sessionContext: createSessionContextFor(reviewSession),
     knowledge,
     events,
+    onCanonicalRecordsChanged: async (refs) => {
+      changedRefs.push(refs);
+      return { ok: true, value: undefined };
+    },
     idFactory: () => "merge-inspection",
     clock: () => "2026-05-27T00:00:00.000Z",
   });
@@ -2901,6 +2913,11 @@ async function updateMergesWhenExactlyOneCurrentRecordHasSelectedMusicBrainzRef(
 
   assert(applied.appliedAction === "merge", "update should merge when exactly one current target has the MB ref");
   assert(applied.selectedProviderRefToken.id === "mbrec-1", "merge output should preserve the selected token");
+  assert(changedRefs.length === 1, "merge should notify canonical record changes once");
+  assert(
+    changedRefs[0]?.map((ref) => ref.id).sort().join(",") === [subject.ref.id, target.ref.id].sort().join(","),
+    "merge should notify both merged subject and surviving target canonical refs",
+  );
   assert(resolvedSource?.ref.id === target.ref.id, "moved source refs should resolve to the surviving target");
   assert(redirectedSubject?.ref.id === target.ref.id, "ordinary get should follow merged subject redirects");
   assert(rawSubject?.status === "merged", "raw subject should be historical after merge");

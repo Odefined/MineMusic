@@ -164,14 +164,14 @@ const publicMaterialResolveQuerySchema = z.object({
 });
 const sourceLibraryPoolSchema = z.object({
   kind: z.literal("source_library"),
-  libraryKinds: z.array(platformLibraryItemKindSchema).min(1),
+  libraryKinds: z.array(platformLibraryItemKindSchema).min(1).optional(),
   providerId: z.string().optional(),
   providerAccountId: z.string().optional(),
   target: z.enum(["library_item", "release_tracks"]).optional(),
 }).refine(
   (pool) =>
     pool.target !== "release_tracks" ||
-    (pool.libraryKinds.length === 1 && pool.libraryKinds[0] === "saved_source_release"),
+    (pool.libraryKinds?.length === 1 && pool.libraryKinds[0] === "saved_source_release"),
   {
     message: "release_tracks target requires libraryKinds: ['saved_source_release']",
     path: ["target"],
@@ -282,8 +282,8 @@ export const musicToolDefinitions = [
     outputSchemaRef: "CompactMaterialQueryOutput",
     availability: "requires_active_instrument",
     inputSchema: {
-      q: z.string().optional(),
-      returnKind: z.enum(["recording", "artist", "album", "release", "release_group"]).optional(),
+      text: z.string().optional(),
+      targetKind: z.enum(["recording", "artist", "album", "release", "release_group"]).optional(),
       pool: materialPoolSchema.optional(),
       constraints: materialConstraintsSchema.optional(),
       exclude: materialExcludeSchema.optional(),
@@ -292,6 +292,19 @@ export const musicToolDefinitions = [
       sessionId: z.string().optional(),
       limit: z.number().int().positive().optional(),
       cursor: z.string().optional(),
+    },
+    validatePayload(payload) {
+      const input = readPayload<Record<string, unknown>>(payload);
+
+      if (Object.prototype.hasOwnProperty.call(input, "q")) {
+        return invalidPayload("music.material.query uses text; q is not a supported alias.");
+      }
+
+      if (Object.prototype.hasOwnProperty.call(input, "returnKind")) {
+        return invalidPayload("music.material.query uses targetKind; returnKind is not a supported alias.");
+      }
+
+      return ok(payload);
     },
     handler({ context, sessionId, payload }) {
       const materialQuery = readMaterialQuery(context.materialQuery);

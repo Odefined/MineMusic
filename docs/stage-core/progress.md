@@ -13,6 +13,11 @@ port authority live in `docs/stage-core/design.md` and
   `stageInterface`; tests and diagnostics can call explicit harness factories.
 - Repository selection lives in `src/stage_core/repositories.ts` and applies
   injected repository > database path > in-memory defaults.
+- Material Search is wired by Stage Core with a SQLite FTS SearchIndex.
+  Runtime configuration may provide `materialSearchDatabasePath`; otherwise
+  harnesses use transient SQLite through the same SearchIndex adapter.
+- Material Search dirty invalidation is centralized in Stage Core composition
+  wrappers around material/canonical text-changing writes.
 - Runtime option normalization and Knowledge provider factory expansion live in
   `src/stage_core/runtime_kit.ts`.
 - Service graph assembly lives in `src/stage_core/compose.ts`.

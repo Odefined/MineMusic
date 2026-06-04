@@ -61,8 +61,8 @@ Stage Core keeps construction concerns separated:
 
 - `runtime_kit.ts` normalizes high-level factory options into one internal
   `StageCoreRuntimeKit`.
-- `repositories.ts` chooses injected repository, SQLite path, or in-memory
-  repository for each storage capability.
+- `repositories.ts` chooses injected repository, SQLite path, transient SQLite
+  path, or in-memory repository for each storage capability.
 - `compose.ts` assembles domain services and Stage Interface from the kit.
 - `seed.ts` registers providers, seeds initial canonical records, initializes
   owner system Collections, and writes explicit Handbook snapshot paths.
@@ -89,8 +89,8 @@ Stage Core does not own:
 - MCP transport;
 - Stage Interface tool truth;
 - provider implementation details;
-- domain behavior inside Material Store, Material Resolve, Collection Service,
-  Library Import, Knowledge, Memory, Events, or Effects;
+- domain behavior inside Material Store, Material Search, Material Resolve,
+  Collection Service, Library Import, Knowledge, Memory, Events, or Effects;
 - final recommendation judgment.
 
 ## Server Boundary

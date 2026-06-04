@@ -49,6 +49,7 @@ export type StageCoreRepositories = {
   eventRepository: EventRepository;
   memoryRepository: MemoryRepository;
   effectRepository: EffectProposalRepository;
+  materialSearchDatabasePath?: string;
 };
 
 export type StageCoreRepositoryOptions = {
@@ -59,6 +60,7 @@ export type StageCoreRepositoryOptions = {
   materialSessionActivity?: MaterialSessionActivityRepository;
   sourceEntityStoreRepository?: SourceEntityStoreRepository;
   materialStoreDatabasePath?: string;
+  materialSearchDatabasePath?: string;
   collectionRepository?: CollectionRepository;
   collectionDatabasePath?: string;
   libraryImportRepository?: LibraryImportRepository;
@@ -117,5 +119,8 @@ export function createStageCoreRepositories(options: StageCoreRepositoryOptions)
     eventRepository: createInMemoryEventRepository(),
     memoryRepository: createInMemoryMemoryRepository(),
     effectRepository: createInMemoryEffectProposalRepository(),
+    ...(options.materialSearchDatabasePath === undefined
+      ? {}
+      : { materialSearchDatabasePath: options.materialSearchDatabasePath }),
   };
 }

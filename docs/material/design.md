@@ -43,6 +43,7 @@ flowchart TD
     SI --> MR["Material Resolve"]
     SI --> MSel["Material Selector"]
     SI --> RP["Recommendation Presentation"]
+    MQ --> MS["Material Search"]
     MQ --> MR
     MQ --> MM["Materialization"]
     MR --> SG["Source Grounding"]
@@ -83,16 +84,35 @@ Resolve consumes `MaterialResolveStorePort`, `SourceGroundingPort`,
 `MaterialRelatedPort`, `MaterialContextBriefPort`, and `MaterialPoolsPort`.
 
 Query gathers domain material candidates from all-material, source-library,
-collection, and related pools. It applies return-kind filters, relation and
+collection, and related pools. It uses Material Search for `all`, ordinary
+`source_library`, and `collection` retrieval, then projects Search hits through
+Material Projection and delegates policy/order/limit behavior to the selector.
+`related` and `source_library target: "release_tracks"` remain on the existing
+Resolve/materialization paths. Query applies `targetKind`, relation and
 recent-activity exclusions, cursor pagination, and ordering through the
-selector. Source Library pool items are materialized through
-`MaterialSourceLibraryMaterializerPort`.
+selector.
 
 Query consumes `MaterialQueryStorePort`, `MaterialResolvePort`,
-`MaterialSelectorPort`, `MaterialSourceLibraryMaterializerPort`, and optionally
-`MaterialQueryCollectionReadPort`. It does not receive full
+`MaterialSearchPort`, `MaterialSelectorPort`, and optionally
+`MaterialQueryCollectionReadPort` for pool listing. It does not receive full
 `MaterialStorePort`, does not receive collection write authority, and does not
 perform registry materialization writes directly.
+
+### Search
+
+`src/material/search/index.ts` implements `MaterialSearchPort`.
+
+Search owns local durable retrieval for owner-visible material refs. It builds
+owner-neutral SearchDocuments, applies strict owner visibility and eligibility,
+uses the SQLite FTS-backed SearchIndex for text matching, and returns internal
+hits with score, evidence, provenance, warnings, and opaque Search cursor.
+Ordinary Query output does not expose Search evidence, provenance, or Search
+cursor.
+
+Search consumes `MaterialSearchStorePort`, `MaterialSearchCollectionPort`, and
+`MaterialSearchIndexPort`. It does not call providers, Resolve, Source
+Grounding, Material Policy, Stage Interface output helpers, or registry
+materialization writers.
 
 ### Projection
 
@@ -111,8 +131,10 @@ item materialization. It is the shared writer boundary that can call registry
 creation, attachment, promotion, and merge methods through
 `MaterialSourceMaterializerStorePort`.
 
-Resolve uses `MaterialSourceMaterializerPort`. Query uses
-`MaterialSourceLibraryMaterializerPort`.
+Resolve uses `MaterialSourceMaterializerPort`. Ordinary Query no longer uses
+Source Library item materialization for v1 Search-backed pools; release-track
+expansion still resolves track candidates through the Resolve/materialization
+path.
 
 ### Policy, Sort, And Selection
 
@@ -155,9 +177,9 @@ Observed public-surface facts relevant to Material Flow:
 
 `test/architecture/material-boundary.test.ts` verifies the material boundary:
 
-- material port key sets are exact for projection, query, resolve,
+- material port key sets are exact for projection, query, search, resolve,
   materialization, Source Library reads, Stage Interface material reads, and
-  narrow collection seams used by Query and Policy;
+  narrow collection seams used by Query, Search, and Policy;
 - material modules do not import Stage Interface output DTOs or legacy
   material card modules;
 - legacy root material directories are removed;
@@ -167,6 +189,9 @@ Observed public-surface facts relevant to Material Flow:
   methods, policy cannot import broad `CollectionPort` or collection
   list/write methods, and resolve cannot read Collection or relation-projection
   internals directly;
+- search cannot import broad store/collection ports, provider/source grounding,
+  Stage Interface output modules, storage adapters, or registry materialization
+  writers;
 - materialization avoids imports from query, resolve, Stage Interface,
   presentation, library import, and memory.
 

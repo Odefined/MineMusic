@@ -8,6 +8,8 @@ import type {
   MaterialQueryCollectionReadPort,
   MaterialQueryStorePort,
   MaterialResolveStorePort,
+  MaterialSearchCollectionPort,
+  MaterialSearchStorePort,
   MaterialSourceMaterializerStorePort,
   SourceGroundingEvidenceStorePort,
   SourceLibraryReadStorePort,
@@ -44,6 +46,17 @@ export type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
   | "getConfirmedCanonicalBinding"
 >>;
 
+export type MaterialSearchStorePortKeysAreExact = Assert<IsExact<
+  keyof MaterialSearchStorePort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
+  | "findMaterialBySourceRef"
+  | "listSourceLibraryItems"
+  | "listMaterialRelations"
+>>;
+
 export type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
   keyof MaterialResolveStorePort,
   | "getCanonical"
@@ -61,6 +74,12 @@ export type MaterialQueryCollectionReadPortKeysAreExact = Assert<IsExact<
 export type MaterialPolicyCollectionBlockPortKeysAreExact = Assert<IsExact<
   keyof MaterialPolicyCollectionBlockPort,
   | "filterBlockedMaterials"
+>>;
+
+export type MaterialSearchCollectionPortKeysAreExact = Assert<IsExact<
+  keyof MaterialSearchCollectionPort,
+  | "listCollections"
+  | "listItems"
 >>;
 
 export type MaterialSourceMaterializerStorePortKeysAreExact = Assert<IsExact<
@@ -128,6 +147,10 @@ const materialPolicySelectionRoots = [
 
 const materialQueryRoots = [
   "src/material/query",
+];
+
+const materialSearchRoots = [
+  "src/material/search",
 ];
 
 const materialResolveRoots = [
@@ -217,6 +240,15 @@ const forbiddenMaterializationImportFragments = [
   "presentation",
   "library_import",
   "memory",
+];
+
+const forbiddenMaterialSearchImportFragments = [
+  "stage_interface",
+  "storage",
+  "providers",
+  "../source",
+  "../../source",
+  "material/materialization",
 ];
 
 const forbiddenMaterialPolicyRecordProjectionHelpers = [
@@ -416,6 +448,42 @@ async function materialQueryDoesNotDirectlyMaterializeSourceRefs(): Promise<void
   assert(
     failures.length === 0,
     `Material query must delegate source-library materialization:\n${failures.join("\n")}`,
+  );
+}
+
+async function materialSearchUsesOnlyNarrowBoundaries(): Promise<void> {
+  const files = await sourceFilesUnderRoots(materialSearchRoots);
+  const failures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const importStatement of importStatements(text)) {
+      for (const portName of ["MaterialStorePort", "CollectionPort"]) {
+        if (new RegExp(`\\b${portName}\\b`).test(importStatement.clause)) {
+          failures.push(`${relative(process.cwd(), file)} imports ${portName}`);
+        }
+      }
+
+      const fragment = forbiddenMaterialSearchImportFragments.find((candidate) =>
+        importStatement.source.includes(candidate)
+      );
+
+      if (fragment !== undefined) {
+        failures.push(`${relative(process.cwd(), file)} imports ${fragment} via ${importStatement.source}`);
+      }
+    }
+
+    for (const writerName of registryMaterializationWriterNames) {
+      if (new RegExp(`\\b${writerName}\\b`).test(text)) {
+        failures.push(`${relative(process.cwd(), file)} references ${writerName}`);
+      }
+    }
+  }
+
+  assert(
+    failures.length === 0,
+    `Material Search must use narrow ports and stay inside Material Flow boundaries:\n${failures.join("\n")}`,
   );
 }
 
@@ -711,6 +779,7 @@ await materialPolicyUsesNarrowCollectionBlockPort();
 await stageInterfaceProjectionConsumersDoNotImportFullMaterialStorePort();
 await stageInterfaceDispatchDoesNotImportFullMaterialStorePort();
 await materialQueryDoesNotDirectlyMaterializeSourceRefs();
+await materialSearchUsesOnlyNarrowBoundaries();
 await materialResolveDoesNotDirectlyUseRegistryMaterializationWriters();
 await materialResolveUsesPolicyInsteadOfCollectionAndRelationProjection();
 await sourceGroundingDoesNotUseCanonicalStoreSourceRefBoundary();
