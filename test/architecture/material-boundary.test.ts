@@ -7,6 +7,8 @@ import type {
   MaterialPolicyCollectionBlockPort,
   MaterialProjectionStorePort,
   MaterialQueryCollectionReadPort,
+  MaterialQueryEphemeralWritePort,
+  MaterialQuerySourceBackedLookupPort,
   MaterialResolveEphemeralWritePort,
   MaterialQueryStorePort,
   MaterialResolveStorePort,
@@ -44,9 +46,27 @@ export type MaterialQueryStorePortKeysAreExact = Assert<IsExact<
   | "getMaterialRecord"
   | "getSourceEntity"
   | "getCanonical"
+  | "getConfirmedCanonicalBinding"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
   | "listSourceLibraryItems"
   | "listSourceEntities"
+>>;
+
+export type MaterialQuerySourceBackedLookupPortKeysAreExact = Assert<IsExact<
+  keyof MaterialQuerySourceBackedLookupPort,
+  | "resolveMaterialRedirect"
+  | "getMaterialRecord"
+  | "getSourceEntity"
+  | "getCanonical"
   | "getConfirmedCanonicalBinding"
+  | "findMaterialBySourceRef"
+  | "findMaterialByCanonicalRef"
+>>;
+
+export type MaterialQueryEphemeralWritePortKeysAreExact = Assert<IsExact<
+  keyof MaterialQueryEphemeralWritePort,
+  | "put"
 >>;
 
 export type MaterialSearchStorePortKeysAreExact = Assert<IsExact<

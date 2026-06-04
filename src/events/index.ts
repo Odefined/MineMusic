@@ -5,6 +5,7 @@ import type {
   MaterialActivityRepository,
   MaterialSessionActivityRepository,
 } from "../ports/index.js";
+import { materialIdToRef } from "../material/projection/index.js";
 
 type EventServiceOptions = {
   repository: EventRepository;
@@ -322,14 +323,6 @@ function isRef(value: unknown): value is Ref {
     typeof value.kind === "string" &&
     typeof value.id === "string"
   );
-}
-
-function materialIdToRef(materialId: string): Ref {
-  return {
-    namespace: "minemusic",
-    kind: "material",
-    id: materialId,
-  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

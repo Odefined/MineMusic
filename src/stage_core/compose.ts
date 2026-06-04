@@ -109,6 +109,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     materialResolve,
     materialSearch,
     materialSelector,
+    ephemeralMaterialStore,
     collection,
   });
   const libraryImport = createLibraryImportService({

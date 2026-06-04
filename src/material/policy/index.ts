@@ -11,6 +11,7 @@ import type {
   MusicMaterial,
   Ref,
   Result,
+  StageError,
 } from "../../contracts/index.js";
 import type {
   MaterialPolicyEvaluatorPort,
@@ -71,7 +72,16 @@ async function evaluateMaterialPolicy({
   input: MaterialPolicyEvaluationInput;
   now: string;
 }): Promise<Result<MaterialPolicyDecision>> {
-  const currentRef = await materialStore.resolveMaterialRedirect({ materialRef: materialIdToRef(input.materialId) });
+  const requestedRef = materialIdToRef(input.materialId);
+
+  if (requestedRef.namespace === "minemusic" && requestedRef.kind === "ephemeral_material") {
+    return evaluateEphemeralMaterialPolicy({
+      input,
+      materialRef: requestedRef,
+    });
+  }
+
+  const currentRef = await materialStore.resolveMaterialRedirect({ materialRef: requestedRef });
 
   if (!currentRef.ok) {
     return currentRef;
@@ -177,6 +187,45 @@ async function evaluateMaterialPolicy({
   return ok({
     decision: "allow",
     material: evaluatedMaterial,
+  });
+}
+
+function evaluateEphemeralMaterialPolicy({
+  input,
+  materialRef,
+}: {
+  input: MaterialPolicyEvaluationInput;
+  materialRef: Ref;
+}): Result<MaterialPolicyDecision> {
+  if (input.material === undefined) {
+    return fail({
+      code: "material_policy.invalid_input",
+      message: `Ephemeral material '${input.materialId}' requires an inline material snapshot.`,
+      module: "material_query",
+      retryable: false,
+    });
+  }
+
+  if (!sameRef(input.material.materialRef, materialRef)) {
+    return fail({
+      code: "material_policy.invalid_input",
+      message: `Ephemeral material '${input.materialId}' does not match the provided material snapshot.`,
+      module: "material_query",
+      retryable: false,
+    });
+  }
+
+  if (input.policy.availability === "playable" && (input.material.playableLinks?.length ?? 0) === 0) {
+    return ok(drop("not_available", "Material does not have a playable link."));
+  }
+
+  if (input.policy.identity === "confirmed_only" && input.material.identityState !== "canonical_confirmed") {
+    return ok(drop("identity_not_confirmed", "Material identity is not canonical-confirmed."));
+  }
+
+  return ok({
+    decision: "allow",
+    material: input.material,
   });
 }
 
@@ -595,4 +644,8 @@ function refKey(ref: Ref): string {
 
 function ok<T>(value: T): Result<T> {
   return { ok: true, value };
+}
+
+function fail(error: StageError): Result<never> {
+  return { ok: false, error };
 }

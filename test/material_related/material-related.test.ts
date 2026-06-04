@@ -93,6 +93,7 @@ async function relatedSameArtistFallsBackToSourceArtist(): Promise<void> {
   }));
 
   assert(output.basis === "source_artist", "same_artist should fall back to source artist when canonical binding is missing");
+  assert(output.items[0]?.materialId.startsWith("emat:"), "same_artist source-backed siblings without durable materials should keep ephemeral material ids");
   assert(output.items.length === 1 && itemTitle(output.items[0]) === "Source Sibling Track", "source-artist fallback should return sibling tracks");
 }
 
@@ -120,6 +121,7 @@ async function relatedSameAlbumUsesSourceReleaseTracklistWhenCanonicalIsMissing(
 
   assert(output.basis === "source_album", "same_album should use source release tracklist without canonical identity");
   assert(output.basisLabel === "Source Album", "same_album should name the source album basis");
+  assert(output.items[0]?.materialId.startsWith("emat:"), "same_album source-backed siblings without durable materials should keep ephemeral material ids");
   assert(output.items.length === 1 && itemTitle(output.items[0]) === "Album Sibling Track", "same_album should return tracklist siblings");
 }
 

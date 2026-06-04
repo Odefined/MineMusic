@@ -118,7 +118,7 @@ async function querySavedTracksProjectsStoredPlayableLinksWithoutProviderGroundi
   assert(!("identityConfidence" in (output.items[0] as Record<string, unknown>)), "domain query items should not expose identity confidence");
 }
 
-async function querySkipsUnbackedProviderResults(): Promise<void> {
+async function queryRelatedSourceAlbumUsesTracklistRowsWithoutProviderGrounding(): Promise<void> {
   const seedRef = ref("source:fixture", "track", "unbacked-query-seed");
   const relatedRef = ref("source:fixture", "track", "unbacked-query-related");
   const releaseRef = ref("source:fixture", "release", "unbacked-query-release");
@@ -182,7 +182,9 @@ async function querySkipsUnbackedProviderResults(): Promise<void> {
     }),
   );
 
-  assert(output.items.length === 0, "query should not emit cards for unbacked provider results");
+  assert(output.items.length === 1, "query should keep source release-track rows even when no durable material exists");
+  assert(itemTitle(output.items[0]) === "Unbacked Query Track", "query should use the release tracklist label for source-backed same-album rows");
+  assert(output.items[0]?.materialId.startsWith("emat:"), "query should allocate an ephemeral handle for source-backed same-album rows without durable materials");
 }
 
 async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<void> {
@@ -207,11 +209,41 @@ async function querySavedAlbumsExpandedToTracksReturnsRecordingCards(): Promise<
   );
 
   assert(output.items.length === 2, "expanded saved albums should return track cards");
-  assert(output.items.every((item) => itemMaterialState(item) === "source_only_playable"), "expanded album tracks should resolve as source_only_playable recording materials");
+  assert(output.items.every((item) => itemMaterialState(item) === "grounded"), "expanded album tracks should stay grounded when only the release tracklist row is available");
+  assert(output.items.every((item) => item.materialId.startsWith("emat:")), "expanded album tracks without durable materials should keep ephemeral material ids");
   assert(
     (output.items.map(itemTitle)).join(",") === "Album Track One,Album Track Two",
     "expanded album query should preserve release tracklist order",
   );
+}
+
+async function querySavedAlbumsExpandedToTracksKeepsExistingDurableMaterials(): Promise<void> {
+  const releaseRef = ref("source:fixture", "release", "saved-release-durable");
+  const durableTrackRef = ref("source:fixture", "track", "album-track-durable");
+  const ephemeralTrackRef = ref("source:fixture", "track", "album-track-ephemeral");
+  const { materialStore, materialQuery } = createMaterialQueryServiceHarness([
+    sourceMaterial("Durable Album Track", durableTrackRef),
+    sourceMaterial("Ephemeral Album Track", ephemeralTrackRef),
+  ]);
+  await putLibraryRelease(materialStore, releaseRef, "Saved Album Durable Mix", [
+    { sourceRef: durableTrackRef, title: "Durable Album Track" },
+    { sourceRef: ephemeralTrackRef, title: "Ephemeral Album Track" },
+  ]);
+  const durableRecord = await assertOk(
+    materialStore.getOrCreateBySourceRef({ sourceRef: durableTrackRef, kind: "recording" }),
+  );
+
+  const output = await assertOk(
+    materialQuery.query({
+      ownerScope: "local_profile:default",
+      pool: { kind: "source_library", libraryKinds: ["saved_source_release"], target: "release_tracks" },
+      limit: 10,
+    }),
+  );
+
+  assert(output.items.length === 2, "expanded saved albums should keep both durable and ephemeral track rows");
+  assert(output.items[0]?.materialId === materialRefToMaterialId(durableRecord.materialRef), "expanded album tracks should reuse an existing durable material when present");
+  assert(output.items[1]?.materialId.startsWith("emat:"), "expanded album tracks should allocate an ephemeral handle only for rows without a durable material");
 }
 
 async function queryTargetKindFiltersResolvedMaterials(): Promise<void> {
@@ -1456,8 +1488,9 @@ function sameRef(left: Ref, right: Ref): boolean {
 await querySavedTracksReturnsOnlySavedTrackMaterials();
 await materialQueryServiceDoesNotExposeSelectorCapability();
 await querySavedTracksProjectsStoredPlayableLinksWithoutProviderGrounding();
-await querySkipsUnbackedProviderResults();
+await queryRelatedSourceAlbumUsesTracklistRowsWithoutProviderGrounding();
 await querySavedAlbumsExpandedToTracksReturnsRecordingCards();
+await querySavedAlbumsExpandedToTracksKeepsExistingDurableMaterials();
 await queryTargetKindFiltersResolvedMaterials();
 await querySavedAlbumsAppliesTrackLevelTextAfterExpansion();
 await queryRejectsInvalidReleaseTracksSourceLibraryPool();

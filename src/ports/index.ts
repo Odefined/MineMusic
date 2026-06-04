@@ -473,14 +473,27 @@ export type MaterialProjectionStorePort = Pick<
   | "getCanonical"
 >;
 
-export type MaterialQueryStorePort =
+export type MaterialQuerySourceBackedLookupPort =
   MaterialProjectionStorePort &
+  Pick<
+    MaterialStorePort,
+    | "getConfirmedCanonicalBinding"
+    | "findMaterialBySourceRef"
+    | "findMaterialByCanonicalRef"
+  >;
+
+export type MaterialQueryStorePort =
+  MaterialQuerySourceBackedLookupPort &
   Pick<
     MaterialStorePort,
     | "listSourceLibraryItems"
     | "listSourceEntities"
-    | "getConfirmedCanonicalBinding"
   >;
+
+export type MaterialQueryEphemeralWritePort = Pick<
+  EphemeralMaterialStorePort,
+  | "put"
+>;
 
 export type MaterialSearchStorePort =
   MaterialProjectionStorePort &

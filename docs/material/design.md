@@ -157,10 +157,16 @@ of carrying local record projection code. Policy consumes
 `MaterialPolicyCollectionBlockPort` for collection-backed blocked membership
 evidence and owns the internal `material_resolution` purpose that Resolve uses
 to mark blocked materials and preserve wrong-version/not-playable results
-without dropping them.
+without dropping them. Policy routes by decoded material handle kind: durable
+`mat:*` inputs use the existing record-backed relation, collection-block, and
+freshness path; `emat:*` inputs must use the supplied inline `MusicMaterial`
+snapshot and must not try to look up a durable `MaterialRecord`, relation
+state, or collection-block state that does not exist yet.
 
 `src/material/selection/index.ts` composes policy evaluation, sorting,
-diversity, and limiting over materialId candidates.
+diversity, and limiting over materialId candidates. Selector must preserve the
+public handle distinction from Projection so selected and dropped items keep
+their exact `mat:*` / `emat:*` identity.
 
 ### Recommendation Presentation
 

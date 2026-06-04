@@ -3,6 +3,7 @@ import type {
   MaterialContextBriefOutput,
   MaterialPoolsListInput,
   MaterialPoolsListOutput,
+  MaterialResolveQuery,
   MaterialSearchHit,
   MaterialSearchInput,
   MaterialSearchScope,
@@ -11,17 +12,19 @@ import type {
   MaterialSelectInput,
   MaterialRelatedInput,
   MaterialRelatedOutput,
-  MusicCandidate,
   MusicMaterial,
   PlatformLibraryItemKind,
   Ref,
   Result,
   SourceEntity,
+  SourceMaterial,
   SourceLibraryItem,
 } from "../../contracts/index.js";
 import type {
   MaterialContextBriefPort,
   MaterialQueryCollectionReadPort,
+  MaterialQueryEphemeralWritePort,
+  MaterialQuerySourceBackedLookupPort,
   MaterialPoolsPort,
   MaterialQueryPort,
   MaterialProjectionStorePort,
@@ -32,6 +35,7 @@ import type {
   MaterialSelectorPort,
   SourceLibraryReadStorePort,
 } from "../../ports/index.js";
+import { createInMemoryEphemeralMaterialStore } from "../ephemeral/index.js";
 import { sourceKindToMaterialKind } from "../kinds.js";
 import {
   currentMaterialRecordForRef,
@@ -50,11 +54,20 @@ export type MaterialQueryService =
   MaterialContextBriefPort &
   MaterialPoolsPort;
 
+type TextResolveSeed = MaterialResolveQuery;
+
+type SourceBackedTrackSeed = {
+  id: string;
+  label: string;
+  sourceRef: Ref;
+};
+
 export type MaterialQueryServiceOptions = {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
   materialSearch: MaterialSearchPort;
   materialSelector: MaterialSelectorPort;
+  ephemeralMaterialStore?: MaterialQueryEphemeralWritePort;
   collection?: MaterialQueryCollectionReadPort;
 };
 
@@ -63,6 +76,7 @@ export function createMaterialQueryService({
   materialResolve,
   materialSearch,
   materialSelector,
+  ephemeralMaterialStore = createInMemoryEphemeralMaterialStore(),
   collection,
 }: MaterialQueryServiceOptions): MaterialQueryService {
   const service: MaterialQueryService = {
@@ -86,16 +100,20 @@ export function createMaterialQueryService({
         resolved = await sourceLibraryMaterials({
           materialStore,
           materialResolve,
+          ephemeralMaterialStore,
           ownerScope,
           pool,
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
           ...(input.text === undefined ? {} : { text: input.text }),
         });
       } else if (pool.kind === "related") {
         resolved = await materialsForCandidatePool({
           materialStore,
           materialResolve,
+          ephemeralMaterialStore,
           ownerScope,
           pool,
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
         });
       } else {
         resolved = ok([]);
@@ -150,6 +168,7 @@ export function createMaterialQueryService({
       return relatedForInput({
         materialStore,
         materialResolve,
+        ephemeralMaterialStore,
         materialSelector,
         ownerScope: input.ownerScope ?? defaultOwnerScope,
         input,
@@ -172,25 +191,25 @@ export function createMaterialQueryService({
   return service;
 }
 
-async function resolveCandidates({
+async function resolveTextQueries({
   materialResolve,
   ownerScope,
-  candidates,
-  limitPerCandidate,
+  queries,
+  limitPerQuery,
 }: {
   materialResolve: MaterialResolvePort;
   ownerScope: string;
-  candidates: MusicCandidate[];
-  limitPerCandidate?: number;
+  queries: TextResolveSeed[];
+  limitPerQuery?: number;
 }): Promise<Result<MusicMaterial[]>> {
-  if (candidates.length === 0) {
+  if (queries.length === 0) {
     return ok([]);
   }
 
   const resolved = await materialResolve.resolve({
     ownerScope,
-    queries: candidates.map(materialResolveQueryForCandidate),
-    ...(limitPerCandidate === undefined ? {} : { limit: limitPerCandidate }),
+    queries,
+    ...(limitPerQuery === undefined ? {} : { limit: limitPerQuery }),
   });
 
   if (!resolved.ok) {
@@ -200,36 +219,6 @@ async function resolveCandidates({
   return ok(
     dedupeMaterials(resolved.value.results.flatMap((result) => result.materials)),
   );
-}
-
-function materialResolveQueryForCandidate(candidate: MusicCandidate) {
-  const targetKind = materialResolveTargetKindForExpectedKind(candidate.expectedKind);
-
-  return {
-    id: candidate.id,
-    text: candidate.query?.text ?? candidate.label,
-    ...(targetKind === undefined ? {} : { targetKind }),
-    ...(candidate.reason === undefined ? {} : { reason: candidate.reason }),
-  };
-}
-
-function materialResolveTargetKindForExpectedKind(
-  expectedKind: MusicCandidate["expectedKind"],
-) {
-  switch (expectedKind) {
-    case "track":
-    case "recording":
-      return "recording" as const;
-    case "album":
-      return "release_group" as const;
-    case "release":
-    case "release_group":
-    case "artist":
-    case "work":
-      return expectedKind;
-    default:
-      return undefined;
-  }
 }
 
 async function searchCandidatesForQuery({
@@ -308,12 +297,16 @@ async function materialForSearchHit({
 async function materialsForCandidatePool({
   materialStore,
   materialResolve,
+  ephemeralMaterialStore,
   ownerScope,
+  sessionId,
   pool,
 }: {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
   ownerScope: string;
+  sessionId?: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
 }): Promise<Result<SelectableMaterialCandidate[]>> {
   const candidates = await relatedPoolCandidates({
@@ -326,25 +319,50 @@ async function materialsForCandidatePool({
     return candidates;
   }
 
-  const resolved = await resolveCandidates({
+  const resolved = await resolveTextQueries({
     materialResolve,
     ownerScope,
-    candidates: candidates.value,
+    queries: candidates.value.textQueries,
   });
 
-  return resolved.ok ? ok(materialsToSelectableCandidates(resolved.value)) : resolved;
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  const sourceBacked = await sourceBackedTrackMaterials({
+    materialStore,
+    ephemeralMaterialStore,
+    ownerScope,
+    ...(sessionId === undefined ? {} : { sessionId }),
+    seeds: candidates.value.sourceBackedTracks,
+  });
+
+  if (!sourceBacked.ok) {
+    return sourceBacked;
+  }
+
+  return ok(
+    materialsToSelectableCandidates(dedupeMaterials([
+      ...resolved.value,
+      ...sourceBacked.value,
+    ])),
+  );
 }
 
 async function sourceLibraryMaterials({
   materialStore,
   materialResolve,
+  ephemeralMaterialStore,
   ownerScope,
+  sessionId,
   pool,
   text,
 }: {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
   ownerScope: string;
+  sessionId?: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "source_library" }>;
   text?: string;
 }): Promise<Result<SelectableMaterialCandidate[]>> {
@@ -378,10 +396,12 @@ async function sourceLibraryMaterials({
           return expanded;
         }
 
-        const resolved = await resolveCandidates({
-          materialResolve,
+        const resolved = await sourceBackedTrackMaterials({
+          materialStore,
+          ephemeralMaterialStore,
           ownerScope,
-          candidates: expanded.value.filter((candidate) => matchesQueryText(candidate.label, text)),
+          ...(sessionId === undefined ? {} : { sessionId }),
+          seeds: expanded.value.filter((candidate) => matchesQueryText(candidate.label, text)),
         });
 
         if (!resolved.ok) {
@@ -426,7 +446,10 @@ async function relatedPoolCandidates({
   materialStore: MaterialQueryStorePort;
   ownerScope: string;
   pool: Extract<NonNullable<MaterialQueryInput["pool"]>, { kind: "related" }>;
-}): Promise<Result<MusicCandidate[]>> {
+}): Promise<Result<{
+  textQueries: TextResolveSeed[];
+  sourceBackedTracks: SourceBackedTrackSeed[];
+}>> {
   const related = await relatedCandidates({
     materialStore,
     ownerScope,
@@ -438,13 +461,16 @@ async function relatedPoolCandidates({
     return related;
   }
 
-  return ok(related.value.candidates);
+  return ok({
+    textQueries: related.value.textQueries,
+    sourceBackedTracks: related.value.sourceBackedTracks,
+  });
 }
 
 async function tracklistCandidatesForReleaseItem(
   materialStore: MaterialProjectionStorePort,
   item: SourceLibraryItem,
-): Promise<Result<MusicCandidate[]>> {
+): Promise<Result<SourceBackedTrackSeed[]>> {
   const entity = await materialStore.getSourceEntity({ sourceRef: item.sourceRef });
 
   if (!entity.ok) {
@@ -457,17 +483,231 @@ async function tracklistCandidatesForReleaseItem(
 
   return ok(
     (entity.value.tracklist ?? [])
-      .flatMap((track, index): MusicCandidate[] => track.sourceRef === undefined ? [] : [{
+      .flatMap((track, index): SourceBackedTrackSeed[] => track.sourceRef === undefined ? [] : [{
         id: `source-library:${item.id}:track:${index}`,
         label: track.title,
-        expectedKind: "recording",
         sourceRef: track.sourceRef,
-        query: {
-          text: track.title,
-          sourceRef: track.sourceRef,
-        },
       }]),
   );
+}
+
+async function sourceBackedTrackMaterials({
+  materialStore,
+  ephemeralMaterialStore,
+  ownerScope,
+  sessionId,
+  seeds,
+}: {
+  materialStore: MaterialQuerySourceBackedLookupPort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
+  ownerScope: string;
+  sessionId?: string;
+  seeds: SourceBackedTrackSeed[];
+}): Promise<Result<MusicMaterial[]>> {
+  const materials: MusicMaterial[] = [];
+
+  for (const seed of seeds) {
+    const material = await sourceBackedMaterialForTrackSeed({
+      materialStore,
+      ephemeralMaterialStore,
+      ownerScope,
+      ...(sessionId === undefined ? {} : { sessionId }),
+      seed,
+    });
+
+    if (!material.ok) {
+      return material;
+    }
+
+    materials.push(material.value);
+  }
+
+  return ok(dedupeMaterials(materials));
+}
+
+async function sourceBackedMaterialForTrackSeed({
+  materialStore,
+  ephemeralMaterialStore,
+  ownerScope,
+  sessionId,
+  seed,
+}: {
+  materialStore: MaterialQuerySourceBackedLookupPort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
+  ownerScope: string;
+  sessionId?: string;
+  seed: SourceBackedTrackSeed;
+}): Promise<Result<MusicMaterial>> {
+  const sourceMaterial = await sourceMaterialForTrackSeed(materialStore, seed);
+
+  if (!sourceMaterial.ok) {
+    return sourceMaterial;
+  }
+
+  const existing = await existingMaterialForSourceBackedTrack({
+    materialStore,
+    ownerScope,
+    material: sourceMaterial.value,
+  });
+
+  if (!existing.ok) {
+    return existing;
+  }
+
+  if (existing.value !== null) {
+    return ok(existing.value);
+  }
+
+  const materialRef = ephemeralMaterialRefForTrackSeed({
+    ownerScope,
+    ...(sessionId === undefined ? {} : { sessionId }),
+    sourceRef: seed.sourceRef,
+  });
+  const stored = await ephemeralMaterialStore.put({
+    materialRef,
+    material: sourceMaterial.value,
+    ownerScope,
+    ...(sessionId === undefined ? {} : { sessionId }),
+  });
+
+  if (!stored.ok) {
+    return stored;
+  }
+
+  return ok(ephemeralMaterialFromSourceMaterial(stored.value.materialRef, stored.value.material));
+}
+
+async function sourceMaterialForTrackSeed(
+  materialStore: MaterialQuerySourceBackedLookupPort,
+  seed: SourceBackedTrackSeed,
+): Promise<Result<SourceMaterial>> {
+  const entity = await materialStore.getSourceEntity({ sourceRef: seed.sourceRef });
+
+  if (!entity.ok) {
+    return entity;
+  }
+
+  const canonicalRef = await canonicalRefForSourceRef(materialStore, seed.sourceRef);
+
+  if (!canonicalRef.ok) {
+    return canonicalRef;
+  }
+
+  if (entity.value?.kind === "track") {
+    return ok({
+      id: `source-track:${seed.sourceRef.id}`,
+      kind: "recording",
+      label: entity.value.label,
+      state: entity.value.providerUrl === undefined ? "grounded" : "source_only_playable",
+      ...(canonicalRef.value === undefined ? {} : { canonicalRef: canonicalRef.value }),
+      sourceRefs: [seed.sourceRef],
+      ...(entity.value.providerUrl === undefined
+        ? {}
+        : {
+            playableLinks: [{
+              url: entity.value.providerUrl,
+              label: entity.value.label,
+              sourceRef: seed.sourceRef,
+            }],
+          }),
+    });
+  }
+
+  return ok({
+    id: `source-track:${seed.sourceRef.id}`,
+    kind: "recording",
+    label: seed.label,
+    state: "grounded",
+    ...(canonicalRef.value === undefined ? {} : { canonicalRef: canonicalRef.value }),
+    sourceRefs: [seed.sourceRef],
+  });
+}
+
+async function canonicalRefForSourceRef(
+  materialStore: Pick<MaterialQuerySourceBackedLookupPort, "getConfirmedCanonicalBinding">,
+  sourceRef: Ref,
+): Promise<Result<Ref | undefined>> {
+  const binding = await materialStore.getConfirmedCanonicalBinding({ sourceRef });
+
+  if (!binding.ok) {
+    return binding;
+  }
+
+  return ok(binding.value?.canonicalRef);
+}
+
+async function existingMaterialForSourceBackedTrack({
+  materialStore,
+  ownerScope,
+  material,
+}: {
+  materialStore: MaterialQuerySourceBackedLookupPort;
+  ownerScope: string;
+  material: SourceMaterial;
+}): Promise<Result<MusicMaterial | null>> {
+  if (material.canonicalRef !== undefined) {
+    const canonical = await materialStore.findMaterialByCanonicalRef({
+      canonicalRef: material.canonicalRef,
+    });
+
+    if (!canonical.ok) {
+      return canonical;
+    }
+
+    if (canonical.value !== null) {
+      return projectMaterialRecord(materialStore, canonical.value, {
+        ownerScope,
+        purpose: "material.query",
+      });
+    }
+  }
+
+  const source = await materialStore.findMaterialBySourceRef({ sourceRef: material.sourceRefs?.[0] as Ref });
+
+  if (!source.ok) {
+    return source;
+  }
+
+  if (source.value === null) {
+    return ok(null);
+  }
+
+  return projectMaterialRecord(materialStore, source.value, {
+    ownerScope,
+    purpose: "material.query",
+  });
+}
+
+function ephemeralMaterialRefForTrackSeed({
+  ownerScope,
+  sessionId,
+  sourceRef,
+}: {
+  ownerScope: string;
+  sessionId?: string;
+  sourceRef: Ref;
+}): Ref {
+  return {
+    namespace: "minemusic",
+    kind: "ephemeral_material",
+    id: `${ownerScope}:${sessionId ?? ""}:track:${sourceRef.namespace}:${sourceRef.kind}:${sourceRef.id}`,
+  };
+}
+
+function ephemeralMaterialFromSourceMaterial(materialRef: Ref, material: SourceMaterial): MusicMaterial {
+  return {
+    id: materialRef.id,
+    materialRef,
+    kind: sourceKindToMaterialKind("track"),
+    label: material.label,
+    state: material.state,
+    identityState: "source_backed",
+    ...(material.canonicalRef === undefined ? {} : { canonicalRef: material.canonicalRef }),
+    ...(material.sourceRefs === undefined ? {} : { sourceRefs: structuredClone(material.sourceRefs) }),
+    ...(material.playableLinks === undefined ? {} : { playableLinks: structuredClone(material.playableLinks) }),
+    ...(material.notes === undefined ? {} : { notes: material.notes }),
+    ...(material.evidence === undefined ? {} : { evidence: structuredClone(material.evidence) }),
+  };
 }
 
 type SelectableMaterialCandidate = {
@@ -576,12 +816,14 @@ async function excludedMaterialIdsForInput({
 async function relatedForInput({
   materialStore,
   materialResolve,
+  ephemeralMaterialStore,
   materialSelector,
   ownerScope,
   input,
 }: {
   materialStore: MaterialQueryStorePort;
   materialResolve: MaterialResolvePort;
+  ephemeralMaterialStore: MaterialQueryEphemeralWritePort;
   materialSelector: MaterialSelectorPort;
   ownerScope: string;
   input: MaterialRelatedInput;
@@ -597,14 +839,26 @@ async function relatedForInput({
     return related;
   }
 
-  const resolved = await resolveCandidates({
+  const resolved = await resolveTextQueries({
     materialResolve,
     ownerScope,
-    candidates: related.value.candidates,
+    queries: related.value.textQueries,
   });
 
   if (!resolved.ok) {
     return resolved;
+  }
+
+  const sourceBacked = await sourceBackedTrackMaterials({
+    materialStore,
+    ephemeralMaterialStore,
+    ownerScope,
+    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+    seeds: related.value.sourceBackedTracks,
+  });
+
+  if (!sourceBacked.ok) {
+    return sourceBacked;
   }
 
   const seedMaterialRef = materialIdToRef(input.materialId);
@@ -616,9 +870,14 @@ async function relatedForInput({
 
   const selectable = await selectableMaterialsForQuery({
     materialStore,
-    candidates: materialsToSelectableCandidates(resolved.value.filter((material) =>
-      !sameRef(material.materialRef, seedMaterialRef) && !sameRef(material.materialRef, currentSeedMaterialRef.value)
-    )),
+    candidates: materialsToSelectableCandidates(
+      dedupeMaterials([
+        ...resolved.value,
+        ...sourceBacked.value,
+      ]).filter((material) =>
+        !sameRef(material.materialRef, seedMaterialRef) && !sameRef(material.materialRef, currentSeedMaterialRef.value)
+      ),
+    ),
     exclude: {
       ...input.exclude,
       materialIds: [
@@ -676,7 +935,8 @@ async function relatedCandidates({
 }): Promise<Result<{
   basis: MaterialRelatedOutput["basis"];
   basisLabel?: string;
-  candidates: MusicCandidate[];
+  textQueries: TextResolveSeed[];
+  sourceBackedTracks: SourceBackedTrackSeed[];
 }>> {
   const seedRecord = await currentMaterialRecordForRef(materialStore, materialIdToRef(materialId));
 
@@ -685,7 +945,7 @@ async function relatedCandidates({
   }
 
   if (seedRecord.value === null) {
-    return ok({ basis: "fallback_text", candidates: [] });
+    return ok({ basis: "fallback_text", textQueries: [], sourceBackedTracks: [] });
   }
 
   if (relation === "same_artist" || relation === "similar") {
@@ -695,7 +955,7 @@ async function relatedCandidates({
       return sameArtist;
     }
 
-    if (sameArtist.value.candidates.length > 0 || relation === "same_artist") {
+    if (sameArtist.value.textQueries.length > 0 || sameArtist.value.sourceBackedTracks.length > 0 || relation === "same_artist") {
       return sameArtist;
     }
   }
@@ -706,9 +966,9 @@ async function relatedCandidates({
     return sameAlbum;
   }
 
-  return sameAlbum.value.candidates.length > 0
+  return sameAlbum.value.textQueries.length > 0 || sameAlbum.value.sourceBackedTracks.length > 0
     ? sameAlbum
-    : ok({ basis: "fallback_text", candidates: [] });
+    : ok({ basis: "fallback_text", textQueries: [], sourceBackedTracks: [] });
 }
 
 async function sameArtistCandidates(
@@ -717,7 +977,8 @@ async function sameArtistCandidates(
 ): Promise<Result<{
   basis: "confirmed_artist" | "source_artist" | "fallback_text";
   basisLabel?: string;
-  candidates: MusicCandidate[];
+  textQueries: TextResolveSeed[];
+  sourceBackedTracks: SourceBackedTrackSeed[];
 }>> {
   const seedTracks = await sourceEntitiesForRefs(materialStore, sourceRefs);
 
@@ -735,10 +996,10 @@ async function sameArtistCandidates(
   }
 
   if (canonicalArtists.value.length > 0) {
-    const candidates = await trackCandidatesForCanonicalArtist(materialStore, canonicalArtists.value[0] as Ref, sourceRefs);
+    const sourceBackedTracks = await trackSeedsForCanonicalArtist(materialStore, canonicalArtists.value[0] as Ref, sourceRefs);
 
-    if (!candidates.ok) {
-      return candidates;
+    if (!sourceBackedTracks.ok) {
+      return sourceBackedTracks;
     }
 
     const canonical = await materialStore.getCanonical({ ref: canonicalArtists.value[0] as Ref });
@@ -750,20 +1011,21 @@ async function sameArtistCandidates(
     return ok({
       basis: "confirmed_artist",
       ...(canonical.value?.label === undefined ? {} : { basisLabel: canonical.value.label }),
-      candidates: candidates.value,
+      textQueries: [],
+      sourceBackedTracks: sourceBackedTracks.value,
     });
   }
 
   const sourceArtistRef = seedArtistRefs[0];
 
   if (sourceArtistRef === undefined) {
-    return ok({ basis: "fallback_text", candidates: [] });
+    return ok({ basis: "fallback_text", textQueries: [], sourceBackedTracks: [] });
   }
 
-  const candidates = await trackCandidatesForSourceArtist(materialStore, sourceArtistRef, sourceRefs);
+  const sourceBackedTracks = await trackSeedsForSourceArtist(materialStore, sourceArtistRef, sourceRefs);
 
-  if (!candidates.ok) {
-    return candidates;
+  if (!sourceBackedTracks.ok) {
+    return sourceBackedTracks;
   }
 
   const artist = await materialStore.getSourceEntity({ sourceRef: sourceArtistRef });
@@ -775,7 +1037,8 @@ async function sameArtistCandidates(
   return ok({
     basis: "source_artist",
     ...(artist.value?.label === undefined ? {} : { basisLabel: artist.value.label }),
-    candidates: candidates.value,
+    textQueries: [],
+    sourceBackedTracks: sourceBackedTracks.value,
   });
 }
 
@@ -785,7 +1048,8 @@ async function sameAlbumCandidates(
 ): Promise<Result<{
   basis: "source_album" | "fallback_text";
   basisLabel?: string;
-  candidates: MusicCandidate[];
+  textQueries: TextResolveSeed[];
+  sourceBackedTracks: SourceBackedTrackSeed[];
 }>> {
   const seedEntities = await sourceEntitiesForRefs(materialStore, sourceRefs);
 
@@ -800,7 +1064,7 @@ async function sameAlbumCandidates(
       .find((entity) => entity.releaseSourceRef !== undefined)?.releaseSourceRef;
 
   if (releaseRef === undefined) {
-    return ok({ basis: "fallback_text", candidates: [] });
+    return ok({ basis: "fallback_text", textQueries: [], sourceBackedTracks: [] });
   }
 
   const release = await materialStore.getSourceEntity({ sourceRef: releaseRef });
@@ -810,29 +1074,25 @@ async function sameAlbumCandidates(
   }
 
   if (release.value?.kind !== "release") {
-    return ok({ basis: "fallback_text", candidates: [] });
+    return ok({ basis: "fallback_text", textQueries: [], sourceBackedTracks: [] });
   }
 
   const seedRefKeys = new Set(sourceRefs.map(refKey));
-  const candidates = (release.value.tracklist ?? [])
-    .flatMap((track, index): MusicCandidate[] =>
+  const sourceBackedTracks = (release.value.tracklist ?? [])
+    .flatMap((track, index): SourceBackedTrackSeed[] =>
       track.sourceRef === undefined || seedRefKeys.has(refKey(track.sourceRef))
         ? []
         : [{
       id: `related:${release.value?.sourceRef.id}:track:${index}`,
       label: track.title,
-      expectedKind: "recording",
       sourceRef: track.sourceRef,
-      query: {
-        text: track.title,
-        sourceRef: track.sourceRef,
-      },
     }]);
 
   return ok({
     basis: "source_album",
     basisLabel: release.value.label,
-    candidates,
+    textQueries: [],
+    sourceBackedTracks,
   });
 }
 
@@ -857,11 +1117,11 @@ async function canonicalArtistRefsForSourceArtistRefs(
   return ok(dedupeRefs(refs));
 }
 
-async function trackCandidatesForCanonicalArtist(
+async function trackSeedsForCanonicalArtist(
   materialStore: MaterialQueryStorePort,
   canonicalArtistRef: Ref,
   excludeSourceRefs: Ref[],
-): Promise<Result<MusicCandidate[]>> {
+): Promise<Result<SourceBackedTrackSeed[]>> {
   const tracks = await materialStore.listSourceEntities({ kind: "track" });
 
   if (!tracks.ok) {
@@ -869,7 +1129,7 @@ async function trackCandidatesForCanonicalArtist(
   }
 
   const excludeKeys = new Set(excludeSourceRefs.map(refKey));
-  const candidates: MusicCandidate[] = [];
+  const seeds: SourceBackedTrackSeed[] = [];
 
   for (const entity of tracks.value.filter((entity) => entity.kind === "track")) {
     if (excludeKeys.has(refKey(entity.sourceRef))) {
@@ -884,18 +1144,18 @@ async function trackCandidatesForCanonicalArtist(
     }
 
     if (canonicalArtists.value.some((artistRef) => sameRef(artistRef, canonicalArtistRef))) {
-      candidates.push(candidateForSourceEntity(entity));
+      seeds.push(trackSeedForSourceEntity(entity));
     }
   }
 
-  return ok(candidates);
+  return ok(seeds);
 }
 
-async function trackCandidatesForSourceArtist(
+async function trackSeedsForSourceArtist(
   materialStore: MaterialQueryStorePort,
   sourceArtistRef: Ref,
   excludeSourceRefs: Ref[],
-): Promise<Result<MusicCandidate[]>> {
+): Promise<Result<SourceBackedTrackSeed[]>> {
   const tracks = await materialStore.listSourceEntities({ kind: "track" });
 
   if (!tracks.ok) {
@@ -912,20 +1172,15 @@ async function trackCandidatesForSourceArtist(
           !excludeKeys.has(refKey(entity.sourceRef)) &&
           (entity.artistSourceRefs ?? []).some((artistRef) => sameRef(artistRef, sourceArtistRef)),
       )
-      .map(candidateForSourceEntity),
+      .map(trackSeedForSourceEntity),
   );
 }
 
-function candidateForSourceEntity(entity: SourceEntity): MusicCandidate {
+function trackSeedForSourceEntity(entity: SourceEntity): SourceBackedTrackSeed {
   return {
     id: `source-entity:${entity.sourceRef.id}`,
     label: entity.label,
-    expectedKind: sourceKindToMaterialKind(entity.kind),
     sourceRef: entity.sourceRef,
-    query: {
-      text: entity.label,
-      sourceRef: entity.sourceRef,
-    },
   };
 }
 

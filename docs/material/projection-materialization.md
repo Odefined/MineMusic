@@ -26,6 +26,11 @@ Projection reads only through `MaterialProjectionStorePort`. It does not own
 query orchestration, registry writes, Stage Interface compact DTOs, or
 recommendation presentation.
 
+Any selector or presentation path that needs a public material handle must use
+Projection's shared encode/decode helpers rather than rebuilding `materialId`
+from raw `Ref.id`, because the public handle must preserve `mat:*` versus
+`emat:*`.
+
 ## Materialization
 
 `src/material/materialization/index.ts` is the shared durable writer boundary
