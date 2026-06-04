@@ -740,6 +740,7 @@ function sourceQueryForResolveQuery(
 ): SourceQuery {
   return {
     text: query.text,
+    ...(query.targetKind === undefined ? {} : { targetKind: query.targetKind }),
     ...(limit === undefined ? {} : { limit }),
   };
 }

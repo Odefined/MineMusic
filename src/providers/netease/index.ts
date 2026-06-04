@@ -1,6 +1,7 @@
 import type {
   InstrumentProviderDescriptor,
   MaterialEvidence,
+  MaterialResolveTargetKind,
   PlayableLink,
   PlatformLibraryAccountIdentity,
   PlatformLibraryArea,
@@ -187,11 +188,18 @@ export function createNetEaseSourceProvider({
         return ok([]);
       }
 
+      const searchType = netEaseSearchTypeForTargetKind(query.targetKind);
+
+      if (query.targetKind !== undefined && searchType === undefined) {
+        return ok([]);
+      }
+
       const response = await requestJson({
         path: "/search",
         query: {
           keywords,
           limit: String(query.limit ?? 10),
+          ...(searchType === undefined ? {} : { type: searchType }),
         },
       });
 
@@ -199,13 +207,35 @@ export function createNetEaseSourceProvider({
         return response;
       }
 
-      const songsResult = extractSongs(response.value);
+      switch (query.targetKind) {
+        case "artist": {
+          const artistsResult = extractArtists(response.value);
 
-      if (!songsResult.ok) {
-        return songsResult;
+          if (!artistsResult.ok) {
+            return artistsResult;
+          }
+
+          return ok(artistsResult.value.map(toArtistMaterial));
+        }
+        case "release": {
+          const albumsResult = extractAlbums(response.value);
+
+          if (!albumsResult.ok) {
+            return albumsResult;
+          }
+
+          return ok(albumsResult.value.map(toReleaseMaterial));
+        }
+        default: {
+          const songsResult = extractSongs(response.value);
+
+          if (!songsResult.ok) {
+            return songsResult;
+          }
+
+          return ok(songsResult.value.map(toTrackMaterial));
+        }
       }
-
-      return ok(songsResult.value.map(toMaterial));
     },
 
     async getPlayableLinks({ material }) {
@@ -1383,6 +1413,34 @@ function extractSongs(payload: unknown): Result<NetEaseSong[]> {
   return ok(result.songs.filter(isRecord));
 }
 
+function extractAlbums(payload: unknown): Result<NetEaseAlbum[]> {
+  if (!isRecord(payload)) {
+    return unresolved("NetEase response was not an object.");
+  }
+
+  const result = payload.result;
+
+  if (!isRecord(result) || !Array.isArray(result.albums)) {
+    return unresolved("NetEase response did not include result.albums.");
+  }
+
+  return ok(result.albums.filter(isRecord));
+}
+
+function extractArtists(payload: unknown): Result<NetEaseArtist[]> {
+  if (!isRecord(payload)) {
+    return unresolved("NetEase response was not an object.");
+  }
+
+  const result = payload.result;
+
+  if (!isRecord(result) || !Array.isArray(result.artists)) {
+    return unresolved("NetEase response did not include result.artists.");
+  }
+
+  return ok(result.artists.filter(isRecord));
+}
+
 function extractSongsFromDetailResult(
   payload: unknown,
   area: PlatformLibraryArea,
@@ -1718,7 +1776,7 @@ function toPreviewSample(item: PlatformLibraryItem): PlatformLibrarySample {
   };
 }
 
-function toMaterial(song: NetEaseSong): SourceMaterial {
+function toTrackMaterial(song: NetEaseSong): SourceMaterial {
   const sourceRef = toSourceRef(song);
 
   if (sourceRef === undefined) {
@@ -1743,6 +1801,60 @@ function toMaterial(song: NetEaseSong): SourceMaterial {
     sourceRefs: [sourceRef],
     ...(playableLinks.length === 0 ? {} : { playableLinks }),
     evidence: [evidence],
+  };
+}
+
+function toReleaseMaterial(album: NetEaseAlbum): SourceMaterial {
+  const sourceRef = toAlbumSourceRef(album);
+  const label = toAlbumLabel(album);
+
+  if (sourceRef === undefined) {
+    return {
+      id: "netease:album:unresolved",
+      kind: "release",
+      label,
+      state: "unresolved",
+      notes: "NetEase search result did not include a usable album id.",
+    };
+  }
+
+  return {
+    id: `netease:album:${sourceRef.id}`,
+    kind: "release",
+    label,
+    state: "grounded",
+    sourceRefs: [sourceRef],
+    evidence: [{
+      kind: "provider.search_result",
+      source: sourceRef,
+    }],
+  };
+}
+
+function toArtistMaterial(artist: NetEaseArtist): SourceMaterial {
+  const sourceRef = toArtistSourceRef(artist);
+  const label = toArtistLabel(artist);
+
+  if (sourceRef === undefined) {
+    return {
+      id: "netease:artist:unresolved",
+      kind: "artist",
+      label,
+      state: "unresolved",
+      notes: "NetEase search result did not include a usable artist id.",
+    };
+  }
+
+  return {
+    id: `netease:artist:${sourceRef.id}`,
+    kind: "artist",
+    label,
+    state: "grounded",
+    sourceRefs: [sourceRef],
+    evidence: [{
+      kind: "provider.search_result",
+      source: sourceRef,
+    }],
   };
 }
 
@@ -1801,25 +1913,31 @@ function toArtistNames(song: NetEaseSong): string[] {
     .filter((name): name is string => typeof name === "string" && name.length > 0);
 }
 
+function toArtistLabel(artist: NetEaseArtist): string {
+  return toNonEmptyString(artist.name) ?? "Unresolved NetEase Artist";
+}
+
+function toArtistSourceRef(artist: NetEaseArtist): Ref | undefined {
+  const id = toStringId(artist.id);
+  const label = toNonEmptyString(artist.name);
+
+  return id === undefined
+    ? undefined
+    : {
+        namespace: "source:netease",
+        kind: "artist",
+        id,
+        ...(label === undefined ? {} : { label }),
+        url: toArtistUrl(id),
+      };
+}
+
 function toArtistSourceRefs(song: NetEaseSong): Ref[] {
   const artists = Array.isArray(song.artists) ? song.artists : Array.isArray(song.ar) ? song.ar : [];
 
   return artists
     .filter(isRecord)
-    .map((artist: NetEaseArtist): Ref | undefined => {
-      const id = toStringId(artist.id);
-      const label = toNonEmptyString(artist.name);
-
-      return id === undefined
-        ? undefined
-        : {
-            namespace: "source:netease",
-            kind: "artist",
-            id,
-            ...(label === undefined ? {} : { label }),
-            url: toArtistUrl(id),
-          };
-    })
+    .map((artist: NetEaseArtist): Ref | undefined => toArtistSourceRef(artist))
     .filter((ref): ref is Ref => ref !== undefined);
 }
 
@@ -1834,6 +1952,51 @@ function toAlbumArtistNames(album: NetEaseAlbum): string[] {
     .filter(isRecord)
     .map((artist: NetEaseArtist) => artist.name)
     .filter((name): name is string => typeof name === "string" && name.length > 0);
+}
+
+function toAlbumLabel(album: NetEaseAlbum): string {
+  const title = toNonEmptyString(album.name) ?? "Unresolved NetEase Album";
+  const artistNames = toAlbumArtistNames(album);
+
+  if (artistNames.length === 0) {
+    return title;
+  }
+
+  return `${title} - ${artistNames.join(", ")}`;
+}
+
+function toAlbumSourceRef(album: NetEaseAlbum): Ref | undefined {
+  const id = toStringId(album.id);
+  const label = toNonEmptyString(album.name);
+
+  if (id === undefined) {
+    return undefined;
+  }
+
+  return {
+    namespace: "source:netease",
+    kind: "album",
+    id,
+    ...(label === undefined ? {} : { label }),
+    url: toAlbumUrl(id),
+  };
+}
+
+function netEaseSearchTypeForTargetKind(
+  targetKind: MaterialResolveTargetKind | undefined,
+): string | undefined {
+  switch (targetKind) {
+    case undefined:
+    case "recording":
+      return "1";
+    case "release":
+      return "10";
+    case "artist":
+      return "100";
+    case "release_group":
+    case "work":
+      return undefined;
+  }
 }
 
 function firstAlbumName(song: NetEaseSong): string | undefined {

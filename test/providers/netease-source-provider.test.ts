@@ -22,6 +22,7 @@ async function mapsSearchResultsToSourceBackedMaterials(): Promise<void> {
       assert(path === "/search", "search should call NetEase search endpoint");
       assert(query.keywords === "coding", "search should pass query text as keywords");
       assert(query.limit === "1", "search should pass query limit");
+      assert(query.type === "1", "recording search should request NetEase song search");
 
       return {
         ok: true,
@@ -64,6 +65,96 @@ async function mapsSearchResultsToSourceBackedMaterials(): Promise<void> {
     "paid/VIP material should mark account requirement",
   );
   assert(material.evidence?.[0]?.kind === "provider.search_result", "should retain source evidence");
+}
+
+async function mapsReleaseSearchResultsWhenTargetKindIsRelease(): Promise<void> {
+  const provider = createNetEaseSourceProvider({
+    requestJson: async ({ path, query }) => {
+      assert(path === "/search", "release search should call NetEase search endpoint");
+      assert(query.keywords === "moon safari", "release search should pass query text as keywords");
+      assert(query.limit === "2", "release search should pass query limit");
+      assert(query.type === "10", "release search should request NetEase album search");
+
+      return {
+        ok: true,
+        value: {
+          code: 200,
+          result: {
+            albums: [
+              {
+                id: 456,
+                name: "Moon Safari",
+                artists: [{ id: 789, name: "Air" }],
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const materials = await assertOk(provider.search({ query: { text: "moon safari", targetKind: "release", limit: 2 } }));
+  const material = materials[0];
+
+  assert(material !== undefined, "release search should return one material");
+  assert(material.id === "netease:album:456", "release material id should include provider album id");
+  assert(material.kind === "release", "album search results should map to release materials");
+  assert(material.label === "Moon Safari - Air", "release label should include artist context");
+  assert(material.state === "grounded", "release provider result should stay grounded");
+  assert(material.sourceRefs?.[0]?.kind === "album", "release source ref should identify provider album");
+  assert(material.sourceRefs?.[0]?.id === "456", "release source ref should use NetEase album id");
+  assert(material.playableLinks === undefined, "release search results should not invent playable links");
+}
+
+async function mapsArtistSearchResultsWhenTargetKindIsArtist(): Promise<void> {
+  const provider = createNetEaseSourceProvider({
+    requestJson: async ({ path, query }) => {
+      assert(path === "/search", "artist search should call NetEase search endpoint");
+      assert(query.keywords === "phoenix", "artist search should pass query text as keywords");
+      assert(query.limit === "3", "artist search should pass query limit");
+      assert(query.type === "100", "artist search should request NetEase artist search");
+
+      return {
+        ok: true,
+        value: {
+          code: 200,
+          result: {
+            artists: [
+              {
+                id: 999,
+                name: "Phoenix",
+              },
+            ],
+          },
+        },
+      };
+    },
+  });
+
+  const materials = await assertOk(provider.search({ query: { text: "phoenix", targetKind: "artist", limit: 3 } }));
+  const material = materials[0];
+
+  assert(material !== undefined, "artist search should return one material");
+  assert(material.id === "netease:artist:999", "artist material id should include provider artist id");
+  assert(material.kind === "artist", "artist search results should map to artist materials");
+  assert(material.label === "Phoenix", "artist label should keep the provider artist name");
+  assert(material.sourceRefs?.[0]?.kind === "artist", "artist source ref should identify provider artist");
+  assert(material.playableLinks === undefined, "artist search results should not invent playable links");
+}
+
+async function skipsUnsupportedSearchTargetKinds(): Promise<void> {
+  let called = false;
+  const provider = createNetEaseSourceProvider({
+    requestJson: async () => {
+      called = true;
+      return { ok: true, value: { code: 200, result: {} } };
+    },
+  });
+
+  const materials = await assertOk(provider.search({ query: { text: "opus", targetKind: "work", limit: 5 } }));
+
+  assert(called === false, "unsupported search target kinds should not hit NetEase search");
+  assert(materials.length === 0, "unsupported search target kinds should return no provider materials");
 }
 
 async function acceptsSharedNetEaseRequesterOptions(): Promise<void> {
@@ -196,6 +287,9 @@ async function refreshesLinksFromNeteaseSourceRefs(): Promise<void> {
 }
 
 await mapsSearchResultsToSourceBackedMaterials();
+await mapsReleaseSearchResultsWhenTargetKindIsRelease();
+await mapsArtistSearchResultsWhenTargetKindIsArtist();
+await skipsUnsupportedSearchTargetKinds();
 await acceptsSharedNetEaseRequesterOptions();
 await supportsModernNeteaseSongShapeAndBlockedState();
 await integratesWithSourceGroundingThroughPluginSlot();

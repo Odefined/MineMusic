@@ -119,6 +119,7 @@ import type {
   SourceLibraryItemStatus,
   SourceMaterial,
   SourceProvider,
+  SourceQuery,
   SourceRelease,
   SourceReleaseTracklistItem,
   SourceReleaseTrackPosition,
@@ -293,6 +294,11 @@ export type _materialResolveRequestCarriesOwnerScope = Expect<
     Equal<NonNullable<MaterialResolveRequest["ownerScope"]>, string> &
     Equal<NonNullable<MaterialResolveRequest["limit"]>, number> &
     Equal<MaterialResolveRequest["queries"][number]["targetKind"], PublicMaterialResolveQueryKind | undefined>
+>;
+
+export type _sourceQueryMayCarryResolveTargetKind = Expect<
+  Equal<keyof SourceQuery, "text" | "canonicalRef" | "sourceRef" | "targetKind" | "limit"> &
+    Equal<SourceQuery["targetKind"], MaterialResolveRequest["queries"][number]["targetKind"] | undefined>
 >;
 
 export type _materialPoolSpecUsesQueryReadySourceLibraryLanguage = Expect<
