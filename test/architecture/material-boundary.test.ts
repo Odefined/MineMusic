@@ -12,6 +12,8 @@ import type {
   MaterialResolveEphemeralWritePort,
   MaterialQueryStorePort,
   MaterialResolveStorePort,
+  MaterialSearchIndexPort,
+  MaterialSearchPort,
   RecommendationPresentationMaterializePort,
   MaterialSearchCollectionPort,
   MaterialSearchStorePort,
@@ -87,9 +89,23 @@ export type MaterialResolveStorePortKeysAreExact = Assert<IsExact<
   | "getMaterialRecord"
   | "getSourceEntity"
   | "getCanonical"
-  | "getConfirmedCanonicalBinding"
   | "findMaterialBySourceRef"
   | "findMaterialByCanonicalRef"
+>>;
+
+export type MaterialSearchPortKeysAreExact = Assert<IsExact<
+  keyof MaterialSearchPort,
+  | "search"
+  | "rerank"
+>>;
+
+export type MaterialSearchIndexPortKeysAreExact = Assert<IsExact<
+  keyof MaterialSearchIndexPort,
+  | "markDirty"
+  | "refreshDirty"
+  | "rebuildAll"
+  | "search"
+  | "rerankDocuments"
 >>;
 
 export type EphemeralMaterialStorePortKeysAreExact = Assert<IsExact<

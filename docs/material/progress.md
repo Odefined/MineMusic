@@ -32,6 +32,10 @@ The public material handle remains `materialId`. Internal material identity is
 - Material Resolve now receives `MaterialResolveStorePort`, `MaterialSearchPort`,
   `MaterialPolicyEvaluatorPort`, and `MaterialResolveEphemeralWritePort`; it
   does not receive registry writer methods or `MaterialSourceMaterializerPort`.
+- Material Resolve now uses Material Search in two phases: durable-pool
+  `search(...)` for local recall and request-scoped `rerank(...)` for the
+  final local/provider candidate corpus. Resolve no longer owns a local versus
+  provider result-set choice.
 - Source/provider and Source Library materialization are centralized in
   `src/material/materialization/index.ts`.
 - Record-to-domain projection helpers live in
@@ -53,6 +57,9 @@ The public material handle remains `materialId`. Internal material identity is
   `collection` Query pools from owner-visible durable material refs through
   SQLite FTS-backed search. Query no longer materializes ordinary Source
   Library rows during retrieval.
+- Material Search also exposes Resolve-only request-scoped rerank over
+  prepared durable and `ephemeral_material` candidate corpora while keeping
+  ordinary durable `search(...)` behavior unchanged.
 - Query and Related source-backed release-track paths no longer route
   `sourceRef` rows through Resolve or query-time durable materialization; they
   reuse existing durable materials when present and otherwise allocate
@@ -104,6 +111,7 @@ Focused behavior evidence exists in:
 - `test/material_search/material-search-visibility.test.ts`;
 - `test/material_search/material-search-eligibility.test.ts`;
 - `test/material_search/material-search-query.test.ts`;
+- `test/material_search/material-search-rerank.test.ts`;
 - `test/material_search/material-search-cursor.test.ts`;
 - `test/material_query/material-query.test.ts`;
 - `test/material_resolve/material-resolve.test.ts`;
@@ -114,6 +122,8 @@ Latest material-resolve-query verification on 2026-06-04:
 
 - `npm run typecheck`
 - `npm run build:test`
+- `node .tmp-test/test/material_search/material-search-query.test.js`
+- `node .tmp-test/test/material_search/material-search-rerank.test.js`
 - `node .tmp-test/test/material_query/material-query.test.js`
 - `node .tmp-test/test/material_related/material-related.test.js`
 - `node .tmp-test/test/material_resolve/material-resolve.test.js`
@@ -126,10 +136,12 @@ Latest material-resolve-query verification on 2026-06-04:
 
 ## Remaining Work
 
-No open material-resolve-query documentation/code inconsistency remains after
-the 2026-06-04 sync. Future material changes should keep docs aligned in:
+Request-scoped rerank is now implemented. Follow-up Material Search / Resolve
+work should keep docs aligned in:
 
 - `docs/material/design.md`;
 - `docs/material/ports.md`;
 - `docs/material/projection-materialization.md`;
+- `docs/material-search/design.md`;
+- `docs/material-search/progress.md`;
 - `docs/stage-interface/tool-contracts.md` when public tool behavior changes.

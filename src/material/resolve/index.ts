@@ -1,5 +1,4 @@
 import type {
-  CanonicalRecord,
   MaterialPolicyDecision,
   MaterialResolveIssue,
   MaterialResolveQuery,
@@ -25,6 +24,7 @@ import { createInMemoryEphemeralMaterialStore } from "../ephemeral/index.js";
 import { materialKindForMaterial } from "../kinds.js";
 import {
   currentMaterialRecordForRef,
+  materialRefToMaterialId,
   projectMaterialRecord,
 } from "../projection/index.js";
 
@@ -47,13 +47,27 @@ type ResolvedMaterialSet = {
 
 type QueryResolution = {
   resolvedQuery: MaterialResolvedQuery;
-  ephemeralRefs: Ref[];
 };
 
 type MaterialResolutionOutcome = {
   material: MusicMaterial;
   warnings: string[];
 };
+
+type ProviderExpansionResult = {
+  materials: MusicMaterial[];
+  groundedCount: number;
+  issues: MaterialResolveIssue[];
+};
+
+type PreparedProviderCandidate = {
+  material: MusicMaterial;
+  sourceMaterial?: SourceMaterial;
+};
+
+const defaultResolveLimit = 50;
+const minResolveRerankWindow = 10;
+const resolveRerankMultiplier = 3;
 
 export function createMaterialResolveService({
   materialStore,
@@ -124,75 +138,83 @@ async function resolveQuery({
   materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   ephemeralMaterialStore: MaterialResolveEphemeralWritePort;
 }): Promise<Result<QueryResolution>> {
-  const local = await resolveLocalDurableMaterials({
+  const rerankWindow = resolveRerankWindow(limit);
+  const sourceQuery = sourceQueryForResolveQuery(query, rerankWindow);
+  const local = await collectLocalDurableCandidates({
     query,
     ownerScope,
     materialStore,
     materialSearch,
-    materialPolicyEvaluator,
-    ...(limit === undefined ? {} : { limit }),
+    limit: rerankWindow,
   });
 
   if (!local.ok) {
     return local;
   }
 
-  const highConfidenceLocal = await isHighConfidenceLocalResult({
-    query,
-    outcomes: local.value.outcomes,
-    materialStore,
-  });
-
-  if (!highConfidenceLocal.ok) {
-    return highConfidenceLocal;
-  }
-
-  if (highConfidenceLocal.value) {
-    return ok({
-      resolvedQuery: resolvedQueryFromSet(query, local.value.resolved),
-      ephemeralRefs: [],
-    });
-  }
-
-  const provider = await resolveProviderSourceMaterials({
-    query,
+  const provider = await expandProviderSourceMaterials({
+    sourceQuery,
     ownerScope,
     materialStore,
     sourceGrounding,
-    materialPolicyEvaluator,
     ephemeralMaterialStore,
     ...(sessionId === undefined ? {} : { sessionId }),
-    ...(limit === undefined ? {} : { limit }),
   });
 
   if (!provider.ok) {
     return provider;
   }
 
+  const ranked = await rerankResolveCandidates({
+    query,
+    materialSearch,
+    materials: mergeResolveCandidates(local.value, provider.value.materials),
+    limit: rerankWindow,
+  });
+
+  if (!ranked.ok) {
+    return ranked;
+  }
+
+  const outcomes = await applyMaterialResolutionPolicy({
+    materialPolicyEvaluator,
+    materials: ranked.value,
+    ownerScope,
+  });
+
+  if (!outcomes.ok) {
+    return outcomes;
+  }
+
+  const resolved = resolvedMaterialSet(outcomes.value, limit);
+  const issues = unresolvedProviderIssues({
+    sourceQuery,
+    provider: provider.value,
+    resolved,
+  });
+
   return ok({
-    resolvedQuery: resolvedQueryFromSet(
-      query,
-      chooseResolvedMaterialSet(local.value.resolved, provider.value.resolved),
-    ),
-    ephemeralRefs: provider.value.ephemeralRefs,
+    resolvedQuery: resolvedQueryFromSet(query, {
+      ...resolved,
+      ...(issues.length === 0 ? {} : { issues }),
+      ...(issues.length === 0 ? {} : { reason: "No source-backed material matched this query." }),
+    }),
   });
 }
 
-async function resolveLocalDurableMaterials({
+async function collectLocalDurableCandidates({
   query,
   ownerScope,
   limit,
   materialStore,
   materialSearch,
-  materialPolicyEvaluator,
 }: {
   query: MaterialResolveQuery;
   ownerScope: string;
   limit?: number;
   materialStore: MaterialResolveStorePort;
   materialSearch: MaterialSearchPort;
-  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
-}): Promise<Result<{ outcomes: MaterialResolutionOutcome[]; resolved: ResolvedMaterialSet }>> {
+}): Promise<Result<MusicMaterial[]>> {
   const search = await materialSearch.search({
     ownerScope,
     text: query.text,
@@ -214,42 +236,24 @@ async function resolveLocalDurableMaterials({
     return projected;
   }
 
-  const outcomes = await applyMaterialResolutionPolicy({
-    materialPolicyEvaluator,
-    materials: projected.value,
-    ownerScope,
-  });
-
-  if (!outcomes.ok) {
-    return outcomes;
-  }
-
-  return ok({
-    outcomes: outcomes.value,
-    resolved: resolvedMaterialSet(outcomes.value),
-  });
+  return ok(projected.value);
 }
 
-async function resolveProviderSourceMaterials({
-  query,
+async function expandProviderSourceMaterials({
+  sourceQuery,
   ownerScope,
   sessionId,
-  limit,
   materialStore,
   sourceGrounding,
-  materialPolicyEvaluator,
   ephemeralMaterialStore,
 }: {
-  query: MaterialResolveQuery;
+  sourceQuery: SourceQuery;
   ownerScope: string;
   sessionId?: string;
-  limit?: number;
   materialStore: MaterialResolveStorePort;
   sourceGrounding: SourceGroundingPort;
-  materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   ephemeralMaterialStore: MaterialResolveEphemeralWritePort;
-}): Promise<Result<{ resolved: ResolvedMaterialSet; ephemeralRefs: Ref[] }>> {
-  const sourceQuery = sourceQueryForResolveQuery(query, limit);
+}): Promise<Result<ProviderExpansionResult>> {
   const grounded = await sourceGrounding.ground({
     query: sourceQuery,
     ...(sessionId === undefined ? {} : { sessionId }),
@@ -261,36 +265,24 @@ async function resolveProviderSourceMaterials({
 
   if (grounded.value.length === 0) {
     return ok({
-      resolved: {
-        materials: [],
-        status: "unresolved",
-        reason: "No source-backed material matched this query.",
-        issues: [providerNoMatchIssue(sourceQuery)],
-      },
-      ephemeralRefs: [],
+      materials: [],
+      groundedCount: 0,
+      issues: [],
     });
   }
 
-  const durableCandidates: MusicMaterial[] = [];
-  const ephemeralCandidates: MusicMaterial[] = [];
-  const ephemeralRefs: Ref[] = [];
+  const preparedCandidates: PreparedProviderCandidate[] = [];
   const groundingIssues: MaterialResolveIssue[] = [];
 
   for (const groundedMaterial of grounded.value) {
-    const prepared = await materialWithKnownCanonicalRefs(materialStore, groundedMaterial);
-
-    if (!prepared.ok) {
-      return prepared;
-    }
-
-    if (!hasStableGrounding(prepared.value)) {
-      groundingIssues.push(providerResultMissingSourceRefIssue(prepared.value));
+    if (!hasStableGrounding(groundedMaterial)) {
+      groundingIssues.push(providerResultMissingSourceRefIssue(groundedMaterial));
       continue;
     }
 
     const existing = await existingMaterialForSourceMaterial({
       materialStore,
-      material: prepared.value,
+      material: groundedMaterial,
       ownerScope,
     });
 
@@ -299,18 +291,64 @@ async function resolveProviderSourceMaterials({
     }
 
     if (existing.value !== null) {
-      durableCandidates.push(existing.value);
+      upsertPreparedProviderCandidate(preparedCandidates, { material: existing.value });
       continue;
     }
 
     const materialRef = ephemeralMaterialRefForSourceMaterial({
       ownerScope,
-      material: prepared.value,
+      material: groundedMaterial,
       ...(sessionId === undefined ? {} : { sessionId }),
     });
+    upsertPreparedProviderCandidate(preparedCandidates, {
+      material: ephemeralMaterialFromEntry({
+        materialRef,
+        material: groundedMaterial,
+      }),
+      sourceMaterial: groundedMaterial,
+    });
+  }
+
+  const persisted = await persistPreparedProviderCandidates({
+    candidates: preparedCandidates,
+    ownerScope,
+    ephemeralMaterialStore,
+    ...(sessionId === undefined ? {} : { sessionId }),
+  });
+
+  if (!persisted.ok) {
+    return persisted;
+  }
+
+  return ok({
+    materials: persisted.value,
+    groundedCount: grounded.value.length,
+    issues: groundingIssues,
+  });
+}
+
+async function persistPreparedProviderCandidates({
+  candidates,
+  ownerScope,
+  sessionId,
+  ephemeralMaterialStore,
+}: {
+  candidates: PreparedProviderCandidate[];
+  ownerScope: string;
+  sessionId?: string;
+  ephemeralMaterialStore: MaterialResolveEphemeralWritePort;
+}): Promise<Result<MusicMaterial[]>> {
+  const materials: MusicMaterial[] = [];
+
+  for (const candidate of candidates) {
+    if (candidate.sourceMaterial === undefined) {
+      materials.push(candidate.material);
+      continue;
+    }
+
     const stored = await ephemeralMaterialStore.put({
-      materialRef,
-      material: prepared.value,
+      materialRef: candidate.material.materialRef,
+      material: candidate.sourceMaterial,
       ownerScope,
       ...(sessionId === undefined ? {} : { sessionId }),
     });
@@ -319,59 +357,140 @@ async function resolveProviderSourceMaterials({
       return stored;
     }
 
-    ephemeralRefs.push(stored.value.materialRef);
-    ephemeralCandidates.push(ephemeralMaterialFromEntry(stored.value));
+    materials.push(ephemeralMaterialFromEntry(stored.value));
   }
 
-  const durableOutcomes = await applyMaterialResolutionPolicy({
-    materialPolicyEvaluator,
-    materials: dedupeMaterials(durableCandidates),
-    ownerScope,
+  return ok(materials);
+}
+
+async function rerankResolveCandidates({
+  query,
+  materialSearch,
+  materials,
+  limit,
+}: {
+  query: MaterialResolveQuery;
+  materialSearch: MaterialSearchPort;
+  materials: MusicMaterial[];
+  limit?: number;
+}): Promise<Result<MusicMaterial[]>> {
+  const candidates = dedupeMaterials(materials);
+
+  if (candidates.length === 0) {
+    return ok([]);
+  }
+
+  const ranked = await materialSearch.rerank({
+    text: query.text,
+    materials: candidates,
+    ...(query.targetKind === undefined ? {} : { targetKind: query.targetKind }),
+    ...(limit === undefined ? {} : { limit }),
   });
 
-  if (!durableOutcomes.ok) {
-    return durableOutcomes;
+  if (!ranked.ok) {
+    return ranked;
   }
 
-  const durableResolved = resolvedMaterialSet(durableOutcomes.value);
-  const materials = dedupeMaterials([
-    ...durableResolved.materials,
-    ...ephemeralCandidates,
-  ]);
+  const materialsByRef = new Map(candidates.map((material) => [refKey(material.materialRef), material]));
 
-  if (materials.length > 0) {
-    return ok({
-      resolved: {
-        materials,
-        status: statusForDisplayableMaterials(materials),
-      },
-      ephemeralRefs,
-    });
+  return ok(
+    ranked.value.hits.flatMap((hit) => {
+      const material = materialsByRef.get(refKey(hit.materialRef));
+      return material === undefined ? [] : [material];
+    }),
+  );
+}
+
+function mergeResolveCandidates(
+  local: MusicMaterial[],
+  provider: MusicMaterial[],
+): MusicMaterial[] {
+  return dedupeMaterials([...local, ...provider]);
+}
+
+function unresolvedProviderIssues({
+  sourceQuery,
+  provider,
+  resolved,
+}: {
+  sourceQuery: SourceQuery;
+  provider: ProviderExpansionResult;
+  resolved: ResolvedMaterialSet;
+}): MaterialResolveIssue[] {
+  if (resolved.status !== "unresolved" || resolved.materials.length > 0) {
+    return [];
   }
 
-  if (durableResolved.status !== "unresolved") {
-    return ok({
-      resolved: durableResolved,
-      ephemeralRefs,
-    });
+  if (provider.groundedCount === 0) {
+    return [providerNoMatchIssue(sourceQuery)];
   }
 
-  return ok({
-    resolved: {
-      materials: [],
-      status: "unresolved",
-      reason: "No source-backed material matched this query.",
-      ...(groundingIssues.length === 0
-        ? {}
-        : {
-            issues: [
-              ...groundingIssues,
-              noSourceOrCanonicalGroundingIssue(sourceQuery),
-            ],
-          }),
-    },
-    ephemeralRefs,
-  });
+  if (provider.issues.length === 0) {
+    return [];
+  }
+
+  return [
+    ...provider.issues,
+    noSourceOrCanonicalGroundingIssue(sourceQuery),
+  ];
+}
+
+function upsertPreparedProviderCandidate(
+  candidates: PreparedProviderCandidate[],
+  candidate: PreparedProviderCandidate,
+): void {
+  const duplicateIndex = candidates.findIndex((existing) =>
+    samePreparedProviderIdentity(existing.material, candidate.material)
+  );
+
+  if (duplicateIndex < 0) {
+    candidates.push(candidate);
+    return;
+  }
+
+  const existing = candidates[duplicateIndex];
+
+  if (
+    existing !== undefined &&
+    providerCandidatePriority(candidate.material) > providerCandidatePriority(existing.material)
+  ) {
+    candidates[duplicateIndex] = candidate;
+  }
+}
+
+function samePreparedProviderIdentity(left: MusicMaterial, right: MusicMaterial): boolean {
+  if (refKey(left.materialRef) === refKey(right.materialRef)) {
+    return true;
+  }
+
+  if (
+    left.canonicalRef !== undefined &&
+    right.canonicalRef !== undefined &&
+    refKey(left.canonicalRef) === refKey(right.canonicalRef)
+  ) {
+    return true;
+  }
+
+  const leftSourceRefs = new Set(sourceRefsForResolvedMaterial(left).map(refKey));
+
+  if (leftSourceRefs.size === 0) {
+    return false;
+  }
+
+  return sourceRefsForResolvedMaterial(right).some((sourceRef) => leftSourceRefs.has(refKey(sourceRef)));
+}
+
+function providerCandidatePriority(material: MusicMaterial): number {
+  return (isDurableMaterial(material) ? 100 : 0) +
+    (material.identityState === "canonical_confirmed" ? 10 : 0) +
+    ((material.playableLinks?.length ?? 0) > 0 ? 1 : 0);
+}
+
+function sourceRefsForResolvedMaterial(material: MusicMaterial): Ref[] {
+  return mergeRefs(
+    material.sourceRefs ?? [],
+    (material.playableLinks ?? []).map((link) => link.sourceRef),
+  );
 }
 
 async function projectSearchHits({
@@ -433,6 +552,7 @@ async function existingMaterialForSourceMaterial({
       return projectMaterialRecord(materialStore, canonicalRecord.value, {
         ownerScope,
         purpose: "material.query",
+        fallbackLabel: material.label,
       });
     }
   }
@@ -448,67 +568,8 @@ async function existingMaterialForSourceMaterial({
       return projectMaterialRecord(materialStore, record.value, {
         ownerScope,
         purpose: "material.query",
+        fallbackLabel: material.label,
       });
-    }
-  }
-
-  return ok(null);
-}
-
-async function materialWithKnownCanonicalRefs(
-  materialStore: MaterialResolveStorePort,
-  material: SourceMaterial,
-): Promise<Result<SourceMaterial>> {
-  const sourceRefs = sourceRefsForMaterial(material);
-
-  if (material.canonicalRef !== undefined) {
-    return ok({
-      ...material,
-      ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-      state: stateWithCanonical(material),
-    });
-  }
-
-  const canonical = await findCanonicalForSourceRefs(materialStore, sourceRefs);
-
-  if (!canonical.ok) {
-    return canonical;
-  }
-
-  if (canonical.value === null) {
-    return ok({
-      ...material,
-      ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-    });
-  }
-
-  return ok({
-    ...material,
-    canonicalRef: canonical.value.ref,
-    ...(sourceRefs.length === 0 ? {} : { sourceRefs }),
-    state: stateWithCanonical(material),
-  });
-}
-
-async function findCanonicalForSourceRefs(
-  materialStore: MaterialResolveStorePort,
-  sourceRefs: Ref[],
-): Promise<Result<CanonicalRecord | null>> {
-  for (const sourceRef of sourceRefs) {
-    const binding = await materialStore.getConfirmedCanonicalBinding({ sourceRef });
-
-    if (!binding.ok) {
-      return binding;
-    }
-
-    if (binding.value === null) {
-      continue;
-    }
-
-    const canonical = await materialStore.getCanonical({ ref: binding.value.canonicalRef });
-
-    if (!canonical.ok || canonical.value !== null) {
-      return canonical;
     }
   }
 
@@ -529,7 +590,7 @@ async function applyMaterialResolutionPolicy({
   for (const material of materials) {
     const decision = await materialPolicyEvaluator.evaluate({
       ownerScope,
-      materialId: material.materialRef.id,
+      materialId: materialRefToMaterialId(material.materialRef),
       material,
       policy: {
         purpose: "material_resolution",
@@ -551,10 +612,14 @@ async function applyMaterialResolutionPolicy({
   return ok(projected);
 }
 
-function resolvedMaterialSet(outcomes: MaterialResolutionOutcome[]): ResolvedMaterialSet {
+function resolvedMaterialSet(
+  outcomes: MaterialResolutionOutcome[],
+  limit?: number,
+): ResolvedMaterialSet {
   const materials = outcomes
     .filter(shouldKeepResolvedMaterial)
-    .map((outcome) => outcome.material);
+    .map((outcome) => outcome.material)
+    .slice(0, normalizeResolveLimit(limit));
 
   if (materials.length > 0) {
     return {
@@ -589,89 +654,6 @@ function resolvedQueryFromSet(
     ...(resolved.reason === undefined ? {} : { reason: resolved.reason }),
     ...(resolved.issues === undefined || resolved.issues.length === 0 ? {} : { issues: resolved.issues }),
   };
-}
-
-function chooseResolvedMaterialSet(
-  local: ResolvedMaterialSet,
-  provider: ResolvedMaterialSet,
-): ResolvedMaterialSet {
-  if (provider.materials.length > 0) {
-    return provider;
-  }
-
-  if (local.materials.length > 0) {
-    return {
-      materials: local.materials,
-      status: local.status,
-      reason: lowConfidenceLocalFallbackReason(provider),
-      ...(provider.issues === undefined || provider.issues.length === 0 ? {} : { issues: provider.issues }),
-    };
-  }
-
-  if (provider.status !== "unresolved") {
-    return provider;
-  }
-
-  return {
-    materials: [],
-    status: local.status !== "unresolved" ? local.status : provider.status,
-    ...(provider.reason !== undefined
-      ? { reason: provider.reason }
-      : local.reason === undefined
-        ? {}
-        : { reason: local.reason }),
-    ...(provider.issues !== undefined && provider.issues.length > 0
-      ? { issues: provider.issues }
-      : local.issues === undefined || local.issues.length === 0
-        ? {}
-        : { issues: local.issues }),
-  };
-}
-
-async function isHighConfidenceLocalResult({
-  query,
-  outcomes,
-  materialStore,
-}: {
-  query: MaterialResolveQuery;
-  outcomes: MaterialResolutionOutcome[];
-  materialStore: MaterialResolveStorePort;
-}): Promise<Result<boolean>> {
-  const normalizedText = normalizeLabel(query.text);
-
-  if (normalizedText.length === 0) {
-    return ok(false);
-  }
-
-  let exactDurableMatches = 0;
-
-  for (const outcome of outcomes) {
-    if (!isDurableMaterial(outcome.material)) {
-      continue;
-    }
-
-    const strongExactMatch = await materialHasStrongExactLabel({
-      materialStore,
-      material: outcome.material,
-      normalizedText,
-    });
-
-    if (!strongExactMatch.ok) {
-      return strongExactMatch;
-    }
-
-    if (!strongExactMatch.value) {
-      continue;
-    }
-
-    exactDurableMatches += 1;
-
-    if (exactDurableMatches > 1) {
-      return ok(false);
-    }
-  }
-
-  return ok(exactDurableMatches === 1);
 }
 
 function statusForDisplayableMaterials(materials: MusicMaterial[]): MaterialResolveStatus {
@@ -735,6 +717,23 @@ function materialResolutionOutcome(
   };
 }
 
+function normalizeResolveLimit(limit: number | undefined): number {
+  return limit === undefined || !Number.isFinite(limit) || limit <= 0
+    ? defaultResolveLimit
+    : Math.max(1, Math.floor(limit));
+}
+
+function resolveRerankWindow(limit: number | undefined): number {
+  const requested = normalizeResolveLimit(limit);
+  return Math.max(
+    requested,
+    Math.min(
+      defaultResolveLimit,
+      Math.max(minResolveRerankWindow, requested * resolveRerankMultiplier),
+    ),
+  );
+}
+
 function sourceQueryForResolveQuery(
   query: MaterialResolveQuery,
   limit: number | undefined,
@@ -782,53 +781,6 @@ function sourceRefsForMaterial(material: SourceMaterial): Ref[] {
 
 function hasStableGrounding(material: SourceMaterial): boolean {
   return material.canonicalRef !== undefined || sourceRefsForMaterial(material).length > 0;
-}
-
-async function materialHasStrongExactLabel({
-  materialStore,
-  material,
-  normalizedText,
-}: {
-  materialStore: MaterialResolveStorePort;
-  material: MusicMaterial;
-  normalizedText: string;
-}): Promise<Result<boolean>> {
-  if (isExactMatch(material.label, normalizedText)) {
-    return ok(true);
-  }
-
-  if (material.canonicalRef !== undefined) {
-    const canonical = await materialStore.getCanonical({ ref: material.canonicalRef });
-
-    if (!canonical.ok) {
-      return canonical;
-    }
-
-    if (canonical.value !== null && anyExactMatch(
-      [canonical.value.label, ...(canonical.value.aliases ?? [])],
-      normalizedText,
-    )) {
-      return ok(true);
-    }
-  }
-
-  for (const sourceRef of material.sourceRefs ?? []) {
-    const source = await materialStore.getSourceEntity({ sourceRef });
-
-    if (!source.ok) {
-      return source;
-    }
-
-    if (source.value === null) {
-      continue;
-    }
-
-    if (anyExactMatch(sourceEntityIdentityLabels(source.value), normalizedText)) {
-      return ok(true);
-    }
-  }
-
-  return ok(false);
 }
 
 function ephemeralMaterialRefForSourceMaterial({
@@ -904,41 +856,6 @@ function dedupeMaterials(materials: MusicMaterial[]): MusicMaterial[] {
 
 function normalizeLabel(value: string): string {
   return value.trim().toLocaleLowerCase();
-}
-
-function isExactMatch(value: string | undefined, normalizedText: string): boolean {
-  return value !== undefined && normalizeLabel(value) === normalizedText;
-}
-
-function anyExactMatch(values: string[], normalizedText: string): boolean {
-  return values.some((value) => isExactMatch(value, normalizedText));
-}
-
-function sourceEntityIdentityLabels(
-  entity: Awaited<ReturnType<MaterialResolveStorePort["getSourceEntity"]>> extends Result<infer TValue>
-    ? Exclude<TValue, null>
-    : never,
-): string[] {
-  switch (entity.kind) {
-    case "track":
-      return [entity.label, ...(entity.title === undefined ? [] : [entity.title])];
-    case "release":
-      return [entity.label, ...(entity.title === undefined ? [] : [entity.title])];
-    case "artist":
-      return [
-        entity.label,
-        ...(entity.name === undefined ? [] : [entity.name]),
-        ...(entity.aliases ?? []),
-      ];
-  }
-}
-
-function lowConfidenceLocalFallbackReason(provider: ResolvedMaterialSet): string {
-  if (provider.status === "unresolved") {
-    return "Provider fallback did not confirm a stronger source-backed match; returning low-confidence local material hits.";
-  }
-
-  return "Provider fallback did not produce a displayable material; returning low-confidence local material hits.";
 }
 
 function isTerminalState(state: MusicMaterial["state"]): boolean {

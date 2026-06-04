@@ -183,10 +183,10 @@ Stage Interface depends on the specific port it needs.
 | Source Entity Store inside Material Store | Source Track/Release/Artist records, Source Library items, Library Import/Update observations, import/update provenance, and Confirmed Canonical Bindings | canonical identity creation/merge policy, Collection storage schema, final recommendation judgment |
 | Collection Service | owner-scoped Collections, materialRef-backed CollectionItems, saved/favorite/blocked/custom membership, and blocked material membership lookup | canonical identity, source refs, provider search, final recommendation selection, public compact output projection |
 | Library Import/Update | external platform library reads into Source Entity Store and Source Library, eager durable source-backed material binding for imported source refs, import/update batches, item provenance, and update baselines | provider API details, Collection storage schema, canonical identity creation, final recommendation judgment |
-| Material Resolve | text-query grounding over local Material Search hits, read-only existing-material evidence lookup, Source Grounding fallback, durable/ephemeral resolve status aggregation, and process-local ephemeral handle allocation for provider-backed non-durable results | provider internals, playable-link refresh, Source Library scoped retrieval, canonical-label lookup, canonical writes, Collection writes, direct relation policy evaluation internals, registry materialization writes, final recommendation selection |
+| Material Resolve | text-query grounding over local Material Search hits, read-only existing-material evidence lookup, Source Grounding expansion, request-scoped rerank orchestration through Material Search, durable/ephemeral resolve status aggregation, and process-local ephemeral handle allocation for provider-backed non-durable results | provider internals, playable-link refresh, Source Library scoped retrieval, canonical-label lookup, canonical writes, Collection writes, direct relation policy evaluation internals, registry materialization writes, Search scoring internals, final recommendation selection |
 | Material Projection | public `materialId` encoding/decoding plus `materialId` / `materialRef` / current `MaterialRecord` to domain `MusicMaterial` projection through narrow projection reads, including label, source refs, playable links, projected material state, and exact `mat:*` / `emat:*` handle routing | query orchestration, registry writes, Stage Interface compact DTOs, recommendation presentation |
 | Material Materialization | explicit durable writer boundary for imported source-backed materials and for final presentation of selected `ephemeral_material` items into durable `MaterialRecord` / domain `MusicMaterial` | candidate discovery, relation/block filtering, Stage Interface output projection, intermediate Resolve results, Library Import read orchestration, Memory |
-| Material Search | local durable material retrieval over owner-visible material refs, strict owner visibility, owner-neutral SearchDocuments, SQLite FTS-backed text matching, Search-owned score/evidence/provenance/cursor, and read-only retrieval for `all`, ordinary `source_library`, and `collection` pools | provider/source search, material resolve, registry materialization writes, public compact output projection, final recommendation selection, semantic mood/vibe/tag interpretation, general MaterialSorter behavior |
+| Material Search | local durable material retrieval over owner-visible material refs, strict owner visibility, owner-neutral SearchDocuments, SQLite FTS-backed text matching, request-scoped SQLite-backed reranking for Resolve-provided material candidates, Search-owned score/evidence/provenance/cursor, and read-only retrieval for `all`, ordinary `source_library`, and `collection` pools | provider/source search, material resolve, durable identity lookup for provider results, `emat:*` allocation, registry materialization writes, policy/status filtering, public compact output projection, final recommendation selection, semantic mood/vibe/tag interpretation, general MaterialSorter behavior |
 | Material Policy / Sort / Select | reusable per-material allow/degrade/drop evaluation for relation, collection-block, availability, identity, and freshness policy, including internal `material_resolution` projection for Resolve; sorting of already usable material candidates; materialId selection with diversity and limit | candidate discovery, hard filtering inside sorter, final presentation, final recommendation judgment, compact output projection |
 | Recommendation Presentation | final presentation gate for intended ordered `materialId` recommendations, exact `mat:*` / `emat:*` routing, typed `recommendation.presented` event creation with feedback-binding facts, min/max enforcement, accepted/dropped decisions, and durable materialization only for selected ephemeral items | candidate discovery, sorting, selector delegation, final recommendation judgment, compact output projection |
 | Material Query / Related | domain material retrieval through narrow query/projection/search dependencies, Search-backed retrieval for `all`, ordinary `source_library`, and `collection`, related candidate generation, source-backed release-track expansion, selector delegation, and materialId result handles, including `emat:*` allocation for non-durable source-backed rows | raw source/canonical graph exposure, provider internals, canonical writes, ordinary query-time registry materialization writes, broad Material Store mutation authority, tag/style-hint interpretation without real semantic data, final recommendation selection, compact output projection, public Source Library row listing |
@@ -216,21 +216,24 @@ Stage Interface depends on the specific port it needs.
 8. MCP client calls Stage Interface tools through the server's MCP surface.
 9. Stage Interface reads Session Context and Handbook entries when needed.
 10. Stage Interface sends text queries to Material Resolve.
-11. Material Resolve checks local durable material search first through
-   Material Search. High-confidence local durable hits stay on the local path;
-   lower-confidence or empty local results fall back to Source Grounding for
-   provider/source evidence. Source Library constrained retrieval belongs to
-   Material Query / Material Search, not Resolve.
+11. Material Resolve gathers local durable recall through Material Search
+   `search()`, expands provider/source evidence through Source Grounding, maps
+   provider `SourceMaterial` values to existing durable materials when possible,
+   allocates `emat:*` only for non-durable provider results, and calls Material
+   Search `rerank()` over the request-scoped material corpus. Source Library
+   constrained retrieval belongs to Material Query / Material Search, not
+   Resolve.
 12. Source Grounding uses Source Slot adapters for source refs and playable
    links, and persists source-backed provider evidence so later Material Store
    projections can reconstruct playable links from `materialId`.
-13. Material Resolve returns `MusicMaterial` values with either durable
-   `mat:*` handles or process-local `emat:*` handles. Resolve may allocate
-   ephemeral entries for provider-backed non-durable results, but it must not
-   create durable `MaterialRecord`s. Resolution-time blocked, wrong-version,
-   and not-playable projection is evaluated through Material Policy's internal
-   `material_resolution` purpose for durable results rather than direct
-   Resolve-to-Collection or Resolve-to-policy-helper imports.
+13. Material Resolve maps ranked Search hits back to durable projections or
+   request-scoped `emat:*` snapshots and returns `MusicMaterial` values with
+   either durable `mat:*` handles or process-local `emat:*` handles. Resolve may
+   allocate ephemeral entries for provider-backed non-durable results, but it
+   must not create durable `MaterialRecord`s. Resolution-time blocked,
+   wrong-version, and not-playable projection is evaluated through Material
+   Policy's internal `material_resolution` purpose for durable results rather
+   than direct Resolve-to-Collection or Resolve-to-policy-helper imports.
 14. Stage Interface projects public material outputs directly and keeps raw
    `MusicMaterial` records behind Stage Interface output helpers.
 15. LLM chooses the intended recommendation order, then calls

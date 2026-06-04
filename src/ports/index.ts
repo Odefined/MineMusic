@@ -69,8 +69,11 @@ import type {
   MaterialResolveRequest,
   MaterialResolveResult,
   MaterialSearchInput,
+  MaterialSearchRerankInput,
+  MaterialSearchRerankOutput,
   MaterialSearchIndexSearchInput,
   MaterialSearchIndexSearchOutput,
+  MaterialSearchIndexRerankInput,
   MaterialSearchOutput,
   MaterialSearchDocument,
   MaterialSelectInput,
@@ -524,7 +527,6 @@ export type MaterialResolveStorePort = Pick<
   | "getMaterialRecord"
   | "getSourceEntity"
   | "getCanonical"
-  | "getConfirmedCanonicalBinding"
   | "findMaterialBySourceRef"
   | "findMaterialByCanonicalRef"
 >;
@@ -875,6 +877,8 @@ export interface MaterialQueryPort {
 
 export interface MaterialSearchPort {
   search(input: MaterialSearchInput): Promise<Result<MaterialSearchOutput>>;
+
+  rerank(input: MaterialSearchRerankInput): Promise<Result<MaterialSearchRerankOutput>>;
 }
 
 export interface MaterialSearchDocumentProviderPort {
@@ -893,6 +897,8 @@ export interface MaterialSearchIndexPort {
   rebuildAll(): Promise<Result<void>>;
 
   search(input: MaterialSearchIndexSearchInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
+
+  rerankDocuments(input: MaterialSearchIndexRerankInput): Promise<Result<MaterialSearchIndexSearchOutput>>;
 }
 
 export interface MaterialRelatedPort {

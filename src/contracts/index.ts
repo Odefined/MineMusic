@@ -1189,6 +1189,18 @@ export type MaterialSearchOutput = {
   warnings?: MaterialSearchWarning[];
 };
 
+export type MaterialSearchRerankInput = {
+  text: string;
+  targetKind?: MaterialSearchTargetKind;
+  materials: MusicMaterial[];
+  limit?: number;
+};
+
+export type MaterialSearchRerankOutput = {
+  hits: MaterialSearchHit[];
+  warnings?: MaterialSearchWarning[];
+};
+
 export type MaterialSearchDocument = {
   materialRef: Ref;
   kind: string;
@@ -1214,6 +1226,12 @@ export type MaterialSearchIndexSearchInput = {
 
 export type MaterialSearchIndexSearchOutput = {
   hits: MaterialSearchIndexHit[];
+};
+
+export type MaterialSearchIndexRerankInput = {
+  text: string;
+  documents: MaterialSearchDocument[];
+  limit?: number;
 };
 
 export type PublicMaterialResolveItem = {

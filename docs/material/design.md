@@ -72,12 +72,12 @@ Interface output modules.
 `src/material/resolve/index.ts` implements `MaterialResolvePort`.
 
 Resolve performs text-query grounding over local Material Search hits,
-read-only existing-material evidence lookup, provider grounding fallback, and
-query-level resolve status aggregation. High-confidence local durable results
-stay on the local path. Lower-confidence or empty local results call Source
-Grounding; provider-backed results that do not already match a durable
-`MaterialRecord` are returned with `materialRef.kind === "ephemeral_material"`
-and process-local `emat:*` handles.
+read-only existing-material evidence lookup, provider grounding expansion,
+request-scoped reranking, and query-level resolve status aggregation. Resolve
+uses Material Search `search()` for local durable recall and Material Search
+`rerank()` for the final request-scoped ranking corpus. Provider-backed results
+that do not already match a durable `MaterialRecord` are returned with
+`materialRef.kind === "ephemeral_material"` and process-local `emat:*` handles.
 
 Resolve consumes Material Search, narrow projection/existing-material lookup
 reads, `SourceGroundingPort`, `MaterialPolicyEvaluatorPort` for durable
@@ -111,17 +111,20 @@ perform registry materialization writes directly.
 
 `src/material/search/index.ts` implements `MaterialSearchPort`.
 
-Search owns local durable retrieval for owner-visible material refs. It builds
-owner-neutral SearchDocuments, applies strict owner visibility and eligibility,
-uses the SQLite FTS-backed SearchIndex for text matching, and returns internal
-hits with score, evidence, provenance, warnings, and opaque Search cursor.
-Ordinary Query output does not expose Search evidence, provenance, or Search
-cursor.
+Search owns local durable retrieval for owner-visible material refs and
+request-scoped reranking for Resolve-provided material candidates. Its ordinary
+`search()` method builds owner-neutral SearchDocuments, applies strict owner
+visibility and eligibility, uses the SQLite FTS-backed SearchIndex for text
+matching, and returns internal hits with score, evidence, provenance, warnings,
+and opaque Search cursor. Its `rerank()` method ranks the finite
+Resolve-provided request corpus through a transient SQLite-backed scorer and
+returns the same Search hit shape without a cursor. Ordinary Query output does
+not expose Search evidence, provenance, or Search cursor.
 
 Search consumes `MaterialSearchStorePort`, `MaterialSearchCollectionPort`, and
 `MaterialSearchIndexPort`. It does not call providers, Resolve, Source
-Grounding, Material Policy, Stage Interface output helpers, or registry
-materialization writers.
+Grounding, Material Policy, Stage Interface output helpers, registry
+materialization writers, or ephemeral-store writers.
 
 ### Projection
 

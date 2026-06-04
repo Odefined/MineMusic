@@ -131,7 +131,7 @@ async function sourceWrongVersionFiltersMatchingSource(): Promise<void> {
     }),
   );
 
-  const resolved = await assertOk(resolve("Versioned Source"));
+  const resolved = await assertOk(resolve("Version"));
   const material = firstMaterial(resolved);
 
   assert(resolved.materials.length === 1, "source-level wrong_version should remove diagnostic-only wrong-version remnants");

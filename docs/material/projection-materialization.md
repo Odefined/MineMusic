@@ -52,9 +52,9 @@ Resolve do not receive those writer methods directly.
 ## Query And Resolve Use
 
 Material Resolve is a text-query path. It uses Material Search for local
-durable retrieval, Source Grounding for provider fallback, and process-local
-ephemeral entries for provider-backed non-durable results. Resolve does not
-materialize durable `MaterialRecord`s.
+durable retrieval and request-scoped reranking, Source Grounding for provider
+expansion, and process-local ephemeral entries for provider-backed non-durable
+results. Resolve does not materialize durable `MaterialRecord`s.
 
 Material Query no longer materializes ordinary Source Library rows during
 retrieval. `all`, ordinary `source_library`, and `collection` pools retrieve

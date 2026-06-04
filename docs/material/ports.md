@@ -1,7 +1,10 @@
 # Material Flow Ports
 
-This document is the current ports authority for Material Flow. It is based on
-`src/ports/index.ts`, `src/material/**`, `src/stage_core/compose.ts`, and
+This document is the current ports authority for intended Material Flow
+boundaries. Current implementation state and known gaps live in
+`docs/material/progress.md` and area progress files. Port implementations and
+guards should be checked against `src/ports/index.ts`, `src/material/**`,
+`src/stage_core/compose.ts`, and
 `test/architecture/material-boundary.test.ts`.
 
 ## Provided Ports
@@ -13,7 +16,7 @@ This document is the current ports authority for Material Flow. It is based on
 | `MaterialRelatedPort` | `src/material/query/index.ts` | Find related domain materials. |
 | `MaterialContextBriefPort` | `src/material/query/index.ts` | Return compact material context details. |
 | `MaterialPoolsPort` | `src/material/query/index.ts` | List query-ready material pools. |
-| `MaterialSearchPort` | `src/material/search/index.ts` | Retrieve owner-visible local durable materials through Search-backed scopes. |
+| `MaterialSearchPort` | `src/material/search/index.ts` | Retrieve owner-visible local durable materials through Search-backed scopes and rerank Resolve-provided request material corpora. |
 | `EphemeralMaterialStorePort` | `src/material/ephemeral/**` | Hold process-local provider/source-backed material facts behind exact `ephemeral_material` refs until presentation consumes or drops them. |
 | `MaterialPolicyEvaluatorPort` | `src/material/policy/index.ts` | Evaluate one material against policy, routing durable `mat:*` and ephemeral `emat:*` handles through the correct boundary path. |
 | `MaterialSorterPort` | `src/material/policy/index.ts` | Sort already usable material candidates. |
@@ -47,8 +50,8 @@ The exact method sets are type-asserted in
 
 | Port | Consumer | Purpose |
 | --- | --- | --- |
-| `MaterialSearchPort` | Material Resolve, Material Query | Retrieve local durable materials by text before fallback paths. |
-| `SourceGroundingPort` | Material Resolve | Ground unresolved or low-confidence text queries through provider/source search. |
+| `MaterialSearchPort` | Material Resolve, Material Query | Retrieve local durable materials by text for Query and Resolve, and rerank Resolve-provided request material corpora. |
+| `SourceGroundingPort` | Material Resolve | Expand text queries through provider/source search before Resolve-owned corpus assembly. |
 | `MaterialResolveEphemeralWritePort` | Material Resolve | Put exact `ephemeral_material` entries and clean stale session-scoped entries without gaining durable registry writers. |
 | `MaterialQueryEphemeralWritePort` | Material Query | Allocate exact `ephemeral_material` entries for source-backed Query/Related rows that need a handle but do not already have a durable material. |
 | `RecommendationPresentationEphemeralReadPort` | Recommendation Presentation | Read and delete exact `ephemeral_material` entries during final presentation without gaining broad material-store access. |
@@ -103,9 +106,9 @@ Current guards enforce that:
 3. create the shared Material Policy evaluator from the material store plus
    collection-block seam;
 4. create Material Selector;
-5. create Material Search with the search index, document provider, and
-   collection visibility seam;
-6. create Material Resolve with search, read-only evidence lookup, the
+5. create Material Search with the search index, document provider, request
+   rerank support, and collection visibility seam;
+6. create Material Resolve with search/rerank, read-only evidence lookup, the
    ephemeral store, source grounding, and policy evaluation;
 7. create Material Query with resolve, search, selector, and the
    collection-read seam for pool listing;

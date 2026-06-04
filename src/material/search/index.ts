@@ -7,8 +7,11 @@ import type {
   MaterialSearchInput,
   MaterialSearchOutput,
   MaterialSearchProvenance,
+  MaterialSearchRerankInput,
+  MaterialSearchRerankOutput,
   MaterialSearchScope,
   MaterialSearchWarning,
+  MusicMaterial,
   Ref,
   Result,
   SourceEntity,
@@ -83,6 +86,59 @@ export function createMaterialSearchService(
         ...(pool.value.warnings.length === 0 ? {} : { warnings: pool.value.warnings }),
       });
     },
+
+    async rerank(input): Promise<Result<MaterialSearchRerankOutput>> {
+      const text = normalizeSearchText(input.text);
+
+      if (text.length === 0) {
+        return invalidRerank("Material Search rerank requires a non-empty text query.");
+      }
+
+      if (options.searchIndex === undefined) {
+        return fail({
+          code: "storage.unavailable",
+          message: "Material Search rerank requires a SearchIndex.",
+          module: "material_search",
+          retryable: false,
+        });
+      }
+
+      const corpus = await prepareRerankCorpus({
+        materialStore: options.materialStore,
+        materials: input.materials,
+        targetKind: input.targetKind,
+      });
+
+      if (!corpus.ok) {
+        return corpus;
+      }
+
+      if (corpus.value.documents.length === 0) {
+        return ok({
+          hits: [],
+          ...(corpus.value.warnings.length === 0 ? {} : { warnings: corpus.value.warnings }),
+        });
+      }
+
+      const reranked = await options.searchIndex.rerankDocuments({
+        text,
+        documents: corpus.value.documents,
+        limit: normalizeLimit(input.limit),
+      });
+
+      if (!reranked.ok) {
+        return reranked;
+      }
+
+      return ok({
+        hits: reranked.value.hits.map((hit) => ({
+          materialRef: hit.materialRef,
+          score: hit.score,
+          evidence: hit.evidence,
+        })),
+        ...(corpus.value.warnings.length === 0 ? {} : { warnings: corpus.value.warnings }),
+      });
+    },
   };
 }
 
@@ -95,6 +151,11 @@ type DecodedSearchCursor = {
   v: 1;
   offset: number;
   fingerprint: string;
+};
+
+type PreparedRerankCorpus = {
+  documents: MaterialSearchDocument[];
+  warnings: MaterialSearchWarning[];
 };
 
 async function pageHits({
@@ -775,6 +836,14 @@ function missingMaterialRecordWarning(item: SourceLibraryItem): MaterialSearchWa
   };
 }
 
+function missingRerankDocumentWarning(material: MusicMaterial): MaterialSearchWarning {
+  return {
+    code: "material_search.missing_material_record",
+    message: `Rerank candidate '${material.materialRef.id}' has no active SearchDocument and was skipped.`,
+    materialRef: material.materialRef,
+  };
+}
+
 function matchesCollectionRelation(
   collection: Collection,
   relation: Extract<MaterialSearchScope, { kind: "collection" }>["relation"],
@@ -784,6 +853,13 @@ function matchesCollectionRelation(
 
 function matchesTargetKind(record: MaterialRecord, targetKind: MaterialSearchInput["targetKind"]): boolean {
   return targetKind === undefined || normalizeMaterialKind(record.kind) === normalizeMaterialKind(targetKind);
+}
+
+function matchesRerankTargetKind(
+  material: MusicMaterial,
+  targetKind: MaterialSearchRerankInput["targetKind"],
+): boolean {
+  return targetKind === undefined || normalizeMaterialKind(material.kind) === normalizeMaterialKind(targetKind);
 }
 
 function isPositiveCollection(collection: Collection): boolean {
@@ -810,10 +886,65 @@ function invalidCursor<T>(message: string): Result<T> {
   });
 }
 
+function invalidRerank<T>(message: string): Result<T> {
+  return fail({
+    code: "material_search.invalid_rerank",
+    message,
+    module: "material_search",
+    retryable: false,
+  });
+}
+
 function normalizeLimit(limit: number | undefined): number {
   return limit === undefined || !Number.isFinite(limit) || limit <= 0
     ? defaultLimit
     : Math.max(1, Math.floor(limit));
+}
+
+async function prepareRerankCorpus({
+  materialStore,
+  materials,
+  targetKind,
+}: {
+  materialStore: MaterialSearchStorePort;
+  materials: MusicMaterial[];
+  targetKind?: MaterialSearchRerankInput["targetKind"];
+}): Promise<Result<PreparedRerankCorpus>> {
+  const documents: MaterialSearchDocument[] = [];
+  const warnings: MaterialSearchWarning[] = [];
+  const seenRefs = new Set<string>();
+
+  for (const material of materials) {
+    if (!matchesRerankTargetKind(material, targetKind)) {
+      continue;
+    }
+
+    const key = refKey(material.materialRef);
+
+    if (seenRefs.has(key)) {
+      continue;
+    }
+
+    seenRefs.add(key);
+
+    const document = await buildDocumentForMaterial(materialStore, material);
+
+    if (!document.ok) {
+      return document;
+    }
+
+    if (document.value === null) {
+      warnings.push(missingRerankDocumentWarning(material));
+      continue;
+    }
+
+    documents.push(document.value);
+  }
+
+  return ok({
+    documents: dedupeDocuments(documents),
+    warnings,
+  });
 }
 
 export function createMaterialSearchDocumentProvider({
@@ -886,6 +1017,74 @@ async function buildDocumentForRecord(
   }));
 }
 
+async function buildDocumentForMaterial(
+  materialStore: MaterialSearchStorePort,
+  material: MusicMaterial,
+): Promise<Result<MaterialSearchDocument | null>> {
+  if (isDurableMaterialRef(material.materialRef)) {
+    const record = await currentMaterialRecordForRef(materialStore, material.materialRef);
+
+    if (!record.ok) {
+      return record;
+    }
+
+    if (record.value === null || record.value.status !== "active") {
+      return ok(null);
+    }
+
+    const document = await buildDocumentForRecord(materialStore, record.value);
+
+    if (!document.ok) {
+      return document;
+    }
+
+    return ok(withMaterialLabelFallback(document.value, material));
+  }
+
+  return buildDocumentForMaterialSnapshot(materialStore, material);
+}
+
+async function buildDocumentForMaterialSnapshot(
+  materialStore: MaterialSearchStorePort,
+  material: MusicMaterial,
+): Promise<Result<MaterialSearchDocument>> {
+  const fields: Partial<MaterialSearchDocument> = {};
+
+  if (material.canonicalRef !== undefined) {
+    const canonical = await materialStore.getCanonical({ ref: material.canonicalRef });
+
+    if (!canonical.ok) {
+      return canonical;
+    }
+
+    if (canonical.value !== null && canonical.value.status === "active") {
+      fields.canonicalLabel = canonical.value.label;
+      if (canonical.value.aliases !== undefined) {
+        fields.canonicalAliases = canonical.value.aliases;
+      }
+    }
+  }
+
+  const sourceFields = await sourceTextForMaterialSnapshot(materialStore, material);
+
+  if (!sourceFields.ok) {
+    return sourceFields;
+  }
+
+  Object.assign(fields, sourceFields.value);
+  appendField(fields, "sourceTitle", material.label);
+
+  for (const link of material.playableLinks ?? []) {
+    appendField(fields, "sourceTitle", link.label);
+  }
+
+  return ok(compactDocument({
+    materialRef: material.materialRef,
+    kind: normalizeMaterialKind(material.kind),
+    ...fields,
+  }));
+}
+
 async function canonicalTextForRecord(
   materialStore: MaterialSearchStorePort,
   record: MaterialRecord,
@@ -918,6 +1117,34 @@ async function sourceTextForRecord(
   const materialKind = normalizeMaterialKind(record.kind);
 
   for (const sourceRef of sourceRefsForMaterialRecord(record)) {
+    const entity = await materialStore.getSourceEntity({ sourceRef });
+
+    if (!entity.ok) {
+      return entity;
+    }
+
+    if (entity.value === null) {
+      continue;
+    }
+
+    appendSourceFields(fields, materialKind, entity.value);
+  }
+
+  return ok(compactDocumentFields(fields));
+}
+
+async function sourceTextForMaterialSnapshot(
+  materialStore: MaterialSearchStorePort,
+  material: MusicMaterial,
+): Promise<Result<Partial<MaterialSearchDocument>>> {
+  const fields: Partial<MaterialSearchDocument> = {};
+  const sourceRefs = dedupeRefs([
+    ...(material.sourceRefs ?? []),
+    ...(material.playableLinks ?? []).map((link) => link.sourceRef),
+  ]);
+  const materialKind = normalizeMaterialKind(material.kind);
+
+  for (const sourceRef of sourceRefs) {
     const entity = await materialStore.getSourceEntity({ sourceRef });
 
     if (!entity.ok) {
@@ -1000,6 +1227,25 @@ function compactDocument(document: MaterialSearchDocument): MaterialSearchDocume
     kind,
     ...compactDocumentFields(fields),
   };
+}
+
+function withMaterialLabelFallback(
+  document: MaterialSearchDocument,
+  material: MusicMaterial,
+): MaterialSearchDocument {
+  const fields: Partial<MaterialSearchDocument> = {
+    ...document,
+  };
+  appendField(fields, "sourceTitle", material.label);
+
+  for (const link of material.playableLinks ?? []) {
+    appendField(fields, "sourceTitle", link.label);
+  }
+
+  return compactDocument({
+    ...document,
+    ...fields,
+  });
 }
 
 function compactDocumentFields<T extends Partial<MaterialSearchDocument>>(fields: T): T {
@@ -1106,6 +1352,10 @@ function normalizeMaterialKind(kind: string): string {
     default:
       return kind;
   }
+}
+
+function isDurableMaterialRef(ref: Ref): boolean {
+  return ref.namespace === "minemusic" && ref.kind === "material";
 }
 
 function refKey(ref: Ref): string {

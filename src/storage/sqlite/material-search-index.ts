@@ -7,6 +7,7 @@ import type {
   MaterialSearchEvidence,
   MaterialSearchEvidenceField,
   MaterialSearchIndexHit,
+  MaterialSearchIndexRerankInput,
   Ref,
   Result,
   StageError,
@@ -60,6 +61,7 @@ type DirtyRow = {
 const defaultLimit = 50;
 const bootstrappedMetadataKey = "bootstrapped";
 const candidatePoolTableName = "temp_material_search_pool";
+const requestCorpusTableName = "material_search_request_fts";
 
 const searchFields: SearchField[] = [
   {
@@ -159,13 +161,13 @@ export function createSqliteMaterialSearchIndex({
 
         const written = await readResult(() => {
           if (document.value === null) {
-            deleteDocument(database, materialRef);
+            deleteDocument(database, "material_search_fts", materialRef);
           } else {
             if (materialKey(document.value.materialRef) !== materialKey(materialRef)) {
-              deleteDocument(database, materialRef);
+              deleteDocument(database, "material_search_fts", materialRef);
             }
 
-            upsertDocument(database, document.value);
+            upsertDocument(database, "material_search_fts", document.value);
           }
 
           clearDirty(database, materialRef);
@@ -192,7 +194,7 @@ export function createSqliteMaterialSearchIndex({
         database.exec("DELETE FROM material_search_dirty");
 
         for (const document of allDocuments.value) {
-          upsertDocument(database, document);
+          upsertDocument(database, "material_search_fts", document);
         }
 
         setMetadata(database, bootstrappedMetadataKey, "true");
@@ -230,13 +232,28 @@ export function createSqliteMaterialSearchIndex({
       }
 
       const limit = normalizeLimit(input.limit);
-      const ftsHits = await readResult(() => searchFts(database, normalizedText, limit));
+      const ftsHits = await readResult(() =>
+        searchFtsInTable({
+          database,
+          tableName: "material_search_fts",
+          normalizedText,
+          limit,
+          candidatePoolName: candidatePoolTableName,
+        })
+      );
 
       if (!ftsHits.ok) {
         return ftsHits;
       }
 
-      const substringHits = await readResult(() => searchSubstring(database, normalizedText));
+      const substringHits = await readResult(() =>
+        searchSubstringInTable({
+          database,
+          tableName: "material_search_fts",
+          normalizedText,
+          candidatePoolName: candidatePoolTableName,
+        })
+      );
 
       if (!substringHits.ok) {
         return substringHits;
@@ -244,6 +261,43 @@ export function createSqliteMaterialSearchIndex({
 
       return ok({
         hits: mergeHits([...ftsHits.value, ...substringHits.value]).slice(0, limit),
+      });
+    },
+
+    async rerankDocuments(input: MaterialSearchIndexRerankInput) {
+      const normalizedText = normalizeSearchText(input.text);
+      const documents = uniqueDocuments(input.documents);
+
+      if (documents.length === 0 || normalizedText.length === 0) {
+        return ok({ hits: [] });
+      }
+
+      const limit = normalizeLimit(input.limit);
+
+      return readResult(() => {
+        ensureRequestCorpusTable(database);
+        clearTable(database, requestCorpusTableName);
+
+        for (const document of documents) {
+          upsertDocument(database, requestCorpusTableName, document);
+        }
+
+        const hits = mergeHits([
+          ...searchFtsInTable({
+            database,
+            tableName: requestCorpusTableName,
+            normalizedText,
+            limit,
+          }),
+          ...searchSubstringInTable({
+            database,
+            tableName: requestCorpusTableName,
+            normalizedText,
+          }),
+        ]).slice(0, limit);
+
+        clearTable(database, requestCorpusTableName);
+        return { hits };
       });
     },
   };
@@ -275,7 +329,7 @@ async function ensureBootstrapped(
     database.exec("DELETE FROM material_search_fts");
 
     for (const document of allDocuments.value) {
-      upsertDocument(database, document);
+      upsertDocument(database, "material_search_fts", document);
     }
 
     setMetadata(database, bootstrappedMetadataKey, "true");
@@ -314,41 +368,54 @@ async function ensureCandidateDocuments(
   return ok(undefined);
 }
 
-function searchFts(
-  database: DatabaseSync,
-  normalizedText: string,
-  limit: number,
-): MaterialSearchIndexHit[] {
+function searchFtsInTable({
+  database,
+  tableName,
+  normalizedText,
+  limit,
+  candidatePoolName,
+}: {
+  database: DatabaseSync;
+  tableName: string;
+  normalizedText: string;
+  limit: number;
+  candidatePoolName?: string;
+}): MaterialSearchIndexHit[] {
   const ftsQuery = ftsQueryForText(normalizedText);
 
   if (ftsQuery.length === 0) {
     return [];
   }
 
+  const joinClause = candidatePoolName === undefined
+    ? ""
+    : `
+      JOIN ${candidatePoolName} AS pool
+        ON pool.material_key = ${tableName}.material_key
+    `;
   const rows = database
     .prepare(`
       SELECT
-        material_search_fts.material_key AS material_key,
-        material_search_fts.material_ref_json AS material_ref_json,
-        material_search_fts.kind AS kind,
-        material_search_fts.canonical_label AS canonical_label,
-        material_search_fts.canonical_aliases AS canonical_aliases,
-        material_search_fts.source_title AS source_title,
-        material_search_fts.source_artist_labels AS source_artist_labels,
-        material_search_fts.source_release_label AS source_release_label,
-        material_search_fts.source_artist_aliases AS source_artist_aliases,
-        -bm25(material_search_fts, 8.0, 5.0, 6.0, 2.0, 2.0, 1.0, 0.0, 0.0, 0.0) AS rank_score,
-        snippet(material_search_fts, 0, '[[', ']]', '...', 8) AS canonical_label_snippet,
-        snippet(material_search_fts, 1, '[[', ']]', '...', 8) AS canonical_aliases_snippet,
-        snippet(material_search_fts, 2, '[[', ']]', '...', 8) AS source_title_snippet,
-        snippet(material_search_fts, 3, '[[', ']]', '...', 8) AS source_artist_labels_snippet,
-        snippet(material_search_fts, 4, '[[', ']]', '...', 8) AS source_release_label_snippet,
-        snippet(material_search_fts, 5, '[[', ']]', '...', 8) AS source_artist_aliases_snippet
-      FROM material_search_fts
-      JOIN ${candidatePoolTableName} AS pool
-        ON pool.material_key = material_search_fts.material_key
-      WHERE material_search_fts MATCH ?
-      ORDER BY rank_score DESC, material_search_fts.material_key ASC
+        ${tableName}.material_key AS material_key,
+        ${tableName}.material_ref_json AS material_ref_json,
+        ${tableName}.kind AS kind,
+        ${tableName}.canonical_label AS canonical_label,
+        ${tableName}.canonical_aliases AS canonical_aliases,
+        ${tableName}.source_title AS source_title,
+        ${tableName}.source_artist_labels AS source_artist_labels,
+        ${tableName}.source_release_label AS source_release_label,
+        ${tableName}.source_artist_aliases AS source_artist_aliases,
+        -bm25(${tableName}, 8.0, 5.0, 6.0, 2.0, 2.0, 1.0, 0.0, 0.0, 0.0) AS rank_score,
+        snippet(${tableName}, 0, '[[', ']]', '...', 8) AS canonical_label_snippet,
+        snippet(${tableName}, 1, '[[', ']]', '...', 8) AS canonical_aliases_snippet,
+        snippet(${tableName}, 2, '[[', ']]', '...', 8) AS source_title_snippet,
+        snippet(${tableName}, 3, '[[', ']]', '...', 8) AS source_artist_labels_snippet,
+        snippet(${tableName}, 4, '[[', ']]', '...', 8) AS source_release_label_snippet,
+        snippet(${tableName}, 5, '[[', ']]', '...', 8) AS source_artist_aliases_snippet
+      FROM ${tableName}
+      ${joinClause}
+      WHERE ${tableName} MATCH ?
+      ORDER BY rank_score DESC, ${tableName}.material_key ASC
       LIMIT ?
     `)
     .all(ftsQuery, limit) as FtsHitRow[];
@@ -363,26 +430,38 @@ function searchFts(
   });
 }
 
-function searchSubstring(
-  database: DatabaseSync,
-  normalizedText: string,
-): MaterialSearchIndexHit[] {
+function searchSubstringInTable({
+  database,
+  tableName,
+  normalizedText,
+  candidatePoolName,
+}: {
+  database: DatabaseSync;
+  tableName: string;
+  normalizedText: string;
+  candidatePoolName?: string;
+}): MaterialSearchIndexHit[] {
+  const joinClause = candidatePoolName === undefined
+    ? ""
+    : `
+      JOIN ${candidatePoolName} AS pool
+        ON pool.material_key = ${tableName}.material_key
+    `;
   const rows = database
     .prepare(`
       SELECT
-        material_search_fts.material_key AS material_key,
-        material_search_fts.material_ref_json AS material_ref_json,
-        material_search_fts.kind AS kind,
-        material_search_fts.canonical_label AS canonical_label,
-        material_search_fts.canonical_aliases AS canonical_aliases,
-        material_search_fts.source_title AS source_title,
-        material_search_fts.source_artist_labels AS source_artist_labels,
-        material_search_fts.source_release_label AS source_release_label,
-        material_search_fts.source_artist_aliases AS source_artist_aliases
-      FROM material_search_fts
-      JOIN ${candidatePoolTableName} AS pool
-        ON pool.material_key = material_search_fts.material_key
-      ORDER BY material_search_fts.material_key ASC
+        ${tableName}.material_key AS material_key,
+        ${tableName}.material_ref_json AS material_ref_json,
+        ${tableName}.kind AS kind,
+        ${tableName}.canonical_label AS canonical_label,
+        ${tableName}.canonical_aliases AS canonical_aliases,
+        ${tableName}.source_title AS source_title,
+        ${tableName}.source_artist_labels AS source_artist_labels,
+        ${tableName}.source_release_label AS source_release_label,
+        ${tableName}.source_artist_aliases AS source_artist_aliases
+      FROM ${tableName}
+      ${joinClause}
+      ORDER BY ${tableName}.material_key ASC
     `)
     .all() as IndexedDocumentRow[];
 
@@ -401,13 +480,17 @@ function searchSubstring(
   });
 }
 
-function upsertDocument(database: DatabaseSync, document: MaterialSearchDocument): void {
+function upsertDocument(
+  database: DatabaseSync,
+  tableName: string,
+  document: MaterialSearchDocument,
+): void {
   const key = materialKey(document.materialRef);
-  deleteDocument(database, document.materialRef);
+  deleteDocument(database, tableName, document.materialRef);
 
   database
     .prepare(`
-      INSERT INTO material_search_fts (
+      INSERT INTO ${tableName} (
         canonical_label,
         canonical_aliases,
         source_title,
@@ -433,10 +516,10 @@ function upsertDocument(database: DatabaseSync, document: MaterialSearchDocument
     );
 }
 
-function deleteDocument(database: DatabaseSync, materialRef: Ref): void {
+function deleteDocument(database: DatabaseSync, tableName: string, materialRef: Ref): void {
   database
     .prepare(`
-      DELETE FROM material_search_fts
+      DELETE FROM ${tableName}
       WHERE material_key = ?
     `)
     .run(materialKey(materialRef));
@@ -448,15 +531,36 @@ function writeDocumentForCandidate(
   document: MaterialSearchDocument | null,
 ): void {
   if (document === null) {
-    deleteDocument(database, candidateRef);
+    deleteDocument(database, "material_search_fts", candidateRef);
     return;
   }
 
   if (materialKey(document.materialRef) !== materialKey(candidateRef)) {
-    deleteDocument(database, candidateRef);
+    deleteDocument(database, "material_search_fts", candidateRef);
   }
 
-  upsertDocument(database, document);
+  upsertDocument(database, "material_search_fts", document);
+}
+
+function ensureRequestCorpusTable(database: DatabaseSync): void {
+  database.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS ${requestCorpusTableName} USING fts5(
+      canonical_label,
+      canonical_aliases,
+      source_title,
+      source_artist_labels,
+      source_release_label,
+      source_artist_aliases,
+      material_key UNINDEXED,
+      material_ref_json UNINDEXED,
+      kind UNINDEXED,
+      tokenize = 'unicode61'
+    )
+  `);
+}
+
+function clearTable(database: DatabaseSync, tableName: string): void {
+  database.exec(`DELETE FROM ${tableName}`);
 }
 
 function prepareCandidatePool(database: DatabaseSync, candidateKeys: string[]): void {
@@ -631,6 +735,16 @@ function mergeHits(hits: MaterialSearchIndexHit[]): MaterialSearchIndexHit[] {
   return [...merged.values()].sort((left, right) =>
     right.score - left.score || materialKey(left.materialRef).localeCompare(materialKey(right.materialRef))
   );
+}
+
+function uniqueDocuments(documents: MaterialSearchDocument[]): MaterialSearchDocument[] {
+  const uniqueByRef = new Map<string, MaterialSearchDocument>();
+
+  for (const document of documents) {
+    uniqueByRef.set(materialKey(document.materialRef), document);
+  }
+
+  return [...uniqueByRef.values()];
 }
 
 function dedupeEvidence(evidence: MaterialSearchEvidence[]): MaterialSearchEvidence[] {

@@ -152,6 +152,13 @@ details live in area `progress.md` files listed in `INDEX.md`.
 - Restricted final durable materialization of `emat:*` handles to
   `stage.recommendation.present`, which now materializes only selected valid
   ephemeral items and emits final durable `mat:*` cards/events.
+- Extended Material Search with Resolve-only request-scoped rerank over
+  prepared durable/ephemeral candidate corpora, keeping ordinary durable
+  `search(...)` behavior unchanged.
+- Refactored Material Resolve to always provider-expand, reuse existing
+  durable material identity before allocating `emat:*`, rerank local recall
+  plus provider-expanded candidates through Material Search, and then apply
+  resolve policy/status projection.
 - Verified the slice with `npm run typecheck`, `npm run build:test`,
   focused material resolve/query/presentation tests, Stage Interface output /
   dispatch / MCP tests, and architecture guards.

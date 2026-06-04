@@ -51,8 +51,10 @@ the docs listed in `INDEX.md`.
   related retrieval, policy, sorting, selection, and recommendation
   presentation.
 - Material Search is implemented as an internal Material Flow capability.
-  `music.material.query` uses it for `all`, ordinary `source_library`, and
-  `collection` retrieval. Related and
+  `music.material.query` uses durable-pool `search(...)` for `all`, ordinary
+  `source_library`, and `collection` retrieval, while Resolve uses separate
+  request-scoped `rerank(...)` over prepared durable/ephemeral candidate
+  corpora. Related and
   `source_library target: "release_tracks"` now keep source-backed rows on
   Query-owned paths: they reuse existing durable materials when present and
   otherwise allocate process-local `emat:*` handles without query-time durable
@@ -67,6 +69,10 @@ the docs listed in `INDEX.md`.
   `queries[].text` with optional `queries[].targetKind`. It returns compact
   `mat:*` or `emat:*` handles and does not accept public `kind`, `purpose`,
   `sourceRef`, `canonicalRef`, `materialRef`, or `sourceLibraryScope`.
+  Resolve always performs provider expansion, reuses existing durable material
+  identity when found, allocates `emat:*` only for still-non-durable provider
+  candidates, and then routes local durable recall plus provider-expanded
+  candidates through Material Search rerank before applying resolve policy.
 - `stage.recommendation.present` now consumes both durable `mat:*` and
   ephemeral `emat:*` handles, but only selected valid `emat:*` items are
   materialized into final durable `mat:*` cards and event payloads.
