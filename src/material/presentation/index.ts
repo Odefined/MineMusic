@@ -106,6 +106,8 @@ async function presentRecommendation({
       materialRef.namespace === "minemusic" && materialRef.kind === "ephemeral_material"
         ? await evaluateEphemeralPresentationItem({
             ...(ephemeralMaterialStore === undefined ? {} : { ephemeralMaterialStore }),
+            ownerScope,
+            sessionId: input.sessionId,
             item,
             materialRef,
           })
@@ -358,10 +360,14 @@ async function evaluateDurablePresentationItem({
 
 async function evaluateEphemeralPresentationItem({
   ephemeralMaterialStore,
+  ownerScope,
+  sessionId,
   item,
   materialRef,
 }: {
   ephemeralMaterialStore?: RecommendationPresentationEphemeralReadPort;
+  ownerScope: string;
+  sessionId: string;
   item: RecommendationPresentInput["items"][number];
   materialRef: Ref;
 }): Promise<Result<PresentationCandidateEvaluation>> {
@@ -387,6 +393,20 @@ async function evaluateEphemeralPresentationItem({
         materialId: item.materialId,
         code: "material_not_found",
         reason: "Ephemeral material was missing or expired before presentation.",
+      },
+    });
+  }
+
+  if (
+    entry.value.ownerScope !== ownerScope ||
+    entry.value.sessionId !== sessionId
+  ) {
+    return ok({
+      kind: "dropped",
+      drop: {
+        materialId: item.materialId,
+        code: "material_not_found",
+        reason: "Ephemeral material was not valid for the current owner or session.",
       },
     });
   }

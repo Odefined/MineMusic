@@ -337,6 +337,80 @@ async function presenterDropsMissingAndUnplayableEphemeralItemsWithoutMaterializ
   assert(events.length === 0, "presenter should not record recommendation events when all ephemeral items are dropped");
 }
 
+async function presenterRejectsEphemeralItemsFromAnotherOwnerOrSession(): Promise<void> {
+  const { materialStore, ephemeralMaterialStore, presenter } = createHarness();
+  const wrongOwnerRef = ref("minemusic", "ephemeral_material", "ephemeral-wrong-owner");
+  const wrongSessionRef = ref("minemusic", "ephemeral_material", "ephemeral-wrong-session");
+  const sharedSourceRef = ref("source:fixture", "track", "ephemeral-shared");
+
+  await assertOk(
+    materialStore.upsertSourceEntity({
+      entity: {
+        sourceRef: sharedSourceRef,
+        providerId: "fixture",
+        kind: "track",
+        label: "Scoped Ephemeral",
+        title: "Scoped Ephemeral",
+        providerUrl: "https://example.test/ephemeral-shared",
+        createdAt: "2026-05-31T00:00:00.000Z",
+        updatedAt: "2026-05-31T00:00:00.000Z",
+      },
+    }),
+  );
+
+  const scopedMaterial: SourceMaterial = {
+    id: "source:ephemeral-shared",
+    kind: "recording",
+    label: "Scoped Ephemeral",
+    state: "source_only_playable",
+    sourceRefs: [sharedSourceRef],
+    playableLinks: [{
+      url: "https://example.test/ephemeral-shared",
+      sourceRef: sharedSourceRef,
+    }],
+  };
+
+  await assertOk(
+    ephemeralMaterialStore.put({
+      materialRef: wrongOwnerRef,
+      material: scopedMaterial,
+      ownerScope: "local_profile:other",
+      sessionId: session.id,
+    }),
+  );
+  await assertOk(
+    ephemeralMaterialStore.put({
+      materialRef: wrongSessionRef,
+      material: scopedMaterial,
+      ownerScope: "local_profile:default",
+      sessionId: "other-session",
+    }),
+  );
+
+  const output = await assertOk(
+    presenter.present({
+      sessionId: session.id,
+      items: [
+        { materialId: materialRefToMaterialId(wrongOwnerRef) },
+        { materialId: materialRefToMaterialId(wrongSessionRef) },
+      ],
+      minCards: 1,
+    }),
+  );
+
+  assert(!output.presented, "presenter should not consume ephemeral handles outside the current owner/session scope");
+  assert(
+    output.dropped?.every((item) =>
+      item.code === "material_not_found" &&
+      item.reason === "Ephemeral material was not valid for the current owner or session."
+    ),
+    "presenter should reject owner/session-mismatched ephemeral handles explicitly",
+  );
+  const wrongOwnerEntry = await assertOk(ephemeralMaterialStore.get({ materialRef: wrongOwnerRef }));
+  const wrongSessionEntry = await assertOk(ephemeralMaterialStore.get({ materialRef: wrongSessionRef }));
+  assert(wrongOwnerEntry !== null && wrongSessionEntry !== null, "invalid-scope ephemeral entries should remain untouched");
+}
+
 async function presenterDegradesNotPlayableSourceWhenAnotherLinkRemains(): Promise<void> {
   const { materialStore, presenter } = createHarness();
   const muted = ref("source:fixture", "track", "muted-source");
@@ -520,6 +594,7 @@ await presenterPreservesOrderAfterDropsAndRecordsTypedEvent();
 await presenterMaterializesSelectedEphemeralItemsAndDeletesConsumedEntries();
 await presenterDoesNotMaterializeMaxCardDroppedEphemeralItems();
 await presenterDropsMissingAndUnplayableEphemeralItemsWithoutMaterializingThem();
+await presenterRejectsEphemeralItemsFromAnotherOwnerOrSession();
 await presenterDegradesNotPlayableSourceWhenAnotherLinkRemains();
 await presenterDegradesWrongVersionSourceWithoutDroppingWholeMaterial();
 await presenterDoesNotRecordWhenMinCardsIsNotMet();

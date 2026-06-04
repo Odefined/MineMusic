@@ -153,18 +153,21 @@ async function putCanonicalMaterial({
   canonicalRef,
   label,
   sourceRef,
+  aliases,
 }: {
   materialStore: ReturnType<typeof createMaterialStore>;
   canonicalRepository: ReturnType<typeof createInMemoryCanonicalRecordRepository>;
   canonicalRef: Ref;
   label: string;
   sourceRef?: Ref;
+  aliases?: string[];
 }): Promise<void> {
   const canonical: CanonicalRecord = {
     ref: canonicalRef,
     kind: "recording",
     label,
     status: "active",
+    ...(aliases === undefined ? {} : { aliases }),
   };
   await assertOk(canonicalRepository.put(canonical));
 
@@ -289,6 +292,125 @@ async function ambiguousLocalDurableHitsStillCallProviderGrounding(): Promise<vo
 
   assert(providerQueries.length === 1, "ambiguous local durable results should still trigger provider grounding");
   assert(resolved.materials.length === 2, "provider fallback should not discard local durable candidates");
+  assert(
+    resolved.reason?.includes("low-confidence local material hits"),
+    "provider no-match fallback should explain that local durable hits stayed on a low-confidence path",
+  );
+}
+
+async function highConfidenceCanonicalAliasSkipsProviderGrounding(): Promise<void> {
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const providerQueries: SourceQuery[] = [];
+  const sourceRef = ref("source:fixture", "track", "alias-source");
+  const canonicalRef = ref("minemusic", "recording", "alias-canonical");
+  const harness = createHarness({
+    canonicalRepository,
+    sourceGrounding: {
+      ground: async ({ query }) => {
+        providerQueries.push(query);
+        return { ok: true, value: [] };
+      },
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+  });
+
+  await putCanonicalMaterial({
+    materialStore: harness.materialStore,
+    canonicalRepository,
+    canonicalRef,
+    label: "Official Label",
+    aliases: ["Alias Exact"],
+    sourceRef,
+  });
+
+  const resolved = await assertOk(
+    harness.resolve({
+      id: "alias-exact",
+      text: "Alias Exact",
+      targetKind: "recording",
+      sessionId: "session-alias",
+    }),
+  );
+
+  assert(providerQueries.length === 0, "unique exact canonical alias hits should skip provider grounding");
+  assert(resolved.status === "resolved", "unique exact canonical alias hits should resolve locally");
+  assert(resolved.materials[0]?.canonicalRef?.id === canonicalRef.id, "canonical alias exact hits should preserve the durable canonical match");
+}
+
+async function providerDisplayableResultOverridesLowConfidenceLocalHit(): Promise<void> {
+  const canonicalRepository = createInMemoryCanonicalRecordRepository();
+  const providerSourceRef = ref("source:fixture", "track", "provider-preferred-source");
+  const harness = createHarness({
+    canonicalRepository,
+    sourceGrounding: {
+      ground: async () => ({
+        ok: true,
+        value: [sourceMaterial("Provider Preferred", providerSourceRef)],
+      }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+  });
+
+  await putCanonicalMaterial({
+    materialStore: harness.materialStore,
+    canonicalRepository,
+    canonicalRef: ref("minemusic", "recording", "local-fuzzy"),
+    label: "Local Preferred-ish",
+    sourceRef: ref("source:fixture", "track", "local-fuzzy-source"),
+  });
+
+  const resolved = await assertOk(
+    harness.resolve({
+      id: "provider-overrides-local",
+      text: "Preferred",
+      targetKind: "recording",
+      sessionId: "session-provider-wins",
+    }),
+  );
+
+  assert(resolved.materials.length === 1, "provider-backed displayable results should replace low-confidence local hits instead of merging with them");
+  assert(resolved.materials[0]?.label === "Provider Preferred", "provider-backed displayable results should win over low-confidence local hits");
+  assert(resolved.materials[0]?.materialRef.kind === "ephemeral_material", "provider-backed non-durable wins should stay on the ephemeral path");
+}
+
+async function subsequentResolveKeepsPreviouslyReturnedEphemeralHandleAlive(): Promise<void> {
+  const groundedByQuery = new Map<string, SourceMaterial[]>([
+    ["First Provider", [sourceMaterial("First Provider", ref("source:fixture", "track", "provider-first"))]],
+    ["Second Provider", [sourceMaterial("Second Provider", ref("source:fixture", "track", "provider-second"))]],
+  ]);
+  const harness = createHarness({
+    sourceGrounding: {
+      ground: async ({ query }) => ({
+        ok: true,
+        value: groundedByQuery.get(query.text ?? "") ?? [],
+      }),
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+  });
+
+  const first = await assertOk(
+    harness.resolve({
+      id: "provider-first",
+      text: "First Provider",
+      sessionId: "session-keep-old-ephemeral",
+    }),
+  );
+  const firstRef = first.materials[0]?.materialRef;
+  assert(firstRef?.kind === "ephemeral_material", "first provider-only result should create an ephemeral handle");
+
+  await assertOk(
+    harness.resolve({
+      id: "provider-second",
+      text: "Second Provider",
+      sessionId: "session-keep-old-ephemeral",
+    }),
+  );
+
+  const storedFirst = await assertOk(
+    harness.ephemeralMaterialStore.get({ materialRef: firstRef as Ref }),
+  );
+
+  assert(storedFirst?.material.label === "First Provider", "a later resolve in the same session should not invalidate an earlier returned ephemeral handle");
 }
 
 async function providerBindingMatchReturnsExistingDurableMaterial(): Promise<void> {
@@ -437,7 +559,10 @@ async function providerNoMatchProducesRetryableIssue(): Promise<void> {
 
 await highConfidenceLocalDurableHitSkipsProviderGrounding();
 await ambiguousLocalDurableHitsStillCallProviderGrounding();
+await highConfidenceCanonicalAliasSkipsProviderGrounding();
+await providerDisplayableResultOverridesLowConfidenceLocalHit();
 await providerBindingMatchReturnsExistingDurableMaterial();
 await providerOnlyResultCreatesEphemeralSourceOnlyMaterial();
+await subsequentResolveKeepsPreviouslyReturnedEphemeralHandleAlive();
 await providerWithoutStableGroundingProducesIssues();
 await providerNoMatchProducesRetryableIssue();
