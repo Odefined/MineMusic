@@ -45,10 +45,15 @@ function ref(namespace: string, kind: string, id: string, label?: string): Ref {
   return label === undefined ? { namespace, kind, id } : { namespace, kind, id, label };
 }
 
-function sourceMaterial(label: string, sourceRef?: Ref, canonicalRef?: Ref): SourceMaterial {
+function sourceMaterial(
+  label: string,
+  sourceRef?: Ref,
+  canonicalRef?: Ref,
+  kind: SourceMaterial["kind"] = "recording",
+): SourceMaterial {
   return {
     id: `source-material:${label}`,
-    kind: "recording",
+    kind,
     label,
     state: canonicalRef === undefined ? "source_only_playable" : "confirmed_playable",
     ...(canonicalRef === undefined ? {} : { canonicalRef }),
@@ -247,6 +252,7 @@ async function resolveStillGroundsProviderForExactLocalDurableHit(): Promise<voi
   );
 
   assert(providerQueries.length === 1, "resolve should always ground provider candidates before rerank");
+  assert(providerQueries[0]?.targetKind === "recording", "resolve should pass targetKind through SourceQuery");
   assert(resolved.status === "resolved", "exact local durable hit should still resolve");
   assert(resolved.materials[0]?.materialRef.kind === "material", "exact local durable hit should keep durable material refs");
   assert(resolved.reason === undefined, "provider no-match should not add a fallback reason when local durable candidates resolve");
@@ -360,6 +366,40 @@ async function providerOnlyResultCreatesEphemeralSourceOnlyMaterial(): Promise<v
   assert(stored?.material.label === "Ephemeral Provider", "ephemeral store should retain provider facts by exact ref");
 }
 
+async function artistTargetKindPassesThroughProviderGroundingAndRerank(): Promise<void> {
+  const providerQueries: SourceQuery[] = [];
+  const sourceRef = ref("source:fixture", "artist", "artist-provider-source");
+  const harness = createHarness({
+    sourceGrounding: {
+      ground: async ({ query }) => {
+        providerQueries.push(query);
+        return {
+          ok: true,
+          value: [sourceMaterial("Phoenix", sourceRef, undefined, "artist")],
+        };
+      },
+      refreshPlayableLinks: async ({ material }) => ({ ok: true, value: material }),
+    },
+  });
+
+  const resolved = await assertOk(
+    harness.resolve({
+      id: "provider-artist",
+      text: "Phoenix",
+      targetKind: "artist",
+      sessionId: "session-artist",
+    }),
+  );
+
+  assert(providerQueries[0]?.targetKind === "artist", "resolve should pass artist targetKind into provider grounding");
+  assert(resolved.status === "source_only", "artist-only provider result should stay source_only when non-durable");
+  assert(resolved.materials[0]?.kind === "artist", "artist targetKind should survive rerank and filtering");
+  assert(
+    resolved.materials[0]?.materialRef.kind === "ephemeral_material",
+    "non-durable artist provider result should still use an ephemeral handle",
+  );
+}
+
 async function subsequentResolveKeepsPreviouslyReturnedEphemeralHandleAlive(): Promise<void> {
   const groundedByQuery = new Map<string, SourceMaterial[]>([
     ["First Provider", [sourceMaterial("First Provider", ref("source:fixture", "track", "provider-first"))]],
@@ -471,6 +511,7 @@ await resolveStillGroundsProviderForExactLocalDurableHit();
 await providerCandidateStaysVisibleAlongsideLocalFuzzyDurableHit();
 await providerSourceRefMatchReturnsExistingDurableMaterial();
 await providerOnlyResultCreatesEphemeralSourceOnlyMaterial();
+await artistTargetKindPassesThroughProviderGroundingAndRerank();
 await subsequentResolveKeepsPreviouslyReturnedEphemeralHandleAlive();
 await providerWithoutStableGroundingProducesIssuesWhenNothingElseResolves();
 await providerNoMatchProducesRetryableIssueWhenNothingElseResolves();

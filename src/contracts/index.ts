@@ -1008,19 +1008,20 @@ export type CollectionItem = {
   removedAt?: string;
 };
 
-export type SourceQuery = {
-  text?: string;
-  canonicalRef?: Ref;
-  sourceRef?: Ref;
-  limit?: number;
-};
-
 export type MaterialResolveTargetKind =
   | "recording"
   | "release_group"
   | "release"
   | "artist"
   | "work";
+
+export type SourceQuery = {
+  text?: string;
+  canonicalRef?: Ref;
+  sourceRef?: Ref;
+  targetKind?: MaterialResolveTargetKind;
+  limit?: number;
+};
 
 export type MaterialResolveQuery = {
   id?: string;
