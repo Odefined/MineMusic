@@ -1,6 +1,7 @@
 import {
   createCanonicalMaintenance,
   createCanonicalStore,
+  createInMemoryEphemeralMaterialStore,
   createLibraryImportService,
   createMaterializationService,
   createMaterialPolicyEvaluator,
@@ -80,6 +81,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
   const materializationService = createMaterializationService({
     materialStore,
   });
+  const ephemeralMaterialStore = createInMemoryEphemeralMaterialStore();
   const materialPolicyEvaluator = createMaterialPolicyEvaluator({
     materialStore,
     collection,
@@ -89,6 +91,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     sourceGrounding: source,
     sourceMaterializer: materializationService,
     materialPolicyEvaluator,
+    ephemeralMaterialStore,
   });
   const materialSorter = createMaterialSorter({ materialStore });
   const materialSelector = createMaterialSelector({
@@ -131,6 +134,7 @@ export function composeMineMusicStageCore(kit: StageCoreRuntimeKit): MineMusicSt
     sessionContext,
     materialPolicyEvaluator,
     events,
+    ephemeralMaterialStore,
   });
   const canonicalMaintenance = createCanonicalMaintenance({
     repository: repositories.canonicalRepository,

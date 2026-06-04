@@ -513,6 +513,50 @@ export type MaterialResolveStorePort = Pick<
   | "listSourceLibraryItems"
 >;
 
+export type EphemeralMaterialEntry = {
+  materialRef: Ref;
+  material: SourceMaterial;
+  ownerScope: string;
+  sessionId?: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type EphemeralMaterialCleanupInput = {
+  ownerScope?: string;
+  sessionId?: string;
+  keepMaterialRefs?: Ref[];
+  now?: string;
+};
+
+export interface EphemeralMaterialStorePort {
+  put(input: {
+    materialRef: Ref;
+    material: SourceMaterial;
+    ownerScope: string;
+    sessionId?: string;
+    expiresAt?: string;
+  }): Promise<Result<EphemeralMaterialEntry>>;
+
+  get(input: { materialRef: Ref }): Promise<Result<EphemeralMaterialEntry | null>>;
+
+  delete(input: { materialRef: Ref }): Promise<Result<boolean>>;
+
+  cleanup(input?: EphemeralMaterialCleanupInput): Promise<Result<number>>;
+}
+
+export type MaterialResolveEphemeralWritePort = Pick<
+  EphemeralMaterialStorePort,
+  | "put"
+  | "cleanup"
+>;
+
+export type RecommendationPresentationEphemeralReadPort = Pick<
+  EphemeralMaterialStorePort,
+  | "get"
+  | "delete"
+>;
+
 export type ProjectedSourceMaterial = {
   material: MusicMaterial | null;
   issues: MaterialResolveIssue[];

@@ -15,6 +15,7 @@ import type {
   EventPort,
   MaterialPolicyEvaluatorPort,
   RecommendationPresentationPort,
+  RecommendationPresentationEphemeralReadPort,
   SessionContextPort,
 } from "../../ports/index.js";
 
@@ -24,6 +25,7 @@ type RecommendationPresentationOptions = {
   sessionContext: SessionContextPort;
   materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
   events: EventPort;
+  ephemeralMaterialStore?: RecommendationPresentationEphemeralReadPort;
   clock?: () => string;
 };
 
@@ -31,6 +33,7 @@ export function createRecommendationPresentationService({
   sessionContext,
   materialPolicyEvaluator,
   events,
+  ephemeralMaterialStore: _ephemeralMaterialStore,
   clock = () => new Date().toISOString(),
 }: RecommendationPresentationOptions): RecommendationPresentationPort {
   return {

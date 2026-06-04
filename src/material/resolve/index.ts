@@ -17,6 +17,7 @@ import type {
   SourceQuery,
 } from "../../contracts/index.js";
 import type {
+  MaterialResolveEphemeralWritePort,
   MaterialPolicyEvaluatorPort,
   MaterialResolveStorePort,
   MaterialResolvePort,
@@ -30,6 +31,7 @@ type MaterialResolveServiceOptions = {
   sourceGrounding: SourceGroundingPort;
   sourceMaterializer: MaterialSourceMaterializerPort;
   materialPolicyEvaluator: MaterialPolicyEvaluatorPort;
+  ephemeralMaterialStore?: MaterialResolveEphemeralWritePort;
 };
 
 export function createMaterialResolveService({
@@ -37,6 +39,7 @@ export function createMaterialResolveService({
   sourceGrounding,
   sourceMaterializer,
   materialPolicyEvaluator,
+  ephemeralMaterialStore: _ephemeralMaterialStore,
 }: MaterialResolveServiceOptions): MaterialResolvePort {
   return {
     async resolve(input: MaterialResolveRequest): Promise<Result<MaterialResolveResult>> {

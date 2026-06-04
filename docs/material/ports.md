@@ -49,7 +49,9 @@ The exact method sets are type-asserted in
 | --- | --- | --- |
 | `MaterialSearchPort` | Material Resolve, Material Query | Retrieve local durable materials by text before fallback paths. |
 | `SourceGroundingPort` | Material Resolve | Ground unresolved or low-confidence text queries through provider/source search. |
-| `EphemeralMaterialStorePort` | Material Resolve, Recommendation Presentation | Put exact `ephemeral_material` entries during resolve and get/delete them during final presentation. |
+| `MaterialResolveEphemeralWritePort` | Material Resolve | Put exact `ephemeral_material` entries and clean stale session-scoped entries without gaining durable registry writers. |
+| `RecommendationPresentationEphemeralReadPort` | Recommendation Presentation | Read and delete exact `ephemeral_material` entries during final presentation without gaining broad material-store access. |
+| `EphemeralMaterialStorePort` | Stage Core composition | Provide the shared process-local in-memory implementation behind the narrow resolve/presentation seams. |
 | `MaterialPolicyEvaluatorPort` | Material Resolve, Recommendation Presentation | Apply internal `material_resolution` policy during resolve for durable results and presentation policy for final durable items. |
 | `MaterialQueryCollectionReadPort` | Material Query | Read collection headers and items for collection pools and pool listing. |
 | `MaterialSearchCollectionPort` | Material Search | Read collection headers and items for Search visibility. |
@@ -84,7 +86,9 @@ Current guards enforce that:
   `getOrCreateBySourceRef`;
 - search does not import provider/source grounding, Stage Interface output
   modules, storage adapters, or registry materialization writers;
-- resolve does not reference registry materialization writer methods directly;
+- resolve does not reference registry materialization writer methods directly or
+  import storage-backed ephemeral implementations directly;
+- `src/material/presentation/**` does not import broad `MaterialStorePort`;
 - `src/material/materialization/**` does not import material query, material
   resolve, Stage Interface, presentation, library import, or memory modules.
 
