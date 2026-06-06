@@ -1,6 +1,6 @@
 # Phase 1: Contract Vocabulary Reset
 
-> Status: Draft spec and plan
+> Status: Implemented as active-code reset
 > Phase owner: Contract vocabulary and data-boundary design
 > Output type: Type contracts, contract tests, architecture guards, and matching
 > docs updates
@@ -9,6 +9,30 @@ Phase 1 resets the active vocabulary used by formal v1. It is not a rename-only
 slice. It deletes stale MVP material language and defines the contracts that
 later query, provider, present, source-library, collection, and relation phases
 must use.
+
+## Implementation Status
+
+Implemented on 2026-06-06:
+
+- Old active `src/**`, `test/**`, `fixtures/**`, `skills/minemusic`, and
+  launchd reset script MVP runtime roots were deleted instead of patched,
+  renamed, or preserved as compatibility layers.
+- `src/contracts/index.ts` now defines the formal Phase 1 contract vocabulary:
+  `Ref`, `refKey(ref)`, `VersionInfo`, source/material/canonical entity and
+  record contracts, source-owned `PlayableLink`, formal status axes,
+  `ProviderMaterialCandidate`, and capability-aware `SourceProvider`.
+- `src/stage_interface/index.ts`, `src/stage_core/index.ts`, and
+  `src/server/index.ts` provide only a minimal formal skeleton needed to compile
+  and test the reset.
+- `test/formal/formal-contracts.test.ts` verifies contract shapes and ref
+  runtime validation.
+- `test/formal/active-tree.test.ts` verifies old MVP roots and deleted
+  vocabulary are not active source.
+- `test/formal/stage-runtime.test.ts` verifies the minimal Stage
+  Interface/Core skeleton.
+
+This implementation deliberately does not introduce `Legacy*` aliases,
+compatibility adapters, or old-runtime bridges.
 
 ## Spec
 

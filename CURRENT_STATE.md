@@ -4,10 +4,10 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic is in Phase 0 of a same-repo formal rebuild. The formal architecture
-and vocabulary are now separated from the old MVP implementation. Current code
-still contains MVP-era surfaces and should be treated as migration/deletion
-inventory until the owning formal phase rewrites it.
+MineMusic has completed Phase 1 of a same-repo formal rebuild. The active
+TypeScript tree has been reset to a formal skeleton. Old MVP implementation
+code and tests are no longer active-tree migration inventory; they are
+preserved by git history and archive docs only.
 
 ## Established Formal Decisions
 
@@ -45,6 +45,7 @@ inventory until the owning formal phase rewrites it.
 ## Formal Vocabulary State
 
 Formal target vocabulary lives in `docs/formal-project-glossary.md`.
+The implemented Phase 1 TypeScript vocabulary lives in `src/contracts/index.ts`.
 
 Accepted vocabulary includes:
 
@@ -77,22 +78,18 @@ compatibility aliases:
 
 ## Current Code Migration State
 
-The TypeScript runtime remains the pre-formal MVP implementation. It may still
-compile and run, but it is not the formal architecture authority.
+The active TypeScript tree is now a formal skeleton:
 
-Known pre-formal code inventory includes:
+- `src/contracts/index.ts` owns Phase 1 contracts;
+- `src/stage_interface/index.ts` owns the minimal Stage Interface skeleton;
+- `src/stage_core/index.ts` owns the minimal Stage Runtime skeleton;
+- `src/server/index.ts` owns the minimal Server Host entrypoint.
 
-- public/domain Material Resolve paths;
-- process-local ephemeral material handles;
-- public `mat:` / `emat:` handle codecs;
-- public canonical review tools;
-- MVP `MusicMaterial` / `SourceMaterial` vocabulary;
-- old area boundaries such as Material Flow, Material Store, Canonical Store,
-  Material Search, Collection Service, Library Import, Knowledge Slot, and
-  Plugin Slots.
-
-These are migration/deletion inventory for later formal phases. Their presence
-in code does not re-accept them as formal architecture.
+The old MVP runtime roots, provider integrations, storage adapters, material
+flow, source grounding, collection service, library import runtime, Codex skill
+snapshot, launchd reset script, and old tests were removed from active source.
+They remain available through git history for reference only. They must not be
+restored as compatibility layers.
 
 ## Documentation State
 
@@ -119,28 +116,31 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 0 does not change:
+Phase 1 does not implement:
 
-- `src/**`;
-- TypeScript contracts;
-- provider implementations;
-- Stage Interface tool definitions;
-- runtime composition;
-- database schemas;
-- generated runtime artifacts;
-- area design/ports/progress docs beyond superseded notices.
+- provider integrations;
+- storage adapters or database schemas;
+- MCP/HTTP transport;
+- query engine behavior;
+- query hit public output shape;
+- query-to-present flow;
+- final `MaterialCard` key set;
+- source-library, collection, owner relation, wrong-version, or
+  recording-to-work relation workflows;
+- recommendation, radio, memory, or effect runtime behavior.
 
-Phase 1 owns formal contract vocabulary reset. Later phases own code and area
-documentation rewrites.
+Later phases rebuild those areas directly from formal architecture and
+contracts.
 
 ## Verification Pointers
 
-Phase 0 is docs-only. Verification for this state should include:
+Phase 1 verification for this state should include:
 
 ```bash
+npm run typecheck
+npm run build:test
+npm run test:stage-core
+npm test
 git diff --check
 git diff --name-only
 ```
-
-No source-code tests are required for Phase 0 unless a later edit leaves the
-docs-only boundary.

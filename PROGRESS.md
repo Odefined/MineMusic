@@ -38,28 +38,39 @@ Phase 0 intentionally does not change code, TypeScript contracts, provider
 behavior, Stage Interface tool schemas, runtime wiring, database schemas, or
 generated runtime artifacts.
 
+## 2026-06-06: Phase 1 Contract Vocabulary Reset
+
+Phase 1 resets active code instead of patching the MVP runtime:
+
+- old active `src/**`, `test/**`, `fixtures/**`, `skills/minemusic`, and
+  launchd reset script MVP implementation roots were removed;
+- `src/contracts/index.ts` now contains formal Phase 1 contracts only;
+- `Ref` no longer carries `url`;
+- `refKey(ref)` is the canonical public ref string helper and rejects unsafe
+  `:` components;
+- source/material/canonical entities are separate from storage records;
+- source-side kind vocabulary uses `track | album | artist`;
+- material/canonical identity kind vocabulary uses
+  `recording | album | artist | work | release`;
+- `VersionInfo` is first-class source/material/canonical information;
+- `PlayableLink` is source-owned and contains no `sourceRef` or `expiresAt`;
+- `ProviderMaterialCandidate` wraps normalized `SourceEntity` facts rather than
+  material identity;
+- `SourceProvider` declares optional capabilities because providers do not all
+  support the same operations;
+- formal status vocabulary is split into lifecycle, identity, availability, and
+  canonical record axes;
+- minimal Stage Interface, Stage Core, and Server Host skeletons compile
+  against the formal contracts;
+- tests guard against old MVP runtime roots and deleted vocabulary returning to
+  active source.
+
+Phase 1 intentionally does not implement query engine behavior, query hit
+output shape, query-to-present flow, final `MaterialCard` key set, provider
+integrations, source-library/collection/owner relation workflows, database
+migrations, MCP transport, or full runtime architecture.
+
 ## Next Formal Milestones
-
-### Phase 1: Contract Vocabulary Reset
-
-Planned source:
-
-```text
-docs/formal-rebuild/phase-1-contract-vocabulary-reset.md
-```
-
-Expected focus:
-
-- `Ref` / `refKey(ref)` policy;
-- entity vs record vocabulary;
-- source/material/canonical kind vocabulary;
-- first-class `VersionInfo`;
-- source-owned links;
-- provider candidate contract direction;
-- removal of old MVP public/domain vocabulary from formal contracts.
-
-Phase 1 must not redefine the top-level architecture taxonomy established in
-Phase 0.
 
 ### Later Formal Phases
 

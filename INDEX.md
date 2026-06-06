@@ -81,24 +81,16 @@ not formal target authority until their owning formal phase rewrites them:
 
 ## Source Entrypoints
 
-The current source tree remains implementation inventory for later formal
-phases. It is not formal target authority.
+The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 
-- `src/contracts/index.ts`: current shared TypeScript contracts.
-- `src/ports/index.ts`: current ports and repository interfaces.
-- `src/server/**`: current server runtime.
-- `src/stage_core/**`: current runtime composition.
-- `src/stage_interface/**`, `src/handbook/index.ts`: current Stage Interface
-  implementation.
-- `src/material/**`: current MVP material/source/canonical/query/presentation
-  implementation.
-- `src/collection/**`: current Collection implementation.
-- `src/source/**`: current Source Grounding implementation.
-- `src/knowledge/**`: current Knowledge implementation.
-- `src/providers/**`: current provider adapters.
-- `src/storage/**`: current storage adapters.
-- `skills/minemusic/**`: current Codex integration package and Handbook
-  snapshot.
+- `src/contracts/index.ts`: formal Phase 1 contracts.
+- `src/stage_interface/index.ts`: minimal Stage Interface skeleton.
+- `src/stage_core/index.ts`: minimal Stage Runtime skeleton.
+- `src/server/index.ts`: minimal Server Host entrypoint.
+- `src/index.ts`: formal skeleton package exports.
+
+The previous MVP runtime source and tests were removed from active tree and are
+available only through git history.
 
 ## Archive
 

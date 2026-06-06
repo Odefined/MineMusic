@@ -8,8 +8,9 @@ states, event records, memory proposals, effect boundaries, callable
 instruments, capability slots, and runtime lifecycle.
 
 MineMusic is now in a same-repo formal rebuild. The formal architecture target
-lives in `ARCHITECTURE.md`; the current TypeScript runtime remains pre-formal
-implementation inventory until later phases migrate it.
+lives in `ARCHITECTURE.md`. The active TypeScript tree has been reset to the
+formal skeleton; the old MVP implementation is preserved only by git history
+and archived documentation evidence.
 
 ## Start Here
 
@@ -28,33 +29,24 @@ implementation inventory until later phases migrate it.
 Historical MVP proposal, MVP baseline docs, root plans, Stage Core refactor
 plans, and architecture review evidence are archived under `docs/archive/`.
 
-## Current Runtime Inventory
+## Current Runtime
 
-The current runtime can still be used as pre-formal implementation evidence,
-but it is not the formal target architecture.
+The current runtime is a formal rebuild skeleton. It defines Phase 1 contracts,
+minimal Stage Interface/Core wiring, and a Server Host entrypoint. Provider
+integrations, persistence, MCP transport, query behavior, presentation cards,
+library import, and recommendation workflows are not active runtime features
+until later formal phases rebuild them.
 
-MineMusic runs as a long-lived server process that creates and holds Stage Core,
-then exposes Stage Interface tools over MCP.
+The skeleton creates a Stage Runtime and exposes a JSON status snapshot through
+the local server command.
 
 ```text
 Host clients
-  -> MineMusic server
+  -> Server Host
   -> Stage Core
   -> Stage Interface
-  -> Core Capabilities
-  -> Plugin Slots / Storage
+  -> Formal contracts
 ```
-
-On this machine the server is installed as user `launchd` agent
-`com.minemusic.server` and exposes MCP at:
-
-```text
-http://127.0.0.1:37373/mcp
-```
-
-Codex and OpenClaw should connect as MCP clients. Provider/database/cache/session
-runtime settings belong to the MineMusic server, not to host-client config.
-Operational details live in `docs/operations/minemusic-server-launchd.md`.
 
 ## Development Commands
 
@@ -62,32 +54,10 @@ Operational details live in `docs/operations/minemusic-server-launchd.md`.
 npm test
 npm run typecheck
 npm run server:minemusic
-npm run mcp:minemusic:dev
-npm run smoke:netease
 ```
-
-`npm run smoke:netease` skips unless `MINEMUSIC_LIVE_NETEASE=1` is set.
-
-`npm run server:minemusic` loads repo-root `.env` when present. Use
-`.env.example` for local runtime settings. Common settings include:
-
-- `MINEMUSIC_NETEASE_BASE_URL`
-- `MINEMUSIC_MATERIAL_STORE_DB_PATH`
-- `MINEMUSIC_COLLECTION_DB_PATH`
-- `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`
-- `MINEMUSIC_HANDBOOK_PATH`
-- `MINEMUSIC_HANDBOOK_PATHS`
-
-For local launchd restart:
-
-```bash
-./scripts/reset-minemusic-launchd-runtime.sh
-```
-
-Use `--clear-runtime` to clear `/tmp/minemusic` state during restart.
 
 ## Current Runtime Non-Goals
 
-The current pre-formal runtime does not implement autoplay, queue mutation,
-source writeback, playlist mutation, autonomous DJ sessions, or final musical
-judgment.
+The current formal skeleton does not implement provider calls, storage,
+autoplay, queue mutation, source writeback, playlist mutation, autonomous DJ
+sessions, query-to-present, or final musical judgment.
