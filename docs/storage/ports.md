@@ -89,9 +89,11 @@ Planned guards:
 | Transaction uses write-transaction semantics. | Storage behavior test |
 | Async transaction callbacks are rejected and rolled back. | Type-level/storage behavior test |
 | Stale transaction context rejects late use after transaction end. | Storage behavior test |
+| Unsupported async callback continuation rejection is absorbed. | Storage behavior test |
 | Schema contributions run through the database foundation. | Storage behavior test |
 | Schema contributions run in explicit caller-provided order. | Storage behavior test |
 | Schema contributions are synchronous. | Type-level/storage behavior test |
+| Unsupported async schema contribution continuation rejection is absorbed. | Storage behavior test |
 | Idempotent schema contributions survive reopen on the same file. | Storage behavior test |
 | `context()` and `transaction(...)` reject before initialization. | Storage behavior test |
 | Repeated `initialize(...)` rejects with `MusicDatabaseError`. | Storage behavior test |

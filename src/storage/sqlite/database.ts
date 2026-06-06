@@ -128,6 +128,7 @@ export class SqliteMusicDatabase implements MusicDatabase {
       const result = operation(transactionContext);
 
       if (isPromiseLike(result)) {
+        absorbUnsupportedAsyncResult(result);
         throw new MusicDatabaseError({
           code: "storage.async_callback_not_supported",
           message: "Music database transaction callback must be synchronous.",
@@ -283,6 +284,10 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
     value !== null &&
     "then" in value &&
     typeof value.then === "function";
+}
+
+function absorbUnsupportedAsyncResult(result: PromiseLike<unknown>): void {
+  void Promise.resolve(result).catch(() => undefined);
 }
 
 function closedError(): MusicDatabaseError {

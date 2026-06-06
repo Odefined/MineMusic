@@ -237,6 +237,20 @@ await assert.rejects(
   observedLateAsyncTransactionWrite,
   (error: unknown) => isMusicDatabaseError(error) && error.code === "storage.transaction_context_inactive",
 );
+const unhandledAsyncTransactionRejection = await observeUnhandledRejection(async () => {
+  const unobservedPromiseReturningTransaction = ((context: MusicDatabaseContext) => {
+    context.run("INSERT INTO async_transaction_fixture (label) VALUES (?)", ["unobserved-before-rollback"]);
+    return Promise.resolve().then(() => {
+      context.run("INSERT INTO async_transaction_fixture (label) VALUES (?)", ["unobserved-after-rollback"]);
+    });
+  }) as unknown as (context: MusicDatabaseContext) => undefined;
+
+  assertDatabaseError(
+    () => asyncTransactionDatabase.transaction(unobservedPromiseReturningTransaction),
+    "storage.async_callback_not_supported",
+  );
+});
+assert.equal(unhandledAsyncTransactionRejection, undefined);
 assert.equal(
   asyncTransactionDatabase.context().get<{ count: number }>(
     "SELECT COUNT(*) AS count FROM async_transaction_fixture",
@@ -295,6 +309,29 @@ assertDatabaseError(
 );
 assertDatabaseError(() => asyncSchemaDatabase.context(), "storage.database_initialization_failed");
 asyncSchemaDatabase.close();
+
+const unhandledAsyncSchemaDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+const unhandledAsyncSchemaRejection = await observeUnhandledRejection(async () => {
+  assertDatabaseError(
+    () => {
+      unhandledAsyncSchemaDatabase.initialize({
+        schemas: [
+          {
+            id: "unhandled-async-schema",
+            apply: ((context: MusicDatabaseContext) => {
+              return Promise.resolve().then(() => {
+                context.run("CREATE TABLE unhandled_async_schema (id INTEGER PRIMARY KEY)");
+              });
+            }) as unknown as MusicDatabaseSchemaContribution["apply"],
+          },
+        ],
+      });
+    },
+    "storage.database_initialization_failed",
+  );
+});
+assert.equal(unhandledAsyncSchemaRejection, undefined);
+unhandledAsyncSchemaDatabase.close();
 
 const closeDuringInitializationDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
 assertDatabaseError(
@@ -442,6 +479,26 @@ async function assertRawSqliteBoundary(): Promise<void> {
   }
 
   assert.deepEqual(failures, []);
+}
+
+async function observeUnhandledRejection(operation: () => Promise<void> | void): Promise<unknown> {
+  let observed: unknown;
+  const listener = (error: unknown) => {
+    observed = error;
+  };
+
+  process.once("unhandledRejection", listener);
+
+  try {
+    await operation();
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  } finally {
+    process.removeListener("unhandledRejection", listener);
+  }
+
+  return observed;
 }
 
 async function sourceFilesUnder(root: string): Promise<string[]> {

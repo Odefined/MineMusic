@@ -104,6 +104,7 @@ Targeted storage tests cover:
 - schema contribution explicit ordering;
 - schema contribution idempotence across reopen on the same file;
 - async schema contribution rejection;
+- unsupported async schema contribution continuation rejection absorption;
 - accepted pragma initialization without hard-requiring `:memory:` WAL mode;
 - raw `DatabaseSync` boundary guard;
 - default Server Host behavior remains unchanged;
@@ -115,6 +116,7 @@ Targeted storage tests cover:
 - close-during-initialization rejection through initialization failure;
 - async transaction callback rejection with rollback;
 - stale transaction context rejection after transaction end;
+- unsupported async transaction continuation rejection absorption;
 - storage-owned boundary errors use `MusicDatabaseError`.
 
 `npm run server:minemusic` continues to report only the `extension` and

@@ -174,7 +174,8 @@ Phase 4 implements the generic Music Database foundation:
   `BEGIN IMMEDIATE`, with no read-only transaction API in Phase 4;
 - transaction callback failure or unsupported async callback rolls back,
   rethrows the relevant error, blocks stale transaction-context use, and
-  leaves the database usable after successful rollback;
+  leaves the database usable after successful rollback without leaking
+  unsupported async continuation rejections;
 - Storage owns schema contribution execution while future owning areas own
   business schema semantics;
 - Phase 4 uses explicit schema contribution array order and no dependency
@@ -184,9 +185,9 @@ Phase 4 implements the generic Music Database foundation:
 - no new ADR is required for Phase 4;
 - tests cover storage lifecycle, SQL parameter binding for the public
   scalar/blob parameter union, root transaction commit/rollback including
-  async-callback and stale-context rejection, schema contribution
-  ordering/idempotent reopen, raw SQLite boundary guards, and unchanged
-  default Server Host runtime composition;
+  async-callback and stale-context rejection plus unsupported-continuation
+  absorption, schema contribution ordering/idempotent reopen, raw SQLite
+  boundary guards, and unchanged default Server Host runtime composition;
 - Phase 4 does not introduce source/material/canonical tables, aliases,
   command audit, owner facts, projections, provider adapters, query, or Stage
   Interface tools.

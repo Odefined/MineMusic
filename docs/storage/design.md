@@ -126,6 +126,8 @@ If a callback returns a `Promise` or thenable, Storage rolls back and throws
 `MusicDatabaseError` instead of committing before asynchronous work completes.
 The transaction-scoped context becomes inactive after the transaction ends, so
 late async continuations cannot use it to write outside the transaction.
+The rejected async continuation is absorbed internally; this prevents
+unsupported async use from creating a later unhandled-rejection side effect.
 
 ## Schema Initialization
 
@@ -190,7 +192,8 @@ Use `MusicDatabaseError` for storage-owned boundary violations:
 - nested transaction attempt;
 - close attempt inside an active transaction;
 - use of a transaction-scoped context after the transaction ended;
-- async transaction callback attempt.
+- async transaction callback attempt;
+- unsupported async callback continuation rejection.
 
 SQL/runtime errors that Storage cannot interpret may bubble from the concrete
 adapter. Higher-level modules decide whether to translate those errors into

@@ -17,7 +17,22 @@ export function initializeSqliteSchema(input: InitializeSqliteSchemaInput): void
     const result = schema.apply(input.context);
 
     if (result !== undefined) {
+      if (isPromiseLike(result)) {
+        absorbUnsupportedAsyncResult(result);
+      }
+
       throw new Error(`Music database schema contribution '${schema.id}' must be synchronous.`);
     }
   }
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function";
+}
+
+function absorbUnsupportedAsyncResult(result: PromiseLike<unknown>): void {
+  void Promise.resolve(result).catch(() => undefined);
 }

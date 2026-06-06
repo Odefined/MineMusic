@@ -177,6 +177,8 @@ If a transaction callback returns a `Promise` or thenable, Storage treats it as
 an unsupported async callback, rolls back, and throws `MusicDatabaseError`.
 The transaction-scoped context is invalidated when the transaction ends, so a
 late async continuation cannot use it to write outside the transaction.
+Storage also absorbs the unsupported async continuation's later rejection so
+rejecting async use does not create an unhandled-rejection side effect.
 
 ### Schema Initialization
 
@@ -390,6 +392,7 @@ Targeted tests should cover:
 - transaction rollback on thrown error;
 - transaction rollback when an async callback is attempted;
 - late async continuations cannot use a stale transaction context;
+- unsupported async callback rejection does not leak as an unhandled rejection;
 - schema contribution runner ordering;
 - schema contribution idempotence across reopen on the same file;
 - raw `DatabaseSync` boundary guard.

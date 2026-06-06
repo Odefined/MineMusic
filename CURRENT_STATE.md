@@ -127,7 +127,8 @@ Phase 4 Storage vocabulary includes:
   `BEGIN IMMEDIATE`, with no read-only transaction API in Phase 4;
 - transaction callback failure or unsupported async callback rolls back,
   rethrows the relevant error, blocks stale transaction-context use, and
-  leaves the database usable after successful rollback;
+  leaves the database usable after successful rollback without leaking
+  unsupported async continuation rejections;
 - Storage owns schema contribution execution while future owning areas own
   business schema semantics;
 - schema contributions run in explicit caller-provided order, with no Phase 4
