@@ -86,6 +86,8 @@ Targeted storage tests cover:
 - root transaction commit;
 - rollback on thrown error;
 - database remains usable after successful rollback;
+- `BEGIN IMMEDIATE` lock contention failure does not leave the database marked
+  as transaction-active;
 - schema contribution execution;
 - schema contribution explicit ordering;
 - accepted pragma initialization without hard-requiring `:memory:` WAL mode;

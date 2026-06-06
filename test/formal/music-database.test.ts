@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 import {
@@ -158,6 +160,45 @@ assertDatabaseError(
 assertDatabaseError(() => failingDatabase.initialize(), "storage.database_initialization_failed");
 failingDatabase.close();
 failingDatabase.close();
+
+const lockFixtureDir = mkdtempSync(join(tmpdir(), "minemusic-storage-lock-"));
+const lockFixtureFilename = join(lockFixtureDir, "music.db");
+const lockingDatabase = SqliteMusicDatabase.open({ filename: lockFixtureFilename });
+const blockedDatabase = SqliteMusicDatabase.open({ filename: lockFixtureFilename });
+lockingDatabase.initialize({
+  schemas: [
+    {
+      id: "lock-fixture",
+      apply(context) {
+        context.run("CREATE TABLE lock_fixture (id INTEGER PRIMARY KEY, label TEXT)");
+      },
+    },
+  ],
+});
+blockedDatabase.initialize();
+
+let beginFailure: unknown;
+lockingDatabase.transaction(() => {
+  try {
+    blockedDatabase.transaction(() => undefined);
+  } catch (error) {
+    beginFailure = error;
+  }
+});
+
+assert.notEqual(beginFailure, undefined);
+blockedDatabase.transaction((context) => {
+  context.run("INSERT INTO lock_fixture (label) VALUES (?)", ["after-begin-failure"]);
+});
+assert.equal(
+  blockedDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM lock_fixture WHERE label = ?",
+    ["after-begin-failure"],
+  )?.count,
+  1,
+);
+blockedDatabase.close();
+lockingDatabase.close();
 
 await assertRawSqliteBoundary();
 

@@ -92,8 +92,8 @@ export class SqliteMusicDatabase implements MusicDatabase {
 
   transaction<Result>(operation: (context: MusicDatabaseContext) => Result): Result {
     this.ensureCanStartTransaction();
-    this.transactionActive = true;
     this.db.exec("BEGIN IMMEDIATE");
+    this.transactionActive = true;
 
     try {
       const result = operation(this.initializedContext);
