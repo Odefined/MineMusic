@@ -1,16 +1,19 @@
-import { createStageRuntime } from "../stage_core/index.js";
-import { createStageInterface } from "../stage_interface/index.js";
-
-export function createServerHostRuntime() {
-  const stageInterface = createStageInterface({
-    instruments: [],
-    tools: [],
-  });
-
-  return createStageRuntime({ interface: stageInterface });
-}
+export {
+  createServerHost,
+} from "./host.js";
+export type {
+  CreateServerHostInput,
+  ServerHost,
+} from "./host.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const runtime = createServerHostRuntime();
-  console.log(JSON.stringify(runtime.snapshot(), null, 2));
+  const { createServerHost } = await import("./host.js");
+  const host = createServerHost();
+  const started = await host.start();
+
+  console.log(JSON.stringify(host.snapshot(), null, 2));
+
+  if (!started.ok) {
+    process.exitCode = 1;
+  }
 }

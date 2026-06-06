@@ -22,6 +22,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   plan.
 - `docs/formal-rebuild/phase-1-contract-vocabulary-reset.md`: Phase 1 spec and
   plan.
+- `docs/formal-rebuild/phase-2-stage-core-runtime-baseline.md`: implemented
+  Phase 2 spec for Stage Core runtime lifecycle, module contributions, Stage
+  Interface attachment, and thin Server Host ownership.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -70,10 +73,16 @@ contracts when their owning phase starts.
 
 The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 
-- `src/contracts/index.ts`: formal Phase 1 contracts.
+- `src/contracts/index.ts`: formal contracts, including Phase 1 entity/source
+  vocabulary and Phase 2 runtime snapshot vocabulary.
 - `src/stage_interface/index.ts`: minimal Stage Interface skeleton.
-- `src/stage_core/index.ts`: minimal Stage Runtime skeleton.
-- `src/server/index.ts`: minimal Server Host entrypoint.
+- `src/stage_core/index.ts`: Stage Core public exports.
+- `src/stage_core/runtime.ts`: Stage Runtime lifecycle baseline.
+- `src/stage_core/runtime_module.ts`: Stage Core runtime module contribution
+  boundary.
+- `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module.
+- `src/server/host.ts`: thin Server Host lifecycle owner.
+- `src/server/index.ts`: minimal Server Host entrypoint and snapshot command.
 - `src/index.ts`: formal skeleton package exports.
 
 The previous MVP runtime source and tests were removed from active tree and are

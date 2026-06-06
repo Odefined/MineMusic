@@ -103,6 +103,36 @@ for (const file of activeFiles) {
 
 assert.deepEqual(failures, []);
 
+const forbiddenRuntimeImports = [
+  "../material/",
+  "../providers/",
+  "../storage/",
+  "../memory/",
+  "../effects/",
+  "../collection/",
+  "../knowledge/",
+];
+
+for (const root of ["src/stage_core", "src/server"]) {
+  const files = await sourceFilesUnder(join(repositoryRoot, root));
+  const importFailures: string[] = [];
+
+  for (const file of files) {
+    const text = await readFile(file, "utf8");
+
+    for (const forbiddenImport of forbiddenRuntimeImports) {
+      if (
+        text.includes(`from "${forbiddenImport}`) ||
+        text.includes(`from '${forbiddenImport}`)
+      ) {
+        importFailures.push(`${relative(repositoryRoot, file)} imports forbidden Phase 2 root '${forbiddenImport}'`);
+      }
+    }
+  }
+
+  assert.deepEqual(importFailures, []);
+}
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);

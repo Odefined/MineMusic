@@ -44,7 +44,7 @@ Phase 1 resets active code instead of patching the MVP runtime:
 
 - old active `src/**`, `test/**`, `fixtures/**`, `skills/minemusic`, and
   launchd reset script MVP implementation roots were removed;
-- `src/contracts/index.ts` now contains formal Phase 1 contracts only;
+- `src/contracts/index.ts` introduced formal Phase 1 contracts;
 - `Ref` no longer carries `url`;
 - `refKey(ref)` is the canonical public ref string helper and rejects unsafe
   `:` components;
@@ -73,6 +73,33 @@ output shape, query-to-present flow, final `MaterialCard` key set, provider
 integrations, source-library/collection/owner relation workflows, database
 migrations, MCP transport, or full runtime architecture.
 
+## 2026-06-06: Phase 2 Stage Core Runtime Baseline
+
+Phase 2 establishes the formal runtime lifecycle spine without rebuilding
+domain workflows:
+
+- `StageRuntimeStatus` now covers `created`, `initializing`, `ready`,
+  `failed`, `stopping`, and `stopped`;
+- runtime module status and owner-area vocabulary are part of formal contracts;
+- Stage Core owns a minimal `RuntimeModule` contribution boundary;
+- modules initialize in declared order and are all required;
+- module contributions include only instruments, tools, and handlers;
+- Stage Core validates module ids, duplicate contributions, missing handlers,
+  orphan handlers, and missing instrument references;
+- successful initialization builds Stage Interface from merged contributions;
+- failed initialization stops already initialized modules in reverse order;
+- normal stop runs in reverse initialization order and reports stop failure as
+  runtime failure;
+- the internal `runtime-status` module contributes the only Phase 2 tool,
+  `stage.runtime.status`;
+- Server Host is a thin lifecycle owner with `start`, `stop`, and `snapshot`;
+- tests cover lifecycle, contribution validation, cleanup failures, compact
+  status output, Server Host behavior, and Phase 2 forbidden runtime imports.
+
+Phase 2 intentionally does not implement Extension Plugin System, provider
+slots, DB/storage, query, present, `MaterialCard`, handbook, music-domain
+tools, optional modules, dependency ordering, retry, reload, or restart.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -80,9 +107,10 @@ migrations, MCP transport, or full runtime architecture.
 Later phases should rewrite area docs and code only when the owning boundary is
 in scope. Known later areas include:
 
-- Server Host and Stage Core runtime composition;
 - Stage Interface instruments, tools, Handbook, and output policy;
 - Extension Plugin System and Capability Slots;
+- Server Host transports and richer Stage Core runtime composition after area
+  boundaries stabilize;
 - Music Data Platform source/material/canonical/owner facts;
 - Music Intelligence Retrieval and Knowledge;
 - Music Experience radio/listening behavior;

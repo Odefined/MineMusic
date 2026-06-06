@@ -4,8 +4,9 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 1 of a same-repo formal rebuild. The active
-TypeScript tree has been reset to a formal skeleton. Old MVP implementation
+MineMusic has completed Phase 2 of a same-repo formal rebuild. The active
+TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary
+and a Phase 2 Stage Core runtime lifecycle baseline. Old MVP implementation
 code and tests are no longer active-tree migration inventory; they are
 preserved by git history and archive docs only.
 
@@ -45,7 +46,8 @@ preserved by git history and archive docs only.
 ## Formal Vocabulary State
 
 Formal target vocabulary lives in `docs/formal-project-glossary.md`.
-The implemented Phase 1 TypeScript vocabulary lives in `src/contracts/index.ts`.
+The implemented Phase 1 and Phase 2 TypeScript vocabulary lives in
+`src/contracts/index.ts`.
 
 Accepted vocabulary includes:
 
@@ -65,6 +67,18 @@ Accepted vocabulary includes:
 - query hits/results as agent decision evidence;
 - `MaterialCard` as final Stage Interface presentation output only.
 
+Phase 2 runtime vocabulary includes:
+
+- `StageRuntimeStatus = created | initializing | ready | failed | stopping |
+  stopped`;
+- `RuntimeModuleStatus = created | initializing | initialized | stopping |
+  stopped | failed`;
+- `RuntimeModuleOwnerArea`, excluding `server_host` and `stage_interface`;
+- compact `RuntimeErrorSummary`;
+- `RuntimeModuleSnapshot`;
+- expanded `StageRuntimeSnapshot` with module snapshots, compact failure
+  summary, optional cleanup errors, and `interfaceContract`.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -80,10 +94,23 @@ compatibility aliases:
 
 The active TypeScript tree is now a formal skeleton:
 
-- `src/contracts/index.ts` owns Phase 1 contracts;
+- `src/contracts/index.ts` owns Phase 1 contracts and Phase 2 runtime snapshot
+  contracts;
 - `src/stage_interface/index.ts` owns the minimal Stage Interface skeleton;
-- `src/stage_core/index.ts` owns the minimal Stage Runtime skeleton;
+- `src/stage_core/runtime_module.ts` owns the Stage Core-only
+  `RuntimeModule` contribution boundary;
+- `src/stage_core/runtime.ts` owns the Stage Runtime lifecycle baseline;
+- `src/stage_core/runtime_status.ts` owns the internal
+  `stage.runtime.status` module;
+- `src/stage_core/index.ts` owns Stage Core public exports;
+- `src/server/host.ts` owns the thin Server Host lifecycle wrapper;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
+
+The current runtime starts in `created`, initializes required runtime modules
+through Server Host, builds Stage Interface from module contributions, exposes
+`stage.runtime.status`, and supports compact lifecycle snapshots. All runtime
+modules are required. Phase 2 does not support optional modules, dependency
+resolution, capability lookup, retry, reload, or restart.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -116,9 +143,10 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 1 does not implement:
+Phase 2 does not implement:
 
 - provider integrations;
+- Extension Plugin System or capability slot semantics;
 - storage adapters or database schemas;
 - MCP/HTTP transport;
 - query engine behavior;
@@ -127,14 +155,16 @@ Phase 1 does not implement:
 - final `MaterialCard` key set;
 - source-library, collection, owner relation, wrong-version, or
   recording-to-work relation workflows;
-- recommendation, radio, memory, or effect runtime behavior.
+- recommendation, radio, memory, or effect runtime behavior;
+- handbook tools or music-domain tools beyond the internal runtime status
+  tool.
 
 Later phases rebuild those areas directly from formal architecture and
 contracts.
 
 ## Verification Pointers
 
-Phase 1 verification for this state should include:
+Phase 2 verification for this state should include:
 
 ```bash
 npm run typecheck

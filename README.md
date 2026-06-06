@@ -30,13 +30,15 @@ plans, and architecture review evidence are archived under `docs/archive/`.
 ## Current Runtime
 
 The current runtime is a formal rebuild skeleton. It defines Phase 1 contracts,
-minimal Stage Interface/Core wiring, and a Server Host entrypoint. Provider
-integrations, persistence, MCP transport, query behavior, presentation cards,
-library import, and recommendation workflows are not active runtime features
-until later formal phases rebuild them.
+the Phase 2 Stage Core runtime lifecycle baseline, minimal Stage Interface
+dispatch, and a thin Server Host entrypoint. Provider integrations,
+persistence, MCP transport, query behavior, presentation cards, library import,
+and recommendation workflows are not active runtime features until later
+formal phases rebuild them.
 
-The skeleton creates a Stage Runtime and exposes a JSON status snapshot through
-the local server command.
+The skeleton creates a Stage Runtime, starts it through Server Host, and
+exposes a JSON status snapshot through the local server command. The only
+Phase 2 tool is `stage.runtime.status`.
 
 ```text
 Host clients
@@ -58,4 +60,5 @@ npm run server:minemusic
 
 The current formal skeleton does not implement provider calls, storage,
 autoplay, queue mutation, source writeback, playlist mutation, autonomous DJ
-sessions, query-to-present, or final musical judgment.
+sessions, query-to-present, handbook tools, music-domain tools, or final
+musical judgment.

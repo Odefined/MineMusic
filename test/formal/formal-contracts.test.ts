@@ -14,6 +14,10 @@ import type {
   ProviderMaterialCandidate,
   Ref,
   Result,
+  RuntimeErrorSummary,
+  RuntimeModuleOwnerArea,
+  RuntimeModuleSnapshot,
+  RuntimeModuleStatus,
   SourceAlbum,
   SourceArtist,
   SourceEntity,
@@ -22,6 +26,8 @@ import type {
   SourceRecord,
   SourceTrack,
   StageInterfaceContract,
+  StageRuntimeSnapshot,
+  StageRuntimeStatus,
   VersionInfo,
   VersionTag,
 } from "../../src/contracts/index.js";
@@ -151,6 +157,34 @@ export type _sourceProviderSupportsPartialCapabilities = Expect<
 
 export type _stageInterfaceContractShape = Expect<
   Equal<keyof StageInterfaceContract, "instruments" | "tools">
+>;
+
+export type _stageRuntimeStatusShape = Expect<
+  Equal<StageRuntimeStatus, "created" | "initializing" | "ready" | "failed" | "stopping" | "stopped">
+>;
+
+export type _runtimeModuleStatusShape = Expect<
+  Equal<RuntimeModuleStatus, "created" | "initializing" | "initialized" | "stopping" | "stopped" | "failed">
+>;
+
+export type _runtimeModuleOwnerAreas = Expect<
+  Equal<
+    RuntimeModuleOwnerArea,
+    | "stage_core"
+    | "extension"
+    | "music_data_platform"
+    | "music_intelligence"
+    | "music_experience"
+    | "memory"
+    | "effect_boundary"
+  >
+>;
+
+export type _runtimeSnapshotShapes = Expect<
+  Equal<keyof RuntimeErrorSummary, "code" | "message" | "area"> &
+    Equal<keyof RuntimeModuleSnapshot, "id" | "ownerArea" | "status" | "error"> &
+    Equal<keyof StageRuntimeSnapshot, "status" | "modules" | "interfaceContract" | "error" | "cleanupErrors"> &
+    Equal<ForbiddenKeys<StageRuntimeSnapshot, "handlers" | "config" | "providerDescriptors" | "dbPath">, never>
 >;
 
 const sourceRef: Ref = {
