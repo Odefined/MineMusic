@@ -5,6 +5,7 @@ import {
   type InitializeMusicDatabaseInput,
   type MusicDatabase,
   type MusicDatabaseContext,
+  type MusicDatabaseParameter,
 } from "../database.js";
 import { initializeSqliteSchema } from "./schema.js";
 
@@ -19,7 +20,7 @@ type SqliteDatabaseState =
   | "initialization_failed"
   | "closed";
 
-type SqliteParameter = null | number | bigint | string | NodeJS.ArrayBufferView;
+type SqliteParameter = MusicDatabaseParameter;
 
 export class SqliteMusicDatabase implements MusicDatabase {
   private state: SqliteDatabaseState = "opened";
@@ -137,15 +138,15 @@ export class SqliteMusicDatabase implements MusicDatabase {
     this.state = "closed";
   }
 
-  private runSql(sql: string, params?: readonly unknown[]): void {
+  private runSql(sql: string, params?: readonly MusicDatabaseParameter[]): void {
     this.db.prepare(sql).run(...toSqliteParameters(params));
   }
 
-  private allSql<Row>(sql: string, params?: readonly unknown[]): readonly Row[] {
+  private allSql<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly Row[] {
     return this.db.prepare(sql).all(...toSqliteParameters(params)) as Row[];
   }
 
-  private getSql<Row>(sql: string, params?: readonly unknown[]): Row | undefined {
+  private getSql<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): Row | undefined {
     return this.db.prepare(sql).get(...toSqliteParameters(params)) as Row | undefined;
   }
 
@@ -225,7 +226,7 @@ export class SqliteMusicDatabase implements MusicDatabase {
   }
 }
 
-function toSqliteParameters(params: readonly unknown[] | undefined): SqliteParameter[] {
+function toSqliteParameters(params: readonly MusicDatabaseParameter[] | undefined): SqliteParameter[] {
   return [...(params ?? [])] as SqliteParameter[];
 }
 

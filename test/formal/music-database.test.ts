@@ -10,6 +10,7 @@ import {
   SqliteMusicDatabase,
   type MusicDatabase,
   type MusicDatabaseContext,
+  type MusicDatabaseParameter,
   type MusicDatabaseSchemaContribution,
 } from "../../src/storage/index.js";
 
@@ -27,6 +28,10 @@ export type _musicDatabaseContextShape = Expect<
 
 export type _musicDatabaseShape = Expect<
   Equal<keyof MusicDatabase, "initialize" | "context" | "transaction" | "close">
+>;
+
+export type _musicDatabaseParameterShape = Expect<
+  Equal<MusicDatabaseParameter, null | number | bigint | string | Uint8Array>
 >;
 
 assertDatabaseError(
@@ -60,10 +65,13 @@ orderedDatabase.initialize({
       context.run("CREATE TABLE unique_schema (id INTEGER PRIMARY KEY, label TEXT UNIQUE)");
       context.run("INSERT INTO unique_schema (label) VALUES (?)", ["duplicate"]);
     }),
+    schema("blob", schemaOrder, (context) => {
+      context.run("CREATE TABLE blob_schema (id INTEGER PRIMARY KEY, payload BLOB)");
+    }),
   ],
 });
 
-assert.deepEqual(schemaOrder, ["first", "second", "unique"]);
+assert.deepEqual(schemaOrder, ["first", "second", "unique", "blob"]);
 assertDatabaseError(
   () => orderedDatabase.initialize(),
   "storage.database_already_initialized",
@@ -89,6 +97,12 @@ assert.equal(
   pragmaContext.get<{ label: string }>("SELECT label FROM first_schema WHERE label = ?", ["missing"]),
   undefined,
 );
+
+const blobPayload = new Uint8Array([1, 2, 3]);
+pragmaContext.run("INSERT INTO blob_schema (payload) VALUES (?)", [blobPayload]);
+const storedBlob = pragmaContext.get<{ payload: Uint8Array }>("SELECT payload FROM blob_schema");
+assert.ok(storedBlob?.payload instanceof Uint8Array);
+assert.deepEqual(Array.from(storedBlob.payload), [1, 2, 3]);
 
 orderedDatabase.transaction((context) => {
   context.run("INSERT INTO first_schema (label) VALUES (?)", ["committed"]);

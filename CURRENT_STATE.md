@@ -98,8 +98,10 @@ Phase 4 Storage vocabulary includes:
 - `SqliteMusicDatabase` as a concrete SQLite adapter only;
 - raw SQLite primitives are confined to the SQLite adapter and storage
   boundary tests;
-- SQL execution through `run` / `all` / `get` with `sql + params`, without
-  public prepared statement objects or statement cache in Phase 4;
+- SQL execution through `run` / `all` / `get` with `sql + params`, where
+  params are limited to `null`, `number`, `bigint`, `string`, and
+  `Uint8Array`, without public prepared statement objects or statement cache
+  in Phase 4;
 - root-only transaction boundary through `MusicDatabase.transaction(...)`;
 - schema contribution runner as the Phase 4 initialization shape;
 - no default Server Host runtime storage wiring in Phase 4;

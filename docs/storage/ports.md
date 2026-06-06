@@ -11,7 +11,7 @@ provide music-domain repositories yet.
 | Port | Provided to | Capabilities | Code |
 | --- | --- | --- | --- |
 | `MusicDatabase` | Stage Core / Server Host composition roots and future commands | Obtain context, run root transaction, close database. | `src/storage/database.ts` |
-| `MusicDatabaseContext` | Future repositories and command callbacks | `run`, `all`, and `get` with parameter binding. | `src/storage/database.ts` |
+| `MusicDatabaseContext` | Future repositories and command callbacks | `run`, `all`, and `get` with `MusicDatabaseParameter` binding. | `src/storage/database.ts` |
 | `SqliteMusicDatabase` | Composition roots and storage tests | Concrete adapter backed by `node:sqlite` `DatabaseSync`. | `src/storage/sqlite/database.ts` |
 | Schema contribution runner | Owning area schema modules | Central idempotent initialization hook with explicit array order. | `src/storage/sqlite/schema.ts` |
 
@@ -28,9 +28,9 @@ provide music-domain repositories yet.
 | --- | --- | --- | --- | --- |
 | Open concrete database | `SqliteMusicDatabase.open({ filename })` | Opens storage handle | Composition roots/tests | Filename is explicit; no raw `DatabaseSync` leaves adapter. |
 | Initialize schema | `initialize(...)` | DDL | Composition roots/tests | Explicit call; runs pragmas and schema contributions only. |
-| Execute statement | `MusicDatabaseContext.run` | Write/DDL | Future repositories/schema modules | No rows returned. |
-| Read rows | `MusicDatabaseContext.all` | Read | Future repositories/query modules | Generic row type supplied by caller. |
-| Read optional row | `MusicDatabaseContext.get` | Read | Future repositories/query modules | Returns `undefined` when no row. |
+| Execute statement | `MusicDatabaseContext.run` | Write/DDL | Future repositories/schema modules | No rows returned; params are `null`, `number`, `bigint`, `string`, or `Uint8Array`. |
+| Read rows | `MusicDatabaseContext.all` | Read | Future repositories/query modules | Generic row type supplied by caller; params use the same scalar/blob union. |
+| Read optional row | `MusicDatabaseContext.get` | Read | Future repositories/query modules | Returns `undefined` when no row; params use the same scalar/blob union. |
 | Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Uses `BEGIN IMMEDIATE`; callback receives context only. |
 | Close database | `MusicDatabase.close` | Lifecycle | Composition roots/tests | Owns concrete handle lifetime. |
 

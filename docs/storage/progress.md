@@ -18,7 +18,8 @@ Accepted decisions:
   SQLite object;
 - `MusicDatabaseContext` exposes low-level SQL primitives `run`, `all`, and
   `get`;
-- `MusicDatabaseContext` supports SQL parameters through `sql + params`;
+- `MusicDatabaseContext` supports SQL parameters through `sql + params`, with
+  params limited to `null`, `number`, `bigint`, `string`, and `Uint8Array`;
 - Phase 4 does not expose prepared statement objects or statement cache;
 - transaction is root-only through `MusicDatabase.transaction(...)`;
 - `MusicDatabaseContext` does not expose `transaction(...)`;
@@ -85,7 +86,7 @@ Targeted storage tests cover:
 - in-memory SQLite open/initialize/close;
 - empty and blank filename rejection;
 - `run`, `all`, and `get`;
-- parameter binding;
+- parameter binding for the public scalar/blob parameter union;
 - root transaction commit;
 - rollback on thrown error;
 - database remains usable after successful rollback;

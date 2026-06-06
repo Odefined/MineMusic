@@ -72,10 +72,17 @@ type MusicDatabase = {
   close(): void;
 };
 
+type MusicDatabaseParameter =
+  | null
+  | number
+  | bigint
+  | string
+  | Uint8Array;
+
 type MusicDatabaseContext = {
-  run(sql: string, params?: readonly unknown[]): void;
-  all<T>(sql: string, params?: readonly unknown[]): readonly T[];
-  get<T>(sql: string, params?: readonly unknown[]): T | undefined;
+  run(sql: string, params?: readonly MusicDatabaseParameter[]): void;
+  all<T>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly T[];
+  get<T>(sql: string, params?: readonly MusicDatabaseParameter[]): T | undefined;
 };
 ```
 
@@ -196,7 +203,10 @@ The low-level context uses explicit method names:
 - `get` for optional single-row reads.
 
 The context supports parameter binding through `params`. Repositories should
-not concatenate values into SQL strings.
+not concatenate values into SQL strings. Bound parameters are limited to
+`null`, `number`, `bigint`, `string`, and `Uint8Array`; higher-level
+repositories must serialize booleans, dates, objects, and arrays before they
+reach `MusicDatabaseContext`.
 
 ## Prepared Statement Boundary
 
@@ -278,6 +288,8 @@ Storage Provider, migration ledger, or cross-adapter SQL subset.
    - Guard pre-initialization, repeated initialization, initialization failure,
      close, active transaction, and closed-handle states.
    - Implement `run`, `all`, and `get` with `sql + params`.
+   - Keep params narrowed to the public `MusicDatabaseParameter` scalar/blob
+     union.
    - Implement root-only `BEGIN IMMEDIATE` transaction with rollback and
      rethrow behavior.
 
@@ -342,7 +354,7 @@ Targeted tests should cover:
 
 - in-memory SQLite database open/initialize/close;
 - `run`, `all`, and `get`;
-- parameter binding;
+- parameter binding for the public scalar/blob parameter union;
 - transaction commit;
 - transaction rollback on thrown error;
 - schema contribution runner ordering;

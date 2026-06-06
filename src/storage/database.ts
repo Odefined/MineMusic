@@ -1,4 +1,9 @@
-export type MusicDatabaseParameter = unknown;
+export type MusicDatabaseParameter =
+  | null
+  | number
+  | bigint
+  | string
+  | Uint8Array;
 
 export type MusicDatabaseContext = {
   run(sql: string, params?: readonly MusicDatabaseParameter[]): void;

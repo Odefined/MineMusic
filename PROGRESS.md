@@ -145,8 +145,9 @@ Phase 4 implements the generic Music Database foundation:
   SQLite adapter and storage boundary tests;
 - future repositories and commands receive `MusicDatabaseContext`;
 - `MusicDatabaseContext` exposes `run`, `all`, and `get`;
-- `MusicDatabaseContext` uses `sql + params` and does not expose prepared
-  statement objects or statement cache in Phase 4;
+- `MusicDatabaseContext` uses `sql + params`, limits params to `null`,
+  `number`, `bigint`, `string`, and `Uint8Array`, and does not expose
+  prepared statement objects or statement cache in Phase 4;
 - transactions are root-only and do not support nested transaction/savepoint
   behavior in Phase 4;
 - schema initialization uses a contribution runner only;
@@ -176,9 +177,10 @@ Phase 4 implements the generic Music Database foundation:
 - Phase 4 initialization sets only `foreign_keys = ON`, `journal_mode = WAL`,
   and `synchronous = NORMAL`;
 - no new ADR is required for Phase 4;
-- tests cover storage lifecycle, SQL parameter binding, root transaction
-  commit/rollback, schema contribution ordering, raw SQLite boundary guards,
-  and unchanged default Server Host runtime composition;
+- tests cover storage lifecycle, SQL parameter binding for the public
+  scalar/blob parameter union, root transaction commit/rollback, schema
+  contribution ordering, raw SQLite boundary guards, and unchanged default
+  Server Host runtime composition;
 - Phase 4 does not introduce source/material/canonical tables, aliases,
   command audit, owner facts, projections, provider adapters, query, or Stage
   Interface tools.

@@ -28,10 +28,17 @@ type MusicDatabase = {
   close(): void;
 };
 
+type MusicDatabaseParameter =
+  | null
+  | number
+  | bigint
+  | string
+  | Uint8Array;
+
 type MusicDatabaseContext = {
-  run(sql: string, params?: readonly unknown[]): void;
-  all<T>(sql: string, params?: readonly unknown[]): readonly T[];
-  get<T>(sql: string, params?: readonly unknown[]): T | undefined;
+  run(sql: string, params?: readonly MusicDatabaseParameter[]): void;
+  all<T>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly T[];
+  get<T>(sql: string, params?: readonly MusicDatabaseParameter[]): T | undefined;
 };
 ```
 
@@ -140,8 +147,11 @@ not report `journal_mode = WAL`; tests should not treat that as failure.
 
 ## SQL Method Rules
 
-`run`, `all`, and `get` support parameter binding through `params`. Repositories
-must not build SQL by interpolating untrusted values.
+`run`, `all`, and `get` support parameter binding through `params`. Bound
+parameters are limited to `null`, `number`, `bigint`, `string`, and
+`Uint8Array`. Repositories must serialize booleans, dates, objects, and arrays
+before they reach `MusicDatabaseContext`, and must not build SQL by
+interpolating untrusted values.
 
 Phase 4 does not expose prepared statement objects or statement cache through
 `MusicDatabaseContext`. If statement caching becomes necessary later, it can be
