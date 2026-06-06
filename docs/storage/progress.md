@@ -143,7 +143,11 @@ Current planning intentionally does not implement:
 
 ## Next Candidate Slice
 
-Implement Phase 4 exactly as
-`docs/formal-rebuild/phase-4-music-database-foundation.md` defines it, then
-return to discuss whether the next slice is provider conformance or Music Data
-Platform identity write model.
+Storage Phase 4 is complete. The next project slice should be selected outside
+this Storage progress ledger.
+
+Current sequencing recommendation: discuss and write the Phase 5 Music Data
+Platform identity write model before provider rewrite, query, presentation, or
+Stage Interface tools. Storage should provide the generic database boundary and
+schema contribution runner only; source/material/canonical identity semantics
+belong to Music Data Platform.
