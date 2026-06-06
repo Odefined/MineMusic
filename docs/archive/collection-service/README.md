@@ -1,14 +1,14 @@
 # Collection Service Archive
 
 This directory preserves historical Collection Service implementation planning
-evidence after current facts were extracted into active authority documents.
+evidence.
 
-Use current documents for active behavior:
+Use current formal authority for active behavior:
 
-- `docs/collection-service/design.md`
-- `docs/collection-service/ports.md`
-- `docs/collection-service/progress.md`
-- `docs/maintenance/architecture-inconsistency-log.md`
+- `ARCHITECTURE.md`
+- `CURRENT_STATE.md`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 Archived documents are evidence only. They are not current implementation
 authority.

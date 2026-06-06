@@ -1,7 +1,7 @@
 # MVP Archive
 
 This archive preserves the original MVP documentation baseline after current
-authority moved to root and area-specific documents.
+authority moved to formal root documents, formal ADRs, and source contracts.
 
 Current authority:
 
@@ -9,8 +9,8 @@ Current authority:
 - `ARCHITECTURE.md`
 - `CURRENT_STATE.md`
 - `INDEX.md`
-- `docs/stage-interface/tool-contracts.md`
-- area `design.md`, `ports.md`, and `progress.md` documents
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 | Document | Archived on | Superseded by | Use only for | Related inconsistencies |
 | --- | --- | --- | --- | --- |

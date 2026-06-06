@@ -21,10 +21,8 @@ and archived documentation evidence.
 - `PROGRESS.md`: project-level milestone index.
 - `CONTEXT.md`: pre-formal vocabulary file; not formal rebuild authority unless
   explicitly refreshed later.
-- `docs/maintenance/documentation-alignment-audit.md`: documentation sweep
-  disposition ledger.
-- `docs/maintenance/architecture-inconsistency-log.md`: architecture
-  inconsistency ledger.
+- `docs/maintenance/documentation-architecture.md`: active documentation
+  structure rules.
 
 Historical MVP proposal, MVP baseline docs, root plans, Stage Core refactor
 plans, and architecture review evidence are archived under `docs/archive/`.

@@ -106,9 +106,9 @@ restored as compatibility layers.
   and owner relation source-of-truth split.
 - Old root architecture/state/progress snapshots are archived under
   `docs/archive/root/formal-rebuild-2026-06-06/`.
-- Existing area docs that still describe MVP resolve, ephemeral material,
-  public canonical review, or old query paths are superseded for formal target
-  authority until their owning formal phase rewrites them.
+- Pre-formal active area docs, host-adapter docs, provider docs, and operations
+  docs were removed from active `docs/`. Evidence remains in `docs/archive/`
+  and git history only.
 
 `CONTEXT.md` was not edited in Phase 0. If it is updated later by explicit user
 request, it should be stable glossary only, not migration status or temporary

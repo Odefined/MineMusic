@@ -36,27 +36,30 @@ Each archived document must begin with the required notice from
 `Related inconsistencies` may be omitted when the archived document is not tied
 to an open architecture inconsistency. The other fields are required.
 
-Archive area README files should point back to the current authority documents
-and list archived documents with their superseding targets.
+Archive area README files should point back to current formal authority and
+list archived documents with their superseding targets. After the Phase 1
+active-tree reset, pre-formal area docs are not active authority; use root
+formal architecture, formal vocabulary, phase docs, and source contracts
+instead.
 
 ## Archived Areas
 
 | Area | Current authority | Archive README | Notes |
 | --- | --- | --- | --- |
 | Root Proposal And Plans | `README.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`, `INDEX.md`, `PROGRESS.md`, `docs/maintenance/documentation-alignment-plan.md` | `docs/archive/root/README.md` | Phase 6 archived historical root proposal and planning evidence. |
-| MVP Baseline | `README.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`, `INDEX.md`, area current authority documents | `docs/archive/mvp/README.md` | Phase 6 archived original MVP documentation baseline. |
-| Architecture Reviews | `ARCHITECTURE.md`, accepted ADRs, Stage Core/Stage Interface current docs | `docs/archive/architecture-reviews/README.md` | Phase 6 archived historical architecture-review evidence. |
-| Stage Core | `docs/stage-core/design.md`, `docs/stage-core/ports.md`, `docs/stage-core/progress.md`, `ARCHITECTURE.md` | `docs/archive/stage-core/README.md` | Phase 6 archived historical Stage Core Runtime Kit planning evidence. |
-| Stage Interface | `docs/stage-interface/design.md`, `docs/stage-interface/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/stage-interface/README.md` | Phase 1 archived completed tool-contract and language-normalization planning evidence. |
-| Material Flow | `docs/material/design.md`, `docs/material/ports.md`, `docs/material/projection-materialization.md`, `docs/material/progress.md` | `docs/archive/material/README.md` | Phase 2 archived historical material design, review, and PR-plan evidence. |
-| Recommendation | `docs/material/design.md`, `docs/material/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` | `docs/archive/recommendation/README.md` | Phase 2 archived historical recommendation posture planning evidence. |
-| Material Store | `docs/material-store/design.md`, `docs/material-store/ports.md`, `docs/material-store/progress.md` | `docs/archive/material-store/README.md` | Phase 3 archived historical Material Store implementation planning evidence. |
-| Canonical Store | `docs/canonical-store/design.md`, `docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`, `docs/canonical-store/storage-model.md`, `docs/canonical-store/progress.md` | `docs/archive/canonical-store/README.md` | Phase 3 archived historical Canonical Store implementation and provisional review evidence. |
-| Collection Service | `docs/collection-service/design.md`, `docs/collection-service/ports.md`, `docs/collection-service/progress.md` | `docs/archive/collection-service/README.md` | Phase 4 archived historical Collection Service implementation planning evidence. |
-| Library Import | `docs/library-import/design.md`, `docs/library-import/ports.md`, `docs/library-import/progress.md` | `docs/archive/library-import/README.md` | Phase 4 archived historical Library Import implementation planning evidence. |
-| Platform Library Provider | `docs/platform-library-provider/design.md`, `docs/platform-library-provider/progress.md`, `docs/source-providers/netease.md`, `docs/library-import/design.md` | `docs/archive/platform-library-provider/README.md` | Phase 5 archived historical NetEase platform-library provider implementation planning evidence. |
-| Knowledge Slot | `docs/knowledge-slot/design.md`, `docs/knowledge-slot/musicbrainz-provider.md`, `docs/knowledge-slot/progress.md` | `docs/archive/knowledge-slot/README.md` | Phase 5 archived historical Knowledge Slot implementation planning evidence. |
-| Host Adapters | `docs/host-adapters/codex-skill.md`, `docs/operations/minemusic-server-launchd.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md` | `docs/archive/host-adapters/README.md` | Phase 5 archived historical server/MCP host-boundary planning evidence. |
+| MVP Baseline | `README.md`, `ARCHITECTURE.md`, `CURRENT_STATE.md`, `INDEX.md`, `docs/formal-project-glossary.md` | `docs/archive/mvp/README.md` | Phase 6 archived original MVP documentation baseline. |
+| Architecture Reviews | `ARCHITECTURE.md`, formal ADRs, `docs/formal-rebuild/`, `src/contracts/index.ts` | `docs/archive/architecture-reviews/README.md` | Phase 6 archived historical architecture-review evidence. |
+| Stage Core | `ARCHITECTURE.md`, `CURRENT_STATE.md`, `src/stage_core/index.ts`, `test/formal/stage-runtime.test.ts` | `docs/archive/stage-core/README.md` | Historical Stage Core Runtime Kit planning evidence. |
+| Stage Interface | `ARCHITECTURE.md`, `CURRENT_STATE.md`, `src/stage_interface/index.ts`, `test/formal/stage-runtime.test.ts` | `docs/archive/stage-interface/README.md` | Historical tool-contract and language-normalization planning evidence. |
+| Material Flow | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/material/README.md` | Historical material design, review, and PR-plan evidence. |
+| Recommendation | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/recommendation/README.md` | Historical recommendation posture planning evidence. |
+| Material Store | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/material-store/README.md` | Historical Material Store implementation planning evidence. |
+| Canonical Store | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/canonical-store/README.md` | Historical Canonical Store implementation and provisional review evidence. |
+| Collection Service | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/collection-service/README.md` | Historical Collection Service implementation planning evidence. |
+| Library Import | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/library-import/README.md` | Historical Library Import implementation planning evidence. |
+| Platform Library Provider | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/platform-library-provider/README.md` | Historical provider implementation planning evidence. |
+| Knowledge Slot | `ARCHITECTURE.md`, `docs/formal-project-glossary.md`, `src/contracts/index.ts` | `docs/archive/knowledge-slot/README.md` | Historical Knowledge Slot implementation planning evidence. |
+| Host Adapters | `ARCHITECTURE.md`, `CURRENT_STATE.md`, `src/server/index.ts` | `docs/archive/host-adapters/README.md` | Historical server/MCP host-boundary planning evidence. |
 
 ## Docs Guard Status
 

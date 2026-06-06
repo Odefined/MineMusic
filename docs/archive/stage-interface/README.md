@@ -2,11 +2,11 @@
 
 ## Current Authority
 
-- Current design: `docs/stage-interface/design.md`
-- Current ports: `docs/stage-interface/ports.md`
-- Current public tool contracts: `docs/stage-interface/tool-contracts.md`
-- Current progress: `docs/stage-interface/progress.md`
 - Global architecture: `ARCHITECTURE.md`
+- Current state: `CURRENT_STATE.md`
+- Formal contracts: `src/contracts/index.ts`
+- Stage Interface skeleton: `src/stage_interface/index.ts`
+- Formal tests: `test/formal/stage-runtime.test.ts`
 
 ## Archived Documents
 

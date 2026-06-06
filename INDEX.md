@@ -1,8 +1,7 @@
 # MineMusic Index
 
-This index points to current formal authority documents. Archived and
-superseded evidence lives under `docs/archive/` or in explicitly marked
-pre-formal area documents. Evidence is not current authority.
+This index points to current formal authority documents. Archived evidence
+lives under `docs/archive/` or git history. Evidence is not current authority.
 
 ## Root Authority
 
@@ -46,10 +45,10 @@ formal target is controlled by the formal ADRs above.
 - `docs/adr/0002-material-store-boundary.md`
 - `docs/adr/0003-materialref-backed-collections.md`
 
-## Maintenance
+## Maintenance Evidence
 
 - `docs/maintenance/documentation-architecture.md`: documentation structure
-  rules for root docs, area docs, ports, archive notices, and docs guard scope.
+  rules from the pre-formal documentation sweep.
 - `docs/maintenance/documentation-alignment-audit.md`: pre-formal
   document-disposition ledger.
 - `docs/maintenance/architecture-inconsistency-log.md`: pre-formal
@@ -60,24 +59,12 @@ formal target is controlled by the formal ADRs above.
 - `docs/maintenance/dead-code-compatibility-cleanup-plan.md`: pre-formal
   cleanup plan.
 
-## Pre-Formal Area Evidence
+## Removed Active Area Docs
 
-Existing area docs under these folders describe MVP-era implementation and are
-not formal target authority until their owning formal phase rewrites them:
-
-- `docs/stage-core/`
-- `docs/stage-interface/`
-- `docs/material/`
-- `docs/material-search/`
-- `docs/material-store/`
-- `docs/canonical-store/`
-- `docs/collection-service/`
-- `docs/library-import/`
-- `docs/platform-library-provider/`
-- `docs/source-providers/`
-- `docs/knowledge-slot/`
-- `docs/host-adapters/`
-- `docs/operations/`
+Pre-formal area docs were removed from active `docs/` during Phase 1. Their
+old content remains available only through `docs/archive/` or git history.
+Future area docs should be rebuilt directly from the formal architecture and
+contracts when their owning phase starts.
 
 ## Source Entrypoints
 

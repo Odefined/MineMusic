@@ -1,18 +1,14 @@
 # Canonical Store Archive
 
 This directory preserves historical Canonical Store designs, implementation
-plans, provisional review drafts, and handoff notes after current facts were
-extracted into active authority documents.
+plans, provisional review drafts, and handoff notes.
 
-Use current documents for active behavior:
+Use current formal authority for active behavior:
 
-- `docs/canonical-store/design.md`
-- `docs/canonical-store/ports.md`
-- `docs/canonical-store/provisional-review.md`
-- `docs/canonical-store/storage-model.md`
-- `docs/canonical-store/progress.md`
-- `docs/material-store/design.md`
-- `docs/material-store/ports.md`
+- `ARCHITECTURE.md`
+- `CURRENT_STATE.md`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 Archived documents are evidence only. They are not current implementation
 authority.

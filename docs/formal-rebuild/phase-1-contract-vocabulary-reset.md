@@ -24,6 +24,9 @@ Implemented on 2026-06-06:
 - `src/stage_interface/index.ts`, `src/stage_core/index.ts`, and
   `src/server/index.ts` provide only a minimal formal skeleton needed to compile
   and test the reset.
+- Pre-formal active area docs, host-adapter docs, provider docs, and operations
+  docs were deleted from active `docs/`; evidence remains in archive/git
+  history only.
 - `test/formal/formal-contracts.test.ts` verifies contract shapes and ref
   runtime validation.
 - `test/formal/active-tree.test.ts` verifies old MVP roots and deleted
@@ -75,21 +78,19 @@ own their meaning.
 ### Allowed Reads
 
 - `src/contracts/index.ts`
-- `src/providers/**`
-- `src/source/**`
-- `src/material/**`
-- `src/stage_interface/outputs/**`
-- `src/stage_interface/tool_definitions/**`
-- Existing contract, provider, and architecture tests
-- Phase 0 formal glossary and accepted ADRs after they exist
+- `src/stage_interface/index.ts`
+- `src/stage_core/index.ts`
+- `src/server/index.ts`
+- Formal contract and active-tree tests
+- Phase 0 formal glossary and accepted ADRs
 
 ### Allowed Writes
 
 - `src/contracts/index.ts`
 - Contract tests
 - Architecture tests or guards for forbidden imports and exact allowed keys
-- Minimal provider/type import updates needed to compile against the new
-  contract vocabulary
+- Minimal Stage Interface/Core/Server skeleton needed to compile against the
+  new contract vocabulary
 - Documentation that records the new contract vocabulary and boundaries
 
 ### Forbidden Writes

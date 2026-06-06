@@ -1,14 +1,13 @@
 # Platform Library Provider Archive
 
-This archive preserves historical Platform Library Provider planning evidence
-after current facts have been extracted into active authority documents.
+This archive preserves historical Platform Library Provider planning evidence.
 
 Current authority:
 
-- `docs/platform-library-provider/design.md`
-- `docs/platform-library-provider/progress.md`
-- `docs/source-providers/netease.md`
-- `docs/library-import/design.md`
+- `ARCHITECTURE.md`
+- `CURRENT_STATE.md`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 | Document | Archived on | Superseded by | Use only for | Related inconsistencies |
 | --- | --- | --- | --- | --- |

@@ -1,14 +1,15 @@
 # Stage Core Archive
 
-This archive preserves historical Stage Core Runtime Kit planning evidence after
-current authority moved to active Stage Core docs and root architecture.
+This archive preserves historical Stage Core Runtime Kit planning evidence.
+After the Phase 1 active-tree reset, current authority moved to root formal
+architecture and the minimal Stage Core skeleton.
 
 Current authority:
 
-- `docs/stage-core/design.md`
-- `docs/stage-core/ports.md`
-- `docs/stage-core/progress.md`
 - `ARCHITECTURE.md`
+- `CURRENT_STATE.md`
+- `src/stage_core/index.ts`
+- `test/formal/stage-runtime.test.ts`
 
 | Document | Archived on | Superseded by | Use only for | Related inconsistencies |
 | --- | --- | --- | --- | --- |

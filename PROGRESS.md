@@ -64,6 +64,9 @@ Phase 1 resets active code instead of patching the MVP runtime:
   against the formal contracts;
 - tests guard against old MVP runtime roots and deleted vocabulary returning to
   active source.
+- pre-formal active area docs, host-adapter docs, provider docs, and operations
+  docs were removed from active `docs/`; future area docs must be rebuilt by
+  their owning formal phase.
 
 Phase 1 intentionally does not implement query engine behavior, query hit
 output shape, query-to-present flow, final `MaterialCard` key set, provider

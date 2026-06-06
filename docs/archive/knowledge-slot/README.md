@@ -1,16 +1,14 @@
 # Knowledge Slot Archive
 
 This archive preserves historical Knowledge Slot implementation planning
-evidence after current facts have been extracted into active authority
-documents.
+evidence.
 
 Current authority:
 
-- `docs/knowledge-slot/design.md`
-- `docs/knowledge-slot/musicbrainz-provider.md`
-- `docs/knowledge-slot/progress.md`
 - `ARCHITECTURE.md`
 - `CURRENT_STATE.md`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 | Document | Archived on | Superseded by | Use only for | Related inconsistencies |
 | --- | --- | --- | --- | --- |

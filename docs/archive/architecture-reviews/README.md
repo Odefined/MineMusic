@@ -1,15 +1,15 @@
 # Architecture Reviews Archive
 
 This archive preserves historical architecture-review evidence after current
-authority moved to accepted ADRs, root architecture, and area authority docs.
+authority moved to formal ADRs, root architecture, and source contracts.
 
 Current authority:
 
 - `ARCHITECTURE.md`
-- `docs/adr/0001-stage-core-runtime-composition.md`
-- `docs/stage-core/design.md`
-- `docs/stage-interface/design.md`
-- `docs/stage-interface/tool-contracts.md`
+- `CURRENT_STATE.md`
+- `docs/formal-rebuild/`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 | Document | Archived on | Superseded by | Use only for | Related inconsistencies |
 | --- | --- | --- | --- | --- |

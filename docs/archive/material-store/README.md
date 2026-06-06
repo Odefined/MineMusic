@@ -1,16 +1,14 @@
 # Material Store Archive
 
 This directory preserves historical Material Store implementation planning
-evidence after current facts were extracted into active authority documents.
+evidence.
 
-Use current documents for active behavior:
+Use current formal authority for active behavior:
 
-- `docs/material-store/design.md`
-- `docs/material-store/ports.md`
-- `docs/material-store/progress.md`
-- `docs/canonical-store/design.md`
-- `docs/canonical-store/ports.md`
-- `docs/canonical-store/progress.md`
+- `ARCHITECTURE.md`
+- `CURRENT_STATE.md`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 Archived documents are evidence only. They are not current implementation
 authority.

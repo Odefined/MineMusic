@@ -1,11 +1,17 @@
 # Documentation Architecture
 
-This document records the agreed documentation structure for MineMusic before
-the documentation/code alignment sweep.
+> Status: Formal rebuild documentation rule
+> Scope: Active documentation structure after the Phase 1 active-tree reset
 
-It is an operating rule for project documentation. It is not a replacement for
-`ARCHITECTURE.md`, module design documents, ADRs, or implementation progress
-ledgers.
+This document records how MineMusic documentation should be organized during
+the formal rebuild. It is an operating rule for project documentation. It is
+not a replacement for `ARCHITECTURE.md`, formal ADRs, source contracts, or
+implementation progress ledgers.
+
+The Phase 1 reset removed pre-formal active area docs and old runtime code from
+the active tree. That reset changes which documents are current authority, but
+it does not remove the durable documentation rules: separate stable design,
+current state, port boundaries, archived evidence, and execution history.
 
 ## Goals
 
@@ -13,7 +19,28 @@ ledgers.
 - Keep historical plans searchable without letting them act as current truth.
 - Separate stable design, current implementation state, port boundaries, and
   execution history.
-- Make documentation/code alignment reviewable area by area.
+- Make future formal phases reviewable area by area.
+- Prevent old MVP runtime concepts from re-entering active docs as
+  compatibility language.
+
+## Authority Layers
+
+Use documentation in this order:
+
+1. `ARCHITECTURE.md` for global ownership, area taxonomy, import direction, and
+   public-surface principles.
+2. Formal ADRs, currently `docs/adr/0004-*` and later, for accepted durable
+   decisions.
+3. `docs/formal-project-glossary.md` for formal vocabulary.
+4. Implemented source contracts, currently `src/contracts/index.ts`, for
+   executable contract truth.
+5. Area docs created by a later formal phase for that phase's owned scope.
+6. `docs/archive/**`, older ADRs, and maintenance ledgers as evidence only.
+
+Old documents must be translated through the current formal vocabulary before
+they can influence new design. Do not copy old terms such as deleted public
+tools, deleted material handles, or old runtime module names into current
+authority.
 
 ## Root Documents
 
@@ -22,34 +49,77 @@ short enough to route readers to the right current document.
 
 | Document | Responsibility |
 | --- | --- |
-| `README.md` | Human entrypoint and concise product orientation. |
+| `README.md` | Human entrypoint, concise product orientation, and current runnable skeleton summary. |
 | `INDEX.md` | Current authority map, not a complete file inventory. |
 | `AGENTS.md` | Repository operating rules for agents. |
-| `CONTEXT.md` | Project glossary only; no implementation details or status. |
-| `ARCHITECTURE.md` | Single global architecture authority: layer model, ownership, import direction, and public-surface principles. |
-| `CURRENT_STATE.md` | Project-level current implementation summary and major open risks; links to area progress files for detail. |
+| `CONTEXT.md` | Pre-formal vocabulary file; not formal rebuild authority unless explicitly refreshed later. |
+| `ARCHITECTURE.md` | Single global architecture authority: area model, ownership, import direction, and public-surface principles. |
+| `CURRENT_STATE.md` | Project-level current implementation summary and major active gaps. |
 | `PROGRESS.md` | Project-level milestone index explaining how the current state changed; no fine-grained implementation ledger. |
 
-`ARCHITECTURE.md` remains the single global architecture authority. Do not
-split global architecture truth across competing `docs/architecture/*.md`
-documents. If the file becomes long, improve its table of contents and section
-anchors before creating another global authority.
+`ARCHITECTURE.md` remains the single global architecture authority. Do not split
+global architecture truth across competing `docs/architecture/*.md` documents.
+If the file becomes long, improve its table of contents and section anchors
+before creating another global authority.
 
 `INDEX.md` should answer:
 
 - where a new reader starts;
-- where each area current authority lives;
+- where current formal authority lives;
 - where accepted decisions live;
-- where historical material lives.
+- where historical material lives;
+- which active source entrypoints exist after the formal reset.
 
-It should not list every archived document or every source file.
+It should not list every archived document or every deleted source file.
+
+## Formal Rebuild Documents
+
+`docs/formal-rebuild/` stores phase specs and implemented phase status. A phase
+spec may contain planning detail, but a completed phase is not current
+architecture by itself until the accepted decisions are also reflected in root
+authority, ADRs, source contracts, or new area docs.
+
+Each phase document should state:
+
+- goal;
+- non-goals;
+- owning context or formal area;
+- allowed reads;
+- allowed writes;
+- forbidden writes/imports;
+- expected source/docs/tests;
+- guards;
+- verification;
+- acceptance criteria;
+- implemented status once complete.
+
+Phase specs must not become a hidden substitute for `CURRENT_STATE.md` or
+`PROGRESS.md`.
 
 ## Area Documents
 
-Current authority for bounded contexts and long-lived areas lives under
-`docs/<area>/`.
+Pre-formal area docs were removed from active `docs/` during Phase 1:
 
-Standard current-authority document types:
+- `docs/stage-core/`
+- `docs/stage-interface/`
+- `docs/material/`
+- `docs/material-search/`
+- `docs/material-store/`
+- `docs/canonical-store/`
+- `docs/collection-service/`
+- `docs/library-import/`
+- `docs/platform-library-provider/`
+- `docs/source-providers/`
+- `docs/knowledge-slot/`
+- `docs/host-adapters/`
+- `docs/operations/`
+
+Future area docs may be introduced only when the owning formal phase starts.
+Do not restore old area docs as compatibility documentation. Use old area docs
+only as evidence and extract still-valid ideas into the new formal area's
+language.
+
+Standard current-authority document types for future formal areas:
 
 | Document | Responsibility |
 | --- | --- |
@@ -61,14 +131,15 @@ Standard current-authority document types:
 
 Implementation plans, PR plans, execution plans, handoff notes, review notes,
 draft version documents, and `*_final.md` files are not current authority. They
-should be extracted into current documents when useful and then archived.
+should be extracted into current documents when useful and then archived or
+left as evidence.
 
 Current authority documents may keep stable design rationale and durable
 trade-offs, but they must not preserve execution history. For example,
 `design.md` may explain why a boundary exists, and `ports.md` may explain why a
 consumer receives a narrow port. PR sequencing, phase tasks, review backstory,
-and migration play-by-play belong in archive or `PROGRESS.md` milestone
-summaries, not in current design or ports documents.
+and migration play-by-play belong in archive, phase implementation notes, or
+`PROGRESS.md` milestone summaries, not in current design or ports documents.
 
 ## Ports Documents
 
@@ -77,15 +148,17 @@ explicit in both directions.
 
 Each `ports.md` should include:
 
-- ports this area provides;
+- ports or interfaces this area provides;
 - which areas consume each provided port;
-- ports this area consumes;
+- ports or interfaces this area consumes;
 - which area provides each consumed port;
 - read capabilities used by each consumed port;
 - write capabilities used by each consumed port;
 - forbidden broad ports, writer ports, modules, and import directions;
-- source code anchors, usually in `src/ports/index.ts`;
-- composition points, usually in `src/stage_core/**` or a harness;
+- source code anchors, usually in `src/contracts/index.ts`, future area source,
+  or a future `src/ports/**` module;
+- composition points, usually in `src/stage_core/**`, `src/server/**`, or a
+  test harness;
 - architecture/type/import guards that prevent boundary regression.
 
 Store, repository, and narrow capability ports should list capabilities at
@@ -121,89 +194,56 @@ Recommended shape:
 ## Guards
 ```
 
-Areas that should have `ports.md` in the first alignment pass:
+A new boundary is incomplete until there is a guard when feasible: forbidden
+import tests, exact key-set type assertions, public-output leak tests, or a
+test proving writer capability appears only behind the intended port.
 
-- `docs/stage-core/ports.md`
-- `docs/stage-interface/ports.md`
-- `docs/material/ports.md`
-- `docs/material-store/ports.md`
-- `docs/canonical-store/ports.md`
-- `docs/collection-service/ports.md`
-- `docs/library-import/ports.md`
+## Stage Interface Docs
 
-## Stage Interface Public Surface
+Stage Interface owns agent-facing instruments, tools, schemas, Handbook,
+validation, compact public outputs, dispatch, and session-aware availability.
 
-The current authority for agent-facing, MCP-facing, and Codex-skill-facing
-tool behavior belongs under Stage Interface:
+During Phase 1, active Stage Interface code is only the minimal skeleton in
+`src/stage_interface/index.ts`. There is no active formal tool-catalog doc yet.
+When a later Stage Interface phase starts, its docs should rebuild:
 
-```text
-docs/stage-interface/
-  design.md
-  ports.md
-  tool-contracts.md
-  progress.md
-```
-
-`docs/stage-interface/tool-contracts.md` owns:
-
-- Stage Interface tool groups;
-- public tool names;
+- instrument catalog;
+- tool registry;
 - public input/output schema policy;
 - compact output policy;
-- MCP schema parity rules;
-- Codex skill Handbook/tool-surface relationship;
-- agent-facing `materialId` handle rules;
-- forbidden public leaks such as internal `materialRef`, raw provider payloads,
-  and internal storage rows.
+- host transport parity rules;
+- Handbook relationship;
+- public handle policy;
+- forbidden public leaks such as internal records, raw provider payloads, and
+  storage rows.
 
-`ARCHITECTURE.md` keeps only the global principles: Stage Interface is the
-stable callable surface, MCP and Codex consume Stage Interface definitions, and
-domain modules must not own agent-facing DTOs.
+Do not restore old tool names or old host/MCP docs just because archived docs
+mention them.
 
-## Material Documentation Split
+## Music Data Docs
 
-Material flow and material state remain separate documentation areas.
+Music Data Platform owns source/material/canonical identity, storage records,
+bindings, owner-scoped fact families, library import/update persistence,
+projections, and canonical maintenance.
 
-```text
-docs/material/
-  design.md
-  ports.md
-  projection-materialization.md
-  progress.md
+During Phase 1, active music-data truth is limited to the contracts in
+`src/contracts/index.ts`. Future Music Data Platform docs should be rebuilt
+around the formal vocabulary:
 
-docs/material-store/
-  design.md
-  ports.md
-  progress.md
-```
+- `SourceEntity` / `SourceRecord`;
+- `MaterialEntity` / `MaterialRecord`;
+- `CanonicalEntity` / `CanonicalRecord`;
+- provider candidates as source facts, not material identity;
+- owner fact families and Collection boundaries;
+- canonical maintenance as an owned capability, not a public formal v1 tool
+  surface.
 
-`docs/material/` owns Material Resolve, Query, Related, Policy, Sort, Select,
-Projection, Materialization, and Recommendation Presentation flow boundaries.
-
-`docs/material-store/` owns Material Registry, Source Entity Store, Source
-Library, canonical-store integration, material relations, material activity,
-and durable material state.
-
-`docs/canonical-store/` remains an independent documentation area because
-canonical identity maintenance and provisional review are complex enough to
-need their own current authority:
-
-```text
-docs/canonical-store/
-  design.md
-  ports.md
-  provisional-review.md
-  progress.md
-```
-
-Canonical Store must still be documented as the canonical identity subdomain
-inside Material Store. Its ports are not ordinary broad dependencies for all
-flows; explicit Canonical Maintenance workflows are the exception.
+Do not restore deleted public/domain surfaces as current docs.
 
 ## Archive
 
-Archive is not a file dump. It must preserve historical evidence while clearly
-marking that the archived documents are not current authority.
+Archive is not a file dump. It preserves historical evidence while clearly
+marking that archived documents are not current authority.
 
 ```text
 docs/archive/
@@ -219,9 +259,9 @@ Each archive area `README.md` should include:
 ```markdown
 ## Current Authority
 
-- Current design: ...
-- Current progress: ...
-- Global architecture: ...
+- Root architecture: ...
+- Current state: ...
+- Formal contracts or phase docs: ...
 
 ## Archived Documents
 
@@ -229,7 +269,8 @@ Each archive area `README.md` should include:
 | --- | --- | --- | --- | --- |
 ```
 
-Each archived document must begin with this archive notice format:
+Each archived document should begin with this archive notice format when
+practical:
 
 ```markdown
 > Status: Archived
@@ -240,310 +281,74 @@ Each archived document must begin with this archive notice format:
 > Related inconsistencies: `AI-001`, `AI-004`
 ```
 
-`Related inconsistencies` is optional when the archived document is unrelated to
-any architecture inconsistency. Every other archive-notice field is required.
+`Related inconsistencies` is optional when the archived document is unrelated
+to any architecture inconsistency. Every other archive-notice field should be
+present for moved archive documents.
 
-Before archiving, extract still-current terminology, accepted boundary
-decisions, acceptance criteria, and verification lessons into current authority
-documents or ADRs.
+Before archiving or deleting active docs, extract still-current terminology,
+accepted boundary decisions, acceptance criteria, and verification lessons into
+current authority documents, formal ADRs, or phase specs.
 
 If old documentation contains useful content but no current authority document
-clearly owns it, resolve the owner as part of extraction. Do not archive or mark
-the item blocked merely because ownership is unclear. Use the responsibility
-rules in this document to choose or create the right current authority:
+clearly owns it, resolve the owner as part of extraction. Use these ownership
+rules:
 
-- glossary term -> `CONTEXT.md`;
-- global ownership, layer, import-direction, or public-surface principle ->
+- formal glossary term -> `docs/formal-project-glossary.md`;
+- global ownership, area, import-direction, or public-surface principle ->
   `ARCHITECTURE.md`;
-- accepted durable trade-off -> ADR;
-- stable area design or flow -> `docs/<area>/design.md`;
-- provided/consumed ports or read/write capabilities -> `docs/<area>/ports.md`;
-- current implementation state or verification status ->
-  `docs/<area>/progress.md`;
-- public Stage Interface tool contract -> `docs/stage-interface/tool-contracts.md`;
-- operation or runtime procedure -> `docs/operations/**`;
-- stable topic too large for `design.md` -> `docs/<area>/<specific-topic>.md`.
+- accepted durable trade-off -> formal ADR;
+- stable area design or flow -> future `docs/<area>/design.md`;
+- provided/consumed ports or read/write capabilities -> future
+  `docs/<area>/ports.md`;
+- current implementation state or verification status -> `CURRENT_STATE.md`,
+  `PROGRESS.md`, phase status, or future `docs/<area>/progress.md`;
+- public Stage Interface tool contract -> future Stage Interface contract doc;
+- operation or runtime procedure -> future operations doc only when the runtime
+  feature exists again.
 
-If the content points to a missing area or missing current-authority document,
-create that document before archiving the old source. If choosing an owner
-reveals a real conflict among current architecture, old evidence, and code,
-record the conflict in
-`docs/maintenance/architecture-inconsistency-log.md`.
+Do not mark evidence blocked merely because old ownership is unclear. Choose
+the formal owner or record the uncertainty in the phase plan.
 
-Old architecture documents and architecture-review notes must not be deleted in
-the first alignment pass. Preserve them as archived evidence with clear
-`Status: Archived` and `Superseded by` notices. Their remaining disagreements
-with current code and current authority documents should be resolved through
-the final manual inconsistency audit, not by deleting the evidence.
+## Maintenance Evidence
 
-## Initial Archive Targets
+Most `docs/maintenance/**` files were produced by a pre-formal alignment pass.
+They remain useful evidence for what was found, why older docs moved, and which
+architecture problems were observed. They are not formal target authority
+unless `INDEX.md` explicitly lists them as current rules.
 
-The first alignment pass should archive, after extraction where needed:
+`docs/maintenance/documentation-architecture.md` is the exception: this file is
+current because it defines active documentation rules after Phase 1.
 
-- `docs/mvp/**`
-- root `plan/**`
-- root `proposal.md`, if its current product framing has been extracted
-- completed `*_pr_plan.md` files
-- completed `*_execution_plan.md` files
-- completed `*_implementation-plan.md` files
-- superseded `v1` / `v2` / `v3` design drafts
-- old handoff and review notes that no longer act as current authority
-- `*_final.md` documents that only became final for a completed slice
+## Formal Phase Workflow
 
-The current module directories should keep current authority documents only.
+Use this sequence when a future formal phase introduces or rewrites an area:
 
-## Alignment Workflow
+1. Confirm the phase goal, non-goals, owning formal area, and accepted
+   vocabulary.
+2. Read only the root authority, formal ADRs, relevant source contracts, and
+   directly relevant archive evidence.
+3. Define allowed reads, allowed writes, forbidden imports, and required
+   guards.
+4. Create or update area docs only for the phase's accepted scope.
+5. Implement source changes inside the formal module boundary.
+6. Add type, behavior, architecture, and docs guards.
+7. Run verification and state-sync.
+8. Update `INDEX.md`, `CURRENT_STATE.md`, `PROGRESS.md`, and phase docs only as
+   their responsibilities require.
 
-Use this sequence for the documentation/code alignment sweep:
+Do not mechanically move old docs into new locations before current ownership
+and source contracts are known.
 
-1. Create `docs/maintenance/documentation-alignment-audit.md`.
-2. Maintain `docs/maintenance/architecture-inconsistency-log.md` for
-   architecture inconsistencies discovered during the sweep.
-3. Create `docs/archive/README.md` and archive area templates as needed.
-4. Pick one area.
-5. Check code facts for that area.
-6. Update current authority documents for that area.
-7. Extract useful content from old plans and drafts.
-8. Archive old documents with `Status: Archived` and `Superseded by`.
-9. Update `INDEX.md`, `CURRENT_STATE.md`, `ARCHITECTURE.md`, and `PROGRESS.md`
-   only as their responsibilities require.
-10. Run the docs guard and relevant project-native tests.
-11. Move to the next area.
-12. After all areas have been aligned, perform a manual inconsistency audit
-    across current authority documents, archived architecture evidence, code
-    imports/call paths, ports, and architecture guards before final root-doc
-    consolidation. Record the audit in
-    `docs/maintenance/architecture-inconsistency-log.md`.
+## Guards
 
-Do not mechanically move files before code facts and current authority are
-known for the area.
+Formal reset guards live in `test/formal/active-tree.test.ts`. They verify that
+deleted runtime roots, deleted active docs, old skill/runtime scripts, and
+deleted vocabulary do not return to active source.
 
-Default area order:
+When documentation rules change, update a guard when feasible. Examples:
 
-1. Foundation: maintenance ledgers, archive entrypoint, and docs guard spec.
-2. Stage Interface public surface: Stage Interface, MCP, and Codex skill-facing
-   facts.
-3. Material flow: Material Resolve, Query, Related, Policy, Sort, Select,
-   Projection, Materialization, and Recommendation Presentation.
-4. Material Store and Canonical Store: identity, source-library state,
-   relations, activity, canonical maintenance, and provisional review.
-5. Collection Service and Library Import: user-owned collections and external
-   library import/update flows.
-6. Providers, Knowledge, Host Adapters, and Operations.
-7. Root consolidation: `README.md`, `INDEX.md`, `CURRENT_STATE.md`,
-   `ARCHITECTURE.md`, `PROGRESS.md`, and archive of `docs/mvp/**`, `plan/**`,
-   and `proposal.md`.
-
-This order is the default. Adjust it when the audit finds a concrete dependency
-that makes another area a prerequisite.
-
-Each area sweep is complete only when:
-
-- the area's current authority documents are updated as needed;
-- the area's rows in `docs/maintenance/documentation-alignment-audit.md` are
-  updated;
-- discovered inconsistencies are recorded in
-  `docs/maintenance/architecture-inconsistency-log.md`, or the area progress
-  notes say none were found;
-- old documents are archived with required notices or explicitly left pending;
-- root documents are synchronized only as their responsibilities require;
-- docs guard or relevant docs-only checks are recorded.
-
-Track this in the `Area Progress` table in
-`docs/maintenance/documentation-alignment-audit.md`.
-
-This documentation alignment sweep is docs-only. Do not modify source code,
-tests, schemas, generated runtime artifacts, or implementation guards while
-performing the sweep. If the sweep discovers code that appears to violate the
-accepted architecture, record it in
-`docs/maintenance/architecture-inconsistency-log.md` and the relevant audit
-ledger. Code fixes may be planned or performed only in a later explicit
-code-fix slice.
-
-When documentation and code disagree during this sweep, update the current
-documentation to describe observed code behavior as the current implementation
-fact. If that code behavior conflicts with accepted architecture, also record
-the conflict in `docs/maintenance/architecture-inconsistency-log.md`. Do not
-hide current code behavior, and do not present architecture-violating behavior
-as an accepted design just because it exists in code.
-If a current authority document states a current code fact that is also an open
-architecture inconsistency, add a short note linking back to that log entry by
-ID, such as `AI-001`.
-
-`docs/maintenance/architecture-inconsistency-log.md` is a live ledger, not only
-a final-audit artifact. Record inconsistencies as soon as they are discovered
-during an area sweep. Open inconsistencies do not block continuing that area's
-documentation cleanup, but they do block any final claim that project
-documentation is fully aligned with architecture and code.
-
-Keep the two maintenance ledgers separate:
-
-- `docs/maintenance/documentation-alignment-audit.md` records document
-  disposition: keep, update, merge, archive, delete, extraction targets,
-  superseding documents, archive notices, and required root-doc updates.
-- `docs/maintenance/architecture-inconsistency-log.md` records architecture
-  disagreement: conflicts among current authority documents, archived
-  architecture evidence, code, ports, tests, and guards.
-
-The ledgers should cross-reference each other with `AI-*` IDs when a document
-disposition is related to an architecture inconsistency. A document can be
-archived without any architecture inconsistency, and an architecture
-inconsistency can exist without requiring document archival.
-
-Use these document-disposition statuses in
-`docs/maintenance/documentation-alignment-audit.md`:
-
-- `pending-review`
-- `keep-current`
-- `update-current`
-- `merge-into-current`
-- `archive-after-extract`
-- `archive-no-extract`
-- `delete-empty-or-duplicate`
-- `done`
-- `blocked`
-
-Avoid ad hoc status labels.
-
-## Code/Architecture Drift Adjudication
-
-When code and `ARCHITECTURE.md` disagree, update documentation to state the
-observed code fact, then classify any remaining architecture drift.
-
-Code is the evidence source for current implementation behavior. If current
-code violates an accepted architecture boundary, document the current behavior
-as a current fact where the owning document needs it, but mark the violation in
-`docs/maintenance/architecture-inconsistency-log.md`. For example, a domain
-module importing Stage Interface output DTOs, or an ordinary query path
-receiving broad writer capabilities from `MaterialStorePort`, is still an
-architecture inconsistency even if tests pass. During this documentation-only
-sweep, record the violation and follow-up explicitly; do not fix the code in
-the sweep, and do not rewrite `ARCHITECTURE.md` merely to bless the violation.
-
-`ARCHITECTURE.md` is wrong when current code reflects a merged, tested, and
-progress-recorded behavior that the architecture document has not caught up
-with. In that case, update `ARCHITECTURE.md` and the relevant area documents.
-
-If both sides contain useful evidence, separate levels before deciding:
-
-- `ARCHITECTURE.md` owns global ownership, layer, import-direction, and
-  public-surface principles.
-- `docs/<area>/design.md` owns stable area design and flows.
-- `docs/<area>/ports.md` owns provided/consumed ports and read/write
-  capabilities.
-- `docs/<area>/progress.md` owns current implementation and verification
-  status.
-
-Temporary compatibility layers, fixtures, harnesses, tests, or migration
-residue do not redefine architecture by themselves. Document them as exceptions
-or follow-up cleanup unless they are accepted as a long-lived design choice.
-
-If the drift represents a durable new decision that is hard to reverse,
-surprising without context, and the result of a real trade-off, create or update
-an ADR. Otherwise, update the current authority document that owns the topic.
-
-Recommended adjudication order:
-
-1. `AGENTS.md` and accepted ADRs.
-2. `ARCHITECTURE.md`.
-3. `docs/<area>/design.md`.
-4. `docs/<area>/ports.md`.
-5. `src/ports/index.ts`.
-6. Implementation imports and call paths.
-7. Tests and architecture guards.
-8. `CURRENT_STATE.md` and `docs/<area>/progress.md`.
-
-## Evidence And Verification Claims
-
-Current implementation facts must be traceable to current evidence. Do not use
-memory, archived plans, old PR plans, or historical summaries as the only basis
-for a current implementation claim.
-
-When a current document states current implementation behavior, include or
-nearby-link at least one relevant evidence source when practical:
-
-- source path;
-- port or contract path;
-- Stage Interface or MCP schema path;
-- test path;
-- command output or verification record;
-- accepted ADR;
-- current area `progress.md` entry.
-
-Do not write `verified` unless the verification target, method, result, and
-scope are clear. A verification claim should identify:
-
-- command or check;
-- date;
-- result;
-- scope;
-- remaining uncertainty, if any.
-
-Example:
-
-```markdown
-Evidence:
-- Code: `src/stage_interface/tool_definitions/music.ts`
-- Port: `src/ports/index.ts`
-- Test: `test/stage_interface/stage-interface-dispatch.test.ts`
-
-Verified:
-- Command: `npm run build:test && node .tmp-test/test/stage_interface/stage-interface-dispatch.test.js`
-- Date: 2026-06-02
-- Result: passed
-- Scope: deterministic Stage Interface dispatch behavior
-- Not covered: live provider behavior
-```
-
-## Docs Guard
-
-The first docs guard should check objective facts only:
-
-- intended command: `npm run check:docs`;
-- intended script path: `scripts/check-docs.mjs`;
-- local Markdown links or referenced repository paths exist;
-- `INDEX.md` current authority links exist;
-- `INDEX.md` maintenance-doc links exist;
-- archived documents under `docs/archive/**` carry `Status: Archived`;
-- archive README files identify current authority and superseded relationships;
-- archived documents use the required archive notice fields;
-- `docs/maintenance/architecture-inconsistency-log.md` uses stable `AI-*`
-  IDs;
-- `docs/maintenance/documentation-alignment-audit.md` uses only allowed
-  document-disposition statuses;
-- root State Sync Gate files exist.
-
-The docs guard should not attempt to infer whether prose is semantically aligned
-with code. Semantic alignment remains an area-by-area review against the
-relevant source paths and tests.
-
-The final manual inconsistency audit is mandatory because docs guards only check
-objective structure. The audit must list each remaining inconsistency, classify
-it using the code/architecture drift adjudication rules above, and record the
-chosen resolution or follow-up in
-`docs/maintenance/architecture-inconsistency-log.md`.
-
-## Completion Gate
-
-The documentation/code alignment sweep is complete only when:
-
-- every row in `docs/maintenance/documentation-alignment-audit.md` is `done` or
-  `blocked`;
-- every `blocked` audit row has a concrete blocker and next step;
-- every open entry in `docs/maintenance/architecture-inconsistency-log.md` has
-  classification, docs action, and later code action or explicit no-code-action;
-- `INDEX.md` points to current authority documents and archive entrypoints
-  rather than acting as an old-document inventory;
-- `CURRENT_STATE.md` summarizes current implementation state without
-  PR-by-PR history;
-- `ARCHITECTURE.md` is the single global architecture authority, with all known
-  code/architecture drift represented by `AI-*` entries;
-- `PROGRESS.md` is a project-level milestone index, not a fine-grained
-  implementation ledger;
-- archived documents carry the required archive notice;
-- the docs guard passes.
-
-If `docs/maintenance/architecture-inconsistency-log.md` still has open entries,
-do not claim that code and architecture are fully consistent. The acceptable
-completion claim is: documentation is aligned to observed current code facts,
-and remaining architecture inconsistencies are recorded for later resolution.
+- forbidden active docs directories;
+- forbidden old vocabulary in active source;
+- required root authority documents;
+- required phase docs for completed phases;
+- exact source entrypoints after a reset.

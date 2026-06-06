@@ -1,17 +1,14 @@
 # Recommendation Archive
 
 This directory preserves historical recommendation posture design and PR-plan
-documents that were superseded during the documentation alignment sweep.
+documents.
 
-Use current documents for active behavior:
+Use current formal authority for active behavior:
 
-- `docs/material/design.md`
-- `docs/material/ports.md`
-- `docs/material/projection-materialization.md`
-- `docs/material/progress.md`
-- `docs/stage-interface/design.md`
-- `docs/stage-interface/tool-contracts.md`
-- `docs/stage-interface/progress.md`
+- `ARCHITECTURE.md`
+- `CURRENT_STATE.md`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 Archived documents are evidence only. They are not current implementation
 authority.

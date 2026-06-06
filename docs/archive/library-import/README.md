@@ -1,15 +1,14 @@
 # Library Import Archive
 
 This directory preserves historical Library Import implementation planning
-evidence after current facts were extracted into active authority documents.
+evidence.
 
-Use current documents for active behavior:
+Use current formal authority for active behavior:
 
-- `docs/library-import/design.md`
-- `docs/library-import/ports.md`
-- `docs/library-import/progress.md`
-- `docs/material-store/design.md`
-- `docs/platform-library-provider/design.md`
+- `ARCHITECTURE.md`
+- `CURRENT_STATE.md`
+- `docs/formal-project-glossary.md`
+- `src/contracts/index.ts`
 
 Archived documents are evidence only. They are not current implementation
 authority.
