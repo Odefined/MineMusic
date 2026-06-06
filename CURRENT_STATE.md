@@ -4,12 +4,12 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 3 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 4 of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
-capability-registration baseline. Old MVP implementation code and tests are no
-longer active-tree migration inventory; they are preserved by git history and
-archive docs only.
+capability-registration baseline, plus a Phase 4 generic Music Database
+foundation. Old MVP implementation code and tests are no longer active-tree
+migration inventory; they are preserved by git history and archive docs only.
 
 ## Established Formal Decisions
 
@@ -91,6 +91,41 @@ Phase 3 Extension vocabulary includes:
 - `SourceProviderRegistration`;
 - `source-provider` as the only implemented Phase 3 capability slot.
 
+Phase 4 Storage vocabulary includes:
+
+- `MusicDatabase` as the generic public database gateway;
+- `MusicDatabaseContext` as the generic SQL execution context;
+- `SqliteMusicDatabase` as a concrete SQLite adapter only;
+- raw SQLite primitives are confined to the SQLite adapter and storage
+  boundary tests;
+- SQL execution through `run` / `all` / `get` with `sql + params`, without
+  public prepared statement objects or statement cache in Phase 4;
+- root-only transaction boundary through `MusicDatabase.transaction(...)`;
+- schema contribution runner as the Phase 4 initialization shape;
+- no default Server Host runtime storage wiring in Phase 4;
+- explicit SQLite filename only, with no adapter-level env/config reads or
+  default database path in Phase 4;
+- explicit initialization after open, with `context()` and `transaction(...)`
+  unavailable until initialization succeeds;
+- schema contribution SQL is idempotent, but one database instance accepts only
+  one successful `initialize(...)`;
+- initialization failure is terminal for the instance and retry requires
+  close/reopen;
+- `close()` is idempotent, non-close operations after close fail, and
+  `close()` inside an active transaction is forbidden;
+- low-level storage primitives throw rather than returning `Result<T>`;
+- storage-owned boundary violations use `MusicDatabaseError`;
+- `MusicDatabase.transaction(...)` is a write transaction using
+  `BEGIN IMMEDIATE`, with no read-only transaction API in Phase 4;
+- transaction callback failure rolls back, rethrows the original error, and
+  leaves the database usable after successful rollback;
+- Storage owns schema contribution execution while future owning areas own
+  business schema semantics;
+- schema contributions run in explicit caller-provided order, with no Phase 4
+  dependency graph;
+- Phase 4 initialization sets only `foreign_keys = ON`, `journal_mode = WAL`,
+  and `synchronous = NORMAL`.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -129,6 +164,13 @@ The active TypeScript tree is now a formal skeleton:
 - `src/stage_core/index.ts` owns Stage Core public exports;
 - `src/server/host.ts` owns the thin Server Host lifecycle wrapper;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
+- `src/storage/database.ts` owns the generic `MusicDatabase` contract,
+  `MusicDatabaseContext`, schema contribution type, and `MusicDatabaseError`;
+- `src/storage/sqlite/database.ts` owns the concrete `SqliteMusicDatabase`
+  adapter;
+- `src/storage/sqlite/schema.ts` owns SQLite pragma and schema contribution
+  initialization;
+- `src/storage/index.ts` owns Storage public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
 through Server Host, mounts an empty Extension runtime module by default,
@@ -143,6 +185,10 @@ static plugin manifests, registers source-provider slot implementations in
 tests, and exposes internal Extension test snapshots. The default Server Host
 composition registers no real providers and exposes no provider/plugin/slot
 details through runtime status.
+
+The Storage foundation is not wired into the default Server Host runtime. It
+creates no default database file, defines no business tables, and exposes no
+Stage Interface tools.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -166,6 +212,11 @@ restored as compatibility layers.
 - `docs/extension/README.md`, `docs/extension/design.md`,
   `docs/extension/ports.md`, and `docs/extension/progress.md` are the current
   Extension area docs introduced by Phase 3.
+- `docs/formal-rebuild/phase-4-music-database-foundation.md` records the
+  implemented Phase 4 Storage foundation spec.
+- `docs/storage/README.md`, `docs/storage/design.md`, `docs/storage/ports.md`,
+  and `docs/storage/progress.md` are the current Storage area docs for the
+  generic database boundary and SQLite adapter foundation.
 - Old root architecture/state/progress snapshots are archived under
   `docs/archive/root/formal-rebuild-2026-06-06/`.
 - Pre-formal active area docs, host-adapter docs, provider docs, and operations
@@ -178,14 +229,15 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 3 does not implement:
+Phase 4 does not implement:
 
 - provider integrations;
 - real provider execution runtime;
 - provider config flow, provider account instances, or secrets;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
-- storage adapters or database schemas;
+- Music Data Platform business database schemas;
+- runtime storage wiring;
 - MCP/HTTP transport;
 - query engine behavior;
 - query hit public output shape;
@@ -200,15 +252,20 @@ Phase 3 does not implement:
 Later phases rebuild those areas directly from formal architecture and
 contracts.
 
+Phase 4 Storage planning does not change this implementation state yet. Active
+storage source, storage adapters, database schema initialization, and storage
+tests are still not implemented.
+
 ## Verification Pointers
 
-Phase 2 verification for this state should include:
+Phase 4 verification for this state should include:
 
 ```bash
 npm run typecheck
 npm run build:test
 npm run test:stage-core
 npm test
+npm run server:minemusic
 git diff --check
 git diff --name-only
 ```

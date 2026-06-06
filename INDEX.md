@@ -29,6 +29,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   implemented Phase 3 spec for Extension-owned capability slots, plugin
   manifests, registry semantics, source-provider slot registration, write
   policy, and Stage Core mounting.
+- `docs/formal-rebuild/phase-4-music-database-foundation.md`: implemented
+  Phase 4 spec for generic `MusicDatabase`, SQLite adapter confinement, root-only
+  transactions, and centralized schema initialization.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -40,6 +43,13 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/extension/ports.md`: Extension provided/consumed ports, forbidden
   dependencies, composition, and guards.
 - `docs/extension/progress.md`: Extension implementation state, verification
+  evidence, remaining gaps, and next candidate slices.
+- `docs/storage/README.md`: Storage area documentation entrypoint.
+- `docs/storage/design.md`: generic MusicDatabase and SQLite adapter design
+  authority for the implemented Phase 4 boundary.
+- `docs/storage/ports.md`: Storage provided/consumed ports, forbidden
+  dependencies, composition, and guard plan.
+- `docs/storage/progress.md`: Storage implementation state, verification
   evidence, remaining gaps, and next candidate slices.
 
 ## Formal ADRs
@@ -98,6 +108,11 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/server/host.ts`: thin Server Host lifecycle owner.
 - `src/server/index.ts`: minimal Server Host entrypoint and snapshot command.
 - `src/index.ts`: formal skeleton package exports.
+- `src/storage/database.ts`: generic `MusicDatabase` boundary.
+- `src/storage/sqlite/database.ts`: concrete `SqliteMusicDatabase` adapter.
+- `src/storage/sqlite/schema.ts`: SQLite pragma and schema contribution
+  initialization.
+- `src/storage/index.ts`: Storage public exports.
 
 The previous MVP runtime source and tests were removed from active tree and are
 available only through git history.

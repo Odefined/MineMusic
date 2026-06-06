@@ -35,7 +35,6 @@ const removedRuntimeRoots = [
   "src/providers",
   "src/source",
   "src/stage",
-  "src/storage",
   "src/surfaces",
   "test/architecture",
   "test/canonical",
@@ -92,6 +91,24 @@ assert.equal(
   await pathExists(join(repositoryRoot, "src/extension")),
   true,
   "formal Extension root must exist in active source after Phase 3",
+);
+assert.equal(
+  await pathExists(join(repositoryRoot, "src/storage")),
+  true,
+  "formal Storage root must exist in active source after Phase 4",
+);
+
+assert.deepEqual(
+  (await sourceFilesUnder(join(repositoryRoot, "src/storage")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(),
+  [
+    "src/storage/database.ts",
+    "src/storage/index.ts",
+    "src/storage/sqlite/database.ts",
+    "src/storage/sqlite/schema.ts",
+  ],
+  "Phase 4 formal Storage root must not grow unrelated storage implementations",
 );
 
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));

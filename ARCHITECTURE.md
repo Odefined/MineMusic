@@ -79,9 +79,10 @@ Event Log / Evidence Log is shared append-only infrastructure for audit,
 correlation, causality, timeline query, and projection triggers. Business truth
 belongs to the area that emits or consumes the event.
 
-Storage Layer is infrastructure behind area-owned ports. Area semantics own
-persistence meaning. A replaceable Storage Provider is an Extension Capability
-Slot, not a Storage bounded context.
+Storage infrastructure sits behind area-owned ports. Area semantics own
+persistence meaning. The public database boundary is generic `MusicDatabase`;
+SQLite is a concrete adapter behind that boundary. A replaceable Storage
+Provider is an Extension Capability Slot, not a Storage bounded context.
 
 ## Host, Interface, And Runtime
 
@@ -282,6 +283,9 @@ permits the action.
   enabled plugins into the runtime.
 - Providers do not write Music Data Platform records directly. Persistence
   goes through explicit writer/materializer boundaries.
+- Concrete database primitives such as `DatabaseSync` stay inside storage
+  adapters. Area services and repositories receive generic database contexts or
+  narrower ports.
 - Effect execution goes through Effect Boundary, even when an effect-capable
   provider adapter exists.
 
@@ -302,6 +306,9 @@ compatibility aliases:
 - Glossary: `docs/formal-project-glossary.md`
 - Phase 0 spec: `docs/formal-rebuild/phase-0-source-of-truth-reset.md`
 - Phase 1 spec: `docs/formal-rebuild/phase-1-contract-vocabulary-reset.md`
+- Phase 4 storage draft:
+  `docs/formal-rebuild/phase-4-music-database-foundation.md`
+- Storage area docs: `docs/storage/README.md`
 - ADRs: `docs/adr/`
 - Current implementation status: `CURRENT_STATE.md`
 - Milestones: `PROGRESS.md`

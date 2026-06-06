@@ -134,6 +134,57 @@ provider config flow, provider accounts, secrets, dynamic loading, plugin
 dependencies, query, storage, materialization, `MaterialCard`, Handbook,
 music-domain tools, memory, or effects.
 
+## 2026-06-06: Phase 4 Music Database Foundation
+
+Phase 4 implements the generic Music Database foundation:
+
+- public storage boundary uses generic `MusicDatabase`, not
+  `SqliteMusicDatabase`;
+- `SqliteMusicDatabase` is a concrete adapter behind the generic boundary;
+- `DatabaseSync`, `StatementSync`, and `node:sqlite` are confined to the
+  SQLite adapter and storage boundary tests;
+- future repositories and commands receive `MusicDatabaseContext`;
+- `MusicDatabaseContext` exposes `run`, `all`, and `get`;
+- `MusicDatabaseContext` uses `sql + params` and does not expose prepared
+  statement objects or statement cache in Phase 4;
+- transactions are root-only and do not support nested transaction/savepoint
+  behavior in Phase 4;
+- schema initialization uses a contribution runner only;
+- Phase 4 does not wire storage into the default Server Host runtime;
+- SQLite adapter opening requires an explicit filename and does not read
+  env/config or provide a default database path;
+- `open(...)` and `initialize(...)` are separate, and database use requires
+  successful initialization first;
+- schema contribution SQL is idempotent, but one database instance accepts only
+  one successful `initialize(...)`;
+- initialization failure is terminal for the instance and retry requires
+  close/reopen;
+- `close()` is idempotent, non-close operations after close fail, and
+  `close()` inside an active transaction is forbidden;
+- low-level storage primitives throw and do not return `Result<T>`;
+- storage-owned boundary violations use `MusicDatabaseError`;
+- `MusicDatabase.transaction(...)` is a write transaction using
+  `BEGIN IMMEDIATE`, with no read-only transaction API in Phase 4;
+- transaction callback failure rolls back, rethrows the original error, and
+  leaves the database usable after successful rollback;
+- Storage owns schema contribution execution while future owning areas own
+  business schema semantics;
+- Phase 4 uses explicit schema contribution array order and no dependency
+  graph;
+- Phase 4 initialization sets only `foreign_keys = ON`, `journal_mode = WAL`,
+  and `synchronous = NORMAL`;
+- no new ADR is required for Phase 4;
+- tests cover storage lifecycle, SQL parameter binding, root transaction
+  commit/rollback, schema contribution ordering, raw SQLite boundary guards,
+  and unchanged default Server Host runtime composition;
+- Phase 4 does not introduce source/material/canonical tables, aliases,
+  command audit, owner facts, projections, provider adapters, query, or Stage
+  Interface tools.
+
+The implemented Phase 4 spec lives at
+`docs/formal-rebuild/phase-4-music-database-foundation.md`. Current Storage
+area docs live under `docs/storage/`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -151,7 +202,7 @@ in scope. Known later areas include:
 - Music Experience radio/listening behavior;
 - Memory;
 - Effect Boundary;
-- provider integrations and storage infrastructure behind the formal ports.
+- provider integrations and business persistence behind the formal ports.
 
 Each later phase should keep old MVP code/docs as evidence only and should not
 add compatibility layers unless a new accepted ADR explicitly allows an
