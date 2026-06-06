@@ -103,8 +103,8 @@ Phase 4 Storage vocabulary includes:
   `Uint8Array`, without public prepared statement objects or statement cache
   in Phase 4;
 - root-only transaction boundary through `MusicDatabase.transaction(...)`;
-- root transaction callbacks are synchronous-only; async callbacks are rejected
-  before commit and rolled back;
+- root transaction callbacks are synchronous-only; Promise and thenable
+  callbacks are rejected before commit and rolled back;
 - transaction callbacks receive a transaction-scoped context that becomes
   inactive after commit/rollback;
 - synchronous schema contribution runner as the Phase 4 initialization shape;

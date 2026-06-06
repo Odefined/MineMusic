@@ -87,7 +87,7 @@ Planned guards:
 | Transaction rollback preserves pre-transaction state. | Storage behavior test |
 | Database remains usable after successful rollback. | Storage behavior test |
 | Transaction uses write-transaction semantics. | Storage behavior test |
-| Async transaction callbacks are rejected and rolled back. | Type-level/storage behavior test |
+| Promise and thenable transaction callbacks are rejected and rolled back. | Type-level/storage behavior test |
 | Stale transaction context rejects late use after transaction end. | Storage behavior test |
 | Unsupported async callback continuation rejection is absorbed. | Storage behavior test |
 | Schema contributions run through the database foundation. | Storage behavior test |

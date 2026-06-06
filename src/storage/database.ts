@@ -12,7 +12,7 @@ export type MusicDatabaseContext = {
 };
 
 export type MusicDatabaseImmediateResult<Result> =
-  Result & (Result extends PromiseLike<unknown> ? never : unknown);
+  Result & (Result extends { then: unknown } ? never : unknown);
 
 export type MusicDatabaseSchemaContribution = {
   id: string;

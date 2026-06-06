@@ -22,8 +22,8 @@ Accepted decisions:
   params limited to `null`, `number`, `bigint`, `string`, and `Uint8Array`;
 - Phase 4 does not expose prepared statement objects or statement cache;
 - transaction is root-only through `MusicDatabase.transaction(...)`;
-- transaction callbacks are synchronous-only; async callbacks are rejected at
-  type level and runtime, with rollback before the error escapes;
+- transaction callbacks are synchronous-only; Promise and thenable callbacks are
+  rejected at type level and runtime, with rollback before the error escapes;
 - transaction callback receives a transaction-scoped context that becomes
   inactive after commit/rollback;
 - `MusicDatabaseContext` does not expose `transaction(...)`;

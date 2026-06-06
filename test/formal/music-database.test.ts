@@ -46,6 +46,13 @@ if (false) {
   // @ts-expect-error MusicDatabase.transaction callback must be synchronous.
   typeOnlyDatabase.transaction(async () => "async");
 
+  // @ts-expect-error MusicDatabase.transaction callback must not return thenables.
+  typeOnlyDatabase.transaction(() => ({
+    then(resolve: (value: string) => void) {
+      resolve("thenable");
+    },
+  }));
+
   const typeOnlySchema: MusicDatabaseSchemaContribution = {
     id: "sync-schema",
     apply() {},

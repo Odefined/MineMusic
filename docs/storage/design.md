@@ -31,7 +31,7 @@ type MusicDatabase = {
 };
 
 type MusicDatabaseImmediateResult<T> =
-  T & (T extends PromiseLike<unknown> ? never : unknown);
+  T & (T extends { then: unknown } ? never : unknown);
 
 type MusicDatabaseParameter =
   | null
@@ -113,7 +113,8 @@ Transactions are root-only in the Phase 4 design:
 - repositories must not start transactions;
 - transaction is a write transaction and uses `BEGIN IMMEDIATE`;
 - transaction callbacks must be synchronous and must not return `Promise` or
-  thenable values;
+  thenable values; the type guard conservatively rejects returned values with a
+  `then` property;
 - Phase 4 does not provide a read-only transaction API;
 - nested transaction and savepoint semantics are out of scope.
 

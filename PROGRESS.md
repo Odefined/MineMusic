@@ -150,8 +150,8 @@ Phase 4 implements the generic Music Database foundation:
   prepared statement objects or statement cache in Phase 4;
 - transactions are root-only and do not support nested transaction/savepoint
   behavior in Phase 4;
-- transaction callbacks are synchronous-only; async callbacks are rejected
-  before commit and rolled back;
+- transaction callbacks are synchronous-only; Promise and thenable callbacks
+  are rejected before commit and rolled back;
 - transaction callbacks receive a transaction-scoped context that becomes
   inactive after commit/rollback;
 - schema initialization uses a synchronous contribution runner only;
