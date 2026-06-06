@@ -38,6 +38,7 @@ provide music-domain repositories yet.
 
 | Forbidden dependency | Reason |
 | --- | --- |
+| Empty or blank SQLite filename | SQLite would open an implicit temporary database, violating explicit storage configuration. |
 | Music Data Platform -> `node:sqlite` / `DatabaseSync` | Music Data Platform should receive generic database context or repositories, not concrete DB primitives. |
 | Stage Interface -> storage/sqlite | Agent-facing tools must not know concrete storage adapters. |
 | Extension -> storage/sqlite | Capability registration must not access DB primitives. |
@@ -73,6 +74,7 @@ Planned guards:
 | --- | --- |
 | `src/storage/**` is allowed as the formal storage root. | `test/formal/active-tree.test.ts` |
 | Old pre-formal storage implementations do not return. | `test/formal/active-tree.test.ts` |
+| Empty and blank SQLite filenames are rejected. | Storage behavior test |
 | `DatabaseSync` appears only in `src/storage/sqlite/**` and storage boundary tests. | Active-tree text scan |
 | `node:sqlite` imports appear only in `src/storage/sqlite/**`. | Active-tree text scan |
 | `StatementSync` does not leak outside SQLite adapter or storage boundary tests. | Active-tree text scan |

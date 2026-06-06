@@ -27,6 +27,8 @@ Accepted decisions:
 - Phase 4 does not wire storage into the default Server Host runtime;
 - SQLite adapter opening requires an explicit filename and does not read
   env/config or provide a default database path;
+- empty or blank SQLite filenames are rejected to avoid implicit temporary
+  database creation;
 - `open(...)` and `initialize(...)` are separate; `context()` and
   `transaction(...)` require successful initialization first;
 - schema contribution SQL is idempotent, but one database instance accepts only
@@ -81,6 +83,7 @@ git diff --name-only
 Targeted storage tests cover:
 
 - in-memory SQLite open/initialize/close;
+- empty and blank filename rejection;
 - `run`, `all`, and `get`;
 - parameter binding;
 - root transaction commit;

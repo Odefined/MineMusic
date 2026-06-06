@@ -65,7 +65,8 @@ persistence.
 `SqliteMusicDatabase` requires an explicit filename. Phase 4 does not provide
 a default database path, does not read environment variables or host config,
 and does not create a default runtime database file. Tests should use
-`":memory:"`.
+`":memory:"`. Empty or blank filenames are rejected so SQLite cannot silently
+open an implicit temporary database.
 
 Opening and initialization are separate. `open(...)` owns the database handle;
 `initialize(...)` applies pragmas and schema contributions. `context()` and
@@ -150,6 +151,7 @@ adapter-internal or handled in a separate performance slice.
 
 Use `MusicDatabaseError` for storage-owned boundary violations:
 
+- invalid database filename;
 - database use before initialization;
 - repeated initialization on the same instance;
 - initialization failure;

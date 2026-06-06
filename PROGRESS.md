@@ -153,6 +153,8 @@ Phase 4 implements the generic Music Database foundation:
 - Phase 4 does not wire storage into the default Server Host runtime;
 - SQLite adapter opening requires an explicit filename and does not read
   env/config or provide a default database path;
+- empty or blank SQLite filenames are rejected to avoid implicit temporary
+  database creation;
 - `open(...)` and `initialize(...)` are separate, and database use requires
   successful initialization first;
 - schema contribution SQL is idempotent, but one database instance accepts only

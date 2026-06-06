@@ -105,6 +105,8 @@ Phase 4 Storage vocabulary includes:
 - no default Server Host runtime storage wiring in Phase 4;
 - explicit SQLite filename only, with no adapter-level env/config reads or
   default database path in Phase 4;
+- empty or blank SQLite filenames are rejected so SQLite cannot silently open
+  an implicit temporary database;
 - explicit initialization after open, with `context()` and `transaction(...)`
   unavailable until initialization succeeds;
 - schema contribution SQL is idempotent, but one database instance accepts only

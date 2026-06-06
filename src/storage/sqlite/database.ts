@@ -58,6 +58,13 @@ export class SqliteMusicDatabase implements MusicDatabase {
   private constructor(private readonly db: DatabaseSync) {}
 
   static open(input: OpenSqliteMusicDatabaseInput): SqliteMusicDatabase {
+    if (input.filename.trim().length === 0) {
+      throw new MusicDatabaseError({
+        code: "storage.invalid_database_filename",
+        message: "Music database filename must be explicit and non-empty.",
+      });
+    }
+
     return new SqliteMusicDatabase(new DatabaseSync(input.filename));
   }
 

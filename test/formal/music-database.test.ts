@@ -29,6 +29,15 @@ export type _musicDatabaseShape = Expect<
   Equal<keyof MusicDatabase, "initialize" | "context" | "transaction" | "close">
 >;
 
+assertDatabaseError(
+  () => SqliteMusicDatabase.open({ filename: "" }),
+  "storage.invalid_database_filename",
+);
+assertDatabaseError(
+  () => SqliteMusicDatabase.open({ filename: "   " }),
+  "storage.invalid_database_filename",
+);
+
 const preInitDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
 assertDatabaseError(() => preInitDatabase.context(), "storage.database_not_initialized");
 assertDatabaseError(

@@ -103,7 +103,8 @@ SQLite adapter opening is explicit. Phase 4 does not provide a default
 database path, does not read environment variables or host config, and does
 not create a default runtime database file. Tests use `":memory:"`; future
 composition/config code must pass a concrete filename when persistent storage
-is needed.
+is needed. Empty or blank filenames are rejected so SQLite cannot silently open
+an implicit temporary database.
 
 Opening and initialization are separate. `open(...)` only opens and owns the
 database handle. `initialize(...)` explicitly applies pragmas and schema
@@ -220,6 +221,7 @@ Use `MusicDatabaseError` for storage-owned boundary violations such as:
 
 ```text
 storage.database_not_initialized
+storage.invalid_database_filename
 storage.database_already_initialized
 storage.database_initialization_failed
 storage.database_closed
@@ -354,6 +356,7 @@ Phase 4 is complete when:
 - `SqliteMusicDatabase` is the concrete adapter only;
 - `DatabaseSync` is confined to `src/storage/sqlite/**`;
 - SQLite adapter open requires an explicit filename;
+- empty or blank filenames are rejected;
 - `open(...)` and `initialize(...)` are separate;
 - `context()` and `transaction(...)` are guarded until initialization
   succeeds;
