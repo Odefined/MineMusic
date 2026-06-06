@@ -1,3 +1,9 @@
+> Status: Superseded for formal rebuild
+> Formal authority: `ARCHITECTURE.md`, `CURRENT_STATE.md`,
+> `docs/formal-project-glossary.md`, and ADR-0004 through ADR-0007.
+> Use only for: pre-formal public tool-surface evidence until the owning
+> formal phase rewrites Stage Interface contracts.
+
 # Stage Interface Tool Contracts
 
 This document is the current authority for MineMusic's agent-facing,

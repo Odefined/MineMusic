@@ -5,15 +5,21 @@ MineMusic is a music stage for an LLM music partner, secretary, and agent.
 The LLM owns musical interpretation, conversation, and the final recommendation.
 MineMusic owns grounding, identity anchors, source-backed links, material
 states, event records, memory proposals, effect boundaries, callable
-instruments, provider slots, and runtime lifecycle.
+instruments, capability slots, and runtime lifecycle.
+
+MineMusic is now in a same-repo formal rebuild. The formal architecture target
+lives in `ARCHITECTURE.md`; the current TypeScript runtime remains pre-formal
+implementation inventory until later phases migrate it.
 
 ## Start Here
 
 - `INDEX.md`: current documentation map.
 - `ARCHITECTURE.md`: global architecture authority.
-- `CURRENT_STATE.md`: current implementation summary.
-- `CONTEXT.md`: project vocabulary.
+- `CURRENT_STATE.md`: formal rebuild current state.
+- `docs/formal-project-glossary.md`: formal target vocabulary.
 - `PROGRESS.md`: project-level milestone index.
+- `CONTEXT.md`: pre-formal vocabulary file; not formal rebuild authority unless
+  explicitly refreshed later.
 - `docs/maintenance/documentation-alignment-audit.md`: documentation sweep
   disposition ledger.
 - `docs/maintenance/architecture-inconsistency-log.md`: architecture
@@ -22,7 +28,10 @@ instruments, provider slots, and runtime lifecycle.
 Historical MVP proposal, MVP baseline docs, root plans, Stage Core refactor
 plans, and architecture review evidence are archived under `docs/archive/`.
 
-## Current Runtime
+## Current Runtime Inventory
+
+The current runtime can still be used as pre-formal implementation evidence,
+but it is not the formal target architecture.
 
 MineMusic runs as a long-lived server process that creates and holds Stage Core,
 then exposes Stage Interface tools over MCP.
@@ -77,7 +86,8 @@ For local launchd restart:
 
 Use `--clear-runtime` to clear `/tmp/minemusic` state during restart.
 
-## Non-Goals
+## Current Runtime Non-Goals
 
-MineMusic does not implement autoplay, queue mutation, source writeback,
-playlist mutation, autonomous DJ sessions, or final musical judgment.
+The current pre-formal runtime does not implement autoplay, queue mutation,
+source writeback, playlist mutation, autonomous DJ sessions, or final musical
+judgment.

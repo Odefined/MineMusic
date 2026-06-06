@@ -1,6 +1,6 @@
 # Phase 0: Formal Source-Of-Truth Reset
 
-> Status: Draft spec and plan
+> Status: Accepted spec and plan
 > Phase owner: Documentation governance
 > Output type: Docs, ADRs, glossary, root status reset, and archive notices only
 
@@ -184,8 +184,8 @@ Phase 0 output omits these decisions, it is not an acceptable Phase 0 result.
   itself.
 - Durable `SourceEntity` / `SourceRecord` persistence, source-to-material
   binding, and source/material/canonical transaction boundaries belong to
-  Material Data Platform writer/materializer capabilities.
-- Canonical Maintenance is a Material Data Platform capability for canonical
+  Music Data Platform writer/materializer capabilities.
+- Canonical Maintenance is a Music Data Platform capability for canonical
   evidence, review/apply, merge/split, and identity graph maintenance. It is
   not a separate top-level bounded context.
 - Source Providers must not write `source_records` directly and must not create
@@ -291,7 +291,7 @@ Phase 0 output omits these decisions, it is not an acceptable Phase 0 result.
 
 #### Owner Facts, Collection, And Relation Direction
 
-- Owner-scoped facts belong inside Material Data Platform as fact families and
+- Owner-scoped facts belong inside Music Data Platform as fact families and
   projections, not in a separate top-level Owner Context.
 - `MaterialEntity` core remains owner-neutral: no `ownerScope`, collection ids,
   saved/favorite/blocked state, owner policy, or collection membership.
@@ -340,7 +340,7 @@ Phase 0 must not invent these details:
   library, canonical maintenance, or database implementation changes.
 - No full rewrite of area documents such as `docs/material/**`,
   `docs/material-search/**`, or `docs/stage-interface/**`.
-- No `CONTEXT.md` edit during this draft-planning pass.
+- No `CONTEXT.md` edit during Phase 0.
 
 ### Owning Context
 
@@ -383,7 +383,7 @@ to recognize the new document layout.
 - Runtime composition
 - Database schemas
 - Generated runtime artifacts
-- `CONTEXT.md` in this draft-planning pass
+- `CONTEXT.md` in Phase 0
 
 ### Required Decisions To Record
 

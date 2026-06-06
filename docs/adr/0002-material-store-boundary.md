@@ -1,3 +1,9 @@
+> Status: Pre-formal ADR evidence
+> Formal target supersedes this file through
+> `docs/adr/0005-formal-top-level-architecture-areas.md` and
+> `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md`.
+> Use only for: historical context on the MVP Material Store boundary.
+
 # ADR-0002: Material Store Owns Canonical And Source Material State
 
 ## Status

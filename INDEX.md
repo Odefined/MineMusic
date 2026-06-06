@@ -1,87 +1,112 @@
 # MineMusic Index
 
-This index points to current authority documents. Archived evidence lives under
-`docs/archive/` and is not current authority.
+This index points to current formal authority documents. Archived and
+superseded evidence lives under `docs/archive/` or in explicitly marked
+pre-formal area documents. Evidence is not current authority.
 
-## Root
+## Root Authority
 
-- `README.md`: project entrypoint.
-- `CONTEXT.md`: vocabulary and bounded-context language.
-- `ARCHITECTURE.md`: global architecture authority.
-- `CURRENT_STATE.md`: current implementation summary.
-- `PROGRESS.md`: project-level milestone index.
+- `README.md`: human entrypoint.
+- `ARCHITECTURE.md`: formal global architecture authority.
+- `CURRENT_STATE.md`: formal rebuild current state.
+- `PROGRESS.md`: formal rebuild milestone index.
 - `AGENTS.md`: repository operating rules for agents.
+- `CONTEXT.md`: pre-formal vocabulary file; not formal rebuild authority unless
+  explicitly refreshed later.
+
+## Formal Rebuild
+
+- `docs/formal-project-glossary.md`: formal target vocabulary and
+  MVP-to-formal term mapping.
+- `docs/formal-rebuild/README.md`: formal rebuild planning index.
+- `docs/formal-rebuild/phase-0-source-of-truth-reset.md`: Phase 0 spec and
+  plan.
+- `docs/formal-rebuild/phase-1-contract-vocabulary-reset.md`: Phase 1 spec and
+  plan.
+- `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
+  decision trace only.
+
+## Formal ADRs
+
+- `docs/adr/0004-same-repo-formal-rebuild.md`: same-repo formal rebuild and
+  no default MVP compatibility layers.
+- `docs/adr/0005-formal-top-level-architecture-areas.md`: formal top-level
+  architecture areas.
+- `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md`: formal
+  entity/record, candidate, materialization, and handle boundary direction.
+- `docs/adr/0007-collection-owner-relation-boundary.md`: Collection and owner
+  relation source-of-truth split.
+
+## Pre-Formal ADR Evidence
+
+These ADRs record earlier MVP decisions. They are useful evidence, but the
+formal target is controlled by the formal ADRs above.
+
+- `docs/adr/0001-stage-core-runtime-composition.md`
+- `docs/adr/0002-material-store-boundary.md`
+- `docs/adr/0003-materialref-backed-collections.md`
 
 ## Maintenance
 
 - `docs/maintenance/documentation-architecture.md`: documentation structure
   rules for root docs, area docs, ports, archive notices, and docs guard scope.
-- `docs/maintenance/documentation-alignment-plan.md`: phase plan for the
-  documentation/code alignment sweep.
-- `docs/maintenance/documentation-alignment-audit.md`: document-disposition
-  ledger for the sweep.
-- `docs/maintenance/architecture-inconsistency-log.md`: architecture
-  inconsistency ledger.
-- `docs/maintenance/clean-up-report.md`: current audit of remaining cleanup
-  and legacy-risk items.
-- `docs/maintenance/dead-code-compatibility-cleanup-plan.md`: cleanup plan
-  outside this docs alignment sweep, including completed PR 4 Collection Item
-  boundary cleanup.
+- `docs/maintenance/documentation-alignment-audit.md`: pre-formal
+  document-disposition ledger.
+- `docs/maintenance/architecture-inconsistency-log.md`: pre-formal
+  architecture inconsistency ledger.
+- `docs/maintenance/documentation-alignment-plan.md`: pre-formal documentation
+  alignment phase plan.
+- `docs/maintenance/clean-up-report.md`: pre-formal cleanup report.
+- `docs/maintenance/dead-code-compatibility-cleanup-plan.md`: pre-formal
+  cleanup plan.
 
-## Decisions
+## Pre-Formal Area Evidence
 
-- `docs/adr/0001-stage-core-runtime-composition.md`: accepted Stage Core /
-  Stage Interface / Stage Modules naming decision.
-- `docs/adr/0002-material-store-boundary.md`: accepted Material Store boundary
-  decision.
-- `docs/adr/0003-materialref-backed-collections.md`: accepted decision that
-  Collection Service is materialRef-backed, superseding ADR-0002's
-  canonical-only Collection consequence.
+Existing area docs under these folders describe MVP-era implementation and are
+not formal target authority until their owning formal phase rewrites them:
 
-## Current Area Authority
-
-| Area | Current docs |
-| --- | --- |
-| Stage Core | `docs/stage-core/design.md`, `docs/stage-core/ports.md`, `docs/stage-core/progress.md` |
-| Stage Interface | `docs/stage-interface/design.md`, `docs/stage-interface/ports.md`, `docs/stage-interface/tool-contracts.md`, `docs/stage-interface/progress.md` |
-| Material Flow | `docs/material/design.md`, `docs/material/ports.md`, `docs/material/projection-materialization.md`, `docs/material/progress.md` |
-| Material Search | `docs/material-search/design.md`, `docs/material-search/progress.md` |
-| Material Store | `docs/material-store/design.md`, `docs/material-store/ports.md`, `docs/material-store/progress.md` |
-| Canonical Store | `docs/canonical-store/design.md`, `docs/canonical-store/ports.md`, `docs/canonical-store/provisional-review.md`, `docs/canonical-store/storage-model.md`, `docs/canonical-store/progress.md` |
-| Collection Service | `docs/collection-service/design.md`, `docs/collection-service/ports.md`, `docs/collection-service/progress.md` |
-| Library Import | `docs/library-import/design.md`, `docs/library-import/ports.md`, `docs/library-import/progress.md` |
-| Platform Library Provider | `docs/platform-library-provider/design.md`, `docs/platform-library-provider/progress.md` |
-| Source Providers | `docs/source-providers/netease.md` |
-| Knowledge Slot | `docs/knowledge-slot/design.md`, `docs/knowledge-slot/musicbrainz-provider.md`, `docs/knowledge-slot/progress.md` |
-| Host Adapters | `docs/host-adapters/codex-skill.md` |
-| Operations | `docs/operations/minemusic-server-launchd.md` |
+- `docs/stage-core/`
+- `docs/stage-interface/`
+- `docs/material/`
+- `docs/material-search/`
+- `docs/material-store/`
+- `docs/canonical-store/`
+- `docs/collection-service/`
+- `docs/library-import/`
+- `docs/platform-library-provider/`
+- `docs/source-providers/`
+- `docs/knowledge-slot/`
+- `docs/host-adapters/`
+- `docs/operations/`
 
 ## Source Entrypoints
 
-- `src/contracts/index.ts`: shared TypeScript contracts.
-- `src/ports/index.ts`: public module ports and repository interfaces.
-- `src/server/runtime.ts`, `src/server/index.ts`: MineMusic server runtime and
-  HTTP MCP entrypoint.
-- `src/stage_core/**`: runtime composition and lifecycle.
-- `src/stage_interface/**`, `src/handbook/index.ts`: Stage Interface tools,
-  descriptors, dispatch, compact output projection, and Handbook rendering.
-- `src/material/**`: Material Store, Material Flow, Library Import, policy,
-  selection, and recommendation presentation.
-- `src/collection/index.ts`: Collection Service.
-- `src/source/index.ts`: Source Grounding.
-- `src/knowledge/index.ts`: Music Knowledge service.
-- `src/providers/netease/index.ts`: NetEase source and platform-library
-  providers.
-- `src/providers/musicbrainz/index.ts`: MusicBrainz Knowledge provider.
-- `src/storage/**`: in-memory and SQLite repository implementations.
-- `skills/minemusic/SKILL.md`: Codex workflow skill.
-- `skills/minemusic/HANDBOOK.md`: skill-local generated/snapshot Handbook, not
-  Stage Interface authority.
+The current source tree remains implementation inventory for later formal
+phases. It is not formal target authority.
+
+- `src/contracts/index.ts`: current shared TypeScript contracts.
+- `src/ports/index.ts`: current ports and repository interfaces.
+- `src/server/**`: current server runtime.
+- `src/stage_core/**`: current runtime composition.
+- `src/stage_interface/**`, `src/handbook/index.ts`: current Stage Interface
+  implementation.
+- `src/material/**`: current MVP material/source/canonical/query/presentation
+  implementation.
+- `src/collection/**`: current Collection implementation.
+- `src/source/**`: current Source Grounding implementation.
+- `src/knowledge/**`: current Knowledge implementation.
+- `src/providers/**`: current provider adapters.
+- `src/storage/**`: current storage adapters.
+- `skills/minemusic/**`: current Codex integration package and Handbook
+  snapshot.
 
 ## Archive
 
 - `docs/archive/README.md`: archive policy and area index.
-- `docs/archive/root/README.md`: archived root proposal and plans.
+- `docs/archive/root/README.md`: archived root proposal, plans, and
+  pre-formal root snapshots.
+- `docs/archive/root/formal-rebuild-2026-06-06/`: archived pre-formal root
+  `ARCHITECTURE.md`, `CURRENT_STATE.md`, and `PROGRESS.md`.
 - `docs/archive/mvp/README.md`: archived original MVP baseline.
 - `docs/archive/architecture-reviews/README.md`: archived architecture review
   evidence.

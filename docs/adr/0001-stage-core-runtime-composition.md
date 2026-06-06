@@ -1,3 +1,8 @@
+> Status: Pre-formal ADR evidence
+> Formal target supersedes this file through
+> `docs/adr/0005-formal-top-level-architecture-areas.md`.
+> Use only for: historical context on the MVP Stage Core naming decision.
+
 # ADR-0001: Stage Core Means Runtime Composition
 
 ## Status

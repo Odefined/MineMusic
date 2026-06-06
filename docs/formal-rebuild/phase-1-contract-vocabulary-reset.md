@@ -44,8 +44,9 @@ records, and final cards as the same object.
 
 ### Owning Context
 
-Contracts own Phase 1. Provider Runtime, Material Data Platform, Stage
-Interface, and Query Engine consume the contracts but do not own their meaning.
+Contracts own Phase 1. Extension provider adapters, Music Data Platform, Stage
+Interface, and later query/presentation work consume the contracts but do not
+own their meaning.
 
 ### Allowed Reads
 
@@ -75,7 +76,7 @@ Interface, and Query Engine consume the contracts but do not own their meaning.
   safety
 - Database schema migrations except contract-only test fixtures
 - Source-library, collection, owner relation, or feedback workflows
-- `CONTEXT.md` in this draft-planning pass
+- `CONTEXT.md` in Phase 1
 
 ## Contract Decisions
 

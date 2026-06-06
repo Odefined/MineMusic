@@ -1,3 +1,9 @@
+> Status: Pre-formal ADR evidence
+> Formal target supersedes this file through
+> `docs/adr/0007-collection-owner-relation-boundary.md`.
+> Use only for: historical context on the MVP materialRef-backed Collection
+> decision.
+
 # ADR-0003: Collections Are MaterialRef-Backed
 
 ## Status

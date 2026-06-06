@@ -1,173 +1,81 @@
-# Progress
+# Formal Rebuild Progress
 
-This is a project-level milestone index. Area-level status and verification
-details live in area `progress.md` files listed in `INDEX.md`.
+> Status: Formal rebuild milestone index
+> Scope: Project-level milestones only
+> Not a task ledger: Detailed execution belongs to phase specs or future
+> area-local progress documents.
 
-## 2026-05-17
+## Pre-Formal Baseline
 
-- Created the original MVP documentation pack and TypeScript foundation.
-- Added shared contracts, public ports, in-memory repositories, Plugin
-  Registry, core capability skeletons, Stage Modules, Stage Interface, fixture
-  end-to-end slice, and MVP verification/final-review evidence.
+The MVP implementation and previous root progress history are preserved as
+historical evidence. The pre-formal root snapshots live under:
 
-## 2026-05-18
+```text
+docs/archive/root/formal-rebuild-2026-06-06/
+```
 
-- Added the first read-only NetEase source provider and opt-in live smoke path.
-- Added Codex-facing MCP and skill work that later evolved into the current
-  skill plus global MCP client boundary.
+Use those snapshots to understand what existed before the formal rebuild, not
+as current architecture authority.
 
-## 2026-05-22
+## 2026-06-06: Phase 0 Source-Of-Truth Reset
 
-- Captured a Stage Interface architecture review, now archived under
-  `docs/archive/architecture-reviews/`.
+Phase 0 establishes the formal rebuild authority chain:
 
-## 2026-05-23
+- same-repo formal rebuild posture;
+- old MVP docs/code as evidence and migration/deletion inventory only;
+- no default MVP compatibility layers;
+- root formal architecture authority in `ARCHITECTURE.md`;
+- formal rebuild current-state authority in `CURRENT_STATE.md`;
+- formal milestone index in this file;
+- formal target vocabulary in `docs/formal-project-glossary.md`;
+- formal ADRs for rebuild posture, architecture areas, identity/candidate
+  boundaries, and Collection/owner-relation split;
+- archived pre-formal root snapshots;
+- superseded notices for selected area docs that still describe MVP resolve,
+  ephemeral material, public canonical review, or old query paths.
 
-- Established the current architecture vocabulary: MineMusic Server,
-  Stage Core, Stage Interface, Stage Modules, Core Capabilities, Plugin Slots,
-  and Storage.
-- Added ADR-0001 for the Stage Core runtime-composition naming decision.
-- Started Canonical Store durable-storage and boundary documentation.
+Phase 0 intentionally does not change code, TypeScript contracts, provider
+behavior, Stage Interface tool schemas, runtime wiring, database schemas, or
+generated runtime artifacts.
 
-## 2026-05-24
+## Next Formal Milestones
 
-- Implemented SQLite-backed Canonical Store storage and policy hardening.
-- Added Canonical Store progress/status tracking and persistence tests.
+### Phase 1: Contract Vocabulary Reset
 
-## 2026-05-25
+Planned source:
 
-- Added Collection Service design and implementation foundation.
-- Added Platform Library Provider slot design and NetEase platform-library
-  planning.
-- Added first Library Import design and early implementation slices.
+```text
+docs/formal-rebuild/phase-1-contract-vocabulary-reset.md
+```
 
-## 2026-05-26
+Expected focus:
 
-- Moved runtime ownership to the long-lived MineMusic server process.
-- Added streamable HTTP MCP server operation and launchd documentation.
-- Corrected Codex integration to skill plus global MCP client.
-- Advanced Knowledge Slot and MusicBrainz provider implementation, including
-  relation-object output.
+- `Ref` / `refKey(ref)` policy;
+- entity vs record vocabulary;
+- source/material/canonical kind vocabulary;
+- first-class `VersionInfo`;
+- source-owned links;
+- provider candidate contract direction;
+- removal of old MVP public/domain vocabulary from formal contracts.
 
-## 2026-05-29
+Phase 1 must not redefine the top-level architecture taxonomy established in
+Phase 0.
 
-- Added ADR-0002 for the Material Store boundary.
-- Moved Source Entity Store, Source Library, Library Import/Update state,
-  confirmed bindings, and material-level storage under the Material Store
-  architecture.
-- Added SQLite-backed Material Registry, Source Entity Store, Library Import,
-  and related storage paths.
+### Later Formal Phases
 
-## 2026-05-30
+Later phases should rewrite area docs and code only when the owning boundary is
+in scope. Known later areas include:
 
-- Added Material Registry with stable `materialRef` identity, redirects,
-  source/canonical indexes, merge survival behavior, relations, and activity.
-- Integrated Material Resolve with Material Store materialization and material
-  relation filtering.
-- Added Material Query, Related, Policy, Sort, Select, and query-ready Source
-  Library / Collection flows.
+- Server Host and Stage Core runtime composition;
+- Stage Interface instruments, tools, Handbook, and output policy;
+- Extension Plugin System and Capability Slots;
+- Music Data Platform source/material/canonical/owner facts;
+- Music Intelligence Retrieval and Knowledge;
+- Music Experience radio/listening behavior;
+- Memory;
+- Effect Boundary;
+- provider integrations and storage infrastructure behind the formal ports.
 
-## 2026-05-31
-
-- Completed materialId migration for public agent-facing material handles.
-- Hardened recommendation posture around playable-link evidence, identity
-  confidence, resolve diagnostics, policy/sort/select substrate, and
-  recommendation presentation.
-- Added `memory.feedback.record` and feedback binding to presented material
-  cards.
-
-## 2026-06-01
-
-- Moved compact material output ownership under Stage Interface.
-- Consolidated Material bounded context under `src/material/**`.
-- Narrowed Material Query / Resolve / Stage Interface material-store
-  dependencies and extracted projection/materialization boundaries.
-
-## 2026-06-02
-
-- Removed old public `library.source.list` and normalized public tool language
-  around `materialId`, pools, Material Resolve, and Recommendation Presentation.
-- Added documentation architecture rules, alignment phase plan, audit ledger,
-  and architecture inconsistency ledger.
-- Started `codex/documentation-alignment-sweep` as a docs-only branch.
-- Completed Phase 0 foundation.
-- Completed Phase 1 Stage Interface public-surface alignment.
-- Completed Phase 2 Material Flow alignment.
-- Completed Phase 3 Material Store and Canonical Store alignment, recording
-  open inconsistencies `AI-001` and `AI-002`.
-- Completed Phase 4 Collection Service and Library Import alignment.
-- Completed Phase 5 Providers, Knowledge, Host Adapters, and Operations
-  alignment.
-- Completed Phase 6 root consolidation and final manual audit, archiving the
-  original MVP docs, root proposal/plans, Stage Core refactor plans, and
-  architecture-review evidence.
-- Resolved `AI-001` by accepting materialRef-backed Collections in ADR-0003.
-- Resolved `AI-002` by moving Source Grounding canonicalRef normalization to
-  `SourceGroundingEvidenceStorePort` confirmed canonical bindings and adding a
-  Source Grounding architecture guard.
-- Addressed PR #44 review feedback by correcting Library Import / Collection
-  documentation drift and narrowing Library Import to
-  `LibraryImportMaterialStorePort` with architecture guards.
-- Completed PR 4 Collection Item boundary cleanup: pre-code docs sync,
-  CollectionItem compatibility-field deletion, collection query fallback
-  removal, compact Stage Interface collection outputs, guards, and final docs
-  sync.
-
-## 2026-06-03
-
-- Narrowed Material-facing collection capabilities to
-  `MaterialQueryCollectionReadPort` and `MaterialPolicyCollectionBlockPort`.
-- Routed Resolve relation and collection-block projection through
-  `MaterialPolicyEvaluatorPort` with internal `material_resolution`.
-- Extended `MaterialResolveStatus` with `wrong_version` and `not_playable`
-  and added architecture guards that keep Query/Policy/Resolve off broad
-  `CollectionPort`.
-- Moved durable MaterialRecord binding for imported library items into Library
-  Import by extending `LibraryImportMaterialStorePort` with
-  `getOrCreateBySourceRef` and materializing each imported `sourceRef` during
-  Source Library persistence.
-- Enforced the MVP invariant that
-  `putConfirmedCanonicalBinding(...)` must leave a canonical-confirmed
-  `MaterialRecord` containing both `canonicalRef` and `sourceRef`.
-
-## 2026-06-04
-
-- Implemented Material Search v1 as an internal Material Flow capability backed
-  by SQLite FTS, including contracts, ports, guards, SearchDocument building,
-  owner-visible visibility/eligibility, execution/evidence/cursor handling,
-  Stage Core dirty invalidation wiring, and Query integration.
-- Extended Stage Core dirty invalidation to Canonical Maintenance
-  review apply/auto-update writes so canonical text changes refresh Search.
-- Updated public `music.material.query` language to `text` and `targetKind`
-  without keeping `q` or `returnKind` aliases.
-- Replaced candidate-shaped public/internal Material Resolve with text-query
-  Resolve over Material Search plus provider fallback, including encoded
-  `mat:*` / `emat:*` material handles.
-- Added process-local ephemeral material storage for provider/source-backed
-  non-durable results, reused by Resolve and Query source-backed rows,
-  and final Recommendation Presentation.
-- Changed Query source-backed release-track paths to reuse durable materials
-  when present and allocate `emat:*` handles otherwise, without query-time
-  durable materialization.
-- Restricted final durable materialization of `emat:*` handles to
-  `stage.recommendation.present`, which now materializes only selected valid
-  ephemeral items and emits final durable `mat:*` cards/events.
-- Extended Material Search with Resolve-only request-scoped rerank over
-  prepared durable/ephemeral candidate corpora, keeping ordinary durable
-  `search(...)` behavior unchanged.
-- Refactored Material Resolve to always provider-expand, reuse existing
-  durable material identity before allocating `emat:*`, rerank local recall
-  plus provider-expanded candidates through Material Search, and then apply
-  resolve policy/status projection.
-- Removed the `music.material.related` tool, deleted Query's Resolve
-  dependency, and narrowed Material Query to local Search-backed retrieval,
-  source-library expansion, context, and pool listing only.
-- Verified the slice with `npm run typecheck`, `npm run build:test`,
-  focused material resolve/query/presentation tests, Stage Interface output /
-  dispatch / MCP tests, and architecture guards.
-
-## Next
-
-- Implement the documented docs guard (`npm run check:docs` /
-  `scripts/check-docs.mjs`) when a code-change slice is opened for tooling.
-- Choose the next product/runtime slice from the current area progress docs.
+Each later phase should keep old MVP code/docs as evidence only and should not
+add compatibility layers unless a new accepted ADR explicitly allows an
+exception.

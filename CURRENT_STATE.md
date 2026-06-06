@@ -1,153 +1,146 @@
-# Current State
+# Formal Rebuild Current State
 
-MineMusic has a working TypeScript runtime for grounded music recommendations,
-material identity, source/library import, collections, provider-backed
-knowledge, and MCP host access.
+> Status: Formal rebuild state authority
+> Scope: Project-level state during the same-repo formal rebuild
+> Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-This file summarizes current implementation state. Area-level detail lives in
-the docs listed in `INDEX.md`.
+MineMusic is in Phase 0 of a same-repo formal rebuild. The formal architecture
+and vocabulary are now separated from the old MVP implementation. Current code
+still contains MVP-era surfaces and should be treated as migration/deletion
+inventory until the owning formal phase rewrites it.
 
-## Runtime And Host Access
+## Established Formal Decisions
 
-- MineMusic runs as a long-lived server process that owns Stage Core runtime
-  creation and server-level provider/database/cache/session configuration.
-- The server exposes MCP over streamable HTTP at
-  `http://127.0.0.1:37373/mcp` by default.
-- Codex and OpenClaw are MCP clients of that server. They should not start the
-  MineMusic runtime for normal use.
-- On this machine the server is managed by user `launchd` agent
-  `com.minemusic.server`.
-- Stage Core production runtime exposes `ready` and `stageInterface`; explicit
-  harness factories remain for tests and diagnostics.
+- The project remains in this repository.
+- The formal project is a rebuild, not a new blank project and not an MVP
+  patching pass.
+- Old MVP docs and old MVP code are evidence, donor material, deletion
+  inventory, and migration input only.
+- No compatibility layers, aliases, adapters, or bridges should be added just
+  to preserve old MVP flows.
+- Old code is preserved by git history and optional snapshot tag or branch, not
+  by copying old modules into active-tree archive folders.
+- Formal top-level architecture areas are Server Host, Stage Interface, Stage
+  Core, Extension, Music Data Platform, Music Intelligence, Music Experience,
+  Memory, and Effect Boundary.
+- Stage is a product metaphor and naming root, not a top-level bounded context.
+- Stage Interface owns agent-facing instruments, tools, schemas, Handbook,
+  validation, compact public outputs, dispatch, and session-aware availability.
+- Instrument and Tool are agent-facing workbench structure. They are not
+  bounded contexts, domain services, or capability slots.
+- Extension owns Plugin System, Capability Slots, provider/plugin manifests,
+  and adapter replaceability semantics.
+- Source Provider is a Capability Slot under Plugin System, not a top-level
+  provider platform.
+- Music Data Platform owns source/material/canonical identity, owner-scoped
+  fact families, Collection, Library Import / Update persistence, projections,
+  and Canonical Maintenance.
+- Music Intelligence contains Retrieval and Knowledge only.
+- Music Experience owns radio/listening interaction behavior and durable music
+  experience state.
+- Memory is an independent long-term user/music relationship area.
+- Effect Boundary owns side-effect permission, approval, audit, and execution
+  policy.
 
-## Public Agent Surface
+## Formal Vocabulary State
 
-- Stage Interface owns tool names, descriptors, schemas, dispatch, Handbook
-  lookup, and compact output projection.
-- Public material handles are `materialId` values. Internal `materialRef`,
-  source refs, canonical refs, repository rows, and raw provider payloads stay
-  behind owning boundaries unless a diagnostic path explicitly exposes them.
-- The old `library.source.list` tool is no longer public. Source Library
-  browsing is through `music.pools.list` and `music.material.query`.
-- `stage.recommendation.present` is the final presentation boundary for
-  user-visible recommendations and typed `recommendation.presented` events.
-- Public collection tools return compact Stage Interface-owned outputs:
-  collection item actions expose `itemId`, `collectionId`, and `materialId`;
-  collection lists expose collection ids/labels and item ids, collection ids,
-  material ids, and item labels.
-- The Codex workflow skill lives at `skills/minemusic/SKILL.md`; its
-  `HANDBOOK.md` is a snapshot. Live tool truth is available through
-  `minemusic.handbook.*` tools.
+Formal target vocabulary lives in `docs/formal-project-glossary.md`.
 
-## Core Capabilities
+Accepted vocabulary includes:
 
-- Material Store owns Material Registry, Canonical Store, Source Entity Store,
-  Source Library, confirmed source-to-canonical bindings, material relations,
-  and material activity projections.
-- Writing a confirmed source-to-canonical binding through `MaterialStore`
-  now guarantees a canonical-confirmed `MaterialRecord` containing both the
-  bound `canonicalRef` and `sourceRef`.
-- Material Flow owns material resolve, projection, materialization, query,
-  policy, sorting, selection, and recommendation presentation.
-- Material Search is implemented as an internal Material Flow capability.
-  `music.material.query` uses durable-pool `search(...)` for `all`, ordinary
-  `source_library`, and `collection` retrieval, while Resolve uses separate
-  request-scoped `rerank(...)` over prepared durable/ephemeral candidate
-  corpora. `source_library target: "release_tracks"` keeps source-backed rows
-  on Query-owned paths: it reuses existing durable materials when present and
-  otherwise allocates process-local `emat:*` handles without query-time
-  durable materialization. Public Query input uses `text` and `targetKind`,
-  not `q` or `returnKind`.
-- Material Query now reads collection pools through the narrow
-  `MaterialQueryCollectionReadPort`, Material Policy reads collection-backed
-  blocked membership through `MaterialPolicyCollectionBlockPort`, and Resolve
-  routes resolution-time blocked/wrong-version/not-playable projection through
-  `MaterialPolicyEvaluatorPort`.
-- Public `music.material.related` is removed from the current stable surface.
-  Query no longer depends on Resolve and no longer accepts or constructs
-  related pools.
-- Public `music.material.resolve` is now a text-query contract over
-  `queries[].text` with optional `queries[].targetKind`. It returns compact
-  `mat:*` or `emat:*` handles and does not accept public `kind`, `purpose`,
-  `sourceRef`, `canonicalRef`, `materialRef`, or `sourceLibraryScope`.
-  Resolve always performs provider expansion, reuses existing durable material
-  identity when found, allocates `emat:*` only for still-non-durable provider
-  candidates, and then routes local durable recall plus provider-expanded
-  candidates through Material Search rerank before applying resolve policy.
-- `stage.recommendation.present` now consumes both durable `mat:*` and
-  ephemeral `emat:*` handles, but only selected valid `emat:*` items are
-  materialized into final durable `mat:*` cards and event payloads.
-- Collection Service owns owner-scoped system/custom Collections and current
-  materialRef-backed CollectionItems. ADR-0003 accepts this boundary and
-  supersedes ADR-0002's earlier canonical-only Collection consequence.
-- Current CollectionItems require `materialRef` and no longer store
-  `canonicalRef`, `status`, `identityRequirement`, `materialSnapshot`, or
-  `relationScope`.
-- Library Import/Update consumes `platform_library` providers and writes Source
-  Entity Store / Source Library state, durable MaterialRecords for imported
-  source refs, import/update batches, provenance, baselines, and absence
-  records.
-- Canonical Maintenance Provisional Review is available through
-  `canonical.review.list`, `canonical.review.inspect`, and
-  `canonical.review.apply`.
-- Source Grounding reads confirmed source-to-canonical bindings through a
-  narrow `SourceGroundingEvidenceStorePort` and no longer calls Canonical Store
-  source-ref APIs for ordinary source material normalization.
+- `Ref = { namespace, kind, id, label? }`;
+- `refKey(ref)` as the one public string helper, with `:` banned in ref
+  components;
+- `SourceEntity` / `SourceRecord`;
+- `MaterialEntity` / `MaterialRecord`;
+- `CanonicalEntity` / `CanonicalRecord`;
+- `SourceEntity.kind = track | album | artist`;
+- material/canonical kinds `recording | album | artist | work | release`;
+- first-class `VersionInfo`;
+- source-owned `PlayableLink = { url, label?, requiresAccount? }`;
+- `ProviderMaterialCandidate = { sourceEntity, providerScore? }`;
+- `Collection` as a user-named organizing container;
+- `owner_material_relations` as owner-scoped factual relation source-of-truth;
+- query hits/results as agent decision evidence;
+- `MaterialCard` as final Stage Interface presentation output only.
 
-## Providers And Knowledge
+## Deleted Formal v1 Surfaces
 
-- NetEase is the bundled read-only source provider and platform-library
-  provider.
-- NetEase source search returns source-backed material facts and playable web
-  links when available; link display is not playback.
-- NetEase platform-library reads cover saved tracks, saved releases, and
-  followed artists. Playlists and listening history remain unsupported.
-- NetEase saved-track import/update facts come from liked playlist detail
-  `trackIds` and `trackIds[].at`, not `/likelist`.
-- Music Knowledge returns provider-attributed `KnowledgeResult` values, not
-  `MusicMaterial`.
-- MusicBrainz is the bundled read-only Knowledge provider. It supports
-  structured text search, provider-ref lookup, Canonical-context lookup/search,
-  Tag Query, Field Query, selected expansions, relation focus `members`, and
-  Provider HTTP Cache use.
-- Knowledge provider output does not confirm identity and does not write
-  Canonical Store state.
+Formal v1 deletes these MVP concepts and does not preserve them with
+compatibility aliases:
 
-## Storage
+- Material Resolve as a public/domain surface;
+- Ephemeral Material and `emat` material identity;
+- public `canonical.review.*` tools;
+- public `mat:` / `emat:` material id codecs;
+- active `MusicMaterial` and `SourceMaterial` contracts.
 
-- In-memory repositories remain the default when no database path is supplied.
-- SQLite-backed storage exists for Material Store canonical/source/material
-  registry state, material relations/activity, Collection, Library Import, and
-  Provider HTTP Cache. Material Search uses the SQLite FTS-backed SearchIndex;
-  harnesses can use transient SQLite for the same adapter behavior.
-- Server env can configure database paths:
-  `MINEMUSIC_MATERIAL_STORE_DB_PATH`, `MINEMUSIC_MATERIAL_SEARCH_DB_PATH`,
-  `MINEMUSIC_COLLECTION_DB_PATH`, and `MINEMUSIC_LIBRARY_IMPORT_DB_PATH`.
-- Provider HTTP Cache can be configured through server runtime options and is
-  passed to Knowledge provider factories.
+## Current Code Migration State
 
-## Architecture Inconsistencies
+The TypeScript runtime remains the pre-formal MVP implementation. It may still
+compile and run, but it is not the formal architecture authority.
 
-No architecture inconsistency is currently open in
-`docs/maintenance/architecture-inconsistency-log.md`.
+Known pre-formal code inventory includes:
 
-- `AI-001` was resolved by ADR-0003, which accepts materialRef-backed
-  CollectionItems.
-- `AI-002` was resolved by moving Source Grounding source-ref normalization to
-  confirmed canonical bindings and adding an architecture guard against
-  Canonical Store source-ref API use in `src/source/**`.
+- public/domain Material Resolve paths;
+- process-local ephemeral material handles;
+- public `mat:` / `emat:` handle codecs;
+- public canonical review tools;
+- MVP `MusicMaterial` / `SourceMaterial` vocabulary;
+- old area boundaries such as Material Flow, Material Store, Canonical Store,
+  Material Search, Collection Service, Library Import, Knowledge Slot, and
+  Plugin Slots.
+
+These are migration/deletion inventory for later formal phases. Their presence
+in code does not re-accept them as formal architecture.
+
+## Documentation State
+
+- `ARCHITECTURE.md` is the formal global architecture authority.
+- `docs/formal-project-glossary.md` owns formal target vocabulary and
+  MVP-to-formal term mapping.
+- `docs/adr/0004-same-repo-formal-rebuild.md` records the same-repo rebuild
+  posture and no-compatibility decision.
+- `docs/adr/0005-formal-top-level-architecture-areas.md` records the nine
+  formal top-level areas.
+- `docs/adr/0006-formal-identity-candidate-and-handle-boundaries.md` records
+  the formal identity/candidate/handle boundary direction.
+- `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection
+  and owner relation source-of-truth split.
+- Old root architecture/state/progress snapshots are archived under
+  `docs/archive/root/formal-rebuild-2026-06-06/`.
+- Existing area docs that still describe MVP resolve, ephemeral material,
+  public canonical review, or old query paths are superseded for formal target
+  authority until their owning formal phase rewrites them.
+
+`CONTEXT.md` was not edited in Phase 0. If it is updated later by explicit user
+request, it should be stable glossary only, not migration status or temporary
+implementation explanation.
+
+## Not Yet Migrated
+
+Phase 0 does not change:
+
+- `src/**`;
+- TypeScript contracts;
+- provider implementations;
+- Stage Interface tool definitions;
+- runtime composition;
+- database schemas;
+- generated runtime artifacts;
+- area design/ports/progress docs beyond superseded notices.
+
+Phase 1 owns formal contract vocabulary reset. Later phases own code and area
+documentation rewrites.
 
 ## Verification Pointers
 
-Current verification evidence is distributed across area progress documents.
-Broad project checks are:
+Phase 0 is docs-only. Verification for this state should include:
 
 ```bash
-npm test
-npm run typecheck
 git diff --check
+git diff --name-only
 ```
 
-The documentation alignment sweep used docs-only structural checks because the
-intended `npm run check:docs` / `scripts/check-docs.mjs` guard is documented
-but not implemented.
+No source-code tests are required for Phase 0 unless a later edit leaves the
+docs-only boundary.

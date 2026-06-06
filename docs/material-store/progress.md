@@ -1,3 +1,9 @@
+> Status: Superseded for formal rebuild
+> Formal authority: `ARCHITECTURE.md`, `CURRENT_STATE.md`,
+> `docs/formal-project-glossary.md`, and ADR-0004 through ADR-0007.
+> Use only for: pre-formal Material Store implementation evidence until Music
+> Data Platform rewrites source/material/canonical/owner fact boundaries.
+
 # Material Store Progress
 
 ## Current State

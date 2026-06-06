@@ -1,3 +1,9 @@
+> Status: Superseded for formal rebuild
+> Formal authority: `ARCHITECTURE.md`, `CURRENT_STATE.md`,
+> `docs/formal-project-glossary.md`, and ADR-0004 through ADR-0007.
+> Use only for: pre-formal Material Flow implementation evidence until the
+> owning formal phase rewrites this area.
+
 # Material Flow Progress
 
 ## Current State

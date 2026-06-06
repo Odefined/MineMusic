@@ -1,3 +1,9 @@
+> Status: Superseded for formal rebuild
+> Formal authority: `ARCHITECTURE.md`, `CURRENT_STATE.md`,
+> `docs/formal-project-glossary.md`, and ADR-0004 through ADR-0007.
+> Use only for: pre-formal Canonical Store implementation evidence until Music
+> Data Platform rewrites Canonical Maintenance.
+
 # Canonical Store Design
 
 Canonical Store is the canonical identity subdomain inside Material Store. It

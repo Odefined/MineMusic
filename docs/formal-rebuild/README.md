@@ -26,7 +26,8 @@ replacement for ADRs, root authority docs, area docs, or source contracts.
 
 ## Working Rules
 
-- Do not edit `CONTEXT.md` as part of this draft-planning pass.
+- Do not edit `CONTEXT.md` as part of formal rebuild phase work unless the user
+  explicitly asks for it.
 - Phase specs may mention future `CONTEXT.md` glossary work only as a stable
   glossary follow-up, not as a place to record migration status or temporary
   implementation detail.

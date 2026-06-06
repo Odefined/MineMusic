@@ -1,3 +1,9 @@
+> Status: Superseded for formal rebuild
+> Formal authority: `ARCHITECTURE.md`, `CURRENT_STATE.md`,
+> `docs/formal-project-glossary.md`, and ADR-0004 through ADR-0007.
+> Use only for: pre-formal public canonical review evidence. Public
+> `canonical.review.*` tools are deleted from formal v1.
+
 # Provisional Review Design
 
 Provisional Review is Canonical Maintenance's workflow for deciding whether a

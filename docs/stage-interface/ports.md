@@ -1,3 +1,9 @@
+> Status: Superseded for formal rebuild
+> Formal authority: `ARCHITECTURE.md`, `CURRENT_STATE.md`,
+> `docs/formal-project-glossary.md`, and ADR-0004 through ADR-0007.
+> Use only for: pre-formal Stage Interface port evidence until the owning
+> formal phase rewrites instruments, tools, and public outputs.
+
 # Stage Interface Ports
 
 This document records the Stage Interface provided and consumed ports, read and

@@ -1,3 +1,9 @@
+> Status: Superseded for formal rebuild
+> Formal authority: `ARCHITECTURE.md`, `CURRENT_STATE.md`,
+> `docs/formal-project-glossary.md`, and ADR-0004 through ADR-0007.
+> Use only for: pre-formal projection/materialization evidence until the
+> owning formal phase rewrites this area.
+
 # Material Projection And Materialization
 
 This document records the current split between read projection and writer

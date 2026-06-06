@@ -1,6 +1,6 @@
 # Formal Project Glossary
 
-> Status: Draft formal target glossary
+> Status: Formal target glossary
 > Scope: Formal rebuild vocabulary and MVP-to-formal term mapping
 > Not status authority: This document describes target language. It does not
 > claim that the current code has already implemented every term.
@@ -29,9 +29,9 @@ The formal model separates these objects:
 | `SourceEntity` | Normalized provider/source facts. | Material identity, owner relations, public output, raw provider payload. |
 | `MaterialEntity` | MineMusic material identity anchor. | Links, availability, query score, presentation seed, owner policy. |
 | `CanonicalEntity` | Cross-source identity authority. | Source refs, material refs, playable links, owner facts. |
-| Material Data Platform | Material/source/canonical identity, storage records, bindings, owner-scoped fact families, and projections. | Provider integration, plugin semantics, agent-facing tool schemas, query/present workflow orchestration. |
+| Music Data Platform | Source/material/canonical identity, storage records, bindings, owner-scoped fact families, and projections. | Provider integration, plugin semantics, agent-facing tool schemas, query/present workflow orchestration. |
 | Library Import / Update | Music Data Platform persistence flow that turns external account-library observations into durable source records, source library items, material bindings, import batches, update baselines, and projections. | Provider integration or external account-library reads. |
-| Canonical Maintenance | Material Data Platform capability for canonical evidence, review/apply, merge/split, and identity graph maintenance. | Not a separate top-level bounded context; does not own Stage Interface tools, provider adapters, owner facts, query/present workflow, or `MaterialCard`. |
+| Canonical Maintenance | Music Data Platform capability for canonical evidence, review/apply, merge/split, and identity graph maintenance. | Not a separate top-level bounded context; does not own Stage Interface tools, provider adapters, owner facts, query/present workflow, or `MaterialCard`. |
 | `*Record` | Storage shape, SQL keys, lookup/index columns. | Public/domain entity shape. |
 | Query hit/result | Evidence for the agent/query caller's next decision. | Final presentation card. |
 | `MaterialCard` | Final Stage Interface presentation output. | Query engine internal state or provider candidate shape. |
@@ -126,7 +126,7 @@ The formal model separates these objects:
 | Event Log / Evidence Log | Shared append-only evidence/audit substrate. | Records events with correlation/causality/timeline support, but does not own business truth. Event business meaning belongs to the area that emitted it. Do not create a top-level Events bounded context. |
 | Storage Layer | Infrastructure persistence implementation behind area-owned ports. | Does not own business truth. Area semantics own persistence meaning; storage backend replacement can be exposed through Extension Storage Provider capability. |
 | Storage Provider | Extension capability slot for replaceable storage backend/adapters. | Does not own Music Data Platform, Memory, Effect Boundary, or Music Experience persistence semantics. |
-| Provider output | Evidence/source facts returned by a provider adapter. | Not durable state by itself. Persistence goes through Material Data Platform writer/materializer boundaries. |
+| Provider output | Evidence/source facts returned by a provider adapter. | Not durable state by itself. Persistence goes through Music Data Platform writer/materializer boundaries. |
 
 ## Candidate, Query, And Presentation Vocabulary
 
@@ -159,7 +159,7 @@ The formal model separates these objects:
 | `owner_material_entries` | Owner catalog projection entry. | Projection/read model, not independent command source of truth. |
 | `owner_material_catalog_view` | Owner catalog read projection. | Commands must write fact tables, then rebuild/maintain projection. |
 
-Owner-scoped facts are part of Material Data Platform. They are not a separate
+Owner-scoped facts are part of Music Data Platform. They are not a separate
 top-level Owner Context in formal v1. `MaterialEntity` remains owner-neutral:
 no `ownerScope`, `collectionIds`, saved/favorite/blocked state, or collection
 membership on the entity core.
