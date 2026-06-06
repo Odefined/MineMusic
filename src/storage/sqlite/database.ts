@@ -107,7 +107,14 @@ export class SqliteMusicDatabase implements MusicDatabase {
       this.db.exec("COMMIT");
       return result;
     } catch (error) {
-      this.db.exec("ROLLBACK");
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // SQLite may have already rolled back the transaction, for example
+        // after an `OR ROLLBACK` constraint failure. Preserve the original
+        // callback error for the caller.
+      }
+
       throw error;
     } finally {
       this.transactionActive = false;

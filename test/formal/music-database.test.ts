@@ -56,10 +56,14 @@ orderedDatabase.initialize({
     schema("second", schemaOrder, (context) => {
       context.run("CREATE TABLE second_schema (id INTEGER PRIMARY KEY, label TEXT)");
     }),
+    schema("unique", schemaOrder, (context) => {
+      context.run("CREATE TABLE unique_schema (id INTEGER PRIMARY KEY, label TEXT UNIQUE)");
+      context.run("INSERT INTO unique_schema (label) VALUES (?)", ["duplicate"]);
+    }),
   ],
 });
 
-assert.deepEqual(schemaOrder, ["first", "second"]);
+assert.deepEqual(schemaOrder, ["first", "second", "unique"]);
 assertDatabaseError(
   () => orderedDatabase.initialize(),
   "storage.database_already_initialized",
@@ -118,6 +122,32 @@ assert.equal(
     ?.count,
   1,
 );
+
+let autoRollbackError: unknown;
+assert.throws(
+  () => {
+    orderedDatabase.transaction((context) => {
+      context.run("INSERT OR ROLLBACK INTO unique_schema (label) VALUES (?)", ["duplicate"]);
+    });
+  },
+  (error) => {
+    autoRollbackError = error;
+    return error instanceof Error &&
+      error.message.includes("UNIQUE constraint failed") &&
+      !error.message.includes("cannot rollback");
+  },
+);
+orderedDatabase.transaction((context) => {
+  context.run("INSERT INTO unique_schema (label) VALUES (?)", ["after-auto-rollback"]);
+});
+assert.equal(
+  pragmaContext.get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM unique_schema WHERE label = ?",
+    ["after-auto-rollback"],
+  )?.count,
+  1,
+);
+assert.notEqual(autoRollbackError, undefined);
 
 assertDatabaseError(
   () => {

@@ -89,6 +89,8 @@ Targeted storage tests cover:
 - root transaction commit;
 - rollback on thrown error;
 - database remains usable after successful rollback;
+- SQLite auto-rollback does not let explicit rollback cleanup hide the
+  original transaction error;
 - `BEGIN IMMEDIATE` lock contention failure does not leave the database marked
   as transaction-active;
 - schema contribution execution;
