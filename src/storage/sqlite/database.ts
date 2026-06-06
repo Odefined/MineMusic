@@ -5,6 +5,7 @@ import {
   type InitializeMusicDatabaseInput,
   type MusicDatabase,
   type MusicDatabaseContext,
+  type MusicDatabaseImmediateResult,
   type MusicDatabaseParameter,
 } from "../database.js";
 import { initializeSqliteSchema } from "./schema.js";
@@ -98,13 +99,41 @@ export class SqliteMusicDatabase implements MusicDatabase {
     return this.initializedContext;
   }
 
-  transaction<Result>(operation: (context: MusicDatabaseContext) => Result): Result {
+  transaction<Result>(
+    operation: (context: MusicDatabaseContext) => MusicDatabaseImmediateResult<Result>,
+  ): MusicDatabaseImmediateResult<Result> {
     this.ensureCanStartTransaction();
     this.db.exec("BEGIN IMMEDIATE");
     this.transactionActive = true;
+    let transactionContextActive = true;
+    const transactionContext: MusicDatabaseContext = {
+      run: (sql, params) => {
+        ensureTransactionContextActive(transactionContextActive);
+        this.ensureInitialized();
+        this.runSql(sql, params);
+      },
+      all: (sql, params) => {
+        ensureTransactionContextActive(transactionContextActive);
+        this.ensureInitialized();
+        return this.allSql(sql, params);
+      },
+      get: (sql, params) => {
+        ensureTransactionContextActive(transactionContextActive);
+        this.ensureInitialized();
+        return this.getSql(sql, params);
+      },
+    };
 
     try {
-      const result = operation(this.initializedContext);
+      const result = operation(transactionContext);
+
+      if (isPromiseLike(result)) {
+        throw new MusicDatabaseError({
+          code: "storage.async_callback_not_supported",
+          message: "Music database transaction callback must be synchronous.",
+        });
+      }
+
       this.db.exec("COMMIT");
       return result;
     } catch (error) {
@@ -118,6 +147,7 @@ export class SqliteMusicDatabase implements MusicDatabase {
 
       throw error;
     } finally {
+      transactionContextActive = false;
       this.transactionActive = false;
     }
   }
@@ -125,6 +155,13 @@ export class SqliteMusicDatabase implements MusicDatabase {
   close(): void {
     if (this.state === "closed") {
       return;
+    }
+
+    if (this.state === "initializing") {
+      throw new MusicDatabaseError({
+        code: "storage.database_initialization_active",
+        message: "Cannot close music database while initialization is active.",
+      });
     }
 
     if (this.transactionActive) {
@@ -228,6 +265,24 @@ export class SqliteMusicDatabase implements MusicDatabase {
 
 function toSqliteParameters(params: readonly MusicDatabaseParameter[] | undefined): SqliteParameter[] {
   return [...(params ?? [])] as SqliteParameter[];
+}
+
+function ensureTransactionContextActive(active: boolean): void {
+  if (active) {
+    return;
+  }
+
+  throw new MusicDatabaseError({
+    code: "storage.transaction_context_inactive",
+    message: "Music database transaction context is no longer active.",
+  });
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function";
 }
 
 function closedError(): MusicDatabaseError {

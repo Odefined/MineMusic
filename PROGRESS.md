@@ -150,7 +150,11 @@ Phase 4 implements the generic Music Database foundation:
   prepared statement objects or statement cache in Phase 4;
 - transactions are root-only and do not support nested transaction/savepoint
   behavior in Phase 4;
-- schema initialization uses a contribution runner only;
+- transaction callbacks are synchronous-only; async callbacks are rejected
+  before commit and rolled back;
+- transaction callbacks receive a transaction-scoped context that becomes
+  inactive after commit/rollback;
+- schema initialization uses a synchronous contribution runner only;
 - Phase 4 does not wire storage into the default Server Host runtime;
 - SQLite adapter opening requires an explicit filename and does not read
   env/config or provide a default database path;
@@ -163,12 +167,13 @@ Phase 4 implements the generic Music Database foundation:
 - initialization failure is terminal for the instance and retry requires
   close/reopen;
 - `close()` is idempotent, non-close operations after close fail, and
-  `close()` inside an active transaction is forbidden;
+  `close()` inside an active transaction or active initialization is forbidden;
 - low-level storage primitives throw and do not return `Result<T>`;
 - storage-owned boundary violations use `MusicDatabaseError`;
 - `MusicDatabase.transaction(...)` is a write transaction using
   `BEGIN IMMEDIATE`, with no read-only transaction API in Phase 4;
-- transaction callback failure rolls back, rethrows the original error, and
+- transaction callback failure or unsupported async callback rolls back,
+  rethrows the relevant error, blocks stale transaction-context use, and
   leaves the database usable after successful rollback;
 - Storage owns schema contribution execution while future owning areas own
   business schema semantics;
@@ -178,9 +183,10 @@ Phase 4 implements the generic Music Database foundation:
   and `synchronous = NORMAL`;
 - no new ADR is required for Phase 4;
 - tests cover storage lifecycle, SQL parameter binding for the public
-  scalar/blob parameter union, root transaction commit/rollback, schema
-  contribution ordering, raw SQLite boundary guards, and unchanged default
-  Server Host runtime composition;
+  scalar/blob parameter union, root transaction commit/rollback including
+  async-callback and stale-context rejection, schema contribution
+  ordering/idempotent reopen, raw SQLite boundary guards, and unchanged
+  default Server Host runtime composition;
 - Phase 4 does not introduce source/material/canonical tables, aliases,
   command audit, owner facts, projections, provider adapters, query, or Stage
   Interface tools.

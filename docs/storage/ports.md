@@ -27,11 +27,11 @@ provide music-domain repositories yet.
 | Capability | Method(s) | Read/Write | Allowed consumer | Notes |
 | --- | --- | --- | --- | --- |
 | Open concrete database | `SqliteMusicDatabase.open({ filename })` | Opens storage handle | Composition roots/tests | Filename is explicit; no raw `DatabaseSync` leaves adapter. |
-| Initialize schema | `initialize(...)` | DDL | Composition roots/tests | Explicit call; runs pragmas and schema contributions only. |
+| Initialize schema | `initialize(...)` | DDL | Composition roots/tests | Explicit call; runs pragmas and synchronous schema contributions only. |
 | Execute statement | `MusicDatabaseContext.run` | Write/DDL | Future repositories/schema modules | No rows returned; params are `null`, `number`, `bigint`, `string`, or `Uint8Array`. |
 | Read rows | `MusicDatabaseContext.all` | Read | Future repositories/query modules | Generic row type supplied by caller; params use the same scalar/blob union. |
 | Read optional row | `MusicDatabaseContext.get` | Read | Future repositories/query modules | Returns `undefined` when no row; params use the same scalar/blob union. |
-| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Uses `BEGIN IMMEDIATE`; callback receives context only. |
+| Root transaction | `MusicDatabase.transaction` | Write boundary | Commands/composition roots | Uses `BEGIN IMMEDIATE`; callback receives transaction-scoped context only and must complete synchronously. |
 | Close database | `MusicDatabase.close` | Lifecycle | Composition roots/tests | Owns concrete handle lifetime. |
 
 ## Forbidden Dependencies
@@ -45,11 +45,15 @@ provide music-domain repositories yet.
 | Provider implementations -> storage/sqlite | Providers return source facts; they do not persist them directly. |
 | Repository -> `new DatabaseSync(...)` | Repositories must share the gateway and transaction boundary. |
 | `MusicDatabaseContext` -> `transaction(...)` | Repositories must not create nested transaction boundaries. |
+| Async transaction callback | `BEGIN IMMEDIATE` would commit before awaited work completes. |
+| Stale transaction context use | Transaction-scoped context must not be usable after commit/rollback. |
+| Async schema contribution | Initialization must finish only after schema work is complete. |
 | `context()` / `transaction(...)` before initialization | Database use must not proceed before pragmas/schema setup. |
 | Repeated `initialize(...)` on one database instance | Runtime schema set should be decided once per open database handle. |
 | Initialization retry after failure | Partial schema initialization recovery is out of Phase 4 scope. |
 | Non-close operation after close | Closed handles must not be reused. |
 | `close()` inside active transaction | Do not close the database while a write boundary is active. |
+| `close()` during initialization | Do not leave an initialized wrapper around a closed database handle. |
 | Storage primitives -> `Result<T>` | Low-level database primitives throw; public result translation belongs to higher boundaries. |
 
 ## Composition
@@ -83,13 +87,18 @@ Planned guards:
 | Transaction rollback preserves pre-transaction state. | Storage behavior test |
 | Database remains usable after successful rollback. | Storage behavior test |
 | Transaction uses write-transaction semantics. | Storage behavior test |
+| Async transaction callbacks are rejected and rolled back. | Type-level/storage behavior test |
+| Stale transaction context rejects late use after transaction end. | Storage behavior test |
 | Schema contributions run through the database foundation. | Storage behavior test |
 | Schema contributions run in explicit caller-provided order. | Storage behavior test |
+| Schema contributions are synchronous. | Type-level/storage behavior test |
+| Idempotent schema contributions survive reopen on the same file. | Storage behavior test |
 | `context()` and `transaction(...)` reject before initialization. | Storage behavior test |
 | Repeated `initialize(...)` rejects with `MusicDatabaseError`. | Storage behavior test |
 | Initialization failure makes `context()`, `transaction(...)`, and retry unavailable while keeping `close()` allowed. | Storage behavior test |
 | `close()` is idempotent and closed-handle use rejects. | Storage behavior test |
 | `close()` inside active transaction rejects. | Storage behavior test |
+| `close()` during initialization rejects through initialization failure. | Storage behavior test |
 | Storage-owned boundary errors use `MusicDatabaseError`. | Storage behavior test |
 
 ## Out Of Scope

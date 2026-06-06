@@ -7,6 +7,7 @@ export type {
   MusicDatabase,
   MusicDatabaseContext,
   MusicDatabaseErrorCode,
+  MusicDatabaseImmediateResult,
   MusicDatabaseParameter,
   MusicDatabaseSchemaContribution,
 } from "./database.js";

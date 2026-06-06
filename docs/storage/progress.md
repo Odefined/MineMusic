@@ -22,8 +22,12 @@ Accepted decisions:
   params limited to `null`, `number`, `bigint`, `string`, and `Uint8Array`;
 - Phase 4 does not expose prepared statement objects or statement cache;
 - transaction is root-only through `MusicDatabase.transaction(...)`;
+- transaction callbacks are synchronous-only; async callbacks are rejected at
+  type level and runtime, with rollback before the error escapes;
+- transaction callback receives a transaction-scoped context that becomes
+  inactive after commit/rollback;
 - `MusicDatabaseContext` does not expose `transaction(...)`;
-- Phase 4 uses a schema contribution runner only;
+- Phase 4 uses a synchronous schema contribution runner only;
 - Phase 4 does not introduce business tables or a migration ledger;
 - Phase 4 does not wire storage into the default Server Host runtime;
 - SQLite adapter opening requires an explicit filename and does not read
@@ -38,6 +42,8 @@ Accepted decisions:
   close/reopen;
 - `close()` is idempotent; non-close operations after close fail;
 - `close()` inside an active transaction is forbidden;
+- `close()` during active initialization is forbidden so initialization cannot
+  succeed around a closed concrete handle;
 - low-level storage primitives throw and do not return `Result<T>`;
 - storage-owned boundary violations use `MusicDatabaseError`;
 - `MusicDatabase.transaction(...)` is a write transaction using
@@ -96,6 +102,8 @@ Targeted storage tests cover:
   as transaction-active;
 - schema contribution execution;
 - schema contribution explicit ordering;
+- schema contribution idempotence across reopen on the same file;
+- async schema contribution rejection;
 - accepted pragma initialization without hard-requiring `:memory:` WAL mode;
 - raw `DatabaseSync` boundary guard;
 - default Server Host behavior remains unchanged;
@@ -104,6 +112,9 @@ Targeted storage tests cover:
 - initialization failure terminal-state behavior;
 - idempotent close and closed-handle rejection;
 - close rejection inside active transaction;
+- close-during-initialization rejection through initialization failure;
+- async transaction callback rejection with rollback;
+- stale transaction context rejection after transaction end;
 - storage-owned boundary errors use `MusicDatabaseError`.
 
 `npm run server:minemusic` continues to report only the `extension` and

@@ -103,7 +103,11 @@ Phase 4 Storage vocabulary includes:
   `Uint8Array`, without public prepared statement objects or statement cache
   in Phase 4;
 - root-only transaction boundary through `MusicDatabase.transaction(...)`;
-- schema contribution runner as the Phase 4 initialization shape;
+- root transaction callbacks are synchronous-only; async callbacks are rejected
+  before commit and rolled back;
+- transaction callbacks receive a transaction-scoped context that becomes
+  inactive after commit/rollback;
+- synchronous schema contribution runner as the Phase 4 initialization shape;
 - no default Server Host runtime storage wiring in Phase 4;
 - explicit SQLite filename only, with no adapter-level env/config reads or
   default database path in Phase 4;
@@ -116,12 +120,13 @@ Phase 4 Storage vocabulary includes:
 - initialization failure is terminal for the instance and retry requires
   close/reopen;
 - `close()` is idempotent, non-close operations after close fail, and
-  `close()` inside an active transaction is forbidden;
+  `close()` inside an active transaction or active initialization is forbidden;
 - low-level storage primitives throw rather than returning `Result<T>`;
 - storage-owned boundary violations use `MusicDatabaseError`;
 - `MusicDatabase.transaction(...)` is a write transaction using
   `BEGIN IMMEDIATE`, with no read-only transaction API in Phase 4;
-- transaction callback failure rolls back, rethrows the original error, and
+- transaction callback failure or unsupported async callback rolls back,
+  rethrows the relevant error, blocks stale transaction-context use, and
   leaves the database usable after successful rollback;
 - Storage owns schema contribution execution while future owning areas own
   business schema semantics;

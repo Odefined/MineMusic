@@ -10,6 +10,7 @@ import {
   SqliteMusicDatabase,
   type MusicDatabase,
   type MusicDatabaseContext,
+  type MusicDatabaseImmediateResult,
   type MusicDatabaseParameter,
   type MusicDatabaseSchemaContribution,
 } from "../../src/storage/index.js";
@@ -33,6 +34,31 @@ export type _musicDatabaseShape = Expect<
 export type _musicDatabaseParameterShape = Expect<
   Equal<MusicDatabaseParameter, null | number | bigint | string | Uint8Array>
 >;
+
+export type _musicDatabaseImmediateResultShape = Expect<
+  Equal<MusicDatabaseImmediateResult<Promise<void>>, never>
+>;
+
+if (false) {
+  const typeOnlyDatabase = undefined as unknown as MusicDatabase;
+  typeOnlyDatabase.transaction(() => "sync");
+
+  // @ts-expect-error MusicDatabase.transaction callback must be synchronous.
+  typeOnlyDatabase.transaction(async () => "async");
+
+  const typeOnlySchema: MusicDatabaseSchemaContribution = {
+    id: "sync-schema",
+    apply() {},
+  };
+  void typeOnlySchema;
+
+  const typeOnlyAsyncSchema: MusicDatabaseSchemaContribution = {
+    id: "async-schema",
+    // @ts-expect-error Schema contribution callback must be synchronous.
+    async apply() {},
+  };
+  void typeOnlyAsyncSchema;
+}
 
 assertDatabaseError(
   () => SqliteMusicDatabase.open({ filename: "" }),
@@ -180,6 +206,45 @@ assertDatabaseError(
   "storage.transaction_already_active",
 );
 
+const asyncTransactionDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+asyncTransactionDatabase.initialize({
+  schemas: [
+    {
+      id: "async-transaction-fixture",
+      apply(context) {
+        context.run("CREATE TABLE async_transaction_fixture (id INTEGER PRIMARY KEY, label TEXT)");
+      },
+    },
+  ],
+});
+let lateAsyncTransactionWrite: Promise<void> | undefined;
+const promiseReturningTransaction = ((context: MusicDatabaseContext) => {
+  context.run("INSERT INTO async_transaction_fixture (label) VALUES (?)", ["before-rollback"]);
+  lateAsyncTransactionWrite = Promise.resolve().then(() => {
+    context.run("INSERT INTO async_transaction_fixture (label) VALUES (?)", ["after-rollback"]);
+  });
+  return lateAsyncTransactionWrite;
+}) as unknown as (context: MusicDatabaseContext) => undefined;
+assertDatabaseError(
+  () => asyncTransactionDatabase.transaction(promiseReturningTransaction),
+  "storage.async_callback_not_supported",
+);
+const observedLateAsyncTransactionWrite = lateAsyncTransactionWrite;
+if (observedLateAsyncTransactionWrite === undefined) {
+  throw new Error("late async transaction write fixture did not run");
+}
+await assert.rejects(
+  observedLateAsyncTransactionWrite,
+  (error: unknown) => isMusicDatabaseError(error) && error.code === "storage.transaction_context_inactive",
+);
+assert.equal(
+  asyncTransactionDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM async_transaction_fixture",
+  )?.count,
+  0,
+);
+asyncTransactionDatabase.close();
+
 orderedDatabase.close();
 orderedDatabase.close();
 assertDatabaseError(() => orderedDatabase.context(), "storage.database_closed");
@@ -213,6 +278,81 @@ assertDatabaseError(
 assertDatabaseError(() => failingDatabase.initialize(), "storage.database_initialization_failed");
 failingDatabase.close();
 failingDatabase.close();
+
+const asyncSchemaDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+assertDatabaseError(
+  () => {
+    asyncSchemaDatabase.initialize({
+      schemas: [
+        {
+          id: "async-schema",
+          apply: (() => Promise.resolve(undefined)) as unknown as MusicDatabaseSchemaContribution["apply"],
+        },
+      ],
+    });
+  },
+  "storage.database_initialization_failed",
+);
+assertDatabaseError(() => asyncSchemaDatabase.context(), "storage.database_initialization_failed");
+asyncSchemaDatabase.close();
+
+const closeDuringInitializationDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+assertDatabaseError(
+  () => {
+    closeDuringInitializationDatabase.initialize({
+      schemas: [
+        {
+          id: "close-during-initialization",
+          apply() {
+            closeDuringInitializationDatabase.close();
+          },
+        },
+      ],
+    });
+  },
+  "storage.database_initialization_failed",
+);
+assertDatabaseError(
+  () => closeDuringInitializationDatabase.context(),
+  "storage.database_initialization_failed",
+);
+closeDuringInitializationDatabase.close();
+closeDuringInitializationDatabase.close();
+
+const idempotentFixtureDir = mkdtempSync(join(tmpdir(), "minemusic-storage-idempotent-"));
+const idempotentFixtureFilename = join(idempotentFixtureDir, "music.db");
+const idempotentSchema: MusicDatabaseSchemaContribution = {
+  id: "idempotent-schema",
+  apply(context) {
+    context.run("CREATE TABLE IF NOT EXISTS idempotent_schema (id INTEGER PRIMARY KEY, label TEXT UNIQUE)");
+    context.run("INSERT OR IGNORE INTO idempotent_schema (label) VALUES (?)", ["seed"]);
+  },
+};
+const firstIdempotentDatabase = SqliteMusicDatabase.open({ filename: idempotentFixtureFilename });
+firstIdempotentDatabase.initialize({
+  schemas: [idempotentSchema],
+});
+assert.equal(
+  firstIdempotentDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM idempotent_schema WHERE label = ?",
+    ["seed"],
+  )?.count,
+  1,
+);
+firstIdempotentDatabase.close();
+
+const secondIdempotentDatabase = SqliteMusicDatabase.open({ filename: idempotentFixtureFilename });
+secondIdempotentDatabase.initialize({
+  schemas: [idempotentSchema],
+});
+assert.equal(
+  secondIdempotentDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM idempotent_schema WHERE label = ?",
+    ["seed"],
+  )?.count,
+  1,
+);
+secondIdempotentDatabase.close();
 
 const lockFixtureDir = mkdtempSync(join(tmpdir(), "minemusic-storage-lock-"));
 const lockFixtureFilename = join(lockFixtureDir, "music.db");
@@ -258,7 +398,7 @@ await assertRawSqliteBoundary();
 function schema(
   id: string,
   order: string[],
-  apply: (context: MusicDatabaseContext) => void,
+  apply: (context: MusicDatabaseContext) => undefined,
 ): MusicDatabaseSchemaContribution {
   return {
     id,

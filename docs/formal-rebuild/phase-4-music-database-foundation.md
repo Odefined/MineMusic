@@ -68,9 +68,14 @@ Use generic public names:
 ```ts
 type MusicDatabase = {
   context(): MusicDatabaseContext;
-  transaction<T>(operation: (context: MusicDatabaseContext) => T): T;
+  transaction<T>(
+    operation: (context: MusicDatabaseContext) => MusicDatabaseImmediateResult<T>,
+  ): MusicDatabaseImmediateResult<T>;
   close(): void;
 };
+
+type MusicDatabaseImmediateResult<T> =
+  T & (T extends PromiseLike<unknown> ? never : unknown);
 
 type MusicDatabaseParameter =
   | null
@@ -83,6 +88,11 @@ type MusicDatabaseContext = {
   run(sql: string, params?: readonly MusicDatabaseParameter[]): void;
   all<T>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly T[];
   get<T>(sql: string, params?: readonly MusicDatabaseParameter[]): T | undefined;
+};
+
+type MusicDatabaseSchemaContribution = {
+  id: string;
+  apply(context: MusicDatabaseContext): undefined;
 };
 ```
 
@@ -131,17 +141,21 @@ new instance to retry initialization.
 `close()` is idempotent. After close, all non-close operations throw
 `MusicDatabaseError` with code `storage.database_closed`. Calling `close()`
 inside an active transaction is forbidden and throws a transaction-active
-storage error.
+storage error. Calling `close()` while initialization is active is forbidden;
+if a schema contribution attempts it through a closure, initialization fails
+and the instance enters the initialization-failed state.
 
 ### Transaction Boundary
 
 Transactions are root-only in this phase:
 
 - `MusicDatabase.transaction(...)` starts the transaction;
-- the callback receives `MusicDatabaseContext`;
+- the callback receives a transaction-scoped `MusicDatabaseContext`;
 - `MusicDatabaseContext` has no `transaction(...)` method;
 - repositories must not start their own transactions;
 - transaction is a write transaction and uses `BEGIN IMMEDIATE`;
+- transaction callback must complete synchronously and must not return a
+  `Promise` or thenable;
 - Phase 4 does not provide a read-only transaction API;
 - nested transaction / savepoint behavior is out of scope.
 
@@ -159,6 +173,11 @@ If a transaction callback throws, Storage rolls back and rethrows the original
 error. After a successful rollback, the database remains open and initialized;
 later `context()` and `transaction(...)` calls may continue.
 
+If a transaction callback returns a `Promise` or thenable, Storage treats it as
+an unsupported async callback, rolls back, and throws `MusicDatabaseError`.
+The transaction-scoped context is invalidated when the transaction ends, so a
+late async continuation cannot use it to write outside the transaction.
+
 ### Schema Initialization
 
 Phase 4 introduces a schema contribution runner, not the business schemas.
@@ -169,7 +188,8 @@ Allowed:
   `synchronous = NORMAL`;
 - central schema initialization entrypoint;
 - idempotent schema contribution application;
-- explicit schema contribution array order.
+- explicit schema contribution array order;
+- synchronous schema contributions that return `undefined`.
 
 Not allowed yet:
 
@@ -234,8 +254,11 @@ storage.database_not_initialized
 storage.invalid_database_filename
 storage.database_already_initialized
 storage.database_initialization_failed
+storage.database_initialization_active
 storage.database_closed
 storage.transaction_already_active
+storage.transaction_context_inactive
+storage.async_callback_not_supported
 ```
 
 Do not convert every SQLite or SQL execution error into a Stage Interface
@@ -292,11 +315,13 @@ Storage Provider, migration ledger, or cross-adapter SQL subset.
      union.
    - Implement root-only `BEGIN IMMEDIATE` transaction with rollback and
      rethrow behavior.
+   - Reject async transaction callbacks at type level and runtime.
 
 3. Add schema initialization.
    - Create `src/storage/sqlite/schema.ts`.
    - Apply only accepted Phase 4 pragmas.
    - Execute schema contributions in caller-provided array order.
+   - Keep schema contributions synchronous.
    - Do not add business tables or migration ledger.
 
 4. Add exports.
@@ -334,8 +359,14 @@ Add or update tests that prove:
 - repositories cannot construct `DatabaseSync` directly once repositories
   exist;
 - `MusicDatabaseContext` does not expose `DatabaseSync`;
-- transaction callback receives only `MusicDatabaseContext`;
+- transaction callback receives only transaction-scoped
+  `MusicDatabaseContext`;
+- async transaction callbacks are rejected and rolled back;
+- transaction-scoped context rejects use after transaction end;
 - nested transaction/savepoint API is not present.
+- schema contributions cannot be async;
+- `close()` during initialization cannot leave a closed handle marked
+  initialized.
 
 ## Verification
 
@@ -357,7 +388,10 @@ Targeted tests should cover:
 - parameter binding for the public scalar/blob parameter union;
 - transaction commit;
 - transaction rollback on thrown error;
+- transaction rollback when an async callback is attempted;
+- late async continuations cannot use a stale transaction context;
 - schema contribution runner ordering;
+- schema contribution idempotence across reopen on the same file;
 - raw `DatabaseSync` boundary guard.
 
 ## Acceptance
@@ -376,6 +410,7 @@ Phase 4 is complete when:
 - initialization failure requires close/reopen instead of retry;
 - `close()` is idempotent, but non-close operations after close fail;
 - `close()` inside an active transaction is forbidden;
+- `close()` during initialization cannot corrupt instance state;
 - future repositories can use `MusicDatabaseContext` without raw SQLite access;
 - root-only transaction behavior is tested;
 - storage-owned boundary errors are explicit and thrown;

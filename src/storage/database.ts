@@ -11,9 +11,12 @@ export type MusicDatabaseContext = {
   get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): Row | undefined;
 };
 
+export type MusicDatabaseImmediateResult<Result> =
+  Result & (Result extends PromiseLike<unknown> ? never : unknown);
+
 export type MusicDatabaseSchemaContribution = {
   id: string;
-  apply(context: MusicDatabaseContext): void;
+  apply(context: MusicDatabaseContext): undefined;
 };
 
 export type InitializeMusicDatabaseInput = {
@@ -23,7 +26,9 @@ export type InitializeMusicDatabaseInput = {
 export type MusicDatabase = {
   initialize(input?: InitializeMusicDatabaseInput): void;
   context(): MusicDatabaseContext;
-  transaction<Result>(operation: (context: MusicDatabaseContext) => Result): Result;
+  transaction<Result>(
+    operation: (context: MusicDatabaseContext) => MusicDatabaseImmediateResult<Result>,
+  ): MusicDatabaseImmediateResult<Result>;
   close(): void;
 };
 
@@ -32,8 +37,11 @@ export type MusicDatabaseErrorCode =
   | "storage.database_not_initialized"
   | "storage.database_already_initialized"
   | "storage.database_initialization_failed"
+  | "storage.database_initialization_active"
   | "storage.database_closed"
-  | "storage.transaction_already_active";
+  | "storage.transaction_already_active"
+  | "storage.transaction_context_inactive"
+  | "storage.async_callback_not_supported";
 
 export type CreateMusicDatabaseErrorInput = {
   code: MusicDatabaseErrorCode;

@@ -14,6 +14,10 @@ export function initializeSqliteSchema(input: InitializeSqliteSchemaInput): void
   input.context.run("PRAGMA synchronous = NORMAL");
 
   for (const schema of input.schemas ?? []) {
-    schema.apply(input.context);
+    const result = schema.apply(input.context);
+
+    if (result !== undefined) {
+      throw new Error(`Music database schema contribution '${schema.id}' must be synchronous.`);
+    }
   }
 }
