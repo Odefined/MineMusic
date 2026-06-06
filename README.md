@@ -30,20 +30,22 @@ plans, and architecture review evidence are archived under `docs/archive/`.
 ## Current Runtime
 
 The current runtime is a formal rebuild skeleton. It defines Phase 1 contracts,
-the Phase 2 Stage Core runtime lifecycle baseline, minimal Stage Interface
-dispatch, and a thin Server Host entrypoint. Provider integrations,
-persistence, MCP transport, query behavior, presentation cards, library import,
-and recommendation workflows are not active runtime features until later
-formal phases rebuild them.
+the Phase 2 Stage Core runtime lifecycle baseline, the Phase 3 Extension
+capability-registration baseline, minimal Stage Interface dispatch, and a thin
+Server Host entrypoint. Real provider integrations, persistence, MCP
+transport, query behavior, presentation cards, library import, and
+recommendation workflows are not active runtime features until later formal
+phases rebuild them.
 
-The skeleton creates a Stage Runtime, starts it through Server Host, and
-exposes a JSON status snapshot through the local server command. The only
-Phase 2 tool is `stage.runtime.status`.
+The skeleton creates a Stage Runtime, mounts an empty Extension runtime module,
+starts it through Server Host, and exposes a JSON status snapshot through the
+local server command. The only current tool is `stage.runtime.status`.
 
 ```text
 Host clients
   -> Server Host
   -> Stage Core
+  -> Extension capability registration runtime
   -> Stage Interface
   -> Formal contracts
 ```

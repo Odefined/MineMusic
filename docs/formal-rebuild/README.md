@@ -1,6 +1,6 @@
 # Formal Rebuild Phase Specs
 
-> Status: Draft planning area
+> Status: Formal rebuild phase-spec area
 > Scope: Phase-level specs and execution plans for the same-repo formal rebuild
 > Authority: These documents are not global architecture authority. Accepted
 > decisions must land in root documents, ADRs, area current-authority documents,
@@ -18,6 +18,7 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-0-source-of-truth-reset.md` | Docs-only reset for the formal source-of-truth set. |
 | `phase-1-contract-vocabulary-reset.md` | Contract vocabulary reset for refs, entities, records, source facts, version info, links, and provider candidates. |
 | `phase-2-stage-core-runtime-baseline.md` | Implemented Stage Core runtime baseline spec for lifecycle, module contributions, Stage Interface attachment, and thin Server Host ownership. |
+| `phase-3-extension-capability-slot-baseline.md` | Implemented Extension capability-slot baseline for typed plugin manifests, registry semantics, source-provider slot registration, write policy, and Stage Core mounting. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

@@ -1,5 +1,6 @@
 import type { Result, StageRuntimeSnapshot } from "../contracts/index.js";
 import {
+  createExtensionRuntimeModule,
   createStageRuntime,
   type RuntimeModule,
   type StageRuntime,
@@ -18,7 +19,7 @@ export type CreateServerHostInput = {
 
 export function createServerHost(input: CreateServerHostInput = {}): ServerHost {
   const runtime = input.runtime ?? createStageRuntime({
-    modules: input.modules ?? [],
+    modules: input.modules ?? [createExtensionRuntimeModule()],
   });
 
   return {

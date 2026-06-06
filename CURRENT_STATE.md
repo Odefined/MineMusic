@@ -4,11 +4,12 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 2 of a same-repo formal rebuild. The active
-TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary
-and a Phase 2 Stage Core runtime lifecycle baseline. Old MVP implementation
-code and tests are no longer active-tree migration inventory; they are
-preserved by git history and archive docs only.
+MineMusic has completed Phase 3 of a same-repo formal rebuild. The active
+TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
+a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
+capability-registration baseline. Old MVP implementation code and tests are no
+longer active-tree migration inventory; they are preserved by git history and
+archive docs only.
 
 ## Established Formal Decisions
 
@@ -79,6 +80,17 @@ Phase 2 runtime vocabulary includes:
 - expanded `StageRuntimeSnapshot` with module snapshots, compact failure
   summary, optional cleanup errors, and `interfaceContract`.
 
+Phase 3 Extension vocabulary includes:
+
+- `CapabilitySlot`;
+- `CapabilityRegistration`;
+- `CapabilityRegistry`;
+- `MineMusicPluginManifest`;
+- `MineMusicPlugin`;
+- `PluginActivationContext`;
+- `SourceProviderRegistration`;
+- `source-provider` as the only implemented Phase 3 capability slot.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -96,21 +108,41 @@ The active TypeScript tree is now a formal skeleton:
 
 - `src/contracts/index.ts` owns Phase 1 contracts and Phase 2 runtime snapshot
   contracts;
+- `src/extension/capability_slot.ts` owns plain-object capability slot
+  declarations;
+- `src/extension/capability_registry.ts` owns typed-slot registration, list,
+  and get-by-id behavior;
+- `src/extension/plugin_manifest.ts` owns light plugin manifest validation;
+- `src/extension/plugin_runtime.ts` owns static capability-registration
+  runtime activation;
+- `src/extension/source_provider_slot.ts` owns the `source-provider` slot and
+  source-provider registration helper;
+- `src/extension/index.ts` owns Extension public exports;
 - `src/stage_interface/index.ts` owns the minimal Stage Interface skeleton;
 - `src/stage_core/runtime_module.ts` owns the Stage Core-only
   `RuntimeModule` contribution boundary;
 - `src/stage_core/runtime.ts` owns the Stage Runtime lifecycle baseline;
 - `src/stage_core/runtime_status.ts` owns the internal
   `stage.runtime.status` module;
+- `src/stage_core/extension_runtime_module.ts` adapts Extension into runtime
+  module `extension`;
 - `src/stage_core/index.ts` owns Stage Core public exports;
 - `src/server/host.ts` owns the thin Server Host lifecycle wrapper;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
 
 The current runtime starts in `created`, initializes required runtime modules
-through Server Host, builds Stage Interface from module contributions, exposes
+through Server Host, mounts an empty Extension runtime module by default,
+builds Stage Interface from module contributions, exposes
 `stage.runtime.status`, and supports compact lifecycle snapshots. All runtime
-modules are required. Phase 2 does not support optional modules, dependency
-resolution, capability lookup, retry, reload, or restart.
+modules are required. Phase 3 does not support optional modules, dependency
+resolution, dynamic plugin loading, plugin dependencies, provider execution
+context, retry, reload, or restart.
+
+The Extension runtime is a capability-registration runtime only. It validates
+static plugin manifests, registers source-provider slot implementations in
+tests, and exposes internal Extension test snapshots. The default Server Host
+composition registers no real providers and exposes no provider/plugin/slot
+details through runtime status.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -131,6 +163,9 @@ restored as compatibility layers.
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection
   and owner relation source-of-truth split.
+- `docs/extension/README.md`, `docs/extension/design.md`,
+  `docs/extension/ports.md`, and `docs/extension/progress.md` are the current
+  Extension area docs introduced by Phase 3.
 - Old root architecture/state/progress snapshots are archived under
   `docs/archive/root/formal-rebuild-2026-06-06/`.
 - Pre-formal active area docs, host-adapter docs, provider docs, and operations
@@ -143,10 +178,13 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 2 does not implement:
+Phase 3 does not implement:
 
 - provider integrations;
-- Extension Plugin System or capability slot semantics;
+- real provider execution runtime;
+- provider config flow, provider account instances, or secrets;
+- dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
+  sandboxing, or process isolation;
 - storage adapters or database schemas;
 - MCP/HTTP transport;
 - query engine behavior;

@@ -25,8 +25,22 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-2-stage-core-runtime-baseline.md`: implemented
   Phase 2 spec for Stage Core runtime lifecycle, module contributions, Stage
   Interface attachment, and thin Server Host ownership.
+- `docs/formal-rebuild/phase-3-extension-capability-slot-baseline.md`:
+  implemented Phase 3 spec for Extension-owned capability slots, plugin
+  manifests, registry semantics, source-provider slot registration, write
+  policy, and Stage Core mounting.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
+
+## Current Area Docs
+
+- `docs/extension/README.md`: Extension area documentation entrypoint.
+- `docs/extension/design.md`: Extension Plugin System and Capability Slot
+  design authority.
+- `docs/extension/ports.md`: Extension provided/consumed ports, forbidden
+  dependencies, composition, and guards.
+- `docs/extension/progress.md`: Extension implementation state, verification
+  evidence, remaining gaps, and next candidate slices.
 
 ## Formal ADRs
 

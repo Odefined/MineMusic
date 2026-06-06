@@ -44,8 +44,8 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
 
   const readSnapshot = () => snapshot();
   const modules = [
-    createRuntimeStatusModule({ readSnapshot }),
     ...(input.modules ?? []),
+    createRuntimeStatusModule({ readSnapshot }),
   ];
   const moduleStates: RuntimeModuleState[] = modules.map((module) => ({
     module,

@@ -1,10 +1,16 @@
 export {
   createStageRuntime,
 } from "./runtime.js";
+export {
+  createExtensionRuntimeModule,
+} from "./extension_runtime_module.js";
 export type {
   CreateStageRuntimeInput,
   StageRuntime,
 } from "./runtime.js";
+export type {
+  CreateExtensionRuntimeModuleInput,
+} from "./extension_runtime_module.js";
 export {
   isRuntimeModuleIdSafe,
   mergeRuntimeModuleContributions,

@@ -100,6 +100,40 @@ Phase 2 intentionally does not implement Extension Plugin System, provider
 slots, DB/storage, query, present, `MaterialCard`, handbook, music-domain
 tools, optional modules, dependency ordering, retry, reload, or restart.
 
+## 2026-06-06: Phase 3 Extension Capability Slot Baseline
+
+Phase 3 establishes the formal Extension capability-registration baseline:
+
+- `src/extension/**` is now the formal Extension active source root;
+- capability slots are plain objects created through `defineCapabilitySlot`;
+- `CapabilityRegistry` supports typed-slot register/list/get behavior;
+- plugin manifests are light static declarations with
+  `id/displayName/version/minCoreVersion/capabilities`;
+- plugin ids use lowercase dotted/kebab segments;
+- plugin activation is serial and fail-fast;
+- plugin activation context exposes only `registerSourceProvider`;
+- `source-provider` is the only implemented concrete slot;
+- source-provider registrations use `providerId`, not generic contribution
+  language;
+- `source-provider.writePolicy` is `none`;
+- provider ids are Phase 1 ref-component safe;
+- Extension runtime is a capability-registration runtime, not a provider
+  execution runtime;
+- empty Extension runtime is valid and mounted by default through Server Host;
+- Stage Core mounts Extension as runtime module `extension`;
+- Extension module contributes no instruments, tools, or handlers;
+- `stage.runtime.status` shows Extension module lifecycle but omits
+  provider/plugin/slot registry details;
+- tests guard Extension import boundaries, manifest validation, registration
+  failures, provider id rules, compact status output, and default Server Host
+  composition.
+- current Extension area docs live under `docs/extension/`.
+
+Phase 3 intentionally does not implement NetEase, provider execution context,
+provider config flow, provider accounts, secrets, dynamic loading, plugin
+dependencies, query, storage, materialization, `MaterialCard`, Handbook,
+music-domain tools, memory, or effects.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -108,7 +142,8 @@ Later phases should rewrite area docs and code only when the owning boundary is
 in scope. Known later areas include:
 
 - Stage Interface instruments, tools, Handbook, and output policy;
-- Extension Plugin System and Capability Slots;
+- provider execution/config/runtime behavior beyond the Phase 3
+  capability-registration baseline;
 - Server Host transports and richer Stage Core runtime composition after area
   boundaries stabilize;
 - Music Data Platform source/material/canonical/owner facts;

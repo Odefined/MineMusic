@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import type { Result, StageError } from "../../src/contracts/index.js";
 import {
+  createExtensionRuntimeModule,
   createStageRuntime,
   isRuntimeModuleIdSafe,
   type RuntimeModule,
@@ -96,6 +97,57 @@ const stopCreated = await createdRuntime.stop();
 assert.equal(stopCreated.ok, true);
 assert.equal(createdRuntime.snapshot().status, "stopped");
 assert.equal(createdRuntime.snapshot().modules[0]?.status, "stopped");
+
+const extensionRuntime = createStageRuntime({
+  modules: [createExtensionRuntimeModule()],
+});
+
+assert.deepEqual(extensionRuntime.snapshot().modules.map((module) => module.id), [
+  "extension",
+  "runtime-status",
+]);
+
+const initializedWithExtension = await extensionRuntime.initialize();
+
+assert.equal(initializedWithExtension.ok, true);
+assert.equal(extensionRuntime.snapshot().modules[0]?.ownerArea, "extension");
+assert.equal(extensionRuntime.snapshot().modules[0]?.status, "initialized");
+assert.equal(extensionRuntime.snapshot().interfaceContract.tools.length, 1);
+
+const extensionStatusDispatch = await extensionRuntime.interface.dispatch({
+  toolName: "stage.runtime.status",
+  payload: {},
+});
+
+assert.equal(extensionStatusDispatch.ok, true);
+
+if (extensionStatusDispatch.ok) {
+  const output = extensionStatusDispatch.value.result as {
+    modules: readonly Record<string, unknown>[];
+  };
+
+  assert.deepEqual(Object.keys(extensionStatusDispatch.value.result as Record<string, unknown>).sort(), [
+    "interface",
+    "modules",
+    "status",
+  ]);
+  assert.deepEqual(output.modules, [
+    {
+      id: "extension",
+      ownerArea: "extension",
+      status: "initialized",
+    },
+    {
+      id: "runtime-status",
+      ownerArea: "stage_core",
+      status: "initialized",
+    },
+  ]);
+  assert.equal(JSON.stringify(extensionStatusDispatch.value.result).includes("plugin"), false);
+  assert.equal(JSON.stringify(extensionStatusDispatch.value.result).includes("provider"), false);
+  assert.equal(JSON.stringify(extensionStatusDispatch.value.result).includes("slot"), false);
+  assert.equal(JSON.stringify(extensionStatusDispatch.value.result).includes("registry"), false);
+}
 
 const lifecycleEvents: string[] = [];
 const lifecycleRuntime = createStageRuntime({

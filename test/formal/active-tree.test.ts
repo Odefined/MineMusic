@@ -88,6 +88,12 @@ for (const root of removedRuntimeRoots) {
   );
 }
 
+assert.equal(
+  await pathExists(join(repositoryRoot, "src/extension")),
+  true,
+  "formal Extension root must exist in active source after Phase 3",
+);
+
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));
 const failures: string[] = [];
 
@@ -132,6 +138,44 @@ for (const root of ["src/stage_core", "src/server"]) {
 
   assert.deepEqual(importFailures, []);
 }
+
+const extensionImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))) {
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of [
+    "../stage_interface/",
+    "../stage_core/",
+    "../server/",
+    "../providers/",
+    "../storage/",
+    "../material/",
+    "../collection/",
+    "../memory/",
+    "../effects/",
+  ]) {
+    if (
+      text.includes(`from "${forbiddenImport}`) ||
+      text.includes(`from '${forbiddenImport}`)
+    ) {
+      extensionImportFailures.push(`${relative(repositoryRoot, file)} imports forbidden Extension root '${forbiddenImport}'`);
+    }
+  }
+}
+assert.deepEqual(extensionImportFailures, []);
+
+const stageInterfaceImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/stage_interface"))) {
+  const text = await readFile(file, "utf8");
+
+  if (
+    text.includes('from "../extension/') ||
+    text.includes("from '../extension/")
+  ) {
+    stageInterfaceImportFailures.push(`${relative(repositoryRoot, file)} imports Extension`);
+  }
+}
+assert.deepEqual(stageInterfaceImportFailures, []);
 
 async function pathExists(path: string): Promise<boolean> {
   try {
