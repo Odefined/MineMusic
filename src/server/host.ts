@@ -5,6 +5,7 @@ import {
   type RuntimeModule,
   type StageRuntime,
 } from "../stage_core/index.js";
+import { createMineMusicExtensionRuntime, type MineMusicRuntimeConfig } from "./config.js";
 
 export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
@@ -15,11 +16,16 @@ export type ServerHost = {
 export type CreateServerHostInput = {
   runtime?: StageRuntime;
   modules?: readonly RuntimeModule[];
+  config?: MineMusicRuntimeConfig;
 };
 
 export function createServerHost(input: CreateServerHostInput = {}): ServerHost {
   const runtime = input.runtime ?? createStageRuntime({
-    modules: input.modules ?? [createExtensionRuntimeModule()],
+    modules: input.modules ?? [
+      createExtensionRuntimeModule({
+        runtime: createMineMusicExtensionRuntime(input.config),
+      }),
+    ],
   });
 
   return {

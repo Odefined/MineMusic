@@ -21,6 +21,8 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-3-extension-capability-slot-baseline.md` | Implemented Extension capability-slot baseline for typed plugin manifests, registry semantics, source-provider slot registration, write policy, and Stage Core mounting. |
 | `phase-4-music-database-foundation.md` | Implemented Phase 4 spec for generic `MusicDatabase`, SQLite adapter confinement, root-only transactions, and centralized schema initialization. |
 | `phase-5-music-data-platform-identity-write-model.md` | Implemented Phase 5 spec for Music Data Platform identity records, source-material binding facts, repositories, commands, and ref-key write boundary. |
+| `phase-6-source-provider-slot.md` | Implemented Phase 6 spec for Source Provider Slot search, NCM plugin, default composition, guards, docs, and smoke verification. |
+| `phase-6-source-provider-slot-implementation-plan.md` | Implemented execution plan for Source Provider Slot search, NCM plugin, default composition, guards, docs, and smoke verification. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

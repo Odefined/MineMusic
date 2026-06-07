@@ -36,6 +36,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   implemented Phase 5 spec for Music Data Platform identity records,
   source-material binding facts, repositories, commands, and the `refKey(ref)`
   storage-key policy.
+- `docs/formal-rebuild/phase-6-source-provider-slot.md`: implemented Phase 6
+  spec for Source Provider Slot search, NCM plugin, default composition,
+  guards, docs, and smoke verification.
+- `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`:
+  implemented Phase 6 execution plan.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -48,6 +53,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   dependencies, composition, and guards.
 - `docs/extension/progress.md`: Extension implementation state, verification
   evidence, remaining gaps, and next candidate slices.
+- `docs/extension/plugins/ncm.md`: NCM plugin-specific config, source search
+  mapping, source refs, errors, and smoke usage.
 - `docs/storage/README.md`: Storage area documentation entrypoint.
 - `docs/storage/design.md`: generic MusicDatabase and SQLite adapter design
   authority for the implemented Phase 4 boundary.
@@ -112,12 +119,17 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/contracts/index.ts`: formal contracts, including Phase 1 entity/source
   vocabulary and Phase 2 runtime snapshot vocabulary.
 - `src/stage_interface/index.ts`: minimal Stage Interface skeleton.
+- `src/extension/source_provider_slot.ts`: Source Provider Slot registration
+  and search validation seam.
+- `src/extension/plugins/ncm.ts`: NCM source-provider plugin.
+- `src/extension/plugins/index.ts`: Extension plugin exports.
 - `src/stage_core/index.ts`: Stage Core public exports.
 - `src/stage_core/runtime.ts`: Stage Runtime lifecycle baseline.
 - `src/stage_core/runtime_module.ts`: Stage Core runtime module contribution
   boundary.
 - `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module.
 - `src/server/host.ts`: thin Server Host lifecycle owner.
+- `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/index.ts`: minimal Server Host entrypoint and snapshot command.
 - `src/index.ts`: formal skeleton package exports.
 - `src/storage/database.ts`: generic `MusicDatabase` boundary.

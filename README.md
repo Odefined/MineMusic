@@ -31,21 +31,23 @@ plans, and architecture review evidence are archived under `docs/archive/`.
 
 The current runtime is a formal rebuild skeleton. It defines Phase 1 contracts,
 the Phase 2 Stage Core runtime lifecycle baseline, the Phase 3 Extension
-capability-registration baseline, minimal Stage Interface dispatch, and a thin
-Server Host entrypoint. Real provider integrations, persistence, MCP
-transport, query behavior, presentation cards, library import, and
-recommendation workflows are not active runtime features until later formal
-phases rebuild them.
+capability-registration baseline, the Phase 4 generic Music Database
+foundation, the Phase 5 Music Data Platform identity write model, and the
+Phase 6 Source Provider Slot search seam with a default NCM source-provider
+plugin.
 
-The skeleton creates a Stage Runtime, mounts an empty Extension runtime module,
-starts it through Server Host, and exposes a JSON status snapshot through the
-local server command. The only current tool is `stage.runtime.status`.
+The skeleton creates a Stage Runtime, mounts a configured Extension runtime
+module, starts it through Server Host, and exposes a JSON status snapshot
+through the local server command. The only current Stage Interface tool is
+`stage.runtime.status`. NCM source search is an internal Extension Runtime seam,
+not a public Stage Interface tool.
 
 ```text
 Host clients
   -> Server Host
   -> Stage Core
   -> Extension capability registration runtime
+  -> Source Provider Slot search
   -> Stage Interface
   -> Formal contracts
 ```
@@ -56,11 +58,12 @@ Host clients
 npm test
 npm run typecheck
 npm run server:minemusic
+npm run smoke:ncm
 ```
 
 ## Current Runtime Non-Goals
 
-The current formal skeleton does not implement provider calls, storage,
-autoplay, queue mutation, source writeback, playlist mutation, autonomous DJ
-sessions, query-to-present, handbook tools, music-domain tools, or final
-musical judgment.
+The current formal skeleton does not implement public provider tools,
+runtime storage wiring, autoplay, queue mutation, source writeback, playlist
+mutation, autonomous DJ sessions, query-to-present, handbook tools,
+music-domain tools, or final musical judgment.

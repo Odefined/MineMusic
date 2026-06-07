@@ -3,9 +3,10 @@
 > Status: Current boundary authority
 > Scope: Extension-provided and Extension-consumed capabilities
 
-Extension's ports are deliberately narrow. Current Phase 3 work proves
-registration and runtime mounting only. It does not expose provider execution,
-query, storage, or public Stage Interface tools.
+Extension's ports are deliberately narrow. Current work proves registration,
+runtime mounting, and Source Provider Slot search through an Extension Runtime
+seam. It does not expose query, storage, durable writes, or public Stage
+Interface tools.
 
 ## Provides
 
@@ -16,13 +17,14 @@ query, storage, or public Stage Interface tools.
 | Capability registry | Extension runtime and tests | Register/list/get typed slot registrations. | `src/extension/capability_registry.ts` |
 | Plugin manifest validation | Extension runtime and tests | Validate plugin id, required fields, non-empty known capabilities. | `src/extension/plugin_manifest.ts` |
 | Source-provider slot registration helper | Plugin activation context and tests | Register `SourceProvider` implementations with provider-id validation. | `src/extension/source_provider_slot.ts` |
+| Source-provider search seam | Extension runtime consumers | Search one registered source provider and return validated provider candidates. | `src/extension/plugin_runtime.ts`, `src/extension/source_provider_slot.ts` |
 
 ## Consumes
 
 | Consumed port | Provided by | Used for | Read capabilities | Write capabilities |
 | --- | --- | --- | --- | --- |
 | Formal result/error contracts | Contracts | Return `Result<T>` and `StageError` with `area = "extension"`. | Read shared type vocabulary. | None. |
-| `SourceProvider` contract | Contracts | Type the `source-provider` implementation shape. | Read descriptor and provider operation shape. | None. |
+| `SourceProvider` contract | Contracts | Type the `source-provider` implementation shape. | Read descriptor, capabilities, and provider operation shape. | None. |
 | `isRefComponentSafe` | Contracts | Validate source-provider `providerId`. | Read validation helper. | None. |
 
 ## Method-Level Capabilities
@@ -33,7 +35,8 @@ query, storage, or public Stage Interface tools.
 | Register capability | `CapabilityRegistry.register` | Registration only | Extension runtime/tests | No durable MineMusic write. Rejects unknown, duplicate, and core-only registrations. |
 | List capability registrations | `CapabilityRegistry.list` | Read | Extension runtime/tests | Deterministic order: plugin array order, then registration order. |
 | Lookup capability registration | `CapabilityRegistry.get` | Read | Extension runtime/tests | Lookup is typed-slot scoped; no naked global lookup. |
-| Register source provider | `registerSourceProvider` / `ctx.registerSourceProvider` | Registration only | Plugin activation context/tests | Uses `providerId`; validates ref safety and descriptor match. |
+| Register source provider | `registerSourceProvider` / `ctx.registerSourceProvider` | Registration only | Plugin activation context/tests | Uses `providerId`; validates ref safety, descriptor shape, descriptor match, and declared method availability. |
+| Search source provider | `ExtensionRuntime.searchSourceProvider` | Read/external call through provider contract | Extension runtime consumers/tests | Calls one registered provider's `search`; validates input and output integrity; no durable writes. |
 | Initialize Extension runtime | `ExtensionRuntime.initialize` | Registration only | Stage Core adapter/tests | Serial plugin activation; fail-fast. |
 | Stop Extension runtime | `ExtensionRuntime.stop` | No-op lifecycle | Stage Core adapter/tests | No plugin deactivate hook in current baseline. |
 
@@ -59,9 +62,9 @@ and must not hide writer capability behind read/query/support names.
 | Extension -> storage/material/collection/memory/effects roots | Those areas own their state and side effects. |
 | Stage Interface -> Extension | Capability discovery is not a public tool surface in the current baseline. |
 | Plugin activation context -> raw `CapabilityRegistry` | Plugins may register themselves through narrow helpers only. |
-| Plugin activation context -> http/secrets/config/database/runtime | Provider execution/config/runtime capability is out of scope. |
+| Plugin activation context -> http/secrets/config/database/runtime | Activation is registration only; provider-specific HTTP/config details stay inside plugin implementation and composition config. |
 | `src/plugins/**` | Pre-formal plugin root must not return. |
-| `src/providers/**` | Real provider implementations are out of scope. |
+| `src/providers/**` | Pre-formal provider root must not return. |
 
 ## Composition
 
@@ -70,15 +73,15 @@ Default composition:
 ```text
 Server Host
   -> createStageRuntime([
-       createExtensionRuntimeModule(empty Extension runtime)
+       createExtensionRuntimeModule(configured Extension runtime)
      ])
   -> runtime-status module
   -> Stage Interface
 ```
 
-The default Extension runtime has no plugins. Test fixtures may register fake
-source providers to prove boundary behavior, but fixture providers must not
-become default runtime providers.
+Server Host owns default composition and overall runtime config. Extension owns
+plugin activation and slot semantics. Plugin-specific docs own concrete
+provider mapping/config details.
 
 The Stage Core composition adapter lives in
 `src/stage_core/extension_runtime_module.ts`. It imports the Extension runtime
@@ -97,16 +100,17 @@ Current guards live in formal tests:
 | Stage Interface does not import Extension. | `test/formal/active-tree.test.ts` |
 | Capability slot shape stays `id/cardinality/writePolicy`. | `test/formal/extension-capability-slot.test.ts` |
 | Source-provider slot uses `many-by-id` and `writePolicy = none`. | `test/formal/extension-capability-slot.test.ts` |
+| Source-provider registration validates malformed registrations and provider descriptors. | `test/formal/extension-capability-slot.test.ts` |
+| Source-provider search validates input and output integrity. | `test/formal/extension-capability-slot.test.ts` |
 | Manifest validation and activation failure codes use `area = extension`. | `test/formal/extension-capability-slot.test.ts` |
-| Default Server Host mounts empty Extension runtime. | `test/formal/server-host.test.ts` |
+| Default Server Host mounts configured Extension runtime without probing provider HTTP during startup. | `test/formal/server-host.test.ts` |
 | Runtime status includes module lifecycle but omits registry internals. | `test/formal/stage-runtime.test.ts` |
 
 ## Out Of Scope
 
-- NetEase or any real provider implementation.
-- Provider execution context.
-- Provider config flow, accounts, secrets, auth, reauth, migration, health,
-  rate limits, or cache.
+- Generic provider platform/runtime.
+- Provider account flow, secrets, auth, reauth, migration, health, rate
+  limits, or cache.
 - Dynamic plugin loading, marketplace behavior, signing, sandboxing, process
   isolation, or plugin dependencies.
 - Query, request-scoped candidate tables, materialization, storage, or

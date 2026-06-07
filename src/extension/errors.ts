@@ -1,19 +1,29 @@
 import type { Result, StageError } from "../contracts/index.js";
 
-export function extensionError(code: string, message: string, cause?: unknown): StageError {
+export function extensionError(
+  code: string,
+  message: string,
+  cause?: unknown,
+  retryable = false,
+): StageError {
   return {
     code,
     message,
     area: "extension",
-    retryable: false,
+    retryable,
     ...(cause === undefined ? {} : { cause }),
   };
 }
 
-export function failExtension<T = never>(code: string, message: string, cause?: unknown): Result<T> {
+export function failExtension<T = never>(
+  code: string,
+  message: string,
+  cause?: unknown,
+  retryable = false,
+): Result<T> {
   return {
     ok: false,
-    error: extensionError(code, message, cause),
+    error: extensionError(code, message, cause, retryable),
   };
 }
 

@@ -12,7 +12,10 @@ import {
   getSourceProvider,
   listSourceProviders,
   registerSourceProvider,
+  searchSourceProvider,
   sourceProviderSlot,
+  type SourceProviderSearchInput,
+  type SourceProviderSearchResult,
   type SourceProviderRegistration,
 } from "./source_provider_slot.js";
 
@@ -46,6 +49,7 @@ export type ExtensionRuntime = {
   snapshot(): ExtensionRuntimeSnapshot;
   listSourceProviders(): readonly SourceProviderRegistration[];
   getSourceProvider(providerId: string): SourceProviderRegistration | undefined;
+  searchSourceProvider(input: SourceProviderSearchInput): Promise<Result<SourceProviderSearchResult>>;
 };
 
 export type CreateExtensionRuntimeInput = {
@@ -59,7 +63,7 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
   let registry = createCapabilityRegistry({
     slots: [sourceProviderSlot],
   });
-  const pluginIds = plugins.map((plugin) => plugin.manifest.id);
+  const pluginIds = safePluginIds(plugins);
   let status: ExtensionRuntimeStatus = "created";
   let runtimeError: RuntimeErrorSummary | undefined;
 
@@ -72,6 +76,30 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
     },
     getSourceProvider(providerId) {
       return getSourceProvider(registry, providerId);
+    },
+    searchSourceProvider(input) {
+      if (status === "failed") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_failed",
+          "Extension runtime failed and cannot search source providers.",
+        ));
+      }
+
+      if (status === "stopped") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_stopped",
+          "Extension runtime has stopped and cannot search source providers.",
+        ));
+      }
+
+      if (status !== "ready") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_not_ready",
+          "Extension runtime must be ready before source-provider search.",
+        ));
+      }
+
+      return searchSourceProvider(registry, input);
     },
   };
 
@@ -149,6 +177,13 @@ function validatePluginManifests(plugins: readonly MineMusicPlugin[]): Result<vo
   const seenPluginIds = new Set<string>();
 
   for (const plugin of plugins) {
+    if (!isRecord(plugin)) {
+      return failExtension(
+        "extension.invalid_plugin_manifest",
+        "Plugin must be an object.",
+      );
+    }
+
     const validation = validatePluginManifest({
       manifest: plugin.manifest,
       knownCapabilityIds,
@@ -189,6 +224,14 @@ async function activatePlugin(
         );
       }
 
+      if (!isRecord(registration) || typeof registration.pluginId !== "string") {
+        registrationFailure = failExtension(
+          "extension.invalid_source_provider_registration",
+          `Plugin '${plugin.manifest.id}' source-provider registration must include pluginId.`,
+        );
+        return registrationFailure;
+      }
+
       if (registration.pluginId !== plugin.manifest.id) {
         registrationFailure = failExtension(
           "extension.plugin_registration_owner_mismatch",
@@ -217,7 +260,7 @@ async function activatePlugin(
     },
   };
 
-  let activation: Result<void>;
+  let activation: unknown;
 
   try {
     activation = await plugin.activate(context);
@@ -231,6 +274,14 @@ async function activatePlugin(
   }
 
   activationOpen = false;
+
+  if (!isResultLike(activation)) {
+    return failExtension(
+      "extension.plugin_activation_failed",
+      `Plugin '${plugin.manifest.id}' activation returned a malformed result.`,
+      activation,
+    );
+  }
 
   if (registrationFailure !== undefined && !registrationFailure.ok) {
     return registrationFailure;
@@ -254,4 +305,42 @@ async function activatePlugin(
   }
 
   return ok(undefined);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function safePluginIds(plugins: readonly MineMusicPlugin[]): string[] {
+  const pluginIds: string[] = [];
+
+  for (const plugin of plugins) {
+    if (!isRecord(plugin) || !isRecord(plugin.manifest) || typeof plugin.manifest.id !== "string") {
+      continue;
+    }
+
+    pluginIds.push(plugin.manifest.id);
+  }
+
+  return pluginIds;
+}
+
+function isResultLike(value: unknown): value is Result<unknown> {
+  if (!isRecord(value) || typeof value.ok !== "boolean") {
+    return false;
+  }
+
+  if (value.ok) {
+    return "value" in value;
+  }
+
+  return isStageErrorLike(value.error);
+}
+
+function isStageErrorLike(value: unknown): value is { code: string; message: string; area: string; retryable: boolean } {
+  return isRecord(value) &&
+    typeof value.code === "string" &&
+    typeof value.message === "string" &&
+    typeof value.area === "string" &&
+    typeof value.retryable === "boolean";
 }

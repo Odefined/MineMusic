@@ -25,6 +25,7 @@ import type {
   SourceProvider,
   SourceRecord,
   SourceTrack,
+  SourceTrackPosition,
   StageInterfaceContract,
   StageRuntimeSnapshot,
   StageRuntimeStatus,
@@ -60,6 +61,15 @@ export type _playableLinkShape = Expect<
 export type _sourceEntityKinds = Expect<
   Equal<SourceEntityKind, "track" | "album" | "artist"> &
     Equal<SourceEntity, SourceTrack | SourceAlbum | SourceArtist>
+>;
+
+export type _sourceQueryShape = Expect<
+  Equal<keyof Parameters<NonNullable<SourceProvider["search"]>>[0]["query"], "text" | "targetKinds" | "limit" | "offset">
+>;
+
+export type _sourceTrackPositionShape = Expect<
+  Equal<keyof SourceTrackPosition, "discNumber" | "trackNumber" | "trackCount"> &
+    Equal<SourceTrack["trackPosition"], SourceTrackPosition | undefined>
 >;
 
 export type _sourceEntityForbiddenKeys = Expect<

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { createServerHost } from "../../src/server/index.js";
+import { createMineMusicExtensionRuntime, createServerHost } from "../../src/server/index.js";
 
 const host = createServerHost();
 
@@ -58,3 +58,23 @@ const stoppedAgain = await host.stop();
 
 assert.equal(stoppedAgain.ok, true);
 assert.equal(host.snapshot().status, "stopped");
+
+let probedNcm = false;
+const configuredExtensionRuntime = createMineMusicExtensionRuntime({
+  plugins: {
+    "minemusic.ncm": {
+      baseUrl: "http://unavailable.ncm.test",
+      fetch: async () => {
+        probedNcm = true;
+        throw new Error("NCM should not be probed during initialization.");
+      },
+    },
+  },
+});
+const configuredExtensionStarted = await configuredExtensionRuntime.initialize();
+
+assert.equal(configuredExtensionStarted.ok, true);
+assert.equal(probedNcm, false);
+assert.deepEqual(configuredExtensionRuntime.listSourceProviders().map((provider) => provider.providerId), [
+  "netease",
+]);

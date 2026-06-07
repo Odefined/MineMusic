@@ -129,10 +129,10 @@ Phase 3 establishes the formal Extension capability-registration baseline:
   composition.
 - current Extension area docs live under `docs/extension/`.
 
-Phase 3 intentionally does not implement NetEase, provider execution context,
-provider config flow, provider accounts, secrets, dynamic loading, plugin
-dependencies, query, storage, materialization, `MaterialCard`, Handbook,
-music-domain tools, memory, or effects.
+Phase 3 intentionally does not implement NetEase, provider HTTP/client/config
+flow, provider accounts, secrets, dynamic loading, plugin dependencies, query,
+storage, materialization, `MaterialCard`, Handbook, music-domain tools,
+memory, or effects.
 
 ## 2026-06-06: Phase 4 Music Database Foundation
 
@@ -254,6 +254,53 @@ The implemented Phase 5 spec lives at
 Current Music Data Platform area docs live under
 `docs/music-data-platform/`.
 
+## 2026-06-07: Phase 6 Source Provider Slot Search
+
+Phase 6 extends the formal Extension source-provider slot from
+registration-only proof to a narrow search seam:
+
+- `SourceQuery` now supports `offset`;
+- `SourceTrack` can carry optional source-side `trackPosition`;
+- `SourceProviderSearchInput` and `SourceProviderSearchResult` define the
+  slot-level search wrapper;
+- `ExtensionRuntime.searchSourceProvider(...)` finds one registered provider,
+  checks search support, calls `SourceProvider.search(...)`, validates input and
+  output integrity, and returns validated provider candidates;
+- source-provider registration rejects malformed provider descriptors and method
+  declarations before runtime readiness;
+- source-provider search returns source-backed provider candidates, not query
+  hits, durable source/material/canonical records, or `MaterialCard` output;
+- Source Provider Slot validates provider ownership, `source_${providerId}`
+  namespace, source kind, ref safety, provider entity id safety, provider score
+  range, and requested kind matching;
+- provider failures are wrapped by the Source Provider Slot boundary while
+  preserving retryable failure semantics;
+- `src/extension/plugins/ncm.ts` implements the first real source-provider
+  plugin with `pluginId = minemusic.ncm` and `providerId = netease`;
+- NCM search maps tracks, albums, and artists into normalized `SourceEntity`
+  facts using `source_netease` refs;
+- NCM mapping preserves source-side version info, stable artist source refs,
+  optional track position, availability hints, provider URLs, and track links
+  without synthesizing `providerScore`;
+- NCM plugin config is plugin-id keyed through
+  `plugins["minemusic.ncm"]`, keeping overall runtime config separate from
+  plugin-specific config;
+- default Server Host composition registers the NCM plugin without probing NCM
+  HTTP during runtime startup;
+- `npm run smoke:ncm` skips by default and can run live with
+  `MINEMUSIC_LIVE_NCM=1`;
+- tests guard Source Provider Slot registration/search behavior, malformed
+  manifests/descriptors, NCM mapping/error/config behavior, default composition,
+  no startup HTTP probe, active-tree import boundaries, and compact runtime
+  status output.
+
+The implemented Phase 6 spec lives at
+`docs/formal-rebuild/phase-6-source-provider-slot.md`. The implemented plan
+lives at
+`docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`.
+Current Extension area docs live under `docs/extension/`, with NCM details in
+`docs/extension/plugins/ncm.md`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -262,8 +309,8 @@ Later phases should rewrite area docs and code only when the owning boundary is
 in scope. Known later areas include:
 
 - Stage Interface instruments, tools, Handbook, and output policy;
-- provider execution/config/runtime behavior beyond the Phase 3
-  capability-registration baseline;
+- provider account/config/runtime behavior beyond the Phase 6 search-only NCM
+  plugin;
 - Server Host transports and richer Stage Core runtime composition after area
   boundaries stabilize;
 - Music Data Platform owner facts;
@@ -273,7 +320,8 @@ in scope. Known later areas include:
 - Music Experience radio/listening behavior;
 - Memory;
 - Effect Boundary;
-- provider integrations and business persistence behind the formal ports.
+- additional provider integrations and business persistence behind the formal
+  ports.
 
 Each later phase should keep old MVP code/docs as evidence only and should not
 add compatibility layers unless a new accepted ADR explicitly allows an

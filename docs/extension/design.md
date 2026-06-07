@@ -134,9 +134,10 @@ writePolicy: none
 implementation contract: SourceProvider
 ```
 
-The slot is contract-only. It does not implement NetEase, MusicBrainz,
-local-file providers, provider account config, provider health, provider
-execution context, or external API calls.
+The slot owns registration and narrow operation calls against registered
+providers. It does not implement NetEase, MusicBrainz, local-file providers,
+provider account config, provider health, provider runtime state, or provider
+HTTP details.
 
 Source-provider registrations use domain language:
 
@@ -152,6 +153,9 @@ Rules:
 
 - `providerId` must be non-empty and must not contain `:`;
 - `providerId` must equal `provider.descriptor.providerId`;
+- source-provider descriptor shape is validated at registration time, including
+  non-empty label, array capability list, supported capability literals, and
+  declared method availability for `search` and `playable_links`;
 - one plugin may register multiple source providers;
 - duplicate provider ids fail runtime initialization;
 - `source-provider.writePolicy` is `none`;
@@ -160,35 +164,51 @@ Rules:
 - source providers do not write durable MineMusic state;
 - source providers do not write request-scoped candidate stores.
 
+Extension Runtime exposes source-provider search through a narrow seam:
+
+```ts
+extensionRuntime.searchSourceProvider(input)
+```
+
+That seam may find a registered provider, call `SourceProvider.search(...)`,
+validate source-provider search input and output integrity, and return
+validated provider candidates. It must not expose the raw registry, write
+Music Data Platform state, create query hits, materialize candidates, build
+presentation output, or call `getPlayableLinks(...)`.
+
 Request-scoped candidate relations, query mixing, materialization, and final
 presentation belong to later owning phases.
 
 ## Runtime Semantics
 
-Extension runtime is a capability-registration runtime, not a provider
-execution runtime.
+Extension runtime is a capability-registration runtime with narrow registered
+provider operation seams. It is not a generic provider platform or provider
+HTTP runtime.
 
 It:
 
 - validates static plugin manifests;
 - activates plugins serially;
 - records slot registrations;
+- exposes source-provider search through `ExtensionRuntime.searchSourceProvider`;
 - exposes internal Extension snapshots for Extension tests;
 - can be mounted by Stage Core as runtime module `extension`;
 - supports no-op stop.
 
 It does not:
 
-- execute external provider calls;
 - own provider accounts, secrets, config, rate limits, or health policy;
+- expose provider HTTP details, endpoint paths, raw payloads, or provider
+  config through generic Extension docs or Stage Interface;
 - contribute Stage Interface instruments, tools, or handlers;
 - expose registry details through `stage.runtime.status`;
 - support optional plugins, degraded readiness, skip-bad-plugin behavior,
   quarantine, reload, retry, plugin dependencies, or dynamic loading.
 
-An empty Extension runtime is valid. Default Server Host composition mounts an
-empty Extension runtime module so the runtime boundary is present without
-pretending real providers exist.
+An empty Extension runtime remains valid for tests and explicit composition.
+Default Server Host composition may mount a configured Extension runtime with
+default plugins supplied by Server Host / composition config. Plugin-specific
+details belong in plugin-specific docs, not in the generic Extension design.
 
 ## Failure Semantics
 
@@ -212,9 +232,19 @@ extension.core_only_capability_registration
 extension.duplicate_capability_registration
 extension.unsafe_provider_id
 extension.provider_id_mismatch
+extension.invalid_source_provider_registration
+extension.invalid_source_provider_descriptor
 extension.plugin_registration_owner_mismatch
 extension.activation_context_closed
 extension.plugin_activation_failed
+extension.runtime_failed
+extension.runtime_stopped
+extension.runtime_not_ready
+extension.source_provider_not_found
+extension.source_provider_search_unsupported
+extension.source_provider_search_failed
+extension.invalid_source_provider_search_input
+extension.invalid_source_provider_search_output
 ```
 
 Tests should assert code and area, not long diagnostic messages.

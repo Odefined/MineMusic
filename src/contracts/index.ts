@@ -36,8 +36,8 @@ export type Ref = {
 
 export type PublicRefKey = string;
 
-export function isRefComponentSafe(value: string): boolean {
-  return value.length > 0 && !value.includes(":");
+export function isRefComponentSafe(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && !value.includes(":");
 }
 
 export function assertRefSafe(ref: Pick<Ref, "namespace" | "kind" | "id">): void {
@@ -122,7 +122,14 @@ export type SourceTrack = SourceEntityBase & {
   artistSourceRefs?: readonly Ref[];
   albumLabel?: string;
   albumSourceRef?: Ref;
+  trackPosition?: SourceTrackPosition;
   durationMs?: number;
+};
+
+export type SourceTrackPosition = {
+  discNumber?: string;
+  trackNumber?: number;
+  trackCount?: number;
 };
 
 export type SourceAlbum = SourceEntityBase & {
@@ -232,6 +239,7 @@ export type SourceQuery = {
   text: string;
   targetKinds?: readonly SourceEntityKind[];
   limit?: number;
+  offset?: number;
 };
 
 export type SourceProviderCapability =

@@ -5,7 +5,7 @@
 
 ## Current State
 
-Phase 3 Extension capability-registration baseline is implemented.
+Phase 6 Extension Source Provider Slot search foundation is implemented.
 
 Implemented source:
 
@@ -14,8 +14,11 @@ Implemented source:
 - `src/extension/plugin_manifest.ts`
 - `src/extension/plugin_runtime.ts`
 - `src/extension/source_provider_slot.ts`
+- `src/extension/plugins/ncm.ts`
+- `src/extension/plugins/index.ts`
 - `src/extension/errors.ts`
 - `src/extension/index.ts`
+- `src/server/config.ts`
 - `src/stage_core/extension_runtime_module.ts`
 
 Implemented behavior:
@@ -29,9 +32,25 @@ Implemented behavior:
 - `source-provider` is the only implemented concrete slot;
 - source-provider registrations use `providerId`;
 - `source-provider.writePolicy` is `none`;
-- provider ids are ref-component safe and must match provider descriptors;
+- provider ids are ref-component safe, provider descriptors are validated, and
+  registrations must match provider descriptors;
+- Extension Runtime exposes `searchSourceProvider(...)`;
+- source-provider search input is validated;
+- source-provider output integrity is validated;
+- source-provider search returns `SourceProviderSearchResult`, not raw provider
+  arrays;
+- NCM plugin is implemented under Extension-owned plugin code;
+- NCM plugin registers `pluginId = minemusic.ncm` and
+  `providerId = netease`;
+- NCM plugin maps search-only source candidates for tracks, albums, and
+  artists;
+- NCM plugin owns HTTP/client/mapping details internally;
+- NCM plugin supports plugin-specific `baseUrl` config and an optional
+  transport seam through Server Host / composition config;
 - empty Extension runtime is valid;
-- Server Host mounts empty Extension runtime by default;
+- Server Host mounts configured Extension runtime by default;
+- default composition registers NCM without probing provider HTTP during
+  startup;
 - Stage Core mounts Extension as required runtime module `extension`;
 - Extension module contributes no Stage Interface instruments, tools, or
   handlers;
@@ -43,7 +62,9 @@ Recent verification:
 
 ```bash
 npm run test:stage-core
+npm run typecheck
 npm test
+npm run smoke:ncm
 npm run server:minemusic
 git diff --check
 ```
@@ -71,6 +92,8 @@ git diff --check
 The server output omits plugin ids, provider ids, slot ids, registry counts,
 and fixture provider data.
 
+`npm run smoke:ncm` skips successfully unless `MINEMUSIC_LIVE_NCM=1` is set.
+
 ## Guards
 
 Current tests cover:
@@ -78,34 +101,44 @@ Current tests cover:
 - active-tree root and import boundaries;
 - plugin id validation;
 - manifest validation;
+- malformed manifest rejection without runtime throws;
 - unknown capability failure;
 - missing declared capability registration failure;
 - duplicate plugin id failure;
 - duplicate provider id failure;
 - unsafe provider id failure;
 - provider id mismatch failure;
+- malformed source-provider registration and descriptor rejection;
 - plugin activation throw/failure wrapping;
 - registration after activation context closes is rejected;
 - failed activation does not leave partial source-provider registrations active;
 - core-only slot registration rejection;
 - deterministic source-provider registration order;
+- source-provider search success/failure behavior;
+- source-provider search input validation;
+- source-provider search output integrity validation;
+- NCM track, album, and artist mapping;
+- NCM version info extraction;
+- NCM source artist refs only from stable provider artist ids;
+- NCM unavailable/restricted track link behavior;
+- NCM malformed/provider-error behavior;
+- NCM multi-kind limit splitting and offset rejection;
 - empty Extension runtime;
 - default Server Host composition;
+- no NCM HTTP probe during runtime startup;
 - compact runtime status output.
 
 ## Remaining Gaps
 
 Current Extension intentionally does not implement:
 
-- real provider implementations;
-- provider execution context;
-- provider config flow;
+- generic provider platform/runtime;
 - provider accounts, secrets, OAuth/cookie handling, reauth, migration, health,
   cache, or rate limits;
 - dynamic plugin loading;
 - plugin dependency graph;
 - plugin trust/origin policy;
-- provider conformance tests against external APIs;
+- required provider conformance tests against external APIs;
 - query integration;
 - request-scoped candidate relation;
 - Music Data Platform writes;
@@ -116,13 +149,11 @@ Current Extension intentionally does not implement:
 
 Possible next slices, in order of architectural dependency:
 
-1. Provider execution/config runtime design, if the next phase wants real
-   provider adapters.
-2. Music Data Platform source/material/canonical persistence boundaries, if the
+1. Music Data Platform source/material/canonical persistence boundaries, if the
    next phase wants durable provider facts.
-3. Query/result boundary, if the next phase wants provider candidates to enter
+2. Query/result boundary, if the next phase wants provider candidates to enter
    agent decision output.
-4. Stage Interface capability discovery, if agents need a public view of
+3. Stage Interface capability discovery, if agents need a public view of
    available provider/capability state.
 
 Do not start any of these from Extension alone. Each needs its owning formal

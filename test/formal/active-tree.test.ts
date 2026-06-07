@@ -181,15 +181,35 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))
 
   for (const forbiddenImport of [
     "../stage_interface/",
+    "../../stage_interface/",
     "../stage_core/",
+    "../../stage_core/",
     "../server/",
+    "../../server/",
     "../music_data_platform/",
+    "../../music_data_platform/",
+    "../music_intelligence/",
+    "../../music_intelligence/",
+    "../music_experience/",
+    "../../music_experience/",
     "../providers/",
+    "../../providers/",
     "../storage/",
+    "../../storage/",
     "../material/",
+    "../../material/",
     "../collection/",
+    "../../collection/",
     "../memory/",
+    "../../memory/",
     "../effects/",
+    "../../effects/",
+    "../query/",
+    "../../query/",
+    "../materialization/",
+    "../../materialization/",
+    "../presentation/",
+    "../../presentation/",
   ]) {
     if (
       text.includes(`from "${forbiddenImport}`) ||
@@ -200,6 +220,48 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))
   }
 }
 assert.deepEqual(extensionImportFailures, []);
+
+const sourceProviderSlotText = await readFile(
+  join(repositoryRoot, "src/extension/source_provider_slot.ts"),
+  "utf8",
+);
+const sourceProviderSlotImportFailures = forbiddenImportHits(sourceProviderSlotText, [
+  "./plugins/",
+  "./plugins/ncm",
+]);
+assert.deepEqual(
+  sourceProviderSlotImportFailures,
+  [],
+  "Source Provider Slot must not depend on a concrete provider plugin",
+);
+
+const ncmPluginText = await readFile(
+  join(repositoryRoot, "src/extension/plugins/ncm.ts"),
+  "utf8",
+);
+const ncmPluginImportFailures = forbiddenImportHits(ncmPluginText, [
+  "../../stage_interface/",
+  "../../music_data_platform/",
+  "../../storage/",
+  "../../query/",
+  "../../materialization/",
+  "../../presentation/",
+]);
+assert.deepEqual(
+  ncmPluginImportFailures,
+  [],
+  "NCM plugin must stay inside Extension/provider mapping boundaries",
+);
+
+const extensionBarrelText = await readFile(
+  join(repositoryRoot, "src/extension/index.ts"),
+  "utf8",
+);
+assert.equal(
+  extensionBarrelText.includes("searchSourceProvider"),
+  false,
+  "Extension public barrel must expose source-provider search through ExtensionRuntime only",
+);
 
 const stageInterfaceImportFailures: string[] = [];
 for (const file of await sourceFilesUnder(join(repositoryRoot, "src/stage_interface"))) {
@@ -287,4 +349,19 @@ async function sourceFilesUnder(root: string): Promise<string[]> {
   }
 
   return files;
+}
+
+function forbiddenImportHits(text: string, forbiddenImports: readonly string[]): string[] {
+  const failures: string[] = [];
+
+  for (const forbiddenImport of forbiddenImports) {
+    if (
+      text.includes(`from "${forbiddenImport}`) ||
+      text.includes(`from '${forbiddenImport}`)
+    ) {
+      failures.push(forbiddenImport);
+    }
+  }
+
+  return failures;
 }

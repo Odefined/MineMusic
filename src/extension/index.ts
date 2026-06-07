@@ -43,5 +43,7 @@ export {
   validateSourceProviderRegistration,
 } from "./source_provider_slot.js";
 export type {
+  SourceProviderSearchInput,
+  SourceProviderSearchResult,
   SourceProviderRegistration,
 } from "./source_provider_slot.js";

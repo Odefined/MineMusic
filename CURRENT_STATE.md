@@ -4,13 +4,14 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 5 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 6 of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
-foundation and a Phase 5 Music Data Platform identity write model. Old MVP
-implementation code and tests are no longer active-tree migration inventory;
-they are preserved by git history and archive docs only.
+foundation, a Phase 5 Music Data Platform identity write model, and a Phase 6
+Source Provider Slot search seam with a default NCM source-provider plugin.
+Old MVP implementation code and tests are no longer active-tree migration
+inventory; they are preserved by git history and archive docs only.
 
 ## Established Formal Decisions
 
@@ -167,6 +168,31 @@ Phase 5 Music Data Platform vocabulary includes:
 - `MusicDataPlatformError` for internal Music Data Platform invariant
   violations, without returning Stage Interface `Result<T>`.
 
+Phase 6 Source Provider Slot vocabulary includes:
+
+- `SourceQuery.offset` as shared provider-search pagination input;
+- `SourceTrackPosition` as optional source-side track position facts;
+- `SourceTrack.trackPosition`;
+- `SourceProviderSearchInput = { providerId, query, sessionId? }`;
+- `SourceProviderSearchResult = { providerId, query, candidates }`;
+- `ExtensionRuntime.searchSourceProvider(input)`;
+- Source Provider Slot registration validation for provider id safety, provider
+  descriptor shape, and declared method availability;
+- Source Provider Slot search input validation for provider id, text, target
+  kinds, limit, offset, and optional session id;
+- Source Provider Slot output integrity validation for provider ownership,
+  `source_${providerId}` namespace, source kind, ref safety, provider entity id
+  safety, provider score range, and requested kind matching;
+- NCM plugin identity `pluginId = minemusic.ncm` and
+  `providerId = netease`;
+- NCM source refs using `source_netease:track|album|artist:<id>`;
+- plugin-id keyed runtime config
+  `plugins["minemusic.ncm"]?: NcmPluginConfig`;
+- default NCM local-service base URL `http://127.0.0.1:3000` as plugin config,
+  not a Source Provider Slot rule;
+- `npm run smoke:ncm` as an opt-in live smoke command that skips unless
+  `MINEMUSIC_LIVE_NCM=1`.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -190,9 +216,13 @@ The active TypeScript tree is now a formal skeleton:
   and get-by-id behavior;
 - `src/extension/plugin_manifest.ts` owns light plugin manifest validation;
 - `src/extension/plugin_runtime.ts` owns static capability-registration
-  runtime activation;
-- `src/extension/source_provider_slot.ts` owns the `source-provider` slot and
-  source-provider registration helper;
+  runtime activation and the `searchSourceProvider(...)` runtime seam;
+- `src/extension/source_provider_slot.ts` owns the `source-provider` slot,
+  source-provider registration helper, search input validation, and search
+  output integrity validation;
+- `src/extension/plugins/ncm.ts` owns the NCM source-provider plugin HTTP
+  client, request mapping, source-fact mapping, and provider error mapping;
+- `src/extension/plugins/index.ts` owns Extension plugin exports;
 - `src/extension/index.ts` owns Extension public exports;
 - `src/stage_interface/index.ts` owns the minimal Stage Interface skeleton;
 - `src/stage_core/runtime_module.ts` owns the Stage Core-only
@@ -204,6 +234,8 @@ The active TypeScript tree is now a formal skeleton:
   module `extension`;
 - `src/stage_core/index.ts` owns Stage Core public exports;
 - `src/server/host.ts` owns the thin Server Host lifecycle wrapper;
+- `src/server/config.ts` owns default runtime composition config, including
+  plugin-id keyed NCM config;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
 - `src/storage/database.ts` owns the generic `MusicDatabase` contract,
   `MusicDatabaseContext`, `MusicDatabaseTransactionContext`, schema
@@ -224,17 +256,18 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_data_platform/index.ts` owns Music Data Platform public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
-through Server Host, mounts an empty Extension runtime module by default,
+through Server Host, mounts a configured Extension runtime module by default,
 builds Stage Interface from module contributions, exposes
 `stage.runtime.status`, and supports compact lifecycle snapshots. All runtime
-modules are required. Phase 3 does not support optional modules, dependency
-resolution, dynamic plugin loading, plugin dependencies, provider execution
-context, retry, reload, or restart.
+modules are required. The runtime does not support optional modules, dependency
+resolution, dynamic plugin loading, plugin dependencies, retry, reload, or
+restart.
 
-The Extension runtime is a capability-registration runtime only. It validates
-static plugin manifests, registers source-provider slot implementations in
-tests, and exposes internal Extension test snapshots. The default Server Host
-composition registers no real providers and exposes no provider/plugin/slot
+The Extension runtime validates static plugin manifests, registers validated
+source-provider slot implementations, exposes internal Extension test snapshots,
+and exposes `searchSourceProvider(...)` as an internal runtime seam.
+The default Server Host composition registers the NCM source provider without
+probing NCM HTTP during runtime startup and exposes no provider/plugin/slot
 details through runtime status.
 
 The Storage foundation is not wired into the default Server Host runtime. It
@@ -280,6 +313,12 @@ restored as compatibility layers.
   `docs/music-data-platform/ports.md`, and
   `docs/music-data-platform/progress.md` are the current Music Data Platform
   area docs for the identity write model.
+- `docs/formal-rebuild/phase-6-source-provider-slot.md` records the
+  implemented Phase 6 Source Provider Slot search spec.
+- `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`
+  records the implemented Phase 6 execution plan.
+- `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
+  source ref, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
   `docs/archive/root/formal-rebuild-2026-06-06/`.
 - Pre-formal active area docs, host-adapter docs, provider docs, and operations
@@ -292,11 +331,11 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 5 does not implement:
+Phase 6 does not implement:
 
-- provider integrations;
-- real provider execution runtime;
-- provider config flow, provider account instances, or secrets;
+- public Stage Interface provider/search tools;
+- generic provider platform/runtime;
+- provider account instances, login, cookies, OAuth, secrets, or reauth;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
 - runtime storage wiring;
@@ -316,13 +355,14 @@ contracts.
 
 ## Verification Pointers
 
-Phase 5 verification for this state should include:
+Phase 6 verification for this state should include:
 
 ```bash
 npm run typecheck
 npm run build:test
 npm run test:stage-core
 npm test
+npm run smoke:ncm
 npm run server:minemusic
 git diff --check
 git diff --name-only

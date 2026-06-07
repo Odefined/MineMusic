@@ -5,6 +5,12 @@ export type {
   CreateServerHostInput,
   ServerHost,
 } from "./host.js";
+export {
+  createMineMusicExtensionRuntime,
+} from "./config.js";
+export type {
+  MineMusicRuntimeConfig,
+} from "./config.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { createServerHost } = await import("./host.js");

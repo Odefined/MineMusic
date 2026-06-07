@@ -6,7 +6,8 @@
 Extension owns MineMusic plugin semantics, capability-slot registration,
 provider/plugin manifests, and adapter replaceability rules. It does not own
 Stage Runtime graph composition, Stage Interface public tools, music facts,
-provider execution context, query, materialization, or final presentation.
+provider HTTP/client/config details, query, materialization, or final
+presentation.
 
 ## Documents
 
@@ -15,6 +16,7 @@ provider execution context, query, materialization, or final presentation.
 | `design.md` | Stable Extension design, concepts, ownership, non-goals, and lifecycle rules. |
 | `ports.md` | Provided/consumed ports, read/write capabilities, forbidden dependencies, composition, and guards. |
 | `progress.md` | Current implementation state, verification evidence, remaining gaps, and next slices. |
+| `plugins/ncm.md` | NCM plugin-specific config, source search mapping, source refs, errors, and smoke usage. |
 
 ## Current Authority Chain
 

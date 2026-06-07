@@ -3,7 +3,8 @@
 > Status: Formal v1 target authority
 > Scope: Global architecture, ownership, import direction, and public-surface
 > principles
-> Not implementation status: Current code has not yet migrated to this target.
+> Not implementation status: Current implementation state lives in
+> `CURRENT_STATE.md`.
 
 MineMusic is the music workspace for an LLM music partner. The LLM owns musical
 interpretation, conversation pacing, and final recommendation judgement.
@@ -306,9 +307,13 @@ compatibility aliases:
 - Glossary: `docs/formal-project-glossary.md`
 - Phase 0 spec: `docs/formal-rebuild/phase-0-source-of-truth-reset.md`
 - Phase 1 spec: `docs/formal-rebuild/phase-1-contract-vocabulary-reset.md`
-- Phase 4 storage draft:
+- Phase 4 storage spec:
   `docs/formal-rebuild/phase-4-music-database-foundation.md`
+- Phase 6 Source Provider Slot spec:
+  `docs/formal-rebuild/phase-6-source-provider-slot.md`
 - Storage area docs: `docs/storage/README.md`
+- Extension area docs: `docs/extension/README.md`
+- NCM plugin docs: `docs/extension/plugins/ncm.md`
 - ADRs: `docs/adr/`
 - Current implementation status: `CURRENT_STATE.md`
 - Milestones: `PROGRESS.md`
