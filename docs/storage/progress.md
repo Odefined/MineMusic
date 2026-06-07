@@ -14,8 +14,9 @@ Accepted decisions:
 - raw SQLite boundary guard uses active-tree text scanning; `DatabaseSync`,
   `StatementSync`, and `node:sqlite` are confined to the SQLite adapter and
   storage boundary tests;
-- future repositories and commands receive `MusicDatabaseContext`, not a raw
-  SQLite object;
+- future repositories receive `MusicDatabaseContext`, not a raw SQLite object;
+- commands that require root transaction atomicity may require
+  `MusicDatabaseTransactionContext`;
 - `MusicDatabaseContext` exposes low-level SQL primitives `run`, `all`, and
   `get`;
 - `MusicDatabaseContext` supports SQL parameters through `sql + params`, with

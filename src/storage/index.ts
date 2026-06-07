@@ -10,6 +10,7 @@ export type {
   MusicDatabaseImmediateResult,
   MusicDatabaseParameter,
   MusicDatabaseSchemaContribution,
+  MusicDatabaseTransactionContext,
 } from "./database.js";
 export {
   SqliteMusicDatabase,

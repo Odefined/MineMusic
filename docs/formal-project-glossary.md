@@ -53,11 +53,11 @@ The formal model separates these objects:
 | Term | Meaning | Formal Rule |
 | --- | --- | --- |
 | `SourceEntity` | Durable normalized provider-side facts. | `kind = track | album | artist`; contains provider ids, source ref, explicit normalized facts, optional links, optional version info. |
-| `SourceRecord` | Storage record for source facts and lookup columns. | May contain SQL/storage keys and indexes; not exposed as domain/source contract. |
+| `SourceRecord` | Storage record for source facts and lookup columns. | Keyed by `refKey(entity.sourceRef)`. May contain SQL/storage indexes; do not expose a separate `recordId`. |
 | `MaterialEntity` | MineMusic-owned material identity anchor. | Domain identity only; may carry canonical/source identity anchors and version info. |
-| `MaterialRecord` | Storage record for material identity persistence. | Persistence shape only; may differ from `MaterialEntity`. |
+| `MaterialRecord` | Storage record for material identity persistence. | Keyed by `refKey(entity.materialRef)`. Persistence shape only; do not expose a separate `recordId`. |
 | `CanonicalEntity` | Cross-source identity authority. | May carry display/search aliases and version info only when canonical identity is version-specific. |
-| `CanonicalRecord` | Storage record for canonical identity maintenance. | May carry storage keys, provider identity indexes, and evidence facts. |
+| `CanonicalRecord` | Storage record for canonical identity maintenance. | Keyed by `refKey(entity.canonicalRef)`. May carry storage indexes and evidence facts; do not expose a separate `recordId`. |
 
 ## Kind Vocabulary
 
@@ -143,7 +143,7 @@ The formal model separates these objects:
 | Term | Values | Formal Rule |
 | --- | --- | --- |
 | `MaterialLifecycleStatus` | `active | merged | archived` | Material lifecycle only. |
-| `MaterialIdentityStatus` | `canonical_confirmed | source_backed | unresolved_identity` | Identity anchor state only. |
+| `MaterialIdentityStatus` | `canonical_confirmed | source_backed | unresolved_identity` | Identity anchor state only. In the Phase 5 write model it is derived from canonical/source anchors, not caller supplied by ordinary material upsert. |
 | `MaterialAvailability` | `playable | restricted | unavailable | unknown` | Computed availability axis, not core material identity. |
 | `CanonicalRecordStatus` | `active | provisional | merged | archived` | Canonical storage/maintenance status. `archived` replaces old rejected canonical status. |
 | `owner_material_relations.status` | `active | removed | rejected` | Owner relation adoption/rejection state; not material lifecycle or canonical status. |

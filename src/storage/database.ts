@@ -11,6 +11,12 @@ export type MusicDatabaseContext = {
   get<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): Row | undefined;
 };
 
+declare const transactionContextBrand: unique symbol;
+
+export type MusicDatabaseTransactionContext = MusicDatabaseContext & {
+  readonly [transactionContextBrand]: true;
+};
+
 export type MusicDatabaseImmediateResult<Result> =
   Result & (Result extends { then: unknown } ? never : unknown);
 
@@ -27,7 +33,7 @@ export type MusicDatabase = {
   initialize(input?: InitializeMusicDatabaseInput): void;
   context(): MusicDatabaseContext;
   transaction<Result>(
-    operation: (context: MusicDatabaseContext) => MusicDatabaseImmediateResult<Result>,
+    operation: (context: MusicDatabaseTransactionContext) => MusicDatabaseImmediateResult<Result>,
   ): MusicDatabaseImmediateResult<Result>;
   close(): void;
 };

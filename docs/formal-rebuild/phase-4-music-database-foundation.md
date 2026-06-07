@@ -69,7 +69,7 @@ Use generic public names:
 type MusicDatabase = {
   context(): MusicDatabaseContext;
   transaction<T>(
-    operation: (context: MusicDatabaseContext) => MusicDatabaseImmediateResult<T>,
+    operation: (context: MusicDatabaseTransactionContext) => MusicDatabaseImmediateResult<T>,
   ): MusicDatabaseImmediateResult<T>;
   close(): void;
 };
@@ -88,6 +88,12 @@ type MusicDatabaseContext = {
   run(sql: string, params?: readonly MusicDatabaseParameter[]): void;
   all<T>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly T[];
   get<T>(sql: string, params?: readonly MusicDatabaseParameter[]): T | undefined;
+};
+
+declare const transactionContextBrand: unique symbol;
+
+type MusicDatabaseTransactionContext = MusicDatabaseContext & {
+  readonly [transactionContextBrand]: true;
 };
 
 type MusicDatabaseSchemaContribution = {
@@ -150,7 +156,8 @@ and the instance enters the initialization-failed state.
 Transactions are root-only in this phase:
 
 - `MusicDatabase.transaction(...)` starts the transaction;
-- the callback receives a transaction-scoped `MusicDatabaseContext`;
+- the callback receives a transaction-scoped
+  `MusicDatabaseTransactionContext`;
 - `MusicDatabaseContext` has no `transaction(...)` method;
 - repositories must not start their own transactions;
 - transaction is a write transaction and uses `BEGIN IMMEDIATE`;
@@ -303,6 +310,7 @@ Storage Provider, migration ledger, or cross-adapter SQL subset.
 1. Add the generic storage contract.
    - Create `src/storage/database.ts`.
    - Define `MusicDatabase`, `MusicDatabaseContext`,
+     `MusicDatabaseTransactionContext`,
      `MusicDatabaseSchemaContribution`, and `MusicDatabaseError`.
    - Keep the contract free of `node:sqlite`, `DatabaseSync`, `StatementSync`,
      prepared statements, and Stage Interface `Result<T>`.
@@ -363,7 +371,7 @@ Add or update tests that prove:
   exist;
 - `MusicDatabaseContext` does not expose `DatabaseSync`;
 - transaction callback receives only transaction-scoped
-  `MusicDatabaseContext`;
+  `MusicDatabaseTransactionContext`;
 - async transaction callbacks are rejected and rolled back;
 - transaction-scoped context rejects use after transaction end;
 - nested transaction/savepoint API is not present.

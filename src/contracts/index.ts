@@ -191,7 +191,6 @@ export type CanonicalEntity = {
 };
 
 export type SourceRecord = {
-  recordId: string;
   entity: SourceEntity;
   lookup: {
     providerId: string;
@@ -203,7 +202,6 @@ export type SourceRecord = {
 };
 
 export type MaterialRecord = {
-  recordId: string;
   entity: MaterialEntity;
   mergedIntoMaterialRef?: Ref;
   createdAt: string;
@@ -217,7 +215,6 @@ export type CanonicalRecordStatus =
   | "archived";
 
 export type CanonicalRecord = {
-  recordId: string;
   entity: CanonicalEntity;
   status: CanonicalRecordStatus;
   mergedIntoCanonicalRef?: Ref;

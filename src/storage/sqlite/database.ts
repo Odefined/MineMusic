@@ -7,6 +7,7 @@ import {
   type MusicDatabaseContext,
   type MusicDatabaseImmediateResult,
   type MusicDatabaseParameter,
+  type MusicDatabaseTransactionContext,
 } from "../database.js";
 import { initializeSqliteSchema } from "./schema.js";
 
@@ -100,13 +101,13 @@ export class SqliteMusicDatabase implements MusicDatabase {
   }
 
   transaction<Result>(
-    operation: (context: MusicDatabaseContext) => MusicDatabaseImmediateResult<Result>,
+    operation: (context: MusicDatabaseTransactionContext) => MusicDatabaseImmediateResult<Result>,
   ): MusicDatabaseImmediateResult<Result> {
     this.ensureCanStartTransaction();
     this.db.exec("BEGIN IMMEDIATE");
     this.transactionActive = true;
     let transactionContextActive = true;
-    const transactionContext: MusicDatabaseContext = {
+    const transactionContext = {
       run: (sql, params) => {
         ensureTransactionContextActive(transactionContextActive);
         this.ensureInitialized();
@@ -122,7 +123,7 @@ export class SqliteMusicDatabase implements MusicDatabase {
         this.ensureInitialized();
         return this.getSql(sql, params);
       },
-    };
+    } as MusicDatabaseTransactionContext;
 
     try {
       const result = operation(transactionContext);
