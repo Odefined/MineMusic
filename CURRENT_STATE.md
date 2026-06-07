@@ -4,12 +4,13 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 4 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 5 of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
-foundation. Old MVP implementation code and tests are no longer active-tree
-migration inventory; they are preserved by git history and archive docs only.
+foundation and a Phase 5 Music Data Platform identity write model. Old MVP
+implementation code and tests are no longer active-tree migration inventory;
+they are preserved by git history and archive docs only.
 
 ## Established Formal Decisions
 
@@ -47,8 +48,8 @@ migration inventory; they are preserved by git history and archive docs only.
 ## Formal Vocabulary State
 
 Formal target vocabulary lives in `docs/formal-project-glossary.md`.
-The implemented Phase 1 and Phase 2 TypeScript vocabulary lives in
-`src/contracts/index.ts`.
+The implemented formal TypeScript vocabulary lives in `src/contracts/index.ts`
+and area-specific public exports.
 
 Accepted vocabulary includes:
 
@@ -136,6 +137,22 @@ Phase 4 Storage vocabulary includes:
 - Phase 4 initialization sets only `foreign_keys = ON`, `journal_mode = WAL`,
   and `synchronous = NORMAL`.
 
+Phase 5 Music Data Platform vocabulary includes:
+
+- source/material/canonical records keyed by `refKey(entity ref)`, with no
+  separate `recordId`;
+- `musicDataPlatformIdentitySchema` as the Phase 5 schema contribution;
+- `SourceToMaterialBindingRecord` as the current source-to-material binding
+  record, with no status/history/evidence/audit/kind fields;
+- `createIdentityRepositories({ db })` for low-level repositories over
+  `MusicDatabaseContext`;
+- `createIdentityWriteCommands({ db, now })` for narrow identity commands;
+- `upsertSourceRecord`, `upsertMaterialRecord`, `upsertCanonicalRecord`,
+  `bindSourceToMaterial`, `bindMaterialToCanonical`, and
+  `mergeMaterialRecord`;
+- `MusicDataPlatformError` for internal Music Data Platform invariant
+  violations, without returning Stage Interface `Result<T>`.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -181,6 +198,15 @@ The active TypeScript tree is now a formal skeleton:
 - `src/storage/sqlite/schema.ts` owns SQLite pragma and schema contribution
   initialization;
 - `src/storage/index.ts` owns Storage public exports.
+- `src/music_data_platform/errors.ts` owns Music Data Platform invariant
+  errors;
+- `src/music_data_platform/identity_schema.ts` owns Phase 5 identity schema
+  contribution;
+- `src/music_data_platform/identity_records.ts` owns source/material/canonical
+  repositories and source-to-material binding persistence;
+- `src/music_data_platform/identity_write_model.ts` owns narrow identity write
+  commands;
+- `src/music_data_platform/index.ts` owns Music Data Platform public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
 through Server Host, mounts an empty Extension runtime module by default,
@@ -199,6 +225,11 @@ details through runtime status.
 The Storage foundation is not wired into the default Server Host runtime. It
 creates no default database file, defines no business tables, and exposes no
 Stage Interface tools.
+
+The Music Data Platform identity write model is not wired into the default
+Server Host runtime. It provides schema/repository/command boundaries and tests
+only; it exposes no Stage Interface tools and does not run provider import,
+query, presentation, owner facts, or canonical maintenance workflows.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -227,6 +258,13 @@ restored as compatibility layers.
 - `docs/storage/README.md`, `docs/storage/design.md`, `docs/storage/ports.md`,
   and `docs/storage/progress.md` are the current Storage area docs for the
   generic database boundary and SQLite adapter foundation.
+- `docs/formal-rebuild/phase-5-music-data-platform-identity-write-model.md`
+  records the implemented Phase 5 Music Data Platform identity write model
+  spec.
+- `docs/music-data-platform/README.md`, `docs/music-data-platform/design.md`,
+  `docs/music-data-platform/ports.md`, and
+  `docs/music-data-platform/progress.md` are the current Music Data Platform
+  area docs for the identity write model.
 - Old root architecture/state/progress snapshots are archived under
   `docs/archive/root/formal-rebuild-2026-06-06/`.
 - Pre-formal active area docs, host-adapter docs, provider docs, and operations
@@ -239,14 +277,13 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 4 does not implement:
+Phase 5 does not implement:
 
 - provider integrations;
 - real provider execution runtime;
 - provider config flow, provider account instances, or secrets;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
-- Music Data Platform business database schemas;
 - runtime storage wiring;
 - MCP/HTTP transport;
 - query engine behavior;
@@ -262,13 +299,9 @@ Phase 4 does not implement:
 Later phases rebuild those areas directly from formal architecture and
 contracts.
 
-Phase 4 Storage planning does not change this implementation state yet. Active
-storage source, storage adapters, database schema initialization, and storage
-tests are still not implemented.
-
 ## Verification Pointers
 
-Phase 4 verification for this state should include:
+Phase 5 verification for this state should include:
 
 ```bash
 npm run typecheck

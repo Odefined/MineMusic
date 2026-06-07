@@ -53,11 +53,11 @@ The formal model separates these objects:
 | Term | Meaning | Formal Rule |
 | --- | --- | --- |
 | `SourceEntity` | Durable normalized provider-side facts. | `kind = track | album | artist`; contains provider ids, source ref, explicit normalized facts, optional links, optional version info. |
-| `SourceRecord` | Storage record for source facts and lookup columns. | May contain SQL/storage keys and indexes; not exposed as domain/source contract. |
+| `SourceRecord` | Storage record for source facts and lookup columns. | Keyed by `refKey(entity.sourceRef)`. May contain SQL/storage indexes; do not expose a separate `recordId`. |
 | `MaterialEntity` | MineMusic-owned material identity anchor. | Domain identity only; may carry canonical/source identity anchors and version info. |
-| `MaterialRecord` | Storage record for material identity persistence. | Persistence shape only; may differ from `MaterialEntity`. |
+| `MaterialRecord` | Storage record for material identity persistence. | Keyed by `refKey(entity.materialRef)`. Persistence shape only; do not expose a separate `recordId`. |
 | `CanonicalEntity` | Cross-source identity authority. | May carry display/search aliases and version info only when canonical identity is version-specific. |
-| `CanonicalRecord` | Storage record for canonical identity maintenance. | May carry storage keys, provider identity indexes, and evidence facts. |
+| `CanonicalRecord` | Storage record for canonical identity maintenance. | Keyed by `refKey(entity.canonicalRef)`. May carry storage indexes and evidence facts; do not expose a separate `recordId`. |
 
 ## Kind Vocabulary
 

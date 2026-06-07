@@ -97,6 +97,11 @@ assert.equal(
   true,
   "formal Storage root must exist in active source after Phase 4",
 );
+assert.equal(
+  await pathExists(join(repositoryRoot, "src/music_data_platform")),
+  true,
+  "formal Music Data Platform root must exist in active source after Phase 5",
+);
 
 assert.deepEqual(
   (await sourceFilesUnder(join(repositoryRoot, "src/storage")))
@@ -109,6 +114,20 @@ assert.deepEqual(
     "src/storage/sqlite/schema.ts",
   ],
   "Phase 4 formal Storage root must not grow unrelated storage implementations",
+);
+
+assert.deepEqual(
+  (await sourceFilesUnder(join(repositoryRoot, "src/music_data_platform")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(),
+  [
+    "src/music_data_platform/errors.ts",
+    "src/music_data_platform/identity_records.ts",
+    "src/music_data_platform/identity_schema.ts",
+    "src/music_data_platform/identity_write_model.ts",
+    "src/music_data_platform/index.ts",
+  ],
+  "Phase 5 formal Music Data Platform root must not grow unrelated implementations",
 );
 
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));
@@ -164,6 +183,7 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))
     "../stage_interface/",
     "../stage_core/",
     "../server/",
+    "../music_data_platform/",
     "../providers/",
     "../storage/",
     "../material/",
@@ -187,12 +207,52 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/stage_interf
 
   if (
     text.includes('from "../extension/') ||
-    text.includes("from '../extension/")
+    text.includes("from '../extension/") ||
+    text.includes('from "../music_data_platform/') ||
+    text.includes("from '../music_data_platform/")
   ) {
-    stageInterfaceImportFailures.push(`${relative(repositoryRoot, file)} imports Extension`);
+    stageInterfaceImportFailures.push(`${relative(repositoryRoot, file)} imports forbidden implementation root`);
   }
 }
 assert.deepEqual(stageInterfaceImportFailures, []);
+
+const musicDataPlatformImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_data_platform"))) {
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of [
+    "../storage/sqlite/",
+    "../stage_interface/",
+    "../stage_core/",
+    "../server/",
+    "../extension/",
+    "../providers/",
+    "../material/",
+    "../collection/",
+    "../memory/",
+    "../effects/",
+  ]) {
+    if (
+      text.includes(`from "${forbiddenImport}`) ||
+      text.includes(`from '${forbiddenImport}`)
+    ) {
+      musicDataPlatformImportFailures.push(
+        `${relative(repositoryRoot, file)} imports forbidden Music Data Platform dependency '${forbiddenImport}'`,
+      );
+    }
+  }
+
+  for (const rawSqliteToken of ["Database" + "Sync", "node" + ":" + "sqlite"]) {
+    if (!text.includes(rawSqliteToken)) {
+      continue;
+    }
+
+    musicDataPlatformImportFailures.push(
+      `${relative(repositoryRoot, file)} mentions raw SQLite primitives`,
+    );
+  }
+}
+assert.deepEqual(musicDataPlatformImportFailures, []);
 
 async function pathExists(path: string): Promise<boolean> {
   try {

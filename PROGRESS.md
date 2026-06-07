@@ -196,6 +196,53 @@ The implemented Phase 4 spec lives at
 `docs/formal-rebuild/phase-4-music-database-foundation.md`. Current Storage
 area docs live under `docs/storage/`.
 
+## 2026-06-07: Phase 5 Music Data Platform Identity Write Model
+
+Phase 5 implements the first Music Data Platform persistence boundary:
+
+- `recordId` was removed from `SourceRecord`, `MaterialRecord`, and
+  `CanonicalRecord`;
+- record identity uses entity refs plus `refKey(ref)` as the scalar storage
+  key policy;
+- `src/music_data_platform/**` is now the formal Music Data Platform active
+  source root for the Phase 5 slice;
+- `musicDataPlatformIdentitySchema` creates `source_records`,
+  `material_records`, `canonical_records`, and `source_material_bindings`;
+- `source_material_bindings` stores current source-to-material bindings only,
+  with no status/history/evidence/audit/kind fields;
+- direct source-to-canonical binding tables remain out of Phase 5;
+- identity repositories are created with `db: MusicDatabaseContext`, do not
+  start transactions, return `undefined` on lookup misses, and do not generate
+  timestamps;
+- identity commands are created with `createIdentityWriteCommands({ db, now })`
+  and own timestamp assignment;
+- implemented commands are `upsertSourceRecord`, `upsertMaterialRecord`,
+  `upsertCanonicalRecord`, `bindSourceToMaterial`,
+  `bindMaterialToCanonical`, and
+  `mergeMaterialRecord`;
+- `upsertMaterialRecord` uses patch-style input and cannot directly replace
+  `MaterialEntity.sourceRefs` or write `MaterialEntity.canonicalRef`;
+- `bindSourceToMaterial` keeps `source_material_bindings` and
+  `MaterialEntity.sourceRefs` in sync;
+- `bindMaterialToCanonical` confirms the current material-to-canonical
+  binding without adding a separate material-canonical table;
+- material merge moves current source bindings to the winner, keeps the loser
+  record as a merged snapshot plus redirect, may inherit an unambiguous loser
+  `canonicalRef`, and rejects conflicting canonical refs;
+- canonical merge/review/split workflow remains out of Phase 5;
+- commands and repositories throw `MusicDataPlatformError` for Music Data
+  Platform-owned invariant violations and do not return Stage Interface
+  `Result<T>`;
+- tests guard record-key policy, forbidden imports, source provider identity
+  stability, binding replacement, material-canonical binding, primary-source
+  invariants, material merge, canonical conflict rejection, and transaction
+  rollback.
+
+The implemented Phase 5 spec lives at
+`docs/formal-rebuild/phase-5-music-data-platform-identity-write-model.md`.
+Current Music Data Platform area docs live under
+`docs/music-data-platform/`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -208,7 +255,9 @@ in scope. Known later areas include:
   capability-registration baseline;
 - Server Host transports and richer Stage Core runtime composition after area
   boundaries stabilize;
-- Music Data Platform source/material/canonical/owner facts;
+- Music Data Platform owner facts;
+- Library Import / Update persistence;
+- canonical maintenance workflow;
 - Music Intelligence Retrieval and Knowledge;
 - Music Experience radio/listening behavior;
 - Memory;

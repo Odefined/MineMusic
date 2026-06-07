@@ -32,6 +32,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-4-music-database-foundation.md`: implemented
   Phase 4 spec for generic `MusicDatabase`, SQLite adapter confinement, root-only
   transactions, and centralized schema initialization.
+- `docs/formal-rebuild/phase-5-music-data-platform-identity-write-model.md`:
+  implemented Phase 5 spec for Music Data Platform identity records,
+  source-material binding facts, repositories, commands, and the `refKey(ref)`
+  storage-key policy.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -51,6 +55,14 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   dependencies, composition, and guard plan.
 - `docs/storage/progress.md`: Storage implementation state, verification
   evidence, remaining gaps, and next candidate slices.
+- `docs/music-data-platform/README.md`: Music Data Platform area
+  documentation entrypoint.
+- `docs/music-data-platform/design.md`: Phase 5 identity write model design
+  authority.
+- `docs/music-data-platform/ports.md`: Music Data Platform identity write
+  ports, forbidden dependencies, composition, and guards.
+- `docs/music-data-platform/progress.md`: Music Data Platform implementation
+  state, verification evidence, and remaining gaps.
 
 ## Formal ADRs
 
@@ -113,6 +125,15 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/storage/sqlite/schema.ts`: SQLite pragma and schema contribution
   initialization.
 - `src/storage/index.ts`: Storage public exports.
+- `src/music_data_platform/errors.ts`: Music Data Platform invariant error
+  type.
+- `src/music_data_platform/identity_schema.ts`: Phase 5 identity schema
+  contribution.
+- `src/music_data_platform/identity_records.ts`: identity repositories and
+  source-to-material binding records.
+- `src/music_data_platform/identity_write_model.ts`: narrow identity write
+  command factory.
+- `src/music_data_platform/index.ts`: Music Data Platform public exports.
 
 The previous MVP runtime source and tests were removed from active tree and are
 available only through git history.

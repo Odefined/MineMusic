@@ -135,6 +135,9 @@ export type _recordsWrapEntities = Expect<
   Equal<SourceRecord["entity"], SourceEntity> &
     Equal<MaterialRecord["entity"], MaterialEntity> &
     Equal<CanonicalRecord["entity"], CanonicalEntity> &
+    Equal<ForbiddenKeys<SourceRecord, "recordId">, never> &
+    Equal<ForbiddenKeys<MaterialRecord, "recordId">, never> &
+    Equal<ForbiddenKeys<CanonicalRecord, "recordId">, never> &
     Equal<CanonicalRecordStatus, "active" | "provisional" | "merged" | "archived">
 >;
 
