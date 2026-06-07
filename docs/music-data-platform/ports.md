@@ -21,6 +21,7 @@ context but does not know SQLite primitives.
 | Consumed capability | Provided by | Used for | Read capabilities | Write capabilities |
 | --- | --- | --- | --- | --- |
 | `MusicDatabaseContext` | Storage | SQL execution for repositories and schema contribution. | `get`, `all`. | `run`. |
+| `MusicDatabaseTransactionContext` | Storage | Transaction-scoped SQL execution for identity write commands. | `get`, `all`. | `run`. |
 | `Ref` / `refKey(ref)` | Contracts | Identity key validation and persisted `ref_key` derivation. | Ref fields. | None. |
 | Source/material/canonical contracts | Contracts | Record and command shapes. | Entity/record fields. | None. |
 
@@ -31,7 +32,7 @@ Repositories are created with `db: MusicDatabaseContext`.
 | Repository | Methods | Notes |
 | --- | --- | --- |
 | `SourceRecordRepository` | `upsert`, `get`, `findByProviderIdentity` | Lookup miss returns `undefined`. |
-| `MaterialRecordRepository` | `upsert`, `get` | Does not coordinate bindings. |
+| `MaterialRecordRepository` | `upsert`, `get`, `findActiveByCanonicalRef` | Does not coordinate bindings. |
 | `CanonicalRecordRepository` | `upsert`, `get` | Can round-trip canonical record status. |
 | `SourceToMaterialBindingRepository` | `upsertCurrentBinding`, `findMaterialForSource`, `listSourcesForMaterial`, `deleteBindingForSource` | Low-level current binding persistence only; no `bind` business method. |
 
@@ -40,12 +41,13 @@ Repositories do not start transactions, generate timestamps, return
 
 ## Command Ports
 
-Commands are created with `db: MusicDatabaseContext` and `now: string`.
+Commands are created with `db: MusicDatabaseTransactionContext` and
+`now: string`.
 
 | Command | Input | Output | Writes |
 | --- | --- | --- | --- |
 | `upsertSourceRecord` | full `SourceEntity` | `SourceRecord` | `source_records` |
-| `upsertMaterialRecord` | patch-style material input without `sourceRefs` | `MaterialRecord` | `material_records` |
+| `upsertMaterialRecord` | patch-style material input without `sourceRefs`, `identityStatus`, `lifecycleStatus`, or `canonicalRef` | `MaterialRecord` | `material_records` |
 | `upsertCanonicalRecord` | full `CanonicalEntity` plus record status/facts | `CanonicalRecord` | `canonical_records` |
 | `bindSourceToMaterial` | `sourceRef`, `materialRef`, optional `makePrimary` | after-state binding/material records | `source_material_bindings`, `material_records` |
 | `bindMaterialToCanonical` | `materialRef`, `canonicalRef` | after-state material record | `material_records` |
@@ -57,7 +59,7 @@ Command outputs are internal records. They are not agent-facing DTOs.
 
 | Forbidden dependency | Reason |
 | --- | --- |
-| Music Data Platform -> `src/storage/sqlite/**` / `node:sqlite` / `DatabaseSync` | Music Data Platform must depend on generic `MusicDatabaseContext`, not concrete SQLite. |
+| Music Data Platform -> `src/storage/sqlite/**` / `node:sqlite` / `DatabaseSync` | Music Data Platform must depend on generic database contexts, not concrete SQLite. |
 | Music Data Platform -> Stage Interface | Stage Interface owns public tools/output projection. |
 | Music Data Platform -> Extension/provider implementations | Providers produce source facts; they do not persist identity directly. |
 | Music Data Platform -> query/retrieval/presentation roots | Query and presentation are later boundaries. |
@@ -76,8 +78,9 @@ Current guards:
   records;
 - identity test covers source provider identity stability, source-material
   binding replacement, material-canonical binding, primary-source invariants,
-  material merge behavior, canonical conflict rejection, and transaction
-  rollback.
+  source namespace/provider validation, ref/kind validation, material lifecycle
+  write guards, material merge behavior, canonical conflict rejection,
+  foreign-key rejection, and transaction rollback.
 
 ## Out Of Scope
 

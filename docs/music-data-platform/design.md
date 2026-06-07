@@ -57,6 +57,8 @@ updated_at
 `provider_id + provider_entity_id + kind` is unique and stable. Ordinary source
 upsert rejects attempts to remap one provider identity to a different
 `sourceRef`, or one existing `sourceRef` to a different provider identity.
+The source ref namespace must be exactly `source_${providerId}`, and
+`providerId` must be ref-safe because it participates in that namespace.
 
 ## Material Records And Bindings
 
@@ -91,8 +93,9 @@ evidence, confidence, reason, audit fields, or binding kind. `created_at` and
 source binding. It keeps `source_material_bindings` and
 `MaterialEntity.sourceRefs` synchronized. `upsertMaterialRecord` does not
 accept a full `MaterialEntity` and cannot directly replace `sourceRefs`.
-It also cannot write `canonicalRef`; material-to-canonical confirmation uses
-`bindMaterialToCanonical`.
+It also cannot write `identityStatus`, `lifecycleStatus`, or `canonicalRef`.
+`identityStatus` is derived from current canonical/source anchors.
+Material-to-canonical confirmation uses `bindMaterialToCanonical`.
 
 `primarySourceRef` may be set or cleared by material upsert, bind, or merge
 commands, but any non-empty primary source must already be bound to that
@@ -115,9 +118,13 @@ updated_at
 ```
 
 `upsertCanonicalRecord` may persist `active`, `provisional`, and `archived`
-records. It may round-trip `merged` records through repositories, but Phase 5
-does not implement a canonical merge command, canonical review/apply workflow,
-or canonical split workflow.
+records. It cannot create a `merged` canonical record or convert a merged
+canonical record back to a non-merged status. Repositories may round-trip
+`merged` records for canonical maintenance, but Phase 5 does not implement a
+canonical merge command, canonical review/apply workflow, or canonical split
+workflow. Ordinary canonical upsert cannot make a canonical record non-active
+while an active material owns that canonical ref, and non-merged canonical
+records cannot carry `mergedIntoCanonicalRef`.
 
 Direct source-to-canonical binding tables are out of Phase 5. Source-to-
 canonical relation, when needed, is derived from:
@@ -129,7 +136,8 @@ source_material_bindings -> material_records.entity.canonicalRef
 Phase 5 does not add a separate material-canonical binding table. The current
 material-to-canonical confirmation is `MaterialEntity.canonicalRef` on
 `material_records`, and only `bindMaterialToCanonical` or an unambiguous
-material merge may write it.
+material merge may write it. Binding requires an active canonical record and
+one active material per canonical ref.
 
 ## Commands
 
@@ -158,6 +166,10 @@ its own output boundary if these commands become tool-backed later.
 Commands throw `MusicDataPlatformError` for Music Data Platform-owned
 invariant violations. They do not return Stage Interface `Result<T>`.
 
+Commands reject ordinary identity writes to merged or archived material
+records. Merged material records are redirect snapshots, not active write
+targets.
+
 ## Material Merge
 
 `mergeMaterialRecord(loser, winner)` is identity-level only.
@@ -172,6 +184,10 @@ It:
 - does not automatically inherit loser `primarySourceRef`;
 - may inherit an unambiguous loser `canonicalRef`;
 - rejects conflicting winner/loser canonical refs.
+
+Merge requires active material records with the same material kind. If merge
+inherits a canonical ref, that canonical record must be active and must not be
+owned by a non-participant active material.
 
 Material merge does not merge canonical records, update owner facts, update
 collections, rewrite projections, or touch presentation history.

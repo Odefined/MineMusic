@@ -43,6 +43,7 @@ export type SourceRecordRepository = {
 export type MaterialRecordRepository = {
   upsert(record: MaterialRecord): MaterialRecord;
   get(input: { materialRef: Ref }): MaterialRecord | undefined;
+  findActiveByCanonicalRef(input: { canonicalRef: Ref }): MaterialRecord | undefined;
 };
 
 export type CanonicalRecordRepository = {
@@ -213,6 +214,18 @@ export function createIdentityRepositories(
       const row = db.get<MaterialRecordRow>(
         "SELECT * FROM material_records WHERE ref_key = ?",
         [refKey(input.materialRef)],
+      );
+
+      return row === undefined ? undefined : materialRecordFromRow(row);
+    },
+    findActiveByCanonicalRef(input) {
+      const row = db.get<MaterialRecordRow>(
+        `
+          SELECT * FROM material_records
+          WHERE canonical_ref_key = ?
+            AND lifecycle_status = 'active'
+        `,
+        [refKey(input.canonicalRef)],
       );
 
       return row === undefined ? undefined : materialRecordFromRow(row);

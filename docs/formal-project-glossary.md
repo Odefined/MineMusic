@@ -143,7 +143,7 @@ The formal model separates these objects:
 | Term | Values | Formal Rule |
 | --- | --- | --- |
 | `MaterialLifecycleStatus` | `active | merged | archived` | Material lifecycle only. |
-| `MaterialIdentityStatus` | `canonical_confirmed | source_backed | unresolved_identity` | Identity anchor state only. |
+| `MaterialIdentityStatus` | `canonical_confirmed | source_backed | unresolved_identity` | Identity anchor state only. In the Phase 5 write model it is derived from canonical/source anchors, not caller supplied by ordinary material upsert. |
 | `MaterialAvailability` | `playable | restricted | unavailable | unknown` | Computed availability axis, not core material identity. |
 | `CanonicalRecordStatus` | `active | provisional | merged | archived` | Canonical storage/maintenance status. `archived` replaces old rejected canonical status. |
 | `owner_material_relations.status` | `active | removed | rejected` | Owner relation adoption/rejection state; not material lifecycle or canonical status. |

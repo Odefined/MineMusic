@@ -13,7 +13,8 @@ provider facts, owner relations, recommendation behavior, memory, or effects.
 | Concept | Meaning | Owner |
 | --- | --- | --- |
 | `MusicDatabase` | Generic database gateway used by composition roots and commands. | Storage |
-| `MusicDatabaseContext` | Generic SQL execution context passed to repositories and command callbacks. | Storage |
+| `MusicDatabaseContext` | Generic SQL execution context passed to repositories and schema contributions. | Storage |
+| `MusicDatabaseTransactionContext` | Branded SQL execution context passed only to root transaction callbacks. | Storage |
 | `SqliteMusicDatabase` | Concrete SQLite adapter that owns `node:sqlite` `DatabaseSync`. | Storage SQLite adapter |
 | Schema contribution | Idempotent schema initializer registered with the database foundation. | Owning area, executed by Storage |
 
@@ -25,7 +26,7 @@ The public database boundary uses generic names:
 type MusicDatabase = {
   context(): MusicDatabaseContext;
   transaction<T>(
-    operation: (context: MusicDatabaseContext) => MusicDatabaseImmediateResult<T>,
+    operation: (context: MusicDatabaseTransactionContext) => MusicDatabaseImmediateResult<T>,
   ): MusicDatabaseImmediateResult<T>;
   close(): void;
 };
@@ -44,6 +45,12 @@ type MusicDatabaseContext = {
   run(sql: string, params?: readonly MusicDatabaseParameter[]): void;
   all<T>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly T[];
   get<T>(sql: string, params?: readonly MusicDatabaseParameter[]): T | undefined;
+};
+
+declare const transactionContextBrand: unique symbol;
+
+type MusicDatabaseTransactionContext = MusicDatabaseContext & {
+  readonly [transactionContextBrand]: true;
 };
 
 type MusicDatabaseSchemaContribution = {
@@ -108,7 +115,8 @@ instead of leaving an initialized wrapper around a closed SQLite handle.
 Transactions are root-only in the Phase 4 design:
 
 - `MusicDatabase.transaction(...)` starts the transaction;
-- the callback receives only a transaction-scoped `MusicDatabaseContext`;
+- the callback receives only a transaction-scoped
+  `MusicDatabaseTransactionContext`;
 - `MusicDatabaseContext` has no `transaction(...)` method;
 - repositories must not start transactions;
 - transaction is a write transaction and uses `BEGIN IMMEDIATE`;

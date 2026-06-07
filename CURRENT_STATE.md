@@ -96,6 +96,8 @@ Phase 4 Storage vocabulary includes:
 
 - `MusicDatabase` as the generic public database gateway;
 - `MusicDatabaseContext` as the generic SQL execution context;
+- `MusicDatabaseTransactionContext` as the transaction-scoped SQL context
+  handed to root transaction callbacks;
 - `SqliteMusicDatabase` as a concrete SQLite adapter only;
 - raw SQLite primitives are confined to the SQLite adapter and storage
   boundary tests;
@@ -142,14 +144,26 @@ Phase 5 Music Data Platform vocabulary includes:
 - source/material/canonical records keyed by `refKey(entity ref)`, with no
   separate `recordId`;
 - `musicDataPlatformIdentitySchema` as the Phase 5 schema contribution;
+- schema constraints for source/material/canonical refs, material primary
+  source refs, merge redirects, and one active material per canonical ref;
 - `SourceToMaterialBindingRecord` as the current source-to-material binding
   record, with no status/history/evidence/audit/kind fields;
 - `createIdentityRepositories({ db })` for low-level repositories over
   `MusicDatabaseContext`;
-- `createIdentityWriteCommands({ db, now })` for narrow identity commands;
+- `createIdentityWriteCommands({ db, now })` for narrow identity commands
+  using a `MusicDatabaseTransactionContext`;
 - `upsertSourceRecord`, `upsertMaterialRecord`, `upsertCanonicalRecord`,
   `bindSourceToMaterial`, `bindMaterialToCanonical`, and
   `mergeMaterialRecord`;
+- material identity status is derived from canonical/source anchors, not
+  supplied by ordinary material upsert;
+- source refs must use the exact `source_${providerId}` namespace and a
+  ref-safe provider id;
+- material writes reject non-active material records, kind/ref mismatches,
+  non-active canonical binding targets, and duplicate active canonical
+  ownership;
+- ordinary canonical upsert cannot make a canonical record non-active while an
+  active material owns that canonical ref;
 - `MusicDataPlatformError` for internal Music Data Platform invariant
   violations, without returning Stage Interface `Result<T>`.
 
@@ -192,7 +206,8 @@ The active TypeScript tree is now a formal skeleton:
 - `src/server/host.ts` owns the thin Server Host lifecycle wrapper;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
 - `src/storage/database.ts` owns the generic `MusicDatabase` contract,
-  `MusicDatabaseContext`, schema contribution type, and `MusicDatabaseError`;
+  `MusicDatabaseContext`, `MusicDatabaseTransactionContext`, schema
+  contribution type, and `MusicDatabaseError`;
 - `src/storage/sqlite/database.ts` owns the concrete `SqliteMusicDatabase`
   adapter;
 - `src/storage/sqlite/schema.ts` owns SQLite pragma and schema contribution

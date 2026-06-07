@@ -13,6 +13,7 @@ import {
   type MusicDatabaseImmediateResult,
   type MusicDatabaseParameter,
   type MusicDatabaseSchemaContribution,
+  type MusicDatabaseTransactionContext,
 } from "../../src/storage/index.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
@@ -25,6 +26,12 @@ type Expect<Check extends true> = Check;
 
 export type _musicDatabaseContextShape = Expect<
   Equal<keyof MusicDatabaseContext, "run" | "all" | "get">
+>;
+
+export type _musicDatabaseTransactionContextIsBranded = Expect<
+  MusicDatabaseTransactionContext extends MusicDatabaseContext
+    ? Equal<MusicDatabaseContext extends MusicDatabaseTransactionContext ? true : false, false>
+    : false
 >;
 
 export type _musicDatabaseShape = Expect<
@@ -41,7 +48,10 @@ export type _musicDatabaseImmediateResultShape = Expect<
 
 if (false) {
   const typeOnlyDatabase = undefined as unknown as MusicDatabase;
-  typeOnlyDatabase.transaction(() => "sync");
+  typeOnlyDatabase.transaction((context) => {
+    const transactionContext: MusicDatabaseTransactionContext = context;
+    return transactionContext.get("SELECT 1");
+  });
 
   // @ts-expect-error MusicDatabase.transaction callback must be synchronous.
   typeOnlyDatabase.transaction(async () => "async");

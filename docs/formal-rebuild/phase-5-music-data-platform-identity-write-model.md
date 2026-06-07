@@ -67,6 +67,7 @@ Storage owns only the generic database substrate:
 
 - `MusicDatabase`;
 - `MusicDatabaseContext`;
+- `MusicDatabaseTransactionContext`;
 - root transaction execution;
 - schema contribution execution;
 - the concrete SQLite adapter.
@@ -197,6 +198,9 @@ boundary validates consistency between the entity and storage lookup:
 
 ```text
 refKey(entity.sourceRef) == source_records.ref_key
+entity.sourceRef.namespace == source_${entity.providerId}
+entity.sourceRef.kind == entity.kind
+entity.providerId is ref-safe
 entity.providerId == provider_id
 entity.providerEntityId == provider_entity_id
 entity.kind == kind
@@ -222,20 +226,26 @@ Expected columns:
 - `created_at`;
 - `updated_at`.
 
+`canonical_ref_key`, `primary_source_ref_key`, and
+`merged_into_material_ref_key` are foreign keys. The schema also keeps at most
+one active material row for a non-null `canonical_ref_key`; merged material
+snapshots may retain their merge-time `canonicalRef` without owning the current
+active canonical binding.
+
 `MaterialEntity.sourceRefs` may remain serialized in `entity_json`, but
 source-to-material truth must also be represented by explicit binding facts.
 `MaterialEntity.sourceRefs` is a material identity snapshot or denormalized
 view, not the only binding source of truth.
 
 Phase 5 repositories and commands do not generate `materialRef`.
-`upsertMaterialRecord` input must already contain `entity.materialRef`, and the
-write boundary validates:
+`upsertMaterialRecord` input must already contain `materialRef`. The command
+builds the `MaterialEntity` snapshot and the write boundary validates:
 
 ```text
-refKey(entity.materialRef) == material_records.ref_key
-entity.kind == kind
-entity.lifecycleStatus == lifecycle_status
-entity.identityStatus == identity_status
+materialRef.namespace == "material"
+materialRef.kind == kind
+MaterialEntity.identityStatus is derived from canonicalRef/sourceRefs
+primarySourceRef, when present, is in sourceRefs and bound to the material
 ```
 
 In Phase 5, `MaterialEntity.sourceRefs` is still persisted in `entity_json`.
@@ -277,9 +287,14 @@ fields, but it does not implement a canonical merge command. Canonical
 merge/split workflow belongs to canonical maintenance.
 
 `upsertCanonicalRecord` may persist `active`, `provisional`, and `archived`
-canonical statuses. It may read or round-trip `merged` records, but Phase 5
-does not provide the canonical merge command that creates `merged` status.
+canonical statuses. It cannot create a `merged` canonical record or convert a
+merged canonical record back to a non-merged status. Repositories may
+round-trip `merged` records for canonical maintenance, but Phase 5 does not
+provide the canonical merge command that creates `merged` status.
 Review/apply/reject/split workflows are also out of scope.
+Ordinary canonical upsert must not make a canonical record non-active while an
+active material owns that canonical ref. Non-merged canonical records must not
+carry `mergedIntoCanonicalRef`.
 
 ### Binding Facts
 
@@ -401,7 +416,7 @@ appear in every business method input:
 
 ```ts
 type CreateIdentityWriteCommandsInput = {
-  db: MusicDatabaseContext;
+  db: MusicDatabaseTransactionContext;
   now: string;
 };
 
@@ -415,9 +430,9 @@ type IdentityWriteCommands = {
 };
 ```
 
-`db` is the transaction-scoped `MusicDatabaseContext` supplied by the Phase 4
-root transaction. `now` is a caller-supplied ISO timestamp. Phase 5 does not
-introduce a clock/effect dependency.
+`db` is the branded transaction-scoped `MusicDatabaseTransactionContext`
+supplied by the Phase 4 root transaction. `now` is a caller-supplied ISO
+timestamp. Phase 5 does not introduce a clock/effect dependency.
 
 Commands own timestamp assignment:
 
@@ -486,6 +501,7 @@ type SourceRecordRepository = {
 type MaterialRecordRepository = {
   upsert(record: MaterialRecord): MaterialRecord;
   get(input: { materialRef: Ref }): MaterialRecord | undefined;
+  findActiveByCanonicalRef(input: { canonicalRef: Ref }): MaterialRecord | undefined;
 };
 
 type CanonicalRecordRepository = {
@@ -537,8 +553,6 @@ type UpsertSourceRecordInput = {
 type UpsertMaterialRecordInput = {
   materialRef: Ref;
   kind: MaterialEntityKind;
-  identityStatus: MaterialIdentityStatus;
-  lifecycleStatus?: "active" | "archived";
   primarySourceRef?: Ref | null;
   versionInfo?: VersionInfo | null;
 };
@@ -587,16 +601,24 @@ validate provider identity stability and must not generate `sourceRef`.
 `upsertMaterialRecord` uses patch-style input and must not accept a full
 `MaterialEntity`. Full `MaterialEntity` contains `sourceRefs`, but `sourceRefs`
 changes are reserved for `bindSourceToMaterial` and `mergeMaterialRecord`.
-It also does not accept `canonicalRef`; canonical confirmation is reserved for
-`bindMaterialToCanonical`.
+It also does not accept `identityStatus`, `lifecycleStatus`, or
+`canonicalRef`. Identity status is derived by the write model:
+
+- `canonicalRef` present -> `canonical_confirmed`;
+- no `canonicalRef` and non-empty `sourceRefs` -> `source_backed`;
+- no `canonicalRef` and empty `sourceRefs` -> `unresolved_identity`.
 
 `bindMaterialToCanonical` sets `MaterialEntity.canonicalRef` and
 `identityStatus = "canonical_confirmed"`. It is idempotent for the same
 canonical ref and rejects a different canonical ref for an already confirmed
-material.
+material. It requires an active canonical record and rejects attempts to bind a
+canonical ref already owned by another active material record.
 
 `upsertCanonicalRecord` accepts a full `CanonicalEntity` because the current
 canonical entity shape contains only canonical identity authority fields.
+It must preserve the current material-canonical invariant: a canonical ref
+owned by an active material cannot be downgraded to a non-active canonical
+status through ordinary upsert.
 Record-only fields such as `status` and `factsJson` stay separate in the
 command input.
 
@@ -614,14 +636,17 @@ Expected error codes include:
 
 ```text
 music_data.record_ref_key_mismatch
+music_data.record_kind_mismatch
 music_data.source_provider_identity_conflict
 music_data.material_primary_source_not_bound
+music_data.material_not_writable
 music_data.material_canonical_conflict
 music_data.material_merge_canonical_conflict
 music_data.material_merge_invalid_target
 music_data.material_not_found
 music_data.source_not_found
 music_data.canonical_not_found
+music_data.canonical_not_bindable
 ```
 
 `BindSourceToMaterialResult` contains after-state records:
@@ -689,7 +714,8 @@ Allowed dependencies:
   `MusicDatabaseSchemaContribution`;
 - Music Data Platform contracts may depend on formal contracts from
   `src/contracts`;
-- command factories may receive a transaction-scoped `MusicDatabaseContext`.
+- command factories may receive a transaction-scoped
+  `MusicDatabaseTransactionContext`.
 
 Forbidden dependencies:
 
@@ -790,6 +816,9 @@ evidence modeling, or canonical maintenance workflow semantics.
    - Do not introduce standalone status-toggle commands.
    - Prevent `upsertMaterialRecord` from replacing `MaterialEntity.sourceRefs`
      directly.
+   - Prevent `upsertMaterialRecord` from accepting caller-supplied
+     `identityStatus` or `lifecycleStatus`; identity status must be derived
+     from current canonical/source anchors.
    - Validate that any non-empty `primarySourceRef` points at a source already
      bound to the material.
    - Keep `source_material_bindings` and `MaterialEntity.sourceRefs` in sync
@@ -840,6 +869,8 @@ Targeted tests should cover:
   `providerId`, `providerEntityId`, and `kind`;
 - validation that material and canonical record ref keys match their entity
   refs and indexed columns;
+- validation that source/material/canonical ref namespaces and kinds match the
+  record/entity role;
 - material record upsert/read by material ref key;
 - canonical record upsert/read by canonical ref key;
 - source-to-material binding write/read;
@@ -856,10 +887,15 @@ Targeted tests should cover:
 - material-canonical binding requires existing material and canonical records;
 - material-canonical binding is idempotent for the same canonical ref and
   rejects binding the material to a different canonical ref;
-- `upsertMaterialRecord` cannot mark a material as canonical-confirmed without
-  `bindMaterialToCanonical`;
+- material-canonical binding requires an active canonical record;
+- only one active material may own a current canonical binding;
+- `upsertMaterialRecord` cannot mark a material as canonical-confirmed or
+  source-backed by caller input;
+- `MaterialEntity.identityStatus` is derived from canonical/source anchors;
+- merged or archived material records cannot receive ordinary identity writes;
 - material merge canonical pointer behavior, including rejection of conflicting
   canonical refs;
+- material merge requires matching material kinds and active material records;
 - material merge `movedBindings` are after-state current bindings, not
   before-state history;
 - canonical record status persistence without canonical review/apply/merge
@@ -882,6 +918,9 @@ Targeted tests should cover:
 - Music Data Platform invariant violations throw `MusicDataPlatformError` and
   do not return Stage Interface `Result<T>`;
 - rollback of a command that writes multiple identity tables;
+- command factory requires `MusicDatabaseTransactionContext`, not plain
+  `MusicDatabaseContext`;
+- schema foreign-key constraints reject dangling canonical/source/merge refs;
 - absence of `recordId` in active formal contracts.
 
 ## Acceptance
@@ -912,17 +951,23 @@ Phase 5 is complete when:
   signal;
 - any non-empty `MaterialEntity.primarySourceRef` must be included in the
   material's current source-material bindings;
+- `MaterialEntity.identityStatus` is derived from current canonical/source
+  anchors and is not caller supplied through ordinary material upsert;
 - `MaterialEntity.sourceRefs` remains persisted in `entity_json` and is kept
   consistent with `source_material_bindings` by the identity write command;
 - `MaterialEntity.sourceRefs` changes only through `bindSourceToMaterial` or
   `mergeMaterialRecord`;
 - `upsertMaterialRecord` uses patch-style input and does not accept a full
   `MaterialEntity`;
+- `upsertMaterialRecord` does not accept `identityStatus` or
+  `lifecycleStatus`;
 - `MaterialEntity.canonicalRef` changes only through
   `bindMaterialToCanonical` or an unambiguous `mergeMaterialRecord`
   inheritance;
 - `upsertMaterialRecord` does not accept `canonicalRef` and cannot mark a
   material as canonical-confirmed without an existing canonical binding;
+- `bindMaterialToCanonical` requires an active canonical record and rejects a
+  canonical ref already owned by another active material;
 - Phase 5 uses narrow identity write commands instead of one broad
   `writeIdentity(...)` union;
 - repositories and commands are separate: repositories persist exact records or
@@ -937,17 +982,23 @@ Phase 5 is complete when:
   misses throw `MusicDataPlatformError`;
 - direct source-to-canonical binding tables remain out of Phase 5;
 - identity writes can be coordinated through one root transaction;
+- identity write commands require a transaction-scoped database context;
+- material records keep foreign-key constraints for canonical, primary-source,
+  and merge redirect refs;
+- active material canonical bindings are unique per canonical ref;
 - material merge is in Phase 5 because it must move source-material bindings
   and set `mergedIntoMaterialRef`;
 - material merge may inherit an unambiguous loser `canonicalRef`, but must
-  reject conflicting winner/loser canonical refs;
+  reject conflicting winner/loser canonical refs and must not assign a
+  non-active or differently owned canonical ref to the active winner;
 - material merge does not automatically inherit loser `primarySourceRef`;
 - material merge returns moved bindings as after-state current rows only;
 - canonical merge command is deferred to canonical maintenance, even though
   `CanonicalRecord` may contain `mergedIntoCanonicalRef`;
 - `upsertCanonicalRecord` may persist `active`, `provisional`, and `archived`
-  records, and may round-trip `merged` records, but does not implement the
-  command that creates canonical merges;
+  records, but cannot create `merged` canonical records or convert merged
+  canonical records back to non-merged status; repositories may round-trip
+  merged records for canonical maintenance;
 - Phase 5 does not introduce standalone status update commands;
 - command audit remains out of Phase 5 and should be designed later with real
   repair, migration, canonical review, or feedback traceability needs;

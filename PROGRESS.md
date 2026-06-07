@@ -143,8 +143,12 @@ Phase 4 implements the generic Music Database foundation:
 - `SqliteMusicDatabase` is a concrete adapter behind the generic boundary;
 - `DatabaseSync`, `StatementSync`, and `node:sqlite` are confined to the
   SQLite adapter and storage boundary tests;
-- future repositories and commands receive `MusicDatabaseContext`;
+- future repositories receive `MusicDatabaseContext`; identity write commands
+  that need atomic multi-table writes can require
+  `MusicDatabaseTransactionContext`;
 - `MusicDatabaseContext` exposes `run`, `all`, and `get`;
+- `MusicDatabaseTransactionContext` is the branded transaction-scoped context
+  passed to `MusicDatabase.transaction(...)` callbacks;
 - `MusicDatabaseContext` uses `sql + params`, limits params to `null`,
   `number`, `bigint`, `string`, and `Uint8Array`, and does not expose
   prepared statement objects or statement cache in Phase 4;
@@ -207,7 +211,8 @@ Phase 5 implements the first Music Data Platform persistence boundary:
 - `src/music_data_platform/**` is now the formal Music Data Platform active
   source root for the Phase 5 slice;
 - `musicDataPlatformIdentitySchema` creates `source_records`,
-  `material_records`, `canonical_records`, and `source_material_bindings`;
+  `material_records`, `canonical_records`, and `source_material_bindings`,
+  with foreign-key constraints and active material canonical uniqueness;
 - `source_material_bindings` stores current source-to-material bindings only,
   with no status/history/evidence/audit/kind fields;
 - direct source-to-canonical binding tables remain out of Phase 5;
@@ -215,28 +220,34 @@ Phase 5 implements the first Music Data Platform persistence boundary:
   start transactions, return `undefined` on lookup misses, and do not generate
   timestamps;
 - identity commands are created with `createIdentityWriteCommands({ db, now })`
-  and own timestamp assignment;
+  using a transaction-scoped database context and own timestamp assignment;
 - implemented commands are `upsertSourceRecord`, `upsertMaterialRecord`,
   `upsertCanonicalRecord`, `bindSourceToMaterial`,
   `bindMaterialToCanonical`, and
   `mergeMaterialRecord`;
 - `upsertMaterialRecord` uses patch-style input and cannot directly replace
-  `MaterialEntity.sourceRefs` or write `MaterialEntity.canonicalRef`;
+  `MaterialEntity.sourceRefs`, write `MaterialEntity.canonicalRef`, or accept
+  caller-supplied identity/lifecycle status;
 - `bindSourceToMaterial` keeps `source_material_bindings` and
-  `MaterialEntity.sourceRefs` in sync;
+  `MaterialEntity.sourceRefs` in sync and updates derived identity status;
 - `bindMaterialToCanonical` confirms the current material-to-canonical
-  binding without adding a separate material-canonical table;
+  binding without adding a separate material-canonical table, requiring an
+  active canonical target and unique active ownership;
+- source writes enforce exact `source_${providerId}` namespace ownership, and
+  canonical writes cannot make an actively owned canonical record non-active
+  through ordinary upsert;
 - material merge moves current source bindings to the winner, keeps the loser
   record as a merged snapshot plus redirect, may inherit an unambiguous loser
-  `canonicalRef`, and rejects conflicting canonical refs;
+  `canonicalRef`, and rejects conflicting canonical refs or kind mismatches;
 - canonical merge/review/split workflow remains out of Phase 5;
 - commands and repositories throw `MusicDataPlatformError` for Music Data
   Platform-owned invariant violations and do not return Stage Interface
   `Result<T>`;
 - tests guard record-key policy, forbidden imports, source provider identity
-  stability, binding replacement, material-canonical binding, primary-source
-  invariants, material merge, canonical conflict rejection, and transaction
-  rollback.
+  stability, source namespace/provider consistency, binding replacement,
+  material-canonical binding, primary-source invariants, ref/kind validation,
+  non-active material write rejection, material merge, canonical conflict
+  rejection, foreign-key rejection, and transaction rollback.
 
 The implemented Phase 5 spec lives at
 `docs/formal-rebuild/phase-5-music-data-platform-identity-write-model.md`.

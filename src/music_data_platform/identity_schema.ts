@@ -17,6 +17,20 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
     `);
 
     context.run(`
+      CREATE TABLE IF NOT EXISTS canonical_records (
+        ref_key TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        merged_into_canonical_ref_key TEXT,
+        entity_json TEXT NOT NULL,
+        facts_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(merged_into_canonical_ref_key) REFERENCES canonical_records(ref_key)
+      )
+    `);
+
+    context.run(`
       CREATE TABLE IF NOT EXISTS material_records (
         ref_key TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
@@ -27,21 +41,17 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
         merged_into_material_ref_key TEXT,
         entity_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(canonical_ref_key) REFERENCES canonical_records(ref_key),
+        FOREIGN KEY(primary_source_ref_key) REFERENCES source_records(ref_key),
+        FOREIGN KEY(merged_into_material_ref_key) REFERENCES material_records(ref_key)
       )
     `);
 
     context.run(`
-      CREATE TABLE IF NOT EXISTS canonical_records (
-        ref_key TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,
-        status TEXT NOT NULL,
-        merged_into_canonical_ref_key TEXT,
-        entity_json TEXT NOT NULL,
-        facts_json TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      )
+      CREATE UNIQUE INDEX IF NOT EXISTS material_records_active_canonical_ref_key_uidx
+      ON material_records(canonical_ref_key)
+      WHERE canonical_ref_key IS NOT NULL AND lifecycle_status = 'active'
     `);
 
     context.run(`
