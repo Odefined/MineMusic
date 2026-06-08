@@ -399,7 +399,7 @@ assert.deepEqual(savedTrackFetch.urls.map((url) => url.pathname), [
 ]);
 assert.equal(savedTrackFetch.urls[1]?.searchParams.get("uid"), "130950618");
 assert.equal(savedTrackFetch.urls[2]?.searchParams.get("id"), "9001");
-assert.equal(savedTrackFetch.urls[3]?.searchParams.get("ids"), "[1001]");
+assert.equal(savedTrackFetch.urls[3]?.searchParams.get("ids"), "1001");
 assert.equal(savedTracks.providerId, ncmProviderId);
 assert.equal(savedTracks.providerAccountId, "130950618");
 assert.equal(savedTracks.kind, "saved_source_track");
@@ -407,7 +407,7 @@ assert.equal(savedTracks.nextCursor, "1");
 assert.equal(savedTracks.totalCountHint, 2);
 assert.equal(savedTrack?.libraryKind, "saved_source_track");
 assert.equal(savedTrack?.providerAccountId, "130950618");
-assert.equal(savedTrack?.addedAt, "2026-01-02T03:04:05.000Z");
+assert.equal(savedTrack?.providerAddedAt, "2026-01-02T03:04:05.000Z");
 assert.equal(savedTrack?.sourceEntity.kind, "track");
 assert.equal(savedTrack?.sourceEntity.sourceRef.id, "1001");
 assert.equal(savedTrack?.sourceEntity.label, "Saved Track - Saved Artist");
@@ -417,19 +417,27 @@ assert.deepEqual(savedTrack?.sourceEntity.trackPosition, {
 });
 
 const savedAlbumAddedAt = Date.UTC(1998, 0, 16, 1, 2, 3);
-const savedAlbumFetch = fetchJson({
-  code: 200,
-  data: [
-    {
-      id: 3002,
-      name: "Saved Album (Deluxe Edition)",
-      artists: [{ id: 4001, name: "Album Artist" }],
-      subTime: savedAlbumAddedAt,
+const savedAlbumFetch = fetchSequence([
+  {
+    code: 200,
+    profile: {
+      userId: 130950618,
     },
-  ],
-  hasMore: true,
-  count: 10,
-});
+  },
+  {
+    code: 200,
+    data: [
+      {
+        id: 3002,
+        name: "Saved Album (Deluxe Edition)",
+        artists: [{ id: 4001, name: "Album Artist" }],
+        subTime: savedAlbumAddedAt,
+      },
+    ],
+    hasMore: true,
+    count: 10,
+  },
+]);
 const savedAlbumLibraryProvider = await platformLibraryProviderFor({
   baseUrl: "http://ncm.test",
   fetch: savedAlbumFetch.fetch,
@@ -442,15 +450,18 @@ const savedAlbums = await assertOk(savedAlbumLibraryProvider.read({
 }));
 const savedAlbum = savedAlbums.candidates[0];
 
-assert.deepEqual(savedAlbumFetch.urls.map((url) => url.pathname), ["/album/sublist"]);
-assert.equal(savedAlbumFetch.urls[0]?.searchParams.get("limit"), "2");
-assert.equal(savedAlbumFetch.urls[0]?.searchParams.get("offset"), "3");
+assert.deepEqual(savedAlbumFetch.urls.map((url) => url.pathname), [
+  "/user/account",
+  "/album/sublist",
+]);
+assert.equal(savedAlbumFetch.urls[1]?.searchParams.get("limit"), "2");
+assert.equal(savedAlbumFetch.urls[1]?.searchParams.get("offset"), "3");
 assert.equal(savedAlbums.providerAccountId, "130950618");
 assert.equal(savedAlbums.kind, "saved_source_album");
 assert.equal(savedAlbums.nextCursor, "4");
 assert.equal(savedAlbums.totalCountHint, 10);
 assert.equal(savedAlbum?.libraryKind, "saved_source_album");
-assert.equal(savedAlbum?.addedAt, "1998-01-16T01:02:03.000Z");
+assert.equal(savedAlbum?.providerAddedAt, "1998-01-16T01:02:03.000Z");
 assert.equal(savedAlbum?.sourceEntity.kind, "album");
 assert.equal(savedAlbum?.sourceEntity.sourceRef.id, "3002");
 assert.deepEqual(savedAlbum?.sourceEntity.versionInfo, {
@@ -497,9 +508,208 @@ assert.equal(followedArtists.kind, "followed_source_artist");
 assert.equal(followedArtists.nextCursor, undefined);
 assert.equal(followedArtists.totalCountHint, 1);
 assert.equal(followedArtist?.libraryKind, "followed_source_artist");
-assert.equal(followedArtist?.addedAt, undefined);
+assert.equal(followedArtist?.providerAddedAt, undefined);
 assert.equal(followedArtist?.sourceEntity.kind, "artist");
 assert.equal(followedArtist?.sourceEntity.sourceRef.id, "5002");
+
+const accountMismatchProvider = await platformLibraryProviderFor({
+  fetch: fetchJson({
+    code: 200,
+    profile: {
+      userId: 130950619,
+    },
+  }).fetch,
+});
+assertErrorCode(
+  await accountMismatchProvider.read({
+    providerAccountId: "130950618",
+    kind: "saved_source_album",
+    limit: 1,
+  }),
+  "extension.ncm_account_mismatch",
+  true,
+);
+
+const missingSongDetailFetch = fetchSequence([
+  {
+    code: 200,
+    profile: {
+      userId: 130950618,
+    },
+  },
+  {
+    code: 200,
+    playlist: [
+      {
+        id: 9001,
+        name: "我喜欢的音乐",
+        specialType: 5,
+      },
+    ],
+  },
+  {
+    code: 200,
+    playlist: {
+      trackIds: [{ id: 1001 }],
+    },
+  },
+  {
+    code: 200,
+    songs: [],
+  },
+]);
+const missingSongDetailProvider = await platformLibraryProviderFor({
+  fetch: missingSongDetailFetch.fetch,
+});
+assertErrorCode(
+  await missingSongDetailProvider.read({
+    kind: "saved_source_track",
+    limit: 1,
+  }),
+  "extension.ncm_song_detail_missing",
+);
+assert.deepEqual(missingSongDetailFetch.urls.map((url) => url.pathname), [
+  "/user/account",
+  "/user/playlist",
+  "/playlist/detail",
+  "/song/detail",
+]);
+
+const malformedSavedAlbumProvider = await platformLibraryProviderFor({
+  fetch: fetchSequence([
+    {
+      code: 200,
+      profile: {
+        userId: 130950618,
+      },
+    },
+    {
+      code: 200,
+      data: [
+        {
+          name: "Missing Album Id",
+        },
+      ],
+    },
+  ]).fetch,
+});
+assertErrorCode(
+  await malformedSavedAlbumProvider.read({
+    kind: "saved_source_album",
+    limit: 1,
+  }),
+  "extension.ncm_malformed_response",
+);
+
+const malformedFollowedArtistProvider = await platformLibraryProviderFor({
+  fetch: fetchSequence([
+    {
+      code: 200,
+      profile: {
+        userId: 130950618,
+      },
+    },
+    {
+      code: 200,
+      data: [
+        {
+          id: 5002,
+        },
+      ],
+    },
+  ]).fetch,
+});
+assertErrorCode(
+  await malformedFollowedArtistProvider.read({
+    kind: "followed_source_artist",
+    limit: 1,
+  }),
+  "extension.ncm_malformed_response",
+);
+
+const emptyHasMoreSavedAlbumProvider = await platformLibraryProviderFor({
+  fetch: fetchSequence([
+    {
+      code: 200,
+      profile: {
+        userId: 130950618,
+      },
+    },
+    {
+      code: 200,
+      data: [],
+      hasMore: true,
+    },
+  ]).fetch,
+});
+assertErrorCode(
+  await emptyHasMoreSavedAlbumProvider.read({
+    kind: "saved_source_album",
+    limit: 1,
+  }),
+  "extension.ncm_malformed_response",
+);
+
+const emptyHasMoreFollowedArtistProvider = await platformLibraryProviderFor({
+  fetch: fetchSequence([
+    {
+      code: 200,
+      profile: {
+        userId: 130950618,
+      },
+    },
+    {
+      code: 200,
+      data: [],
+      more: true,
+    },
+  ]).fetch,
+});
+assertErrorCode(
+  await emptyHasMoreFollowedArtistProvider.read({
+    kind: "followed_source_artist",
+    limit: 1,
+  }),
+  "extension.ncm_malformed_response",
+);
+
+const malformedLikedTrackIdProvider = await platformLibraryProviderFor({
+  fetch: fetchSequence([
+    {
+      code: 200,
+      profile: {
+        userId: 130950618,
+      },
+    },
+    {
+      code: 200,
+      playlist: [
+        {
+          id: 9001,
+          name: "我喜欢的音乐",
+          specialType: 5,
+        },
+      ],
+    },
+    {
+      code: 200,
+      playlist: {
+        trackIds: [
+          {
+            at: Date.UTC(2026, 0, 1),
+          },
+        ],
+      },
+    },
+  ]).fetch,
+});
+assertErrorCode(
+  await malformedLikedTrackIdProvider.read({
+    kind: "saved_source_track",
+    limit: 1,
+  }),
+  "extension.ncm_malformed_response",
+);
 
 const unresolvedAccountProvider = await platformLibraryProviderFor({
   fetch: fetchJson({
@@ -516,13 +726,14 @@ assertErrorCode(
   true,
 );
 
+const invalidCursorFetch = fetchJson({
+  code: 200,
+  profile: {
+    userId: 130950618,
+  },
+});
 const invalidCursorProvider = await platformLibraryProviderFor({
-  fetch: fetchJson({
-    code: 200,
-    profile: {
-      userId: 130950618,
-    },
-  }).fetch,
+  fetch: invalidCursorFetch.fetch,
 });
 assertErrorCode(
   await invalidCursorProvider.read({
@@ -531,6 +742,7 @@ assertErrorCode(
   }),
   "extension.ncm_invalid_cursor",
 );
+assert.deepEqual(invalidCursorFetch.urls, []);
 
 const defaultKindFetch = fetchJson({
   result: { songs: [] },

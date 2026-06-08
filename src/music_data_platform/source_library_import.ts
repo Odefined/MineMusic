@@ -94,6 +94,7 @@ export type SourceLibraryImportItemResult = {
 };
 
 const defaultImportLimit = 50;
+const maxProviderReadLimit = 100;
 
 export function createSourceLibraryImportService(
   input: CreateSourceLibraryImportServiceInput,
@@ -110,12 +111,26 @@ export function createSourceLibraryImportService(
         return validation;
       }
 
-      const batch = input.database.transaction((db) => {
+      const callLimit = resolveCallLimit(startInput.limit, defaultLimit);
+
+      if (!callLimit.ok) {
+        return callLimit;
+      }
+
+      const created = input.database.transaction((db) => {
         const repositories = createSourceLibraryRepositories({ db });
         const timestamp = now();
+        const batchId = newBatchId();
 
-        return repositories.batches.upsert({
-          batchId: newBatchId(),
+        if (repositories.batches.get({ batchId }) !== undefined) {
+          return failMusicData<SourceLibraryImportBatchRecord>(
+            "music_data.source_library_import_batch_id_collision",
+            `Source library import batch '${batchId}' already exists.`,
+          );
+        }
+
+        return ok(repositories.batches.insert({
+          batchId,
           providerId: startInput.providerId,
           ...(startInput.providerAccountId === undefined ? {} : { providerAccountId: startInput.providerAccountId }),
           libraryKind: startInput.libraryKind,
@@ -127,16 +142,26 @@ export function createSourceLibraryImportService(
           failedCount: 0,
           createdAt: timestamp,
           updatedAt: timestamp,
-        });
+        }));
       });
 
-      return processNextPage(batch.batchId, startInput.limit);
+      if (!created.ok) {
+        return created;
+      }
+
+      return processNextPage(created.value.batchId, callLimit.value);
     },
     async continueImport(continueInput) {
       const validation = validateContinueInput(continueInput);
 
       if (!validation.ok) {
         return validation;
+      }
+
+      const callLimit = resolveCallLimit(continueInput.limit, defaultLimit);
+
+      if (!callLimit.ok) {
+        return callLimit;
       }
 
       const batch = getBatch(continueInput.batchId);
@@ -162,13 +187,13 @@ export function createSourceLibraryImportService(
         );
       }
 
-      return processNextPage(batch.batchId, continueInput.limit);
+      return processNextPage(batch.batchId, callLimit.value);
     },
   };
 
   async function processNextPage(
     batchId: string,
-    requestedLimit: number | undefined,
+    callLimit: number,
   ): Promise<Result<SourceLibraryImportResult>> {
     const initialBatch = getBatch(batchId);
 
@@ -179,7 +204,6 @@ export function createSourceLibraryImportService(
       );
     }
 
-    const callLimit = requestedLimit ?? defaultLimit;
     const allowance = providerReadLimit(initialBatch, callLimit);
 
     if (!allowance.ok) {
@@ -214,6 +238,13 @@ export function createSourceLibraryImportService(
       return read;
     }
 
+    const pageValidation = validateProviderPageForBatch(initialBatch, read.value);
+
+    if (!pageValidation.ok) {
+      markBatchFailed(initialBatch.batchId, pageValidation.error, now());
+      return pageValidation;
+    }
+
     if (read.value.candidates.length > allowance.value) {
       const error = musicDataError(
         "music_data.source_library_provider_limit_exceeded",
@@ -231,6 +262,13 @@ export function createSourceLibraryImportService(
     }
 
     const providerAccountId = accountValidation.value;
+    const candidateValidation = validateProviderCandidatesForBatch(initialBatch, read.value, providerAccountId);
+
+    if (!candidateValidation.ok) {
+      markBatchFailed(initialBatch.batchId, candidateValidation.error, now());
+      return candidateValidation;
+    }
+
     let batch = persistBatchProviderAccount(initialBatch, providerAccountId, now());
     const page: SourceLibraryImportProviderPage = {
       providerId: read.value.providerId,
@@ -290,7 +328,8 @@ export function createSourceLibraryImportService(
           libraryKind: batch.libraryKind,
           sourceRefKey,
         });
-        const nextAddedAt = candidate.addedAt ?? existingItem?.addedAt;
+        const nextAddedAt = existingItem?.addedAt ?? timestamp;
+        const nextProviderAddedAt = candidate.providerAddedAt ?? existingItem?.providerAddedAt;
         const sourceRecord = commands.upsertSourceRecord({
           entity: candidate.sourceEntity,
         });
@@ -319,7 +358,8 @@ export function createSourceLibraryImportService(
           providerAccountId,
           libraryKind: batch.libraryKind,
           sourceRefKey,
-          ...(nextAddedAt === undefined ? {} : { addedAt: nextAddedAt }),
+          addedAt: nextAddedAt,
+          ...(nextProviderAddedAt === undefined ? {} : { providerAddedAt: nextProviderAddedAt }),
           firstImportedAt: existingItem?.firstImportedAt ?? timestamp,
           lastSeenAt: timestamp,
         });
@@ -482,7 +522,7 @@ export function createSourceLibraryImportService(
 function validateStartInput(
   input: SourceLibraryImportStartInput,
 ): Result<void> {
-  if (!isRefComponentSafe(input.providerId)) {
+  if (!isSafeId(input.providerId)) {
     return failMusicData(
       "music_data.invalid_source_library_import_input",
       "Source library import providerId must be a non-empty safe id.",
@@ -491,7 +531,7 @@ function validateStartInput(
 
   if (
     input.providerAccountId !== undefined &&
-    !isRefComponentSafe(input.providerAccountId)
+    !isSafeId(input.providerAccountId)
   ) {
     return failMusicData(
       "music_data.invalid_source_library_import_input",
@@ -506,10 +546,10 @@ function validateStartInput(
     );
   }
 
-  if (!isOptionalPositiveInteger(input.limit)) {
+  if (!isOptionalReadLimit(input.limit)) {
     return failMusicData(
       "music_data.invalid_source_library_import_input",
-      "Source library import limit must be a positive integer when present.",
+      "Source library import limit must be an integer from 1 through 100 when present.",
     );
   }
 
@@ -533,24 +573,40 @@ function validateContinueInput(
     );
   }
 
-  if (!isOptionalPositiveInteger(input.limit)) {
+  if (!isOptionalReadLimit(input.limit)) {
     return failMusicData(
       "music_data.invalid_source_library_import_input",
-      "Source library import limit must be a positive integer when present.",
+      "Source library import limit must be an integer from 1 through 100 when present.",
     );
   }
 
   return ok(undefined);
 }
 
+function resolveCallLimit(
+  requestedLimit: number | undefined,
+  defaultLimit: number,
+): Result<number> {
+  const callLimit = requestedLimit ?? defaultLimit;
+
+  if (!isReadLimit(callLimit)) {
+    return failMusicData(
+      "music_data.invalid_source_library_import_input",
+      "Source library import limit must be an integer from 1 through 100.",
+    );
+  }
+
+  return ok(callLimit);
+}
+
 function providerReadLimit(
   batch: SourceLibraryImportBatchRecord,
   callLimit: number,
 ): Result<number> {
-  if (!Number.isInteger(callLimit) || callLimit < 1) {
+  if (!isReadLimit(callLimit)) {
     return failMusicData(
       "music_data.invalid_source_library_import_input",
-      "Source library import limit must be a positive integer.",
+      "Source library import limit must be an integer from 1 through 100.",
     );
   }
 
@@ -567,7 +623,15 @@ function resolvedProviderAccountId(
   batch: SourceLibraryImportBatchRecord,
   page: PlatformLibraryReadResult,
 ): Result<string> {
-  const resolved = normalizeId(page.providerAccountId);
+  const resolved = normalizeSafeId(page.providerAccountId);
+
+  if (page.providerAccountId !== undefined && resolved === undefined) {
+    return failMusicData(
+      "music_data.source_library_account_invalid",
+      "Platform library read returned an invalid provider account id.",
+      true,
+    );
+  }
 
   if (batch.providerAccountId === undefined) {
     if (resolved === undefined) {
@@ -590,6 +654,122 @@ function resolvedProviderAccountId(
   }
 
   return ok(batch.providerAccountId);
+}
+
+function validateProviderPageForBatch(
+  batch: SourceLibraryImportBatchRecord,
+  page: PlatformLibraryReadResult,
+): Result<void> {
+  if (!isRecord(page)) {
+    return invalidProviderPage("Platform library read returned a malformed page.");
+  }
+
+  if (!isSafeId(page.providerId) || page.providerId !== batch.providerId) {
+    return invalidProviderPage("Platform library read returned a provider id outside the import batch.");
+  }
+
+  if (page.kind !== batch.libraryKind) {
+    return invalidProviderPage("Platform library read returned a library kind outside the import batch.");
+  }
+
+  if (!Array.isArray(page.candidates)) {
+    return invalidProviderPage("Platform library read returned a non-array candidate list.");
+  }
+
+  if (
+    page.nextCursor !== undefined &&
+    (typeof page.nextCursor !== "string" || page.nextCursor.trim().length === 0)
+  ) {
+    return invalidProviderPage("Platform library read returned an invalid next cursor.");
+  }
+
+  if (
+    page.totalCountHint !== undefined &&
+    (
+      typeof page.totalCountHint !== "number" ||
+      !Number.isInteger(page.totalCountHint) ||
+      page.totalCountHint < 0
+    )
+  ) {
+    return invalidProviderPage("Platform library read returned an invalid total count hint.");
+  }
+
+  return ok(undefined);
+}
+
+function validateProviderCandidatesForBatch(
+  batch: SourceLibraryImportBatchRecord,
+  page: PlatformLibraryReadResult,
+  providerAccountId: string,
+): Result<void> {
+  for (const candidate of page.candidates) {
+    if (!isRecord(candidate)) {
+      return invalidProviderPage("Platform library read returned a malformed candidate.");
+    }
+
+    if (candidate.libraryKind !== batch.libraryKind) {
+      return invalidProviderPage("Platform library read returned a candidate outside the import batch kind.");
+    }
+
+    if (
+      candidate.providerAccountId !== undefined &&
+      (!isSafeId(candidate.providerAccountId) || candidate.providerAccountId !== providerAccountId)
+    ) {
+      return invalidProviderPage("Platform library read returned a candidate outside the resolved provider account.");
+    }
+
+    if (!isRecord(candidate.sourceEntity)) {
+      return invalidProviderPage("Platform library read returned a candidate without source entity facts.");
+    }
+
+    const sourceValidation = validateProviderSourceEntityForBatch(batch, candidate.sourceEntity);
+
+    if (!sourceValidation.ok) {
+      return sourceValidation;
+    }
+  }
+
+  return ok(undefined);
+}
+
+function validateProviderSourceEntityForBatch(
+  batch: SourceLibraryImportBatchRecord,
+  sourceEntity: Record<string, unknown>,
+): Result<void> {
+  const expectedKind = sourceKindForLibraryKind(batch.libraryKind);
+
+  if (sourceEntity.kind !== expectedKind) {
+    return invalidProviderPage("Platform library read returned source entity kind outside the import batch.");
+  }
+
+  if (!isSafeId(sourceEntity.providerId) || sourceEntity.providerId !== batch.providerId) {
+    return invalidProviderPage("Platform library read returned source entity provider outside the import batch.");
+  }
+
+  if (!isSafeId(sourceEntity.providerEntityId)) {
+    return invalidProviderPage("Platform library read returned source entity with unsafe provider entity id.");
+  }
+
+  if (!isRecord(sourceEntity.sourceRef)) {
+    return invalidProviderPage("Platform library read returned source entity without source ref.");
+  }
+
+  const sourceRef = sourceEntity.sourceRef;
+  const expectedNamespace = `source_${batch.providerId}`;
+
+  if (sourceRef.namespace !== expectedNamespace) {
+    return invalidProviderPage("Platform library read returned source ref namespace outside the import batch.");
+  }
+
+  if (sourceRef.kind !== expectedKind) {
+    return invalidProviderPage("Platform library read returned source ref kind outside the import batch.");
+  }
+
+  if (!isSafeId(sourceRef.id)) {
+    return invalidProviderPage("Platform library read returned source ref with unsafe id.");
+  }
+
+  return ok(undefined);
 }
 
 function incrementBatchCounts(
@@ -626,6 +806,17 @@ function materialKindForSource(sourceEntity: SourceEntity): MaterialEntityKind {
     case "album":
       return "album";
     case "artist":
+      return "artist";
+  }
+}
+
+function sourceKindForLibraryKind(kind: PlatformLibraryKind): SourceEntity["kind"] {
+  switch (kind) {
+    case "saved_source_track":
+      return "track";
+    case "saved_source_album":
+      return "album";
+    case "followed_source_artist":
       return "artist";
   }
 }
@@ -668,18 +859,35 @@ function isOptionalPositiveInteger(value: unknown): boolean {
   return value === undefined || (typeof value === "number" && Number.isInteger(value) && value > 0);
 }
 
+function isOptionalReadLimit(value: unknown): boolean {
+  return value === undefined || isReadLimit(value);
+}
+
+function isReadLimit(value: unknown): boolean {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= maxProviderReadLimit;
+}
+
 function isPlatformLibraryKind(value: unknown): value is PlatformLibraryKind {
   return value === "saved_source_track" ||
     value === "saved_source_album" ||
     value === "followed_source_artist";
 }
 
-function normalizeId(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+function normalizeSafeId(value: unknown): string | undefined {
+  return isSafeId(value) ? value : undefined;
 }
 
 function defaultBatchId(): string {
   return `source_library_import_${randomUUID().replaceAll("-", "")}`;
+}
+
+function isSafeId(value: unknown): value is string {
+  return typeof value === "string" &&
+    value.trim() === value &&
+    isRefComponentSafe(value);
 }
 
 function ok<T>(value: T): Result<T> {
@@ -695,6 +903,14 @@ function failMusicData<T = never>(
     ok: false,
     error: musicDataError(code, message, retryable),
   };
+}
+
+function invalidProviderPage(message: string): Result<never> {
+  return failMusicData(
+    "music_data.source_library_provider_page_invalid",
+    message,
+    true,
+  );
 }
 
 function musicDataError(

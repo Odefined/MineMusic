@@ -28,7 +28,7 @@ durable writes, or public Stage Interface tools.
 | Formal result/error contracts | Contracts | Return `Result<T>` and `StageError` with `area = "extension"`. | Read shared type vocabulary. | None. |
 | `SourceProvider` contract | Contracts | Type the `source-provider` implementation shape. | Read descriptor, capabilities, and provider operation shape. | None. |
 | `PlatformLibraryProvider` contract | Contracts | Type the `platform-library-provider` implementation shape. | Read descriptor, supported library kinds, and provider read shape. | None. |
-| `isRefComponentSafe` | Contracts | Validate source-provider `providerId`. | Read validation helper. | None. |
+| `isRefComponentSafe` plus slot-local exact account-id checks | Contracts / Extension | Validate provider ids and provider account ids that participate in ref-keyed import state; platform-library account ids are not trimmed into a different value. | Read validation helper. | None. |
 
 ## Method-Level Capabilities
 
@@ -41,7 +41,7 @@ durable writes, or public Stage Interface tools.
 | Register source provider | `registerSourceProvider` / `ctx.registerSourceProvider` | Registration only | Plugin activation context/tests | Uses `providerId`; validates ref safety, descriptor shape, descriptor match, and declared method availability. |
 | Search source provider | `ExtensionRuntime.searchSourceProvider` | Read/external call through provider contract | Extension runtime consumers/tests | Calls one registered provider's `search`; validates input and output integrity; no durable writes. |
 | Register platform library provider | `registerPlatformLibraryProvider` / `ctx.registerPlatformLibraryProvider` | Registration only | Plugin activation context/tests | Uses `providerId`; validates ref safety, descriptor shape, supported library kinds, and read method. |
-| Read platform library provider | `ExtensionRuntime.readPlatformLibraryProvider` | Read/external call through provider contract | Extension runtime consumers/tests and Music Data Platform composition port | Calls one registered provider's `read`; validates input/output integrity; no durable writes. |
+| Read platform library provider | `ExtensionRuntime.readPlatformLibraryProvider` | Read/external call through provider contract | Extension runtime consumers/tests and Music Data Platform composition port | Calls one registered provider's `read` only for descriptor-supported library kinds; validates input/output integrity; no durable writes. |
 | Initialize Extension runtime | `ExtensionRuntime.initialize` | Registration only | Stage Core adapter/tests | Serial plugin activation; fail-fast. |
 | Stop Extension runtime | `ExtensionRuntime.stop` | No-op lifecycle | Stage Core adapter/tests | No plugin deactivate hook in current baseline. |
 

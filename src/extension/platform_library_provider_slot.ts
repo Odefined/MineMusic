@@ -96,6 +96,13 @@ export async function readPlatformLibraryProvider(
     );
   }
 
+  if (!registration.provider.descriptor.libraryKinds.includes(requestSnapshot.kind)) {
+    return failExtension(
+      "extension.platform_library_provider_kind_unsupported",
+      `Platform library provider '${input.providerId}' does not support library kind '${requestSnapshot.kind}'.`,
+    );
+  }
+
   let read: unknown;
 
   try {
@@ -227,11 +234,11 @@ function validatePlatformLibraryProviderReadInput(
 
   if (
     request.providerAccountId !== undefined &&
-    (typeof request.providerAccountId !== "string" || request.providerAccountId.trim().length === 0)
+    !isProviderAccountIdSafe(request.providerAccountId)
   ) {
     return failExtension(
       "extension.invalid_platform_library_provider_read_input",
-      "Platform library providerAccountId must be non-empty when present.",
+      "Platform library providerAccountId must be a non-empty safe id when present.",
     );
   }
 
@@ -353,7 +360,7 @@ function validatePlatformLibraryProviderReadResult(
 
   if (
     result.providerAccountId !== undefined &&
-    (typeof result.providerAccountId !== "string" || result.providerAccountId.trim().length === 0)
+    !isProviderAccountIdSafe(result.providerAccountId)
   ) {
     return invalidPlatformLibraryReadOutput(
       `Platform library provider '${providerId}' returned an invalid providerAccountId.`,
@@ -362,7 +369,6 @@ function validatePlatformLibraryProviderReadResult(
 
   if (
     request.providerAccountId !== undefined &&
-    result.providerAccountId !== undefined &&
     request.providerAccountId !== result.providerAccountId
   ) {
     return invalidPlatformLibraryReadOutput(
@@ -434,7 +440,7 @@ function validatePlatformLibraryCandidate(
 
   if (
     candidate.providerAccountId !== undefined &&
-    (typeof candidate.providerAccountId !== "string" || candidate.providerAccountId.trim().length === 0)
+    !isProviderAccountIdSafe(candidate.providerAccountId)
   ) {
     return invalidPlatformLibraryReadOutput(
       `Platform library provider '${providerId}' returned candidate with invalid providerAccountId.`,
@@ -451,9 +457,9 @@ function validatePlatformLibraryCandidate(
     );
   }
 
-  if (candidate.addedAt !== undefined && typeof candidate.addedAt !== "string") {
+  if (candidate.providerAddedAt !== undefined && typeof candidate.providerAddedAt !== "string") {
     return invalidPlatformLibraryReadOutput(
-      `Platform library provider '${providerId}' returned candidate with invalid addedAt.`,
+      `Platform library provider '${providerId}' returned candidate with invalid providerAddedAt.`,
     );
   }
 
@@ -582,6 +588,12 @@ function isPlatformLibraryKind(kind: unknown): kind is PlatformLibraryKind {
 
 function isSourceEntityKind(kind: unknown): kind is SourceEntityKind {
   return kind === "track" || kind === "album" || kind === "artist";
+}
+
+function isProviderAccountIdSafe(value: unknown): value is string {
+  return typeof value === "string" &&
+    value.trim() === value &&
+    isRefComponentSafe(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

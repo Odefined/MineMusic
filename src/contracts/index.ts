@@ -275,7 +275,7 @@ export type PlatformLibraryCandidate = {
   sourceEntity: SourceEntity;
   libraryKind: PlatformLibraryKind;
   providerAccountId?: string;
-  addedAt?: string;
+  providerAddedAt?: string;
 };
 
 export type PlatformLibraryReadInput = {

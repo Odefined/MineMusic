@@ -46,6 +46,7 @@ export type _sourceLibraryItemRecordShape = Expect<
     | "libraryKind"
     | "sourceRefKey"
     | "addedAt"
+    | "providerAddedAt"
     | "firstImportedAt"
     | "lastSeenAt"
   > &
@@ -126,12 +127,14 @@ repositoryDatabase.transaction((db) => {
     providerAccountId: "130950618",
     libraryKind: "saved_source_track",
     sourceRefKey: refKey(sourceRef("track", "1001")),
-    addedAt: "2026-06-07T00:00:00.000Z",
+    addedAt: "2026-06-08T00:00:00.000Z",
+    providerAddedAt: "2026-06-07T00:00:00.000Z",
     firstImportedAt: "2026-06-08T00:00:00.000Z",
     lastSeenAt: "2026-06-08T00:00:00.000Z",
   });
 
-  assert.equal(item.addedAt, "2026-06-07T00:00:00.000Z");
+  assert.equal(item.addedAt, "2026-06-08T00:00:00.000Z");
+  assert.equal(item.providerAddedAt, "2026-06-07T00:00:00.000Z");
 
   const repeated = repositories.items.upsert({
     ...item,
@@ -139,6 +142,8 @@ repositoryDatabase.transaction((db) => {
   });
 
   assert.equal(repeated.firstImportedAt, "2026-06-08T00:00:00.000Z");
+  assert.equal(repeated.addedAt, "2026-06-08T00:00:00.000Z");
+  assert.equal(repeated.providerAddedAt, "2026-06-07T00:00:00.000Z");
   assert.equal(repeated.lastSeenAt, "2026-06-08T00:01:00.000Z");
 
   const batch = repositories.batches.upsert({
@@ -250,12 +255,136 @@ assert.equal(
   )?.count,
   1,
 );
-assert.equal(
-  duplicateDatabase.context().get<{ source_ref_key: string }>(
-    "SELECT source_ref_key FROM source_library_items",
-  )?.source_ref_key,
-  refKey(sourceRef("track", "1001")),
+assert.deepEqual(
+  {
+    ...duplicateDatabase.context().get<{
+      source_ref_key: string;
+      added_at: string;
+      provider_added_at: string | null;
+      first_imported_at: string;
+      last_seen_at: string;
+    }>(
+      `
+        SELECT
+          source_ref_key,
+          added_at,
+          provider_added_at,
+          first_imported_at,
+          last_seen_at
+        FROM source_library_items
+      `,
+    ),
+  },
+  {
+    source_ref_key: refKey(sourceRef("track", "1001")),
+    added_at: "2026-06-08T01:00:00.000Z",
+    provider_added_at: null,
+    first_imported_at: "2026-06-08T01:00:00.000Z",
+    last_seen_at: "2026-06-08T01:00:00.000Z",
+  },
 );
+assert.equal(
+  duplicateDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM source_library_items WHERE source_ref_key = ?",
+    [refKey(sourceRef("track", "1001"))],
+  )?.count,
+  1,
+);
+const providerAddedAtDatabase = initializedDatabase();
+const providerAddedAtReads = scriptedReadPort([
+  okRead({
+    providerId: "netease",
+    providerAccountId: "130950618",
+    kind: "saved_source_track",
+    candidates: [
+      platformCandidate(
+        "saved_source_track",
+        sourceTrack("1001", "Provider Added One"),
+        "2026-06-07T01:00:00.000Z",
+      ),
+    ],
+    nextCursor: "1",
+  }),
+  okRead({
+    providerId: "netease",
+    providerAccountId: "130950618",
+    kind: "saved_source_track",
+    candidates: [
+      platformCandidate("saved_source_track", sourceTrack("1001", "Provider Added One Refresh")),
+    ],
+  }),
+]);
+const providerAddedAtImport = createSourceLibraryImportService({
+  database: providerAddedAtDatabase,
+  platformLibraryProvider: providerAddedAtReads.port,
+  materialRefFactory: createMaterialRefFactory({
+    nextOpaqueId: () => "provider_added_material",
+  }),
+  now: scriptedNow([
+    "2026-06-08T06:00:00.000Z",
+    "2026-06-08T06:01:00.000Z",
+    "2026-06-08T06:02:00.000Z",
+    "2026-06-08T06:03:00.000Z",
+    "2026-06-08T06:04:00.000Z",
+    "2026-06-08T06:05:00.000Z",
+  ]),
+  newBatchId: () => "provider-added-batch",
+});
+const providerAddedAtStart = await assertOk(providerAddedAtImport.startImport({
+  providerId: "netease",
+  libraryKind: "saved_source_track",
+  limit: 1,
+}));
+assert.equal(providerAddedAtStart.batch.status, "running");
+assert.equal(
+  providerAddedAtStart.itemResults[0]?.sourceLibraryItem?.addedAt,
+  "2026-06-08T06:02:00.000Z",
+);
+assert.equal(
+  providerAddedAtStart.itemResults[0]?.sourceLibraryItem?.providerAddedAt,
+  "2026-06-07T01:00:00.000Z",
+);
+const providerAddedAtContinue = await assertOk(providerAddedAtImport.continueImport({
+  batchId: "provider-added-batch",
+  limit: 1,
+}));
+assert.equal(providerAddedAtContinue.batch.status, "completed");
+assert.equal(
+  providerAddedAtContinue.itemResults[0]?.sourceLibraryItem?.addedAt,
+  "2026-06-08T06:02:00.000Z",
+);
+assert.equal(
+  providerAddedAtContinue.itemResults[0]?.sourceLibraryItem?.providerAddedAt,
+  "2026-06-07T01:00:00.000Z",
+);
+assert.deepEqual(
+  {
+    ...providerAddedAtDatabase.context().get<{
+      added_at: string;
+      provider_added_at: string;
+      first_imported_at: string;
+      last_seen_at: string;
+    }>(
+      `
+        SELECT
+          added_at,
+          provider_added_at,
+          first_imported_at,
+          last_seen_at
+        FROM source_library_items
+        WHERE source_ref_key = ?
+      `,
+      [refKey(sourceRef("track", "1001"))],
+    ),
+  },
+  {
+    added_at: "2026-06-08T06:02:00.000Z",
+    provider_added_at: "2026-06-07T01:00:00.000Z",
+    first_imported_at: "2026-06-08T06:02:00.000Z",
+    last_seen_at: "2026-06-08T06:05:00.000Z",
+  },
+);
+providerAddedAtDatabase.close();
 const completedContinue = await assertOk(duplicateImport.continueImport({
   batchId: "duplicate-batch",
   limit: 1,
@@ -263,6 +392,112 @@ const completedContinue = await assertOk(duplicateImport.continueImport({
 assert.equal(completedContinue.batch.status, "completed");
 assert.equal(duplicateReads.requests.length, 1);
 duplicateDatabase.close();
+
+const invalidLimitDatabase = initializedDatabase();
+const invalidLimitReads = scriptedReadPort([]);
+const invalidLimitImport = createSourceLibraryImportService({
+  database: invalidLimitDatabase,
+  platformLibraryProvider: invalidLimitReads.port,
+  materialRefFactory: createMaterialRefFactory({
+    nextOpaqueId: () => "unused",
+  }),
+  now: fixedNow("2026-06-08T01:30:00.000Z"),
+  newBatchId: () => "invalid-limit-batch",
+});
+assertErrorCode(
+  await invalidLimitImport.startImport({
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+    limit: 101,
+  }),
+  "music_data.invalid_source_library_import_input",
+);
+assert.equal(invalidLimitReads.requests.length, 0);
+assert.equal(
+  createSourceLibraryRepositories({ db: invalidLimitDatabase.context() })
+    .batches.get({ batchId: "invalid-limit-batch" }),
+  undefined,
+);
+assertErrorCode(
+  await invalidLimitImport.startImport({
+    providerId: " netease ",
+    libraryKind: "saved_source_track",
+    limit: 1,
+  }),
+  "music_data.invalid_source_library_import_input",
+);
+assertErrorCode(
+  await invalidLimitImport.startImport({
+    providerId: "netease",
+    providerAccountId: " 130950618 ",
+    libraryKind: "saved_source_track",
+    limit: 1,
+  }),
+  "music_data.invalid_source_library_import_input",
+);
+assert.equal(invalidLimitReads.requests.length, 0);
+invalidLimitDatabase.close();
+
+const invalidDefaultLimitDatabase = initializedDatabase();
+const invalidDefaultLimitReads = scriptedReadPort([]);
+const invalidDefaultLimitImport = createSourceLibraryImportService({
+  database: invalidDefaultLimitDatabase,
+  platformLibraryProvider: invalidDefaultLimitReads.port,
+  materialRefFactory: createMaterialRefFactory({
+    nextOpaqueId: () => "unused",
+  }),
+  now: fixedNow("2026-06-08T01:35:00.000Z"),
+  newBatchId: () => "invalid-default-limit-batch",
+  defaultLimit: 101,
+});
+assertErrorCode(
+  await invalidDefaultLimitImport.startImport({
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+  }),
+  "music_data.invalid_source_library_import_input",
+);
+assert.equal(invalidDefaultLimitReads.requests.length, 0);
+assert.equal(
+  createSourceLibraryRepositories({ db: invalidDefaultLimitDatabase.context() })
+    .batches.get({ batchId: "invalid-default-limit-batch" }),
+  undefined,
+);
+invalidDefaultLimitDatabase.close();
+
+const collisionDatabase = initializedDatabase();
+const collisionReads = scriptedReadPort([
+  okRead({
+    providerId: "netease",
+    providerAccountId: "130950618",
+    kind: "saved_source_track",
+    candidates: [],
+  }),
+]);
+const collisionImport = createSourceLibraryImportService({
+  database: collisionDatabase,
+  platformLibraryProvider: collisionReads.port,
+  materialRefFactory: createMaterialRefFactory({
+    nextOpaqueId: () => "unused",
+  }),
+  now: fixedNow("2026-06-08T01:45:00.000Z"),
+  newBatchId: () => "collision-batch",
+});
+await assertOk(collisionImport.startImport({
+  providerId: "netease",
+  libraryKind: "saved_source_track",
+  limit: 1,
+}));
+assertErrorCode(
+  await collisionImport.startImport({
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+    limit: 1,
+  }),
+  "music_data.source_library_import_batch_id_collision",
+);
+assert.equal(collisionReads.requests.length, 1);
+collisionDatabase.close();
 
 const failedItemDatabase = initializedDatabase();
 let materialIdIndex = 0;
@@ -344,6 +579,161 @@ assert.equal(
   "failed",
 );
 unresolvedAccountDatabase.close();
+
+const invalidAccountDatabase = initializedDatabase();
+const invalidAccountImport = createSourceLibraryImportService({
+  database: invalidAccountDatabase,
+  platformLibraryProvider: scriptedReadPort([
+    okRead({
+      providerId: "netease",
+      providerAccountId: "bad:account",
+      kind: "saved_source_track",
+      candidates: [],
+    }),
+  ]).port,
+  materialRefFactory: createMaterialRefFactory({
+    nextOpaqueId: () => "unused",
+  }),
+  now: fixedNow("2026-06-08T03:30:00.000Z"),
+  newBatchId: () => "invalid-account-batch",
+});
+assertErrorCode(
+  await invalidAccountImport.startImport({
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+    limit: 1,
+  }),
+  "music_data.source_library_account_invalid",
+);
+assert.equal(
+  createSourceLibraryRepositories({ db: invalidAccountDatabase.context() })
+    .batches.get({ batchId: "invalid-account-batch" })?.status,
+  "failed",
+);
+invalidAccountDatabase.close();
+
+for (const invalidPageCase of [
+  {
+    batchId: "wrong-page-provider-batch",
+    read: okRead({
+      providerId: "spotify",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [],
+    }),
+  },
+  {
+    batchId: "wrong-page-kind-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_album",
+      candidates: [],
+    }),
+  },
+  {
+    batchId: "wrong-source-provider-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [
+        platformCandidate(
+          "saved_source_track",
+          {
+            ...sourceTrack("1001", "Wrong Source Provider"),
+            providerId: "spotify",
+            sourceRef: {
+              namespace: "source_spotify",
+              kind: "track",
+              id: "1001",
+            },
+          },
+        ),
+      ],
+    }),
+  },
+  {
+    batchId: "wrong-candidate-kind-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [
+        platformCandidate("saved_source_album", sourceTrack("1001", "Wrong Candidate Kind")),
+      ],
+    }),
+  },
+  {
+    batchId: "candidate-account-mismatch-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [
+        {
+          ...platformCandidate("saved_source_track", sourceTrack("1001", "Wrong Candidate Account")),
+          providerAccountId: "other-account",
+        },
+      ],
+    }),
+  },
+  {
+    batchId: "unsafe-candidate-account-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [
+        {
+          ...platformCandidate("saved_source_track", sourceTrack("1001", "Unsafe Candidate Account")),
+          providerAccountId: " 130950618 ",
+        },
+      ],
+    }),
+  },
+  {
+    batchId: "unsafe-source-ref-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [
+        platformCandidate("saved_source_track", sourceTrack(" bad-id ", "Unsafe Source Ref")),
+      ],
+    }),
+  },
+] as const) {
+  const invalidPageDatabase = initializedDatabase();
+  const invalidPageReads = scriptedReadPort([invalidPageCase.read]);
+  const invalidPageImport = createSourceLibraryImportService({
+    database: invalidPageDatabase,
+    platformLibraryProvider: invalidPageReads.port,
+    materialRefFactory: createMaterialRefFactory({
+      nextOpaqueId: () => "unused",
+    }),
+    now: fixedNow("2026-06-08T03:45:00.000Z"),
+    newBatchId: () => invalidPageCase.batchId,
+  });
+
+  assertErrorCode(
+    await invalidPageImport.startImport({
+      providerId: "netease",
+      libraryKind: "saved_source_track",
+      limit: 1,
+    }),
+    "music_data.source_library_provider_page_invalid",
+  );
+  assert.equal(invalidPageReads.requests.length, 1);
+  assert.equal(
+    createSourceLibraryRepositories({ db: invalidPageDatabase.context() })
+      .batches.get({ batchId: invalidPageCase.batchId })?.status,
+    "failed",
+  );
+  assert.equal(countRows(invalidPageDatabase, "source_records"), 0);
+  assert.equal(countRows(invalidPageDatabase, "source_library_items"), 0);
+  invalidPageDatabase.close();
+}
 
 const mismatchDatabase = initializedDatabase();
 const mismatchReads = scriptedReadPort([
@@ -473,12 +863,27 @@ function okRead(value: PlatformLibraryReadResult): Result<PlatformLibraryReadRes
 function platformCandidate(
   libraryKind: PlatformLibraryCandidate["libraryKind"],
   sourceEntity: SourceEntity,
-  addedAt?: string,
+  providerAddedAt?: string,
 ): PlatformLibraryCandidate {
   return {
     libraryKind,
     sourceEntity,
-    ...(addedAt === undefined ? {} : { addedAt }),
+    ...(providerAddedAt === undefined ? {} : { providerAddedAt }),
+  };
+}
+
+function scriptedNow(timestamps: readonly string[]): () => string {
+  let index = 0;
+
+  return () => {
+    const timestamp = timestamps[index] ?? timestamps[timestamps.length - 1];
+    index += 1;
+
+    if (timestamp === undefined) {
+      throw new Error("Missing scripted timestamp.");
+    }
+
+    return timestamp;
   };
 }
 
@@ -499,6 +904,14 @@ function sourceRef(kind: string, id: string): Ref {
     kind,
     id,
   };
+}
+
+function countRows(database: ReturnType<typeof SqliteMusicDatabase.open>, tableName: string): number {
+  const row = database.context().get<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM ${tableName}`,
+  );
+
+  return row?.count ?? 0;
 }
 
 function fixedNow(value: string): () => string {

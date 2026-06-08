@@ -183,7 +183,7 @@ export type _platformLibraryShapes = Expect<
   > &
     Equal<
       keyof PlatformLibraryCandidate,
-      "sourceEntity" | "libraryKind" | "providerAccountId" | "addedAt"
+      "sourceEntity" | "libraryKind" | "providerAccountId" | "providerAddedAt"
     > &
     Equal<PlatformLibraryCandidate["sourceEntity"], SourceEntity> &
     Equal<

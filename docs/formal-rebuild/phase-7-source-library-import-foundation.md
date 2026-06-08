@@ -74,10 +74,15 @@ NCM library read mapping:
   when available; `/likelist` must not be used as the saved-track import fact
   source because it only exposes ids and playlist-level state;
 - `saved_source_album` may read `/album/sublist`, preserving provider album
-  source refs and `subTime` as `addedAt` when available;
+  source refs and `subTime` as `providerAddedAt` when available;
 - `followed_source_artist` may read `/artist/sublist`, preserving provider
-  artist source refs without inventing `addedAt` when the provider response
+  artist source refs without inventing `providerAddedAt` when the provider response
   lacks a per-artist timestamp.
+
+For NCM account-library reads, the plugin resolves the current logged-in
+account through `/user/account`. If the caller supplies `providerAccountId`,
+the supplied id must match that current account before saved albums, followed
+artists, or liked playlist facts are read.
 
 Formal v1 uses source album language for this phase. Old MVP wording such as
 `saved_source_release` is historical evidence only and should not return to
@@ -103,7 +108,7 @@ type PlatformLibraryCandidate = {
   sourceEntity: SourceEntity;
   libraryKind: PlatformLibraryKind;
   providerAccountId?: string;
-  addedAt?: string;
+  providerAddedAt?: string;
 };
 
 type PlatformLibraryReadInput = {
@@ -141,10 +146,10 @@ the import call `limit`.
 account and return the resolved account id in `PlatformLibraryReadResult`.
 
 Real provider-account library import persistence still requires a resolved
-account id before any source library item is written. NCM saved tracks, saved
-albums, and followed artists are account-library scopes, so the import service
-must persist a non-empty `providerAccountId` resolved either from the caller
-input or from the provider read result.
+ref-safe account id before any source library item is written. NCM saved tracks,
+saved albums, and followed artists are account-library scopes, so the import
+service must persist a non-empty `providerAccountId` resolved either from the
+caller input or from the provider read result.
 
 The Library Import service does not select accounts in Phase 7. When the caller
 supplies `providerAccountId`, provider results must match it. When the caller
@@ -324,8 +329,9 @@ type SourceLibraryImportContinueInput = {
 ```
 
 If `limit` is omitted, the service uses its configured default per-call limit.
-`limit` does not decide batch completion. A batch is completed when the provider
-read returns no `nextCursor`, or when optional `maxNewItems` has been reached.
+`limit` must stay within the provider-read contract range of 1 through 100. It
+does not decide batch completion. A batch is completed when the provider read
+returns no `nextCursor`, or when optional `maxNewItems` has been reached.
 
 ```ts
 type SourceLibraryImportCompletionReason =
@@ -355,6 +361,13 @@ Batch failure is reserved for provider/page/batch-scope failures such as
 provider unavailable, malformed provider page result, missing or mismatched
 resolved account id, cursor failure, or batch state corruption.
 
+The import service validates provider page identity before item writes. The page
+provider id, page library kind, resolved provider account, candidate library
+kind, source provider id, `source_<providerId>` namespace, source ref kind, and
+source entity kind must match the batch. This guard applies even when tests or
+runtime wiring inject a direct `PlatformLibraryReadPort` instead of going
+through the Extension slot helper.
+
 A completed batch may have `failedCount > 0`.
 
 `already_present` is source-library membership semantics. If the membership
@@ -379,12 +392,17 @@ provider_account_id
 library_kind
 source_ref_key
 added_at?
+provider_added_at?
 first_imported_at
 last_seen_at
 ```
 
-Repeat import updates `last_seen_at`. Phase 7 does not mark items missing from
-a later batch as removed.
+`added_at` is MineMusic's local source-library membership time. It is set when
+the membership is first written locally and is preserved on later imports.
+`provider_added_at` is the provider-side collection/follow timestamp when the
+provider exposes one. Repeat import may refresh `provider_added_at` when the
+provider supplies a value, and updates `last_seen_at`. Phase 7 does not mark
+items missing from a later batch as removed.
 
 `SourceLibraryItem` does not store `material_ref_key`, `canonical_ref_key`,
 display fields, query text, rank, or card seed. Material refs are obtained
@@ -613,3 +631,8 @@ Resolved Phase 7 decisions:
     import completion is determined by absence of `nextCursor` or reaching
     optional batch-level `maxNewItems`, not total count and not per-call
     `limit`.
+31. Resolved: Source library items persist both local and provider-side
+    membership time. `added_at` is MineMusic's local membership creation time;
+    `provider_added_at` is the provider-side add/collect/follow timestamp when
+    available. Provider candidates expose only `providerAddedAt`, not local
+    `addedAt`.

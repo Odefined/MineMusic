@@ -1034,6 +1034,16 @@ if (platformRead.ok) {
   assert.deepEqual(platformRead.value, expected);
 }
 
+assertErrorCode(
+  await platformRuntime.readPlatformLibraryProvider({
+    providerId: "platform",
+    request: {
+      kind: "saved_source_album",
+    },
+  }),
+  "extension.platform_library_provider_kind_unsupported",
+);
+
 for (const malformedInput of [
   { providerId: Symbol("platform"), request: { kind: "saved_source_track" } },
   { providerId: "platform" },
@@ -1041,6 +1051,9 @@ for (const malformedInput of [
   { providerId: "platform", request: { kind: "saved_source_track", limit: 0 } },
   { providerId: "platform", request: { kind: "saved_source_track", cursor: "" } },
   { providerId: "platform", request: { kind: "saved_source_track", providerAccountId: "" } },
+  { providerId: "platform", request: { kind: "saved_source_track", providerAccountId: "   " } },
+  { providerId: "platform", request: { kind: "saved_source_track", providerAccountId: " account-1 " } },
+  { providerId: "platform", request: { kind: "saved_source_track", providerAccountId: "bad:account" } },
 ] as const) {
   assertErrorCode(
     await platformRuntime.readPlatformLibraryProvider(
@@ -1075,6 +1088,23 @@ for (const [providerId, readResult] of [
     kind: "saved_source_track",
     candidates: [],
   }],
+  ["account-missing", {
+    providerId: "account-missing",
+    kind: "saved_source_track",
+    candidates: [],
+  }],
+  ["bad-result-account", {
+    providerId: "bad-result-account",
+    providerAccountId: "bad:account",
+    kind: "saved_source_track",
+    candidates: [],
+  }],
+  ["bad-result-account-whitespace", {
+    providerId: "bad-result-account-whitespace",
+    providerAccountId: " account-1 ",
+    kind: "saved_source_track",
+    candidates: [],
+  }],
   ["over-limit", {
     providerId: "over-limit",
     kind: "saved_source_track",
@@ -1094,6 +1124,18 @@ for (const [providerId, readResult] of [
     kind: "saved_source_track",
     candidates: [platformCandidateFor("bad-candidate-account", "track-1", "Track 1", "account-2")],
   }],
+  ["bad-candidate-account-shape", {
+    providerId: "bad-candidate-account-shape",
+    providerAccountId: "account-1",
+    kind: "saved_source_track",
+    candidates: [platformCandidateFor("bad-candidate-account-shape", "track-1", "Track 1", "bad:account")],
+  }],
+  ["bad-candidate-account-whitespace", {
+    providerId: "bad-candidate-account-whitespace",
+    providerAccountId: "account-1",
+    kind: "saved_source_track",
+    candidates: [platformCandidateFor("bad-candidate-account-whitespace", "track-1", "Track 1", " account-1 ")],
+  }],
   ["bad-total-count", {
     providerId: "bad-total-count",
     kind: "saved_source_track",
@@ -1110,7 +1152,9 @@ for (const [providerId, readResult] of [
       providerId,
       request: {
         kind: "saved_source_track",
-        ...(providerId === "account-mismatch" ? { providerAccountId: "account-1" } : {}),
+        ...(providerId === "account-mismatch" || providerId === "account-missing"
+          ? { providerAccountId: "account-1" }
+          : {}),
         ...(providerId === "over-limit" ? { limit: 1 } : {}),
       },
     }),

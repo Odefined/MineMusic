@@ -98,16 +98,21 @@ saved_source_album
 followed_source_artist
 ```
 
+For account-library reads, the plugin resolves the current logged-in account
+through `/user/account`. If the caller supplies `providerAccountId`, that id
+must match the current logged-in account before any library endpoint is read.
+
 Mapping:
 
-- `saved_source_track` resolves the current or requested account, resolves the
-  liked-music playlist, reads `/playlist/detail`, uses `playlist.trackIds`
-  order, maps `trackIds[].at` to `addedAt` when available, and reads selected
-  track facts through `/song/detail`;
+- `saved_source_track` resolves the liked-music playlist, reads
+  `/playlist/detail`, uses `playlist.trackIds` order, maps `trackIds[].at` to
+  `providerAddedAt` when available, and reads selected track facts through
+  `/song/detail`;
 - `saved_source_album` reads `/album/sublist`, maps album facts through the
-  same source album mapper, and maps `subTime` to `addedAt` when available;
+  same source album mapper, and maps `subTime` to `providerAddedAt` when
+  available;
 - `followed_source_artist` reads `/artist/sublist`, maps artist facts through
-  the same source artist mapper, and does not invent `addedAt` when the
+  the same source artist mapper, and does not invent `providerAddedAt` when the
   provider response has no per-artist timestamp.
 
 `/likelist` is not used for saved-track import facts because it exposes ids and
@@ -155,8 +160,11 @@ Artist mapping includes:
 - no default artist `versionInfo`;
 - no artist `links`.
 
-Raw items without usable stable provider ids are dropped. The plugin does not
-create unresolved candidates without source refs and does not synthesize
+Search raw items without usable stable provider ids are dropped. Account-library
+reads are stricter: malformed saved/followed library items, non-object page
+items, missing selected song detail, or `hasMore` pages with no mapped items fail
+the provider read instead of silently shrinking the imported library. The plugin
+does not create unresolved candidates without source refs and does not synthesize
 `providerScore`.
 
 ## Version Extraction
@@ -211,9 +219,10 @@ Error classes:
 
 - invalid plugin config for non-object config, malformed `baseUrl`, or invalid
   transport seam;
+- invalid or mismatched provider account id for account-library reads;
 - provider unavailable for network/HTTP failures;
-- malformed provider response for JSON parse failures or missing expected
-  arrays;
+- malformed provider response for JSON parse failures, missing expected arrays,
+  or missing selected `/song/detail` facts;
 - provider response error for NCM payload codes other than `200`.
 
 Network and HTTP-unavailable errors are retryable. Invalid config, malformed

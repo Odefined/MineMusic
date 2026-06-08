@@ -10,6 +10,7 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
         library_kind TEXT NOT NULL,
         source_ref_key TEXT NOT NULL,
         added_at TEXT,
+        provider_added_at TEXT,
         first_imported_at TEXT NOT NULL,
         last_seen_at TEXT NOT NULL,
         PRIMARY KEY(provider_id, provider_account_id, library_kind, source_ref_key),

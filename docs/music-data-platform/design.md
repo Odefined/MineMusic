@@ -199,9 +199,17 @@ provider_account_id
 library_kind
 source_ref_key
 added_at?
+provider_added_at?
 first_imported_at
 last_seen_at
 ```
+
+`added_at` is MineMusic's local source-library membership time: it is set when
+the membership is first written locally and preserved on later imports.
+`provider_added_at` is the provider-side add, collect, or follow timestamp when
+the provider exposes one. It is separate from `added_at` because provider
+membership time and MineMusic import time can differ. `first_imported_at` and
+`last_seen_at` remain import bookkeeping timestamps.
 
 `SourceLibraryItem` does not store `material_ref_key`, `canonical_ref_key`,
 display fields, query text, rank, projection data, or card seed data. Material
@@ -220,10 +228,11 @@ are `provider_exhausted` and `max_new_items_reached`. Phase 7 supports
 `startImport` and `continueImport` only; it does not support cancel, pause,
 resume, retry, update baseline, or removed-from-library reconciliation.
 
-`limit` is a per-call processing limit. `maxNewItems` is an optional
-batch-level stop condition that counts only newly created source-library
-memberships with outcome `imported`. `already_present` and `failed` outcomes
-do not count toward `maxNewItems`.
+`limit` is a per-call processing limit and must stay within the provider-read
+contract range of 1 through 100. `maxNewItems` is an optional batch-level stop
+condition that counts only newly created source-library memberships with
+outcome `imported`. `already_present` and `failed` outcomes do not count toward
+`maxNewItems`.
 
 For each candidate, Library Import writes in an item-scoped transaction:
 
@@ -239,10 +248,16 @@ Per-item write failure rolls back only that candidate transaction, records a
 compact failed outcome, increments the failed count, and continues. Provider,
 page, account, cursor, or batch-scope failures mark the batch failed.
 
-Real provider-account library persistence requires a resolved non-empty
-`providerAccountId`. `startImport` may omit it only when the provider/API can
-resolve the current logged-in account in the first provider read. Later reads
-for the same batch must return the same account id.
+Before item writes, the service validates that the provider page belongs to the
+batch provider id, batch library kind, resolved provider account, and expected
+`source_<providerId>` source namespace. A direct `PlatformLibraryReadPort`
+implementation is not trusted as storage-ready merely because it has the right
+TypeScript shape.
+
+Real provider-account library persistence requires a resolved non-empty,
+ref-safe `providerAccountId`. `startImport` may omit it only when the
+provider/API can resolve the current logged-in account in the first provider
+read. Later reads for the same batch must return the same account id.
 
 ## Material Merge
 

@@ -43,8 +43,8 @@ Repositories are created with `db: MusicDatabaseContext`.
 | `MaterialRecordRepository` | `upsert`, `get`, `findActiveByCanonicalRef` | Does not coordinate bindings. |
 | `CanonicalRecordRepository` | `upsert`, `get` | Can round-trip canonical record status. |
 | `SourceToMaterialBindingRepository` | `upsertCurrentBinding`, `findMaterialForSource`, `listSourcesForMaterial`, `deleteBindingForSource` | Low-level current binding persistence only; no `bind` business method. |
-| `SourceLibraryItemRepository` | `get`, `upsert` | Current membership only. Repeated upsert updates `lastSeenAt`. |
-| `SourceLibraryImportBatchRepository` | `get`, `upsert` | Durable start/continue batch state and counters. |
+| `SourceLibraryItemRepository` | `get`, `upsert` | Current membership only. Stores local `addedAt`, optional provider-side `providerAddedAt`, and import bookkeeping timestamps. |
+| `SourceLibraryImportBatchRepository` | `get`, `insert`, `upsert` | `insert` creates a new batch; `upsert` updates existing batch state and counters. |
 | `SourceLibraryImportItemOutcomeRepository` | `insert`, `listForBatch` | Per-candidate outcome rows; compact error fields only. |
 
 Repositories do not start transactions, generate timestamps, return
@@ -93,6 +93,11 @@ The service output is internal and complete enough for tests, smoke, and later
 Stage Interface projection. It is not a compact agent-facing DTO and does not
 include raw provider payloads.
 
+`startImport` and `continueImport` validate provider page identity before any
+item transaction: page provider id, page library kind, resolved account id, each
+candidate library kind, source provider id, source ref namespace, source ref
+kind, and source kind must match the batch.
+
 ## Forbidden Dependencies
 
 | Forbidden dependency | Reason |
@@ -122,7 +127,8 @@ Current guards:
 - source-library tests cover source library item field shape, schema forbidden
   columns, repository round-trip, material ref factory opacity, import service
   account resolution, duplicate/idempotent import, per-item rollback, completed
-  continuation, account mismatch failure, and `maxNewItems` behavior.
+  continuation, account mismatch and invalid-account failure, batch id collision,
+  provider-read limit validation, and `maxNewItems` behavior.
 
 ## Out Of Scope
 

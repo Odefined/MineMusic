@@ -233,7 +233,8 @@ extensionRuntime.readPlatformLibraryProvider(input)
 ```
 
 That seam validates input and output integrity, including provider id, library
-kind, provider account id shape when present, limit, cursor, result provider
+kind, support for the requested kind in the provider descriptor, provider
+account id exact ref-safety when present, limit, cursor, result provider
 ownership, candidate kind, candidate source namespace, candidate count against
 requested limit, optional `nextCursor`, and optional `totalCountHint`.
 

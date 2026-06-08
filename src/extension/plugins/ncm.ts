@@ -76,7 +76,7 @@ type NcmSong = {
 
 type NcmTrackId = {
   id: string;
-  addedAt?: string;
+  providerAddedAt?: string;
 };
 
 type NcmSearchTarget = {
@@ -209,6 +209,12 @@ async function readNcmSavedTracks(
   config: unknown,
   input: PlatformLibraryReadInput,
 ): Promise<Result<PlatformLibraryReadResult>> {
+  const offset = cursorOffset(input.cursor);
+
+  if (!offset.ok) {
+    return offset;
+  }
+
   const accountId = await resolveNcmProviderAccountId(config, input.providerAccountId);
 
   if (!accountId.ok) {
@@ -235,12 +241,6 @@ async function readNcmSavedTracks(
     return trackIds;
   }
 
-  const offset = cursorOffset(input.cursor);
-
-  if (!offset.ok) {
-    return offset;
-  }
-
   const limit = input.limit ?? defaultNcmLibraryLimit();
   const selected = trackIds.value.slice(offset.value, offset.value + limit);
   const songs = selected.length === 0
@@ -251,24 +251,19 @@ async function readNcmSavedTracks(
     return songs;
   }
 
-  const songsById = new Map(songs.value.map((song) => [toUsableProviderId(song.id), song]));
-  const candidates = selected
-    .map((item) => {
-      const song = songsById.get(item.id);
-      const candidate = song === undefined ? undefined : toTrackCandidate(song);
+  const candidates = toSavedTrackCandidates(selected, songs.value, accountId.value);
 
-      return candidate === undefined
-        ? undefined
-        : platformCandidate("saved_source_track", candidate, accountId.value, item.addedAt);
-    })
-    .filter(isDefined);
+  if (!candidates.ok) {
+    return candidates;
+  }
+
   const nextOffset = offset.value + selected.length;
 
   return ok({
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "saved_source_track",
-    candidates,
+    candidates: candidates.value,
     ...(nextOffset < trackIds.value.length ? { nextCursor: String(nextOffset) } : {}),
     totalCountHint: trackIds.value.length,
   });
@@ -278,16 +273,16 @@ async function readNcmSavedAlbums(
   config: unknown,
   input: PlatformLibraryReadInput,
 ): Promise<Result<PlatformLibraryReadResult>> {
-  const accountId = await resolveNcmProviderAccountId(config, input.providerAccountId);
-
-  if (!accountId.ok) {
-    return accountId;
-  }
-
   const offset = cursorOffset(input.cursor);
 
   if (!offset.ok) {
     return offset;
+  }
+
+  const accountId = await resolveNcmProviderAccountId(config, input.providerAccountId);
+
+  if (!accountId.ok) {
+    return accountId;
   }
 
   const limit = input.limit ?? defaultNcmLibraryLimit();
@@ -306,21 +301,23 @@ async function readNcmSavedAlbums(
     return albums;
   }
 
-  const candidates = albums.value
-    .map((album) => {
-      const candidate = toAlbumCandidate(album);
+  const pageValidation = validateNonEmptyHasMorePage(payload.value, albums.value.length, "album");
 
-      return candidate === undefined
-        ? undefined
-        : platformCandidate("saved_source_album", candidate, accountId.value, dateTimeFromNcmTime(album.subTime));
-    })
-    .filter(isDefined);
+  if (!pageValidation.ok) {
+    return pageValidation;
+  }
+
+  const candidates = toSavedAlbumCandidates(albums.value, accountId.value);
+
+  if (!candidates.ok) {
+    return candidates;
+  }
 
   return ok({
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "saved_source_album",
-    candidates,
+    candidates: candidates.value,
     ...(hasMore(payload.value) ? { nextCursor: String(offset.value + albums.value.length) } : {}),
     ...totalCountHint(payload.value),
   });
@@ -330,16 +327,16 @@ async function readNcmFollowedArtists(
   config: unknown,
   input: PlatformLibraryReadInput,
 ): Promise<Result<PlatformLibraryReadResult>> {
-  const accountId = await resolveNcmProviderAccountId(config, input.providerAccountId);
-
-  if (!accountId.ok) {
-    return accountId;
-  }
-
   const offset = cursorOffset(input.cursor);
 
   if (!offset.ok) {
     return offset;
+  }
+
+  const accountId = await resolveNcmProviderAccountId(config, input.providerAccountId);
+
+  if (!accountId.ok) {
+    return accountId;
   }
 
   const limit = input.limit ?? defaultNcmLibraryLimit();
@@ -358,21 +355,23 @@ async function readNcmFollowedArtists(
     return artists;
   }
 
-  const candidates = artists.value
-    .map((artist) => {
-      const candidate = toArtistCandidate(artist);
+  const pageValidation = validateNonEmptyHasMorePage(payload.value, artists.value.length, "artist");
 
-      return candidate === undefined
-        ? undefined
-        : platformCandidate("followed_source_artist", candidate, accountId.value);
-    })
-    .filter(isDefined);
+  if (!pageValidation.ok) {
+    return pageValidation;
+  }
+
+  const candidates = toFollowedArtistCandidates(artists.value, accountId.value);
+
+  if (!candidates.ok) {
+    return candidates;
+  }
 
   return ok({
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "followed_source_artist",
-    candidates,
+    candidates: candidates.value,
     ...(hasMore(payload.value) ? { nextCursor: String(offset.value + artists.value.length) } : {}),
     ...totalCountHint(payload.value),
   });
@@ -518,10 +517,13 @@ async function resolveNcmProviderAccountId(
   config: unknown,
   providerAccountId: string | undefined,
 ): Promise<Result<string>> {
-  const explicit = toNonEmptyString(providerAccountId);
+  const explicit = providerAccountId;
 
-  if (explicit !== undefined) {
-    return ok(explicit);
+  if (explicit !== undefined && !isSafeId(explicit)) {
+    return failExtension(
+      "extension.ncm_invalid_provider_account_id",
+      "NCM providerAccountId must be a non-empty safe id when present.",
+    );
   }
 
   const payload = await requestNcmPath(config, "/user/account", {});
@@ -536,6 +538,15 @@ async function resolveNcmProviderAccountId(
     return failExtension(
       "extension.ncm_account_unresolved",
       "NCM provider could not resolve the current logged-in account.",
+      undefined,
+      true,
+    );
+  }
+
+  if (explicit !== undefined && explicit !== accountId) {
+    return failExtension(
+      "extension.ncm_account_mismatch",
+      "NCM providerAccountId does not match the current logged-in account.",
       undefined,
       true,
     );
@@ -589,7 +600,7 @@ async function readNcmSongs(
   ids: readonly string[],
 ): Promise<Result<readonly NcmSong[]>> {
   const payload = await requestNcmPath(config, "/song/detail", {
-    ids: `[${ids.join(",")}]`,
+    ids: ids.join(","),
   });
 
   if (!payload.ok) {
@@ -626,17 +637,115 @@ function ncmLikedTrackIds(payload: unknown): Result<readonly NcmTrackId[]> {
     );
   }
 
-  return ok(trackIds.filter(isRecord).map((item) => {
-    const id = toUsableProviderId(item.id);
-    const addedAt = dateTimeFromNcmTime(item.at);
+  const ids: NcmTrackId[] = [];
 
-    return id === undefined
-      ? undefined
-      : {
-        id,
-        ...(addedAt === undefined ? {} : { addedAt }),
-      };
-  }).filter(isDefined));
+  for (const item of trackIds) {
+    if (!isRecord(item)) {
+      return failExtension(
+        "extension.ncm_malformed_response",
+        "NCM provider playlist.trackIds included a non-object item.",
+      );
+    }
+
+    const id = toUsableProviderId(item.id);
+    const providerAddedAt = dateTimeFromNcmTime(item.at);
+
+    if (id === undefined) {
+      return failExtension(
+        "extension.ncm_malformed_response",
+        "NCM provider playlist.trackIds included an item without a usable id.",
+      );
+    }
+
+    ids.push({
+      id,
+      ...(providerAddedAt === undefined ? {} : { providerAddedAt }),
+    });
+  }
+
+  return ok(ids);
+}
+
+function toSavedTrackCandidates(
+  selected: readonly NcmTrackId[],
+  songs: readonly NcmSong[],
+  providerAccountId: string,
+): Result<readonly PlatformLibraryCandidate[]> {
+  const songsById = new Map(songs.map((song) => [toUsableProviderId(song.id), song]));
+  const candidates: PlatformLibraryCandidate[] = [];
+
+  for (const item of selected) {
+    const song = songsById.get(item.id);
+
+    if (song === undefined) {
+      return failExtension(
+        "extension.ncm_song_detail_missing",
+        `NCM provider response did not include song detail for track '${item.id}'.`,
+      );
+    }
+
+    const candidate = toTrackCandidate(song);
+
+    if (candidate === undefined) {
+      return failExtension(
+        "extension.ncm_malformed_response",
+        `NCM provider song detail for track '${item.id}' did not include usable source facts.`,
+      );
+    }
+
+    candidates.push(platformCandidate("saved_source_track", candidate, providerAccountId, item.providerAddedAt));
+  }
+
+  return ok(candidates);
+}
+
+function toSavedAlbumCandidates(
+  albums: readonly NcmAlbum[],
+  providerAccountId: string,
+): Result<readonly PlatformLibraryCandidate[]> {
+  const candidates: PlatformLibraryCandidate[] = [];
+
+  for (const album of albums) {
+    const candidate = toAlbumCandidate(album);
+
+    if (candidate === undefined) {
+      return failExtension(
+        "extension.ncm_malformed_response",
+        "NCM provider saved album item did not include usable source facts.",
+      );
+    }
+
+    candidates.push(platformCandidate(
+      "saved_source_album",
+      candidate,
+      providerAccountId,
+      dateTimeFromNcmTime(album.subTime),
+    ));
+  }
+
+  return ok(candidates);
+}
+
+function toFollowedArtistCandidates(
+  artists: readonly NcmArtist[],
+  providerAccountId: string,
+): Result<readonly PlatformLibraryCandidate[]> {
+  const candidates: PlatformLibraryCandidate[] = [];
+
+  for (const artist of artists) {
+    const candidate = toArtistCandidate(artist);
+
+    if (candidate === undefined) {
+      return failExtension(
+        "extension.ncm_malformed_response",
+        "NCM provider followed artist item did not include usable source facts.",
+      );
+    }
+
+    candidates.push(platformCandidate("followed_source_artist", candidate, providerAccountId));
+  }
+
+  return ok(candidates);
 }
 
 function ncmLibraryArray<T extends Record<string, unknown>>(
@@ -654,7 +763,14 @@ function ncmLibraryArray<T extends Record<string, unknown>>(
     const value = payload[path];
 
     if (Array.isArray(value)) {
-      return ok(value.filter(isRecord) as T[]);
+      if (!value.every(isRecord)) {
+        return failExtension(
+          "extension.ncm_malformed_response",
+          `NCM provider response ${path} included a non-object item.`,
+        );
+      }
+
+      return ok(value as T[]);
     }
   }
 
@@ -683,6 +799,21 @@ function hasMore(payload: unknown): boolean {
   return isRecord(payload) && (payload.hasMore === true || payload.more === true);
 }
 
+function validateNonEmptyHasMorePage(
+  payload: unknown,
+  itemCount: number,
+  itemLabel: string,
+): Result<void> {
+  if (hasMore(payload) && itemCount === 0) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      `NCM provider returned hasMore with an empty ${itemLabel} page.`,
+    );
+  }
+
+  return ok(undefined);
+}
+
 function totalCountHint(payload: unknown): { totalCountHint?: number } {
   if (!isRecord(payload)) {
     return {};
@@ -699,13 +830,13 @@ function platformCandidate(
   libraryKind: PlatformLibraryKind,
   candidate: ProviderMaterialCandidate,
   providerAccountId: string,
-  addedAt?: string,
+  providerAddedAt?: string,
 ): PlatformLibraryCandidate {
   return {
     sourceEntity: candidate.sourceEntity,
     libraryKind,
     providerAccountId,
-    ...(addedAt === undefined ? {} : { addedAt }),
+    ...(providerAddedAt === undefined ? {} : { providerAddedAt }),
   };
 }
 
@@ -1212,11 +1343,17 @@ function labelWithArtists(title: string, artists: readonly string[]): string {
 function toUsableProviderId(value: unknown): string | undefined {
   const id = toOptionalString(value);
 
-  if (id === undefined || id === "0" || !isRefComponentSafe(id)) {
+  if (id === undefined || id === "0" || !isSafeId(id)) {
     return undefined;
   }
 
   return id;
+}
+
+function isSafeId(value: unknown): value is string {
+  return typeof value === "string" &&
+    value.trim() === value &&
+    isRefComponentSafe(value);
 }
 
 function toPositiveInteger(value: unknown): number | undefined {

@@ -13,6 +13,7 @@ export type SourceLibraryItemRecord = {
   libraryKind: PlatformLibraryKind;
   sourceRefKey: string;
   addedAt?: string;
+  providerAddedAt?: string;
   firstImportedAt: string;
   lastSeenAt: string;
 };
@@ -71,6 +72,7 @@ export type SourceLibraryItemRepository = {
 
 export type SourceLibraryImportBatchRepository = {
   get(input: { batchId: string }): SourceLibraryImportBatchRecord | undefined;
+  insert(record: SourceLibraryImportBatchRecord): SourceLibraryImportBatchRecord;
   upsert(record: SourceLibraryImportBatchRecord): SourceLibraryImportBatchRecord;
 };
 
@@ -85,6 +87,7 @@ type SourceLibraryItemRow = {
   library_kind: PlatformLibraryKind;
   source_ref_key: string;
   added_at: string | null;
+  provider_added_at: string | null;
   first_imported_at: string;
   last_seen_at: string;
 };
@@ -155,13 +158,15 @@ export function createSourceLibraryRepositories(
             library_kind,
             source_ref_key,
             added_at,
+            provider_added_at,
             first_imported_at,
             last_seen_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(provider_id, provider_account_id, library_kind, source_ref_key)
           DO UPDATE SET
             added_at = excluded.added_at,
+            provider_added_at = excluded.provider_added_at,
             last_seen_at = excluded.last_seen_at
         `,
         [
@@ -170,6 +175,7 @@ export function createSourceLibraryRepositories(
           record.libraryKind,
           record.sourceRefKey,
           record.addedAt ?? null,
+          record.providerAddedAt ?? null,
           record.firstImportedAt,
           record.lastSeenAt,
         ],
@@ -195,6 +201,54 @@ export function createSourceLibraryRepositories(
       );
 
       return row === undefined ? undefined : sourceLibraryImportBatchFromRow(row);
+    },
+    insert(record) {
+      db.run(
+        `
+          INSERT INTO source_library_import_batches (
+            batch_id,
+            provider_id,
+            provider_account_id,
+            library_kind,
+            status,
+            cursor,
+            max_new_items,
+            processed_count,
+            imported_count,
+            already_present_count,
+            failed_count,
+            completion_reason,
+            failure_code,
+            failure_message,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          record.batchId,
+          record.providerId,
+          record.providerAccountId ?? null,
+          record.libraryKind,
+          record.status,
+          record.cursor ?? null,
+          record.maxNewItems ?? null,
+          record.processedCount,
+          record.importedCount,
+          record.alreadyPresentCount,
+          record.failedCount,
+          record.completionReason ?? null,
+          record.failureCode ?? null,
+          record.failureMessage ?? null,
+          record.createdAt,
+          record.updatedAt,
+        ],
+      );
+
+      return requireRecord(
+        batches.get({ batchId: record.batchId }),
+        "source library import batch insert did not return a stored record",
+      );
     },
     upsert(record) {
       db.run(
@@ -337,6 +391,7 @@ function sourceLibraryItemFromRow(row: SourceLibraryItemRow): SourceLibraryItemR
     libraryKind: row.library_kind,
     sourceRefKey: row.source_ref_key,
     ...(row.added_at === null ? {} : { addedAt: row.added_at }),
+    ...(row.provider_added_at === null ? {} : { providerAddedAt: row.provider_added_at }),
     firstImportedAt: row.first_imported_at,
     lastSeenAt: row.last_seen_at,
   };
