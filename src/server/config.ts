@@ -5,10 +5,20 @@ import {
 import { createNcmPlugin, type NcmPluginConfig } from "../extension/plugins/index.js";
 
 export type MineMusicRuntimeConfig = {
+  database?: {
+    filename?: string;
+  };
+  sourceLibraryImport?: {
+    defaultLimit?: number;
+  };
   plugins?: {
     "minemusic.ncm"?: NcmPluginConfig;
   };
 };
+
+export function mineMusicDatabaseFilename(config: MineMusicRuntimeConfig = {}): string {
+  return config.database?.filename ?? ":memory:";
+}
 
 export function createMineMusicExtensionRuntime(
   config: MineMusicRuntimeConfig = {},

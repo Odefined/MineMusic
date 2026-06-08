@@ -7,19 +7,27 @@ const host = createServerHost();
 assert.equal(host.snapshot().status, "created");
 assert.equal(host.snapshot().interfaceContract.tools.length, 0);
 assert.deepEqual(host.snapshot().modules.map((module) => module.id), [
+  "music-data-platform",
   "extension",
   "runtime-status",
 ]);
+assert.equal(host.sourceLibraryImport(), undefined);
 
 const started = await host.start();
 
 assert.equal(started.ok, true);
 assert.equal(host.snapshot().status, "ready");
+assert.equal(host.sourceLibraryImport() === undefined, false);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
   id,
   ownerArea,
   status,
 })), [
+  {
+    id: "music-data-platform",
+    ownerArea: "music_data_platform",
+    status: "initialized",
+  },
   {
     id: "extension",
     ownerArea: "extension",
@@ -32,6 +40,7 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
   },
 ]);
 assert.equal(host.snapshot().interfaceContract.tools[0]?.name, "stage.runtime.status");
+assert.equal(host.snapshot().interfaceContract.tools.length, 1);
 
 const stopped = await host.stop();
 
@@ -42,6 +51,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
   ownerArea,
   status,
 })), [
+  {
+    id: "music-data-platform",
+    ownerArea: "music_data_platform",
+    status: "stopped",
+  },
   {
     id: "extension",
     ownerArea: "extension",
@@ -76,5 +90,8 @@ const configuredExtensionStarted = await configuredExtensionRuntime.initialize()
 assert.equal(configuredExtensionStarted.ok, true);
 assert.equal(probedNcm, false);
 assert.deepEqual(configuredExtensionRuntime.listSourceProviders().map((provider) => provider.providerId), [
+  "netease",
+]);
+assert.deepEqual(configuredExtensionRuntime.listPlatformLibraryProviders().map((provider) => provider.providerId), [
   "netease",
 ]);

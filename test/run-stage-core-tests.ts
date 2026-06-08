@@ -5,6 +5,7 @@ const testModules = [
   "./formal/ncm-plugin.test.js",
   "./formal/music-database.test.js",
   "./formal/music-data-platform-identity.test.js",
+  "./formal/music-data-platform-source-library.test.js",
   "./formal/stage-runtime.test.js",
   "./formal/server-host.test.js",
 ];

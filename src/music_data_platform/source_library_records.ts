@@ -1,0 +1,389 @@
+import {
+  refKey,
+  type PlatformLibraryKind,
+  type SourceLibraryImportBatchStatus,
+  type SourceLibraryImportCompletionReason,
+  type SourceLibraryImportItemOutcome,
+} from "../contracts/index.js";
+import type { MusicDatabaseContext } from "../storage/database.js";
+
+export type SourceLibraryItemRecord = {
+  providerId: string;
+  providerAccountId: string;
+  libraryKind: PlatformLibraryKind;
+  sourceRefKey: string;
+  addedAt?: string;
+  firstImportedAt: string;
+  lastSeenAt: string;
+};
+
+export type SourceLibraryImportBatchRecord = {
+  batchId: string;
+  providerId: string;
+  providerAccountId?: string;
+  libraryKind: PlatformLibraryKind;
+  status: SourceLibraryImportBatchStatus;
+  cursor?: string;
+  maxNewItems?: number;
+  processedCount: number;
+  importedCount: number;
+  alreadyPresentCount: number;
+  failedCount: number;
+  completionReason?: SourceLibraryImportCompletionReason;
+  failureCode?: string;
+  failureMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SourceLibraryImportItemOutcomeRecord = {
+  batchId: string;
+  sequence: number;
+  outcome: SourceLibraryImportItemOutcome;
+  sourceRefKey?: string;
+  providerId?: string;
+  providerEntityId?: string;
+  materialRefKey?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  createdAt: string;
+};
+
+export type CreateSourceLibraryRepositoriesInput = {
+  db: MusicDatabaseContext;
+};
+
+export type SourceLibraryRepositories = {
+  items: SourceLibraryItemRepository;
+  batches: SourceLibraryImportBatchRepository;
+  itemOutcomes: SourceLibraryImportItemOutcomeRepository;
+};
+
+export type SourceLibraryItemRepository = {
+  get(input: {
+    providerId: string;
+    providerAccountId: string;
+    libraryKind: PlatformLibraryKind;
+    sourceRefKey: string;
+  }): SourceLibraryItemRecord | undefined;
+  upsert(record: SourceLibraryItemRecord): SourceLibraryItemRecord;
+};
+
+export type SourceLibraryImportBatchRepository = {
+  get(input: { batchId: string }): SourceLibraryImportBatchRecord | undefined;
+  upsert(record: SourceLibraryImportBatchRecord): SourceLibraryImportBatchRecord;
+};
+
+export type SourceLibraryImportItemOutcomeRepository = {
+  insert(record: SourceLibraryImportItemOutcomeRecord): SourceLibraryImportItemOutcomeRecord;
+  listForBatch(input: { batchId: string }): readonly SourceLibraryImportItemOutcomeRecord[];
+};
+
+type SourceLibraryItemRow = {
+  provider_id: string;
+  provider_account_id: string;
+  library_kind: PlatformLibraryKind;
+  source_ref_key: string;
+  added_at: string | null;
+  first_imported_at: string;
+  last_seen_at: string;
+};
+
+type SourceLibraryImportBatchRow = {
+  batch_id: string;
+  provider_id: string;
+  provider_account_id: string | null;
+  library_kind: PlatformLibraryKind;
+  status: SourceLibraryImportBatchStatus;
+  cursor: string | null;
+  max_new_items: number | null;
+  processed_count: number;
+  imported_count: number;
+  already_present_count: number;
+  failed_count: number;
+  completion_reason: SourceLibraryImportCompletionReason | null;
+  failure_code: string | null;
+  failure_message: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type SourceLibraryImportItemOutcomeRow = {
+  batch_id: string;
+  sequence: number;
+  outcome: SourceLibraryImportItemOutcome;
+  source_ref_key: string | null;
+  provider_id: string | null;
+  provider_entity_id: string | null;
+  material_ref_key: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+export function createSourceLibraryRepositories(
+  input: CreateSourceLibraryRepositoriesInput,
+): SourceLibraryRepositories {
+  const { db } = input;
+
+  const items: SourceLibraryItemRepository = {
+    get(itemKey) {
+      const row = db.get<SourceLibraryItemRow>(
+        `
+          SELECT * FROM source_library_items
+          WHERE provider_id = ?
+            AND provider_account_id = ?
+            AND library_kind = ?
+            AND source_ref_key = ?
+        `,
+        [
+          itemKey.providerId,
+          itemKey.providerAccountId,
+          itemKey.libraryKind,
+          itemKey.sourceRefKey,
+        ],
+      );
+
+      return row === undefined ? undefined : sourceLibraryItemFromRow(row);
+    },
+    upsert(record) {
+      db.run(
+        `
+          INSERT INTO source_library_items (
+            provider_id,
+            provider_account_id,
+            library_kind,
+            source_ref_key,
+            added_at,
+            first_imported_at,
+            last_seen_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(provider_id, provider_account_id, library_kind, source_ref_key)
+          DO UPDATE SET
+            added_at = excluded.added_at,
+            last_seen_at = excluded.last_seen_at
+        `,
+        [
+          record.providerId,
+          record.providerAccountId,
+          record.libraryKind,
+          record.sourceRefKey,
+          record.addedAt ?? null,
+          record.firstImportedAt,
+          record.lastSeenAt,
+        ],
+      );
+
+      return requireRecord(
+        items.get({
+          providerId: record.providerId,
+          providerAccountId: record.providerAccountId,
+          libraryKind: record.libraryKind,
+          sourceRefKey: record.sourceRefKey,
+        }),
+        "source library item upsert did not return a stored record",
+      );
+    },
+  };
+
+  const batches: SourceLibraryImportBatchRepository = {
+    get(input) {
+      const row = db.get<SourceLibraryImportBatchRow>(
+        "SELECT * FROM source_library_import_batches WHERE batch_id = ?",
+        [input.batchId],
+      );
+
+      return row === undefined ? undefined : sourceLibraryImportBatchFromRow(row);
+    },
+    upsert(record) {
+      db.run(
+        `
+          INSERT INTO source_library_import_batches (
+            batch_id,
+            provider_id,
+            provider_account_id,
+            library_kind,
+            status,
+            cursor,
+            max_new_items,
+            processed_count,
+            imported_count,
+            already_present_count,
+            failed_count,
+            completion_reason,
+            failure_code,
+            failure_message,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(batch_id) DO UPDATE SET
+            provider_account_id = excluded.provider_account_id,
+            status = excluded.status,
+            cursor = excluded.cursor,
+            processed_count = excluded.processed_count,
+            imported_count = excluded.imported_count,
+            already_present_count = excluded.already_present_count,
+            failed_count = excluded.failed_count,
+            completion_reason = excluded.completion_reason,
+            failure_code = excluded.failure_code,
+            failure_message = excluded.failure_message,
+            updated_at = excluded.updated_at
+        `,
+        [
+          record.batchId,
+          record.providerId,
+          record.providerAccountId ?? null,
+          record.libraryKind,
+          record.status,
+          record.cursor ?? null,
+          record.maxNewItems ?? null,
+          record.processedCount,
+          record.importedCount,
+          record.alreadyPresentCount,
+          record.failedCount,
+          record.completionReason ?? null,
+          record.failureCode ?? null,
+          record.failureMessage ?? null,
+          record.createdAt,
+          record.updatedAt,
+        ],
+      );
+
+      return requireRecord(
+        batches.get({ batchId: record.batchId }),
+        "source library import batch upsert did not return a stored record",
+      );
+    },
+  };
+
+  const itemOutcomes: SourceLibraryImportItemOutcomeRepository = {
+    insert(record) {
+      db.run(
+        `
+          INSERT INTO source_library_import_item_outcomes (
+            batch_id,
+            sequence,
+            outcome,
+            source_ref_key,
+            provider_id,
+            provider_entity_id,
+            material_ref_key,
+            error_code,
+            error_message,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          record.batchId,
+          record.sequence,
+          record.outcome,
+          record.sourceRefKey ?? null,
+          record.providerId ?? null,
+          record.providerEntityId ?? null,
+          record.materialRefKey ?? null,
+          record.errorCode ?? null,
+          record.errorMessage ?? null,
+          record.createdAt,
+        ],
+      );
+
+      return record;
+    },
+    listForBatch(input) {
+      return db.all<SourceLibraryImportItemOutcomeRow>(
+        `
+          SELECT * FROM source_library_import_item_outcomes
+          WHERE batch_id = ?
+          ORDER BY sequence ASC
+        `,
+        [input.batchId],
+      ).map(sourceLibraryImportItemOutcomeFromRow);
+    },
+  };
+
+  return {
+    items,
+    batches,
+    itemOutcomes,
+  };
+}
+
+export function sourceLibraryItemKey(input: {
+  providerId: string;
+  providerAccountId: string;
+  libraryKind: PlatformLibraryKind;
+  sourceRef: Parameters<typeof refKey>[0];
+}): {
+  providerId: string;
+  providerAccountId: string;
+  libraryKind: PlatformLibraryKind;
+  sourceRefKey: string;
+} {
+  return {
+    providerId: input.providerId,
+    providerAccountId: input.providerAccountId,
+    libraryKind: input.libraryKind,
+    sourceRefKey: refKey(input.sourceRef),
+  };
+}
+
+function sourceLibraryItemFromRow(row: SourceLibraryItemRow): SourceLibraryItemRecord {
+  return {
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
+    libraryKind: row.library_kind,
+    sourceRefKey: row.source_ref_key,
+    ...(row.added_at === null ? {} : { addedAt: row.added_at }),
+    firstImportedAt: row.first_imported_at,
+    lastSeenAt: row.last_seen_at,
+  };
+}
+
+function sourceLibraryImportBatchFromRow(row: SourceLibraryImportBatchRow): SourceLibraryImportBatchRecord {
+  return {
+    batchId: row.batch_id,
+    providerId: row.provider_id,
+    ...(row.provider_account_id === null ? {} : { providerAccountId: row.provider_account_id }),
+    libraryKind: row.library_kind,
+    status: row.status,
+    ...(row.cursor === null ? {} : { cursor: row.cursor }),
+    ...(row.max_new_items === null ? {} : { maxNewItems: row.max_new_items }),
+    processedCount: row.processed_count,
+    importedCount: row.imported_count,
+    alreadyPresentCount: row.already_present_count,
+    failedCount: row.failed_count,
+    ...(row.completion_reason === null ? {} : { completionReason: row.completion_reason }),
+    ...(row.failure_code === null ? {} : { failureCode: row.failure_code }),
+    ...(row.failure_message === null ? {} : { failureMessage: row.failure_message }),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function sourceLibraryImportItemOutcomeFromRow(
+  row: SourceLibraryImportItemOutcomeRow,
+): SourceLibraryImportItemOutcomeRecord {
+  return {
+    batchId: row.batch_id,
+    sequence: row.sequence,
+    outcome: row.outcome,
+    ...(row.source_ref_key === null ? {} : { sourceRefKey: row.source_ref_key }),
+    ...(row.provider_id === null ? {} : { providerId: row.provider_id }),
+    ...(row.provider_entity_id === null ? {} : { providerEntityId: row.provider_entity_id }),
+    ...(row.material_ref_key === null ? {} : { materialRefKey: row.material_ref_key }),
+    ...(row.error_code === null ? {} : { errorCode: row.error_code }),
+    ...(row.error_message === null ? {} : { errorMessage: row.error_message }),
+    createdAt: row.created_at,
+  };
+}
+
+function requireRecord<T>(record: T | undefined, message: string): T {
+  if (record === undefined) {
+    throw new Error(message);
+  }
+
+  return record;
+}

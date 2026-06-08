@@ -301,6 +301,63 @@ lives at
 Current Extension area docs live under `docs/extension/`, with NCM details in
 `docs/extension/plugins/ncm.md`.
 
+## 2026-06-08: Phase 7 Source Library Import Foundation
+
+Phase 7 implements the first real source-library import foundation:
+
+- `PlatformLibraryKind`, `PlatformLibraryCandidate`,
+  `PlatformLibraryReadInput`, `PlatformLibraryReadResult`, and
+  `PlatformLibraryProvider` are now formal contracts;
+- `platform-library-provider` is an Extension capability slot with
+  `many-by-id` cardinality and `writePolicy = none`;
+- Extension Runtime exposes `readPlatformLibraryProvider(...)` as an internal
+  validated provider-library read seam;
+- NCM plugin registers both `source-provider` and
+  `platform-library-provider`;
+- NCM source-library reads support saved tracks, saved albums, and followed
+  artists;
+- NCM saved tracks use liked-music playlist detail and `trackIds[].at`, not
+  `/likelist`, as the import fact source;
+- NCM saved albums use `/album/sublist` and map `subTime` to `addedAt` when
+  available;
+- NCM followed artists use `/artist/sublist` and do not invent `addedAt`;
+- `musicDataPlatformSourceLibrarySchema` creates source library item, import
+  batch, and item outcome tables;
+- `createSourceLibraryRepositories` exposes source-library item, batch, and
+  outcome repositories over `MusicDatabaseContext`;
+- `createMaterialRefFactory` creates opaque MineMusic material refs for new
+  source-backed material anchors;
+- `createSourceLibraryImportService` implements `startImport` and
+  `continueImport`;
+- Library Import resolves and persists provider account id before source
+  library item writes;
+- Library Import upserts source records, creates/reuses source-backed
+  materials, binds sources through `bindSourceToMaterial`, and upserts current
+  source library items;
+- per-item write failures roll back only that item and record a failed outcome;
+- provider/page/account failures mark the batch failed;
+- duplicate source refs and repeated memberships are idempotent
+  `already_present` outcomes;
+- `maxNewItems` is a batch-level stop condition counting only newly imported
+  memberships;
+- default Server Host composition now initializes Storage, Music Data Platform
+  identity schema, source-library schema, Extension, and an internal Library
+  Import service;
+- no public Stage Interface import/query/presentation tool is added;
+- `npm run smoke:ncm:library` skips by default and can run live with
+  `MINEMUSIC_LIVE_NCM_LIBRARY=1`;
+- tests guard platform-library-provider registration/read behavior, NCM
+  library mapping, source-library item forbidden fields, material ref opacity,
+  import service semantics, runtime wiring, active-tree boundaries, and compact
+  runtime status output.
+
+The Phase 7 spec lives at
+`docs/formal-rebuild/phase-7-source-library-import-foundation.md`. The Phase 7
+execution plan lives at
+`docs/formal-rebuild/phase-7-source-library-import-foundation-implementation-plan.md`.
+Current Music Data Platform docs live under `docs/music-data-platform/`, and
+Extension/NCM docs live under `docs/extension/`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -314,7 +371,7 @@ in scope. Known later areas include:
 - Server Host transports and richer Stage Core runtime composition after area
   boundaries stabilize;
 - Music Data Platform owner facts;
-- Library Import / Update persistence;
+- source-library projections, local pool query, and Library Update baselines;
 - canonical maintenance workflow;
 - Music Intelligence Retrieval and Knowledge;
 - Music Experience radio/listening behavior;

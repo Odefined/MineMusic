@@ -11,6 +11,13 @@ export {
 export type {
   MineMusicRuntimeConfig,
 } from "./config.js";
+export {
+  createMusicDataPlatformRuntimeModule,
+} from "./music_data_platform_runtime_module.js";
+export type {
+  CreateMusicDataPlatformRuntimeModuleInput,
+  MusicDataPlatformRuntimeModule,
+} from "./music_data_platform_runtime_module.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { createServerHost } = await import("./host.js");

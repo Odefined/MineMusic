@@ -1,19 +1,31 @@
 import assert from "node:assert/strict";
 
-import type { ProviderMaterialCandidate, Result, SourceProvider, StageError } from "../../src/contracts/index.js";
+import type {
+  PlatformLibraryCandidate,
+  PlatformLibraryProvider,
+  ProviderMaterialCandidate,
+  Result,
+  SourceProvider,
+  StageError,
+} from "../../src/contracts/index.js";
 import {
   createCapabilityRegistry,
   createExtensionRuntime,
   defineCapabilitySlot,
   getSourceProvider,
   isPluginIdSafe,
+  platformLibraryProviderSlot,
   registerSourceProvider,
+  registerPlatformLibraryProvider,
   sourceProviderSlot,
   validatePluginManifest,
+  validatePlatformLibraryProviderRegistration,
   validateSourceProviderRegistration,
   type CapabilitySlot,
   type MineMusicPlugin,
+  type PlatformLibraryProviderRegistration,
   type PluginActivationContext,
+  type PlatformLibraryProviderReadResult,
   type SourceProviderSearchResult,
   type SourceProviderRegistration,
 } from "../../src/extension/index.js";
@@ -33,6 +45,9 @@ export type _capabilitySlotShape = Expect<
 assert.equal(sourceProviderSlot.id, "source-provider");
 assert.equal(sourceProviderSlot.cardinality, "many-by-id");
 assert.equal(sourceProviderSlot.writePolicy, "none");
+assert.equal(platformLibraryProviderSlot.id, "platform-library-provider");
+assert.equal(platformLibraryProviderSlot.cardinality, "many-by-id");
+assert.equal(platformLibraryProviderSlot.writePolicy, "none");
 
 assert.equal(isPluginIdSafe("minemusic.netease"), true);
 assert.equal(isPluginIdSafe("internal.fixture-source"), true);
@@ -290,6 +305,7 @@ assert.deepEqual(orderedRuntime.snapshot(), {
   status: "ready",
   pluginIds: ["internal.first", "internal.second"],
   sourceProviderCount: 3,
+  platformLibraryProviderCount: 0,
 });
 
 const sourceProviderSearch = await orderedRuntime.searchSourceProvider({
@@ -342,6 +358,7 @@ assert.deepEqual(emptyRuntime.snapshot(), {
   status: "ready",
   pluginIds: [],
   sourceProviderCount: 0,
+  platformLibraryProviderCount: 0,
 });
 
 let capturedContext: PluginActivationContext | undefined;
@@ -903,6 +920,237 @@ assertErrorCode(
   "extension.source_provider_search_failed",
 );
 
+const platformRegistry = createCapabilityRegistry({
+  slots: [platformLibraryProviderSlot],
+});
+const fixturePlatformProvider = platformProvider("fixture-platform");
+assert.equal(
+  registerPlatformLibraryProvider(platformRegistry, {
+    pluginId: "internal.fixture-platform",
+    providerId: "fixture-platform",
+    provider: fixturePlatformProvider,
+  }).ok,
+  true,
+);
+assert.deepEqual(
+  platformRegistry.list(platformLibraryProviderSlot).map((registration) => registration.key),
+  ["fixture-platform"],
+);
+assertErrorCode(
+  registerPlatformLibraryProvider(platformRegistry, {
+    pluginId: "internal.fixture-platform",
+    providerId: "fixture-platform",
+    provider: fixturePlatformProvider,
+  }),
+  "extension.duplicate_capability_registration",
+);
+assertErrorCode(
+  validatePlatformLibraryProviderRegistration({
+    pluginId: "internal.bad-platform",
+    providerId: "bad:platform",
+    provider: platformProvider("bad:platform"),
+  }),
+  "extension.unsafe_provider_id",
+);
+assertErrorCode(
+  validatePlatformLibraryProviderRegistration({
+    pluginId: "internal.bad-platform",
+    providerId: "wrong-platform",
+    provider: platformProvider("actual-platform"),
+  }),
+  "extension.provider_id_mismatch",
+);
+for (const badProviderId of [
+  "missing-descriptor",
+  "missing-label",
+  "missing-library-kinds",
+  "empty-library-kinds",
+  "unknown-library-kind",
+  "duplicate-library-kind",
+  "bad-read-method",
+] as const) {
+  assertErrorCode(
+    validatePlatformLibraryProviderRegistration({
+      pluginId: `internal.${badProviderId}`,
+      providerId: badProviderId,
+      provider: badPlatformProviderFor(badProviderId),
+    }),
+    "extension.invalid_platform_library_provider_descriptor",
+  );
+}
+
+const platformRuntime = createExtensionRuntime({
+  plugins: [
+    {
+      manifest: {
+        id: "internal.platform",
+        displayName: "Platform",
+        version: "0.0.0",
+        minCoreVersion: "0.0.0",
+        capabilities: [sourceProviderSlot.id, platformLibraryProviderSlot.id],
+      },
+      activate(ctx) {
+        const sourceRegistration = ctx.registerSourceProvider(registrationFor("platform", "internal.platform"));
+        if (!sourceRegistration.ok) {
+          return sourceRegistration;
+        }
+
+        return ctx.registerPlatformLibraryProvider(platformRegistrationFor("platform", "internal.platform"));
+      },
+    },
+  ],
+});
+assert.equal((await platformRuntime.initialize()).ok, true);
+assert.equal(platformRuntime.listPlatformLibraryProviders().length, 1);
+assert.equal(platformRuntime.getPlatformLibraryProvider("platform")?.provider.descriptor.providerId, "platform");
+assert.deepEqual(platformRuntime.snapshot(), {
+  status: "ready",
+  pluginIds: ["internal.platform"],
+  sourceProviderCount: 1,
+  platformLibraryProviderCount: 1,
+});
+const platformRead = await platformRuntime.readPlatformLibraryProvider({
+  providerId: "platform",
+  request: {
+    kind: "saved_source_track",
+    providerAccountId: "account-1",
+    limit: 1,
+    cursor: "cursor-1",
+    sessionId: "session-1",
+  },
+});
+assert.equal(platformRead.ok, true);
+
+if (platformRead.ok) {
+  const expected: PlatformLibraryProviderReadResult = {
+    providerId: "platform",
+    providerAccountId: "account-1",
+    kind: "saved_source_track",
+    candidates: [platformCandidateFor("platform", "track-1", "Coding Track", "account-1")],
+    nextCursor: "cursor-2",
+    totalCountHint: 2,
+  };
+
+  assert.deepEqual(platformRead.value, expected);
+}
+
+for (const malformedInput of [
+  { providerId: Symbol("platform"), request: { kind: "saved_source_track" } },
+  { providerId: "platform" },
+  { providerId: "platform", request: { kind: "bad-kind" } },
+  { providerId: "platform", request: { kind: "saved_source_track", limit: 0 } },
+  { providerId: "platform", request: { kind: "saved_source_track", cursor: "" } },
+  { providerId: "platform", request: { kind: "saved_source_track", providerAccountId: "" } },
+] as const) {
+  assertErrorCode(
+    await platformRuntime.readPlatformLibraryProvider(
+      malformedInput as unknown as Parameters<typeof platformRuntime.readPlatformLibraryProvider>[0],
+    ),
+    "extension.invalid_platform_library_provider_read_input",
+  );
+}
+
+assertErrorCode(
+  await platformRuntime.readPlatformLibraryProvider({
+    providerId: "missing-platform",
+    request: { kind: "saved_source_track" },
+  }),
+  "extension.platform_library_provider_not_found",
+);
+
+for (const [providerId, readResult] of [
+  ["wrong-result-provider", {
+    providerId: "other-provider",
+    kind: "saved_source_track",
+    candidates: [],
+  }],
+  ["wrong-kind", {
+    providerId: "wrong-kind",
+    kind: "saved_source_album",
+    candidates: [],
+  }],
+  ["account-mismatch", {
+    providerId: "account-mismatch",
+    providerAccountId: "other-account",
+    kind: "saved_source_track",
+    candidates: [],
+  }],
+  ["over-limit", {
+    providerId: "over-limit",
+    kind: "saved_source_track",
+    candidates: [
+      platformCandidateFor("over-limit", "track-1", "Track 1"),
+      platformCandidateFor("over-limit", "track-2", "Track 2"),
+    ],
+  }],
+  ["bad-source-kind", {
+    providerId: "bad-source-kind",
+    kind: "saved_source_album",
+    candidates: [platformCandidateFor("bad-source-kind", "track-1", "Track 1")],
+  }],
+  ["bad-candidate-account", {
+    providerId: "bad-candidate-account",
+    providerAccountId: "account-1",
+    kind: "saved_source_track",
+    candidates: [platformCandidateFor("bad-candidate-account", "track-1", "Track 1", "account-2")],
+  }],
+  ["bad-total-count", {
+    providerId: "bad-total-count",
+    kind: "saved_source_track",
+    candidates: [],
+    totalCountHint: -1,
+  }],
+] as const) {
+  const runtime = createExtensionRuntime({
+    plugins: [platformOnlyPlugin(providerId, readResult as unknown as PlatformLibraryProviderReadResult)],
+  });
+  assert.equal((await runtime.initialize()).ok, true);
+  assertErrorCode(
+    await runtime.readPlatformLibraryProvider({
+      providerId,
+      request: {
+        kind: "saved_source_track",
+        ...(providerId === "account-mismatch" ? { providerAccountId: "account-1" } : {}),
+        ...(providerId === "over-limit" ? { limit: 1 } : {}),
+      },
+    }),
+    "extension.invalid_platform_library_provider_read_output",
+  );
+}
+
+const platformFailureRuntime = createExtensionRuntime({
+  plugins: [platformOnlyPlugin("platform-fails", undefined, fail("provider.failed", "provider failed", true))],
+});
+assert.equal((await platformFailureRuntime.initialize()).ok, true);
+assertErrorCode(
+  await platformFailureRuntime.readPlatformLibraryProvider({
+    providerId: "platform-fails",
+    request: { kind: "saved_source_track" },
+  }),
+  "extension.platform_library_provider_read_failed",
+  true,
+);
+
+const platformNotReadyRuntime = createExtensionRuntime({
+  plugins: [platformOnlyPlugin("platform-not-ready")],
+});
+assertErrorCode(
+  await platformNotReadyRuntime.readPlatformLibraryProvider({
+    providerId: "platform-not-ready",
+    request: { kind: "saved_source_track" },
+  }),
+  "extension.runtime_not_ready",
+);
+
+assert.equal((await platformRuntime.stop()).ok, true);
+assertErrorCode(
+  await platformRuntime.readPlatformLibraryProvider({
+    providerId: "platform",
+    request: { kind: "saved_source_track" },
+  }),
+  "extension.runtime_stopped",
+);
+
 function plugin(
   name: string,
   options: {
@@ -1053,6 +1301,152 @@ function badProviderFor(providerId: string): SourceProvider {
   }
 
   return provider(providerId);
+}
+
+function platformOnlyPlugin(
+  providerId: string,
+  readResult: PlatformLibraryProviderReadResult | undefined = {
+    providerId,
+    kind: "saved_source_track",
+    candidates: [platformCandidateFor(providerId, "track-1", "Coding Track")],
+  },
+  failedResult?: Result<PlatformLibraryProviderReadResult>,
+): MineMusicPlugin {
+  return {
+    manifest: {
+      id: `internal.${providerId}`,
+      displayName: providerId,
+      version: "0.0.0",
+      minCoreVersion: "0.0.0",
+      capabilities: [platformLibraryProviderSlot.id],
+    },
+    activate(ctx) {
+      return ctx.registerPlatformLibraryProvider(platformRegistrationFor(providerId, `internal.${providerId}`, {
+        ...(readResult === undefined ? {} : { readResult }),
+        ...(failedResult === undefined ? {} : { failedResult }),
+      }));
+    },
+  };
+}
+
+function platformRegistrationFor(
+  providerId: string,
+  pluginId = `internal.${providerId}`,
+  options: {
+    readResult?: PlatformLibraryProviderReadResult;
+    failedResult?: Result<PlatformLibraryProviderReadResult>;
+  } = {},
+): PlatformLibraryProviderRegistration {
+  return {
+    pluginId,
+    providerId,
+    provider: platformProvider(providerId, options),
+  };
+}
+
+function platformProvider(
+  providerId: string,
+  options: {
+    libraryKinds?: PlatformLibraryProvider["descriptor"]["libraryKinds"];
+    read?: PlatformLibraryProvider["read"];
+    readResult?: PlatformLibraryProviderReadResult;
+    failedResult?: Result<PlatformLibraryProviderReadResult>;
+  } = {},
+): PlatformLibraryProvider {
+  return {
+    descriptor: {
+      providerId,
+      label: providerId,
+      libraryKinds: options.libraryKinds ?? ["saved_source_track"],
+    },
+    read: options.read ?? (async ({ providerAccountId }) => {
+      if (options.failedResult !== undefined) {
+        return options.failedResult;
+      }
+
+      return {
+        ok: true,
+        value: options.readResult ?? {
+          providerId,
+          ...(providerAccountId === undefined ? {} : { providerAccountId }),
+          kind: "saved_source_track",
+          candidates: [platformCandidateFor(providerId, "track-1", "Coding Track", providerAccountId)],
+          nextCursor: "cursor-2",
+          totalCountHint: 2,
+        },
+      };
+    }),
+  };
+}
+
+function badPlatformProviderFor(providerId: string): PlatformLibraryProvider {
+  switch (providerId) {
+    case "missing-descriptor":
+      return {} as unknown as PlatformLibraryProvider;
+    case "missing-label":
+      return {
+        descriptor: {
+          providerId,
+          label: "",
+          libraryKinds: ["saved_source_track"],
+        },
+        read: async () => ({ ok: true, value: { providerId, kind: "saved_source_track", candidates: [] } }),
+      };
+    case "missing-library-kinds":
+      return {
+        descriptor: {
+          providerId,
+          label: providerId,
+        },
+        read: async () => ({ ok: true, value: { providerId, kind: "saved_source_track", candidates: [] } }),
+      } as unknown as PlatformLibraryProvider;
+    case "empty-library-kinds":
+      return platformProvider(providerId, { libraryKinds: [] });
+    case "unknown-library-kind":
+      return platformProvider(providerId, {
+        libraryKinds: ["saved_source_track", "saved_source_release" as unknown as "saved_source_track"],
+      });
+    case "duplicate-library-kind":
+      return platformProvider(providerId, {
+        libraryKinds: ["saved_source_track", "saved_source_track"],
+      });
+    case "bad-read-method":
+      return {
+        descriptor: {
+          providerId,
+          label: providerId,
+          libraryKinds: ["saved_source_track"],
+        },
+        read: "not-a-function",
+      } as unknown as PlatformLibraryProvider;
+  }
+
+  return platformProvider(providerId);
+}
+
+function platformCandidateFor(
+  providerId: string,
+  providerEntityId: string,
+  title: string,
+  providerAccountId?: string,
+): PlatformLibraryCandidate {
+  return {
+    libraryKind: "saved_source_track",
+    ...(providerAccountId === undefined ? {} : { providerAccountId }),
+    sourceEntity: {
+      kind: "track",
+      sourceRef: {
+        namespace: `source_${providerId}`,
+        kind: "track",
+        id: providerEntityId,
+        label: title,
+      },
+      providerId,
+      providerEntityId,
+      label: title,
+      title,
+    },
+  };
 }
 
 function candidateFor(

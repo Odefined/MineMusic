@@ -4,12 +4,16 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 6 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 7 of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
 foundation, a Phase 5 Music Data Platform identity write model, and a Phase 6
 Source Provider Slot search seam with a default NCM source-provider plugin.
+Phase 7 adds a Platform Library Provider Slot, real NCM saved-track/
+saved-album/followed-artist library reads, Music Data Platform source-library
+import persistence, source-backed material anchoring, and default Server Host
+storage/import wiring.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -193,6 +197,29 @@ Phase 6 Source Provider Slot vocabulary includes:
 - `npm run smoke:ncm` as an opt-in live smoke command that skips unless
   `MINEMUSIC_LIVE_NCM=1`.
 
+Phase 7 Source Library Import vocabulary includes:
+
+- `PlatformLibraryKind = saved_source_track | saved_source_album |
+  followed_source_artist`;
+- `PlatformLibraryCandidate` carrying a full normalized `SourceEntity`;
+- `PlatformLibraryReadInput` and `PlatformLibraryReadResult` using cursor
+  pagination, optional provider account id, optional limit, and optional
+  `totalCountHint`;
+- `PlatformLibraryProvider` and
+  `ExtensionRuntime.readPlatformLibraryProvider(input)`;
+- `SourceLibraryImportBatchStatus = running | completed | failed`;
+- `SourceLibraryImportCompletionReason = provider_exhausted |
+  max_new_items_reached`;
+- `SourceLibraryImportItemOutcome = imported | already_present | failed`;
+- `musicDataPlatformSourceLibrarySchema` for source library items, import
+  batches, and item outcomes;
+- `createMaterialRefFactory` for opaque MineMusic material refs;
+- `createSourceLibraryImportService` with `startImport` and `continueImport`;
+- `SourceLibraryItem` identity scoped by provider id, provider account id,
+  library kind, and source ref key;
+- `npm run smoke:ncm:library` as an opt-in live source-library smoke command
+  that skips unless `MINEMUSIC_LIVE_NCM_LIBRARY=1`.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -216,12 +243,17 @@ The active TypeScript tree is now a formal skeleton:
   and get-by-id behavior;
 - `src/extension/plugin_manifest.ts` owns light plugin manifest validation;
 - `src/extension/plugin_runtime.ts` owns static capability-registration
-  runtime activation and the `searchSourceProvider(...)` runtime seam;
+  runtime activation, `searchSourceProvider(...)`, and
+  `readPlatformLibraryProvider(...)` runtime seams;
 - `src/extension/source_provider_slot.ts` owns the `source-provider` slot,
   source-provider registration helper, search input validation, and search
   output integrity validation;
-- `src/extension/plugins/ncm.ts` owns the NCM source-provider plugin HTTP
-  client, request mapping, source-fact mapping, and provider error mapping;
+- `src/extension/platform_library_provider_slot.ts` owns the
+  `platform-library-provider` slot, registration helper, read input
+  validation, and read output integrity validation;
+- `src/extension/plugins/ncm.ts` owns the NCM provider plugin HTTP client,
+  source search mapping, platform library mapping, source-fact mapping, and
+  provider error mapping;
 - `src/extension/plugins/index.ts` owns Extension plugin exports;
 - `src/extension/index.ts` owns Extension public exports;
 - `src/stage_interface/index.ts` owns the minimal Stage Interface skeleton;
@@ -233,9 +265,13 @@ The active TypeScript tree is now a formal skeleton:
 - `src/stage_core/extension_runtime_module.ts` adapts Extension into runtime
   module `extension`;
 - `src/stage_core/index.ts` owns Stage Core public exports;
-- `src/server/host.ts` owns the thin Server Host lifecycle wrapper;
+- `src/server/host.ts` owns the thin Server Host lifecycle wrapper and exposes
+  the internal source-library import service seam after startup;
 - `src/server/config.ts` owns default runtime composition config, including
-  plugin-id keyed NCM config;
+  overall database/import config and plugin-id keyed NCM config;
+- `src/server/music_data_platform_runtime_module.ts` owns Server Host
+  composition wiring for Storage, Music Data Platform schemas, and the
+  internal Library Import service;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
 - `src/storage/database.ts` owns the generic `MusicDatabase` contract,
   `MusicDatabaseContext`, `MusicDatabaseTransactionContext`, schema
@@ -253,6 +289,14 @@ The active TypeScript tree is now a formal skeleton:
   repositories and source-to-material binding persistence;
 - `src/music_data_platform/identity_write_model.ts` owns narrow identity write
   commands;
+- `src/music_data_platform/source_library_schema.ts` owns Phase 7
+  source-library import schema contribution;
+- `src/music_data_platform/source_library_records.ts` owns source-library item,
+  import batch, and item outcome repositories;
+- `src/music_data_platform/material_ref_factory.ts` owns opaque material ref
+  generation;
+- `src/music_data_platform/source_library_import.ts` owns the internal Library
+  Import application service;
 - `src/music_data_platform/index.ts` owns Music Data Platform public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
@@ -264,20 +308,16 @@ resolution, dynamic plugin loading, plugin dependencies, retry, reload, or
 restart.
 
 The Extension runtime validates static plugin manifests, registers validated
-source-provider slot implementations, exposes internal Extension test snapshots,
-and exposes `searchSourceProvider(...)` as an internal runtime seam.
-The default Server Host composition registers the NCM source provider without
-probing NCM HTTP during runtime startup and exposes no provider/plugin/slot
-details through runtime status.
+source-provider and platform-library-provider slot implementations, exposes
+internal Extension test snapshots, and exposes provider search/library reads as
+internal runtime seams. The default Server Host composition registers the NCM
+provider without probing NCM HTTP during runtime startup and exposes no
+provider/plugin/slot details through runtime status.
 
-The Storage foundation is not wired into the default Server Host runtime. It
-creates no default database file, defines no business tables, and exposes no
-Stage Interface tools.
-
-The Music Data Platform identity write model is not wired into the default
-Server Host runtime. It provides schema/repository/command boundaries and tests
-only; it exposes no Stage Interface tools and does not run provider import,
-query, presentation, owner facts, or canonical maintenance workflows.
+The default Server Host composition now wires Storage and Music Data Platform
+schemas through the `music-data-platform` runtime module. It initializes an
+internal Library Import service backed by the configured Extension runtime and
+does not expose public Stage Interface import tools.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -317,8 +357,12 @@ restored as compatibility layers.
   implemented Phase 6 Source Provider Slot search spec.
 - `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`
   records the implemented Phase 6 execution plan.
+- `docs/formal-rebuild/phase-7-source-library-import-foundation.md` records
+  the accepted Phase 7 source-library import foundation spec.
+- `docs/formal-rebuild/phase-7-source-library-import-foundation-implementation-plan.md`
+  records the Phase 7 execution plan.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
-  source ref, error, and smoke behavior.
+  source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
   `docs/archive/root/formal-rebuild-2026-06-06/`.
 - Pre-formal active area docs, host-adapter docs, provider docs, and operations
@@ -331,20 +375,21 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 6 does not implement:
+Phase 7 does not implement:
 
 - public Stage Interface provider/search tools;
 - generic provider platform/runtime;
 - provider account instances, login, cookies, OAuth, secrets, or reauth;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
-- runtime storage wiring;
 - MCP/HTTP transport;
+- source-library projection tables or local pool query;
 - query engine behavior;
 - query hit public output shape;
 - query-to-present flow;
 - final `MaterialCard` key set;
-- source-library, collection, owner relation, wrong-version, or
+- update baselines, removed-from-library reconciliation, collection, owner
+  relation, wrong-version, or
   recording-to-work relation workflows;
 - recommendation, radio, memory, or effect runtime behavior;
 - handbook tools or music-domain tools beyond the internal runtime status
@@ -355,7 +400,7 @@ contracts.
 
 ## Verification Pointers
 
-Phase 6 verification for this state should include:
+Phase 7 verification for this state should include:
 
 ```bash
 npm run typecheck
@@ -363,6 +408,7 @@ npm run build:test
 npm run test:stage-core
 npm test
 npm run smoke:ncm
+npm run smoke:ncm:library
 npm run server:minemusic
 git diff --check
 git diff --name-only

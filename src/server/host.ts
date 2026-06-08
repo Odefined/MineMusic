@@ -6,11 +6,17 @@ import {
   type StageRuntime,
 } from "../stage_core/index.js";
 import { createMineMusicExtensionRuntime, type MineMusicRuntimeConfig } from "./config.js";
+import {
+  createMusicDataPlatformRuntimeModule,
+  type MusicDataPlatformRuntimeModule,
+} from "./music_data_platform_runtime_module.js";
+import type { SourceLibraryImportService } from "../music_data_platform/index.js";
 
 export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
   stop(): Promise<Result<StageRuntimeSnapshot>>;
   snapshot(): StageRuntimeSnapshot;
+  sourceLibraryImport(): SourceLibraryImportService | undefined;
 };
 
 export type CreateServerHostInput = {
@@ -20,10 +26,19 @@ export type CreateServerHostInput = {
 };
 
 export function createServerHost(input: CreateServerHostInput = {}): ServerHost {
+  const extensionRuntime = createMineMusicExtensionRuntime(input.config);
+  const musicDataPlatformModule: MusicDataPlatformRuntimeModule | undefined =
+    input.runtime === undefined && input.modules === undefined
+      ? createMusicDataPlatformRuntimeModule({
+          extensionRuntime,
+          ...(input.config === undefined ? {} : { config: input.config }),
+        })
+      : undefined;
   const runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
+      ...(musicDataPlatformModule === undefined ? [] : [musicDataPlatformModule]),
       createExtensionRuntimeModule({
-        runtime: createMineMusicExtensionRuntime(input.config),
+        runtime: extensionRuntime,
       }),
     ],
   });
@@ -37,6 +52,9 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     },
     snapshot() {
       return runtime.snapshot();
+    },
+    sourceLibraryImport() {
+      return musicDataPlatformModule?.sourceLibraryImport();
     },
   };
 }

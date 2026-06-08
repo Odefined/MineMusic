@@ -266,6 +266,61 @@ export type SourceProvider = {
   }) => Promise<Result<readonly PlayableLink[]>>;
 };
 
+export type PlatformLibraryKind =
+  | "saved_source_track"
+  | "saved_source_album"
+  | "followed_source_artist";
+
+export type PlatformLibraryCandidate = {
+  sourceEntity: SourceEntity;
+  libraryKind: PlatformLibraryKind;
+  providerAccountId?: string;
+  addedAt?: string;
+};
+
+export type PlatformLibraryReadInput = {
+  providerAccountId?: string;
+  kind: PlatformLibraryKind;
+  limit?: number;
+  cursor?: string;
+  sessionId?: string;
+};
+
+export type PlatformLibraryReadResult = {
+  providerId: string;
+  providerAccountId?: string;
+  kind: PlatformLibraryKind;
+  candidates: readonly PlatformLibraryCandidate[];
+  nextCursor?: string;
+  totalCountHint?: number;
+};
+
+export type PlatformLibraryProviderDescriptor = {
+  providerId: string;
+  label: string;
+  libraryKinds: readonly PlatformLibraryKind[];
+  accountRequired?: boolean;
+};
+
+export type PlatformLibraryProvider = {
+  descriptor: PlatformLibraryProviderDescriptor;
+  read(input: PlatformLibraryReadInput): Promise<Result<PlatformLibraryReadResult>>;
+};
+
+export type SourceLibraryImportBatchStatus =
+  | "running"
+  | "completed"
+  | "failed";
+
+export type SourceLibraryImportCompletionReason =
+  | "provider_exhausted"
+  | "max_new_items_reached";
+
+export type SourceLibraryImportItemOutcome =
+  | "imported"
+  | "already_present"
+  | "failed";
+
 export type InstrumentDescriptor = {
   id: string;
   label: string;

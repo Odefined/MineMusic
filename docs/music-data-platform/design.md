@@ -1,21 +1,26 @@
 # Music Data Platform Design
 
-> Status: Current design authority for implemented Phase 5
-> Scope: Source/material/canonical identity write model
+> Status: Current design authority for implemented Phase 7
+> Scope: Identity write model and source-library import foundation
 > Not status ledger: Current implementation state lives in `progress.md`.
 
-Music Data Platform owns source/material/canonical identity records and the
-current source-to-material binding facts that let later phases move from
-provider/source facts to MineMusic material identity.
+Music Data Platform owns source/material/canonical identity records, current
+source-to-material binding facts, and the source-library import persistence
+foundation that lets later phases move from provider account-library
+observations to MineMusic source-backed material anchors.
 
 ## Core Concepts
 
-| Concept | Meaning | Current Phase 5 Rule |
+| Concept | Meaning | Current Rule |
 | --- | --- | --- |
 | `SourceRecord` | Storage record for normalized provider/source facts. | Keyed by `refKey(entity.sourceRef)`; provider identity lookup is stable. |
 | `MaterialRecord` | Storage record for MineMusic material identity. | Keyed by `refKey(entity.materialRef)`; `sourceRefs` are maintained by binding/merge commands only. |
 | `CanonicalRecord` | Storage record for canonical identity authority. | Keyed by `refKey(entity.canonicalRef)`; canonical merge workflow is out of scope. |
 | `source_material_bindings` | Current source-to-material truth/index. | One current binding per source; no status/history/evidence/kind fields. |
+| `SourceLibraryItem` | Current known provider-account library membership. | Keyed by provider id, provider account id, library kind, and source ref key; no material/canonical/query/projection/card fields. |
+| Source-library import batch | Durable run boundary for account-library paging and counts. | One provider/library kind per batch; start and continue only. |
+| Source-library item outcome | Per-candidate outcome within an import batch. | `imported`, `already_present`, or `failed`; compact error only for failed items. |
+| Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
 | Identity write command | Internal write boundary for invariant-preserving mutations. | Created with transaction-scoped `db` and caller-supplied `now`. |
 | Identity repository | Low-level persistence port. | Created with `db`; does not start transactions or enforce multi-table workflows. |
@@ -38,6 +43,12 @@ Database tables use `ref_key` columns for persisted `refKey(...)` values. A
 Phase 5 repositories and commands do not generate source/material/canonical
 refs. Upstream provider normalization, materialization, or canonical
 maintenance code supplies refs; Phase 5 validates and persists them.
+
+Phase 7 Library Import creates new source-backed material refs only through the
+shared material ref factory. The generated id is opaque and does not encode
+provider id, account id, source ref, provider entity id, canonical identity, or
+human-readable source text. Import idempotency comes from existing
+`source_material_bindings`, not from deriving a material id from the source.
 
 ## Source Records
 
@@ -170,6 +181,69 @@ Commands reject ordinary identity writes to merged or archived material
 records. Merged material records are redirect snapshots, not active write
 targets.
 
+## Source Library Import
+
+Source library import turns normalized provider account-library observations
+into durable local source pool facts.
+
+The provider-facing input is `PlatformLibraryCandidate`, which carries a full
+normalized `SourceEntity`, a `PlatformLibraryKind`, optional
+`providerAccountId`, and optional provider add timestamp. Music Data Platform
+does not parse raw provider payloads.
+
+Persisted source library items represent current known membership only:
+
+```text
+provider_id
+provider_account_id
+library_kind
+source_ref_key
+added_at?
+first_imported_at
+last_seen_at
+```
+
+`SourceLibraryItem` does not store `material_ref_key`, `canonical_ref_key`,
+display fields, query text, rank, projection data, or card seed data. Material
+refs are obtained through `source_material_bindings` or later projections.
+
+One import batch handles exactly one `PlatformLibraryKind`:
+
+```text
+saved_source_track
+saved_source_album
+followed_source_artist
+```
+
+Batch statuses are `running`, `completed`, and `failed`. Completion reasons
+are `provider_exhausted` and `max_new_items_reached`. Phase 7 supports
+`startImport` and `continueImport` only; it does not support cancel, pause,
+resume, retry, update baseline, or removed-from-library reconciliation.
+
+`limit` is a per-call processing limit. `maxNewItems` is an optional
+batch-level stop condition that counts only newly created source-library
+memberships with outcome `imported`. `already_present` and `failed` outcomes
+do not count toward `maxNewItems`.
+
+For each candidate, Library Import writes in an item-scoped transaction:
+
+1. upsert the candidate `SourceRecord`;
+2. look up existing source-material binding;
+3. create a source-backed `MaterialRecord` through the material ref factory
+   only when no binding exists;
+4. bind the source ref to the material ref through `bindSourceToMaterial`;
+5. upsert the source library item;
+6. record the item outcome.
+
+Per-item write failure rolls back only that candidate transaction, records a
+compact failed outcome, increments the failed count, and continues. Provider,
+page, account, cursor, or batch-scope failures mark the batch failed.
+
+Real provider-account library persistence requires a resolved non-empty
+`providerAccountId`. `startImport` may omit it only when the provider/API can
+resolve the current logged-in account in the first provider read. Later reads
+for the same batch must return the same account id.
+
 ## Material Merge
 
 `mergeMaterialRecord(loser, winner)` is identity-level only.
@@ -196,11 +270,13 @@ collections, rewrite projections, or touch presentation history.
 
 - owner facts;
 - Collection membership;
-- Library Import / Update;
+- public Stage Interface import tools;
+- update baselines and removed-from-library reconciliation;
+- source-library projections and local pool query;
 - query/retrieval/ranking;
 - provider execution or provider config;
 - Stage Interface tools or public DTOs;
 - canonical review/merge/split workflow;
 - direct source-canonical evidence model;
 - command audit;
-- runtime database wiring.
+- provider login, OAuth, cookie refresh, or reauth.

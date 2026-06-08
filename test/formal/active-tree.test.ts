@@ -126,8 +126,12 @@ assert.deepEqual(
     "src/music_data_platform/identity_schema.ts",
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/index.ts",
+    "src/music_data_platform/material_ref_factory.ts",
+    "src/music_data_platform/source_library_import.ts",
+    "src/music_data_platform/source_library_records.ts",
+    "src/music_data_platform/source_library_schema.ts",
   ],
-  "Phase 5 formal Music Data Platform root must not grow unrelated implementations",
+  "Phase 7 formal Music Data Platform root must not grow unrelated implementations",
 );
 
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));
@@ -155,7 +159,7 @@ const forbiddenRuntimeImports = [
   "../knowledge/",
 ];
 
-for (const root of ["src/stage_core", "src/server"]) {
+for (const root of ["src/stage_core"]) {
   const files = await sourceFilesUnder(join(repositoryRoot, root));
   const importFailures: string[] = [];
 
@@ -174,6 +178,28 @@ for (const root of ["src/stage_core", "src/server"]) {
 
   assert.deepEqual(importFailures, []);
 }
+
+const serverImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/server"))) {
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of [
+    "../material/",
+    "../providers/",
+    "../memory/",
+    "../effects/",
+    "../collection/",
+    "../knowledge/",
+  ]) {
+    if (
+      text.includes(`from "${forbiddenImport}`) ||
+      text.includes(`from '${forbiddenImport}`)
+    ) {
+      serverImportFailures.push(`${relative(repositoryRoot, file)} imports forbidden non-composition root '${forbiddenImport}'`);
+    }
+  }
+}
+assert.deepEqual(serverImportFailures, []);
 
 const extensionImportFailures: string[] = [];
 for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))) {

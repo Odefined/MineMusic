@@ -41,6 +41,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   guards, docs, and smoke verification.
 - `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`:
   implemented Phase 6 execution plan.
+- `docs/formal-rebuild/phase-7-source-library-import-foundation.md`:
+  implemented Phase 7 spec for Platform Library Provider Slot, NCM source
+  library reads, Music Data Platform source-library import persistence,
+  material ref factory, runtime wiring, guards, docs, and smoke verification.
+- `docs/formal-rebuild/phase-7-source-library-import-foundation-implementation-plan.md`:
+  implemented Phase 7 execution plan.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -54,7 +60,7 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/extension/progress.md`: Extension implementation state, verification
   evidence, remaining gaps, and next candidate slices.
 - `docs/extension/plugins/ncm.md`: NCM plugin-specific config, source search
-  mapping, source refs, errors, and smoke usage.
+  mapping, platform library mapping, source refs, errors, and smoke usage.
 - `docs/storage/README.md`: Storage area documentation entrypoint.
 - `docs/storage/design.md`: generic MusicDatabase and SQLite adapter design
   authority for the implemented Phase 4 boundary.
@@ -64,10 +70,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   evidence, remaining gaps, and next candidate slices.
 - `docs/music-data-platform/README.md`: Music Data Platform area
   documentation entrypoint.
-- `docs/music-data-platform/design.md`: Phase 5 identity write model design
-  authority.
-- `docs/music-data-platform/ports.md`: Music Data Platform identity write
-  ports, forbidden dependencies, composition, and guards.
+- `docs/music-data-platform/design.md`: Music Data Platform identity and
+  source-library import design authority.
+- `docs/music-data-platform/ports.md`: Music Data Platform identity write and
+  source-library import ports, forbidden dependencies, composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
   state, verification evidence, and remaining gaps.
 
@@ -121,15 +127,22 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/stage_interface/index.ts`: minimal Stage Interface skeleton.
 - `src/extension/source_provider_slot.ts`: Source Provider Slot registration
   and search validation seam.
-- `src/extension/plugins/ncm.ts`: NCM source-provider plugin.
+- `src/extension/platform_library_provider_slot.ts`: Platform Library
+  Provider Slot registration and read validation seam.
+- `src/extension/plugins/ncm.ts`: NCM source-provider and
+  platform-library-provider plugin.
 - `src/extension/plugins/index.ts`: Extension plugin exports.
 - `src/stage_core/index.ts`: Stage Core public exports.
 - `src/stage_core/runtime.ts`: Stage Runtime lifecycle baseline.
 - `src/stage_core/runtime_module.ts`: Stage Core runtime module contribution
   boundary.
 - `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module.
-- `src/server/host.ts`: thin Server Host lifecycle owner.
+- `src/server/host.ts`: thin Server Host lifecycle owner and internal source
+  library import seam accessor.
 - `src/server/config.ts`: Server Host default runtime composition config.
+- `src/server/music_data_platform_runtime_module.ts`: Server Host composition
+  module for Storage, Music Data Platform schemas, and internal Library Import
+  service wiring.
 - `src/server/index.ts`: minimal Server Host entrypoint and snapshot command.
 - `src/index.ts`: formal skeleton package exports.
 - `src/storage/database.ts`: generic `MusicDatabase` boundary.
@@ -145,6 +158,14 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   source-to-material binding records.
 - `src/music_data_platform/identity_write_model.ts`: narrow identity write
   command factory.
+- `src/music_data_platform/source_library_schema.ts`: source-library import
+  schema contribution.
+- `src/music_data_platform/source_library_records.ts`: source-library item,
+  import batch, and item outcome repositories.
+- `src/music_data_platform/material_ref_factory.ts`: opaque material ref
+  factory.
+- `src/music_data_platform/source_library_import.ts`: internal Library Import
+  application service.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.
 
 The previous MVP runtime source and tests were removed from active tree and are

@@ -1,6 +1,6 @@
 # Phase 7 Source Library Import Foundation Implementation Plan
 
-> Status: Draft execution plan
+> Status: Implemented execution plan
 > Spec: `phase-7-source-library-import-foundation.md`
 > Owning bounded contexts: Music Data Platform / Library Import, Extension /
 > Platform Library Provider Slot, Stage Core composition
@@ -172,6 +172,7 @@ Tasks:
   - candidate kind matches `libraryKind`;
   - candidate provider id/source namespace are consistent;
   - candidate carries a valid `SourceEntity`;
+  - result candidate count does not exceed requested `limit`;
   - `nextCursor`, when present, is non-empty.
   - `totalCountHint`, when present, is a non-negative integer.
 
@@ -290,13 +291,17 @@ Tasks:
   - persist the resolved account id on the batch before writing source library
     item records;
   - respect both the per-call `limit` and remaining `maxNewItems` allowance;
+  - pass current remaining allowance to provider reads as
+    `PlatformLibraryReadInput.limit`;
   - return complete internal batch/page/item result.
 - Implement `continueImport(input)`:
   - accept optional per-call `limit`;
   - process next provider page when batch is running;
   - return current result without writes when batch is completed;
+  - do not read the provider for completed batches, including
+    `max_new_items_reached` batches;
   - return error when batch is failed or unknown.
-- For each candidate:
+- For each candidate, in an item-scoped write transaction:
   - upsert `SourceRecord`;
   - look up existing source-material binding;
   - create source-backed `MaterialRecord` through the shared material ref
@@ -304,13 +309,24 @@ Tasks:
   - bind source to material;
   - upsert `SourceLibraryItem`;
   - record item outcome.
+- Roll back only the current item transaction when a candidate write fails.
+  Record item outcome `failed`, increment failed counts, and continue with
+  later candidates.
 - Treat `already_present` as membership semantics. Source facts may refresh
   even when membership already exists.
+- Treat duplicate source refs in the same page or batch through membership
+  idempotency. After the first successful write, later duplicates are
+  `already_present`, not batch failures.
 - Treat `maxNewItems` as a batch-level stop condition that counts only
   `imported` outcomes. It does not count `already_present` or `failed`
   outcomes.
+- Allow `maxNewItems` only on `startImport`; `continueImport` cannot change
+  batch-level stop conditions.
 - Mark the batch completed with completion reason `max_new_items_reached` when
   the imported count reaches `maxNewItems`.
+- When `maxNewItems` is reached in the middle of a provider page, stop
+  processing the remaining candidates from that page, clear continuation, and
+  do not write or count those unprocessed candidates.
 - Mark the batch completed with completion reason `provider_exhausted` when a
   provider read returns no `nextCursor`.
 - Resolve the persisted account scope from caller input or provider result:
@@ -330,10 +346,13 @@ Tasks:
 
 Acceptance:
 
-- Import is transactional per processed page.
-- Failed page processing marks the batch failed and records compact failures.
+- Provider/page/batch-scope failures mark the batch failed.
+- Per-item failures do not mark the batch failed; completed batches may have
+  `failedCount > 0`.
 - Repeated import is idempotent by source-library membership and existing
   source-material binding lookup.
+- Duplicate source refs in one page or batch are idempotent and do not fail the
+  batch.
 - Material refs are opaque and created only through the factory.
 - `startImport` rejects persistence when neither caller input nor provider
   result supplies a resolved non-empty `providerAccountId`.
@@ -344,6 +363,9 @@ Acceptance:
 - Reaching the per-call `limit` ends the current call but leaves the batch
   running when a `nextCursor` remains.
 - Reaching batch-level `maxNewItems` completes the batch.
+- Unprocessed candidates left in a provider page after `maxNewItems` is reached
+  are not written and not counted.
+- Provider results that exceed requested read limit fail slot output integrity.
 
 ## Slice 6: Runtime Wiring And Smoke
 

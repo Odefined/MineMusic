@@ -9,6 +9,16 @@ import {
   validatePluginManifest,
 } from "./plugin_manifest.js";
 import {
+  getPlatformLibraryProvider,
+  listPlatformLibraryProviders,
+  platformLibraryProviderSlot,
+  readPlatformLibraryProvider,
+  registerPlatformLibraryProvider,
+  type PlatformLibraryProviderReadInput,
+  type PlatformLibraryProviderReadResult,
+  type PlatformLibraryProviderRegistration,
+} from "./platform_library_provider_slot.js";
+import {
   getSourceProvider,
   listSourceProviders,
   registerSourceProvider,
@@ -22,6 +32,7 @@ import {
 export type PluginActivationContext = {
   pluginId: string;
   registerSourceProvider(registration: SourceProviderRegistration): Result<void>;
+  registerPlatformLibraryProvider(registration: PlatformLibraryProviderRegistration): Result<void>;
 };
 
 export type MineMusicPlugin = {
@@ -40,6 +51,7 @@ export type ExtensionRuntimeSnapshot = {
   status: ExtensionRuntimeStatus;
   pluginIds: readonly string[];
   sourceProviderCount: number;
+  platformLibraryProviderCount: number;
   error?: RuntimeErrorSummary;
 };
 
@@ -50,18 +62,24 @@ export type ExtensionRuntime = {
   listSourceProviders(): readonly SourceProviderRegistration[];
   getSourceProvider(providerId: string): SourceProviderRegistration | undefined;
   searchSourceProvider(input: SourceProviderSearchInput): Promise<Result<SourceProviderSearchResult>>;
+  listPlatformLibraryProviders(): readonly PlatformLibraryProviderRegistration[];
+  getPlatformLibraryProvider(providerId: string): PlatformLibraryProviderRegistration | undefined;
+  readPlatformLibraryProvider(input: PlatformLibraryProviderReadInput): Promise<Result<PlatformLibraryProviderReadResult>>;
 };
 
 export type CreateExtensionRuntimeInput = {
   plugins?: readonly MineMusicPlugin[];
 };
 
-const knownCapabilityIds = new Set<string>([sourceProviderSlot.id]);
+const knownCapabilityIds = new Set<string>([
+  sourceProviderSlot.id,
+  platformLibraryProviderSlot.id,
+]);
 
 export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}): ExtensionRuntime {
   const plugins = input.plugins ?? [];
   let registry = createCapabilityRegistry({
-    slots: [sourceProviderSlot],
+    slots: [sourceProviderSlot, platformLibraryProviderSlot],
   });
   const pluginIds = safePluginIds(plugins);
   let status: ExtensionRuntimeStatus = "created";
@@ -101,6 +119,36 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
 
       return searchSourceProvider(registry, input);
     },
+    listPlatformLibraryProviders() {
+      return listPlatformLibraryProviders(registry);
+    },
+    getPlatformLibraryProvider(providerId) {
+      return getPlatformLibraryProvider(registry, providerId);
+    },
+    readPlatformLibraryProvider(input) {
+      if (status === "failed") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_failed",
+          "Extension runtime failed and cannot read platform library providers.",
+        ));
+      }
+
+      if (status === "stopped") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_stopped",
+          "Extension runtime has stopped and cannot read platform library providers.",
+        ));
+      }
+
+      if (status !== "ready") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_not_ready",
+          "Extension runtime must be ready before platform-library provider reads.",
+        ));
+      }
+
+      return readPlatformLibraryProvider(registry, input);
+    },
   };
 
   async function initialize(): Promise<Result<ExtensionRuntimeSnapshot>> {
@@ -132,7 +180,7 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
     }
 
     const workingRegistry = createCapabilityRegistry({
-      slots: [sourceProviderSlot],
+      slots: [sourceProviderSlot, platformLibraryProviderSlot],
     });
 
     for (const plugin of plugins) {
@@ -158,6 +206,7 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
       status,
       pluginIds: pluginIds.slice(),
       sourceProviderCount: listSourceProviders(registry).length,
+      platformLibraryProviderCount: listPlatformLibraryProviders(registry).length,
       ...(runtimeError === undefined ? {} : { error: runtimeError }),
     };
   }
@@ -256,6 +305,48 @@ async function activatePlugin(
       }
 
       registeredCapabilities.add(sourceProviderSlot.id);
+      return registered;
+    },
+    registerPlatformLibraryProvider(registration) {
+      if (!activationOpen) {
+        return failExtension(
+          "extension.activation_context_closed",
+          `Plugin '${plugin.manifest.id}' cannot register platform library providers after activation returns.`,
+        );
+      }
+
+      if (!isRecord(registration) || typeof registration.pluginId !== "string") {
+        registrationFailure = failExtension(
+          "extension.invalid_platform_library_provider_registration",
+          `Plugin '${plugin.manifest.id}' platform-library-provider registration must include pluginId.`,
+        );
+        return registrationFailure;
+      }
+
+      if (registration.pluginId !== plugin.manifest.id) {
+        registrationFailure = failExtension(
+          "extension.plugin_registration_owner_mismatch",
+          `Plugin '${plugin.manifest.id}' cannot register platform library provider for plugin '${registration.pluginId}'.`,
+        );
+        return registrationFailure;
+      }
+
+      if (!plugin.manifest.capabilities.includes(platformLibraryProviderSlot.id)) {
+        registrationFailure = failExtension(
+          "extension.undeclared_capability_registration",
+          `Plugin '${plugin.manifest.id}' did not declare capability '${platformLibraryProviderSlot.id}'.`,
+        );
+        return registrationFailure;
+      }
+
+      const registered = registerPlatformLibraryProvider(registry, registration);
+
+      if (!registered.ok) {
+        registrationFailure = registered;
+        return registered;
+      }
+
+      registeredCapabilities.add(platformLibraryProviderSlot.id);
       return registered;
     },
   };

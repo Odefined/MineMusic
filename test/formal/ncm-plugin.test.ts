@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 
-import type { Result, SourceProvider } from "../../src/contracts/index.js";
+import type {
+  PlatformLibraryProvider,
+  Result,
+  SourceProvider,
+} from "../../src/contracts/index.js";
 import {
   createExtensionRuntime,
+  platformLibraryProviderSlot,
   sourceProviderSlot,
   type PluginActivationContext,
 } from "../../src/extension/index.js";
@@ -32,6 +37,10 @@ assert.deepEqual(registeredRuntime.listSourceProviders().map((provider) => provi
   ncmProviderId,
 ]);
 assert.equal(registeredRuntime.getSourceProvider(ncmProviderId)?.pluginId, ncmPluginId);
+assert.deepEqual(registeredRuntime.listPlatformLibraryProviders().map((provider) => provider.providerId), [
+  ncmProviderId,
+]);
+assert.equal(registeredRuntime.getPlatformLibraryProvider(ncmProviderId)?.pluginId, ncmPluginId);
 
 const trackFetch = fetchJson({
   result: {
@@ -323,6 +332,206 @@ assert.equal(artist?.providerUrl, "https://music.163.com/#/artist?id=5001");
 assert.equal(artist?.links, undefined);
 assert.equal(artist?.versionInfo, undefined);
 
+const savedTrackAddedAt = Date.UTC(2026, 0, 2, 3, 4, 5);
+const savedTrackFetch = fetchSequence([
+  {
+    code: 200,
+    profile: {
+      userId: 130950618,
+    },
+  },
+  {
+    code: 200,
+    playlist: [
+      {
+        id: 9001,
+        name: "我喜欢的音乐",
+        specialType: 5,
+      },
+    ],
+  },
+  {
+    code: 200,
+    playlist: {
+      trackIds: [
+        {
+          id: 1001,
+          at: savedTrackAddedAt,
+        },
+        {
+          id: 1002,
+        },
+      ],
+    },
+  },
+  {
+    code: 200,
+    songs: [
+      {
+        id: 1001,
+        name: "Saved Track",
+        artists: [{ id: 2001, name: "Saved Artist" }],
+        album: {
+          id: 3001,
+          name: "Saved Album",
+          size: 9,
+        },
+        no: 4,
+      },
+    ],
+  },
+]);
+const savedTrackLibraryProvider = await platformLibraryProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: savedTrackFetch.fetch,
+});
+const savedTracks = await assertOk(savedTrackLibraryProvider.read({
+  kind: "saved_source_track",
+  limit: 1,
+}));
+const savedTrack = savedTracks.candidates[0];
+
+assert.deepEqual(savedTrackFetch.urls.map((url) => url.pathname), [
+  "/user/account",
+  "/user/playlist",
+  "/playlist/detail",
+  "/song/detail",
+]);
+assert.equal(savedTrackFetch.urls[1]?.searchParams.get("uid"), "130950618");
+assert.equal(savedTrackFetch.urls[2]?.searchParams.get("id"), "9001");
+assert.equal(savedTrackFetch.urls[3]?.searchParams.get("ids"), "[1001]");
+assert.equal(savedTracks.providerId, ncmProviderId);
+assert.equal(savedTracks.providerAccountId, "130950618");
+assert.equal(savedTracks.kind, "saved_source_track");
+assert.equal(savedTracks.nextCursor, "1");
+assert.equal(savedTracks.totalCountHint, 2);
+assert.equal(savedTrack?.libraryKind, "saved_source_track");
+assert.equal(savedTrack?.providerAccountId, "130950618");
+assert.equal(savedTrack?.addedAt, "2026-01-02T03:04:05.000Z");
+assert.equal(savedTrack?.sourceEntity.kind, "track");
+assert.equal(savedTrack?.sourceEntity.sourceRef.id, "1001");
+assert.equal(savedTrack?.sourceEntity.label, "Saved Track - Saved Artist");
+assert.deepEqual(savedTrack?.sourceEntity.trackPosition, {
+  trackNumber: 4,
+  trackCount: 9,
+});
+
+const savedAlbumAddedAt = Date.UTC(1998, 0, 16, 1, 2, 3);
+const savedAlbumFetch = fetchJson({
+  code: 200,
+  data: [
+    {
+      id: 3002,
+      name: "Saved Album (Deluxe Edition)",
+      artists: [{ id: 4001, name: "Album Artist" }],
+      subTime: savedAlbumAddedAt,
+    },
+  ],
+  hasMore: true,
+  count: 10,
+});
+const savedAlbumLibraryProvider = await platformLibraryProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: savedAlbumFetch.fetch,
+});
+const savedAlbums = await assertOk(savedAlbumLibraryProvider.read({
+  providerAccountId: "130950618",
+  kind: "saved_source_album",
+  limit: 2,
+  cursor: "3",
+}));
+const savedAlbum = savedAlbums.candidates[0];
+
+assert.deepEqual(savedAlbumFetch.urls.map((url) => url.pathname), ["/album/sublist"]);
+assert.equal(savedAlbumFetch.urls[0]?.searchParams.get("limit"), "2");
+assert.equal(savedAlbumFetch.urls[0]?.searchParams.get("offset"), "3");
+assert.equal(savedAlbums.providerAccountId, "130950618");
+assert.equal(savedAlbums.kind, "saved_source_album");
+assert.equal(savedAlbums.nextCursor, "4");
+assert.equal(savedAlbums.totalCountHint, 10);
+assert.equal(savedAlbum?.libraryKind, "saved_source_album");
+assert.equal(savedAlbum?.addedAt, "1998-01-16T01:02:03.000Z");
+assert.equal(savedAlbum?.sourceEntity.kind, "album");
+assert.equal(savedAlbum?.sourceEntity.sourceRef.id, "3002");
+assert.deepEqual(savedAlbum?.sourceEntity.versionInfo, {
+  label: "Deluxe Edition",
+  tags: ["deluxe"],
+});
+
+const followedArtistFetch = fetchSequence([
+  {
+    code: 200,
+    account: {
+      id: 130950618,
+    },
+  },
+  {
+    code: 200,
+    data: [
+      {
+        id: 5002,
+        name: "Followed Artist",
+        alias: ["Alias"],
+      },
+    ],
+    hasMore: false,
+    total: 1,
+  },
+]);
+const followedArtistLibraryProvider = await platformLibraryProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: followedArtistFetch.fetch,
+});
+const followedArtists = await assertOk(followedArtistLibraryProvider.read({
+  kind: "followed_source_artist",
+  limit: 5,
+}));
+const followedArtist = followedArtists.candidates[0];
+
+assert.deepEqual(followedArtistFetch.urls.map((url) => url.pathname), [
+  "/user/account",
+  "/artist/sublist",
+]);
+assert.equal(followedArtists.providerAccountId, "130950618");
+assert.equal(followedArtists.kind, "followed_source_artist");
+assert.equal(followedArtists.nextCursor, undefined);
+assert.equal(followedArtists.totalCountHint, 1);
+assert.equal(followedArtist?.libraryKind, "followed_source_artist");
+assert.equal(followedArtist?.addedAt, undefined);
+assert.equal(followedArtist?.sourceEntity.kind, "artist");
+assert.equal(followedArtist?.sourceEntity.sourceRef.id, "5002");
+
+const unresolvedAccountProvider = await platformLibraryProviderFor({
+  fetch: fetchJson({
+    code: 200,
+    profile: {},
+  }).fetch,
+});
+assertErrorCode(
+  await unresolvedAccountProvider.read({
+    kind: "saved_source_album",
+    limit: 1,
+  }),
+  "extension.ncm_account_unresolved",
+  true,
+);
+
+const invalidCursorProvider = await platformLibraryProviderFor({
+  fetch: fetchJson({
+    code: 200,
+    profile: {
+      userId: 130950618,
+    },
+  }).fetch,
+});
+assertErrorCode(
+  await invalidCursorProvider.read({
+    kind: "followed_source_artist",
+    cursor: "not-offset",
+  }),
+  "extension.ncm_invalid_cursor",
+);
+
 const defaultKindFetch = fetchJson({
   result: { songs: [] },
   code: 200,
@@ -499,14 +708,50 @@ async function sourceProviderFor(config: NcmPluginConfig): Promise<SourceProvide
       provider = registration.provider;
       return { ok: true, value: undefined };
     },
+    registerPlatformLibraryProvider(registration) {
+      assert.equal(registration.pluginId, ncmPluginId);
+      assert.equal(registration.providerId, ncmProviderId);
+      return { ok: true, value: undefined };
+    },
   };
   const activated = await plugin.activate(context);
 
   assert.equal(activated.ok, true);
   assert.equal(plugin.manifest.capabilities[0], sourceProviderSlot.id);
+  assert.equal(plugin.manifest.capabilities[1], platformLibraryProviderSlot.id);
 
   if (provider === undefined) {
     throw new Error("NCM plugin did not register a source provider.");
+  }
+
+  return provider;
+}
+
+async function platformLibraryProviderFor(config: NcmPluginConfig): Promise<PlatformLibraryProvider> {
+  const plugin = createNcmPlugin(config);
+  let provider: PlatformLibraryProvider | undefined;
+  const context: PluginActivationContext = {
+    pluginId: ncmPluginId,
+    registerSourceProvider(registration) {
+      assert.equal(registration.pluginId, ncmPluginId);
+      assert.equal(registration.providerId, ncmProviderId);
+      return { ok: true, value: undefined };
+    },
+    registerPlatformLibraryProvider(registration) {
+      assert.equal(registration.pluginId, ncmPluginId);
+      assert.equal(registration.providerId, ncmProviderId);
+      provider = registration.provider;
+      return { ok: true, value: undefined };
+    },
+  };
+  const activated = await plugin.activate(context);
+
+  assert.equal(activated.ok, true);
+  assert.equal(plugin.manifest.capabilities[0], sourceProviderSlot.id);
+  assert.equal(plugin.manifest.capabilities[1], platformLibraryProviderSlot.id);
+
+  if (provider === undefined) {
+    throw new Error("NCM plugin did not register a platform library provider.");
   }
 
   return provider;

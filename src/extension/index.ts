@@ -47,3 +47,15 @@ export type {
   SourceProviderSearchResult,
   SourceProviderRegistration,
 } from "./source_provider_slot.js";
+export {
+  getPlatformLibraryProvider,
+  listPlatformLibraryProviders,
+  platformLibraryProviderSlot,
+  registerPlatformLibraryProvider,
+  validatePlatformLibraryProviderRegistration,
+} from "./platform_library_provider_slot.js";
+export type {
+  PlatformLibraryProviderReadInput,
+  PlatformLibraryProviderReadResult,
+  PlatformLibraryProviderRegistration,
+} from "./platform_library_provider_slot.js";

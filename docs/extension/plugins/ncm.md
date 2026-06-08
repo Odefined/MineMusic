@@ -1,22 +1,23 @@
 # NCM Plugin
 
 > Status: Current plugin documentation
-> Scope: NetEase Cloud Music source-provider plugin
+> Scope: NetEase Cloud Music source-provider and platform-library-provider plugin
 
 ## Purpose
 
-The NCM plugin is the first real source-provider plugin in the formal rebuild.
-It proves that a concrete plugin can register into the generic
-`source-provider` slot without moving provider-specific HTTP, mapping, config,
-or raw payload details into Source Provider Slot, Stage Interface, Query, or
-Music Data Platform.
+The NCM plugin is the first real provider plugin in the formal rebuild. It
+proves that a concrete plugin can register into Extension slots without moving
+provider-specific HTTP, mapping, config, or raw payload details into the
+generic slot code, Stage Interface, Query, or Music Data Platform.
 
 ## Identity
 
 ```text
 pluginId: minemusic.ncm
 providerId: netease
-slot: source-provider
+slots:
+  - source-provider
+  - platform-library-provider
 ```
 
 Source refs use the formal source namespace rule:
@@ -83,6 +84,39 @@ artist -> result.artists
 When `targetKinds` is omitted, NCM defaults to track search. Multi-kind search
 uses `query.limit` as a total cap. Multi-kind search with `offset > 0` fails
 instead of pretending to support merged pagination.
+
+## Platform Library Request Mapping
+
+NCM platform library reads return normalized `PlatformLibraryCandidate[]`.
+They do not persist Music Data Platform records directly.
+
+Supported library kinds:
+
+```text
+saved_source_track
+saved_source_album
+followed_source_artist
+```
+
+Mapping:
+
+- `saved_source_track` resolves the current or requested account, resolves the
+  liked-music playlist, reads `/playlist/detail`, uses `playlist.trackIds`
+  order, maps `trackIds[].at` to `addedAt` when available, and reads selected
+  track facts through `/song/detail`;
+- `saved_source_album` reads `/album/sublist`, maps album facts through the
+  same source album mapper, and maps `subTime` to `addedAt` when available;
+- `followed_source_artist` reads `/artist/sublist`, maps artist facts through
+  the same source artist mapper, and does not invent `addedAt` when the
+  provider response has no per-artist timestamp.
+
+`/likelist` is not used for saved-track import facts because it exposes ids and
+playlist-level state rather than the ordered playlist detail and provider add
+timestamps needed by Phase 7.
+
+Library pagination uses the shared cursor contract. The plugin maps that
+cursor to NCM offset-like reads internally. The cursor is plugin/config detail,
+not Source Provider Slot search `offset`.
 
 ## Mapping Rules
 
@@ -188,6 +222,9 @@ mapping validation failures are not marked retryable by default.
 
 When called through `ExtensionRuntime.searchSourceProvider(...)`, provider
 failures are returned through the Source Provider Slot search error boundary.
+When called through `ExtensionRuntime.readPlatformLibraryProvider(...)`,
+provider failures are returned through the Platform Library Provider read
+boundary.
 
 ## Smoke
 
@@ -213,3 +250,26 @@ MINEMUSIC_NCM_QUERY=coding
 Live smoke verifies that the default configured Extension Runtime registers the
 NCM provider and can return at least one `source_netease` source candidate when
 the configured NCM HTTP target is reachable.
+
+Source-library live smoke skips unless explicitly enabled:
+
+```bash
+npm run smoke:ncm:library
+```
+
+Live source-library smoke:
+
+```bash
+MINEMUSIC_LIVE_NCM_LIBRARY=1 npm run smoke:ncm:library
+```
+
+Optional config:
+
+```bash
+MINEMUSIC_NCM_BASE_URL=http://127.0.0.1:3000
+MINEMUSIC_NCM_LIBRARY_KIND=saved_source_track
+MINEMUSIC_NCM_LIBRARY_LIMIT=1
+```
+
+The source-library smoke starts the default Server Host, uses the internal
+Library Import service seam, and does not expose a Stage Interface import tool.

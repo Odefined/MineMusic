@@ -24,6 +24,7 @@ execution, or final presentation.
 | `MineMusicPlugin` | Manifest plus activation function that registers allowed capabilities. | Extension |
 | `PluginActivationContext` | Narrow activation boundary exposed to plugin code. | Extension |
 | `SourceProviderRegistration` | Source-provider-specific registration using `providerId` and `SourceProvider`. | Extension |
+| `PlatformLibraryProviderRegistration` | Platform-library-provider-specific registration using `providerId` and `PlatformLibraryProvider`. | Extension |
 
 `RuntimeModule` is not a plugin. It is a Stage Core composition unit. Stage
 Core may mount Extension through runtime module `extension`, but Extension does
@@ -58,8 +59,8 @@ Naked global lookup is forbidden:
 registry.get("netease");
 ```
 
-The lookup key is meaningful only inside its slot. For `source-provider`, that
-key is the provider id.
+The lookup key is meaningful only inside its slot. For `source-provider` and
+`platform-library-provider`, that key is the provider id.
 
 ## Plugin Manifest Rules
 
@@ -96,13 +97,19 @@ dynamic loading, version-range compatibility, or semver rejection.
 
 ## Activation Context
 
-Plugin activation receives only slot-specific registration helpers. For the
-current source-provider slot:
+Plugin activation receives only slot-specific registration helpers. Current
+helpers are source provider and platform library provider registration:
 
 ```ts
 ctx.registerSourceProvider({
   pluginId: "internal.fixture-source",
   providerId: "fixture-source",
+  provider,
+});
+
+ctx.registerPlatformLibraryProvider({
+  pluginId: "minemusic.ncm",
+  providerId: "netease",
   provider,
 });
 ```
@@ -125,7 +132,8 @@ inspect, rank, replace, or manage other provider registrations.
 
 ## Source Provider Slot
 
-`source-provider` is the only concrete slot currently defined in Extension.
+`source-provider` is the concrete Extension slot for provider search and
+source-side provider operations.
 
 ```text
 slot id: source-provider
@@ -179,6 +187,60 @@ presentation output, or call `getPlayableLinks(...)`.
 Request-scoped candidate relations, query mixing, materialization, and final
 presentation belong to later owning phases.
 
+## Platform Library Provider Slot
+
+`platform-library-provider` is the concrete Extension slot for provider
+account-library reads.
+
+```text
+slot id: platform-library-provider
+cardinality: many-by-id
+writePolicy: none
+implementation contract: PlatformLibraryProvider
+```
+
+The slot is separate from `source-provider` because account-library import is
+not text search. It reads provider-account library observations for a specific
+provider, account, library kind, and cursor.
+
+Platform-library registrations use domain language:
+
+```ts
+type PlatformLibraryProviderRegistration = {
+  pluginId: string;
+  providerId: string;
+  provider: PlatformLibraryProvider;
+};
+```
+
+Rules:
+
+- `providerId` must be non-empty and must not contain `:`;
+- `providerId` must equal `provider.descriptor.providerId`;
+- descriptor shape is validated at registration time, including non-empty
+  label and supported `libraryKinds`;
+- the provider must expose `read(input)`;
+- `platform-library-provider.writePolicy` is `none`;
+- provider reads return normalized `PlatformLibraryReadResult`;
+- provider reads do not write durable MineMusic state, create source library
+  items, materialize candidates, build query hits, or shape presentation
+  output.
+
+Extension Runtime exposes provider-library reads through a narrow seam:
+
+```ts
+extensionRuntime.readPlatformLibraryProvider(input)
+```
+
+That seam validates input and output integrity, including provider id, library
+kind, provider account id shape when present, limit, cursor, result provider
+ownership, candidate kind, candidate source namespace, candidate count against
+requested limit, optional `nextCursor`, and optional `totalCountHint`.
+
+Music Data Platform consumes this seam through a narrow read port during
+Library Import. Provider/plugin code still does not write Music Data Platform
+records directly.
+
 ## Runtime Semantics
 
 Extension runtime is a capability-registration runtime with narrow registered
@@ -191,6 +253,8 @@ It:
 - activates plugins serially;
 - records slot registrations;
 - exposes source-provider search through `ExtensionRuntime.searchSourceProvider`;
+- exposes platform-library-provider reads through
+  `ExtensionRuntime.readPlatformLibraryProvider`;
 - exposes internal Extension snapshots for Extension tests;
 - can be mounted by Stage Core as runtime module `extension`;
 - supports no-op stop.
@@ -245,6 +309,12 @@ extension.source_provider_search_unsupported
 extension.source_provider_search_failed
 extension.invalid_source_provider_search_input
 extension.invalid_source_provider_search_output
+extension.invalid_platform_library_provider_registration
+extension.invalid_platform_library_provider_descriptor
+extension.platform_library_provider_not_found
+extension.platform_library_provider_read_failed
+extension.invalid_platform_library_provider_read_input
+extension.invalid_platform_library_provider_read_output
 ```
 
 Tests should assert code and area, not long diagnostic messages.

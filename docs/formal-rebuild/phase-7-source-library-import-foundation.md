@@ -1,6 +1,6 @@
 # Phase 7 Source Library Import Foundation
 
-> Status: Draft under discussion
+> Status: Implemented Phase 7 spec
 > Phase owner: Music Data Platform / Library Import
 > Output type: Source library import persistence foundation, local source pool
 > boundaries, and implementation plan
@@ -19,7 +19,7 @@ projection/read-model phases will consume.
 
 ## Established Inputs
 
-Current formal state provides:
+Before Phase 7, current formal state provided:
 
 - Phase 4 generic `MusicDatabase` foundation;
 - Phase 5 Music Data Platform identity write commands for source,
@@ -256,15 +256,36 @@ many provider candidates the current `startImport` or `continueImport` call may
 process. Reaching `limit` ends the current call, stores the provider
 `nextCursor`, and leaves the batch `running` when more provider pages remain.
 
+The import service passes the current processing allowance down to
+`PlatformLibraryReadInput.limit`:
+
+```text
+providerLimit = min(callLimitRemaining, maxNewItemsRemaining when present)
+```
+
+The provider slot must validate that a provider does not return more candidates
+than requested by `PlatformLibraryReadInput.limit`. An over-limit provider
+result is a provider output integrity failure, not extra work for the import
+service to silently accept.
+
 `maxNewItems` is an optional batch-level stop condition. It counts only newly
 created source-library memberships with item outcome `imported`. It does not
 count `already_present` or `failed` outcomes.
+
+`maxNewItems` is set only when the batch starts. `continueImport` cannot add,
+remove, or change the batch-level stop condition.
 
 When `maxNewItems` is present, each provider read should be bounded by the
 smaller of the per-call `limit` and the remaining new-item allowance, so the
 batch does not import more new memberships than requested. If the batch reaches
 `maxNewItems`, it is marked `completed` with completion reason
 `max_new_items_reached`.
+
+The import service checks remaining new-item allowance while processing
+candidates. Once `importedCount === maxNewItems`, it stops processing the
+current provider page, discards unprocessed candidates from that page, clears
+continuation, and completes the batch with reason `max_new_items_reached`.
+Unprocessed candidates are not written and are not counted.
 
 `continueImport` semantics:
 
@@ -274,6 +295,11 @@ completed -> return current summary without new writes
 failed    -> return an error; Phase 7 does not auto-retry failed batches
 unknown   -> return an error
 ```
+
+Completed batches are terminal regardless of completion reason. A batch
+completed by `max_new_items_reached` does not retain continuation for later
+import; `continueImport` returns the current result without reading the
+provider.
 
 Each Phase 7 import batch is scoped to exactly one `PlatformLibraryKind`.
 Importing saved tracks, saved albums, and followed artists requires three
@@ -321,11 +347,26 @@ Failed item records may store compact error code/message plus source ref or
 provider entity identity when available. They must not store raw provider
 payloads or debug dumps.
 
+Per-item failure does not fail the whole batch. A malformed or unwritable
+candidate records item outcome `failed`, rolls back that item write, increments
+failed counts, and lets the batch continue with later candidates.
+
+Batch failure is reserved for provider/page/batch-scope failures such as
+provider unavailable, malformed provider page result, missing or mismatched
+resolved account id, cursor failure, or batch state corruption.
+
+A completed batch may have `failedCount > 0`.
+
 `already_present` is source-library membership semantics. If the membership
 for the same provider id, provider account id, library kind, and source ref is
 already present, the item outcome is `already_present` even when the import
 refreshes the latest `SourceEntity` facts. Material binding should be reused
 rather than duplicated.
+
+Duplicate source refs in the same provider page or batch are handled through
+the same membership idempotency rule. After the first successful membership
+write for a provider/account/kind/source ref, later duplicates are
+`already_present`, not batch failures.
 
 Source library items represent current known membership only. Phase 7 does not
 add archived, removed, deleted, stale, or absent membership statuses.
@@ -497,9 +538,12 @@ Resolved Phase 7 decisions:
     statuses `running`, `completed`, and `failed`.
 11. Resolved: Phase 7 records structured per-item import outcomes:
     `imported`, `already_present`, and `failed`, without raw provider payloads.
+    Per-item failures do not fail the whole batch; provider/page/batch-scope
+    failures do.
 12. Resolved: `already_present` means the source-library membership already
     existed. Source facts may still refresh, and material binding should be
-    reused.
+    reused. Duplicate source refs in the same page or batch use the same
+    idempotency rule and do not fail the batch.
 13. Resolved: Phase 7 source library items have no membership status. They
     represent current known membership with timestamps only.
 14. Resolved: all `MaterialRef` ids use opaque MineMusic-generated identity.
@@ -522,44 +566,50 @@ Resolved Phase 7 decisions:
     processed by that single call, not the whole batch and not only newly
     imported memberships. `startImport` also supports optional batch-level
     `maxNewItems`, which counts only newly created source-library memberships
-    and completes the batch when reached.
-20. Resolved: `startImport` creates the batch and processes the first provider
+    and completes the batch when reached. `continueImport` cannot change
+    `maxNewItems`. Reaching `maxNewItems` stops
+    processing the current provider page; unprocessed candidates are discarded
+    and not counted.
+20. Resolved: Import call `limit` is passed down as provider read limit using
+    current remaining allowance. Provider results that exceed requested limit
+    are output-integrity failures.
+21. Resolved: `startImport` creates the batch and processes the first provider
     page. `continueImport` processes the next provider page from stored batch
     cursor state.
-21. Resolved: `continueImport` on a completed batch returns the current
+22. Resolved: `continueImport` on a completed batch returns the current
     summary without new writes. `continueImport` on a failed or unknown batch
     returns an error.
-22. Resolved: internal Library Import service outputs are complete internal
+23. Resolved: internal Library Import service outputs are complete internal
     results for debugging, smoke verification, and future interface projection.
     Compact output discipline is enforced later by Stage Interface, not by
     truncating the internal service result.
-23. Resolved: Phase 7 does not persist raw provider payloads and does not
+24. Resolved: Phase 7 does not persist raw provider payloads and does not
     include them in default internal import outputs. Provider-normalized
     candidates and `SourceEntity` facts are the inspectable provider-derived
     data.
-24. Resolved: Phase 7 architecture guards protect long-lived boundaries only:
+25. Resolved: Phase 7 architecture guards protect long-lived boundaries only:
     provider/plugin code cannot import Music Data Platform or storage; Music
     Data Platform import code cannot import plugin implementations;
     `SourceLibraryItem` cannot carry material/canonical/projection/query/card
     fields; material refs must be created through the opaque material ref
     factory. The absence of Stage Interface tools is a phase non-goal, not a
     future-blocking guard.
-25. Resolved: Phase 7 updates both the phase spec and owning area docs.
+26. Resolved: Phase 7 updates both the phase spec and owning area docs.
     Music Data Platform and Extension design/ports/progress docs must be
     updated, with global state docs updated through the state-sync gate after
     implementation.
-26. Resolved: `startImport` may omit `providerAccountId` when the provider/API
+27. Resolved: `startImport` may omit `providerAccountId` when the provider/API
     resolves the current logged-in account. Phase 7 Library Import validates
     the resolved account id and persists it, but does not perform account
     selection itself.
-27. Resolved: `startImport` creates the batch before the first provider read.
+28. Resolved: `startImport` creates the batch before the first provider read.
     The batch may temporarily lack a resolved account id, but the first
     successful read must resolve and persist one before source library item
     writes. If account resolution fails, the batch is marked failed.
-28. Resolved: after a batch has a resolved account id, every later provider
+29. Resolved: after a batch has a resolved account id, every later provider
     read must return the same account id. Missing or mismatched account ids fail
     the batch.
-29. Resolved: provider library reads may return optional `totalCountHint`, but
+30. Resolved: provider library reads may return optional `totalCountHint`, but
     import completion is determined by absence of `nextCursor` or reaching
     optional batch-level `maxNewItems`, not total count and not per-call
     `limit`.

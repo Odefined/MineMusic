@@ -165,6 +165,13 @@ Music Data Platform owns formal music data truth and projections:
 - Canonical Maintenance;
 - owner catalog projections and read models.
 
+Library Import is a Music Data Platform write boundary. It consumes
+provider-normalized account-library observations from Platform Library Provider
+ports, persists source records and current source library items, creates or
+reuses source-backed material anchors, and writes source-material bindings
+through Music Data Platform identity commands. Provider plugins must not write
+these durable records directly.
+
 Storage records and domain entities are different objects. SQL keys,
 denormalized lookup columns, indexes, and persistence-only values belong to
 records, not public/domain entity contracts.

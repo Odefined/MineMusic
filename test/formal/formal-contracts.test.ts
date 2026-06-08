@@ -10,6 +10,11 @@ import type {
   MaterialIdentityStatus,
   MaterialLifecycleStatus,
   MaterialRecord,
+  PlatformLibraryCandidate,
+  PlatformLibraryKind,
+  PlatformLibraryProvider,
+  PlatformLibraryReadInput,
+  PlatformLibraryReadResult,
   PlayableLink,
   ProviderMaterialCandidate,
   Ref,
@@ -22,6 +27,9 @@ import type {
   SourceArtist,
   SourceEntity,
   SourceEntityKind,
+  SourceLibraryImportBatchStatus,
+  SourceLibraryImportCompletionReason,
+  SourceLibraryImportItemOutcome,
   SourceProvider,
   SourceRecord,
   SourceTrack,
@@ -166,6 +174,36 @@ export type _sourceProviderSupportsPartialCapabilities = Expect<
       Awaited<ReturnType<NonNullable<SourceProvider["getPlayableLinks"]>>>,
       Result<readonly PlayableLink[]>
     >
+>;
+
+export type _platformLibraryShapes = Expect<
+  Equal<
+    PlatformLibraryKind,
+    "saved_source_track" | "saved_source_album" | "followed_source_artist"
+  > &
+    Equal<
+      keyof PlatformLibraryCandidate,
+      "sourceEntity" | "libraryKind" | "providerAccountId" | "addedAt"
+    > &
+    Equal<PlatformLibraryCandidate["sourceEntity"], SourceEntity> &
+    Equal<
+      keyof PlatformLibraryReadInput,
+      "providerAccountId" | "kind" | "limit" | "cursor" | "sessionId"
+    > &
+    Equal<
+      keyof PlatformLibraryReadResult,
+      "providerId" | "providerAccountId" | "kind" | "candidates" | "nextCursor" | "totalCountHint"
+    > &
+    Equal<
+      Awaited<ReturnType<PlatformLibraryProvider["read"]>>,
+      Result<PlatformLibraryReadResult>
+    >
+>;
+
+export type _sourceLibraryImportControlShapes = Expect<
+  Equal<SourceLibraryImportBatchStatus, "running" | "completed" | "failed"> &
+    Equal<SourceLibraryImportCompletionReason, "provider_exhausted" | "max_new_items_reached"> &
+    Equal<SourceLibraryImportItemOutcome, "imported" | "already_present" | "failed">
 >;
 
 export type _stageInterfaceContractShape = Expect<
