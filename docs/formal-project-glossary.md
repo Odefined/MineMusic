@@ -146,7 +146,7 @@ The formal model separates these objects:
 | `MaterialIdentityStatus` | `canonical_confirmed | source_backed | unresolved_identity` | Identity anchor state only. In the Phase 5 write model it is derived from canonical/source anchors, not caller supplied by ordinary material upsert. |
 | `MaterialAvailability` | `playable | restricted | unavailable | unknown` | Computed availability axis, not core material identity. |
 | `CanonicalRecordStatus` | `active | provisional | merged | archived` | Canonical storage/maintenance status. `archived` replaces old rejected canonical status. |
-| `owner_material_relations.status` | `active | removed | rejected` | Owner relation adoption/rejection state; not material lifecycle or canonical status. |
+| `owner_material_relations.status` | `active | removed | archived` | Owner relation lifecycle/adoption state; not material lifecycle or canonical status. |
 | `pending_identity` | Old mixed state. | Remove from material lifecycle and relation status. |
 
 ## Collection And Owner Relation Vocabulary
@@ -155,7 +155,7 @@ The formal model separates these objects:
 | --- | --- | --- |
 | `Collection` | User-named organizing container for materials. | Owns grouping, ordering, description, and collection-local notes. |
 | `collection_items` | Membership rows for user collections. | Not the source of truth for saved/favorite/blocked relations. |
-| `owner_material_relations` | Owner-scoped relation and feedback facts. | Owns saved, favorite, blocked, wrong_version, not_playable, bad_match, liked/disliked, and preference-like facts. |
+| `owner_material_relations` | Material-scope owner relation facts. | Phase 9 owns `saved`, `favorite`, and `blocked` only. Signals/reactions and problem/correction facts are separate future designs. |
 | `owner_material_entries` | Owner catalog projection entry. | Projection/read model, not independent command source of truth. |
 | `owner_material_catalog_view` | Owner catalog read projection. | Commands must write fact tables, then rebuild/maintain projection. |
 

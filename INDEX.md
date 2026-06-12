@@ -52,6 +52,14 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   projection schema, rebuild command, SQL view, and read port foundation.
 - `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`:
   implemented Phase 8 execution plan.
+- `docs/formal-rebuild/phase-9-owner-material-relations-foundation.md`:
+  implemented Phase 9 spec for owner-material relation source-of-truth,
+  scoped relation writes, relation projection, and material-scope blocked catalog
+  exclusion.
+- `docs/formal-rebuild/phase-9-owner-material-relations-foundation-implementation-plan.md`:
+  implemented Phase 9 execution plan for owner relation facts, scoped
+  relation commands, owner-relation projection, blocked catalog exclusion,
+  guards, and docs.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -75,11 +83,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   evidence, remaining gaps, and next candidate slices.
 - `docs/music-data-platform/README.md`: Music Data Platform area
   documentation entrypoint.
-- `docs/music-data-platform/design.md`: Music Data Platform identity and
-  source-library/owner-catalog design authority.
+- `docs/music-data-platform/design.md`: Music Data Platform identity,
+  source-library, owner relation, and owner-catalog design authority.
 - `docs/music-data-platform/ports.md`: Music Data Platform identity,
-  source-library, and owner-catalog ports, forbidden dependencies,
-  composition, and guards.
+  source-library, owner relation, and owner-catalog ports, forbidden
+  dependencies, composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
   state, verification evidence, and remaining gaps.
 
@@ -173,12 +181,22 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   source-library item, import batch, and item outcome repositories.
 - `src/music_data_platform/material_ref_factory.ts`: opaque material ref
   factory.
-- `src/music_data_platform/owner_catalog_schema.ts`: owner catalog projection
-  table and SQL view contribution.
+- `src/music_data_platform/ref_digest.ts`: internal deterministic ref digest
+  helper shared by source-library and owner-relation refs.
+- `src/music_data_platform/owner_material_relation_ref.ts`: owner material
+  relation ref and owner relation pool ref helpers.
+- `src/music_data_platform/owner_material_relation_schema.ts`: owner material
+  relation fact schema contribution.
+- `src/music_data_platform/owner_material_relation_records.ts`: internal owner
+  material relation read port.
+- `src/music_data_platform/owner_material_relation_commands.ts`: owner
+  material relation write commands.
+- `src/music_data_platform/owner_catalog_schema.ts`: owner catalog entries
+  schema contribution and owner catalog SQL view contribution.
 - `src/music_data_platform/owner_catalog_records.ts`: internal owner catalog
   read port.
 - `src/music_data_platform/owner_catalog_projection.ts`: owner catalog rebuild
-  command.
+  commands for source-library and owner-relation projection scopes.
 - `src/music_data_platform/source_library_import.ts`: internal Library Import
   application service.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.

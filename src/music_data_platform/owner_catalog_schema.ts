@@ -1,7 +1,7 @@
 import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
-export const musicDataPlatformOwnerCatalogSchema: MusicDatabaseSchemaContribution = {
-  id: "music_data_platform.owner_catalog_v1",
+export const musicDataPlatformOwnerCatalogEntriesSchema: MusicDatabaseSchemaContribution = {
+  id: "music_data_platform.owner_catalog_entries_v1",
   apply(context) {
     context.run(`
       CREATE TABLE IF NOT EXISTS owner_material_entries (
@@ -32,7 +32,12 @@ export const musicDataPlatformOwnerCatalogSchema: MusicDatabaseSchemaContributio
       CREATE INDEX IF NOT EXISTS owner_material_entries_kind_ref_idx
       ON owner_material_entries(owner_scope, entry_kind, entry_ref_key, active)
     `);
+  },
+};
 
+export const musicDataPlatformOwnerCatalogViewSchema: MusicDatabaseSchemaContribution = {
+  id: "music_data_platform.owner_catalog_view_v1",
+  apply(context) {
     context.run("DROP VIEW IF EXISTS owner_material_catalog_view");
     context.run(`
       CREATE VIEW owner_material_catalog_view AS
@@ -41,12 +46,26 @@ export const musicDataPlatformOwnerCatalogSchema: MusicDatabaseSchemaContributio
         e.material_ref_key,
         COUNT(*) AS positive_entry_count,
         MAX(e.updated_at) AS updated_at,
-        MAX(
-          COALESCE(
-            json_extract(e.provenance_json, '$.lastProviderAddedAt'),
-            json_extract(e.provenance_json, '$.lastAddedAt'),
-            e.created_at
-          )
+        COALESCE(
+          MAX(
+            CASE
+              WHEN json_extract(e.provenance_json, '$.lastProviderAddedAt') IS NOT NULL
+              THEN json_extract(e.provenance_json, '$.lastProviderAddedAt')
+            END
+          ),
+          MAX(
+            CASE
+              WHEN json_extract(e.provenance_json, '$.lastAddedAt') IS NOT NULL
+              THEN json_extract(e.provenance_json, '$.lastAddedAt')
+            END
+          ),
+          MAX(
+            CASE
+              WHEN json_extract(e.provenance_json, '$.lastRelationUpdatedAt') IS NOT NULL
+              THEN json_extract(e.provenance_json, '$.lastRelationUpdatedAt')
+            END
+          ),
+          MAX(e.created_at)
         ) AS recently_added_at,
         json_group_array(json(e.provenance_json)) AS provenance_json
       FROM owner_material_entries e
@@ -55,6 +74,14 @@ export const musicDataPlatformOwnerCatalogSchema: MusicDatabaseSchemaContributio
       WHERE e.active = 1
         AND e.visibility_role = 'positive'
         AND m.lifecycle_status = 'active'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM owner_material_relations r
+          WHERE r.owner_scope = e.owner_scope
+            AND r.material_ref_key = e.material_ref_key
+            AND r.relation_kind = 'blocked'
+            AND r.status = 'active'
+        )
       GROUP BY e.owner_scope, e.material_ref_key
     `);
   },

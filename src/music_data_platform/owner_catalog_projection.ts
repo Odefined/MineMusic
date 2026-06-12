@@ -1,6 +1,11 @@
 import { refKey, type Ref } from "../contracts/index.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
+import {
+  assertOwnerRelationEntryKind,
+  createOwnerRelationPoolRef,
+  type OwnerRelationEntryKind,
+} from "./owner_material_relation_ref.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
 
@@ -14,8 +19,20 @@ export type RebuildSourceLibraryEntriesInput = {
   libraryRef: Ref;
 };
 
-export type OwnerCatalogProjectionSummary = {
+export type RebuildOwnerRelationEntriesInput = {
+  ownerScope: string;
+  relationKind?: OwnerRelationEntryKind;
+  materialRef?: Ref;
+};
+
+export type SourceLibraryEntryProjectionSummary = {
   sourceLibraryItemCount: number;
+  projectedEntryCount: number;
+  obsoleteEntryDeleteCount: number;
+};
+
+export type OwnerRelationEntryProjectionSummary = {
+  relationFactCount: number;
   projectedEntryCount: number;
   obsoleteEntryDeleteCount: number;
 };
@@ -23,7 +40,10 @@ export type OwnerCatalogProjectionSummary = {
 export type OwnerCatalogProjectionCommands = {
   rebuildSourceLibraryEntries(
     input: RebuildSourceLibraryEntriesInput,
-  ): OwnerCatalogProjectionSummary;
+  ): SourceLibraryEntryProjectionSummary;
+  rebuildOwnerRelationEntries(
+    input: RebuildOwnerRelationEntriesInput,
+  ): OwnerRelationEntryProjectionSummary;
 };
 
 type SourceLibraryScopeRow = {
@@ -164,6 +184,176 @@ export function createOwnerCatalogProjectionCommands(
         obsoleteEntryDeleteCount,
       };
     },
+    rebuildOwnerRelationEntries(commandInput) {
+      assertOwnerScope(commandInput.ownerScope);
+
+      if (commandInput.materialRef !== undefined) {
+        refKey(commandInput.materialRef);
+      }
+
+      if (commandInput.relationKind !== undefined) {
+        assertOwnerRelationEntryKind(commandInput.relationKind);
+      }
+
+      const selectedRelationKinds = commandInput.relationKind === undefined
+        ? ["saved", "favorite"] satisfies readonly OwnerRelationEntryKind[]
+        : [commandInput.relationKind] satisfies readonly OwnerRelationEntryKind[];
+      const selectedPoolRefKeys = selectedRelationKinds.map((relationKind) =>
+        refKey(createOwnerRelationPoolRef({
+          ownerScope: commandInput.ownerScope,
+          relationKind,
+        }))
+      );
+      const materialRefKey = commandInput.materialRef === undefined
+        ? null
+        : refKey(commandInput.materialRef);
+      const relationKindPlaceholders = selectedRelationKinds.map(() => "?").join(", ");
+      const poolRefKeyPlaceholders = selectedPoolRefKeys.map(() => "?").join(", ");
+      const relationFactCount = countOwnerRelationFacts(
+        input.db,
+        commandInput.ownerScope,
+        selectedRelationKinds,
+        materialRefKey,
+      );
+
+      input.db.run(
+        `
+          INSERT INTO owner_material_entries (
+            entry_key,
+            owner_scope,
+            entry_kind,
+            entry_ref_key,
+            material_ref_key,
+            visibility_role,
+            active,
+            provenance_json,
+            created_at,
+            updated_at
+          )
+          SELECT
+            'ome_' || lower(hex(
+              r.owner_scope || '|' || 'owner_relation' || '|' ||
+              refKeyPool.owner_relation_pool_ref_key || '|' || r.material_ref_key
+            )) AS entry_key,
+            r.owner_scope,
+            'owner_relation' AS entry_kind,
+            refKeyPool.owner_relation_pool_ref_key AS entry_ref_key,
+            r.material_ref_key,
+            'positive' AS visibility_role,
+            1 AS active,
+            json_object(
+              'kind', 'owner_relation',
+              'relationKind', r.relation_kind,
+              'ownerRelationPoolRefKey', refKeyPool.owner_relation_pool_ref_key,
+              'relationFactCount', COUNT(*),
+              'lastRelationUpdatedAt', MAX(r.updated_at)
+            ) AS provenance_json,
+            ? AS created_at,
+            ? AS updated_at
+          FROM owner_material_relations r
+          JOIN material_records m
+            ON m.ref_key = r.material_ref_key
+          JOIN (
+            SELECT ? AS relation_kind, ? AS owner_relation_pool_ref_key
+            UNION ALL
+            SELECT ?, ?
+          ) AS refKeyPool
+            ON refKeyPool.relation_kind = r.relation_kind
+          WHERE r.owner_scope = ?
+            AND r.status = 'active'
+            AND r.relation_kind IN (${relationKindPlaceholders})
+            AND (? IS NULL OR r.material_ref_key = ?)
+            AND m.lifecycle_status = 'active'
+          GROUP BY
+            r.owner_scope,
+            refKeyPool.owner_relation_pool_ref_key,
+            r.material_ref_key,
+            r.relation_kind
+          ON CONFLICT(owner_scope, entry_kind, entry_ref_key, material_ref_key) DO UPDATE SET
+            visibility_role = excluded.visibility_role,
+            active = excluded.active,
+            provenance_json = excluded.provenance_json,
+            updated_at = excluded.updated_at
+        `,
+        [
+          input.now,
+          input.now,
+          "saved",
+          refKey(createOwnerRelationPoolRef({
+            ownerScope: commandInput.ownerScope,
+            relationKind: "saved",
+          })),
+          "favorite",
+          refKey(createOwnerRelationPoolRef({
+            ownerScope: commandInput.ownerScope,
+            relationKind: "favorite",
+          })),
+          commandInput.ownerScope,
+          ...selectedRelationKinds,
+          materialRefKey,
+          materialRefKey,
+        ],
+      );
+
+      const obsoleteEntryDeleteCount = countObsoleteOwnerRelationEntries(
+        input.db,
+        commandInput.ownerScope,
+        selectedPoolRefKeys,
+        selectedRelationKinds,
+        materialRefKey,
+      );
+
+      input.db.run(
+        `
+          DELETE FROM owner_material_entries
+          WHERE entry_kind = 'owner_relation'
+            AND owner_scope = ?
+            AND entry_ref_key IN (${poolRefKeyPlaceholders})
+            AND (? IS NULL OR material_ref_key = ?)
+            AND NOT EXISTS (
+              SELECT 1
+              FROM owner_material_relations r
+              JOIN material_records m
+                ON m.ref_key = r.material_ref_key
+              WHERE r.owner_scope = owner_material_entries.owner_scope
+                AND r.material_ref_key = owner_material_entries.material_ref_key
+                AND r.status = 'active'
+                AND r.relation_kind IN (${relationKindPlaceholders})
+                AND owner_material_entries.entry_ref_key = CASE r.relation_kind
+                  WHEN 'saved' THEN ?
+                  WHEN 'favorite' THEN ?
+                END
+                AND m.lifecycle_status = 'active'
+            )
+        `,
+        [
+          commandInput.ownerScope,
+          ...selectedPoolRefKeys,
+          materialRefKey,
+          materialRefKey,
+          ...selectedRelationKinds,
+          refKey(createOwnerRelationPoolRef({
+            ownerScope: commandInput.ownerScope,
+            relationKind: "saved",
+          })),
+          refKey(createOwnerRelationPoolRef({
+            ownerScope: commandInput.ownerScope,
+            relationKind: "favorite",
+          })),
+        ],
+      );
+
+      return {
+        relationFactCount,
+        projectedEntryCount: countProjectedOwnerRelationEntries(
+          input.db,
+          commandInput.ownerScope,
+          selectedPoolRefKeys,
+          materialRefKey,
+        ),
+        obsoleteEntryDeleteCount,
+      };
+    },
   };
 }
 
@@ -242,5 +432,111 @@ function countProjectedEntries(
         AND visibility_role = 'positive'
     `,
     [ownerScope, libraryRefKey],
+  )?.count ?? 0;
+}
+
+function countOwnerRelationFacts(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  relationKinds: readonly OwnerRelationEntryKind[],
+  materialRefKey: string | null,
+): number {
+  const placeholders = relationKinds.map(() => "?").join(", ");
+
+  return db.get<{ count: number }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_relations
+      WHERE owner_scope = ?
+        AND status = 'active'
+        AND relation_kind IN (${placeholders})
+        AND (? IS NULL OR material_ref_key = ?)
+    `,
+    [
+      ownerScope,
+      ...relationKinds,
+      materialRefKey,
+      materialRefKey,
+    ],
+  )?.count ?? 0;
+}
+
+function countObsoleteOwnerRelationEntries(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  selectedPoolRefKeys: readonly string[],
+  selectedRelationKinds: readonly OwnerRelationEntryKind[],
+  materialRefKey: string | null,
+): number {
+  const poolRefKeyPlaceholders = selectedPoolRefKeys.map(() => "?").join(", ");
+  const relationKindPlaceholders = selectedRelationKinds.map(() => "?").join(", ");
+
+  return db.get<{ count: number }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE entry_kind = 'owner_relation'
+        AND owner_scope = ?
+        AND entry_ref_key IN (${poolRefKeyPlaceholders})
+        AND (? IS NULL OR material_ref_key = ?)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM owner_material_relations r
+          JOIN material_records m
+            ON m.ref_key = r.material_ref_key
+          WHERE r.owner_scope = owner_material_entries.owner_scope
+            AND r.material_ref_key = owner_material_entries.material_ref_key
+            AND r.status = 'active'
+            AND r.relation_kind IN (${relationKindPlaceholders})
+            AND owner_material_entries.entry_ref_key = CASE r.relation_kind
+              WHEN 'saved' THEN ?
+              WHEN 'favorite' THEN ?
+            END
+            AND m.lifecycle_status = 'active'
+        )
+    `,
+    [
+      ownerScope,
+      ...selectedPoolRefKeys,
+      materialRefKey,
+      materialRefKey,
+      ...selectedRelationKinds,
+      refKey(createOwnerRelationPoolRef({
+        ownerScope,
+        relationKind: "saved",
+      })),
+      refKey(createOwnerRelationPoolRef({
+        ownerScope,
+        relationKind: "favorite",
+      })),
+    ],
+  )?.count ?? 0;
+}
+
+function countProjectedOwnerRelationEntries(
+  db: MusicDatabaseTransactionContext,
+  ownerScope: string,
+  selectedPoolRefKeys: readonly string[],
+  materialRefKey: string | null,
+): number {
+  const placeholders = selectedPoolRefKeys.map(() => "?").join(", ");
+
+  return db.get<{ count: number }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM owner_material_entries
+      WHERE owner_scope = ?
+        AND entry_kind = 'owner_relation'
+        AND entry_ref_key IN (${placeholders})
+        AND active = 1
+        AND visibility_role = 'positive'
+        AND (? IS NULL OR material_ref_key = ?)
+    `,
+    [
+      ownerScope,
+      ...selectedPoolRefKeys,
+      materialRefKey,
+      materialRefKey,
+    ],
   )?.count ?? 0;
 }

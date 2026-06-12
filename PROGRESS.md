@@ -406,6 +406,58 @@ implemented plan lives at
 `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
 
+## 2026-06-13: Phase 9 Owner Material Relations Foundation
+
+Phase 9 implements the first owner-relation fact family and the second owner
+catalog projection producer:
+
+- `src/music_data_platform/ref_digest.ts` now owns the shared deterministic ref
+  digest used by source-library refs, owner material relation refs, and owner
+  relation pool refs;
+- `createOwnerMaterialRelationRef(...)` introduces deterministic
+  `owner_material_relation:<kind>:r_<opaque>` refs;
+- `createOwnerRelationPoolRef(...)` introduces deterministic
+  `owner_material_relation_pool:<kind>:rp_<opaque>` refs for positive
+  owner-relation projection scopes;
+- `musicDataPlatformOwnerCatalogSchema` is removed in favor of explicit schema
+  contribution order:
+  `musicDataPlatformOwnerCatalogEntriesSchema ->
+  musicDataPlatformOwnerRelationSchema ->
+  musicDataPlatformOwnerCatalogViewSchema`;
+- `musicDataPlatformOwnerRelationSchema` creates
+  `owner_material_relations` with deterministic relation identity, explicit
+  origin, `active | removed | archived` status, optional note, and semantic
+  target uniqueness;
+- `createOwnerMaterialRelationCommands({ db, now })` implements
+  `recordOwnerMaterialRelation(...)` and `removeOwnerMaterialRelation(...)`;
+- owner relation writes validate active material targets, require explicit
+  origin, preserve `created_at`, reactivate removed/archived rows, and never
+  delete fact rows;
+- `createOwnerMaterialRelationRecords({ db })` provides deterministic target
+  reads and active-by-default relation listing;
+- `createOwnerCatalogProjectionCommands({ db, now })` now also implements
+  `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })`;
+- owner-relation entries use `entry_kind = owner_relation` plus
+  `entry_ref_key = refKey(ownerRelationPoolRef)`, not per-material relation
+  refs;
+- `blocked` is not projected to `owner_material_entries`; it excludes ordinary
+  catalog rows directly through `owner_material_catalog_view`;
+- owner catalog `recently_added_at` now preserves source-library
+  provider/library time priority over owner-relation update time when both
+  provenance families exist;
+- default Server Host composition now initializes identity schema,
+  source-library schema, owner catalog entries schema, owner relation schema,
+  and the final owner catalog view schema together;
+- tests guard owner relation refs, schema shape, explicit origin, relation
+  status transitions, blocked exclusion, mixed provenance priority, scoped
+  cleanup, and inactive-material projection skip behavior.
+
+The implemented Phase 9 spec lives at
+`docs/formal-rebuild/phase-9-owner-material-relations-foundation.md`. The
+implemented plan lives at
+`docs/formal-rebuild/phase-9-owner-material-relations-foundation-implementation-plan.md`.
+Current Music Data Platform docs live under `docs/music-data-platform/`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -418,7 +470,8 @@ in scope. Known later areas include:
   plugin;
 - Server Host transports and richer Stage Core runtime composition after area
   boundaries stabilize;
-- Music Data Platform Collection and owner-relation source-of-truth writes;
+- Music Data Platform Collection writes and later owner catalog producers such
+  as signals/problem facts;
 - local pool query, owner catalog query/read APIs, and Library Update baselines;
 - canonical maintenance workflow;
 - Music Intelligence Retrieval and Knowledge;

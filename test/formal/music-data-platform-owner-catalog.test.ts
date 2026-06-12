@@ -13,7 +13,9 @@ import {
   createSourceLibraryRepositories,
   isMusicDataPlatformError,
   musicDataPlatformIdentitySchema,
-  musicDataPlatformOwnerCatalogSchema,
+  musicDataPlatformOwnerCatalogEntriesSchema,
+  musicDataPlatformOwnerCatalogViewSchema,
+  musicDataPlatformOwnerRelationSchema,
   musicDataPlatformSourceLibrarySchema,
   type OwnerCatalogMaterialRecord,
   type OwnerMaterialEntryRecord,
@@ -460,7 +462,9 @@ function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
     schemas: [
       musicDataPlatformIdentitySchema,
       musicDataPlatformSourceLibrarySchema,
-      musicDataPlatformOwnerCatalogSchema,
+      musicDataPlatformOwnerCatalogEntriesSchema,
+      musicDataPlatformOwnerRelationSchema,
+      musicDataPlatformOwnerCatalogViewSchema,
     ],
   });
 
