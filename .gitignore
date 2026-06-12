@@ -3,7 +3,10 @@
 node_modules/
 .npm-cache/
 .tmp/
+.tmp*/
 .tmp-test/
+.tmp-test 2/
+*.tsbuildinfo
 
 # Old snapshots and large local artifacts are not authority for the fresh MVP.
 archive 2/

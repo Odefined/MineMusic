@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
@@ -78,6 +79,21 @@ const deletedVocabulary = [
   "Legacy" + "Music" + "Material",
   "Legacy" + "Source" + "Material",
 ];
+
+const trackedArtifactFailures = gitTrackedFiles().filter((file) => {
+  const pathParts = file.split("/");
+
+  return pathParts.some((part) => part.startsWith(".tmp")) ||
+    file.endsWith(".tsbuildinfo") ||
+    file.endsWith(".js") ||
+    file.endsWith(".d.ts") ||
+    file.endsWith(".js.map");
+});
+assert.deepEqual(
+  trackedArtifactFailures,
+  [],
+  "tracked build artifacts must not enter the active repository tree",
+);
 
 for (const root of removedRuntimeRoots) {
   assert.equal(
@@ -380,6 +396,13 @@ async function sourceFilesUnder(root: string): Promise<string[]> {
   }
 
   return files;
+}
+
+function gitTrackedFiles(): string[] {
+  return execFileSync("git", ["ls-files"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  }).split(/\r?\n/).filter(Boolean);
 }
 
 function forbiddenImportHits(text: string, forbiddenImports: readonly string[]): string[] {
