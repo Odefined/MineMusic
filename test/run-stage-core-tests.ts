@@ -6,6 +6,7 @@ const testModules = [
   "./formal/music-database.test.js",
   "./formal/music-data-platform-identity.test.js",
   "./formal/music-data-platform-source-library.test.js",
+  "./formal/music-data-platform-owner-relations.test.js",
   "./formal/music-data-platform-owner-catalog.test.js",
   "./formal/stage-runtime.test.js",
   "./formal/server-host.test.js",

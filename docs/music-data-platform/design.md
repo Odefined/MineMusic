@@ -1,15 +1,15 @@
 # Music Data Platform Design
 
-> Status: Current design authority for implemented Phase 8
-> Scope: Identity write model, source-library import, and owner catalog projection foundation
+> Status: Current design authority for implemented Phase 9
+> Scope: Identity write model, source-library import, owner material relation foundation, and owner catalog projection
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
 source-to-material binding facts, and the source-library import persistence
 foundation that lets later phases move from provider account-library
-observations to MineMusic source-backed material anchors. It also owns the
-first owner catalog projection/read-model foundation built from those durable
-facts.
+observations to MineMusic source-backed material anchors. It also owns
+material-scope owner relation facts and the internal owner catalog
+projection/read-model foundation built from those durable facts.
 
 ## Core Concepts
 
@@ -24,8 +24,11 @@ facts.
 | Source-library import batch | Durable run boundary for account-library paging and counts. | One provider/library kind per batch; start and continue only. |
 | Source-library item outcome | Per-candidate outcome within an import batch. | `imported`, `already_present`, or `failed`; compact error only for failed items. |
 | Source-library ref | Formal identity of one source library. | `source_library:<kind>:l_<opaque>` derived from owner/provider/account/library identity. |
+| `owner_material_relations` | Current-state material-scope owner relation facts. | One row per `ownerScope + materialRef + relationKind`; Phase 9 supports `saved`, `favorite`, and `blocked` only. |
+| Owner material relation ref | Deterministic current relation fact identity. | `owner_material_relation:<kind>:r_<opaque>` derived from owner scope, material ref key, and relation kind. |
+| Owner relation pool ref | Deterministic positive owner-relation projection scope. | `owner_material_relation_pool:<kind>:rp_<opaque>` derived from owner scope and positive relation kind. |
 | `owner_material_entries` | Owner catalog projection row. | One row per `owner_scope + entry_kind + entry_ref_key + material_ref_key`; not source-of-truth. |
-| `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material for later query phases. |
+| `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material and excludes active material-scope blocked facts. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
 | Identity write command | Internal write boundary for invariant-preserving mutations. | Created with transaction-scoped `db` and caller-supplied `now`. |
@@ -308,10 +311,54 @@ Phase 8 does not introduce a second material creation policy, direct material
 row construction inside import callers, or synchronous owner catalog projection
 refresh on the import path.
 
+## Owner Material Relations
+
+Phase 9 adds material-scope owner relation facts as a current-state write/read
+foundation.
+
+Fact storage is:
+
+```text
+owner_material_relations
+```
+
+Phase 9 supports only:
+
+```text
+saved
+favorite
+blocked
+```
+
+Each fact row stores deterministic relation identity, owner scope, material
+ref, relation kind, explicit origin, current status, optional note, and
+timestamps. Relation status is `active | removed | archived`.
+
+`recordOwnerMaterialRelation(...)` and `removeOwnerMaterialRelation(...)` are
+Music Data Platform write commands over `MusicDatabaseTransactionContext`.
+They validate explicit owner scope, deterministic relation target, and active
+material target. They do not write `material_records`, source-library facts,
+Collection facts, query rows, or Stage Interface DTOs.
+
+`favorite` does not implicitly create `saved`. `blocked` does not archive or
+remove `saved` or `favorite`. These are separate current-state facts.
+
+Phase 9 read records are internal only:
+
+```text
+getOwnerMaterialRelation(...)
+listOwnerMaterialRelations(...)
+```
+
+`getOwnerMaterialRelation` returns the deterministic row regardless of status.
+`listOwnerMaterialRelations` defaults to active rows only; removed or archived
+facts require an explicit single-status filter.
+
 ## Owner Catalog Projection Foundation
 
-Phase 8 introduces the first internal owner catalog projection/read-model
-foundation.
+Phase 8 introduced the first internal owner catalog projection/read-model
+foundation. Phase 9 extends that foundation with owner-relation projection and
+blocked catalog exclusion.
 
 Projection source-of-truth remains:
 
@@ -341,14 +388,24 @@ active
 provenance_json
 ```
 
-For Phase 8, only `entry_kind = source_library` is produced. If multiple
-source-library items in the same source library bind to the same material, they
-collapse into one owner-material entry with compact provenance.
+Current producers are:
+
+```text
+source_library
+owner_relation
+```
+
+Source-library entries collapse multiple items in the same library/material
+scope into one owner-material entry with compact provenance. Owner-relation
+entries collapse one positive relation pool and one material into one
+projection row. `blocked` is not projected to `owner_material_entries`.
 
 `owner_material_catalog_view` is a SQL read model over active positive entries.
 It groups by `owner_scope + material_ref_key`, tracks `positive_entry_count`,
-prefers provider-added timestamps when deriving `recently_added_at`, and keeps
-aggregated provenance for internal query/debug follow-up.
+prefers source-library provider/library timestamps over owner-relation
+timestamps when deriving `recently_added_at`, excludes active material-scope
+blocked facts through `NOT EXISTS`, and keeps aggregated provenance for
+internal query/debug follow-up.
 
 Projection rebuild is command-owned. `rebuildSourceLibraryEntries` validates
 `ownerScope`, validates `libraryRef`, fails on missing source-library scope or
@@ -356,9 +413,14 @@ owner mismatch, fails when source-library items somehow exist without current
 bindings, rebuilds one source-library scope through SQL set operations, and
 deletes obsolete owner-entry rows after source rebind or material merge.
 
+`rebuildOwnerRelationEntries` rebuilds `saved` and/or `favorite` owner-relation
+entry scopes through SQL set operations, stores compact owner-relation
+provenance, cleans obsolete owner-relation entries only inside the selected
+relation pool/material scope, and never deletes `source_library` rows.
+
 Callers do not construct projection rows themselves. Projection maintenance is
-not public Stage Interface behavior in Phase 8, and import does not
-synchronously rebuild the projection.
+not public Stage Interface behavior, and ordinary owner relation writes do not
+implicitly rebuild the projection.
 
 ## Material Merge
 
@@ -384,18 +446,18 @@ collections, rewrite projections, or touch presentation history.
 
 ## Out Of Scope
 
-- owner facts;
 - Collection membership;
 - public Stage Interface import tools;
 - update baselines and removed-from-library reconciliation;
 - local pool query, text/FTS query, and query result shaping;
-- Collection / owner-relation source-of-truth writes and additional owner
-  catalog producers;
+- Collection source-of-truth writes and additional owner catalog producers
+  beyond source-library and owner-relation;
 - query/retrieval/ranking;
 - provider execution or provider config;
 - Stage Interface tools or public DTOs;
 - dirty-projection marking, scheduling, or automatic rebuild orchestration;
 - canonical review/merge/split workflow;
 - direct source-canonical evidence model;
+- wrong-version, not-playable, bad-match, feedback, correction, or signals;
 - command audit;
 - provider login, OAuth, cookie refresh, or reauth.

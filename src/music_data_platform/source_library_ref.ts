@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import {
   assertRefSafe,
   isRefComponentSafe,
@@ -8,6 +6,7 @@ import {
 } from "../contracts/index.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
+import { createDeterministicRefDigest } from "./ref_digest.js";
 
 export type CreateSourceLibraryRefInput = {
   ownerScope: string;
@@ -22,20 +21,15 @@ export function createSourceLibraryRef(input: CreateSourceLibraryRefInput): Ref 
   assertSafeId(input.providerAccountId, "Provider account id");
   assertPlatformLibraryKind(input.libraryKind);
 
-  const digest = createHash("sha256")
-    .update([
+  const libraryRef = {
+    namespace: "source_library",
+    kind: input.libraryKind,
+    id: `l_${createDeterministicRefDigest([
       input.ownerScope,
       input.providerId,
       input.providerAccountId,
       input.libraryKind,
-    ].join("\u0000"))
-    .digest("hex")
-    .slice(0, 24);
-
-  const libraryRef = {
-    namespace: "source_library",
-    kind: input.libraryKind,
-    id: `l_${digest}`,
+    ])}`,
   } satisfies Ref;
 
   assertRefSafe(libraryRef);

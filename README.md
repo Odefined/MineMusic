@@ -36,8 +36,11 @@ foundation, the Phase 5 Music Data Platform identity write model, and the
 Phase 6 Source Provider Slot search seam with a default NCM source-provider
 plugin, the Phase 7 source-library import foundation with Platform Library
 Provider Slot, NCM saved-library reads, and internal Music Data Platform import
-wiring, plus the Phase 8 owner catalog projection foundation with
-library-ref-based source-library facts and an internal SQL catalog view.
+wiring, the Phase 8 owner catalog projection foundation with
+library-ref-based source-library facts and an internal SQL catalog view, and
+the Phase 9 owner material relation foundation with deterministic
+material-scope relation refs, current-state `owner_material_relations`,
+owner-relation projection, and blocked catalog exclusion.
 
 The skeleton creates a Stage Runtime, mounts Music Data Platform and Extension
 runtime modules, starts them through Server Host, and exposes a JSON status
@@ -49,7 +52,7 @@ internal runtime seams, not public Stage Interface tools.
 Host clients
   -> Server Host
   -> Stage Core
-  -> Music Data Platform source-library import
+  -> Music Data Platform identity/source-library/owner-relation facts
   -> Extension capability registration runtime
   -> Source Provider Slot search / Platform Library Provider reads
   -> Stage Interface

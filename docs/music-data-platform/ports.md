@@ -1,14 +1,15 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority for implemented Phase 8
-> Scope: Identity write model, source-library import, and owner catalog projection ports
+> Status: Current boundary authority for implemented Phase 9
+> Scope: Identity write model, source-library import, owner relation, and owner catalog projection ports
 
 Music Data Platform provides identity repositories, identity write commands,
-source-library repositories, Library Import service, source-library ref/owner
-scope helpers, owner catalog projection commands/read port, schema
-contributions, a material ref factory, and error types. It consumes generic
-Storage database ports and a narrow provider-library read port, but does not
-know SQLite primitives or provider plugin implementations.
+source-library repositories, Library Import service, source-library and owner
+relation ref helpers, owner relation commands/read port, owner catalog
+projection commands/read port, schema contributions, a material ref factory,
+and error types. It consumes generic Storage database ports and a narrow
+provider-library read port, but does not know SQLite primitives or provider
+plugin implementations.
 
 ## Provides
 
@@ -16,15 +17,21 @@ know SQLite primitives or provider plugin implementations.
 | --- | --- | --- | --- |
 | `musicDataPlatformIdentitySchema` | Storage initialization callers | Creates Phase 5 identity tables and source-material binding table. | `src/music_data_platform/identity_schema.ts` |
 | `musicDataPlatformSourceLibrarySchema` | Storage initialization callers | Creates `source_libraries`, `source_library_items`, and source-library import batch/outcome tables. | `src/music_data_platform/source_library_schema.ts` |
-| `musicDataPlatformOwnerCatalogSchema` | Storage initialization callers | Creates `owner_material_entries` and `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
+| `musicDataPlatformOwnerCatalogEntriesSchema` | Storage initialization callers | Creates `owner_material_entries`. | `src/music_data_platform/owner_catalog_schema.ts` |
+| `musicDataPlatformOwnerRelationSchema` | Storage initialization callers | Creates `owner_material_relations`. | `src/music_data_platform/owner_material_relation_schema.ts` |
+| `musicDataPlatformOwnerCatalogViewSchema` | Storage initialization callers | Creates the final `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
 | `createIdentityRepositories` | Internal commands/tests | Low-level source/material/canonical/binding persistence. | `src/music_data_platform/identity_records.ts` |
 | `createIdentityWriteCommands` | Internal Music Data Platform callers/tests | Invariant-preserving identity writes. | `src/music_data_platform/identity_write_model.ts` |
 | `assertOwnerScope` / `DEFAULT_OWNER_SCOPE` | Internal callers/tests | Validate owner-scope inputs and provide the current local default scope. | `src/music_data_platform/owner_scope.ts` |
 | `createSourceLibraryRef` / `assertSourceLibraryRef` | Internal callers/tests | Create and validate formal source-library refs. | `src/music_data_platform/source_library_ref.ts` |
+| `createOwnerMaterialRelationRef` / `assertOwnerMaterialRelationRef` | Internal callers/tests | Create and validate deterministic owner material relation refs. | `src/music_data_platform/owner_material_relation_ref.ts` |
+| `createOwnerRelationPoolRef` / `assertOwnerRelationPoolRef` | Internal callers/tests | Create and validate deterministic positive owner-relation pool refs. | `src/music_data_platform/owner_material_relation_ref.ts` |
 | `createSourceLibraryRepositories` | Library Import service/tests | Low-level source library, source library item, batch, and item outcome persistence. | `src/music_data_platform/source_library_records.ts` |
 | `createMaterialRefFactory` | Library Import service/composition/tests | Opaque MineMusic material ref generation for new material anchors. | `src/music_data_platform/material_ref_factory.ts` |
 | `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port. | `src/music_data_platform/source_library_import.ts` |
-| `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild one owner catalog source-library scope through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
+| `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
+| `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
+| `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild source-library and owner-relation owner catalog scopes through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
 | `MusicDataPlatformError` | Internal callers/tests | Music Data Platform-owned invariant errors. | `src/music_data_platform/errors.ts` |
 
@@ -70,6 +77,8 @@ Commands are created with `db: MusicDatabaseTransactionContext` and
 | `bindSourceToMaterial` | `sourceRef`, `materialRef`, optional `makePrimary` | after-state binding/material records | `source_material_bindings`, `material_records` |
 | `bindMaterialToCanonical` | `materialRef`, `canonicalRef` | after-state material record | `material_records` |
 | `mergeMaterialRecord` | loser/winner material refs, optional primary override | after-state loser/winner records and moved bindings | `source_material_bindings`, `material_records` |
+| `recordOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind`, explicit `origin`, optional `note` | current relation record | `owner_material_relations` |
+| `removeOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind` | current relation record | `owner_material_relations` |
 
 Command outputs are internal records. They are not agent-facing DTOs.
 
@@ -77,14 +86,16 @@ Command outputs are internal records. They are not agent-facing DTOs.
 
 | Port | Input | Output | Writes/Reads |
 | --- | --- | --- | --- |
-| `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntries({ ownerScope, libraryRef })` | writes `owner_material_entries` only |
+| `createOwnerMaterialRelationRecords({ db })` | database context | `getOwnerMaterialRelation(...)`, `listOwnerMaterialRelations(...)` | reads `owner_material_relations` |
+| `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntries({ ownerScope, libraryRef })` and `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })` | writes `owner_material_entries` only |
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
 
 Projection commands are Music Data Platform-owned database commands. They
-rebuild one source-library scope through SQL set operations, validate current
-source-library ownership/binding invariants, and delete obsolete rows inside the
-command boundary. Callers must not construct durable projection rows
-themselves.
+rebuild one source-library scope or one positive owner-relation pool scope
+through SQL set operations, validate current invariants, and delete obsolete
+rows inside the command boundary. `blocked` affects ordinary catalog
+visibility only through the SQL view and does not create owner-material entry
+rows. Callers must not construct durable projection rows themselves.
 
 ## Library Import Service
 
@@ -134,7 +145,7 @@ kind, and source kind must match the batch.
 
 Current guards:
 
-- active-tree test allows only the formal Phase 8 Music Data Platform source files;
+- active-tree test allows only the formal Phase 9 Music Data Platform source files;
 - active-tree test rejects Music Data Platform imports of SQLite primitives and
   unrelated formal roots;
 - contract test rejects `recordId` returning to source/material/canonical
@@ -150,19 +161,26 @@ Current guards:
   duplicate/idempotent import, per-item rollback, completed continuation,
   account mismatch and invalid-account failure, batch id collision,
   provider-read limit validation, and `maxNewItems` behavior.
+- owner relation tests cover deterministic relation/pool refs, schema
+  forbidden columns, explicit origin, status transitions, archived-row
+  reactivation, blocked exclusion, mixed provenance, scoped cleanup, and
+  inactive-material projection skip behavior.
 - owner catalog tests cover read-port shape, grouped source-library projection,
   idempotent rebuild, missing-library rejection, owner-scope mismatch, rebind
-  cleanup, material-merge cleanup, and empty-library rebuild.
+  cleanup, material-merge cleanup, and empty-library rebuild under the split
+  entries/relation/view schema order.
 
 ## Out Of Scope
 
-- owner facts beyond source-library projection output;
 - source-canonical binding tables;
 - command audit;
 - public import tools;
 - update baselines, removed-item reconciliation, local pool query, public query,
   and presentation;
-- Collection / owner-relation writes and additional owner catalog producers;
+- Collection writes and additional owner catalog producers beyond
+  source-library and owner-relation;
+- signals, wrong-version, not-playable, bad-match, feedback, or correction
+  fact families;
 - dirty-projection marking, scheduler/worker orchestration, or automatic import
   refresh;
 - canonical review/merge/split workflow;

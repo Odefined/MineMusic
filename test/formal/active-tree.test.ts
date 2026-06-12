@@ -146,13 +146,18 @@ assert.deepEqual(
     "src/music_data_platform/owner_catalog_projection.ts",
     "src/music_data_platform/owner_catalog_records.ts",
     "src/music_data_platform/owner_catalog_schema.ts",
+    "src/music_data_platform/owner_material_relation_commands.ts",
+    "src/music_data_platform/owner_material_relation_records.ts",
+    "src/music_data_platform/owner_material_relation_ref.ts",
+    "src/music_data_platform/owner_material_relation_schema.ts",
     "src/music_data_platform/owner_scope.ts",
+    "src/music_data_platform/ref_digest.ts",
     "src/music_data_platform/source_library_import.ts",
     "src/music_data_platform/source_library_records.ts",
     "src/music_data_platform/source_library_ref.ts",
     "src/music_data_platform/source_library_schema.ts",
   ],
-  "Phase 8 formal Music Data Platform root must not grow unrelated implementations",
+  "Phase 9 formal Music Data Platform root must not grow unrelated implementations",
 );
 
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));

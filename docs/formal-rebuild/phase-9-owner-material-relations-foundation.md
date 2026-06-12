@@ -1,6 +1,6 @@
 # Phase 9 Owner Material Relations Foundation
 
-> Status: Draft Phase 9 spec
+> Status: Implemented Phase 9 spec
 > Phase owner: Music Data Platform / Owner Relations
 > Output type: Owner-material relation source-of-truth table, relation write/read
 > commands, and owner-relation projection producer for the existing owner
@@ -647,13 +647,26 @@ SELECT
   e.material_ref_key,
   COUNT(*) AS positive_entry_count,
   MAX(e.updated_at) AS updated_at,
-  MAX(
-    COALESCE(
-      json_extract(e.provenance_json, '$.lastProviderAddedAt'),
-      json_extract(e.provenance_json, '$.lastAddedAt'),
-      json_extract(e.provenance_json, '$.lastRelationUpdatedAt'),
-      e.created_at
-    )
+  COALESCE(
+    MAX(
+      CASE
+        WHEN json_extract(e.provenance_json, '$.lastProviderAddedAt') IS NOT NULL
+        THEN json_extract(e.provenance_json, '$.lastProviderAddedAt')
+      END
+    ),
+    MAX(
+      CASE
+        WHEN json_extract(e.provenance_json, '$.lastAddedAt') IS NOT NULL
+        THEN json_extract(e.provenance_json, '$.lastAddedAt')
+      END
+    ),
+    MAX(
+      CASE
+        WHEN json_extract(e.provenance_json, '$.lastRelationUpdatedAt') IS NOT NULL
+        THEN json_extract(e.provenance_json, '$.lastRelationUpdatedAt')
+      END
+    ),
+    MAX(e.created_at)
   ) AS recently_added_at,
   json_group_array(json(e.provenance_json)) AS provenance_json
 FROM owner_material_entries e

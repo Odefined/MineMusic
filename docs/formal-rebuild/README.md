@@ -27,8 +27,8 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-7-source-library-import-foundation-implementation-plan.md` | Implemented execution plan for Phase 7 Platform Library Provider Slot, NCM library import, source-backed material anchoring, runtime wiring, guards, and smoke verification. |
 | `phase-8-owner-catalog-projection-foundation.md` | Implemented Phase 8 spec for source-library fact rewrite, owner catalog projection schema, rebuild commands, SQL catalog view, and read-port foundation. |
 | `phase-8-owner-catalog-projection-foundation-implementation-plan.md` | Implemented execution plan for Phase 8 source-library fact rewrite, owner catalog projection schema, rebuild commands, read port, guards, and docs. |
-| `phase-9-owner-material-relations-foundation.md` | Draft Phase 9 spec for owner-material relation source-of-truth, scoped relation writes, relation projection, and material-scope blocked catalog exclusion. |
-| `phase-9-owner-material-relations-foundation-implementation-plan.md` | Draft Phase 9 execution plan for owner relation facts, scoped relation commands, owner-relation projection, blocked catalog exclusion, guards, and docs. |
+| `phase-9-owner-material-relations-foundation.md` | Implemented Phase 9 spec for owner-material relation source-of-truth, scoped relation writes, owner-relation projection, and material-scope blocked catalog exclusion. |
+| `phase-9-owner-material-relations-foundation-implementation-plan.md` | Implemented Phase 9 execution plan for owner relation facts, scoped relation commands, owner-relation projection, blocked catalog exclusion, guards, and docs. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

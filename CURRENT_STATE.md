@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 8 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 9 of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -16,7 +16,10 @@ import persistence, source-backed material anchoring, and default Server Host
 storage/import wiring. Phase 8 rewrites source-library facts around
 `source_libraries + source_library_items`, adds owner-scoped source-library
 refs, and introduces the first internal owner catalog projection schema,
-rebuild command, and SQL catalog view.
+rebuild command, and SQL catalog view. Phase 9 adds
+`owner_material_relations`, deterministic owner relation refs/pool refs,
+material-scope `saved/favorite/blocked`, owner-relation projection, and
+ordinary catalog exclusion for active blocked facts.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -221,12 +224,14 @@ Phase 7 Source Library Import vocabulary includes:
 - `npm run smoke:ncm:library` as an opt-in live source-library smoke command
   that skips unless `MINEMUSIC_LIVE_NCM_LIBRARY=1`.
 
-Phase 8 Owner Catalog Projection vocabulary includes:
+Phase 8/9 owner catalog and owner relation vocabulary includes:
 
 - `DEFAULT_OWNER_SCOPE = "local"` as the current default local owner/workspace
   scope;
 - `createSourceLibraryRef(...)` and `assertSourceLibraryRef(...)` for
   `source_library:<kind>:l_<opaque>` refs;
+- `createDeterministicRefDigest(...)` as the shared internal source-library /
+  owner-relation ref digest helper;
 - `musicDataPlatformSourceLibrarySchema` rewriting source-library storage into
   `source_libraries` plus `source_library_items(library_ref_key, source_ref_key)`;
 - `SourceLibraryRecord` keyed by `libraryRef`;
@@ -234,13 +239,31 @@ Phase 8 Owner Catalog Projection vocabulary includes:
   provider/account/library columns;
 - `SourceLibraryImportBatchRecord.ownerScope` plus optional resolved
   `libraryRef`;
-- `musicDataPlatformOwnerCatalogSchema` creating `owner_material_entries` and
-  `owner_material_catalog_view`;
+- `OwnerMaterialRelationKind = saved | favorite | blocked`;
+- `OwnerMaterialRelationOrigin = user_explicit | imported | system`;
+- `OwnerMaterialRelationStatus = active | removed | archived`;
+- `createOwnerMaterialRelationRef(...)` for
+  `owner_material_relation:<kind>:r_<opaque>`;
+- `createOwnerRelationPoolRef(...)` for
+  `owner_material_relation_pool:<kind>:rp_<opaque>`;
+- `musicDataPlatformOwnerCatalogEntriesSchema`,
+  `musicDataPlatformOwnerRelationSchema`, and
+  `musicDataPlatformOwnerCatalogViewSchema` as the split schema
+  contributions;
+- `createOwnerMaterialRelationCommands({ db, now })` with
+  `recordOwnerMaterialRelation(...)` and `removeOwnerMaterialRelation(...)`;
+- `createOwnerMaterialRelationRecords({ db })` as the internal owner relation
+  read port;
 - `createOwnerCatalogProjectionCommands({ db, now })` with
-  `rebuildSourceLibraryEntries({ ownerScope, libraryRef })`;
+  `rebuildSourceLibraryEntries({ ownerScope, libraryRef })` and
+  `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })`;
 - `createOwnerCatalogRecords({ db })` as the internal owner catalog read port;
 - source-library projection provenance stored as compact `provenance_json`, not
-  raw provider payload, query score, or `MaterialCard` output.
+  raw provider payload, query score, or `MaterialCard` output;
+- owner-relation projection provenance stored as compact
+  `kind/relationKind/ownerRelationPoolRefKey/relationFactCount/lastRelationUpdatedAt`;
+- `blocked` affecting ordinary catalog visibility through the catalog SQL view,
+  not through `owner_material_entries`.
 
 ## Deleted Formal v1 Surfaces
 
@@ -313,22 +336,32 @@ The active TypeScript tree is now a formal skeleton:
   commands;
 - `src/music_data_platform/owner_scope.ts` owns default owner-scope vocabulary
   and validation;
+- `src/music_data_platform/ref_digest.ts` owns the shared deterministic ref
+  digest helper for source-library and owner-relation refs;
 - `src/music_data_platform/source_library_ref.ts` owns source-library ref
   helpers;
+- `src/music_data_platform/owner_material_relation_ref.ts` owns owner material
+  relation ref/pool helpers and relation kind/origin/status validation;
 - `src/music_data_platform/source_library_schema.ts` owns Phase 8
   source-library fact/import schema contribution;
+- `src/music_data_platform/owner_material_relation_schema.ts` owns
+  `owner_material_relations` schema contribution;
 - `src/music_data_platform/source_library_records.ts` owns source-library,
   source-library item, import batch, and item outcome repositories;
+- `src/music_data_platform/owner_material_relation_records.ts` owns the
+  internal owner relation read port;
+- `src/music_data_platform/owner_material_relation_commands.ts` owns
+  current-state owner relation write commands;
 - `src/music_data_platform/material_ref_factory.ts` owns opaque material ref
   generation;
 - `src/music_data_platform/source_library_import.ts` owns the internal Library
   Import application service;
-- `src/music_data_platform/owner_catalog_schema.ts` owns owner catalog
-  projection table/view schema contribution;
+- `src/music_data_platform/owner_catalog_schema.ts` owns owner catalog entries
+  schema contribution and final catalog SQL view contribution;
 - `src/music_data_platform/owner_catalog_records.ts` owns the internal owner
   catalog read port;
 - `src/music_data_platform/owner_catalog_projection.ts` owns owner catalog
-  rebuild commands for source-library projection scope;
+  rebuild commands for source-library and owner-relation projection scopes;
 - `src/music_data_platform/index.ts` owns Music Data Platform public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
@@ -384,8 +417,8 @@ restored as compatibility layers.
 - `docs/music-data-platform/README.md`, `docs/music-data-platform/design.md`,
   `docs/music-data-platform/ports.md`, and
   `docs/music-data-platform/progress.md` are the current Music Data Platform
-  area docs for identity, source-library import, and owner catalog projection
-  foundation.
+  area docs for identity, source-library import, owner material relation, and
+  owner catalog projection foundation.
 - `docs/formal-rebuild/phase-6-source-provider-slot.md` records the
   implemented Phase 6 Source Provider Slot search spec.
 - `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`
@@ -398,6 +431,10 @@ restored as compatibility layers.
   the implemented Phase 8 owner catalog projection foundation spec.
 - `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`
   records the implemented Phase 8 execution plan.
+- `docs/formal-rebuild/phase-9-owner-material-relations-foundation.md`
+  records the implemented Phase 9 owner material relation foundation spec.
+- `docs/formal-rebuild/phase-9-owner-material-relations-foundation-implementation-plan.md`
+  records the implemented Phase 9 execution plan.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -412,7 +449,7 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 8 does not implement:
+Phase 9 does not implement:
 
 - public Stage Interface provider/search tools;
 - generic provider platform/runtime;
@@ -426,9 +463,8 @@ Phase 8 does not implement:
 - query-to-present flow;
 - final `MaterialCard` key set;
 - update baselines, removed-from-library reconciliation, collection,
-  owner-relation source-of-truth writes, additional owner catalog producers,
-  wrong-version, or
-  recording-to-work relation workflows;
+  additional owner catalog producers, wrong-version, not-playable, bad-match,
+  feedback/correction facts, signals, or recording-to-work relation workflows;
 - dirty-projection marking, background rebuild orchestration, or synchronous
   import-path projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;
@@ -440,7 +476,7 @@ contracts.
 
 ## Verification Pointers
 
-Phase 8 verification for this state should include:
+Phase 9 verification for this state should include:
 
 ```bash
 npm run typecheck

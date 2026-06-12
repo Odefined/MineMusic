@@ -25,6 +25,28 @@ export {
   assertSourceLibraryRef,
 } from "./source_library_ref.js";
 export {
+  createDeterministicRefDigest,
+} from "./ref_digest.js";
+export {
+  createOwnerMaterialRelationRef,
+  assertOwnerMaterialRelationRef,
+  createOwnerRelationPoolRef,
+  assertOwnerRelationPoolRef,
+  assertOwnerMaterialRelationKind,
+  assertOwnerRelationEntryKind,
+  assertOwnerMaterialRelationOrigin,
+  assertOwnerMaterialRelationStatus,
+  invalidOwnerMaterialRelation,
+} from "./owner_material_relation_ref.js";
+export type {
+  CreateOwnerMaterialRelationRefInput,
+  CreateOwnerRelationPoolRefInput,
+  OwnerMaterialRelationKind,
+  OwnerMaterialRelationOrigin,
+  OwnerMaterialRelationStatus,
+  OwnerRelationEntryKind,
+} from "./owner_material_relation_ref.js";
+export {
   createIdentityRepositories,
 } from "./identity_records.js";
 export type {
@@ -71,8 +93,12 @@ export type {
   SourceLibraryRepositories,
 } from "./source_library_records.js";
 export {
-  musicDataPlatformOwnerCatalogSchema,
+  musicDataPlatformOwnerCatalogEntriesSchema,
+  musicDataPlatformOwnerCatalogViewSchema,
 } from "./owner_catalog_schema.js";
+export {
+  musicDataPlatformOwnerRelationSchema,
+} from "./owner_material_relation_schema.js";
 export {
   createOwnerCatalogRecords,
 } from "./owner_catalog_records.js";
@@ -85,14 +111,35 @@ export type {
   OwnerMaterialEntryVisibilityRole,
 } from "./owner_catalog_records.js";
 export {
+  createOwnerMaterialRelationRecords,
+} from "./owner_material_relation_records.js";
+export type {
+  CreateOwnerMaterialRelationRecordsInput,
+  GetOwnerMaterialRelationInput,
+  ListOwnerMaterialRelationsInput,
+  OwnerMaterialRelationReadPort,
+  OwnerMaterialRelationRecord,
+} from "./owner_material_relation_records.js";
+export {
   createOwnerCatalogProjectionCommands,
 } from "./owner_catalog_projection.js";
 export type {
   CreateOwnerCatalogProjectionCommandsInput,
   OwnerCatalogProjectionCommands,
-  OwnerCatalogProjectionSummary,
+  OwnerRelationEntryProjectionSummary,
+  RebuildOwnerRelationEntriesInput,
   RebuildSourceLibraryEntriesInput,
+  SourceLibraryEntryProjectionSummary,
 } from "./owner_catalog_projection.js";
+export {
+  createOwnerMaterialRelationCommands,
+} from "./owner_material_relation_commands.js";
+export type {
+  CreateOwnerMaterialRelationCommandsInput,
+  OwnerMaterialRelationCommands,
+  RecordOwnerMaterialRelationInput,
+  RemoveOwnerMaterialRelationInput,
+} from "./owner_material_relation_commands.js";
 export {
   createSourceLibraryImportService,
 } from "./source_library_import.js";
