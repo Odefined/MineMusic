@@ -29,11 +29,6 @@ export {
   assertOwnerMaterialRelationRef,
   createOwnerRelationPoolRef,
   assertOwnerRelationPoolRef,
-  assertOwnerMaterialRelationKind,
-  assertOwnerRelationEntryKind,
-  assertOwnerMaterialRelationOrigin,
-  assertOwnerMaterialRelationStatus,
-  invalidOwnerMaterialRelation,
 } from "./owner_material_relation_ref.js";
 export type {
   CreateOwnerMaterialRelationRefInput,

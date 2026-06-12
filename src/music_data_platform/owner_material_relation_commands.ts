@@ -130,6 +130,7 @@ export function createOwnerMaterialRelationCommands(
       assertOwnerScope(commandInput.ownerScope);
       assertRefSafe(commandInput.materialRef);
       assertOwnerMaterialRelationKind(commandInput.relationKind);
+      requireActiveMaterial(input.db, commandInput.materialRef);
 
       const existing = records.getOwnerMaterialRelation({
         ownerScope: commandInput.ownerScope,

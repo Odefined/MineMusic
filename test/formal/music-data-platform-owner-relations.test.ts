@@ -524,8 +524,18 @@ const winnerValidationMaterialRef: Ref = {
 };
 validationDatabase.transaction((db) => {
   const identity = createIdentityWriteCommands({ db, now: "2026-06-13T00:13:00.000Z" });
+  const relations = createOwnerMaterialRelationCommands({
+    db,
+    now: "2026-06-13T00:13:15.000Z",
+  });
   identity.upsertMaterialRecord({ materialRef: loserValidationMaterialRef, kind: "recording" });
   identity.upsertMaterialRecord({ materialRef: winnerValidationMaterialRef, kind: "recording" });
+  relations.recordOwnerMaterialRelation({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: loserValidationMaterialRef,
+    relationKind: "saved",
+    origin: "user_explicit",
+  });
   identity.mergeMaterialRecord({
     loserMaterialRef: loserValidationMaterialRef,
     winnerMaterialRef: winnerValidationMaterialRef,
@@ -546,6 +556,29 @@ assert.throws(
     isMusicDataPlatformError(error) &&
     error.code === "music_data.material_not_writable",
 );
+assert.throws(
+  () => validationDatabase.transaction((db) =>
+    createOwnerMaterialRelationCommands({
+      db,
+      now: "2026-06-13T00:13:45.000Z",
+    }).removeOwnerMaterialRelation({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      materialRef: loserValidationMaterialRef,
+      relationKind: "saved",
+    })),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.material_not_writable",
+);
+const mergedTargetRelation = createOwnerMaterialRelationRecords({
+  db: validationDatabase.context(),
+}).getOwnerMaterialRelation({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  materialRef: loserValidationMaterialRef,
+  relationKind: "saved",
+});
+assert.equal(mergedTargetRelation?.status, "active");
+assert.equal(mergedTargetRelation?.updatedAt, "2026-06-13T00:13:15.000Z");
 assert.throws(
   () => validationDatabase.transaction((db) =>
     createOwnerMaterialRelationCommands({
