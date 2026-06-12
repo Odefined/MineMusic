@@ -52,6 +52,14 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   projection schema, rebuild command, SQL view, and read port foundation.
 - `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`:
   implemented Phase 8 execution plan.
+- `docs/formal-rebuild/phase-9-owner-material-relations-foundation.md`:
+  draft Phase 9 spec for owner-material relation source-of-truth, scoped
+  relation writes, relation projection, and material-scope blocked catalog
+  exclusion.
+- `docs/formal-rebuild/phase-9-owner-material-relations-foundation-implementation-plan.md`:
+  draft Phase 9 execution plan for owner relation facts, scoped relation
+  commands, owner-relation projection, blocked catalog exclusion, guards, and
+  docs.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

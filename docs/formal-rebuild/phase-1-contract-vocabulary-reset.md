@@ -448,9 +448,10 @@ Rules:
   `availabilityHint`, owner scoped corrections, and provider/account
   constraints.
 - `pending_identity` is removed from material lifecycle and relation status.
-- `owner_material_relations.status` keeps `active | removed | rejected` for
-  owner adoption/rejection facts. That is owner relation state, not canonical
-  status and not material lifecycle.
+- `owner_material_relations.status` uses `active | removed | archived` for
+  owner relation lifecycle/adoption facts after the Phase 9 owner-relation
+  vocabulary decision. That is owner relation state, not canonical status and
+  not material lifecycle.
 
 ## Plan
 
