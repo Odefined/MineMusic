@@ -25,9 +25,6 @@ export {
   assertSourceLibraryRef,
 } from "./source_library_ref.js";
 export {
-  createDeterministicRefDigest,
-} from "./ref_digest.js";
-export {
   createOwnerMaterialRelationRef,
   assertOwnerMaterialRelationRef,
   createOwnerRelationPoolRef,
