@@ -358,6 +358,54 @@ execution plan lives at
 Current Music Data Platform docs live under `docs/music-data-platform/`, and
 Extension/NCM docs live under `docs/extension/`.
 
+## 2026-06-12: Phase 8 Owner Catalog Projection Foundation
+
+Phase 8 implements the first owner catalog projection/read-model foundation:
+
+- `DEFAULT_OWNER_SCOPE = "local"` is now the default local owner/workspace
+  scope for current source-library facts;
+- `createSourceLibraryRef(...)` and `assertSourceLibraryRef(...)` introduce
+  formal `source_library:<kind>:l_<opaque>` refs;
+- source-library storage is rewritten from provider/account/library/source item
+  identity to `source_libraries` plus
+  `source_library_items(library_ref_key, source_ref_key)`;
+- source-library items no longer duplicate provider/account/library columns;
+- source-library items depend on current
+  `source_material_bindings(source_ref_key)`, so source-library facts stay
+  material-bindable by construction;
+- import batches now persist `ownerScope` and resolved `libraryRef` when the
+  provider account is known;
+- Library Import continues to reuse the existing Phase 5 identity write path for
+  source/material/binding writes and does not introduce a second material
+  creation policy;
+- Phase 8 does not synchronously refresh owner catalog projection on the import
+  path;
+- `musicDataPlatformOwnerCatalogSchema` creates `owner_material_entries` and
+  `owner_material_catalog_view`;
+- `createOwnerCatalogProjectionCommands({ db, now })` rebuilds one
+  source-library projection scope through SQL set-based commands;
+- `createOwnerCatalogRecords({ db })` provides an internal owner catalog read
+  port for tests and later query phases;
+- owner catalog provenance stores compact projection basis such as
+  `libraryRefKey`, source-item count, added-time range, and last-seen time, not
+  raw provider payloads, score, rank, or card seeds;
+- owner catalog rebuild fails on missing source library, owner-scope mismatch,
+  or source-library items without current bindings;
+- owner catalog rebuild is idempotent and removes obsolete source-library
+  material rows after source rebind or material merge;
+- default Server Host composition now initializes identity schema,
+  source-library schema, and owner catalog schema together;
+- tests guard source-library fact rewrite shape, batch/library-ref integrity,
+  owner catalog projection/read-port shape, grouped projection, idempotent
+  rebuild, rebind cleanup, merge cleanup, empty-library rebuild, runtime wiring,
+  and active-tree boundaries.
+
+The implemented Phase 8 spec lives at
+`docs/formal-rebuild/phase-8-owner-catalog-projection-foundation.md`. The
+implemented plan lives at
+`docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`.
+Current Music Data Platform docs live under `docs/music-data-platform/`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -370,8 +418,8 @@ in scope. Known later areas include:
   plugin;
 - Server Host transports and richer Stage Core runtime composition after area
   boundaries stabilize;
-- Music Data Platform owner facts;
-- source-library projections, local pool query, and Library Update baselines;
+- Music Data Platform Collection and owner-relation source-of-truth writes;
+- local pool query, owner catalog query/read APIs, and Library Update baselines;
 - canonical maintenance workflow;
 - Music Intelligence Retrieval and Knowledge;
 - Music Experience radio/listening behavior;

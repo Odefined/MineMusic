@@ -242,7 +242,9 @@ facts belong to owner-scoped relations, not system collections.
 
 Owner catalog entries/views are projections/read models. Commands write fact
 tables and maintain projections; they do not treat projections as independent
-source-of-truth.
+source-of-truth. When commands rebuild, merge, or refresh projection scopes,
+that set maintenance belongs inside database-owned command statements, not in
+caller-owned row construction or row-by-row TypeScript merge loops.
 
 ## Music Intelligence, Experience, And Memory
 

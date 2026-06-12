@@ -1,13 +1,15 @@
 # Music Data Platform Design
 
-> Status: Current design authority for implemented Phase 7
-> Scope: Identity write model and source-library import foundation
+> Status: Current design authority for implemented Phase 8
+> Scope: Identity write model, source-library import, and owner catalog projection foundation
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
 source-to-material binding facts, and the source-library import persistence
 foundation that lets later phases move from provider account-library
-observations to MineMusic source-backed material anchors.
+observations to MineMusic source-backed material anchors. It also owns the
+first owner catalog projection/read-model foundation built from those durable
+facts.
 
 ## Core Concepts
 
@@ -17,9 +19,13 @@ observations to MineMusic source-backed material anchors.
 | `MaterialRecord` | Storage record for MineMusic material identity. | Keyed by `refKey(entity.materialRef)`; `sourceRefs` are maintained by binding/merge commands only. |
 | `CanonicalRecord` | Storage record for canonical identity authority. | Keyed by `refKey(entity.canonicalRef)`; canonical merge workflow is out of scope. |
 | `source_material_bindings` | Current source-to-material truth/index. | One current binding per source; no status/history/evidence/kind fields. |
-| `SourceLibraryItem` | Current known provider-account library membership. | Keyed by provider id, provider account id, library kind, and source ref key; no material/canonical/query/projection/card fields. |
+| `SourceLibrary` | Current known provider-account library scope. | Keyed by `refKey(libraryRef)` with owner/provider/account/library uniqueness. |
+| `SourceLibraryItem` | Current known membership inside one source library. | Keyed by `libraryRef + sourceRefKey`; no material/canonical/query/card fields. |
 | Source-library import batch | Durable run boundary for account-library paging and counts. | One provider/library kind per batch; start and continue only. |
 | Source-library item outcome | Per-candidate outcome within an import batch. | `imported`, `already_present`, or `failed`; compact error only for failed items. |
+| Source-library ref | Formal identity of one source library. | `source_library:<kind>:l_<opaque>` derived from owner/provider/account/library identity. |
+| `owner_material_entries` | Owner catalog projection row. | One row per `owner_scope + entry_kind + entry_ref_key + material_ref_key`; not source-of-truth. |
+| `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material for later query phases. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
 | Identity write command | Internal write boundary for invariant-preserving mutations. | Created with transaction-scoped `db` and caller-supplied `now`. |
@@ -44,7 +50,7 @@ Phase 5 repositories and commands do not generate source/material/canonical
 refs. Upstream provider normalization, materialization, or canonical
 maintenance code supplies refs; Phase 5 validates and persists them.
 
-Phase 7 Library Import creates new source-backed material refs only through the
+Phase 7/8 Library Import creates new source-backed material refs only through the
 shared material ref factory. The generated id is opaque and does not encode
 provider id, account id, source ref, provider entity id, canonical identity, or
 human-readable source text. Import idempotency comes from existing
@@ -194,15 +200,40 @@ does not parse raw provider payloads.
 Persisted source library items represent current known membership only:
 
 ```text
-provider_id
-provider_account_id
-library_kind
+library_ref_key
 source_ref_key
-added_at?
+added_at
 provider_added_at?
 first_imported_at
 last_seen_at
 ```
+
+Phase 8 splits current source-library facts into:
+
+```text
+source_libraries(
+  library_ref_key,
+  owner_scope,
+  provider_id,
+  provider_account_id,
+  library_kind,
+  created_at,
+  updated_at
+)
+
+source_library_items(
+  library_ref_key,
+  source_ref_key,
+  added_at,
+  provider_added_at?,
+  first_imported_at,
+  last_seen_at
+)
+```
+
+`libraryRef` is derived from owner/provider/account/library identity and is the
+formal identity of the source library itself. Item rows no longer duplicate
+provider id, provider account id, or library kind.
 
 `added_at` is MineMusic's local source-library membership time: it is set when
 the membership is first written locally and preserved on later imports.
@@ -224,7 +255,7 @@ followed_source_artist
 ```
 
 Batch statuses are `running`, `completed`, and `failed`. Completion reasons
-are `provider_exhausted` and `max_new_items_reached`. Phase 7 supports
+are `provider_exhausted` and `max_new_items_reached`. Phase 8 supports
 `startImport` and `continueImport` only; it does not support cancel, pause,
 resume, retry, update baseline, or removed-from-library reconciliation.
 
@@ -248,6 +279,11 @@ Per-item write failure rolls back only that candidate transaction, records a
 compact failed outcome, increments the failed count, and continues. Provider,
 page, account, cursor, or batch-scope failures mark the batch failed.
 
+Import batches persist `ownerScope` from the beginning and store
+`providerAccountId + libraryRef` once the provider account is resolved. Import
+creates or upserts the `SourceLibrary` before item writes and then uses
+`(libraryRef, sourceRefKey)` as the source-library item identity.
+
 Before item writes, the service validates that the provider page belongs to the
 batch provider id, batch library kind, resolved provider account, and expected
 `source_<providerId>` source namespace. A direct `PlatformLibraryReadPort`
@@ -258,6 +294,71 @@ Real provider-account library persistence requires a resolved non-empty,
 ref-safe `providerAccountId`. `startImport` may omit it only when the
 provider/API can resolve the current logged-in account in the first provider
 read. Later reads for the same batch must return the same account id.
+
+Library Import reuses the existing identity write path:
+
+1. upsert `SourceRecord`;
+2. reuse current `source_material_bindings` when present;
+3. create `MaterialRecord` only when no binding exists;
+4. bind source to material through `bindSourceToMaterial`;
+5. upsert `SourceLibrary` / `SourceLibraryItem`;
+6. record import outcome.
+
+Phase 8 does not introduce a second material creation policy, direct material
+row construction inside import callers, or synchronous owner catalog projection
+refresh on the import path.
+
+## Owner Catalog Projection Foundation
+
+Phase 8 introduces the first internal owner catalog projection/read-model
+foundation.
+
+Projection source-of-truth remains:
+
+```text
+source_libraries
+source_library_items
+source_material_bindings
+material_records
+```
+
+Projection output is:
+
+```text
+owner_material_entries
+owner_material_catalog_view
+```
+
+`owner_material_entries` stores one row per owner-facing source and material:
+
+```text
+owner_scope
+entry_kind
+entry_ref_key
+material_ref_key
+visibility_role
+active
+provenance_json
+```
+
+For Phase 8, only `entry_kind = source_library` is produced. If multiple
+source-library items in the same source library bind to the same material, they
+collapse into one owner-material entry with compact provenance.
+
+`owner_material_catalog_view` is a SQL read model over active positive entries.
+It groups by `owner_scope + material_ref_key`, tracks `positive_entry_count`,
+prefers provider-added timestamps when deriving `recently_added_at`, and keeps
+aggregated provenance for internal query/debug follow-up.
+
+Projection rebuild is command-owned. `rebuildSourceLibraryEntries` validates
+`ownerScope`, validates `libraryRef`, fails on missing source-library scope or
+owner mismatch, fails when source-library items somehow exist without current
+bindings, rebuilds one source-library scope through SQL set operations, and
+deletes obsolete owner-entry rows after source rebind or material merge.
+
+Callers do not construct projection rows themselves. Projection maintenance is
+not public Stage Interface behavior in Phase 8, and import does not
+synchronously rebuild the projection.
 
 ## Material Merge
 
@@ -287,10 +388,13 @@ collections, rewrite projections, or touch presentation history.
 - Collection membership;
 - public Stage Interface import tools;
 - update baselines and removed-from-library reconciliation;
-- source-library projections and local pool query;
+- local pool query, text/FTS query, and query result shaping;
+- Collection / owner-relation source-of-truth writes and additional owner
+  catalog producers;
 - query/retrieval/ranking;
 - provider execution or provider config;
 - Stage Interface tools or public DTOs;
+- dirty-projection marking, scheduling, or automatic rebuild orchestration;
 - canonical review/merge/split workflow;
 - direct source-canonical evidence model;
 - command audit;

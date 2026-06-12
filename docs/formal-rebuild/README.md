@@ -23,6 +23,10 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-5-music-data-platform-identity-write-model.md` | Implemented Phase 5 spec for Music Data Platform identity records, source-material binding facts, repositories, commands, and ref-key write boundary. |
 | `phase-6-source-provider-slot.md` | Implemented Phase 6 spec for Source Provider Slot search, NCM plugin, default composition, guards, docs, and smoke verification. |
 | `phase-6-source-provider-slot-implementation-plan.md` | Implemented execution plan for Source Provider Slot search, NCM plugin, default composition, guards, docs, and smoke verification. |
+| `phase-7-source-library-import-foundation.md` | Implemented Phase 7 spec for Platform Library Provider Slot, NCM source-library reads, source-backed material anchoring, runtime wiring, guards, docs, and smoke verification. |
+| `phase-7-source-library-import-foundation-implementation-plan.md` | Implemented execution plan for Phase 7 Platform Library Provider Slot, NCM library import, source-backed material anchoring, runtime wiring, guards, and smoke verification. |
+| `phase-8-owner-catalog-projection-foundation.md` | Implemented Phase 8 spec for source-library fact rewrite, owner catalog projection schema, rebuild commands, SQL catalog view, and read-port foundation. |
+| `phase-8-owner-catalog-projection-foundation-implementation-plan.md` | Implemented execution plan for Phase 8 source-library fact rewrite, owner catalog projection schema, rebuild commands, read port, guards, and docs. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

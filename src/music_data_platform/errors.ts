@@ -1,7 +1,12 @@
 export type MusicDataPlatformErrorCode =
   | "music_data.record_ref_key_mismatch"
   | "music_data.record_kind_mismatch"
+  | "music_data.owner_scope_invalid"
   | "music_data.source_provider_identity_conflict"
+  | "music_data.source_library_ref_invalid"
+  | "music_data.source_library_not_found"
+  | "music_data.source_library_owner_scope_mismatch"
+  | "music_data.source_library_binding_missing"
   | "music_data.material_primary_source_not_bound"
   | "music_data.material_not_writable"
   | "music_data.material_canonical_conflict"

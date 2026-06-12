@@ -17,6 +17,14 @@ export type {
   MaterialRefFactory,
 } from "./material_ref_factory.js";
 export {
+  DEFAULT_OWNER_SCOPE,
+  assertOwnerScope,
+} from "./owner_scope.js";
+export {
+  createSourceLibraryRef,
+  assertSourceLibraryRef,
+} from "./source_library_ref.js";
+export {
   createIdentityRepositories,
 } from "./identity_records.js";
 export type {
@@ -52,6 +60,8 @@ export {
 } from "./source_library_records.js";
 export type {
   CreateSourceLibraryRepositoriesInput,
+  SourceLibraryRecord,
+  SourceLibraryRepository,
   SourceLibraryImportBatchRecord,
   SourceLibraryImportBatchRepository,
   SourceLibraryImportItemOutcomeRecord,
@@ -60,6 +70,29 @@ export type {
   SourceLibraryItemRepository,
   SourceLibraryRepositories,
 } from "./source_library_records.js";
+export {
+  musicDataPlatformOwnerCatalogSchema,
+} from "./owner_catalog_schema.js";
+export {
+  createOwnerCatalogRecords,
+} from "./owner_catalog_records.js";
+export type {
+  CreateOwnerCatalogRecordsInput,
+  OwnerCatalogMaterialRecord,
+  OwnerCatalogReadPort,
+  OwnerMaterialEntryKind,
+  OwnerMaterialEntryRecord,
+  OwnerMaterialEntryVisibilityRole,
+} from "./owner_catalog_records.js";
+export {
+  createOwnerCatalogProjectionCommands,
+} from "./owner_catalog_projection.js";
+export type {
+  CreateOwnerCatalogProjectionCommandsInput,
+  OwnerCatalogProjectionCommands,
+  OwnerCatalogProjectionSummary,
+  RebuildSourceLibraryEntriesInput,
+} from "./owner_catalog_projection.js";
 export {
   createSourceLibraryImportService,
 } from "./source_library_import.js";

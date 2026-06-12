@@ -1,18 +1,33 @@
 import {
   refKey,
   type PlatformLibraryKind,
+  type Ref,
   type SourceLibraryImportBatchStatus,
   type SourceLibraryImportCompletionReason,
   type SourceLibraryImportItemOutcome,
 } from "../contracts/index.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
+import { MusicDataPlatformError } from "./errors.js";
+import { assertOwnerScope } from "./owner_scope.js";
+import {
+  assertSourceLibraryRef,
+  createSourceLibraryRef,
+} from "./source_library_ref.js";
 
-export type SourceLibraryItemRecord = {
+export type SourceLibraryRecord = {
+  libraryRef: Ref;
+  ownerScope: string;
   providerId: string;
   providerAccountId: string;
   libraryKind: PlatformLibraryKind;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SourceLibraryItemRecord = {
+  libraryRef: Ref;
   sourceRefKey: string;
-  addedAt?: string;
+  addedAt: string;
   providerAddedAt?: string;
   firstImportedAt: string;
   lastSeenAt: string;
@@ -20,9 +35,11 @@ export type SourceLibraryItemRecord = {
 
 export type SourceLibraryImportBatchRecord = {
   batchId: string;
+  ownerScope: string;
   providerId: string;
   providerAccountId?: string;
   libraryKind: PlatformLibraryKind;
+  libraryRef?: Ref;
   status: SourceLibraryImportBatchStatus;
   cursor?: string;
   maxNewItems?: number;
@@ -55,16 +72,26 @@ export type CreateSourceLibraryRepositoriesInput = {
 };
 
 export type SourceLibraryRepositories = {
+  libraries: SourceLibraryRepository;
   items: SourceLibraryItemRepository;
   batches: SourceLibraryImportBatchRepository;
   itemOutcomes: SourceLibraryImportItemOutcomeRepository;
 };
 
-export type SourceLibraryItemRepository = {
-  get(input: {
+export type SourceLibraryRepository = {
+  get(input: { libraryRef: Ref }): SourceLibraryRecord | undefined;
+  findByOwnerProviderIdentity(input: {
+    ownerScope: string;
     providerId: string;
     providerAccountId: string;
     libraryKind: PlatformLibraryKind;
+  }): SourceLibraryRecord | undefined;
+  upsert(record: SourceLibraryRecord): SourceLibraryRecord;
+};
+
+export type SourceLibraryItemRepository = {
+  get(input: {
+    libraryRef: Ref;
     sourceRefKey: string;
   }): SourceLibraryItemRecord | undefined;
   upsert(record: SourceLibraryItemRecord): SourceLibraryItemRecord;
@@ -81,22 +108,36 @@ export type SourceLibraryImportItemOutcomeRepository = {
   listForBatch(input: { batchId: string }): readonly SourceLibraryImportItemOutcomeRecord[];
 };
 
-type SourceLibraryItemRow = {
+type SourceLibraryRow = {
+  library_ref_key: string;
+  owner_scope: string;
   provider_id: string;
   provider_account_id: string;
   library_kind: PlatformLibraryKind;
+  created_at: string;
+  updated_at: string;
+};
+
+type SourceLibraryItemRow = {
+  library_ref_key: string;
   source_ref_key: string;
-  added_at: string | null;
+  added_at: string;
   provider_added_at: string | null;
   first_imported_at: string;
   last_seen_at: string;
+  owner_scope: string;
+  provider_id: string;
+  provider_account_id: string;
+  library_kind: PlatformLibraryKind;
 };
 
 type SourceLibraryImportBatchRow = {
   batch_id: string;
+  owner_scope: string;
   provider_id: string;
   provider_account_id: string | null;
   library_kind: PlatformLibraryKind;
+  library_ref_key: string | null;
   status: SourceLibraryImportBatchStatus;
   cursor: string | null;
   max_new_items: number | null;
@@ -129,52 +170,123 @@ export function createSourceLibraryRepositories(
 ): SourceLibraryRepositories {
   const { db } = input;
 
-  const items: SourceLibraryItemRepository = {
-    get(itemKey) {
-      const row = db.get<SourceLibraryItemRow>(
+  const libraries: SourceLibraryRepository = {
+    get(input) {
+      const row = db.get<SourceLibraryRow>(
+        "SELECT * FROM source_libraries WHERE library_ref_key = ?",
+        [refKey(input.libraryRef)],
+      );
+
+      return row === undefined ? undefined : sourceLibraryFromRow(row);
+    },
+    findByOwnerProviderIdentity(input) {
+      const row = db.get<SourceLibraryRow>(
         `
-          SELECT * FROM source_library_items
-          WHERE provider_id = ?
+          SELECT * FROM source_libraries
+          WHERE owner_scope = ?
+            AND provider_id = ?
             AND provider_account_id = ?
             AND library_kind = ?
-            AND source_ref_key = ?
         `,
         [
-          itemKey.providerId,
-          itemKey.providerAccountId,
-          itemKey.libraryKind,
-          itemKey.sourceRefKey,
+          input.ownerScope,
+          input.providerId,
+          input.providerAccountId,
+          input.libraryKind,
         ],
+      );
+
+      return row === undefined ? undefined : sourceLibraryFromRow(row);
+    },
+    upsert(record) {
+      assertSourceLibraryRecordConsistency(record);
+
+      db.run(
+        `
+          INSERT INTO source_libraries (
+            library_ref_key,
+            owner_scope,
+            provider_id,
+            provider_account_id,
+            library_kind,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(library_ref_key) DO UPDATE SET
+            owner_scope = excluded.owner_scope,
+            provider_id = excluded.provider_id,
+            provider_account_id = excluded.provider_account_id,
+            library_kind = excluded.library_kind,
+            updated_at = excluded.updated_at
+        `,
+        [
+          refKey(record.libraryRef),
+          record.ownerScope,
+          record.providerId,
+          record.providerAccountId,
+          record.libraryKind,
+          record.createdAt,
+          record.updatedAt,
+        ],
+      );
+
+      return requireRecord(
+        libraries.get({ libraryRef: record.libraryRef }),
+        "source library upsert did not return a stored record",
+      );
+    },
+  };
+
+  const items: SourceLibraryItemRepository = {
+    get(input) {
+      const row = db.get<SourceLibraryItemRow>(
+        `
+          SELECT
+            i.library_ref_key,
+            i.source_ref_key,
+            i.added_at,
+            i.provider_added_at,
+            i.first_imported_at,
+            i.last_seen_at,
+            l.owner_scope,
+            l.provider_id,
+            l.provider_account_id,
+            l.library_kind
+          FROM source_library_items i
+          JOIN source_libraries l
+            ON l.library_ref_key = i.library_ref_key
+          WHERE i.library_ref_key = ?
+            AND i.source_ref_key = ?
+        `,
+        [refKey(input.libraryRef), input.sourceRefKey],
       );
 
       return row === undefined ? undefined : sourceLibraryItemFromRow(row);
     },
     upsert(record) {
+      assertSourceLibraryItemRecordConsistency(record);
+
       db.run(
         `
           INSERT INTO source_library_items (
-            provider_id,
-            provider_account_id,
-            library_kind,
+            library_ref_key,
             source_ref_key,
             added_at,
             provider_added_at,
             first_imported_at,
             last_seen_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(provider_id, provider_account_id, library_kind, source_ref_key)
-          DO UPDATE SET
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(library_ref_key, source_ref_key) DO UPDATE SET
             added_at = excluded.added_at,
             provider_added_at = excluded.provider_added_at,
             last_seen_at = excluded.last_seen_at
         `,
         [
-          record.providerId,
-          record.providerAccountId,
-          record.libraryKind,
+          refKey(record.libraryRef),
           record.sourceRefKey,
-          record.addedAt ?? null,
+          record.addedAt,
           record.providerAddedAt ?? null,
           record.firstImportedAt,
           record.lastSeenAt,
@@ -183,9 +295,7 @@ export function createSourceLibraryRepositories(
 
       return requireRecord(
         items.get({
-          providerId: record.providerId,
-          providerAccountId: record.providerAccountId,
-          libraryKind: record.libraryKind,
+          libraryRef: record.libraryRef,
           sourceRefKey: record.sourceRefKey,
         }),
         "source library item upsert did not return a stored record",
@@ -203,13 +313,17 @@ export function createSourceLibraryRepositories(
       return row === undefined ? undefined : sourceLibraryImportBatchFromRow(row);
     },
     insert(record) {
+      assertSourceLibraryImportBatchConsistency(record);
+
       db.run(
         `
           INSERT INTO source_library_import_batches (
             batch_id,
+            owner_scope,
             provider_id,
             provider_account_id,
             library_kind,
+            library_ref_key,
             status,
             cursor,
             max_new_items,
@@ -223,13 +337,15 @@ export function createSourceLibraryRepositories(
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           record.batchId,
+          record.ownerScope,
           record.providerId,
           record.providerAccountId ?? null,
           record.libraryKind,
+          optionalRefKey(record.libraryRef),
           record.status,
           record.cursor ?? null,
           record.maxNewItems ?? null,
@@ -251,13 +367,17 @@ export function createSourceLibraryRepositories(
       );
     },
     upsert(record) {
+      assertSourceLibraryImportBatchConsistency(record);
+
       db.run(
         `
           INSERT INTO source_library_import_batches (
             batch_id,
+            owner_scope,
             provider_id,
             provider_account_id,
             library_kind,
+            library_ref_key,
             status,
             cursor,
             max_new_items,
@@ -271,9 +391,11 @@ export function createSourceLibraryRepositories(
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(batch_id) DO UPDATE SET
+            owner_scope = excluded.owner_scope,
             provider_account_id = excluded.provider_account_id,
+            library_ref_key = excluded.library_ref_key,
             status = excluded.status,
             cursor = excluded.cursor,
             processed_count = excluded.processed_count,
@@ -287,9 +409,11 @@ export function createSourceLibraryRepositories(
         `,
         [
           record.batchId,
+          record.ownerScope,
           record.providerId,
           record.providerAccountId ?? null,
           record.libraryKind,
+          optionalRefKey(record.libraryRef),
           record.status,
           record.cursor ?? null,
           record.maxNewItems ?? null,
@@ -359,6 +483,7 @@ export function createSourceLibraryRepositories(
   };
 
   return {
+    libraries,
     items,
     batches,
     itemOutcomes,
@@ -366,31 +491,55 @@ export function createSourceLibraryRepositories(
 }
 
 export function sourceLibraryItemKey(input: {
-  providerId: string;
-  providerAccountId: string;
-  libraryKind: PlatformLibraryKind;
+  libraryRef: Ref;
   sourceRef: Parameters<typeof refKey>[0];
 }): {
-  providerId: string;
-  providerAccountId: string;
-  libraryKind: PlatformLibraryKind;
+  libraryRefKey: string;
   sourceRefKey: string;
 } {
+  assertSourceLibraryRef(input.libraryRef);
+
   return {
-    providerId: input.providerId,
-    providerAccountId: input.providerAccountId,
-    libraryKind: input.libraryKind,
+    libraryRefKey: refKey(input.libraryRef),
     sourceRefKey: refKey(input.sourceRef),
   };
 }
 
-function sourceLibraryItemFromRow(row: SourceLibraryItemRow): SourceLibraryItemRecord {
-  return {
+function sourceLibraryFromRow(row: SourceLibraryRow): SourceLibraryRecord {
+  const libraryRef = createSourceLibraryRef({
+    ownerScope: row.owner_scope,
     providerId: row.provider_id,
     providerAccountId: row.provider_account_id,
     libraryKind: row.library_kind,
+  });
+
+  assertStoredLibraryRefMatchesRow(libraryRef, row.library_ref_key);
+
+  return {
+    libraryRef,
+    ownerScope: row.owner_scope,
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
+    libraryKind: row.library_kind,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function sourceLibraryItemFromRow(row: SourceLibraryItemRow): SourceLibraryItemRecord {
+  const libraryRef = createSourceLibraryRef({
+    ownerScope: row.owner_scope,
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
+    libraryKind: row.library_kind,
+  });
+
+  assertStoredLibraryRefMatchesRow(libraryRef, row.library_ref_key);
+
+  return {
+    libraryRef,
     sourceRefKey: row.source_ref_key,
-    ...(row.added_at === null ? {} : { addedAt: row.added_at }),
+    addedAt: row.added_at,
     ...(row.provider_added_at === null ? {} : { providerAddedAt: row.provider_added_at }),
     firstImportedAt: row.first_imported_at,
     lastSeenAt: row.last_seen_at,
@@ -398,8 +547,9 @@ function sourceLibraryItemFromRow(row: SourceLibraryItemRow): SourceLibraryItemR
 }
 
 function sourceLibraryImportBatchFromRow(row: SourceLibraryImportBatchRow): SourceLibraryImportBatchRecord {
-  return {
+  const record: SourceLibraryImportBatchRecord = {
     batchId: row.batch_id,
+    ownerScope: row.owner_scope,
     providerId: row.provider_id,
     ...(row.provider_account_id === null ? {} : { providerAccountId: row.provider_account_id }),
     libraryKind: row.library_kind,
@@ -415,6 +565,28 @@ function sourceLibraryImportBatchFromRow(row: SourceLibraryImportBatchRow): Sour
     ...(row.failure_message === null ? {} : { failureMessage: row.failure_message }),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+
+  if (row.library_ref_key === null) {
+    return record;
+  }
+
+  if (row.provider_account_id === null) {
+    throw new Error("Source library import batch stored library_ref_key without provider_account_id.");
+  }
+
+  const libraryRef = createSourceLibraryRef({
+    ownerScope: row.owner_scope,
+    providerId: row.provider_id,
+    providerAccountId: row.provider_account_id,
+    libraryKind: row.library_kind,
+  });
+
+  assertStoredLibraryRefMatchesRow(libraryRef, row.library_ref_key);
+
+  return {
+    ...record,
+    libraryRef,
   };
 }
 
@@ -433,6 +605,75 @@ function sourceLibraryImportItemOutcomeFromRow(
     ...(row.error_message === null ? {} : { errorMessage: row.error_message }),
     createdAt: row.created_at,
   };
+}
+
+function assertSourceLibraryRecordConsistency(record: SourceLibraryRecord): void {
+  assertOwnerScope(record.ownerScope);
+  assertSourceLibraryRef(record.libraryRef);
+
+  const expectedRef = createSourceLibraryRef({
+    ownerScope: record.ownerScope,
+    providerId: record.providerId,
+    providerAccountId: record.providerAccountId,
+    libraryKind: record.libraryKind,
+  });
+
+  if (refKey(expectedRef) !== refKey(record.libraryRef)) {
+    throw new MusicDataPlatformError({
+      code: "music_data.record_ref_key_mismatch",
+      message: "Source library ref does not match owner/provider/account/library identity.",
+    });
+  }
+}
+
+function assertSourceLibraryItemRecordConsistency(record: SourceLibraryItemRecord): void {
+  assertSourceLibraryRef(record.libraryRef);
+
+  if (record.addedAt.length === 0 || record.firstImportedAt.length === 0 || record.lastSeenAt.length === 0) {
+    throw new Error("Source library item timestamps must be non-empty strings.");
+  }
+}
+
+function assertSourceLibraryImportBatchConsistency(record: SourceLibraryImportBatchRecord): void {
+  assertOwnerScope(record.ownerScope);
+
+  if (record.libraryRef !== undefined) {
+    assertSourceLibraryRef(record.libraryRef);
+
+    if (record.providerAccountId === undefined) {
+      throw new MusicDataPlatformError({
+        code: "music_data.record_ref_key_mismatch",
+        message: "Source library import batch cannot store libraryRef without providerAccountId.",
+      });
+    }
+
+    const expectedRef = createSourceLibraryRef({
+      ownerScope: record.ownerScope,
+      providerId: record.providerId,
+      providerAccountId: record.providerAccountId,
+      libraryKind: record.libraryKind,
+    });
+
+    if (refKey(expectedRef) !== refKey(record.libraryRef)) {
+      throw new MusicDataPlatformError({
+        code: "music_data.record_ref_key_mismatch",
+        message: "Source library import batch libraryRef does not match owner/provider/account/library identity.",
+      });
+    }
+  }
+}
+
+function assertStoredLibraryRefMatchesRow(libraryRef: Ref, storedRefKey: string): void {
+  if (refKey(libraryRef) !== storedRefKey) {
+    throw new MusicDataPlatformError({
+      code: "music_data.record_ref_key_mismatch",
+      message: "Stored source library ref key does not match the derived source library ref.",
+    });
+  }
+}
+
+function optionalRefKey(ref: Ref | undefined): string | null {
+  return ref === undefined ? null : refKey(ref);
 }
 
 function requireRecord<T>(record: T | undefined, message: string): T {

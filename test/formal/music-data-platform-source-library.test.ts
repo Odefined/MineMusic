@@ -10,16 +10,18 @@ import {
   type SourceEntity,
 } from "../../src/contracts/index.js";
 import {
+  DEFAULT_OWNER_SCOPE,
   createIdentityWriteCommands,
   createMaterialRefFactory,
+  createSourceLibraryRef,
   createSourceLibraryImportService,
   createSourceLibraryRepositories,
   musicDataPlatformIdentitySchema,
   musicDataPlatformSourceLibrarySchema,
-  sourceLibraryItemKey,
   type PlatformLibraryReadPort,
   type SourceLibraryImportBatchRecord,
   type SourceLibraryImportItemOutcomeRecord,
+  type SourceLibraryRecord,
   type SourceLibraryItemRecord,
 } from "../../src/music_data_platform/index.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
@@ -38,12 +40,23 @@ type ProviderReadRequest = {
   request: PlatformLibraryReadInput;
 };
 
-export type _sourceLibraryItemRecordShape = Expect<
+export type _sourceLibraryRecordShape = Expect<
   Equal<
-    keyof SourceLibraryItemRecord,
+    keyof SourceLibraryRecord,
+    | "libraryRef"
+    | "ownerScope"
     | "providerId"
     | "providerAccountId"
     | "libraryKind"
+    | "createdAt"
+    | "updatedAt"
+  >
+>;
+
+export type _sourceLibraryItemRecordShape = Expect<
+  Equal<
+    keyof SourceLibraryItemRecord,
+    | "libraryRef"
     | "sourceRefKey"
     | "addedAt"
     | "providerAddedAt"
@@ -72,9 +85,11 @@ export type _sourceLibraryBatchRecordShape = Expect<
   Equal<
     keyof SourceLibraryImportBatchRecord,
     | "batchId"
+    | "ownerScope"
     | "providerId"
     | "providerAccountId"
     | "libraryKind"
+    | "libraryRef"
     | "status"
     | "cursor"
     | "maxNewItems"
@@ -115,17 +130,42 @@ repositoryDatabase.initialize({
 });
 
 repositoryDatabase.transaction((db) => {
-  createIdentityWriteCommands({ db, now: "2026-06-08T00:00:00.000Z" }).upsertSourceRecord({
-    entity: sourceTrack("1001", "Repository Track"),
+  const commands = createIdentityWriteCommands({ db, now: "2026-06-08T00:00:00.000Z" });
+  const source = sourceTrack("1001", "Repository Track");
+  const materialRef: Ref = {
+    namespace: "material",
+    kind: "recording",
+    id: "m_repo",
+  };
+
+  commands.upsertSourceRecord({
+    entity: source,
+  });
+  commands.upsertMaterialRecord({
+    materialRef,
+    kind: "recording",
+  });
+  commands.bindSourceToMaterial({
+    sourceRef: source.sourceRef,
+    materialRef,
+    makePrimary: true,
   });
 });
 
 repositoryDatabase.transaction((db) => {
   const repositories = createSourceLibraryRepositories({ db });
-  const item = repositories.items.upsert({
+  const libraryRef = sourceLibraryRef("130950618", "saved_source_track");
+  const library = repositories.libraries.upsert({
+    libraryRef,
+    ownerScope: DEFAULT_OWNER_SCOPE,
     providerId: "netease",
     providerAccountId: "130950618",
     libraryKind: "saved_source_track",
+    createdAt: "2026-06-08T00:00:00.000Z",
+    updatedAt: "2026-06-08T00:00:00.000Z",
+  });
+  const item = repositories.items.upsert({
+    libraryRef,
     sourceRefKey: refKey(sourceRef("track", "1001")),
     addedAt: "2026-06-08T00:00:00.000Z",
     providerAddedAt: "2026-06-07T00:00:00.000Z",
@@ -133,8 +173,10 @@ repositoryDatabase.transaction((db) => {
     lastSeenAt: "2026-06-08T00:00:00.000Z",
   });
 
+  assert.equal(refKey(library.libraryRef), refKey(libraryRef));
   assert.equal(item.addedAt, "2026-06-08T00:00:00.000Z");
   assert.equal(item.providerAddedAt, "2026-06-07T00:00:00.000Z");
+  assert.equal(refKey(item.libraryRef), refKey(libraryRef));
 
   const repeated = repositories.items.upsert({
     ...item,
@@ -148,9 +190,11 @@ repositoryDatabase.transaction((db) => {
 
   const batch = repositories.batches.upsert({
     batchId: "repo-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
     providerId: "netease",
     providerAccountId: "130950618",
     libraryKind: "saved_source_track",
+    libraryRef,
     status: "running",
     cursor: "10",
     maxNewItems: 50,
@@ -162,6 +206,8 @@ repositoryDatabase.transaction((db) => {
     updatedAt: "2026-06-08T00:00:00.000Z",
   });
   assert.equal(batch.cursor, "10");
+  assert.equal(batch.ownerScope, DEFAULT_OWNER_SCOPE);
+  assert.equal(refKey(batch.libraryRef ?? libraryRef), refKey(libraryRef));
 
   const outcome = repositories.itemOutcomes.insert({
     batchId: "repo-batch",
@@ -181,6 +227,9 @@ const itemColumns = repositoryDatabase.context().all<{ name: string }>(
   "PRAGMA table_info(source_library_items)",
 ).map((column) => column.name);
 for (const forbiddenColumn of [
+  "provider_id",
+  "provider_account_id",
+  "library_kind",
   "material_ref_key",
   "canonical_ref_key",
   "query",
@@ -192,6 +241,57 @@ for (const forbiddenColumn of [
 ]) {
   assert.equal(itemColumns.includes(forbiddenColumn), false);
 }
+const batchColumns = repositoryDatabase.context().all<{ name: string }>(
+  "PRAGMA table_info(source_library_import_batches)",
+).map((column) => column.name);
+assert.equal(batchColumns.includes("owner_scope"), true);
+assert.equal(batchColumns.includes("library_ref_key"), true);
+const itemForeignKeys = repositoryDatabase.context().all<{ table: string; from: string; to: string }>(
+  "PRAGMA foreign_key_list(source_library_items)",
+);
+assert.equal(
+  itemForeignKeys.some((row) =>
+    row.table === "source_libraries" && row.from === "library_ref_key" && row.to === "library_ref_key"
+  ),
+  true,
+);
+assert.equal(
+  itemForeignKeys.some((row) =>
+    row.table === "source_material_bindings" && row.from === "source_ref_key" && row.to === "source_ref_key"
+  ),
+  true,
+);
+assert.equal(
+  uniqueIndexCovers(repositoryDatabase, "source_libraries", [
+    "owner_scope",
+    "provider_id",
+    "provider_account_id",
+    "library_kind",
+  ]),
+  true,
+);
+assert.equal(
+  repositoryDatabase.context().all<{ table: string; from: string; to: string }>(
+    "PRAGMA foreign_key_list(source_library_import_batches)",
+  ).some((row) => row.table === "source_libraries" && row.from === "library_ref_key" && row.to === "library_ref_key"),
+  true,
+);
+assert.throws(() => repositoryDatabase.transaction((db) => {
+  createSourceLibraryRepositories({ db }).batches.upsert({
+    batchId: "invalid-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+    libraryRef: sourceLibraryRef("130950618", "saved_source_track"),
+    status: "running",
+    processedCount: 0,
+    importedCount: 0,
+    alreadyPresentCount: 0,
+    failedCount: 0,
+    createdAt: "2026-06-08T00:00:00.000Z",
+    updatedAt: "2026-06-08T00:00:00.000Z",
+  });
+}));
 repositoryDatabase.close();
 
 const materialRefFactory = createMaterialRefFactory({
@@ -240,7 +340,12 @@ const duplicateResult = await assertOk(duplicateImport.startImport({
 assert.equal(duplicateReads.requests[0]?.request.providerAccountId, undefined);
 assert.equal(duplicateReads.requests[0]?.request.limit, 2);
 assert.equal(duplicateResult.batch.status, "completed");
+assert.equal(duplicateResult.batch.ownerScope, DEFAULT_OWNER_SCOPE);
 assert.equal(duplicateResult.batch.providerAccountId, "130950618");
+assert.equal(
+  refKey(duplicateResult.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")),
+  refKey(sourceLibraryRef("130950618", "saved_source_track")),
+);
 assert.equal(duplicateResult.batch.completionReason, "provider_exhausted");
 assert.equal(duplicateResult.batch.processedCount, 2);
 assert.equal(duplicateResult.batch.importedCount, 1);
@@ -258,6 +363,7 @@ assert.equal(
 assert.deepEqual(
   {
     ...duplicateDatabase.context().get<{
+      library_ref_key: string;
       source_ref_key: string;
       added_at: string;
       provider_added_at: string | null;
@@ -266,6 +372,7 @@ assert.deepEqual(
     }>(
       `
         SELECT
+          library_ref_key,
           source_ref_key,
           added_at,
           provider_added_at,
@@ -276,6 +383,7 @@ assert.deepEqual(
     ),
   },
   {
+    library_ref_key: refKey(sourceLibraryRef("130950618", "saved_source_track")),
     source_ref_key: refKey(sourceRef("track", "1001")),
     added_at: "2026-06-08T01:00:00.000Z",
     provider_added_at: null,
@@ -337,6 +445,10 @@ const providerAddedAtStart = await assertOk(providerAddedAtImport.startImport({
 }));
 assert.equal(providerAddedAtStart.batch.status, "running");
 assert.equal(
+  refKey(providerAddedAtStart.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")),
+  refKey(sourceLibraryRef("130950618", "saved_source_track")),
+);
+assert.equal(
   providerAddedAtStart.itemResults[0]?.sourceLibraryItem?.addedAt,
   "2026-06-08T06:02:00.000Z",
 );
@@ -350,6 +462,10 @@ const providerAddedAtContinue = await assertOk(providerAddedAtImport.continueImp
 }));
 assert.equal(providerAddedAtContinue.batch.status, "completed");
 assert.equal(
+  refKey(providerAddedAtContinue.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")),
+  refKey(sourceLibraryRef("130950618", "saved_source_track")),
+);
+assert.equal(
   providerAddedAtContinue.itemResults[0]?.sourceLibraryItem?.addedAt,
   "2026-06-08T06:02:00.000Z",
 );
@@ -360,6 +476,7 @@ assert.equal(
 assert.deepEqual(
   {
     ...providerAddedAtDatabase.context().get<{
+      library_ref_key: string;
       added_at: string;
       provider_added_at: string;
       first_imported_at: string;
@@ -367,6 +484,7 @@ assert.deepEqual(
     }>(
       `
         SELECT
+          library_ref_key,
           added_at,
           provider_added_at,
           first_imported_at,
@@ -378,6 +496,7 @@ assert.deepEqual(
     ),
   },
   {
+    library_ref_key: refKey(sourceLibraryRef("130950618", "saved_source_track")),
     added_at: "2026-06-08T06:02:00.000Z",
     provider_added_at: "2026-06-07T01:00:00.000Z",
     first_imported_at: "2026-06-08T06:02:00.000Z",
@@ -906,12 +1025,49 @@ function sourceRef(kind: string, id: string): Ref {
   };
 }
 
+function sourceLibraryRef(
+  providerAccountId: string,
+  libraryKind: PlatformLibraryCandidate["libraryKind"],
+): Ref {
+  return createSourceLibraryRef({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId,
+    libraryKind,
+  });
+}
+
 function countRows(database: ReturnType<typeof SqliteMusicDatabase.open>, tableName: string): number {
   const row = database.context().get<{ count: number }>(
     `SELECT COUNT(*) AS count FROM ${tableName}`,
   );
 
   return row?.count ?? 0;
+}
+
+function uniqueIndexCovers(
+  database: ReturnType<typeof SqliteMusicDatabase.open>,
+  tableName: string,
+  columnNames: readonly string[],
+): boolean {
+  return database.context().all<{ name: string; unique: number }>(
+    `PRAGMA index_list(${quotedPragmaName(tableName)})`,
+  ).some((index) => {
+    if (index.unique !== 1) {
+      return false;
+    }
+
+    const indexColumns = database.context().all<{ name: string }>(
+      `PRAGMA index_info(${quotedPragmaName(index.name)})`,
+    ).map((column) => column.name);
+
+    return indexColumns.length === columnNames.length &&
+      columnNames.every((columnName) => indexColumns.includes(columnName));
+  });
+}
+
+function quotedPragmaName(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
 }
 
 function fixedNow(value: string): () => string {

@@ -47,6 +47,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   material ref factory, runtime wiring, guards, docs, and smoke verification.
 - `docs/formal-rebuild/phase-7-source-library-import-foundation-implementation-plan.md`:
   implemented Phase 7 execution plan.
+- `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation.md`:
+  implemented Phase 8 spec for source-library fact rewrite, owner catalog
+  projection schema, rebuild command, SQL view, and read port foundation.
+- `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`:
+  implemented Phase 8 execution plan.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -71,9 +76,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/music-data-platform/README.md`: Music Data Platform area
   documentation entrypoint.
 - `docs/music-data-platform/design.md`: Music Data Platform identity and
-  source-library import design authority.
-- `docs/music-data-platform/ports.md`: Music Data Platform identity write and
-  source-library import ports, forbidden dependencies, composition, and guards.
+  source-library/owner-catalog design authority.
+- `docs/music-data-platform/ports.md`: Music Data Platform identity,
+  source-library, and owner-catalog ports, forbidden dependencies,
+  composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
   state, verification evidence, and remaining gaps.
 
@@ -158,12 +164,21 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   source-to-material binding records.
 - `src/music_data_platform/identity_write_model.ts`: narrow identity write
   command factory.
-- `src/music_data_platform/source_library_schema.ts`: source-library import
-  schema contribution.
-- `src/music_data_platform/source_library_records.ts`: source-library item,
-  import batch, and item outcome repositories.
+- `src/music_data_platform/owner_scope.ts`: default owner-scope constant and
+  owner-scope validation.
+- `src/music_data_platform/source_library_ref.ts`: source-library ref helpers.
+- `src/music_data_platform/source_library_schema.ts`: source-library fact and
+  import-batch schema contribution.
+- `src/music_data_platform/source_library_records.ts`: source-library,
+  source-library item, import batch, and item outcome repositories.
 - `src/music_data_platform/material_ref_factory.ts`: opaque material ref
   factory.
+- `src/music_data_platform/owner_catalog_schema.ts`: owner catalog projection
+  table and SQL view contribution.
+- `src/music_data_platform/owner_catalog_records.ts`: internal owner catalog
+  read port.
+- `src/music_data_platform/owner_catalog_projection.ts`: owner catalog rebuild
+  command.
 - `src/music_data_platform/source_library_import.ts`: internal Library Import
   application service.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.

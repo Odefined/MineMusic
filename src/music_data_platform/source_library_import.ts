@@ -24,13 +24,14 @@ import {
   createIdentityWriteCommands,
 } from "./identity_write_model.js";
 import type { MaterialRefFactory } from "./material_ref_factory.js";
+import { DEFAULT_OWNER_SCOPE } from "./owner_scope.js";
 import {
   createSourceLibraryRepositories,
-  sourceLibraryItemKey,
   type SourceLibraryImportBatchRecord,
   type SourceLibraryImportItemOutcomeRecord,
   type SourceLibraryItemRecord,
 } from "./source_library_records.js";
+import { createSourceLibraryRef } from "./source_library_ref.js";
 
 export type PlatformLibraryReadPort = {
   readPlatformLibraryProvider(input: {
@@ -131,6 +132,7 @@ export function createSourceLibraryImportService(
 
         return ok(repositories.batches.insert({
           batchId,
+          ownerScope: DEFAULT_OWNER_SCOPE,
           providerId: startInput.providerId,
           ...(startInput.providerAccountId === undefined ? {} : { providerAccountId: startInput.providerAccountId }),
           libraryKind: startInput.libraryKind,
@@ -269,7 +271,7 @@ export function createSourceLibraryImportService(
       return candidateValidation;
     }
 
-    let batch = persistBatchProviderAccount(initialBatch, providerAccountId, now());
+    let batch = persistBatchLibraryScope(initialBatch, providerAccountId, now());
     const page: SourceLibraryImportProviderPage = {
       providerId: read.value.providerId,
       providerAccountId,
@@ -288,7 +290,7 @@ export function createSourceLibraryImportService(
         break;
       }
 
-      const itemResult = processCandidate(latestBatch, candidate, providerAccountId);
+      const itemResult = processCandidate(latestBatch, candidate);
       itemResults.push(itemResult);
       batch = requireBatch(batch.batchId);
     }
@@ -313,7 +315,6 @@ export function createSourceLibraryImportService(
   function processCandidate(
     batch: SourceLibraryImportBatchRecord,
     candidate: PlatformLibraryCandidate,
-    providerAccountId: string,
   ): SourceLibraryImportItemResult {
     try {
       return input.database.transaction((db) => {
@@ -321,11 +322,10 @@ export function createSourceLibraryImportService(
         const repositories = createSourceLibraryRepositories({ db });
         const identityRepositories = createIdentityRepositories({ db });
         const commands = createIdentityWriteCommands({ db, now: timestamp });
+        const batchScope = requireBatchLibraryScope(batch);
         const sourceRefKey = refKey(candidate.sourceEntity.sourceRef);
         const existingItem = repositories.items.get({
-          providerId: batch.providerId,
-          providerAccountId,
-          libraryKind: batch.libraryKind,
+          libraryRef: batchScope.libraryRef,
           sourceRefKey,
         });
         const nextAddedAt = existingItem?.addedAt ?? timestamp;
@@ -354,9 +354,7 @@ export function createSourceLibraryImportService(
         });
 
         const sourceLibraryItem = repositories.items.upsert({
-          providerId: batch.providerId,
-          providerAccountId,
-          libraryKind: batch.libraryKind,
+          libraryRef: batchScope.libraryRef,
           sourceRefKey,
           addedAt: nextAddedAt,
           ...(nextProviderAddedAt === undefined ? {} : { providerAddedAt: nextProviderAddedAt }),
@@ -448,19 +446,35 @@ export function createSourceLibraryImportService(
     );
   }
 
-  function persistBatchProviderAccount(
+  function persistBatchLibraryScope(
     batch: SourceLibraryImportBatchRecord,
     providerAccountId: string,
     timestamp: string,
   ): SourceLibraryImportBatchRecord {
-    if (batch.providerAccountId === providerAccountId) {
-      return batch;
-    }
-
     return input.database.transaction((db) => {
-      return createSourceLibraryRepositories({ db }).batches.upsert({
+      const repositories = createSourceLibraryRepositories({ db });
+      const libraryRef = createSourceLibraryRef({
+        ownerScope: batch.ownerScope,
+        providerId: batch.providerId,
+        providerAccountId,
+        libraryKind: batch.libraryKind,
+      });
+      const existingLibrary = repositories.libraries.get({ libraryRef });
+
+      repositories.libraries.upsert({
+        libraryRef,
+        ownerScope: batch.ownerScope,
+        providerId: batch.providerId,
+        providerAccountId,
+        libraryKind: batch.libraryKind,
+        createdAt: existingLibrary?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      });
+
+      return repositories.batches.upsert({
         ...batch,
         providerAccountId,
+        libraryRef,
         updatedAt: timestamp,
       });
     });
@@ -823,15 +837,26 @@ function sourceKindForLibraryKind(kind: PlatformLibraryKind): SourceEntity["kind
 
 function optionalSourceRefKey(candidate: PlatformLibraryCandidate): string | undefined {
   try {
-    return sourceLibraryItemKey({
-      providerId: candidate.sourceEntity.providerId,
-      providerAccountId: candidate.providerAccountId ?? "unknown",
-      libraryKind: candidate.libraryKind,
-      sourceRef: candidate.sourceEntity.sourceRef,
-    }).sourceRefKey;
+    return refKey(candidate.sourceEntity.sourceRef);
   } catch {
     return undefined;
   }
+}
+
+function requireBatchLibraryScope(
+  batch: SourceLibraryImportBatchRecord,
+): {
+  providerAccountId: string;
+  libraryRef: Ref;
+} {
+  if (batch.providerAccountId === undefined || batch.libraryRef === undefined) {
+    throw new Error("Source library import batch is missing resolved library scope.");
+  }
+
+  return {
+    providerAccountId: batch.providerAccountId,
+    libraryRef: batch.libraryRef,
+  };
 }
 
 function compactItemError(error: unknown): { code: string; message: string } {

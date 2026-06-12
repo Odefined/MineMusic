@@ -3,6 +3,7 @@ import {
   createMaterialRefFactory,
   createSourceLibraryImportService,
   musicDataPlatformIdentitySchema,
+  musicDataPlatformOwnerCatalogSchema,
   musicDataPlatformSourceLibrarySchema,
   type MaterialRefFactory,
   type SourceLibraryImportService,
@@ -48,6 +49,7 @@ export function createMusicDataPlatformRuntimeModule(
           schemas: [
             musicDataPlatformIdentitySchema,
             musicDataPlatformSourceLibrarySchema,
+            musicDataPlatformOwnerCatalogSchema,
           ],
         });
         sourceLibraryImportService = createSourceLibraryImportService({

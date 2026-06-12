@@ -34,9 +34,10 @@ the Phase 2 Stage Core runtime lifecycle baseline, the Phase 3 Extension
 capability-registration baseline, the Phase 4 generic Music Database
 foundation, the Phase 5 Music Data Platform identity write model, and the
 Phase 6 Source Provider Slot search seam with a default NCM source-provider
-plugin, and the Phase 7 source-library import foundation with Platform
-Library Provider Slot, NCM saved-library reads, and internal Music Data
-Platform import wiring.
+plugin, the Phase 7 source-library import foundation with Platform Library
+Provider Slot, NCM saved-library reads, and internal Music Data Platform import
+wiring, plus the Phase 8 owner catalog projection foundation with
+library-ref-based source-library facts and an internal SQL catalog view.
 
 The skeleton creates a Stage Runtime, mounts Music Data Platform and Extension
 runtime modules, starts them through Server Host, and exposes a JSON status
@@ -67,7 +68,7 @@ npm run smoke:ncm:library
 
 ## Current Runtime Non-Goals
 
-The current formal skeleton does not implement public provider/import tools,
-source-library projections, local pool query, autoplay, queue mutation, source
+The current formal skeleton does not implement public provider/import/query
+tools, local pool query, text/FTS query, autoplay, queue mutation, source
 writeback, playlist mutation, autonomous DJ sessions, query-to-present,
 handbook tools, music-domain tools, or final musical judgment.

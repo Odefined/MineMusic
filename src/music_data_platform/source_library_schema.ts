@@ -1,20 +1,39 @@
 import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContribution = {
-  id: "music_data_platform.source_library_v1",
+  id: "music_data_platform.source_library_v2",
   apply(context) {
+    if (requiresPhase8SourceLibraryReset(context)) {
+      context.run("DROP TABLE IF EXISTS source_library_import_item_outcomes");
+      context.run("DROP TABLE IF EXISTS source_library_import_batches");
+      context.run("DROP TABLE IF EXISTS source_library_items");
+      context.run("DROP TABLE IF EXISTS source_libraries");
+    }
+
     context.run(`
-      CREATE TABLE IF NOT EXISTS source_library_items (
+      CREATE TABLE IF NOT EXISTS source_libraries (
+        library_ref_key TEXT PRIMARY KEY,
+        owner_scope TEXT NOT NULL,
         provider_id TEXT NOT NULL,
         provider_account_id TEXT NOT NULL,
         library_kind TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(owner_scope, provider_id, provider_account_id, library_kind)
+      )
+    `);
+
+    context.run(`
+      CREATE TABLE IF NOT EXISTS source_library_items (
+        library_ref_key TEXT NOT NULL,
         source_ref_key TEXT NOT NULL,
-        added_at TEXT,
+        added_at TEXT NOT NULL,
         provider_added_at TEXT,
         first_imported_at TEXT NOT NULL,
         last_seen_at TEXT NOT NULL,
-        PRIMARY KEY(provider_id, provider_account_id, library_kind, source_ref_key),
-        FOREIGN KEY(source_ref_key) REFERENCES source_records(ref_key)
+        PRIMARY KEY(library_ref_key, source_ref_key),
+        FOREIGN KEY(library_ref_key) REFERENCES source_libraries(library_ref_key),
+        FOREIGN KEY(source_ref_key) REFERENCES source_material_bindings(source_ref_key)
       )
     `);
 
@@ -26,9 +45,11 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
     context.run(`
       CREATE TABLE IF NOT EXISTS source_library_import_batches (
         batch_id TEXT PRIMARY KEY,
+        owner_scope TEXT NOT NULL,
         provider_id TEXT NOT NULL,
         provider_account_id TEXT,
         library_kind TEXT NOT NULL,
+        library_ref_key TEXT,
         status TEXT NOT NULL,
         cursor TEXT,
         max_new_items INTEGER,
@@ -40,7 +61,8 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
         failure_code TEXT,
         failure_message TEXT,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(library_ref_key) REFERENCES source_libraries(library_ref_key)
       )
     `);
 
@@ -67,3 +89,20 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
     `);
   },
 };
+
+function requiresPhase8SourceLibraryReset(
+  context: Parameters<MusicDatabaseSchemaContribution["apply"]>[0],
+): boolean {
+  const itemColumns = context.all<{ name: string }>("PRAGMA table_info(source_library_items)");
+  const batchColumns = context.all<{ name: string }>("PRAGMA table_info(source_library_import_batches)");
+
+  if (itemColumns.length === 0 && batchColumns.length === 0) {
+    return false;
+  }
+
+  return itemColumns.some((column) =>
+    column.name === "provider_id" ||
+    column.name === "provider_account_id" ||
+    column.name === "library_kind",
+  ) || batchColumns.every((column) => column.name !== "owner_scope");
+}
