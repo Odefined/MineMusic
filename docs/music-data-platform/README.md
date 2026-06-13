@@ -1,7 +1,7 @@
 # Music Data Platform
 
-> Status: Current area documentation for implemented Phase 11B
-> Scope: Identity write model, source-library import, owner material relation, owner catalog projection, material text projection, and projection maintenance core
+> Status: Current area documentation for implemented Phase 11C
+> Scope: Identity write model, source-library import, owner material relation, owner catalog projection, material text projection, and projection maintenance wiring
 
 Music Data Platform owns formal music data truth. The implemented slices cover
 source/material/canonical identity records, current source-to-material binding
@@ -10,14 +10,16 @@ source-library import persistence, library-ref-based source-library facts,
 opaque material ref creation, the internal Library Import application service,
 material-scope owner relation facts, the internal owner catalog
 projection/read-model foundation, the owner-neutral material text
-projection/FTS foundation, and the internal projection maintenance core for
-typed dirty/failed targets plus explicit rebuild dispatch.
+projection/FTS foundation, the internal projection maintenance core for
+typed dirty/failed targets plus explicit rebuild dispatch, and a top-level
+source-of-truth write facade that wires durable writes into projection
+invalidation planning.
 
 This area does not yet implement Collection membership, Library Update
 baselines, removed-from-library reconciliation, local pool query,
 owner-scoped/public query, provider execution, Stage Interface tools,
-canonical review/merge workflow, source-of-truth invalidation wiring,
-background projection scheduler/worker orchestration, Memory, or Music
+canonical review/merge workflow, background projection scheduler/worker
+orchestration, Memory, or Music
 Experience.
 
 ## Documents
@@ -43,6 +45,7 @@ src/music_data_platform/material_ref_factory.ts
 src/music_data_platform/source_library_import.ts
 src/music_data_platform/source_library_records.ts
 src/music_data_platform/source_library_schema.ts
+src/music_data_platform/source_of_truth_write_commands.ts
 src/music_data_platform/owner_material_relation_ref.ts
 src/music_data_platform/owner_material_relation_schema.ts
 src/music_data_platform/owner_material_relation_records.ts

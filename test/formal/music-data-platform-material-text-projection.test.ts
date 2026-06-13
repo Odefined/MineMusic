@@ -6,7 +6,6 @@ import {
 } from "../../src/contracts/index.js";
 import * as musicDataPlatform from "../../src/music_data_platform/index.js";
 import {
-  createIdentityWriteCommands,
   createMaterialTextProjectionCommands,
   createMaterialTextProjectionRecords,
   isMusicDataPlatformError,
@@ -31,14 +30,27 @@ import {
 } from "../../src/music_data_platform/material_text_normalization.js";
 import {
   SqliteMusicDatabase,
-  type MusicDatabaseTransactionContext,
+    type MusicDatabaseTransactionContext,
 } from "../../src/storage/index.js";
+import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
+import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,
 >() => Value extends Right ? 1 : 2
   ? true
   : false;
+
+function createIdentityTestCommands(
+  db: Parameters<typeof createIdentityWriteCommands>[0]["db"],
+  now: string,
+) {
+  return createIdentityWriteCommands({
+    db,
+    now,
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+}
 
 type Expect<Check extends true> = Check;
 
@@ -212,7 +224,7 @@ assert.deepEqual(
 );
 
 schemaDatabase.transaction((db) => {
-  createIdentityWriteCommands({ db, now: "2026-06-13T10:00:00.000Z" }).upsertMaterialRecord({
+  createIdentityTestCommands(db, "2026-06-13T10:00:00.000Z").upsertMaterialRecord({
     materialRef: materialRef("recording", "m_schema"),
     kind: "recording",
   });
@@ -283,7 +295,7 @@ const duplicatePlainsongSource = sourceTrack("1002", "  PLAINSong  ", {
 });
 
 recordingDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T11:00:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T11:00:00.000Z");
 
   identity.upsertSourceRecord({ entity: primaryPlainsongSource });
   identity.upsertSourceRecord({ entity: duplicatePlainsongSource });
@@ -575,7 +587,7 @@ const orderingDatabase = initializedDatabase();
 const orderingMaterialRef = materialRef("recording", "m_ordering");
 const orderingCanonicalRef = canonicalRef("recording", "c_ordering");
 orderingDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T11:30:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T11:30:00.000Z");
   identity.upsertSourceRecord({
     entity: sourceTrack("1100", "Ordering Probe"),
   });
@@ -652,7 +664,7 @@ const batchOrderingRefs = [
   materialRef("recording", "夜"),
 ] as const;
 batchOrderingDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T11:40:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T11:40:00.000Z");
 
   for (const materialRefValue of batchOrderingRefs) {
     identity.upsertMaterialRecord({
@@ -692,7 +704,7 @@ batchOrderingDatabase.close();
 const emptyDatabase = initializedDatabase();
 const emptyMaterialRef = materialRef("recording", "m_empty");
 emptyDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T12:00:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T12:00:00.000Z");
   identity.upsertMaterialRecord({
     materialRef: emptyMaterialRef,
     kind: "recording",
@@ -766,7 +778,7 @@ const staleSource = sourceTrack("2001", "Stale Source", {
   artistLabels: ["Ghost Artist"],
 });
 staleBindingDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T13:00:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T13:00:00.000Z");
   identity.upsertSourceRecord({ entity: staleSource });
   identity.upsertMaterialRecord({
     materialRef: staleMaterialRef,
@@ -810,7 +822,7 @@ staleBindingDatabase.close();
 const orphanBindingDatabase = initializedDatabase();
 const orphanMaterialRef = materialRef("recording", "m_orphan_binding");
 orphanBindingDatabase.transaction((db) => {
-  createIdentityWriteCommands({ db, now: "2026-06-13T13:30:00.000Z" }).upsertMaterialRecord({
+  createIdentityTestCommands(db, "2026-06-13T13:30:00.000Z").upsertMaterialRecord({
     materialRef: orphanMaterialRef,
     kind: "recording",
   });
@@ -857,7 +869,7 @@ const archivedCanonicalMaterialRef = materialRef("recording", "m_archived_canoni
 const sourceBackedCanonicalRef = canonicalRef("recording", "c_source_backed");
 const archivedCanonicalRef = canonicalRef("recording", "c_archived");
 canonicalGuardDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T14:00:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T14:00:00.000Z");
   identity.upsertSourceRecord({
     entity: sourceTrack("3001", "Source Backed Title", {
       artistLabels: ["Test Artist"],
@@ -1001,7 +1013,7 @@ const artistMaterialRef = materialRef("artist", "m_artist");
 const albumCanonicalRef = canonicalRef("album", "c_album");
 const artistCanonicalRef = canonicalRef("artist", "c_artist");
 albumArtistDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T15:00:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T15:00:00.000Z");
   identity.upsertSourceRecord({
     entity: sourceAlbum("4001", "Kid A", {
       artistLabels: ["Radiohead"],
@@ -1147,7 +1159,7 @@ function seedOperatorProjection(
   database: ReturnType<typeof SqliteMusicDatabase.open>,
 ): MaterialTextProjectionReadPort {
   database.transaction((db) => {
-    const identity = createIdentityWriteCommands({ db, now: "2026-06-13T16:00:00.000Z" });
+    const identity = createIdentityTestCommands(db, "2026-06-13T16:00:00.000Z");
     const orMaterialRef = materialRef("recording", "m_or");
     const andMaterialRef = materialRef("recording", "m_and");
     const notMaterialRef = materialRef("recording", "m_not");

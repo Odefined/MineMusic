@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 11B projection maintenance core
+> Status: Implemented through Phase 11C source-of-truth invalidation wiring
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -110,14 +110,28 @@
 - `src/music_data_platform/projection_maintenance_schema.ts` contributes
   `projection_maintenance_targets` plus a pending-order index.
 - `src/music_data_platform/projection_maintenance_commands.ts` implements
-  typed dirty/clean/failed projection maintenance commands with deterministic
-  `pmt_` target keys and generation-aware completion.
+  typed invalidation/dirty/clean/failed projection maintenance commands with
+  deterministic `pmt_` target keys and generation-aware completion.
 - `src/music_data_platform/projection_maintenance_records.ts` exposes the
   internal projection maintenance read port for exact target lookup and
   pending dirty/failed target listing.
 - `src/music_data_platform/projection_maintenance_runner.ts` implements the
   internal rebuild runner that dispatches to owner catalog and material text
   projection commands one target transaction at a time.
+- `src/music_data_platform/source_of_truth_write_commands.ts` implements the
+  workflow-facing source-of-truth write facade for identity, source-library,
+  and owner relation writes.
+- Identity, source-library, and owner relation write commands now require a
+  narrow projection invalidation dependency and report typed source-of-truth
+  write scopes instead of writing dirty targets directly.
+- `markProjectionInvalidated({ writes })` plans target rows from typed
+  source/material/canonical/binding/library/relation write scopes inside the
+  same transaction as the source-of-truth write.
+- Library Import now uses the top-level source-of-truth write facade and does
+  not call lower-level identity/source-library write factories directly.
+- `source_library_items` no longer store `last_seen_at`; unchanged repeated
+  imports keep batch/outcome bookkeeping but do not rewrite the item row or
+  re-mark projection dirty.
 - Owner catalog provenance stores compact projection basis only; it does not
   store raw provider payload, query score/rank, `MaterialCard` data, or
   source-library `lastSeenAt`.
@@ -182,10 +196,12 @@
   conjunctive match semantics, operator escaping, canonical inclusion guards,
   bound-source truth from `source_material_bindings`, and active-empty plus
   delete-on-missing-or-inactive rebuild behavior.
-- Phase 11B tests cover projection maintenance schema shape, deterministic
-  payload/key generation, dirty-generation increments, failure clearing,
-  pending list limit/order, runner success dispatch, malformed-target retry,
-  rebuild rollback, and stale-generation skip behavior.
+- Phase 11C tests cover projection maintenance schema/record/command shapes,
+  deterministic payload/key generation, invalidation planning from typed write
+  scopes, dirty-generation increments, failure clearing, pending list
+  limit/order, runner success dispatch, malformed-target retry, rebuild
+  rollback, stale-generation skip behavior, command-owned invalidation
+  reporting, and top-level source-of-truth write wiring.
 - Active-tree architecture tests reject low-level repository factory calls
   outside owning command/read/projection boundaries and direct write tokens
   outside repository, command/projection, schema, and storage infrastructure
@@ -216,8 +232,6 @@ Out of the current Music Data Platform implementation:
 - update baselines and removed-from-library reconciliation;
 - local pool query, owner-scoped/public query, query/retrieval, and
   presentation;
-- source-of-truth invalidation wiring that marks projection targets dirty from
-  identity/source-library/relation write commands;
 - background scheduler/worker orchestration and automatic projection refresh
   policy;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction

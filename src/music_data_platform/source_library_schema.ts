@@ -1,7 +1,7 @@
 import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContribution = {
-  id: "music_data_platform.source_library_v2",
+  id: "music_data_platform.source_library_v3",
   apply(context) {
     if (requiresPhase8SourceLibraryReset(context)) {
       context.run("DROP TABLE IF EXISTS source_library_import_item_outcomes");
@@ -30,7 +30,6 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
         added_at TEXT NOT NULL,
         provider_added_at TEXT,
         first_imported_at TEXT NOT NULL,
-        last_seen_at TEXT NOT NULL,
         PRIMARY KEY(library_ref_key, source_ref_key),
         FOREIGN KEY(library_ref_key) REFERENCES source_libraries(library_ref_key),
         FOREIGN KEY(source_ref_key) REFERENCES source_material_bindings(source_ref_key)
@@ -103,6 +102,7 @@ function requiresPhase8SourceLibraryReset(
   return itemColumns.some((column) =>
     column.name === "provider_id" ||
     column.name === "provider_account_id" ||
-    column.name === "library_kind",
+    column.name === "library_kind" ||
+    column.name === "last_seen_at",
   ) || batchColumns.every((column) => column.name !== "owner_scope");
 }

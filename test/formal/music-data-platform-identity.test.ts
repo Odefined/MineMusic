@@ -9,7 +9,6 @@ import {
 } from "../../src/contracts/index.js";
 import type { MusicDatabaseContext } from "../../src/storage/index.js";
 import {
-  createIdentityWriteCommands,
   isMusicDataPlatformError,
   musicDataPlatformIdentitySchema,
   type MusicDataPlatformErrorCode,
@@ -17,7 +16,9 @@ import {
   type UpsertMaterialRecordInput,
 } from "../../src/music_data_platform/index.js";
 import { createIdentityRepositories } from "../../src/music_data_platform/identity_records.js";
+import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
+import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 const firstNow = "2026-06-07T00:00:00.000Z";
 const secondNow = "2026-06-07T00:01:00.000Z";
@@ -47,15 +48,31 @@ export type _upsertMaterialRecordInputShape = Expect<
 
 declare const nonTransactionContext: MusicDatabaseContext;
 if (false) {
-  // @ts-expect-error identity write commands require a transaction context
-  createIdentityWriteCommands({ db: nonTransactionContext, now: firstNow });
+  const projectionInvalidationCommands = createRecordingProjectionInvalidationCommands();
+  createIdentityWriteCommands({
+    // @ts-expect-error identity write commands require a transaction context
+    db: nonTransactionContext,
+    now: firstNow,
+    projectionInvalidationCommands,
+  });
 }
 
 const database = SqliteMusicDatabase.open({ filename: ":memory:" });
 database.initialize({ schemas: [musicDataPlatformIdentitySchema] });
 
+function createIdentityTestCommands(
+  db: Parameters<typeof createIdentityWriteCommands>[0]["db"],
+  now: string,
+) {
+  return createIdentityWriteCommands({
+    db,
+    now,
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+}
+
 database.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: firstNow });
+  const commands = createIdentityTestCommands(db, firstNow);
 
   const sourceOne = commands.upsertSourceRecord({
     entity: sourceTrack("source-1", "Source One"),
@@ -311,7 +328,7 @@ database.transaction((db) => {
 });
 
 database.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: secondNow });
+  const commands = createIdentityTestCommands(db, secondNow);
   const repositories = createIdentityRepositories({ db });
 
   commands.upsertMaterialRecord({
@@ -346,7 +363,7 @@ database.transaction((db) => {
 });
 
 database.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: thirdNow });
+  const commands = createIdentityTestCommands(db, thirdNow);
   const repositories = createIdentityRepositories({ db });
 
   commands.upsertSourceRecord({
@@ -507,12 +524,141 @@ database.transaction((db) => {
   );
 });
 
+const invalidationDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+invalidationDatabase.initialize({ schemas: [musicDataPlatformIdentitySchema] });
+const recordedInvalidation = createRecordingProjectionInvalidationCommands();
+invalidationDatabase.transaction((db) => {
+  const commands = createIdentityWriteCommands({
+    db,
+    now: "2026-06-07T00:10:00.000Z",
+    projectionInvalidationCommands: recordedInvalidation,
+  });
+  const sourceOne = sourceTrack("inv-source-1", "Invalidation Source One");
+  const sourceTwo = sourceTrack("inv-source-2", "Invalidation Source Two");
+  const firstMaterialRef = materialRef("inv-material-1");
+  const secondMaterialRef = materialRef("inv-material-2");
+  const loserMaterialRef = materialRef("inv-loser");
+
+  commands.upsertSourceRecord({ entity: sourceOne });
+  assert.deepEqual(recordedInvalidation.batches, [[{
+    writeKind: "source_record_written",
+    sourceRef: sourceOne.sourceRef,
+  }]]);
+
+  recordedInvalidation.clear();
+  commands.upsertMaterialRecord({
+    materialRef: firstMaterialRef,
+    kind: "recording",
+  });
+  assert.deepEqual(recordedInvalidation.batches, [[{
+    writeKind: "material_record_written",
+    materialRef: firstMaterialRef,
+  }]]);
+
+  recordedInvalidation.clear();
+  commands.upsertCanonicalRecord({
+    entity: canonicalEntity("inv-canonical", "Invalidation Canonical"),
+    status: "active",
+  });
+  assert.deepEqual(recordedInvalidation.batches, [[{
+    writeKind: "canonical_record_written",
+    canonicalRef: canonicalRef("inv-canonical"),
+  }]]);
+
+  recordedInvalidation.clear();
+  commands.bindSourceToMaterial({
+    sourceRef: sourceOne.sourceRef,
+    materialRef: firstMaterialRef,
+    makePrimary: true,
+  });
+  assert.deepEqual(recordedInvalidation.batches, [[
+    {
+      writeKind: "source_material_binding_written",
+      sourceRef: sourceOne.sourceRef,
+      nextMaterialRef: firstMaterialRef,
+    },
+    {
+      writeKind: "material_record_written",
+      materialRef: firstMaterialRef,
+    },
+  ]]);
+
+  commands.upsertMaterialRecord({
+    materialRef: secondMaterialRef,
+    kind: "recording",
+  });
+  recordedInvalidation.clear();
+  commands.bindSourceToMaterial({
+    sourceRef: sourceOne.sourceRef,
+    materialRef: secondMaterialRef,
+  });
+  assert.deepEqual(recordedInvalidation.batches, [[
+    {
+      writeKind: "source_material_binding_written",
+      sourceRef: sourceOne.sourceRef,
+      previousMaterialRef: firstMaterialRef,
+      nextMaterialRef: secondMaterialRef,
+    },
+    {
+      writeKind: "material_record_written",
+      materialRef: firstMaterialRef,
+    },
+    {
+      writeKind: "material_record_written",
+      materialRef: secondMaterialRef,
+    },
+  ]]);
+
+  recordedInvalidation.clear();
+  commands.bindMaterialToCanonical({
+    materialRef: secondMaterialRef,
+    canonicalRef: canonicalRef("inv-canonical"),
+  });
+  assert.deepEqual(recordedInvalidation.batches, [[{
+    writeKind: "material_record_written",
+    materialRef: secondMaterialRef,
+  }]]);
+
+  commands.upsertSourceRecord({ entity: sourceTwo });
+  commands.upsertMaterialRecord({
+    materialRef: loserMaterialRef,
+    kind: "recording",
+  });
+  commands.bindSourceToMaterial({
+    sourceRef: sourceTwo.sourceRef,
+    materialRef: loserMaterialRef,
+    makePrimary: true,
+  });
+  recordedInvalidation.clear();
+  commands.mergeMaterialRecord({
+    loserMaterialRef,
+    winnerMaterialRef: secondMaterialRef,
+  });
+  assert.deepEqual(recordedInvalidation.batches, [[
+    {
+      writeKind: "material_record_written",
+      materialRef: loserMaterialRef,
+    },
+    {
+      writeKind: "material_record_written",
+      materialRef: secondMaterialRef,
+    },
+    {
+      writeKind: "source_material_binding_written",
+      sourceRef: sourceTwo.sourceRef,
+      previousMaterialRef: loserMaterialRef,
+      nextMaterialRef: secondMaterialRef,
+    },
+  ]]);
+});
+invalidationDatabase.close();
+
 const rollbackDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
 rollbackDatabase.initialize({ schemas: [musicDataPlatformIdentitySchema] });
 assert.throws(
   () => {
     rollbackDatabase.transaction((db) => {
-      const commands = createIdentityWriteCommands({ db, now: firstNow });
+      const commands = createIdentityTestCommands(db, firstNow);
 
       commands.upsertSourceRecord({
         entity: sourceTrack("rollback-source", "Rollback Source"),
@@ -607,7 +753,7 @@ uniqueCanonicalDatabase.close();
 const mergedCanonicalDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
 mergedCanonicalDatabase.initialize({ schemas: [musicDataPlatformIdentitySchema] });
 mergedCanonicalDatabase.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: firstNow });
+  const commands = createIdentityTestCommands(db, firstNow);
   const repositories = createIdentityRepositories({ db });
   commands.upsertCanonicalRecord({
     entity: canonicalEntity("merged-canonical-winner", "Merged Canonical Winner"),

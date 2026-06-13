@@ -1,4 +1,5 @@
 import {
+  isRefComponentSafe,
   refKey,
   type Ref,
 } from "../contracts/index.js";
@@ -6,7 +7,11 @@ import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { createDeterministicRefDigest } from "./ref_digest.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef } from "./material_ref.js";
-import { assertOwnerScope } from "./owner_scope.js";
+import {
+  assertOwnerMaterialRelationKind,
+  type OwnerMaterialRelationKind,
+} from "./owner_material_relation_ref.js";
+import { DEFAULT_OWNER_SCOPE, assertOwnerScope } from "./owner_scope.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
 
 export type ProjectionMaintenanceKind =
@@ -18,6 +23,52 @@ export type ProjectionMaintenanceKind =
 export type ProjectionMaintenanceTargetStatus =
   | "dirty"
   | "failed";
+
+export type ProjectionSourceWrite =
+  | {
+      writeKind: "source_record_written";
+      sourceRef: Ref;
+    }
+  | {
+      writeKind: "material_record_written";
+      materialRef: Ref;
+    }
+  | {
+      writeKind: "canonical_record_written";
+      canonicalRef: Ref;
+    }
+  | {
+      writeKind: "source_material_binding_written";
+      sourceRef: Ref;
+      previousMaterialRef?: Ref;
+      nextMaterialRef?: Ref;
+    }
+  | {
+      writeKind: "source_library_item_written";
+      ownerScope: string;
+      sourceRef: Ref;
+    }
+  | {
+      writeKind: "owner_relation_written";
+      ownerScope: string;
+      relationKind: OwnerMaterialRelationKind;
+      materialRef: Ref;
+    };
+
+export type ProjectionMaintenanceInvalidationInput = {
+  writes: readonly [ProjectionSourceWrite, ...ProjectionSourceWrite[]];
+};
+
+export type ProjectionMaintenanceInvalidationResult = {
+  writeCount: number;
+  targetCount: number;
+};
+
+export type ProjectionInvalidationCommands = {
+  markProjectionInvalidated(
+    input: ProjectionMaintenanceInvalidationInput,
+  ): ProjectionMaintenanceInvalidationResult;
+};
 
 export type CreateProjectionMaintenanceCommandsInput = {
   db: MusicDatabaseTransactionContext;
@@ -72,7 +123,7 @@ export type ProjectionMaintenanceFailedResult = {
   failed: boolean;
 };
 
-export type ProjectionMaintenanceCommands = {
+export type ProjectionMaintenanceCommands = ProjectionInvalidationCommands & {
   markProjectionTargetDirty(
     input: ProjectionMaintenanceTargetInput,
   ): ProjectionMaintenanceTargetDirtyResult;
@@ -86,6 +137,10 @@ export type ProjectionMaintenanceCommands = {
 
 type ProjectionMaintenanceTargetRow = {
   dirty_generation: number;
+};
+
+type MaterialRecordEntityRow = {
+  entity_json: string;
 };
 
 type RefPayload = {
@@ -114,57 +169,34 @@ export function createProjectionMaintenanceCommands(
   return {
     markProjectionTargetDirty(commandInput) {
       const normalizedTarget = normalizeProjectionMaintenanceTarget(commandInput);
-
-      input.db.run(
-        `
-          INSERT INTO projection_maintenance_targets (
-            projection_kind,
-            target_key,
-            target_payload_json,
-            status,
-            dirty_generation,
-            failure_code,
-            failure_message,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, 'dirty', 1, NULL, NULL, ?, ?)
-          ON CONFLICT(projection_kind, target_key) DO UPDATE SET
-            target_payload_json = excluded.target_payload_json,
-            status = 'dirty',
-            dirty_generation = projection_maintenance_targets.dirty_generation + 1,
-            failure_code = NULL,
-            failure_message = NULL,
-            updated_at = excluded.updated_at
-        `,
-        [
-          normalizedTarget.projectionKind,
-          normalizedTarget.targetKey,
-          normalizedTarget.targetPayloadJson,
-          input.now,
-          input.now,
-        ],
-      );
-
-      const row = input.db.get<ProjectionMaintenanceTargetRow>(
-        `
-          SELECT dirty_generation
-          FROM projection_maintenance_targets
-          WHERE projection_kind = ?
-            AND target_key = ?
-        `,
-        [normalizedTarget.projectionKind, normalizedTarget.targetKey],
-      );
-
-      if (row === undefined) {
+      return upsertDirtyTarget(input, normalizedTarget);
+    },
+    markProjectionInvalidated(commandInput) {
+      if (commandInput.writes.length === 0) {
         throw invalidProjectionMaintenanceTarget(
-          "Projection maintenance dirty target was missing after upsert.",
+          "Projection maintenance invalidation writes must be non-empty.",
         );
       }
 
+      const uniqueTargets = new Map<string, NormalizedProjectionMaintenanceTarget>();
+
+      for (const write of commandInput.writes) {
+        for (const target of planProjectionInvalidationTargets(input.db, write)) {
+          const normalizedTarget = normalizeProjectionMaintenanceTarget(target);
+          uniqueTargets.set(
+            `${normalizedTarget.projectionKind}\u0000${normalizedTarget.targetKey}`,
+            normalizedTarget,
+          );
+        }
+      }
+
+      for (const target of uniqueTargets.values()) {
+        upsertDirtyTarget(input, target);
+      }
+
       return {
-        targetKey: normalizedTarget.targetKey,
-        dirtyGeneration: row.dirty_generation,
+        writeCount: commandInput.writes.length,
+        targetCount: uniqueTargets.size,
       };
     },
     markProjectionClean(commandInput) {
@@ -385,6 +417,222 @@ function normalizedRefPayload(ref: Ref): RefPayload {
     kind: ref.kind,
     id: ref.id,
   };
+}
+
+function upsertDirtyTarget(
+  input: CreateProjectionMaintenanceCommandsInput,
+  normalizedTarget: NormalizedProjectionMaintenanceTarget,
+): ProjectionMaintenanceTargetDirtyResult {
+  input.db.run(
+    `
+      INSERT INTO projection_maintenance_targets (
+        projection_kind,
+        target_key,
+        target_payload_json,
+        status,
+        dirty_generation,
+        failure_code,
+        failure_message,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, 'dirty', 1, NULL, NULL, ?, ?)
+      ON CONFLICT(projection_kind, target_key) DO UPDATE SET
+        target_payload_json = excluded.target_payload_json,
+        status = 'dirty',
+        dirty_generation = projection_maintenance_targets.dirty_generation + 1,
+        failure_code = NULL,
+        failure_message = NULL,
+        updated_at = excluded.updated_at
+    `,
+    [
+      normalizedTarget.projectionKind,
+      normalizedTarget.targetKey,
+      normalizedTarget.targetPayloadJson,
+      input.now,
+      input.now,
+    ],
+  );
+
+  const row = input.db.get<ProjectionMaintenanceTargetRow>(
+    `
+      SELECT dirty_generation
+      FROM projection_maintenance_targets
+      WHERE projection_kind = ?
+        AND target_key = ?
+    `,
+    [normalizedTarget.projectionKind, normalizedTarget.targetKey],
+  );
+
+  if (row === undefined) {
+    throw invalidProjectionMaintenanceTarget(
+      "Projection maintenance dirty target was missing after upsert.",
+    );
+  }
+
+  return {
+    targetKey: normalizedTarget.targetKey,
+    dirtyGeneration: row.dirty_generation,
+  };
+}
+
+function planProjectionInvalidationTargets(
+  db: MusicDatabaseTransactionContext,
+  write: ProjectionSourceWrite,
+): readonly ProjectionMaintenanceTargetInput[] {
+  switch (write.writeKind) {
+    case "source_record_written": {
+      assertSafeRef(write.sourceRef, "sourceRef");
+      const currentMaterialRef = findCurrentMaterialRefForSource(db, write.sourceRef);
+      return currentMaterialRef === undefined
+        ? []
+        : [{ projectionKind: "material_text", materialRef: currentMaterialRef }];
+    }
+    case "material_record_written":
+      assertMaterialRef(write.materialRef);
+      return materialScopedTargets(DEFAULT_OWNER_SCOPE, write.materialRef);
+    case "canonical_record_written": {
+      assertSafeRef(write.canonicalRef, "canonicalRef");
+      return findMaterialRefsForCanonical(db, write.canonicalRef).map((materialRef) => ({
+        projectionKind: "material_text" as const,
+        materialRef,
+      }));
+    }
+    case "source_material_binding_written": {
+      assertSafeRef(write.sourceRef, "sourceRef");
+
+      if (write.previousMaterialRef === undefined && write.nextMaterialRef === undefined) {
+        throw invalidProjectionMaintenanceTarget(
+          "Projection maintenance source_material_binding_written must include previousMaterialRef or nextMaterialRef.",
+        );
+      }
+
+      const uniqueMaterialRefs = new Map<string, Ref>();
+      for (const materialRef of [write.previousMaterialRef, write.nextMaterialRef]) {
+        if (materialRef === undefined) {
+          continue;
+        }
+        assertMaterialRef(materialRef);
+        uniqueMaterialRefs.set(refKey(materialRef), materialRef);
+      }
+
+      return Array.from(uniqueMaterialRefs.values()).flatMap((materialRef) =>
+        materialScopedTargets(DEFAULT_OWNER_SCOPE, materialRef).filter((target) =>
+          target.projectionKind !== "owner_catalog_relation_material"
+        )
+      );
+    }
+    case "source_library_item_written": {
+      assertOwnerScope(write.ownerScope);
+      assertSafeRef(write.sourceRef, "sourceRef");
+      const currentMaterialRef = findCurrentMaterialRefForSource(db, write.sourceRef);
+      return currentMaterialRef === undefined
+        ? []
+        : [{
+          projectionKind: "owner_catalog_source_library_material",
+          ownerScope: write.ownerScope,
+          materialRef: currentMaterialRef,
+        }];
+    }
+    case "owner_relation_written":
+      assertOwnerScope(write.ownerScope);
+      assertOwnerMaterialRelationKind(write.relationKind);
+      assertMaterialRef(write.materialRef);
+      return [{
+        projectionKind: "owner_catalog_relation_material",
+        ownerScope: write.ownerScope,
+        materialRef: write.materialRef,
+      }];
+  }
+}
+
+function materialScopedTargets(
+  ownerScope: string,
+  materialRef: Ref,
+): readonly ProjectionMaintenanceTargetInput[] {
+  return [
+    { projectionKind: "material_text", materialRef },
+    {
+      projectionKind: "owner_catalog_source_library_material",
+      ownerScope,
+      materialRef,
+    },
+    {
+      projectionKind: "owner_catalog_relation_material",
+      ownerScope,
+      materialRef,
+    },
+  ];
+}
+
+function findCurrentMaterialRefForSource(
+  db: MusicDatabaseTransactionContext,
+  sourceRef: Ref,
+): Ref | undefined {
+  const row = db.get<MaterialRecordEntityRow>(
+    `
+      SELECT m.entity_json
+      FROM source_material_bindings b
+      JOIN material_records m
+        ON m.ref_key = b.material_ref_key
+      WHERE b.source_ref_key = ?
+    `,
+    [refKey(sourceRef)],
+  );
+
+  return row === undefined ? undefined : materialRefFromEntityJson(row.entity_json);
+}
+
+function findMaterialRefsForCanonical(
+  db: MusicDatabaseTransactionContext,
+  canonicalRef: Ref,
+): readonly Ref[] {
+  return db.all<MaterialRecordEntityRow>(
+    `
+      SELECT entity_json
+      FROM material_records
+      WHERE canonical_ref_key = ?
+    `,
+    [refKey(canonicalRef)],
+  ).map((row) => materialRefFromEntityJson(row.entity_json));
+}
+
+function materialRefFromEntityJson(entityJson: string): Ref {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(entityJson);
+  } catch (cause) {
+    throw invalidProjectionMaintenanceTarget(
+      "Stored material entity JSON is not valid JSON.",
+      cause,
+    );
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    throw invalidProjectionMaintenanceTarget(
+      "Stored material entity JSON must be an object.",
+    );
+  }
+
+  const materialRef = (parsed as { materialRef?: unknown }).materialRef;
+  const ref = refFromPayload(materialRef, "materialRef");
+  assertMaterialRef(ref);
+  return ref;
+}
+
+function assertSafeRef(ref: Ref, fieldName: string): void {
+  for (const [componentName, value] of [
+    ["namespace", ref.namespace],
+    ["kind", ref.kind],
+    ["id", ref.id],
+  ] as const) {
+    if (!isRefComponentSafe(value)) {
+      throw invalidProjectionMaintenanceTarget(
+        `Projection maintenance ${fieldName}.${componentName} must be a non-empty ref-safe string.`,
+      );
+    }
+  }
 }
 
 function assertProjectionMaintenanceTargetKey(targetKey: string): void {

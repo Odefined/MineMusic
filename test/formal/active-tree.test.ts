@@ -168,6 +168,7 @@ assert.deepEqual(
     "src/music_data_platform/source_library_records.ts",
     "src/music_data_platform/source_library_ref.ts",
     "src/music_data_platform/source_library_schema.ts",
+    "src/music_data_platform/source_of_truth_write_commands.ts",
   ],
   "formal Music Data Platform root must not grow unrelated implementations",
 );
@@ -393,6 +394,9 @@ for (const forbiddenBarrelExport of [
   "createIdentityRepositories",
   "createSourceLibraryRepositories",
   "sourceLibraryItemKey",
+  "createIdentityWriteCommands",
+  "createSourceLibraryCommands",
+  "createOwnerMaterialRelationCommands",
 ]) {
   assert.equal(
     musicDataPlatformBarrelText.includes(forbiddenBarrelExport),
@@ -431,6 +435,35 @@ for (const file of activeFiles) {
   }
 }
 assert.deepEqual(repositoryFactoryFailures, []);
+
+const lowLevelWriteFactoryAllowedFiles = new Set([
+  "src/music_data_platform/identity_write_model.ts",
+  "src/music_data_platform/source_library_commands.ts",
+  "src/music_data_platform/owner_material_relation_commands.ts",
+  "src/music_data_platform/source_of_truth_write_commands.ts",
+]);
+const lowLevelWriteFactoryFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const factoryCall of [
+    "createIdentityWriteCommands(",
+    "createSourceLibraryCommands(",
+    "createOwnerMaterialRelationCommands(",
+  ]) {
+    if (
+      text.includes(factoryCall) &&
+      !lowLevelWriteFactoryAllowedFiles.has(relativeFile)
+    ) {
+      lowLevelWriteFactoryFailures.push(
+        `${relativeFile} calls low-level source-of-truth write factory '${factoryCall}' outside the owning write module or top-level facade`,
+      );
+    }
+  }
+}
+assert.deepEqual(lowLevelWriteFactoryFailures, []);
 
 const directWriteAllowedFiles = new Set([
   "src/music_data_platform/identity_records.ts",

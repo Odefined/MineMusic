@@ -30,7 +30,6 @@ export type SourceLibraryItemRecord = {
   addedAt: string;
   providerAddedAt?: string;
   firstImportedAt: string;
-  lastSeenAt: string;
 };
 
 export type SourceLibraryImportBatchRecord = {
@@ -124,7 +123,6 @@ type SourceLibraryItemRow = {
   added_at: string;
   provider_added_at: string | null;
   first_imported_at: string;
-  last_seen_at: string;
   owner_scope: string;
   provider_id: string;
   provider_account_id: string;
@@ -248,7 +246,6 @@ export function createSourceLibraryRepositories(
             i.added_at,
             i.provider_added_at,
             i.first_imported_at,
-            i.last_seen_at,
             l.owner_scope,
             l.provider_id,
             l.provider_account_id,
@@ -274,14 +271,12 @@ export function createSourceLibraryRepositories(
             source_ref_key,
             added_at,
             provider_added_at,
-            first_imported_at,
-            last_seen_at
+            first_imported_at
           )
-          VALUES (?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(library_ref_key, source_ref_key) DO UPDATE SET
             added_at = excluded.added_at,
-            provider_added_at = excluded.provider_added_at,
-            last_seen_at = excluded.last_seen_at
+            provider_added_at = excluded.provider_added_at
         `,
         [
           refKey(record.libraryRef),
@@ -289,7 +284,6 @@ export function createSourceLibraryRepositories(
           record.addedAt,
           record.providerAddedAt ?? null,
           record.firstImportedAt,
-          record.lastSeenAt,
         ],
       );
 
@@ -542,7 +536,6 @@ function sourceLibraryItemFromRow(row: SourceLibraryItemRow): SourceLibraryItemR
     addedAt: row.added_at,
     ...(row.provider_added_at === null ? {} : { providerAddedAt: row.provider_added_at }),
     firstImportedAt: row.first_imported_at,
-    lastSeenAt: row.last_seen_at,
   };
 }
 
@@ -629,7 +622,7 @@ function assertSourceLibraryRecordConsistency(record: SourceLibraryRecord): void
 function assertSourceLibraryItemRecordConsistency(record: SourceLibraryItemRecord): void {
   assertSourceLibraryRef(record.libraryRef);
 
-  if (record.addedAt.length === 0 || record.firstImportedAt.length === 0 || record.lastSeenAt.length === 0) {
+  if (record.addedAt.length === 0 || record.firstImportedAt.length === 0) {
     throw new Error("Source library item timestamps must be non-empty strings.");
   }
 }

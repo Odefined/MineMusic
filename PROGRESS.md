@@ -408,6 +408,39 @@ implemented plan lives at
 `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
 
+## 2026-06-14: Phase 11C Source-Of-Truth Invalidation Wiring
+
+Phase 11C completes the write-side invalidation seam for the currently
+implemented Music Data Platform projections:
+
+- `createProjectionMaintenanceCommands({ db, now })` now also exposes
+  `markProjectionInvalidated({ writes })`, which accepts typed
+  source-of-truth write scopes and plans the affected projection targets inside
+  the same transaction as the write;
+- `identity_write_model.ts`, `source_library_commands.ts`, and
+  `owner_material_relation_commands.ts` now require a narrow projection
+  invalidation dependency and report typed write scopes instead of calling
+  dirty-target APIs directly;
+- `source_of_truth_write_commands.ts` introduces the workflow-facing write
+  facade for identity, source-library, and owner relation writes;
+- `source_library_import.ts` now uses the top-level source-of-truth write
+  facade and no longer constructs lower-level write factories directly;
+- `source_library_items` removes `last_seen_at`; unchanged repeated imports keep
+  batch/outcome bookkeeping but do not rewrite the item row or re-mark
+  projection dirty;
+- active-tree guards now reject public-barrel exposure of low-level write
+  factories and reject direct low-level write-factory calls outside the owning
+  write modules plus the top-level facade;
+- focused tests now assert command-owned invalidation reporting for identity,
+  source-library, and owner relation writes, and projection-maintenance tests
+  cover both invalidation planning and the top-level source-of-truth write
+  wiring.
+
+The implemented Phase 11 spec still lives at
+`docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`. PR11C
+implements the source-of-truth invalidation wiring slice from that spec/plan
+and completes Phase 11.
+
 ## 2026-06-13: Phase 11B Projection Maintenance Core
 
 Phase 11B adds the internal projection-maintenance worklist and rebuild core:
@@ -437,8 +470,8 @@ Phase 11B adds the internal projection-maintenance worklist and rebuild core:
 
 The implemented Phase 11 spec still lives at
 `docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`. PR11B
-implements the Projection Maintenance Core slice from that spec/plan; PR11C
-source-of-truth invalidation wiring remains pending.
+implements the Projection Maintenance Core slice from that spec/plan. PR11C
+later completes the source-of-truth invalidation wiring slice.
 
 ## 2026-06-13: Phase 9 Owner Material Relations Foundation
 

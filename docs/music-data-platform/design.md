@@ -1,6 +1,6 @@
 # Music Data Platform Design
 
-> Status: Current design authority for implemented Phase 11B
+> Status: Current design authority for implemented Phase 11C
 > Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, and projection maintenance core
 > Not status ledger: Current implementation state lives in `progress.md`.
 
@@ -172,7 +172,11 @@ Commands are created with a transaction-scoped database context and a
 caller-supplied timestamp:
 
 ```ts
-const commands = createIdentityWriteCommands({ db, now });
+const commands = createIdentityWriteCommands({
+  db,
+  now,
+  projectionInvalidationCommands,
+});
 ```
 
 Implemented commands:
@@ -215,7 +219,6 @@ source_ref_key
 added_at
 provider_added_at?
 first_imported_at
-last_seen_at
 ```
 
 Phase 8 splits current source-library facts into:
@@ -236,8 +239,7 @@ source_library_items(
   source_ref_key,
   added_at,
   provider_added_at?,
-  first_imported_at,
-  last_seen_at
+  first_imported_at
 )
 ```
 
@@ -249,8 +251,9 @@ provider id, provider account id, or library kind.
 the membership is first written locally and preserved on later imports.
 `provider_added_at` is the provider-side add, collect, or follow timestamp when
 the provider exposes one. It is separate from `added_at` because provider
-membership time and MineMusic import time can differ. `first_imported_at` and
-`last_seen_at` remain import bookkeeping timestamps.
+membership time and MineMusic import time can differ. `first_imported_at`
+remains import bookkeeping time. Phase 11 no longer stores a repeated
+observation timestamp such as `last_seen_at`.
 
 `SourceLibraryItem` does not store `material_ref_key`, `canonical_ref_key`,
 display fields, query text, rank, projection data, or card seed data. Material
@@ -278,14 +281,16 @@ outcome `imported`. `already_present` and `failed` outcomes do not count toward
 For each candidate, Library Import coordinates an item-scoped transaction
 through owning commands:
 
-1. upsert the candidate `SourceRecord` through `createIdentityWriteCommands`;
-2. look up existing source-material binding;
-3. create a source-backed `MaterialRecord` through the material ref factory
-   and `createIdentityWriteCommands` only when no binding exists;
-4. bind the source ref to the material ref through
-   `createIdentityWriteCommands.bindSourceToMaterial`;
-5. upsert the source library item through `createSourceLibraryCommands`;
-6. record the item outcome through `createSourceLibraryCommands`.
+1. create the top-level write facade through
+   `createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })`;
+2. upsert the candidate `SourceRecord` through `writes.identity`;
+3. look up existing source-material binding;
+4. create a source-backed `MaterialRecord` through the material ref factory
+   and `writes.identity` only when no binding exists;
+5. bind the source ref to the material ref through
+   `writes.identity.bindSourceToMaterial`;
+6. upsert the source library item through `writes.sourceLibrary`;
+7. record the item outcome through `writes.sourceLibrary`.
 
 The Library Import service is workflow orchestration, not the write boundary.
 It may use narrow read ports and command factories, but it must not construct
@@ -311,8 +316,7 @@ ref-safe `providerAccountId`. `startImport` may omit it only when the
 provider/API can resolve the current logged-in account in the first provider
 read. Later reads for the same batch must return the same account id.
 
-Library Import reuses the existing identity write command path and
-source-library write command path:
+Library Import reuses the existing top-level source-of-truth write facade:
 
 1. upsert `SourceRecord`;
 2. reuse current `source_material_bindings` when present;
@@ -548,7 +552,8 @@ presentation output.
 
 ## Projection Maintenance Core
 
-Phase 11B adds a typed internal projection-maintenance worklist:
+Phase 11C implements a typed internal projection-maintenance worklist plus
+source-of-truth invalidation wiring:
 
 ```text
 projection_maintenance_targets(
@@ -602,8 +607,20 @@ database transaction by dispatching to the owning projection command, and then:
   the same run.
 
 Malformed target payloads are treated as failed targets for that row only; the
-runner continues with later targets. Phase 11B does not yet wire source-of-
-truth write commands to mark these targets dirty automatically.
+runner continues with later targets.
+
+Phase 11C also wires durable writes into this worklist through
+`markProjectionInvalidated({ writes })`. Source-of-truth write commands report
+typed write scopes such as `source_record_written`,
+`material_record_written`, `canonical_record_written`,
+`source_material_binding_written`, `source_library_item_written`, and
+`owner_relation_written`. Projection Maintenance plans the affected
+`material_text`, `owner_catalog_source_library_material`, and
+`owner_catalog_relation_material` targets inside the same transaction as the
+write. Workflow-facing callers use
+`createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })`; ordinary
+workflow code must not call lower-level identity/source-library/relation write
+factories directly.
 
 ## Material Merge
 
@@ -638,8 +655,6 @@ collections, rewrite projections, or touch presentation history.
 - query/retrieval/ranking;
 - provider execution or provider config;
 - Stage Interface tools or public DTOs;
-- source-of-truth invalidation wiring for identity/source-library/relation
-  writes;
 - background scheduling or automatic rebuild orchestration;
 - canonical review/merge/split workflow;
 - direct source-canonical evidence model;

@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 11B of a same-repo formal rebuild. The active
+MineMusic has completed Phase 11C of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -22,10 +22,11 @@ material-scope `saved/favorite/blocked`, owner-relation projection, and
 ordinary catalog exclusion for active blocked facts. Phase 10 adds
 `material_text_documents`, `material_text_fts`, command-owned rebuild by
 explicit material ref, and an owner-neutral internal material text read/FTS
-probe. Phase 11B adds `projection_maintenance_targets`, typed dirty/failed
-projection maintenance commands, and an internal rebuild runner that dispatches
-to owner catalog and material text projection commands. Source-of-truth
-invalidation wiring from write commands remains pending for PR11C.
+probe. Phase 11 adds `projection_maintenance_targets`, typed invalidation/
+dirty/failed projection maintenance commands, an internal rebuild runner that
+dispatches to owner catalog and material text projection commands, and a
+top-level source-of-truth write facade that wires identity/source-library/
+relation writes into projection invalidation planning.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -171,7 +172,8 @@ Phase 5 Music Data Platform vocabulary includes:
 - `createIdentityReadPort({ db })` for narrow identity workflow reads without
   repository write methods;
 - `createIdentityWriteCommands({ db, now })` for narrow identity commands
-  using a `MusicDatabaseTransactionContext`;
+  using a `MusicDatabaseTransactionContext` plus required projection
+  invalidation dependency;
 - `upsertSourceRecord`, `upsertMaterialRecord`, `upsertCanonicalRecord`,
   `bindSourceToMaterial`, `bindMaterialToCanonical`, and
   `mergeMaterialRecord`;
@@ -232,6 +234,9 @@ Phase 7 Source Library Import vocabulary includes:
 - `createSourceLibraryImportService` with `startImport` and `continueImport`;
 - `createSourceLibraryCommands({ db, now })` for source-library import batch,
   library scope, item, and item-outcome writes;
+- `createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })` as the
+  workflow-facing source-of-truth write facade for identity, source-library,
+  and owner relation writes;
 - `createSourceLibraryReadPort({ db })` for narrow source-library import-batch
   reads without repository write methods;
 - `npm run smoke:ncm:library` as an opt-in live source-library smoke command
@@ -491,11 +496,10 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md`
   records the implemented Phase 10 execution plan.
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`
-  remains the active Phase 11 spec; PR11A and PR11B are implemented and PR11C
-  remains pending.
+  remains the active Phase 11 spec; PR11A, PR11B, and PR11C are implemented.
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation-implementation-plan.md`
-  remains the active Phase 11 execution plan; PR11A and PR11B are implemented
-  and PR11C remains pending.
+  remains the active Phase 11 execution plan; PR11A, PR11B, and PR11C are
+  implemented.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -510,7 +514,7 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 11B does not implement:
+Phase 11 does not implement:
 
 - public Stage Interface provider/search tools;
 - generic provider platform/runtime;
@@ -526,9 +530,8 @@ Phase 11B does not implement:
 - update baselines, removed-from-library reconciliation, collection,
   additional owner catalog producers, wrong-version, not-playable, bad-match,
   feedback/correction facts, signals, or recording-to-work relation workflows;
-- source-of-truth invalidation wiring from identity/source-library/relation
-  write commands, background rebuild orchestration, or synchronous import-path
-  projection refresh;
+- background rebuild orchestration or synchronous import-path projection
+  refresh;
 - recommendation, radio, memory, or effect runtime behavior;
 - handbook tools or music-domain tools beyond the internal runtime status
   tool.
@@ -538,7 +541,7 @@ contracts.
 
 ## Verification Pointers
 
-Phase 11B verification for this state should include:
+Phase 11 verification for this state should include:
 
 ```bash
 npm run typecheck

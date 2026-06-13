@@ -6,7 +6,6 @@ import {
 } from "../../src/contracts/index.js";
 import {
   DEFAULT_OWNER_SCOPE,
-  createIdentityWriteCommands,
   createOwnerCatalogProjectionCommands,
   createOwnerCatalogRecords,
   createSourceLibraryRef,
@@ -23,8 +22,10 @@ import {
   type RebuildSourceLibraryEntriesForLibraryInput,
   type RebuildSourceLibraryEntriesForMaterialInput,
 } from "../../src/music_data_platform/index.js";
+import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
+import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,
@@ -33,6 +34,17 @@ type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   : false;
 
 type Expect<Check extends true> = Check;
+
+function createIdentityTestCommands(
+  db: Parameters<typeof createIdentityWriteCommands>[0]["db"],
+  now: string,
+) {
+  return createIdentityWriteCommands({
+    db,
+    now,
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+}
 
 export type _ownerMaterialEntryRecordShape = Expect<
   Equal<
@@ -123,7 +135,7 @@ const groupedMaterialRef: Ref = {
 };
 
 groupedDatabase.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: "2026-06-08T00:00:00.000Z" });
+  const commands = createIdentityTestCommands(db, "2026-06-08T00:00:00.000Z");
   const repositories = createSourceLibraryRepositories({ db });
   const firstSource = sourceTrack("1001", "Grouped One");
   const secondSource = sourceTrack("1002", "Grouped Two");
@@ -159,7 +171,6 @@ groupedDatabase.transaction((db) => {
     addedAt: "2026-06-08T01:00:00.000Z",
     providerAddedAt: "2026-06-07T01:00:00.000Z",
     firstImportedAt: "2026-06-08T01:00:00.000Z",
-    lastSeenAt: "2026-06-08T02:00:00.000Z",
   });
   repositories.items.upsert({
     libraryRef: groupedLibraryRef,
@@ -167,7 +178,6 @@ groupedDatabase.transaction((db) => {
     addedAt: "2026-06-08T03:00:00.000Z",
     providerAddedAt: "2026-06-07T03:00:00.000Z",
     firstImportedAt: "2026-06-08T03:00:00.000Z",
-    lastSeenAt: "2026-06-08T04:00:00.000Z",
   });
 });
 
@@ -289,7 +299,7 @@ const secondMaterialRef: Ref = {
 };
 
 rebindDatabase.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: "2026-06-08T00:00:00.000Z" });
+  const commands = createIdentityTestCommands(db, "2026-06-08T00:00:00.000Z");
   const repositories = createSourceLibraryRepositories({ db });
 
   commands.upsertSourceRecord({ entity: rebindSource });
@@ -313,7 +323,6 @@ rebindDatabase.transaction((db) => {
     sourceRefKey: refKey(rebindSource.sourceRef),
     addedAt: "2026-06-08T01:00:00.000Z",
     firstImportedAt: "2026-06-08T01:00:00.000Z",
-    lastSeenAt: "2026-06-08T01:00:00.000Z",
   });
 });
 
@@ -328,7 +337,7 @@ rebindDatabase.transaction((db) => {
 });
 
 const rebindSummaries = rebindDatabase.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: "2026-06-09T02:05:00.000Z" });
+  const commands = createIdentityTestCommands(db, "2026-06-09T02:05:00.000Z");
 
   commands.upsertMaterialRecord({
     materialRef: secondMaterialRef,
@@ -394,7 +403,7 @@ const winnerMaterialRef: Ref = {
 };
 
 mergeDatabase.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: "2026-06-08T00:00:00.000Z" });
+  const commands = createIdentityTestCommands(db, "2026-06-08T00:00:00.000Z");
   const repositories = createSourceLibraryRepositories({ db });
 
   commands.upsertSourceRecord({ entity: mergeSource });
@@ -419,7 +428,6 @@ mergeDatabase.transaction((db) => {
     sourceRefKey: refKey(mergeSource.sourceRef),
     addedAt: "2026-06-08T01:00:00.000Z",
     firstImportedAt: "2026-06-08T01:00:00.000Z",
-    lastSeenAt: "2026-06-08T01:00:00.000Z",
   });
 });
 
@@ -434,7 +442,7 @@ mergeDatabase.transaction((db) => {
 });
 
 const mergeSummaries = mergeDatabase.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: "2026-06-09T03:05:00.000Z" });
+  const commands = createIdentityTestCommands(db, "2026-06-09T03:05:00.000Z");
 
   commands.mergeMaterialRecord({
     loserMaterialRef,

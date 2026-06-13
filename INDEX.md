@@ -68,11 +68,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`:
   active Phase 11 spec for command-owned dirty projection maintenance,
   explicit rebuild runner boundaries, and source-of-truth invalidation wiring;
-  PR11A and PR11B are implemented, and PR11C remains pending.
+  PR11A, PR11B, and PR11C are implemented.
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation-implementation-plan.md`:
   active Phase 11 execution plan split into PR 11A owner catalog projection
   scope repair, PR 11B Projection Maintenance Core, and PR 11C
-  source-of-truth invalidation wiring; PR11A and PR11B are implemented.
+  source-of-truth invalidation wiring; PR11A, PR11B, and PR11C are
+  implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

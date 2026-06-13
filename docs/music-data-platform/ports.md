@@ -1,6 +1,6 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority for implemented Phase 11B
+> Status: Current boundary authority for implemented Phase 11C
 > Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, and projection maintenance ports
 
 Music Data Platform provides identity repositories, identity read/write
@@ -9,9 +9,9 @@ Library Import service, source-library and owner relation ref helpers, owner
 relation commands/read port, owner catalog
 projection commands/read port, material text projection commands/read port,
 projection maintenance commands/reads/runner, schema contributions, a material
-ref factory, and error types. It consumes generic Storage database ports and a
-narrow provider-library read port, but does not know SQLite primitives or
-provider plugin implementations.
+ref factory, a top-level source-of-truth write facade, and error types. It
+consumes generic Storage database ports and a narrow provider-library read
+port, but does not know SQLite primitives or provider plugin implementations.
 
 ## Provides
 
@@ -35,6 +35,7 @@ provider plugin implementations.
 | `createSourceLibraryCommands` | Internal Music Data Platform callers/tests | Command-owned source-library import batch, library scope, item, and item-outcome writes. | `src/music_data_platform/source_library_commands.ts` |
 | `createSourceLibraryReadPort` | Internal Music Data Platform callers/tests | Narrow source-library import-batch reads without exposing repository write methods. | `src/music_data_platform/source_library_read_model.ts` |
 | `createMaterialRefFactory` | Library Import service/composition/tests | Opaque MineMusic material ref generation for new material anchors. | `src/music_data_platform/material_ref_factory.ts` |
+| `createMusicDataPlatformSourceOfTruthWriteCommands` | Workflow-facing Music Data Platform callers/tests | Top-level source-of-truth write facade that wires identity/source-library/owner-relation writes through projection invalidation. | `src/music_data_platform/source_of_truth_write_commands.ts` |
 | `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port and owning commands. | `src/music_data_platform/source_library_import.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
@@ -42,7 +43,7 @@ provider plugin implementations.
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
 | `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
 | `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
-| `createProjectionMaintenanceCommands` | Internal commands/tests | Mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
+| `createProjectionMaintenanceCommands` | Internal commands/tests | Plan invalidation from typed write scopes, and mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
 | `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
 | `createProjectionMaintenanceRunner` | Internal runtime/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
 | `MusicDataPlatformError` | Internal callers/tests | Music Data Platform-owned invariant errors. | `src/music_data_platform/errors.ts` |
@@ -93,13 +94,14 @@ Commands are created with `db: MusicDatabaseTransactionContext` and
 | `mergeMaterialRecord` | loser/winner material refs, optional primary override | after-state loser/winner records and moved bindings | `source_material_bindings`, `material_records` |
 | `createImportBatch` | batch id, owner scope, provider id/account, library kind, optional `maxNewItems` | source-library import batch record | `source_library_import_batches` |
 | `resolveImportBatchLibraryScope` | batch plus resolved provider account id | after-state source-library import batch record | `source_libraries`, `source_library_import_batches` |
-| `recordImportItem` | resolved batch, source ref key, provider identity, material ref key, optional provider added time | source-library item, item outcome, and after-state batch records | `source_library_items`, `source_library_import_item_outcomes`, `source_library_import_batches` |
+| `recordImportItem` | resolved batch, `sourceRef`, provider identity, `materialRef`, optional provider added time | source-library item, item outcome, and after-state batch records | `source_library_items`, `source_library_import_item_outcomes`, `source_library_import_batches` |
 | `recordImportItemFailure` | batch id, optional source ref key, provider identity, compact error | item outcome and after-state batch records | `source_library_import_item_outcomes`, `source_library_import_batches` |
 | `failImportBatch` | batch id plus compact error | after-state batch record or `undefined` when missing | `source_library_import_batches` |
 | `completeImportBatch` | batch plus completion reason | after-state batch record | `source_library_import_batches` |
 | `advanceImportBatchCursor` | batch plus next cursor | after-state batch record | `source_library_import_batches` |
 | `recordOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind`, explicit `origin`, optional `note` | current relation record | `owner_material_relations` |
 | `removeOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind` | current relation record | `owner_material_relations` |
+| `markProjectionInvalidated` | non-empty batch of typed source-of-truth write scopes | `{ writeCount, targetCount }` | `projection_maintenance_targets` |
 | `markProjectionTargetDirty` | typed projection target | `{ targetKey, dirtyGeneration }` | `projection_maintenance_targets` |
 | `markProjectionClean` | `projectionKind`, `targetKey`, `expectedDirtyGeneration` | `{ cleaned }` | `projection_maintenance_targets` |
 | `markProjectionFailed` | `projectionKind`, `targetKey`, `expectedDirtyGeneration`, compact failure | `{ failed }` | `projection_maintenance_targets` |
@@ -130,10 +132,12 @@ catalog visibility only through the SQL view and does not create
 owner-material entry rows. Callers must not construct durable projection rows
 themselves.
 
-Projection maintenance is also Music Data Platform-owned. `target_payload_json`
-is stable internal JSON, `target_key` is an opaque deterministic digest, and
-only the owning projection maintenance commands may mutate
-`projection_maintenance_targets`. The runner may dispatch only to owning
+Projection maintenance is also Music Data Platform-owned.
+`markProjectionInvalidated(...)` accepts typed source-of-truth write scopes and
+plans the affected projection targets inside the same transaction as the write.
+`target_payload_json` is stable internal JSON, `target_key` is an opaque
+deterministic digest, and only the owning projection maintenance commands may
+mutate `projection_maintenance_targets`. The runner may dispatch only to owning
 projection rebuild commands; it must not construct projection rows directly or
 expose Stage Interface DTOs.
 
@@ -160,9 +164,10 @@ Provided methods:
 | `startImport` | `providerId`, optional `providerAccountId`, one `libraryKind`, optional per-call `limit`, optional `maxNewItems` | Internal batch/page/item result | import batch, source records, material records when needed, source-material bindings, source library items, item outcomes |
 | `continueImport` | `batchId`, optional per-call `limit` | Internal batch/page/item result or terminal summary | next provider page writes when batch is running |
 
-All writes listed above happen through `createSourceLibraryCommands(...)` and
-`createIdentityWriteCommands(...)`. The service may use narrow read ports, but
-it must not construct source-library or identity repositories directly.
+All writes listed above happen through
+`createMusicDataPlatformSourceOfTruthWriteCommands(...)`. The service may use
+narrow read ports, but it must not construct source-library or identity
+repositories directly and must not call lower-level write factories directly.
 
 The service output is internal and complete enough for tests, smoke, and later
 Stage Interface projection. It is not a compact agent-facing DTO and does not
@@ -193,9 +198,12 @@ Current guards:
 - active-tree test rejects Music Data Platform imports of SQLite primitives and
   unrelated formal roots;
 - active-tree test rejects Music Data Platform public-barrel exposure of
-  low-level repository factories and source-library item key helpers;
+  low-level repository factories, low-level write factories, and
+  source-library item key helpers;
 - active-tree test rejects low-level repository factory calls outside owning
   command/read/projection boundaries;
+- active-tree test rejects low-level source-of-truth write factory calls
+  outside the owning write modules and the top-level source-of-truth facade;
 - active-tree test rejects direct write tokens outside repository,
   command/projection, schema, and storage infrastructure files;
 - contract test rejects `recordId` returning to source/material/canonical
@@ -208,14 +216,14 @@ Current guards:
 - source-library tests cover source library item field shape, schema forbidden
   columns, source-library batch/library-ref integrity, repository round-trip,
   source-library command/read-port key sets, material ref factory opacity,
-  import service account resolution,
+  command-owned invalidation reporting, import service account resolution,
   duplicate/idempotent import, per-item rollback, completed continuation,
   account mismatch and invalid-account failure, batch id collision,
   provider-read limit validation, and `maxNewItems` behavior.
 - owner relation tests cover deterministic relation/pool refs, schema
-  forbidden columns, explicit origin, status transitions, archived-row
-  reactivation, blocked exclusion, mixed provenance, scoped cleanup, and
-  inactive-material projection skip behavior.
+  forbidden columns, explicit origin, status transitions, command-owned
+  invalidation reporting, archived-row reactivation, blocked exclusion, mixed
+  provenance, scoped cleanup, and inactive-material projection skip behavior.
 - owner catalog tests cover read-port shape, grouped source-library projection,
   idempotent rebuild, missing-library rejection, owner-scope mismatch, rebind
   cleanup, material-merge cleanup, and empty-library rebuild under the split
@@ -226,11 +234,11 @@ Current guards:
   inclusion guards, repeated rebuild replacement, active-empty rebuild, and
   delete-on-missing-or-inactive behavior.
 - projection maintenance tests cover schema/record/command/runner key sets,
-  deterministic payload/key generation, dirty-generation increments, failure
-  clearing, dirty/failed pending reads, malformed-payload failure handling,
-  projection-write rollback on rebuild failure, stale-generation skip
-  semantics, runner limit behavior, and helper confinement outside the public
-  barrel.
+  deterministic payload/key generation, invalidation planning from typed write
+  scopes, dirty-generation increments, failure clearing, dirty/failed pending
+  reads, malformed-payload failure handling, projection-write rollback on
+  rebuild failure, stale-generation skip semantics, runner limit behavior, and
+  helper confinement outside the public barrel.
 
 ## Out Of Scope
 
@@ -243,8 +251,6 @@ Current guards:
   source-library and owner-relation;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction
   fact families;
-- source-of-truth invalidation wiring for identity/source-library/relation
-  writes;
 - background scheduler/worker orchestration or automatic import refresh;
 - canonical review/merge/split workflow;
 - provider login, OAuth, cookie refresh, secrets, or reauth.
