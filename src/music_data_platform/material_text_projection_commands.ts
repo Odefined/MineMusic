@@ -12,6 +12,7 @@ import {
   type VersionInfo,
 } from "../contracts/index.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
+import { MusicDataPlatformError } from "./errors.js";
 import { createIdentityRepositories, type SourceToMaterialBindingRecord } from "./identity_records.js";
 import {
   buildMaterialTextFieldState,
@@ -245,9 +246,10 @@ function boundSourceRecordsForMaterial(input: {
     const sourceRecord = input.repositories.sourceRecords.get({ sourceRef: binding.sourceRef });
 
     if (sourceRecord === undefined) {
-      throw new Error(
-        `Current source-material binding is missing a source record: ${refKey(binding.sourceRef)}`,
-      );
+      throw new MusicDataPlatformError({
+        code: "music_data.source_not_found",
+        message: `Current source-material binding is missing a source record: ${refKey(binding.sourceRef)}`,
+      });
     }
 
     return {

@@ -27,7 +27,6 @@ import {
 } from "../../src/music_data_platform/index.js";
 import {
   buildMaterialTextMatchQuery,
-  buildMaterialTextFieldState,
   normalizeMaterialTextValue,
 } from "../../src/music_data_platform/material_text_normalization.js";
 import {
@@ -145,23 +144,6 @@ assert.equal(
 assert.equal(
   buildMaterialTextMatchQuery("  Foo\tBar "),
   "\"foo\" AND \"bar\"",
-);
-assert.deepEqual(
-  buildMaterialTextFieldState([
-    { source: "bound_source", basis: "title", value: "夜曲" },
-    { source: "bound_source", basis: "title", value: "Éclair" },
-    { source: "bound_source", basis: "alias", value: "A Song" },
-    { source: "bound_source", basis: "title", value: "あい" },
-  ]),
-  {
-    text: "a song\néclair\nあい\n夜曲",
-    contributions: [
-      { source: "bound_source", basis: "alias", value: "a song" },
-      { source: "bound_source", basis: "title", value: "éclair" },
-      { source: "bound_source", basis: "title", value: "あい" },
-      { source: "bound_source", basis: "title", value: "夜曲" },
-    ],
-  },
 );
 
 const schemaDatabase = initializedDatabase();
@@ -589,6 +571,78 @@ assert.deepEqual(
 );
 operatorDatabase.close();
 
+const orderingDatabase = initializedDatabase();
+const orderingMaterialRef = materialRef("recording", "m_ordering");
+const orderingCanonicalRef = canonicalRef("recording", "c_ordering");
+orderingDatabase.transaction((db) => {
+  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T11:30:00.000Z" });
+  identity.upsertSourceRecord({
+    entity: sourceTrack("1100", "Ordering Probe"),
+  });
+  identity.upsertMaterialRecord({
+    materialRef: orderingMaterialRef,
+    kind: "recording",
+  });
+  identity.upsertCanonicalRecord({
+    entity: {
+      canonicalRef: orderingCanonicalRef,
+      kind: "recording",
+      label: "Ordering Probe",
+      aliases: ["夜曲", "Éclair", "A Song", "あい"],
+    },
+    status: "active",
+  });
+  identity.bindSourceToMaterial({
+    sourceRef: sourceRef("track", "1100"),
+    materialRef: orderingMaterialRef,
+    makePrimary: true,
+  });
+  identity.bindMaterialToCanonical({
+    materialRef: orderingMaterialRef,
+    canonicalRef: orderingCanonicalRef,
+  });
+
+  createMaterialTextProjectionCommands({
+    db,
+    now: "2026-06-13T11:31:00.000Z",
+  }).rebuildMaterialTextDocument({
+    materialRef: orderingMaterialRef,
+  });
+});
+assert.deepEqual(
+  createMaterialTextProjectionRecords({ db: orderingDatabase.context() }).getMaterialTextDocument({
+    materialRef: orderingMaterialRef,
+  }),
+  {
+    materialRefKey: refKey(orderingMaterialRef),
+    materialKind: "recording",
+    titleText: "ordering probe",
+    artistText: "",
+    albumText: "",
+    versionText: "",
+    aliasText: "a song\néclair\nあい\n夜曲",
+    searchText: "ordering probe\na song\néclair\nあい\n夜曲",
+    documentJson: JSON.stringify({
+      fields: {
+        title: [
+          { source: "primary_source", basis: "title", value: "ordering probe" },
+        ],
+        artist: [],
+        album: [],
+        version: [],
+        alias: [
+          { source: "canonical", basis: "alias", value: "a song" },
+          { source: "canonical", basis: "alias", value: "éclair" },
+          { source: "canonical", basis: "alias", value: "あい" },
+          { source: "canonical", basis: "alias", value: "夜曲" },
+        ],
+      },
+    }),
+    updatedAt: "2026-06-13T11:31:00.000Z",
+  },
+);
+orderingDatabase.close();
+
 const emptyDatabase = initializedDatabase();
 const emptyMaterialRef = materialRef("recording", "m_empty");
 emptyDatabase.transaction((db) => {
@@ -706,6 +760,50 @@ assert.deepEqual(
   },
 );
 staleBindingDatabase.close();
+
+const orphanBindingDatabase = initializedDatabase();
+const orphanMaterialRef = materialRef("recording", "m_orphan_binding");
+orphanBindingDatabase.transaction((db) => {
+  createIdentityWriteCommands({ db, now: "2026-06-13T13:30:00.000Z" }).upsertMaterialRecord({
+    materialRef: orphanMaterialRef,
+    kind: "recording",
+  });
+});
+orphanBindingDatabase.context().run("PRAGMA foreign_keys = OFF");
+orphanBindingDatabase.context().run(
+  `
+    INSERT INTO source_material_bindings (
+      source_ref_key,
+      material_ref_key,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?)
+  `,
+  [
+    refKey(sourceRef("track", "2999")),
+    refKey(orphanMaterialRef),
+    "2026-06-13T13:31:00.000Z",
+    "2026-06-13T13:31:00.000Z",
+  ],
+);
+orphanBindingDatabase.context().run("PRAGMA foreign_keys = ON");
+orphanBindingDatabase.transaction((db) => {
+  assert.throws(
+    () =>
+      createMaterialTextProjectionCommands({
+        db,
+        now: "2026-06-13T13:32:00.000Z",
+      }).rebuildMaterialTextDocument({
+        materialRef: orphanMaterialRef,
+      }),
+    (error: unknown) =>
+      isMusicDataPlatformError(error) &&
+      error.code === "music_data.source_not_found" &&
+      error.message.includes(refKey(sourceRef("track", "2999"))),
+  );
+});
+orphanBindingDatabase.close();
 
 const canonicalGuardDatabase = initializedDatabase();
 const sourceBackedMaterialRef = materialRef("recording", "m_source_backed");
