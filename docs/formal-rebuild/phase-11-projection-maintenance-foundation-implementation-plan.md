@@ -534,7 +534,10 @@ invalidation clearly enough after the area docs are updated.
    - injects only the narrow invalidation capability into lower-level
      factories;
    - rejects non-default owner scopes on workflow-facing owner-scoped write
-     methods in Phase 11.
+     methods in Phase 11;
+   - for source-library methods that take a batch record, re-read the
+     persisted batch by `batchId` before delegating so caller-supplied batch
+     fields cannot bypass default-owner enforcement.
 
 8. Migrate workflows and public API:
    - Source Library Import creates and uses the top-level facade inside write

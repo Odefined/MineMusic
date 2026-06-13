@@ -121,7 +121,9 @@
 - `src/music_data_platform/source_of_truth_write_commands.ts` implements the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, and currently rejects non-default owner scopes on
-  owner-scoped workflow methods.
+  owner-scoped workflow methods; source-library batch-record methods re-read
+  the persisted batch by `batchId` before delegating so forged caller batch
+  fields cannot bypass the default-owner restriction.
 - Identity, source-library, and owner relation write commands now require a
   narrow projection invalidation dependency and report typed source-of-truth
   write scopes instead of writing dirty targets directly.

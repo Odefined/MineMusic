@@ -70,12 +70,22 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
         return sourceLibrary.createImportBatch(commandInput);
       },
       resolveImportBatchLibraryScope(commandInput) {
-        assertWorkflowFacingOwnerScope(commandInput.batch.ownerScope);
-        return sourceLibrary.resolveImportBatchLibraryScope(commandInput);
+        return sourceLibrary.resolveImportBatchLibraryScope({
+          ...commandInput,
+          batch: requireWorkflowFacingBatch(
+            sourceLibraryReads,
+            commandInput.batch.batchId,
+          ),
+        });
       },
       recordImportItem(commandInput) {
-        assertWorkflowFacingOwnerScope(commandInput.batch.ownerScope);
-        return sourceLibrary.recordImportItem(commandInput);
+        return sourceLibrary.recordImportItem({
+          ...commandInput,
+          batch: requireWorkflowFacingBatch(
+            sourceLibraryReads,
+            commandInput.batch.batchId,
+          ),
+        });
       },
       recordImportItemFailure(commandInput) {
         assertWorkflowFacingBatchOwnerScope(
@@ -92,12 +102,22 @@ export function createMusicDataPlatformSourceOfTruthWriteCommands(
         return sourceLibrary.failImportBatch(commandInput);
       },
       completeImportBatch(commandInput) {
-        assertWorkflowFacingOwnerScope(commandInput.batch.ownerScope);
-        return sourceLibrary.completeImportBatch(commandInput);
+        return sourceLibrary.completeImportBatch({
+          ...commandInput,
+          batch: requireWorkflowFacingBatch(
+            sourceLibraryReads,
+            commandInput.batch.batchId,
+          ),
+        });
       },
       advanceImportBatchCursor(commandInput) {
-        assertWorkflowFacingOwnerScope(commandInput.batch.ownerScope);
-        return sourceLibrary.advanceImportBatchCursor(commandInput);
+        return sourceLibrary.advanceImportBatchCursor({
+          ...commandInput,
+          batch: requireWorkflowFacingBatch(
+            sourceLibraryReads,
+            commandInput.batch.batchId,
+          ),
+        });
       },
     },
     ownerRelations: {
@@ -120,6 +140,24 @@ function assertWorkflowFacingOwnerScope(ownerScope: string): void {
       message: `Workflow-facing source-of-truth writes currently support only owner scope '${DEFAULT_OWNER_SCOPE}'.`,
     });
   }
+}
+
+function requireWorkflowFacingBatch(
+  sourceLibraryReads: ReturnType<typeof createSourceLibraryReadPort>,
+  batchId: string,
+) {
+  const batch = sourceLibraryReads.getImportBatch({ batchId });
+
+  if (batch === undefined) {
+    throw new MusicDataPlatformError({
+      code: "music_data.source_library_import_batch_not_found",
+      message: `Source library import batch '${batchId}' was not found.`,
+    });
+  }
+
+  assertWorkflowFacingOwnerScope(batch.ownerScope);
+
+  return batch;
 }
 
 function assertWorkflowFacingBatchOwnerScope(

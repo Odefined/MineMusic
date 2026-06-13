@@ -1271,9 +1271,11 @@ that explicit owner scope when reporting `source_library_item_written`.
 
 The workflow-facing `createMusicDataPlatformSourceOfTruthWriteCommands(...)`
 facade currently accepts only `DEFAULT_OWNER_SCOPE` on owner-scoped write
-methods. Lower-level source-library and owner-relation commands remain
-owner-scoped internally, but Phase 11 does not support arbitrary workflow
-owner fanout.
+methods. For source-library methods that take a batch record, the facade
+re-reads the persisted batch by `batchId` and delegates with that persisted
+row rather than trusting caller-supplied batch fields. Lower-level
+source-library and owner-relation commands remain owner-scoped internally, but
+Phase 11 does not support arbitrary workflow owner fanout.
 
 ### Initial Write Command Invalidation Reporting
 

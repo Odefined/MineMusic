@@ -871,8 +871,35 @@ assert.throws(
       db,
       now: "2026-06-13T12:22:15.000Z",
     }).sourceLibrary.resolveImportBatchLibraryScope({
-      batch: batch!,
+      batch: {
+        ...batch!,
+        ownerScope: DEFAULT_OWNER_SCOPE,
+      },
       providerAccountId: "130950699",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
+    const batch = createSourceLibraryRepositories({ db }).batches.get({
+      batchId: "foreign-owner-batch",
+    });
+    assert.notEqual(batch, undefined);
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:22:17.000Z",
+    }).sourceLibrary.recordImportItem({
+      batch: {
+        ...batch!,
+        ownerScope: DEFAULT_OWNER_SCOPE,
+      },
+      sourceRef: sourceTrack("3999", "Forged Scope Track").sourceRef,
+      providerId: "netease",
+      providerEntityId: "3999",
+      materialRef: materialRef("recording", "m_forged_scope"),
     });
   }),
   (error: unknown) =>
@@ -898,6 +925,27 @@ assert.throws(
 );
 assert.throws(
   () => facadeOwnerScopeDatabase.transaction((db) => {
+    const batch = createSourceLibraryRepositories({ db }).batches.get({
+      batchId: "foreign-owner-batch",
+    });
+    assert.notEqual(batch, undefined);
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:22:23.000Z",
+    }).sourceLibrary.completeImportBatch({
+      batch: {
+        ...batch!,
+        ownerScope: DEFAULT_OWNER_SCOPE,
+      },
+      completionReason: "provider_exhausted",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
     createMusicDataPlatformSourceOfTruthWriteCommands({
       db,
       now: "2026-06-13T12:22:25.000Z",
@@ -905,6 +953,27 @@ assert.throws(
       batchId: "foreign-owner-batch",
       errorCode: "music_data.test_failure",
       errorMessage: "test failure",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
+    const batch = createSourceLibraryRepositories({ db }).batches.get({
+      batchId: "foreign-owner-batch",
+    });
+    assert.notEqual(batch, undefined);
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:22:27.000Z",
+    }).sourceLibrary.advanceImportBatchCursor({
+      batch: {
+        ...batch!,
+        ownerScope: DEFAULT_OWNER_SCOPE,
+      },
+      cursor: "cursor-2",
     });
   }),
   (error: unknown) =>

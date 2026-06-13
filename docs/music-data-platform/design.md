@@ -331,10 +331,12 @@ Library Import reuses the existing top-level source-of-truth write facade:
 6. record import outcome.
 
 The workflow-facing facade currently accepts only `DEFAULT_OWNER_SCOPE` on
-owner-scoped write methods. Lower-level source-library and owner-relation
-commands still keep explicit `ownerScope` because the formal storage and
-projection model are owner-scoped, but Phase 11 does not support arbitrary
-workflow-facing owner fanout yet.
+owner-scoped write methods. For source-library methods that take a batch
+record, the facade re-reads the persisted batch by `batchId` and delegates
+with that persisted row instead of trusting caller-supplied batch fields.
+Lower-level source-library and owner-relation commands still keep explicit
+`ownerScope` because the formal storage and projection model are owner-scoped,
+but Phase 11 does not support arbitrary workflow-facing owner fanout yet.
 
 Phase 8 does not introduce a second material creation policy, direct material
 row construction inside import callers, or synchronous owner catalog projection

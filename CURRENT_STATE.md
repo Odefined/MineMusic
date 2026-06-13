@@ -239,7 +239,9 @@ Phase 7 Source Library Import vocabulary includes:
 - `createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })` as the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, currently restricted to
-  `DEFAULT_OWNER_SCOPE` for owner-scoped workflow methods;
+  `DEFAULT_OWNER_SCOPE` for owner-scoped workflow methods, with source-library
+  batch-record methods re-reading the persisted batch by `batchId` before
+  delegating;
 - `createSourceLibraryReadPort({ db })` for narrow source-library import-batch
   reads without repository write methods;
 - `npm run smoke:ncm:library` as an opt-in live source-library smoke command
