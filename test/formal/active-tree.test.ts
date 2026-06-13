@@ -465,6 +465,47 @@ for (const file of activeFiles) {
 }
 assert.deepEqual(lowLevelWriteFactoryFailures, []);
 
+const projectionInvalidationCallAllowedFiles = new Set([
+  "src/music_data_platform/identity_write_model.ts",
+  "src/music_data_platform/source_library_commands.ts",
+  "src/music_data_platform/owner_material_relation_commands.ts",
+  "src/music_data_platform/source_of_truth_write_commands.ts",
+]);
+const projectionInvalidationCallFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  if (
+    text.includes(".markProjectionInvalidated(") &&
+    !projectionInvalidationCallAllowedFiles.has(relativeFile)
+  ) {
+    projectionInvalidationCallFailures.push(
+      `${relativeFile} calls markProjectionInvalidated outside the owning write boundary`,
+    );
+  }
+}
+assert.deepEqual(projectionInvalidationCallFailures, []);
+
+const projectionTargetDirtyCallAllowedFiles = new Set<string>([]);
+const projectionTargetDirtyCallFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  if (
+    text.includes(".markProjectionTargetDirty(") &&
+    !projectionTargetDirtyCallAllowedFiles.has(relativeFile)
+  ) {
+    projectionTargetDirtyCallFailures.push(
+      `${relativeFile} calls markProjectionTargetDirty outside Projection Maintenance ownership`,
+    );
+  }
+}
+assert.deepEqual(projectionTargetDirtyCallFailures, []);
+
 const directWriteAllowedFiles = new Set([
   "src/music_data_platform/identity_records.ts",
   "src/music_data_platform/identity_schema.ts",

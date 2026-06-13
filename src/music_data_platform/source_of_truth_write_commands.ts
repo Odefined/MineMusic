@@ -7,7 +7,10 @@ import {
   createOwnerMaterialRelationCommands,
   type OwnerMaterialRelationCommands,
 } from "./owner_material_relation_commands.js";
-import { createProjectionMaintenanceCommands } from "./projection_maintenance_commands.js";
+import {
+  createProjectionMaintenanceCommands,
+  type ProjectionInvalidationCommands,
+} from "./projection_maintenance_commands.js";
 import {
   createSourceLibraryCommands,
   type SourceLibraryCommands,
@@ -27,10 +30,17 @@ export type MusicDataPlatformSourceOfTruthWriteCommands = {
 export function createMusicDataPlatformSourceOfTruthWriteCommands(
   input: CreateMusicDataPlatformSourceOfTruthWriteCommandsInput,
 ): MusicDataPlatformSourceOfTruthWriteCommands {
-  const projectionInvalidationCommands = createProjectionMaintenanceCommands({
+  const projectionMaintenanceCommands = createProjectionMaintenanceCommands({
     db: input.db,
     now: input.now,
   });
+  const projectionInvalidationCommands: ProjectionInvalidationCommands = {
+    markProjectionInvalidated(invalidationInput) {
+      return projectionMaintenanceCommands.markProjectionInvalidated(
+        invalidationInput,
+      );
+    },
+  };
 
   return {
     identity: createIdentityWriteCommands({
