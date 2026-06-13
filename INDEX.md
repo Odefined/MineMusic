@@ -66,12 +66,13 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md`:
   implemented Phase 10 execution plan.
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`:
-  draft Phase 11 spec for command-owned dirty projection maintenance,
-  explicit rebuild runner boundaries, and source-of-truth invalidation wiring.
+  active Phase 11 spec for command-owned dirty projection maintenance,
+  explicit rebuild runner boundaries, and source-of-truth invalidation wiring;
+  PR11A and PR11B are implemented, and PR11C remains pending.
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation-implementation-plan.md`:
-  draft Phase 11 execution plan split into PR 11A owner catalog projection
+  active Phase 11 execution plan split into PR 11A owner catalog projection
   scope repair, PR 11B Projection Maintenance Core, and PR 11C
-  source-of-truth invalidation wiring.
+  source-of-truth invalidation wiring; PR11A and PR11B are implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -226,6 +227,14 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   material text read port.
 - `src/music_data_platform/material_text_projection_commands.ts`: internal
   material text rebuild commands.
+- `src/music_data_platform/projection_maintenance_schema.ts`: projection
+  maintenance target schema contribution.
+- `src/music_data_platform/projection_maintenance_records.ts`: internal
+  projection maintenance read port.
+- `src/music_data_platform/projection_maintenance_commands.ts`: internal
+  projection maintenance dirty/clean/failed commands.
+- `src/music_data_platform/projection_maintenance_runner.ts`: internal
+  projection maintenance rebuild runner.
 - `src/music_data_platform/source_library_import.ts`: internal Library Import
   application service that calls source-library and identity commands.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.

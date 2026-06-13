@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 11A owner catalog projection scope repair
+> Status: Implemented through Phase 11B projection maintenance core
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -105,6 +105,17 @@
 - `src/music_data_platform/material_text_projection_records.ts` exposes the
   internal material text read port with exact document reads and strict
   owner-neutral FTS probes.
+- `src/music_data_platform/projection_maintenance_schema.ts` contributes
+  `projection_maintenance_targets` plus a pending-order index.
+- `src/music_data_platform/projection_maintenance_commands.ts` implements
+  typed dirty/clean/failed projection maintenance commands with deterministic
+  `pmt_` target keys and generation-aware completion.
+- `src/music_data_platform/projection_maintenance_records.ts` exposes the
+  internal projection maintenance read port for exact target lookup and
+  pending dirty/failed target listing.
+- `src/music_data_platform/projection_maintenance_runner.ts` implements the
+  internal rebuild runner that dispatches to owner catalog and material text
+  projection commands one target transaction at a time.
 - Owner catalog provenance stores compact projection basis only; it does not
   store raw provider payload, query score/rank, `MaterialCard` data, or
   source-library `lastSeenAt`.
@@ -133,6 +144,17 @@
 - Missing or non-active materials delete current material text rows. Active
   materials rebuild one current document row even when every text field is
   empty.
+- Projection maintenance keeps one current row per typed projection target and
+  uses monotonic `dirty_generation` so repeated dirty marks never duplicate
+  pending work.
+- Dirty after failed clears prior failure fields and leaves the newer
+  generation pending.
+- Projection maintenance runner selects both `dirty` and `failed` targets,
+  retries failed rows, rolls back projection writes on rebuild failure, and
+  records compact failure fields in a separate transaction.
+- Stale rebuild attempts do not clear newer work: generation-aware clean/fail
+  calls leave a newer dirty row pending when the target is remarked during the
+  same run.
 - Mixed source-library plus owner-relation catalog rows preserve both
   provenance objects and keep source-library added-time priority over owner
   relation update time.
@@ -158,6 +180,10 @@
   conjunctive match semantics, operator escaping, canonical inclusion guards,
   bound-source truth from `source_material_bindings`, and active-empty plus
   delete-on-missing-or-inactive rebuild behavior.
+- Phase 11B tests cover projection maintenance schema shape, deterministic
+  payload/key generation, dirty-generation increments, failure clearing,
+  pending list limit/order, runner success dispatch, malformed-target retry,
+  rebuild rollback, and stale-generation skip behavior.
 - Active-tree architecture tests reject low-level repository factory calls
   outside owning command/read/projection boundaries and direct write tokens
   outside repository, command/projection, schema, and storage infrastructure
@@ -188,8 +214,10 @@ Out of the current Music Data Platform implementation:
 - update baselines and removed-from-library reconciliation;
 - local pool query, owner-scoped/public query, query/retrieval, and
   presentation;
-- dirty-projection marking, scheduler/worker orchestration, and automatic
-  projection refresh policy;
+- source-of-truth invalidation wiring that marks projection targets dirty from
+  identity/source-library/relation write commands;
+- background scheduler/worker orchestration and automatic projection refresh
+  policy;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction
   fact families;
 - public Stage Interface import tools;

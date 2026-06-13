@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority for implemented Phase 10
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, and material text projection
+> Status: Current design authority for implemented Phase 11B
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, and projection maintenance core
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -9,8 +9,10 @@ source-to-material binding facts, and the source-library import persistence
 foundation that lets later phases move from provider account-library
 observations to MineMusic source-backed material anchors. It also owns
 material-scope owner relation facts, the internal owner catalog
-projection/read-model foundation, and the owner-neutral material text
-projection/FTS foundation built from those durable facts.
+projection/read-model foundation, the owner-neutral material text
+projection/FTS foundation built from those durable facts, and the
+projection-maintenance target table/runner that tracks explicit rebuild work
+for current projections.
 
 ## Core Concepts
 
@@ -32,10 +34,12 @@ projection/FTS foundation built from those durable facts.
 | `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material and excludes active material-scope blocked facts. |
 | `material_text_documents` | Current material-centered text document projection. | One row per active material ref; built only from current material/bound-source/confirmed-canonical facts. |
 | `material_text_fts` | SQLite FTS read model for projected material text. | Indexes `title/artist/album/version/alias` only; `search_text` remains a non-FTS stored projection column. |
+| `projection_maintenance_targets` | Current projection maintenance worklist. | One row per `projection_kind + target_key`; `status` is `dirty` or `failed` and `dirty_generation` is monotonic. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
 | Identity write command | Internal write boundary for invariant-preserving mutations. | Created with transaction-scoped `db` and caller-supplied `now`. |
 | Identity repository | Low-level persistence port. | Created with `db`; does not start transactions or enforce multi-table workflows. |
+| Projection maintenance runner | Internal rebuild dispatcher for explicit pending targets. | Reads one pending batch, rebuilds each target in its own transaction, then marks clean or failed by generation. |
 
 ## Identity Keys
 
@@ -542,6 +546,65 @@ FTS probe over projected material text. It does not implement owner catalog
 pool logic, provider candidate search, query-hit shaping, ranking, or
 presentation output.
 
+## Projection Maintenance Core
+
+Phase 11B adds a typed internal projection-maintenance worklist:
+
+```text
+projection_maintenance_targets(
+  projection_kind,
+  target_key,
+  target_payload_json,
+  status,
+  dirty_generation,
+  failure_code?,
+  failure_message?,
+  created_at,
+  updated_at
+)
+```
+
+The implemented projection kinds are:
+
+```text
+owner_catalog_source_library
+owner_catalog_source_library_material
+owner_catalog_relation_material
+material_text
+```
+
+`target_key` is an opaque deterministic digest:
+
+```text
+pmt_<digest(projectionKind, normalizedTargetPayloadJson)>
+```
+
+`target_payload_json` is stable JSON with fixed key order so the same logical
+target always produces the same `target_key`. Ref payloads keep
+`namespace/kind/id` only; labels never participate in projection maintenance
+identity.
+
+`markProjectionTargetDirty(...)` upserts one target row, clears prior failure
+state, and increments `dirty_generation` on repeated marks instead of creating
+duplicates. `markProjectionClean(...)` and `markProjectionFailed(...)` are
+generation-aware: they mutate only when the caller still holds the current
+generation, so stale rebuild attempts cannot delete or overwrite a newer dirty
+mark.
+
+`createProjectionMaintenanceRunner({ database, now })` is an internal runner,
+not a public tool. It selects `dirty` and `failed` rows through
+`createProjectionMaintenanceRecords({ db })`, rebuilds each target in its own
+database transaction by dispatching to the owning projection command, and then:
+
+- deletes the target row on successful same-generation rebuild;
+- writes `status = failed` plus compact failure fields when rebuild throws;
+- leaves a newer generation pending when rebuild output becomes stale during
+  the same run.
+
+Malformed target payloads are treated as failed targets for that row only; the
+runner continues with later targets. Phase 11B does not yet wire source-of-
+truth write commands to mark these targets dirty automatically.
+
 ## Material Merge
 
 `mergeMaterialRecord(loser, winner)` is identity-level only.
@@ -575,7 +638,9 @@ collections, rewrite projections, or touch presentation history.
 - query/retrieval/ranking;
 - provider execution or provider config;
 - Stage Interface tools or public DTOs;
-- dirty-projection marking, scheduling, or automatic rebuild orchestration;
+- source-of-truth invalidation wiring for identity/source-library/relation
+  writes;
+- background scheduling or automatic rebuild orchestration;
 - canonical review/merge/split workflow;
 - direct source-canonical evidence model;
 - wrong-version, not-playable, bad-match, feedback, correction, or signals;

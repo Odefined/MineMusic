@@ -106,6 +106,9 @@ export {
   musicDataPlatformMaterialTextProjectionSchema,
 } from "./material_text_projection_schema.js";
 export {
+  musicDataPlatformProjectionMaintenanceSchema,
+} from "./projection_maintenance_schema.js";
+export {
   createOwnerCatalogRecords,
 } from "./owner_catalog_records.js";
 export type {
@@ -150,6 +153,16 @@ export type {
   MatchMaterialTextDocumentsInput,
 } from "./material_text_projection_records.js";
 export {
+  createProjectionMaintenanceRecords,
+} from "./projection_maintenance_records.js";
+export type {
+  CreateProjectionMaintenanceRecordsInput,
+  GetProjectionTargetInput,
+  ListPendingProjectionTargetsInput,
+  ProjectionMaintenanceRecords,
+  ProjectionMaintenanceTargetRecord,
+} from "./projection_maintenance_records.js";
+export {
   createOwnerMaterialRelationCommands,
 } from "./owner_material_relation_commands.js";
 export type {
@@ -169,6 +182,29 @@ export type {
   RebuildMaterialTextDocumentsInput,
   RebuildMaterialTextDocumentsSummary,
 } from "./material_text_projection_commands.js";
+export {
+  createProjectionMaintenanceCommands,
+} from "./projection_maintenance_commands.js";
+export type {
+  CreateProjectionMaintenanceCommandsInput,
+  ProjectionMaintenanceCleanInput,
+  ProjectionMaintenanceCleanResult,
+  ProjectionMaintenanceCommands,
+  ProjectionMaintenanceFailedInput,
+  ProjectionMaintenanceFailedResult,
+  ProjectionMaintenanceKind,
+  ProjectionMaintenanceTargetDirtyResult,
+  ProjectionMaintenanceTargetInput,
+  ProjectionMaintenanceTargetStatus,
+} from "./projection_maintenance_commands.js";
+export {
+  createProjectionMaintenanceRunner,
+} from "./projection_maintenance_runner.js";
+export type {
+  CreateProjectionMaintenanceRunnerInput,
+  ProjectionMaintenanceRunner,
+  ProjectionMaintenanceRunSummary,
+} from "./projection_maintenance_runner.js";
 export {
   createSourceLibraryImportService,
 } from "./source_library_import.js";

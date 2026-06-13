@@ -408,6 +408,38 @@ implemented plan lives at
 `docs/formal-rebuild/phase-8-owner-catalog-projection-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
 
+## 2026-06-13: Phase 11B Projection Maintenance Core
+
+Phase 11B adds the internal projection-maintenance worklist and rebuild core:
+
+- `musicDataPlatformProjectionMaintenanceSchema` creates
+  `projection_maintenance_targets` plus the pending-order index;
+- `createProjectionMaintenanceCommands({ db, now })` implements
+  `markProjectionTargetDirty(...)`, `markProjectionClean(...)`, and
+  `markProjectionFailed(...)` with deterministic `pmt_` target keys and
+  generation-aware completion;
+- `createProjectionMaintenanceRecords({ db })` exposes exact target lookup and
+  pending dirty/failed target reads;
+- `createProjectionMaintenanceRunner({ database, now })` reads pending targets
+  and dispatches each target to the owning owner-catalog or material-text
+  rebuild command inside its own transaction;
+- repeated dirty marks increment `dirty_generation` instead of creating
+  duplicates, and dirty-after-failed clears compact failure fields;
+- malformed payloads fail only the offending target, rebuild failures roll
+  back projection writes before failure marking, and stale-generation rebuilds
+  leave the newer dirty row pending;
+- default Server Host composition now initializes the projection maintenance
+  schema alongside the existing Music Data Platform schemas;
+- tests cover schema shape, deterministic target payload/key generation,
+  dirty/failure lifecycle, runner success dispatch, malformed-target retry,
+  rebuild rollback, stale-generation skip behavior, and active-tree guard
+  updates for the new write boundary files.
+
+The implemented Phase 11 spec still lives at
+`docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`. PR11B
+implements the Projection Maintenance Core slice from that spec/plan; PR11C
+source-of-truth invalidation wiring remains pending.
+
 ## 2026-06-13: Phase 9 Owner Material Relations Foundation
 
 Phase 9 implements the first owner-relation fact family and the second owner

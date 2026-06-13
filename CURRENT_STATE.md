@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 10 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 11B of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -22,7 +22,10 @@ material-scope `saved/favorite/blocked`, owner-relation projection, and
 ordinary catalog exclusion for active blocked facts. Phase 10 adds
 `material_text_documents`, `material_text_fts`, command-owned rebuild by
 explicit material ref, and an owner-neutral internal material text read/FTS
-probe.
+probe. Phase 11B adds `projection_maintenance_targets`, typed dirty/failed
+projection maintenance commands, and an internal rebuild runner that dispatches
+to owner catalog and material text projection commands. Source-of-truth
+invalidation wiring from write commands remains pending for PR11C.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -465,7 +468,8 @@ restored as compatibility layers.
   `docs/music-data-platform/ports.md`, and
   `docs/music-data-platform/progress.md` are the current Music Data Platform
   area docs for identity, source-library import, owner material relation,
-  owner catalog projection, and material text projection.
+  owner catalog projection, material text projection, and projection
+  maintenance core.
 - `docs/formal-rebuild/phase-6-source-provider-slot.md` records the
   implemented Phase 6 Source Provider Slot search spec.
 - `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`
@@ -486,6 +490,12 @@ restored as compatibility layers.
   records the implemented Phase 10 material text projection foundation spec.
 - `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md`
   records the implemented Phase 10 execution plan.
+- `docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`
+  remains the active Phase 11 spec; PR11A and PR11B are implemented and PR11C
+  remains pending.
+- `docs/formal-rebuild/phase-11-projection-maintenance-foundation-implementation-plan.md`
+  remains the active Phase 11 execution plan; PR11A and PR11B are implemented
+  and PR11C remains pending.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -500,7 +510,7 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 9 does not implement:
+Phase 11B does not implement:
 
 - public Stage Interface provider/search tools;
 - generic provider platform/runtime;
@@ -516,8 +526,9 @@ Phase 9 does not implement:
 - update baselines, removed-from-library reconciliation, collection,
   additional owner catalog producers, wrong-version, not-playable, bad-match,
   feedback/correction facts, signals, or recording-to-work relation workflows;
-- dirty-projection marking, background rebuild orchestration, or synchronous
-  import-path projection refresh;
+- source-of-truth invalidation wiring from identity/source-library/relation
+  write commands, background rebuild orchestration, or synchronous import-path
+  projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;
 - handbook tools or music-domain tools beyond the internal runtime status
   tool.
@@ -527,7 +538,7 @@ contracts.
 
 ## Verification Pointers
 
-Phase 9 verification for this state should include:
+Phase 11B verification for this state should include:
 
 ```bash
 npm run typecheck

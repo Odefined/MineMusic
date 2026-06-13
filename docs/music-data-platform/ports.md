@@ -1,16 +1,17 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority for implemented Phase 10
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, and material text projection ports
+> Status: Current boundary authority for implemented Phase 11B
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, and projection maintenance ports
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
 Library Import service, source-library and owner relation ref helpers, owner
 relation commands/read port, owner catalog
 projection commands/read port, material text projection commands/read port,
-schema contributions, a material ref factory, and error types. It consumes
-generic Storage database ports and a narrow provider-library read port, but
-does not know SQLite primitives or provider plugin implementations.
+projection maintenance commands/reads/runner, schema contributions, a material
+ref factory, and error types. It consumes generic Storage database ports and a
+narrow provider-library read port, but does not know SQLite primitives or
+provider plugin implementations.
 
 ## Provides
 
@@ -22,6 +23,7 @@ does not know SQLite primitives or provider plugin implementations.
 | `musicDataPlatformOwnerRelationSchema` | Storage initialization callers | Creates `owner_material_relations`. | `src/music_data_platform/owner_material_relation_schema.ts` |
 | `musicDataPlatformOwnerCatalogViewSchema` | Storage initialization callers | Creates the final `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
 | `musicDataPlatformMaterialTextProjectionSchema` | Storage initialization callers | Creates `material_text_documents` and `material_text_fts`. | `src/music_data_platform/material_text_projection_schema.ts` |
+| `musicDataPlatformProjectionMaintenanceSchema` | Storage initialization callers | Creates `projection_maintenance_targets` and its pending-order index. | `src/music_data_platform/projection_maintenance_schema.ts` |
 | `createIdentityRepositories` | Internal command/read/projection implementations and low-level tests | Low-level source/material/canonical/binding persistence. | `src/music_data_platform/identity_records.ts` |
 | `createIdentityReadPort` | Internal Music Data Platform callers/tests | Narrow identity reads needed by workflows without exposing repository write methods. | `src/music_data_platform/identity_read_model.ts` |
 | `createIdentityWriteCommands` | Internal Music Data Platform callers/tests | Invariant-preserving identity writes. | `src/music_data_platform/identity_write_model.ts` |
@@ -40,6 +42,9 @@ does not know SQLite primitives or provider plugin implementations.
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
 | `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
 | `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
+| `createProjectionMaintenanceCommands` | Internal commands/tests | Mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
+| `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
+| `createProjectionMaintenanceRunner` | Internal runtime/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
 | `MusicDataPlatformError` | Internal callers/tests | Music Data Platform-owned invariant errors. | `src/music_data_platform/errors.ts` |
 
 ## Consumes
@@ -95,6 +100,9 @@ Commands are created with `db: MusicDatabaseTransactionContext` and
 | `advanceImportBatchCursor` | batch plus next cursor | after-state batch record | `source_library_import_batches` |
 | `recordOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind`, explicit `origin`, optional `note` | current relation record | `owner_material_relations` |
 | `removeOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind` | current relation record | `owner_material_relations` |
+| `markProjectionTargetDirty` | typed projection target | `{ targetKey, dirtyGeneration }` | `projection_maintenance_targets` |
+| `markProjectionClean` | `projectionKind`, `targetKey`, `expectedDirtyGeneration` | `{ cleaned }` | `projection_maintenance_targets` |
+| `markProjectionFailed` | `projectionKind`, `targetKey`, `expectedDirtyGeneration`, compact failure | `{ failed }` | `projection_maintenance_targets` |
 
 Command outputs are internal records. They are not agent-facing DTOs.
 
@@ -109,6 +117,8 @@ Command outputs are internal records. They are not agent-facing DTOs.
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
 | `createMaterialTextProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildMaterialTextDocument({ materialRef })` and `rebuildMaterialTextDocuments({ materialRefs })` | writes `material_text_documents` and `material_text_fts` only |
 | `createMaterialTextProjectionRecords({ db })` | database context | `getMaterialTextDocument({ materialRef })`, `matchMaterialTextDocuments({ text, limit? })` | reads `material_text_documents` and `material_text_fts` |
+| `createProjectionMaintenanceRecords({ db })` | database context | `getProjectionTarget(...)`, `listPendingProjectionTargets({ limit? })` | reads `projection_maintenance_targets` |
+| `createProjectionMaintenanceRunner({ database, now })` | root database plus timestamp | runner object with `runProjectionMaintenance({ limit? })` | reads `projection_maintenance_targets`; writes `projection_maintenance_targets`, `owner_material_entries`, and `material_text_*` through owning commands |
 
 Projection commands are Music Data Platform-owned database commands.
 `rebuildSourceLibraryEntriesForLibrary(...)` rebuilds one source-library scope
@@ -119,6 +129,13 @@ owner-relation rows for one owner/material scope. `blocked` affects ordinary
 catalog visibility only through the SQL view and does not create
 owner-material entry rows. Callers must not construct durable projection rows
 themselves.
+
+Projection maintenance is also Music Data Platform-owned. `target_payload_json`
+is stable internal JSON, `target_key` is an opaque deterministic digest, and
+only the owning projection maintenance commands may mutate
+`projection_maintenance_targets`. The runner may dispatch only to owning
+projection rebuild commands; it must not construct projection rows directly or
+expose Stage Interface DTOs.
 
 ## Library Import Service
 
@@ -208,6 +225,12 @@ Current guards:
   escaping, bound-source truth from `source_material_bindings`, canonical
   inclusion guards, repeated rebuild replacement, active-empty rebuild, and
   delete-on-missing-or-inactive behavior.
+- projection maintenance tests cover schema/record/command/runner key sets,
+  deterministic payload/key generation, dirty-generation increments, failure
+  clearing, dirty/failed pending reads, malformed-payload failure handling,
+  projection-write rollback on rebuild failure, stale-generation skip
+  semantics, runner limit behavior, and helper confinement outside the public
+  barrel.
 
 ## Out Of Scope
 
@@ -220,7 +243,8 @@ Current guards:
   source-library and owner-relation;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction
   fact families;
-- dirty-projection marking, scheduler/worker orchestration, or automatic import
-  refresh;
+- source-of-truth invalidation wiring for identity/source-library/relation
+  writes;
+- background scheduler/worker orchestration or automatic import refresh;
 - canonical review/merge/split workflow;
 - provider login, OAuth, cookie refresh, secrets, or reauth.

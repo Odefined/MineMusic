@@ -7,6 +7,7 @@ import {
   musicDataPlatformOwnerCatalogEntriesSchema,
   musicDataPlatformOwnerCatalogViewSchema,
   musicDataPlatformOwnerRelationSchema,
+  musicDataPlatformProjectionMaintenanceSchema,
   musicDataPlatformSourceLibrarySchema,
   type MaterialRefFactory,
   type SourceLibraryImportService,
@@ -56,6 +57,7 @@ export function createMusicDataPlatformRuntimeModule(
             musicDataPlatformOwnerRelationSchema,
             musicDataPlatformOwnerCatalogViewSchema,
             musicDataPlatformMaterialTextProjectionSchema,
+            musicDataPlatformProjectionMaintenanceSchema,
           ],
         });
         sourceLibraryImportService = createSourceLibraryImportService({
