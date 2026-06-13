@@ -25,7 +25,6 @@ import {
   type GetOwnerMaterialRelationInput,
   type ListOwnerMaterialRelationsInput,
   type OwnerMaterialRelationRecord,
-  type OwnerRelationEntryKind,
   type OwnerRelationEntryProjectionSummary,
   type RecordOwnerMaterialRelationInput,
   type RemoveOwnerMaterialRelationInput,
@@ -640,17 +639,33 @@ assert.equal(
   }).length,
   0,
 );
-const projectionSummary = projectionDatabase.transaction((db) =>
-  createOwnerCatalogProjectionCommands({
+const projectionSummaries = projectionDatabase.transaction((db) => {
+  const projectionCommands = createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-13T00:23:00.000Z",
-  }).rebuildOwnerRelationEntries({
-    ownerScope: DEFAULT_OWNER_SCOPE,
-  }));
-assert.deepEqual(projectionSummary, {
-  relationFactCount: 3,
-  projectedEntryCount: 3,
-  obsoleteEntryDeleteCount: 0,
+  });
+  return {
+    materialOne: projectionCommands.rebuildOwnerRelationEntries({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      materialRef: projectionMaterialOne,
+    }),
+    materialTwo: projectionCommands.rebuildOwnerRelationEntries({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      materialRef: projectionMaterialTwo,
+    }),
+  };
+});
+assert.deepEqual(projectionSummaries, {
+  materialOne: {
+    relationFactCount: 2,
+    projectedEntryCount: 2,
+    obsoleteEntryDeleteCount: 0,
+  },
+  materialTwo: {
+    relationFactCount: 1,
+    projectedEntryCount: 1,
+    obsoleteEntryDeleteCount: 0,
+  },
 });
 const projectionReadPort = createOwnerCatalogRecords({ db: projectionDatabase.context() });
 const projectionEntries = projectionReadPort.listOwnerMaterialEntries({
@@ -755,12 +770,11 @@ const projectionCleanupSummary = projectionDatabase.transaction((db) =>
     now: "2026-06-13T00:25:00.000Z",
   }).rebuildOwnerRelationEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
-    relationKind: "saved",
     materialRef: projectionMaterialOne,
   }));
 assert.deepEqual(projectionCleanupSummary, {
-  relationFactCount: 0,
-  projectedEntryCount: 0,
+  relationFactCount: 1,
+  projectedEntryCount: 1,
   obsoleteEntryDeleteCount: 1,
 });
 const projectionEntriesAfterCleanup = createOwnerCatalogRecords({
@@ -790,19 +804,6 @@ assert.equal(
   ),
   true,
 );
-assert.throws(
-  () => projectionDatabase.transaction((db) =>
-    createOwnerCatalogProjectionCommands({
-      db,
-      now: "2026-06-13T00:26:00.000Z",
-    }).rebuildOwnerRelationEntries({
-      ownerScope: DEFAULT_OWNER_SCOPE,
-      relationKind: "blocked" as unknown as OwnerRelationEntryKind,
-    })),
-  (error: unknown) =>
-    isMusicDataPlatformError(error) &&
-    error.code === "music_data.owner_material_relation_invalid",
-);
 projectionDatabase.close();
 
 const blockedDatabase = initializedDatabase();
@@ -828,6 +829,7 @@ blockedDatabase.transaction((db) => {
     now: "2026-06-13T00:32:00.000Z",
   }).rebuildOwnerRelationEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: blockedMaterialRef,
   });
 });
 const blockedReadPort = createOwnerCatalogRecords({ db: blockedDatabase.context() });
@@ -859,6 +861,7 @@ blockedDatabase.transaction((db) =>
     now: "2026-06-13T00:33:30.000Z",
   }).rebuildOwnerRelationEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: blockedMaterialRef,
   }));
 assert.equal(
   createOwnerCatalogRecords({ db: blockedDatabase.context() }).listOwnerMaterialEntries({
@@ -924,7 +927,7 @@ mixedDatabase.transaction((db) => {
   createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-13T00:42:00.000Z",
-  }).rebuildSourceLibraryEntries({
+  }).rebuildSourceLibraryEntriesForLibrary({
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: mixedLibraryRef,
   });
@@ -942,7 +945,7 @@ mixedDatabase.transaction((db) => {
     now: "2026-06-13T00:51:00.000Z",
   }).rebuildOwnerRelationEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
-    relationKind: "saved",
+    materialRef: mixedMaterialRef,
   });
 });
 const mixedCatalogRow = requireCatalogRow(
@@ -964,7 +967,6 @@ assert.deepEqual(
       lastAddedAt: "2026-06-13T00:41:30.000Z",
       firstProviderAddedAt: "2026-06-07T03:00:00.000Z",
       lastProviderAddedAt: "2026-06-07T03:00:00.000Z",
-      lastSeenAt: "2026-06-13T00:41:30.000Z",
     },
     {
       kind: "owner_relation",
@@ -990,7 +992,7 @@ mixedDatabase.transaction((db) =>
     now: "2026-06-13T00:53:00.000Z",
   }).rebuildOwnerRelationEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
-    relationKind: "saved",
+    materialRef: mixedMaterialRef,
   }));
 const mixedEntriesAfterCleanup = createOwnerCatalogRecords({
   db: mixedDatabase.context(),
@@ -1038,6 +1040,7 @@ mergedRelationDatabase.transaction((db) => {
     now: "2026-06-13T01:02:00.000Z",
   }).rebuildOwnerRelationEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: mergedLoserMaterialRef,
   });
 });
 mergedRelationDatabase.transaction((db) => {
@@ -1053,7 +1056,7 @@ const mergedProjectionSummary = mergedRelationDatabase.transaction((db) =>
     now: "2026-06-13T01:04:00.000Z",
   }).rebuildOwnerRelationEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
-    relationKind: "saved",
+    materialRef: mergedLoserMaterialRef,
   }));
 assert.deepEqual(mergedProjectionSummary, {
   relationFactCount: 1,

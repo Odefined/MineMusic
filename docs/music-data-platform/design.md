@@ -417,16 +417,19 @@ timestamps when deriving `recently_added_at`, excludes active material-scope
 blocked facts through `NOT EXISTS`, and keeps aggregated provenance for
 internal query/debug follow-up.
 
-Projection rebuild is command-owned. `rebuildSourceLibraryEntries` validates
-`ownerScope`, validates `libraryRef`, fails on missing source-library scope or
-owner mismatch, fails when source-library items somehow exist without current
-bindings, rebuilds one source-library scope through SQL set operations, and
-deletes obsolete owner-entry rows after source rebind or material merge.
+Projection rebuild is command-owned.
+`rebuildSourceLibraryEntriesForLibrary` validates `ownerScope`, validates
+`libraryRef`, fails on missing source-library scope or owner mismatch, fails
+when source-library items somehow exist without current bindings, and rebuilds
+one source-library scope through SQL set operations.
+`rebuildSourceLibraryEntriesForMaterial` replaces only the source-library rows
+for one owner/material scope, which is the repair path after source rebind or
+material merge.
 
-`rebuildOwnerRelationEntries` rebuilds `saved` and/or `favorite` owner-relation
-entry scopes through SQL set operations, stores compact owner-relation
-provenance, cleans obsolete owner-relation entries only inside the selected
-relation pool/material scope, and never deletes `source_library` rows.
+`rebuildOwnerRelationEntries` replaces positive `saved` and `favorite`
+owner-relation rows for one owner/material scope through SQL set operations,
+stores compact owner-relation provenance, and never deletes `source_library`
+rows.
 
 Callers do not construct projection rows themselves. Projection maintenance is
 not public Stage Interface behavior, and ordinary owner relation writes do not

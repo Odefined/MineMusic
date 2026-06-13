@@ -36,7 +36,7 @@ does not know SQLite primitives or provider plugin implementations.
 | `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port and owning commands. | `src/music_data_platform/source_library_import.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
-| `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild source-library and owner-relation owner catalog scopes through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
+| `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild library-scope source-library projection plus material-scope source-library and owner-relation catalog entries through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
 | `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
 | `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
@@ -105,17 +105,20 @@ Command outputs are internal records. They are not agent-facing DTOs.
 | `createIdentityReadPort({ db })` | database context | `findMaterialForSource({ sourceRef })` | reads `source_material_bindings` |
 | `createSourceLibraryReadPort({ db })` | database context | `getImportBatch({ batchId })` | reads `source_library_import_batches` |
 | `createOwnerMaterialRelationRecords({ db })` | database context | `getOwnerMaterialRelation(...)`, `listOwnerMaterialRelations(...)` | reads `owner_material_relations` |
-| `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntries({ ownerScope, libraryRef })` and `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })` | writes `owner_material_entries` only |
+| `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntriesForLibrary({ ownerScope, libraryRef })`, `rebuildSourceLibraryEntriesForMaterial({ ownerScope, materialRef })`, and `rebuildOwnerRelationEntries({ ownerScope, materialRef })` | writes `owner_material_entries` only |
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
 | `createMaterialTextProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildMaterialTextDocument({ materialRef })` and `rebuildMaterialTextDocuments({ materialRefs })` | writes `material_text_documents` and `material_text_fts` only |
 | `createMaterialTextProjectionRecords({ db })` | database context | `getMaterialTextDocument({ materialRef })`, `matchMaterialTextDocuments({ text, limit? })` | reads `material_text_documents` and `material_text_fts` |
 
-Projection commands are Music Data Platform-owned database commands. They
-rebuild one source-library scope or one positive owner-relation pool scope
-through SQL set operations, validate current invariants, and delete obsolete
-rows inside the command boundary. `blocked` affects ordinary catalog
-visibility only through the SQL view and does not create owner-material entry
-rows. Callers must not construct durable projection rows themselves.
+Projection commands are Music Data Platform-owned database commands.
+`rebuildSourceLibraryEntriesForLibrary(...)` rebuilds one source-library scope
+from library facts, `rebuildSourceLibraryEntriesForMaterial(...)` replaces
+only the source-library rows for one owner/material scope after rebind or
+merge, and `rebuildOwnerRelationEntries(...)` replaces positive saved/favorite
+owner-relation rows for one owner/material scope. `blocked` affects ordinary
+catalog visibility only through the SQL view and does not create
+owner-material entry rows. Callers must not construct durable projection rows
+themselves.
 
 ## Library Import Service
 

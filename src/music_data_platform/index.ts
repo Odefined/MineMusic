@@ -134,7 +134,8 @@ export type {
   OwnerCatalogProjectionCommands,
   OwnerRelationEntryProjectionSummary,
   RebuildOwnerRelationEntriesInput,
-  RebuildSourceLibraryEntriesInput,
+  RebuildSourceLibraryEntriesForLibraryInput,
+  RebuildSourceLibraryEntriesForMaterialInput,
   SourceLibraryEntryProjectionSummary,
 } from "./owner_catalog_projection.js";
 export {

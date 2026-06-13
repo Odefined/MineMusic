@@ -265,8 +265,9 @@ Phase 8/9 owner catalog and owner relation vocabulary includes:
 - `createOwnerMaterialRelationRecords({ db })` as the internal owner relation
   read port;
 - `createOwnerCatalogProjectionCommands({ db, now })` with
-  `rebuildSourceLibraryEntries({ ownerScope, libraryRef })` and
-  `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })`;
+  `rebuildSourceLibraryEntriesForLibrary({ ownerScope, libraryRef })`,
+  `rebuildSourceLibraryEntriesForMaterial({ ownerScope, materialRef })`, and
+  `rebuildOwnerRelationEntries({ ownerScope, materialRef })`;
 - `createOwnerCatalogRecords({ db })` as the internal owner catalog read port;
 - source-library projection provenance stored as compact `provenance_json`, not
   raw provider payload, query score, or `MaterialCard` output;

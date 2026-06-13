@@ -389,7 +389,7 @@ Phase 8 implements the first owner catalog projection/read-model foundation:
 - `createOwnerCatalogRecords({ db })` provides an internal owner catalog read
   port for tests and later query phases;
 - owner catalog provenance stores compact projection basis such as
-  `libraryRefKey`, source-item count, added-time range, and last-seen time, not
+  `libraryRefKey` and source-item count plus added/provider-added ranges, not
   raw provider payloads, score, rank, or card seeds;
 - owner catalog rebuild fails on missing source library, owner-scope mismatch,
   or source-library items without current bindings;
@@ -438,7 +438,7 @@ catalog projection producer:
 - `createOwnerMaterialRelationRecords({ db })` provides deterministic target
   reads and active-by-default relation listing;
 - `createOwnerCatalogProjectionCommands({ db, now })` now also implements
-  `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })`;
+  positive owner-relation projection rebuild commands;
 - owner-relation entries use `entry_kind = owner_relation` plus
   `entry_ref_key = refKey(ownerRelationPoolRef)`, not per-material relation
   refs;
@@ -453,6 +453,28 @@ catalog projection producer:
 - tests guard owner relation refs, schema shape, explicit origin, relation
   status transitions, blocked exclusion, mixed provenance priority, scoped
   cleanup, and inactive-material projection skip behavior.
+
+## 2026-06-13: Phase 11A Owner Catalog Projection Scope Repair
+
+Phase 11A narrows owner catalog projection maintenance to the touched material
+scopes instead of broad owner-scope refresh:
+
+- `createOwnerCatalogProjectionCommands({ db, now })` now exposes
+  `rebuildSourceLibraryEntriesForLibrary({ ownerScope, libraryRef })`,
+  `rebuildSourceLibraryEntriesForMaterial({ ownerScope, materialRef })`, and
+  `rebuildOwnerRelationEntries({ ownerScope, materialRef })`;
+- source-library projection provenance drops `lastSeenAt`; owner catalog
+  timing still comes from added/provider-added fields already stored in compact
+  provenance;
+- source rebind and material merge repair now rebuild the affected previous and
+  current material scopes directly instead of rerunning the whole library
+  projection;
+- owner-relation projection now uses material-scoped replacement semantics for
+  positive `saved` and `favorite` rows, leaving `blocked` as a catalog-view
+  concern only;
+- tests now cover material-scoped source-library repair, material-scoped
+  owner-relation replacement, mixed provenance after the provenance shrink, and
+  merged-loser cleanup without whole-owner rebuild.
 
 The implemented Phase 9 spec lives at
 `docs/formal-rebuild/phase-9-owner-material-relations-foundation.md`. The

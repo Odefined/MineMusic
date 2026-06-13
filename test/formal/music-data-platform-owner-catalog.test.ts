@@ -17,7 +17,11 @@ import {
   musicDataPlatformOwnerRelationSchema,
   musicDataPlatformSourceLibrarySchema,
   type OwnerCatalogMaterialRecord,
+  type OwnerCatalogProjectionCommands,
   type OwnerMaterialEntryRecord,
+  type RebuildOwnerRelationEntriesInput,
+  type RebuildSourceLibraryEntriesForLibraryInput,
+  type RebuildSourceLibraryEntriesForMaterialInput,
 } from "../../src/music_data_platform/index.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
@@ -56,6 +60,27 @@ export type _ownerCatalogMaterialRecordShape = Expect<
     | "recentlyAddedAt"
     | "provenanceJson"
   >
+>;
+
+export type _ownerCatalogProjectionCommandsShape = Expect<
+  Equal<
+    keyof OwnerCatalogProjectionCommands,
+    | "rebuildSourceLibraryEntriesForLibrary"
+    | "rebuildSourceLibraryEntriesForMaterial"
+    | "rebuildOwnerRelationEntries"
+  >
+>;
+
+export type _rebuildSourceLibraryEntriesForLibraryInputShape = Expect<
+  Equal<keyof RebuildSourceLibraryEntriesForLibraryInput, "ownerScope" | "libraryRef">
+>;
+
+export type _rebuildSourceLibraryEntriesForMaterialInputShape = Expect<
+  Equal<keyof RebuildSourceLibraryEntriesForMaterialInput, "ownerScope" | "materialRef">
+>;
+
+export type _rebuildOwnerRelationEntriesInputShape = Expect<
+  Equal<keyof RebuildOwnerRelationEntriesInput, "ownerScope" | "materialRef">
 >;
 
 const groupedDatabase = initializedDatabase();
@@ -150,7 +175,7 @@ const groupedSummary = groupedDatabase.transaction((db) => {
   return createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-09T00:00:00.000Z",
-  }).rebuildSourceLibraryEntries({
+  }).rebuildSourceLibraryEntriesForLibrary({
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: groupedLibraryRef,
   });
@@ -179,7 +204,6 @@ assert.deepEqual(groupedEntries[0]?.provenanceJson, {
   lastAddedAt: "2026-06-08T03:00:00.000Z",
   firstProviderAddedAt: "2026-06-07T01:00:00.000Z",
   lastProviderAddedAt: "2026-06-07T03:00:00.000Z",
-  lastSeenAt: "2026-06-08T04:00:00.000Z",
 });
 
 const groupedCatalog = groupedReadPort.listOwnerCatalogMaterials({
@@ -195,7 +219,7 @@ const groupedRepeatSummary = groupedDatabase.transaction((db) => {
   return createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-09T00:05:00.000Z",
-  }).rebuildSourceLibraryEntries({
+  }).rebuildSourceLibraryEntriesForLibrary({
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: groupedLibraryRef,
   });
@@ -213,7 +237,7 @@ assert.throws(
     createOwnerCatalogProjectionCommands({
       db,
       now: "2026-06-09T01:00:00.000Z",
-    }).rebuildSourceLibraryEntries({
+    }).rebuildSourceLibraryEntriesForLibrary({
       ownerScope: DEFAULT_OWNER_SCOPE,
       libraryRef: sourceLibraryRef("130950618", "saved_source_track"),
     });
@@ -239,7 +263,7 @@ assert.throws(
     createOwnerCatalogProjectionCommands({
       db,
       now: "2026-06-09T01:05:00.000Z",
-    }).rebuildSourceLibraryEntries({
+    }).rebuildSourceLibraryEntriesForLibrary({
       ownerScope: "other_owner",
       libraryRef: sourceLibraryRef("130950618", "saved_source_track"),
     });
@@ -297,13 +321,13 @@ rebindDatabase.transaction((db) => {
   createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-09T02:00:00.000Z",
-  }).rebuildSourceLibraryEntries({
+  }).rebuildSourceLibraryEntriesForLibrary({
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: rebindLibraryRef,
   });
 });
 
-const rebindSummary = rebindDatabase.transaction((db) => {
+const rebindSummaries = rebindDatabase.transaction((db) => {
   const commands = createIdentityWriteCommands({ db, now: "2026-06-09T02:05:00.000Z" });
 
   commands.upsertMaterialRecord({
@@ -316,18 +340,32 @@ const rebindSummary = rebindDatabase.transaction((db) => {
     makePrimary: true,
   });
 
-  return createOwnerCatalogProjectionCommands({
+  const projectionCommands = createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-09T02:06:00.000Z",
-  }).rebuildSourceLibraryEntries({
-    ownerScope: DEFAULT_OWNER_SCOPE,
-    libraryRef: rebindLibraryRef,
   });
+  return {
+    previousMaterial: projectionCommands.rebuildSourceLibraryEntriesForMaterial({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      materialRef: firstMaterialRef,
+    }),
+    nextMaterial: projectionCommands.rebuildSourceLibraryEntriesForMaterial({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      materialRef: secondMaterialRef,
+    }),
+  };
 });
-assert.deepEqual(rebindSummary, {
-  sourceLibraryItemCount: 1,
-  projectedEntryCount: 1,
-  obsoleteEntryDeleteCount: 1,
+assert.deepEqual(rebindSummaries, {
+  previousMaterial: {
+    sourceLibraryItemCount: 0,
+    projectedEntryCount: 0,
+    obsoleteEntryDeleteCount: 1,
+  },
+  nextMaterial: {
+    sourceLibraryItemCount: 1,
+    projectedEntryCount: 1,
+    obsoleteEntryDeleteCount: 0,
+  },
 });
 
 const rebindEntries = createOwnerCatalogRecords({ db: rebindDatabase.context() })
@@ -389,26 +427,45 @@ mergeDatabase.transaction((db) => {
   createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-09T03:00:00.000Z",
-  }).rebuildSourceLibraryEntries({
+  }).rebuildSourceLibraryEntriesForLibrary({
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: mergeLibraryRef,
   });
 });
 
-mergeDatabase.transaction((db) => {
+const mergeSummaries = mergeDatabase.transaction((db) => {
   const commands = createIdentityWriteCommands({ db, now: "2026-06-09T03:05:00.000Z" });
 
   commands.mergeMaterialRecord({
     loserMaterialRef,
     winnerMaterialRef,
   });
-  createOwnerCatalogProjectionCommands({
+  const projectionCommands = createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-09T03:06:00.000Z",
-  }).rebuildSourceLibraryEntries({
-    ownerScope: DEFAULT_OWNER_SCOPE,
-    libraryRef: mergeLibraryRef,
   });
+  return {
+    loserMaterial: projectionCommands.rebuildSourceLibraryEntriesForMaterial({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      materialRef: loserMaterialRef,
+    }),
+    winnerMaterial: projectionCommands.rebuildSourceLibraryEntriesForMaterial({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      materialRef: winnerMaterialRef,
+    }),
+  };
+});
+assert.deepEqual(mergeSummaries, {
+  loserMaterial: {
+    sourceLibraryItemCount: 0,
+    projectedEntryCount: 0,
+    obsoleteEntryDeleteCount: 1,
+  },
+  winnerMaterial: {
+    sourceLibraryItemCount: 1,
+    projectedEntryCount: 1,
+    obsoleteEntryDeleteCount: 0,
+  },
 });
 
 const mergeReadPort = createOwnerCatalogRecords({ db: mergeDatabase.context() });
@@ -444,7 +501,7 @@ const emptySummary = emptyLibraryDatabase.transaction((db) => {
   return createOwnerCatalogProjectionCommands({
     db,
     now: "2026-06-09T04:00:00.000Z",
-  }).rebuildSourceLibraryEntries({
+  }).rebuildSourceLibraryEntriesForLibrary({
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: sourceLibraryRef("130950618", "saved_source_track"),
   });

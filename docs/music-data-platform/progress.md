@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented Phase 10 material text projection foundation
+> Status: Implemented through Phase 11A owner catalog projection scope repair
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -83,8 +83,15 @@
 - `src/music_data_platform/owner_catalog_schema.ts` now splits owner catalog
   entries and final catalog view into separate schema contributions.
 - `src/music_data_platform/owner_catalog_projection.ts` implements
-  source-library and owner-relation owner catalog rebuild commands with SQL
-  set-based projection refresh and scoped obsolete-row cleanup.
+  owner catalog rebuild commands with SQL set-based projection refresh and
+  scoped obsolete-row cleanup.
+- Owner catalog projection now exposes
+  `rebuildSourceLibraryEntriesForLibrary({ ownerScope, libraryRef })` for
+  library-scope rebuild,
+  `rebuildSourceLibraryEntriesForMaterial({ ownerScope, materialRef })` for
+  touched material-scope source-library repair, and
+  `rebuildOwnerRelationEntries({ ownerScope, materialRef })` for touched
+  material-scope positive owner-relation replacement.
 - `src/music_data_platform/owner_catalog_records.ts` exposes the internal owner
   catalog read port for tests and later query phases.
 - `src/music_data_platform/material_text_projection_schema.ts` contributes
@@ -99,7 +106,8 @@
   internal material text read port with exact document reads and strict
   owner-neutral FTS probes.
 - Owner catalog provenance stores compact projection basis only; it does not
-  store raw provider payload, query score/rank, or `MaterialCard` data.
+  store raw provider payload, query score/rank, `MaterialCard` data, or
+  source-library `lastSeenAt`.
 - `owner_material_relations` is now the current-state source-of-truth for
   material-scope `saved`, `favorite`, and `blocked`.
 - `favorite` does not implicitly create `saved`; `blocked` does not archive or
