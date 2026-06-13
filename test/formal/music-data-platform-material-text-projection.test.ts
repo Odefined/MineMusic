@@ -643,6 +643,52 @@ assert.deepEqual(
 );
 orderingDatabase.close();
 
+const batchOrderingDatabase = initializedDatabase();
+const batchOrderingRefs = [
+  materialRef("recording", "z"),
+  materialRef("recording", "é"),
+  materialRef("recording", "a"),
+  materialRef("recording", "あ"),
+  materialRef("recording", "夜"),
+] as const;
+batchOrderingDatabase.transaction((db) => {
+  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T11:40:00.000Z" });
+
+  for (const materialRefValue of batchOrderingRefs) {
+    identity.upsertMaterialRecord({
+      materialRef: materialRefValue,
+      kind: "recording",
+    });
+  }
+
+  const summary = createMaterialTextProjectionCommands({
+    db,
+    now: "2026-06-13T11:41:00.000Z",
+  }).rebuildMaterialTextDocuments({
+    materialRefs: [
+      batchOrderingRefs[0],
+      batchOrderingRefs[1],
+      batchOrderingRefs[2],
+      batchOrderingRefs[3],
+      batchOrderingRefs[4],
+      batchOrderingRefs[2],
+    ],
+  });
+
+  assert.deepEqual(
+    summary.outcomes.map((outcome) => outcome.materialRefKey),
+    [
+      refKey(materialRef("recording", "a")),
+      refKey(materialRef("recording", "z")),
+      refKey(materialRef("recording", "é")),
+      refKey(materialRef("recording", "あ")),
+      refKey(materialRef("recording", "夜")),
+    ],
+  );
+  assert.equal(summary.processedMaterialCount, 5);
+});
+batchOrderingDatabase.close();
+
 const emptyDatabase = initializedDatabase();
 const emptyMaterialRef = materialRef("recording", "m_empty");
 emptyDatabase.transaction((db) => {

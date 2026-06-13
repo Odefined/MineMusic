@@ -98,7 +98,7 @@ export function createMaterialTextProjectionCommands(
       }
 
       const orderedMaterialRefs = [...materialRefsByKey.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
+        .sort(([left], [right]) => compareStableText(left, right))
         .map(([, materialRef]) => materialRef);
 
       const outcomes = orderedMaterialRefs.map((materialRef) =>
@@ -118,6 +118,18 @@ export function createMaterialTextProjectionCommands(
       };
     },
   };
+}
+
+function compareStableText(left: string, right: string): number {
+  if (left < right) {
+    return -1;
+  }
+
+  if (left > right) {
+    return 1;
+  }
+
+  return 0;
 }
 
 function rebuildSingleMaterialTextDocument(input: {
