@@ -432,6 +432,9 @@ restored as compatibility layers.
   the formal identity/candidate/handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md` records the Collection
   and owner relation source-of-truth split.
+- `docs/adr/0008-command-owned-write-boundaries.md` records that all MineMusic
+  state mutation must go through the owning command/materializer/projection
+  maintenance boundary.
 - `docs/extension/README.md`, `docs/extension/design.md`,
   `docs/extension/ports.md`, and `docs/extension/progress.md` are the current
   Extension area docs introduced by Phase 3.

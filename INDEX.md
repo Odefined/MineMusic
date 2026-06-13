@@ -107,6 +107,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   entity/record, candidate, materialization, and handle boundary direction.
 - `docs/adr/0007-collection-owner-relation-boundary.md`: Collection and owner
   relation source-of-truth split.
+- `docs/adr/0008-command-owned-write-boundaries.md`: command-owned write
+  boundaries for all MineMusic state mutation.
 
 ## Pre-Formal ADR Evidence
 

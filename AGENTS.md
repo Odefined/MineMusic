@@ -52,6 +52,41 @@ A design or PR plan is incomplete until these items are answered.
 - If a query path needs materialization, persistence, or mutation, introduce an explicitly named writer/materializer boundary rather than passing a broad store into the query module.
 - When introducing a new narrow port, prefer exact capability names and add a type-level or architecture test guard when practical.
 
+### Command-owned write rules
+
+All writes must go through the owning command/materializer/projection-maintenance
+boundary. This rule applies to any durable or runtime state mutation, not only
+to source-of-truth fact writes.
+
+Write means any operation that creates, updates, deletes, merges, marks,
+enqueues, advances, completes, fails, rebuilds, or persists state. Examples
+include SQL `run(...)`, repository `insert`/`upsert`/`delete` calls, import
+batch/outcome updates, projection rebuilds, dirty-target marking, cache writes,
+event writes, and snapshot writes.
+
+Allowed direct write locations are narrow:
+
+- repository implementations that own mechanical table persistence;
+- owning command/materializer/projection command modules that express business
+  write intent and coordinate repositories;
+- schema/migration/storage infrastructure that owns DDL or adapter internals;
+- tests and fixtures that intentionally exercise low-level persistence.
+
+Orchestration/workflow modules, including import services, query services,
+Stage Interface handlers, provider/plugin adapters, presentation code, and
+ordinary domain services, must not construct repositories or call repository
+write methods directly. They must call an owning command or introduce one
+before adding the write.
+
+`create*Repositories(...)` factories create low-level persistence accessors.
+They are not business write APIs. Seeing a repository factory in production
+workflow code is an architecture violation unless that file is itself the
+owning command/read/projection implementation.
+
+Every PR that adds or moves a write must name the owning command boundary and
+add or update an architecture guard that would fail if the write were placed in
+an orchestration layer.
+
 ### Import direction rules
 
 - Dependencies should point from orchestration to owned capabilities, not from lower-level domain modules back into Stage Interface, presentation, or runtime assembly.

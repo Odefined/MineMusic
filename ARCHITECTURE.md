@@ -142,7 +142,7 @@ projections created from those observations.
 Provider/plugin-owned extension-native instruments or tools are allowed for
 external-native functionality that has no MineMusic internal integration yet or
 is intentionally provider-native. They must be clearly marked
-provider/plugin-owned, must not write core facts directly, must not bypass
+provider/plugin-owned, must not write MineMusic state directly, must not bypass
 MineMusic core ownership, and must not pretend their output is `MaterialEntity`,
 Memory, owner facts, or final `MaterialCard`.
 
@@ -165,12 +165,22 @@ Music Data Platform owns formal music data truth and projections:
 - Canonical Maintenance;
 - owner catalog projections and read models.
 
-Library Import is a Music Data Platform write boundary. It consumes
+Library Import is a Music Data Platform workflow. It consumes
 provider-normalized account-library observations from Platform Library Provider
-ports, persists source records and current source library items, creates or
-reuses source-backed material anchors, and writes source-material bindings
-through Music Data Platform identity commands. Provider plugins must not write
-these durable records directly.
+ports and invokes Music Data Platform commands to persist import batches,
+item outcomes, source records, current source library items, material anchors,
+and source-material bindings. Import workflow code must not construct
+repository writes directly. Provider plugins must not write these records
+directly.
+
+All MineMusic writes are command-owned. A write is any mutation of durable or
+runtime state, including source facts, import batches, item outcomes,
+projections, dirty targets, cache rows, events, snapshots, and external-effect
+results. Workflow/orchestration modules call owning commands; they do not call
+repository write methods or SQL write primitives directly. Repository factories
+such as `create*Repositories(...)` are low-level persistence accessors for
+repository implementations, owning commands, read/projection implementations,
+and tests. They are not workflow APIs.
 
 Storage records and domain entities are different objects. SQL keys,
 denormalized lookup columns, indexes, and persistence-only values belong to
@@ -291,8 +301,10 @@ permits the action.
   Ordinary domain services must receive narrow capability ports.
 - Extension owns capability declaration and replaceability. Stage Core composes
   enabled plugins into the runtime.
-- Providers do not write Music Data Platform records directly. Persistence
-  goes through explicit writer/materializer boundaries.
+- Providers, Stage Interface, query, presentation, and workflow services do not
+  write MineMusic state directly. Persistence and runtime-state mutation go
+  through explicit owning command/materializer/projection-maintenance
+  boundaries.
 - Concrete database primitives such as `DatabaseSync` stay inside storage
   adapters. Area services and repositories receive generic database contexts or
   narrower ports.
