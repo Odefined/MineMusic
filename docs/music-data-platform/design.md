@@ -271,15 +271,21 @@ condition that counts only newly created source-library memberships with
 outcome `imported`. `already_present` and `failed` outcomes do not count toward
 `maxNewItems`.
 
-For each candidate, Library Import writes in an item-scoped transaction:
+For each candidate, Library Import coordinates an item-scoped transaction
+through owning commands:
 
-1. upsert the candidate `SourceRecord`;
+1. upsert the candidate `SourceRecord` through `createIdentityWriteCommands`;
 2. look up existing source-material binding;
 3. create a source-backed `MaterialRecord` through the material ref factory
-   only when no binding exists;
-4. bind the source ref to the material ref through `bindSourceToMaterial`;
-5. upsert the source library item;
-6. record the item outcome.
+   and `createIdentityWriteCommands` only when no binding exists;
+4. bind the source ref to the material ref through
+   `createIdentityWriteCommands.bindSourceToMaterial`;
+5. upsert the source library item through `createSourceLibraryCommands`;
+6. record the item outcome through `createSourceLibraryCommands`.
+
+The Library Import service is workflow orchestration, not the write boundary.
+It may use narrow read ports and command factories, but it must not construct
+source-library or identity repositories directly.
 
 Per-item write failure rolls back only that candidate transaction, records a
 compact failed outcome, increments the failed count, and continues. Provider,
@@ -301,7 +307,8 @@ ref-safe `providerAccountId`. `startImport` may omit it only when the
 provider/API can resolve the current logged-in account in the first provider
 read. Later reads for the same batch must return the same account id.
 
-Library Import reuses the existing identity write path:
+Library Import reuses the existing identity write command path and
+source-library write command path:
 
 1. upsert `SourceRecord`;
 2. reuse current `source_material_bindings` when present;

@@ -16,7 +16,6 @@ import {
   createOwnerMaterialRelationRef,
   createOwnerRelationPoolRef,
   createSourceLibraryRef,
-  createSourceLibraryRepositories,
   isMusicDataPlatformError,
   musicDataPlatformIdentitySchema,
   musicDataPlatformOwnerCatalogEntriesSchema,
@@ -31,6 +30,7 @@ import {
   type RecordOwnerMaterialRelationInput,
   type RemoveOwnerMaterialRelationInput,
 } from "../../src/music_data_platform/index.js";
+import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import {
   SqliteMusicDatabase,
   type MusicDatabaseTransactionContext,

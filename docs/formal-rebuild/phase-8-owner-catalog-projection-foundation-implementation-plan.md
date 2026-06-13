@@ -51,7 +51,7 @@ Owned by Music Data Platform:
 
 - source-library owner/library identity helpers;
 - source-library fact schema rewrite;
-- source-library repositories and import write orchestration;
+- source-library repositories, owning commands, and import orchestration;
 - owner catalog projection schema;
 - owner catalog projection commands;
 - internal owner catalog read port;

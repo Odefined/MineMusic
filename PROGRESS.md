@@ -323,8 +323,10 @@ Phase 7 implements the first real source-library import foundation:
 - NCM followed artists use `/artist/sublist` and do not invent `addedAt`;
 - `musicDataPlatformSourceLibrarySchema` creates source library item, import
   batch, and item outcome tables;
-- `createSourceLibraryRepositories` exposes source-library item, batch, and
-  outcome repositories over `MusicDatabaseContext`;
+- `createSourceLibraryRepositories` implements low-level source-library item,
+  batch, and outcome repositories over `MusicDatabaseContext`;
+- `createSourceLibraryCommands` owns source-library import batch, library
+  scope, item, and item outcome writes;
 - `createMaterialRefFactory` creates opaque MineMusic material refs for new
   source-backed material anchors;
 - `createSourceLibraryImportService` implements `startImport` and
@@ -497,6 +499,27 @@ The implemented Phase 10 spec lives at
 The implemented plan lives at
 `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
+
+## 2026-06-13: Command-Owned Write Boundary Repair
+
+The architecture rule for writes is now explicit and executable:
+
+- all durable and runtime state mutation must go through the owning
+  command/materializer/projection-maintenance boundary, not only
+  source-of-truth writes;
+- `docs/adr/0008-command-owned-write-boundaries.md` records the rule and
+  rejected alternatives;
+- `AGENTS.md` and `ARCHITECTURE.md` require workflows, query services, Stage
+  Interface handlers, provider/plugin adapters, presentation code, and ordinary
+  domain services to call owning commands instead of low-level repositories;
+- Library Import now uses narrow read ports plus `createSourceLibraryCommands`
+  and `createIdentityWriteCommands`, and does not construct source-library or
+  identity repositories directly;
+- Music Data Platform public exports no longer expose low-level source-library
+  or identity repository factories;
+- active-tree tests guard public-barrel exposure of low-level persistence
+  helpers, repository factory usage, and direct write tokens so new
+  orchestration-layer writes fail during verification.
 
 ## Next Formal Milestones
 

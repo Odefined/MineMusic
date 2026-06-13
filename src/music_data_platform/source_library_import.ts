@@ -12,26 +12,28 @@ import {
   type Result,
   type SourceEntity,
   type SourceLibraryImportCompletionReason,
-  type SourceLibraryImportItemOutcome,
   type SourceRecord,
   type StageError,
 } from "../contracts/index.js";
 import type { MusicDatabase } from "../storage/database.js";
+import { isMusicDataPlatformError } from "./errors.js";
 import {
-  createIdentityRepositories,
-} from "./identity_records.js";
+  createIdentityReadPort,
+} from "./identity_read_model.js";
 import {
   createIdentityWriteCommands,
 } from "./identity_write_model.js";
 import type { MaterialRefFactory } from "./material_ref_factory.js";
 import { DEFAULT_OWNER_SCOPE } from "./owner_scope.js";
 import {
-  createSourceLibraryRepositories,
+  createSourceLibraryCommands,
+} from "./source_library_commands.js";
+import {
   type SourceLibraryImportBatchRecord,
   type SourceLibraryImportItemOutcomeRecord,
   type SourceLibraryItemRecord,
 } from "./source_library_records.js";
-import { createSourceLibraryRef } from "./source_library_ref.js";
+import { createSourceLibraryReadPort } from "./source_library_read_model.js";
 
 export type PlatformLibraryReadPort = {
   readPlatformLibraryProvider(input: {
@@ -119,31 +121,17 @@ export function createSourceLibraryImportService(
       }
 
       const created = input.database.transaction((db) => {
-        const repositories = createSourceLibraryRepositories({ db });
         const timestamp = now();
         const batchId = newBatchId();
+        const commands = createSourceLibraryCommands({ db, now: timestamp });
 
-        if (repositories.batches.get({ batchId }) !== undefined) {
-          return failMusicData<SourceLibraryImportBatchRecord>(
-            "music_data.source_library_import_batch_id_collision",
-            `Source library import batch '${batchId}' already exists.`,
-          );
-        }
-
-        return ok(repositories.batches.insert({
+        return musicDataCommandResult(() => commands.createImportBatch({
           batchId,
           ownerScope: DEFAULT_OWNER_SCOPE,
           providerId: startInput.providerId,
           ...(startInput.providerAccountId === undefined ? {} : { providerAccountId: startInput.providerAccountId }),
           libraryKind: startInput.libraryKind,
-          status: "running",
           ...(startInput.maxNewItems === undefined ? {} : { maxNewItems: startInput.maxNewItems }),
-          processedCount: 0,
-          importedCount: 0,
-          alreadyPresentCount: 0,
-          failedCount: 0,
-          createdAt: timestamp,
-          updatedAt: timestamp,
         }));
       });
 
@@ -319,72 +307,47 @@ export function createSourceLibraryImportService(
     try {
       return input.database.transaction((db) => {
         const timestamp = now();
-        const repositories = createSourceLibraryRepositories({ db });
-        const identityRepositories = createIdentityRepositories({ db });
-        const commands = createIdentityWriteCommands({ db, now: timestamp });
-        const batchScope = requireBatchLibraryScope(batch);
+        const identityRead = createIdentityReadPort({ db });
+        const identityCommands = createIdentityWriteCommands({ db, now: timestamp });
+        const sourceLibraryCommands = createSourceLibraryCommands({ db, now: timestamp });
         const sourceRefKey = refKey(candidate.sourceEntity.sourceRef);
-        const existingItem = repositories.items.get({
-          libraryRef: batchScope.libraryRef,
-          sourceRefKey,
-        });
-        const nextAddedAt = existingItem?.addedAt ?? timestamp;
-        const nextProviderAddedAt = candidate.providerAddedAt ?? existingItem?.providerAddedAt;
-        const sourceRecord = commands.upsertSourceRecord({
+        const sourceRecord = identityCommands.upsertSourceRecord({
           entity: candidate.sourceEntity,
         });
-        const existingBinding = identityRepositories.sourceMaterialBindings.findMaterialForSource({
+        const existingBinding = identityRead.findMaterialForSource({
           sourceRef: candidate.sourceEntity.sourceRef,
         });
         const materialRef = existingBinding?.materialRef ??
           input.materialRefFactory.createMaterialRef(materialKindForSource(candidate.sourceEntity));
 
         if (existingBinding === undefined) {
-          commands.upsertMaterialRecord({
+          identityCommands.upsertMaterialRecord({
             materialRef,
             kind: materialKindForSource(candidate.sourceEntity),
             ...(candidate.sourceEntity.versionInfo === undefined ? {} : { versionInfo: candidate.sourceEntity.versionInfo }),
           });
         }
 
-        commands.bindSourceToMaterial({
+        identityCommands.bindSourceToMaterial({
           sourceRef: candidate.sourceEntity.sourceRef,
           materialRef,
           makePrimary: existingBinding === undefined,
         });
 
-        const sourceLibraryItem = repositories.items.upsert({
-          libraryRef: batchScope.libraryRef,
-          sourceRefKey,
-          addedAt: nextAddedAt,
-          ...(nextProviderAddedAt === undefined ? {} : { providerAddedAt: nextProviderAddedAt }),
-          firstImportedAt: existingItem?.firstImportedAt ?? timestamp,
-          lastSeenAt: timestamp,
-        });
-        const outcomeKind: SourceLibraryImportItemOutcome =
-          existingItem === undefined ? "imported" : "already_present";
-        const outcome = repositories.itemOutcomes.insert({
-          batchId: batch.batchId,
-          sequence: batch.processedCount + 1,
-          outcome: outcomeKind,
+        const itemWrite = sourceLibraryCommands.recordImportItem({
+          batch,
           sourceRefKey,
           providerId: candidate.sourceEntity.providerId,
           providerEntityId: candidate.sourceEntity.providerEntityId,
           materialRefKey: refKey(materialRef),
-          createdAt: timestamp,
+          ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
         });
-
-        repositories.batches.upsert(incrementBatchCounts(
-          batch,
-          outcomeKind,
-          timestamp,
-        ));
 
         return {
           candidate,
-          outcome,
+          outcome: itemWrite.outcome,
           sourceRecord,
-          sourceLibraryItem,
+          sourceLibraryItem: itemWrite.sourceLibraryItem,
           materialRef,
         };
       });
@@ -399,44 +362,31 @@ export function createSourceLibraryImportService(
     error: unknown,
   ): SourceLibraryImportItemResult {
     return input.database.transaction((db) => {
-      const repositories = createSourceLibraryRepositories({ db });
-      const batch = requireRecord(
-        repositories.batches.get({ batchId }),
-        "source library import batch disappeared while recording item failure",
-      );
       const timestamp = now();
+      const commands = createSourceLibraryCommands({ db, now: timestamp });
       const compactError = compactItemError(error);
       const sourceRefKey = optionalSourceRefKey(candidate);
-      const outcome = repositories.itemOutcomes.insert({
+      const write = commands.recordImportItemFailure({
         batchId,
-        sequence: batch.processedCount + 1,
-        outcome: "failed",
         ...(sourceRefKey === undefined ? {} : { sourceRefKey }),
         providerId: candidate.sourceEntity.providerId,
         providerEntityId: candidate.sourceEntity.providerEntityId,
         errorCode: compactError.code,
         errorMessage: compactError.message,
-        createdAt: timestamp,
       });
-
-      repositories.batches.upsert(incrementBatchCounts(
-        batch,
-        "failed",
-        timestamp,
-      ));
 
       return {
         candidate,
-        outcome,
+        outcome: write.outcome,
         error: compactError,
       };
     });
   }
 
   function getBatch(batchId: string): SourceLibraryImportBatchRecord | undefined {
-    return createSourceLibraryRepositories({
+    return createSourceLibraryReadPort({
       db: input.database.context(),
-    }).batches.get({ batchId });
+    }).getImportBatch({ batchId });
   }
 
   function requireBatch(batchId: string): SourceLibraryImportBatchRecord {
@@ -452,30 +402,9 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord {
     return input.database.transaction((db) => {
-      const repositories = createSourceLibraryRepositories({ db });
-      const libraryRef = createSourceLibraryRef({
-        ownerScope: batch.ownerScope,
-        providerId: batch.providerId,
+      return createSourceLibraryCommands({ db, now: timestamp }).resolveImportBatchLibraryScope({
+        batch,
         providerAccountId,
-        libraryKind: batch.libraryKind,
-      });
-      const existingLibrary = repositories.libraries.get({ libraryRef });
-
-      repositories.libraries.upsert({
-        libraryRef,
-        ownerScope: batch.ownerScope,
-        providerId: batch.providerId,
-        providerAccountId,
-        libraryKind: batch.libraryKind,
-        createdAt: existingLibrary?.createdAt ?? timestamp,
-        updatedAt: timestamp,
-      });
-
-      return repositories.batches.upsert({
-        ...batch,
-        providerAccountId,
-        libraryRef,
-        updatedAt: timestamp,
       });
     });
   }
@@ -486,19 +415,10 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord | undefined {
     return input.database.transaction((db) => {
-      const repositories = createSourceLibraryRepositories({ db });
-      const batch = repositories.batches.get({ batchId });
-
-      if (batch === undefined) {
-        return undefined;
-      }
-
-      return repositories.batches.upsert({
-        ...withoutCursor(batch),
-        status: "failed",
-        failureCode: error.code,
-        failureMessage: error.message,
-        updatedAt: timestamp,
+      return createSourceLibraryCommands({ db, now: timestamp }).failImportBatch({
+        batchId,
+        errorCode: error.code,
+        errorMessage: error.message,
       });
     });
   }
@@ -509,11 +429,9 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord {
     return input.database.transaction((db) => {
-      return createSourceLibraryRepositories({ db }).batches.upsert({
-        ...withoutCursor(batch),
-        status: "completed",
+      return createSourceLibraryCommands({ db, now: timestamp }).completeImportBatch({
+        batch,
         completionReason,
-        updatedAt: timestamp,
       });
     });
   }
@@ -524,10 +442,9 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord {
     return input.database.transaction((db) => {
-      return createSourceLibraryRepositories({ db }).batches.upsert({
-        ...batch,
+      return createSourceLibraryCommands({ db, now: timestamp }).advanceImportBatchCursor({
+        batch,
         cursor,
-        updatedAt: timestamp,
       });
     });
   }
@@ -786,31 +703,8 @@ function validateProviderSourceEntityForBatch(
   return ok(undefined);
 }
 
-function incrementBatchCounts(
-  batch: SourceLibraryImportBatchRecord,
-  outcome: SourceLibraryImportItemOutcome,
-  timestamp: string,
-): SourceLibraryImportBatchRecord {
-  return {
-    ...batch,
-    processedCount: batch.processedCount + 1,
-    importedCount: batch.importedCount + (outcome === "imported" ? 1 : 0),
-    alreadyPresentCount: batch.alreadyPresentCount + (outcome === "already_present" ? 1 : 0),
-    failedCount: batch.failedCount + (outcome === "failed" ? 1 : 0),
-    updatedAt: timestamp,
-  };
-}
-
 function hasReachedMaxNewItems(batch: SourceLibraryImportBatchRecord): boolean {
   return batch.maxNewItems !== undefined && batch.importedCount >= batch.maxNewItems;
-}
-
-function withoutCursor(
-  batch: SourceLibraryImportBatchRecord,
-): Omit<SourceLibraryImportBatchRecord, "cursor"> {
-  const { cursor: _cursor, ...rest } = batch;
-
-  return rest;
 }
 
 function materialKindForSource(sourceEntity: SourceEntity): MaterialEntityKind {
@@ -841,22 +735,6 @@ function optionalSourceRefKey(candidate: PlatformLibraryCandidate): string | und
   } catch {
     return undefined;
   }
-}
-
-function requireBatchLibraryScope(
-  batch: SourceLibraryImportBatchRecord,
-): {
-  providerAccountId: string;
-  libraryRef: Ref;
-} {
-  if (batch.providerAccountId === undefined || batch.libraryRef === undefined) {
-    throw new Error("Source library import batch is missing resolved library scope.");
-  }
-
-  return {
-    providerAccountId: batch.providerAccountId,
-    libraryRef: batch.libraryRef,
-  };
 }
 
 function compactItemError(error: unknown): { code: string; message: string } {
@@ -917,6 +795,18 @@ function isSafeId(value: unknown): value is string {
 
 function ok<T>(value: T): Result<T> {
   return { ok: true, value };
+}
+
+function musicDataCommandResult<T>(operation: () => T): Result<T> {
+  try {
+    return ok(operation());
+  } catch (error) {
+    if (isMusicDataPlatformError(error)) {
+      return failMusicData(error.code, error.message);
+    }
+
+    throw error;
+  }
 }
 
 function failMusicData<T = never>(

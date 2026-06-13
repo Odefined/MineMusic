@@ -15,7 +15,6 @@ import {
   createMaterialRefFactory,
   createSourceLibraryRef,
   createSourceLibraryImportService,
-  createSourceLibraryRepositories,
   musicDataPlatformIdentitySchema,
   musicDataPlatformSourceLibrarySchema,
   type PlatformLibraryReadPort,
@@ -23,7 +22,10 @@ import {
   type SourceLibraryImportItemOutcomeRecord,
   type SourceLibraryRecord,
   type SourceLibraryItemRecord,
+  type SourceLibraryCommands,
+  type SourceLibraryReadPort,
 } from "../../src/music_data_platform/index.js";
+import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
@@ -118,6 +120,26 @@ export type _sourceLibraryItemOutcomeRecordShape = Expect<
     | "errorCode"
     | "errorMessage"
     | "createdAt"
+  >
+>;
+
+export type _sourceLibraryCommandKeys = Expect<
+  Equal<
+    keyof SourceLibraryCommands,
+    | "createImportBatch"
+    | "resolveImportBatchLibraryScope"
+    | "recordImportItem"
+    | "recordImportItemFailure"
+    | "failImportBatch"
+    | "completeImportBatch"
+    | "advanceImportBatchCursor"
+  >
+>;
+
+export type _sourceLibraryReadPortKeys = Expect<
+  Equal<
+    keyof SourceLibraryReadPort,
+    "getImportBatch"
   >
 >;
 

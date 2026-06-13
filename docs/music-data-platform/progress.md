@@ -11,6 +11,9 @@
   foreign-key constraints, and active material canonical uniqueness.
 - `src/music_data_platform/identity_records.ts` implements repository
   factories over `MusicDatabaseContext`.
+- `src/music_data_platform/identity_read_model.ts` implements a narrow
+  identity read port for workflow reads that must not receive repository write
+  methods.
 - `src/music_data_platform/identity_write_model.ts` implements narrow identity
   write commands, including explicit source-material and material-canonical
   binding commands with derived material identity status and active-material
@@ -38,6 +41,12 @@
 - `src/music_data_platform/source_library_records.ts` implements low-level
   source-library, source-library item, import batch, and item outcome
   repositories over `MusicDatabaseContext`.
+- `src/music_data_platform/source_library_commands.ts` implements
+  command-owned source-library import batch, library scope, item, and item
+  outcome writes over `MusicDatabaseTransactionContext`.
+- `src/music_data_platform/source_library_read_model.ts` implements a narrow
+  source-library import-batch read port for workflow reads that must not
+  receive repository write methods.
 - `src/music_data_platform/owner_material_relation_records.ts` implements the
   internal owner material relation read port with deterministic target reads
   and active-by-default list semantics.
@@ -51,9 +60,12 @@
   `continueImport`.
 - Library Import consumes a narrow `PlatformLibraryReadPort`; it does not
   import Extension plugin implementations or concrete provider code.
-- Library Import upserts source records, creates/reuses source-backed material
-  records, binds source refs through `bindSourceToMaterial`, upserts current
-  source-library facts, and records item outcomes.
+- Library Import calls source-library commands and identity commands to upsert
+  source records, create/reuse source-backed material records, bind source refs
+  through `bindSourceToMaterial`, upsert current source-library facts, and
+  record item outcomes.
+- Library Import does not construct source-library or identity repositories
+  directly.
 - `SourceLibrary` rows store owner/provider/account/library identity under a
   formal `libraryRef`.
 - `SourceLibraryItem` rows store `libraryRef + sourceRefKey` and timestamps
@@ -120,10 +132,10 @@
   `recordId`.
 - Phase 5 tests cover identity write behavior, stricter invariants, and
   rollback.
-- Phase 7 tests cover source-library repository shape, schema forbidden
-  fields, material ref factory opacity, import service account resolution,
-  idempotent duplicate import, item-scoped rollback, terminal continuation,
-  account mismatch failure, and `maxNewItems`.
+- Phase 7 tests cover source-library repository shape, command/read-port key
+  sets, schema forbidden fields, material ref factory opacity, import service
+  account resolution, idempotent duplicate import, item-scoped rollback,
+  terminal continuation, account mismatch failure, and `maxNewItems`.
 - Phase 8 tests cover source-library fact rewrite shape, batch/library-ref
   integrity, owner catalog projection/read-port shape, grouped projection,
   idempotent rebuild, missing-library rejection, rebind cleanup, merge cleanup,
@@ -138,6 +150,10 @@
   conjunctive match semantics, operator escaping, canonical inclusion guards,
   bound-source truth from `source_material_bindings`, and active-empty plus
   delete-on-missing-or-inactive rebuild behavior.
+- Active-tree architecture tests reject low-level repository factory calls
+  outside owning command/read/projection boundaries and direct write tokens
+  outside repository, command/projection, schema, and storage infrastructure
+  files.
 - Active-tree guards cover Music Data Platform root shape and forbidden
   dependencies.
 

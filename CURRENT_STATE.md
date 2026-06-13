@@ -163,7 +163,10 @@ Phase 5 Music Data Platform vocabulary includes:
 - `SourceToMaterialBindingRecord` as the current source-to-material binding
   record, with no status/history/evidence/audit/kind fields;
 - `createIdentityRepositories({ db })` for low-level repositories over
-  `MusicDatabaseContext`;
+  `MusicDatabaseContext`, used only by internal command/read/projection
+  implementations and low-level tests;
+- `createIdentityReadPort({ db })` for narrow identity workflow reads without
+  repository write methods;
 - `createIdentityWriteCommands({ db, now })` for narrow identity commands
   using a `MusicDatabaseTransactionContext`;
 - `upsertSourceRecord`, `upsertMaterialRecord`, `upsertCanonicalRecord`,
@@ -224,6 +227,10 @@ Phase 7 Source Library Import vocabulary includes:
   contribution later rewritten by Phase 8 around formal `libraryRef` identity;
 - `createMaterialRefFactory` for opaque MineMusic material refs;
 - `createSourceLibraryImportService` with `startImport` and `continueImport`;
+- `createSourceLibraryCommands({ db, now })` for source-library import batch,
+  library scope, item, and item-outcome writes;
+- `createSourceLibraryReadPort({ db })` for narrow source-library import-batch
+  reads without repository write methods;
 - `npm run smoke:ncm:library` as an opt-in live source-library smoke command
   that skips unless `MINEMUSIC_LIVE_NCM_LIBRARY=1`.
 
@@ -353,6 +360,8 @@ The active TypeScript tree is now a formal skeleton:
   contribution;
 - `src/music_data_platform/identity_records.ts` owns source/material/canonical
   repositories and source-to-material binding persistence;
+- `src/music_data_platform/identity_read_model.ts` owns the narrow identity
+  read port used by workflows that must not receive repository write methods;
 - `src/music_data_platform/identity_write_model.ts` owns narrow identity write
   commands;
 - `src/music_data_platform/owner_scope.ts` owns default owner-scope vocabulary
@@ -369,6 +378,10 @@ The active TypeScript tree is now a formal skeleton:
   `owner_material_relations` schema contribution;
 - `src/music_data_platform/source_library_records.ts` owns source-library,
   source-library item, import batch, and item outcome repositories;
+- `src/music_data_platform/source_library_commands.ts` owns command-level
+  source-library import batch, library scope, item, and item outcome writes;
+- `src/music_data_platform/source_library_read_model.ts` owns the narrow
+  source-library import-batch read port;
 - `src/music_data_platform/owner_material_relation_records.ts` owns the
   internal owner relation read port;
 - `src/music_data_platform/owner_material_relation_commands.ts` owns
@@ -376,7 +389,8 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_data_platform/material_ref_factory.ts` owns opaque material ref
   generation;
 - `src/music_data_platform/source_library_import.ts` owns the internal Library
-  Import application service;
+  Import application service and calls owning commands/read ports instead of
+  constructing low-level repositories;
 - `src/music_data_platform/owner_catalog_schema.ts` owns owner catalog entries
   schema contribution and final catalog SQL view contribution;
 - `src/music_data_platform/owner_catalog_records.ts` owns the internal owner

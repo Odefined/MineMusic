@@ -31,6 +31,8 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-9-owner-material-relations-foundation-implementation-plan.md` | Implemented Phase 9 execution plan for owner relation facts, scoped relation commands, owner-relation projection, blocked catalog exclusion, guards, and docs. |
 | `phase-10-music-data-platform-material-text-projection-foundation.md` | Implemented Phase 10 spec for material-centered text documents, owner-neutral FTS, explicit material ref rebuild commands, and internal match probes. |
 | `phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md` | Implemented Phase 10 execution plan for schema, normalization, read port, rebuild commands, guards, runtime schema wiring, docs, and verification. |
+| `phase-11-projection-maintenance-foundation.md` | Draft Phase 11 spec for command-owned dirty projection maintenance, explicit rebuild runner boundaries, and source-of-truth invalidation wiring. |
+| `phase-11-projection-maintenance-foundation-implementation-plan.md` | Draft Phase 11 execution plan split into PR 11A owner catalog projection scope repair, PR 11B Projection Maintenance Core, and PR 11C source-of-truth invalidation wiring. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

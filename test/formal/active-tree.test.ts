@@ -138,6 +138,7 @@ assert.deepEqual(
     .sort(),
   [
     "src/music_data_platform/errors.ts",
+    "src/music_data_platform/identity_read_model.ts",
     "src/music_data_platform/identity_records.ts",
     "src/music_data_platform/identity_schema.ts",
     "src/music_data_platform/identity_write_model.ts",
@@ -156,12 +157,14 @@ assert.deepEqual(
     "src/music_data_platform/owner_material_relation_schema.ts",
     "src/music_data_platform/owner_scope.ts",
     "src/music_data_platform/ref_digest.ts",
+    "src/music_data_platform/source_library_commands.ts",
     "src/music_data_platform/source_library_import.ts",
+    "src/music_data_platform/source_library_read_model.ts",
     "src/music_data_platform/source_library_records.ts",
     "src/music_data_platform/source_library_ref.ts",
     "src/music_data_platform/source_library_schema.ts",
   ],
-  "Phase 9 formal Music Data Platform root must not grow unrelated implementations",
+  "formal Music Data Platform root must not grow unrelated implementations",
 );
 
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));
@@ -376,6 +379,93 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_data_p
   }
 }
 assert.deepEqual(musicDataPlatformImportFailures, []);
+
+const musicDataPlatformBarrelText = await readFile(
+  join(repositoryRoot, "src/music_data_platform/index.ts"),
+  "utf8",
+);
+for (const forbiddenBarrelExport of [
+  "createIdentityRepositories",
+  "createSourceLibraryRepositories",
+  "sourceLibraryItemKey",
+]) {
+  assert.equal(
+    musicDataPlatformBarrelText.includes(forbiddenBarrelExport),
+    false,
+    `Music Data Platform public barrel must not expose low-level persistence helper '${forbiddenBarrelExport}'`,
+  );
+}
+
+const repositoryFactoryUsageAllowedFiles = new Set([
+  "src/music_data_platform/identity_read_model.ts",
+  "src/music_data_platform/identity_records.ts",
+  "src/music_data_platform/identity_write_model.ts",
+  "src/music_data_platform/material_text_projection_commands.ts",
+  "src/music_data_platform/source_library_commands.ts",
+  "src/music_data_platform/source_library_read_model.ts",
+  "src/music_data_platform/source_library_records.ts",
+]);
+const repositoryFactoryFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const factoryCall of [
+    "createIdentityRepositories(",
+    "createSourceLibraryRepositories(",
+  ]) {
+    if (
+      text.includes(factoryCall) &&
+      !repositoryFactoryUsageAllowedFiles.has(relativeFile)
+    ) {
+      repositoryFactoryFailures.push(
+        `${relativeFile} calls low-level repository factory '${factoryCall}' outside an owning command/read/projection boundary`,
+      );
+    }
+  }
+}
+assert.deepEqual(repositoryFactoryFailures, []);
+
+const directWriteAllowedFiles = new Set([
+  "src/music_data_platform/identity_records.ts",
+  "src/music_data_platform/identity_schema.ts",
+  "src/music_data_platform/identity_write_model.ts",
+  "src/music_data_platform/material_text_projection_commands.ts",
+  "src/music_data_platform/material_text_projection_schema.ts",
+  "src/music_data_platform/owner_catalog_projection.ts",
+  "src/music_data_platform/owner_catalog_schema.ts",
+  "src/music_data_platform/owner_material_relation_commands.ts",
+  "src/music_data_platform/owner_material_relation_schema.ts",
+  "src/music_data_platform/source_library_commands.ts",
+  "src/music_data_platform/source_library_records.ts",
+  "src/music_data_platform/source_library_schema.ts",
+  "src/storage/sqlite/database.ts",
+  "src/storage/sqlite/schema.ts",
+]);
+const directWriteFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const writeToken of [
+    ".run(",
+    ".insert(",
+    ".upsert(",
+    ".delete(",
+  ]) {
+    if (
+      text.includes(writeToken) &&
+      !directWriteAllowedFiles.has(relativeFile)
+    ) {
+      directWriteFailures.push(
+        `${relativeFile} contains write token '${writeToken}' outside an owning write boundary`,
+      );
+    }
+  }
+}
+assert.deepEqual(directWriteFailures, []);
 
 async function pathExists(path: string): Promise<boolean> {
   try {

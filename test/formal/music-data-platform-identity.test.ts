@@ -9,7 +9,6 @@ import {
 } from "../../src/contracts/index.js";
 import type { MusicDatabaseContext } from "../../src/storage/index.js";
 import {
-  createIdentityRepositories,
   createIdentityWriteCommands,
   isMusicDataPlatformError,
   musicDataPlatformIdentitySchema,
@@ -17,6 +16,7 @@ import {
   type SourceToMaterialBindingRecord,
   type UpsertMaterialRecordInput,
 } from "../../src/music_data_platform/index.js";
+import { createIdentityRepositories } from "../../src/music_data_platform/identity_records.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
 
 const firstNow = "2026-06-07T00:00:00.000Z";

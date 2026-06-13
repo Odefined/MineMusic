@@ -38,18 +38,16 @@ export type {
   OwnerMaterialRelationStatus,
   OwnerRelationEntryKind,
 } from "./owner_material_relation_ref.js";
-export {
-  createIdentityRepositories,
-} from "./identity_records.js";
 export type {
-  CreateIdentityRepositoriesInput,
-  CanonicalRecordRepository,
-  IdentityRepositories,
-  MaterialRecordRepository,
   SourceToMaterialBindingRecord,
-  SourceToMaterialBindingRepository,
-  SourceRecordRepository,
 } from "./identity_records.js";
+export {
+  createIdentityReadPort,
+} from "./identity_read_model.js";
+export type {
+  CreateIdentityReadPortInput,
+  IdentityReadPort,
+} from "./identity_read_model.js";
 export {
   createIdentityWriteCommands,
 } from "./identity_write_model.js";
@@ -68,22 +66,35 @@ export type {
 export {
   musicDataPlatformSourceLibrarySchema,
 } from "./source_library_schema.js";
-export {
-  createSourceLibraryRepositories,
-  sourceLibraryItemKey,
-} from "./source_library_records.js";
 export type {
-  CreateSourceLibraryRepositoriesInput,
   SourceLibraryRecord,
-  SourceLibraryRepository,
   SourceLibraryImportBatchRecord,
-  SourceLibraryImportBatchRepository,
   SourceLibraryImportItemOutcomeRecord,
-  SourceLibraryImportItemOutcomeRepository,
   SourceLibraryItemRecord,
-  SourceLibraryItemRepository,
-  SourceLibraryRepositories,
 } from "./source_library_records.js";
+export {
+  createSourceLibraryCommands,
+} from "./source_library_commands.js";
+export type {
+  AdvanceSourceLibraryImportBatchCursorInput,
+  CompleteSourceLibraryImportBatchInput,
+  CreateSourceLibraryCommandsInput,
+  CreateSourceLibraryImportBatchInput,
+  FailSourceLibraryImportBatchInput,
+  RecordSourceLibraryImportItemFailureInput,
+  RecordSourceLibraryImportItemFailureResult,
+  RecordSourceLibraryImportItemInput,
+  RecordSourceLibraryImportItemResult,
+  ResolveSourceLibraryImportBatchScopeInput,
+  SourceLibraryCommands,
+} from "./source_library_commands.js";
+export {
+  createSourceLibraryReadPort,
+} from "./source_library_read_model.js";
+export type {
+  CreateSourceLibraryReadPortInput,
+  SourceLibraryReadPort,
+} from "./source_library_read_model.js";
 export {
   musicDataPlatformOwnerCatalogEntriesSchema,
   musicDataPlatformOwnerCatalogViewSchema,

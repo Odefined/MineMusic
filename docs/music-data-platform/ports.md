@@ -3,9 +3,10 @@
 > Status: Current boundary authority for implemented Phase 10
 > Scope: Identity write model, source-library import, owner relation, owner catalog projection, and material text projection ports
 
-Music Data Platform provides identity repositories, identity write commands,
-source-library repositories, Library Import service, source-library and owner
-relation ref helpers, owner relation commands/read port, owner catalog
+Music Data Platform provides identity repositories, identity read/write
+boundaries, source-library repositories, source-library commands/read port,
+Library Import service, source-library and owner relation ref helpers, owner
+relation commands/read port, owner catalog
 projection commands/read port, material text projection commands/read port,
 schema contributions, a material ref factory, and error types. It consumes
 generic Storage database ports and a narrow provider-library read port, but
@@ -21,15 +22,18 @@ does not know SQLite primitives or provider plugin implementations.
 | `musicDataPlatformOwnerRelationSchema` | Storage initialization callers | Creates `owner_material_relations`. | `src/music_data_platform/owner_material_relation_schema.ts` |
 | `musicDataPlatformOwnerCatalogViewSchema` | Storage initialization callers | Creates the final `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
 | `musicDataPlatformMaterialTextProjectionSchema` | Storage initialization callers | Creates `material_text_documents` and `material_text_fts`. | `src/music_data_platform/material_text_projection_schema.ts` |
-| `createIdentityRepositories` | Internal commands/tests | Low-level source/material/canonical/binding persistence. | `src/music_data_platform/identity_records.ts` |
+| `createIdentityRepositories` | Internal command/read/projection implementations and low-level tests | Low-level source/material/canonical/binding persistence. | `src/music_data_platform/identity_records.ts` |
+| `createIdentityReadPort` | Internal Music Data Platform callers/tests | Narrow identity reads needed by workflows without exposing repository write methods. | `src/music_data_platform/identity_read_model.ts` |
 | `createIdentityWriteCommands` | Internal Music Data Platform callers/tests | Invariant-preserving identity writes. | `src/music_data_platform/identity_write_model.ts` |
 | `assertOwnerScope` / `DEFAULT_OWNER_SCOPE` | Internal callers/tests | Validate owner-scope inputs and provide the current local default scope. | `src/music_data_platform/owner_scope.ts` |
 | `createSourceLibraryRef` / `assertSourceLibraryRef` | Internal callers/tests | Create and validate formal source-library refs. | `src/music_data_platform/source_library_ref.ts` |
 | `createOwnerMaterialRelationRef` / `assertOwnerMaterialRelationRef` | Internal callers/tests | Create and validate deterministic owner material relation refs. | `src/music_data_platform/owner_material_relation_ref.ts` |
 | `createOwnerRelationPoolRef` / `assertOwnerRelationPoolRef` | Internal callers/tests | Create and validate deterministic positive owner-relation pool refs. | `src/music_data_platform/owner_material_relation_ref.ts` |
-| `createSourceLibraryRepositories` | Library Import service/tests | Low-level source library, source library item, batch, and item outcome persistence. | `src/music_data_platform/source_library_records.ts` |
+| `createSourceLibraryRepositories` | Internal command/read implementations and low-level tests | Low-level source library, source library item, batch, and item outcome persistence. | `src/music_data_platform/source_library_records.ts` |
+| `createSourceLibraryCommands` | Internal Music Data Platform callers/tests | Command-owned source-library import batch, library scope, item, and item-outcome writes. | `src/music_data_platform/source_library_commands.ts` |
+| `createSourceLibraryReadPort` | Internal Music Data Platform callers/tests | Narrow source-library import-batch reads without exposing repository write methods. | `src/music_data_platform/source_library_read_model.ts` |
 | `createMaterialRefFactory` | Library Import service/composition/tests | Opaque MineMusic material ref generation for new material anchors. | `src/music_data_platform/material_ref_factory.ts` |
-| `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port. | `src/music_data_platform/source_library_import.ts` |
+| `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port and owning commands. | `src/music_data_platform/source_library_import.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild source-library and owner-relation owner catalog scopes through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
@@ -43,8 +47,8 @@ does not know SQLite primitives or provider plugin implementations.
 | Consumed capability | Provided by | Used for | Read capabilities | Write capabilities |
 | --- | --- | --- | --- | --- |
 | `MusicDatabaseContext` | Storage | SQL execution for repositories and schema contribution. | `get`, `all`. | `run`. |
-| `MusicDatabase` | Storage / composition root | Root transactions for Library Import item writes and batch updates. | `context`. | `transaction`. |
-| `MusicDatabaseTransactionContext` | Storage | Transaction-scoped SQL execution for identity and projection write commands. | `get`, `all`. | `run`. |
+| `MusicDatabase` | Storage / composition root | Root transactions for Library Import command calls and read-port access. | `context`. | `transaction`. |
+| `MusicDatabaseTransactionContext` | Storage | Transaction-scoped SQL execution for identity, source-library, relation, and projection commands. | `get`, `all`. | `run`. |
 | `Ref` / `refKey(ref)` | Contracts | Identity key validation and persisted `ref_key` derivation. | Ref fields. | None. |
 | Source/material/canonical/source-library contracts | Contracts | Record, command, provider candidate, and import status shapes. | Entity/record fields. | None. |
 | `PlatformLibraryReadPort` | Server Host composition, usually backed by Extension Runtime | Read provider account-library pages for one provider/kind/cursor. | `readPlatformLibraryProvider`. | None. |
@@ -65,7 +69,9 @@ Repositories are created with `db: MusicDatabaseContext`.
 | `SourceLibraryImportItemOutcomeRepository` | `insert`, `listForBatch` | Per-candidate outcome rows; compact error fields only. |
 
 Repositories do not start transactions, generate timestamps, return
-`Result<T>`, call providers, or update Stage Interface outputs.
+`Result<T>`, call providers, or update Stage Interface outputs. Production
+workflow/orchestration modules must not construct repositories directly; they
+must call the owning command/read/projection boundary.
 
 ## Command Ports
 
@@ -80,6 +86,13 @@ Commands are created with `db: MusicDatabaseTransactionContext` and
 | `bindSourceToMaterial` | `sourceRef`, `materialRef`, optional `makePrimary` | after-state binding/material records | `source_material_bindings`, `material_records` |
 | `bindMaterialToCanonical` | `materialRef`, `canonicalRef` | after-state material record | `material_records` |
 | `mergeMaterialRecord` | loser/winner material refs, optional primary override | after-state loser/winner records and moved bindings | `source_material_bindings`, `material_records` |
+| `createImportBatch` | batch id, owner scope, provider id/account, library kind, optional `maxNewItems` | source-library import batch record | `source_library_import_batches` |
+| `resolveImportBatchLibraryScope` | batch plus resolved provider account id | after-state source-library import batch record | `source_libraries`, `source_library_import_batches` |
+| `recordImportItem` | resolved batch, source ref key, provider identity, material ref key, optional provider added time | source-library item, item outcome, and after-state batch records | `source_library_items`, `source_library_import_item_outcomes`, `source_library_import_batches` |
+| `recordImportItemFailure` | batch id, optional source ref key, provider identity, compact error | item outcome and after-state batch records | `source_library_import_item_outcomes`, `source_library_import_batches` |
+| `failImportBatch` | batch id plus compact error | after-state batch record or `undefined` when missing | `source_library_import_batches` |
+| `completeImportBatch` | batch plus completion reason | after-state batch record | `source_library_import_batches` |
+| `advanceImportBatchCursor` | batch plus next cursor | after-state batch record | `source_library_import_batches` |
 | `recordOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind`, explicit `origin`, optional `note` | current relation record | `owner_material_relations` |
 | `removeOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind` | current relation record | `owner_material_relations` |
 
@@ -89,6 +102,8 @@ Command outputs are internal records. They are not agent-facing DTOs.
 
 | Port | Input | Output | Writes/Reads |
 | --- | --- | --- | --- |
+| `createIdentityReadPort({ db })` | database context | `findMaterialForSource({ sourceRef })` | reads `source_material_bindings` |
+| `createSourceLibraryReadPort({ db })` | database context | `getImportBatch({ batchId })` | reads `source_library_import_batches` |
 | `createOwnerMaterialRelationRecords({ db })` | database context | `getOwnerMaterialRelation(...)`, `listOwnerMaterialRelations(...)` | reads `owner_material_relations` |
 | `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntries({ ownerScope, libraryRef })` and `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })` | writes `owner_material_entries` only |
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
@@ -125,6 +140,10 @@ Provided methods:
 | `startImport` | `providerId`, optional `providerAccountId`, one `libraryKind`, optional per-call `limit`, optional `maxNewItems` | Internal batch/page/item result | import batch, source records, material records when needed, source-material bindings, source library items, item outcomes |
 | `continueImport` | `batchId`, optional per-call `limit` | Internal batch/page/item result or terminal summary | next provider page writes when batch is running |
 
+All writes listed above happen through `createSourceLibraryCommands(...)` and
+`createIdentityWriteCommands(...)`. The service may use narrow read ports, but
+it must not construct source-library or identity repositories directly.
+
 The service output is internal and complete enough for tests, smoke, and later
 Stage Interface projection. It is not a compact agent-facing DTO and does not
 include raw provider payloads.
@@ -150,9 +169,15 @@ kind, and source kind must match the batch.
 
 Current guards:
 
-- active-tree test allows only the formal Phase 9 Music Data Platform source files;
+- active-tree test allows only current formal Music Data Platform source files;
 - active-tree test rejects Music Data Platform imports of SQLite primitives and
   unrelated formal roots;
+- active-tree test rejects Music Data Platform public-barrel exposure of
+  low-level repository factories and source-library item key helpers;
+- active-tree test rejects low-level repository factory calls outside owning
+  command/read/projection boundaries;
+- active-tree test rejects direct write tokens outside repository,
+  command/projection, schema, and storage infrastructure files;
 - contract test rejects `recordId` returning to source/material/canonical
   records;
 - identity test covers source provider identity stability, source-material
@@ -162,7 +187,8 @@ Current guards:
   foreign-key rejection, and transaction rollback.
 - source-library tests cover source library item field shape, schema forbidden
   columns, source-library batch/library-ref integrity, repository round-trip,
-  material ref factory opacity, import service account resolution,
+  source-library command/read-port key sets, material ref factory opacity,
+  import service account resolution,
   duplicate/idempotent import, per-item rollback, completed continuation,
   account mismatch and invalid-account failure, batch id collision,
   provider-read limit validation, and `maxNewItems` behavior.

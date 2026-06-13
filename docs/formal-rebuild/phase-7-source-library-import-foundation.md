@@ -490,7 +490,8 @@ The likely Phase 7 path is:
 
 ```text
 Platform Library Provider candidate
--> Library Import application/write boundary
+-> Library Import application workflow
+-> Music Data Platform identity/source-library command boundaries
 -> Music Data Platform source records
 -> source library item records
 -> source-backed material records

@@ -10,7 +10,6 @@ import {
   createOwnerCatalogProjectionCommands,
   createOwnerCatalogRecords,
   createSourceLibraryRef,
-  createSourceLibraryRepositories,
   isMusicDataPlatformError,
   musicDataPlatformIdentitySchema,
   musicDataPlatformOwnerCatalogEntriesSchema,
@@ -20,6 +19,7 @@ import {
   type OwnerCatalogMaterialRecord,
   type OwnerMaterialEntryRecord,
 } from "../../src/music_data_platform/index.js";
+import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
