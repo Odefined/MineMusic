@@ -48,14 +48,10 @@ export type {
   CreateIdentityReadPortInput,
   IdentityReadPort,
 } from "./identity_read_model.js";
-export {
-  createIdentityWriteCommands,
-} from "./identity_write_model.js";
 export type {
   BindMaterialToCanonicalInput,
   BindSourceToMaterialInput,
   BindSourceToMaterialResult,
-  CreateIdentityWriteCommandsInput,
   IdentityWriteCommands,
   MergeMaterialRecordInput,
   MergeMaterialRecordResult,
@@ -72,13 +68,9 @@ export type {
   SourceLibraryImportItemOutcomeRecord,
   SourceLibraryItemRecord,
 } from "./source_library_records.js";
-export {
-  createSourceLibraryCommands,
-} from "./source_library_commands.js";
 export type {
   AdvanceSourceLibraryImportBatchCursorInput,
   CompleteSourceLibraryImportBatchInput,
-  CreateSourceLibraryCommandsInput,
   CreateSourceLibraryImportBatchInput,
   FailSourceLibraryImportBatchInput,
   RecordSourceLibraryImportItemFailureInput,
@@ -162,11 +154,7 @@ export type {
   ProjectionMaintenanceRecords,
   ProjectionMaintenanceTargetRecord,
 } from "./projection_maintenance_records.js";
-export {
-  createOwnerMaterialRelationCommands,
-} from "./owner_material_relation_commands.js";
 export type {
-  CreateOwnerMaterialRelationCommandsInput,
   OwnerMaterialRelationCommands,
   RecordOwnerMaterialRelationInput,
   RemoveOwnerMaterialRelationInput,
@@ -190,9 +178,13 @@ export type {
   ProjectionMaintenanceCleanInput,
   ProjectionMaintenanceCleanResult,
   ProjectionMaintenanceCommands,
+  ProjectionInvalidationCommands,
+  ProjectionMaintenanceInvalidationInput,
+  ProjectionMaintenanceInvalidationResult,
   ProjectionMaintenanceFailedInput,
   ProjectionMaintenanceFailedResult,
   ProjectionMaintenanceKind,
+  ProjectionSourceWrite,
   ProjectionMaintenanceTargetDirtyResult,
   ProjectionMaintenanceTargetInput,
   ProjectionMaintenanceTargetStatus,
@@ -205,6 +197,13 @@ export type {
   ProjectionMaintenanceRunner,
   ProjectionMaintenanceRunSummary,
 } from "./projection_maintenance_runner.js";
+export {
+  createMusicDataPlatformSourceOfTruthWriteCommands,
+} from "./source_of_truth_write_commands.js";
+export type {
+  CreateMusicDataPlatformSourceOfTruthWriteCommandsInput,
+  MusicDataPlatformSourceOfTruthWriteCommands,
+} from "./source_of_truth_write_commands.js";
 export {
   createSourceLibraryImportService,
 } from "./source_library_import.js";

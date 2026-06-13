@@ -24,10 +24,12 @@ import {
   type SourceToMaterialBindingRecord,
 } from "./identity_records.js";
 import { assertMaterialRef } from "./material_ref.js";
+import type { ProjectionInvalidationCommands } from "./projection_maintenance_commands.js";
 
 export type CreateIdentityWriteCommandsInput = {
   db: MusicDatabaseTransactionContext;
   now: string;
+  projectionInvalidationCommands: ProjectionInvalidationCommands;
 };
 
 export type IdentityWriteCommands = {
@@ -92,22 +94,90 @@ export function createIdentityWriteCommands(
 
   return {
     upsertSourceRecord(sourceInput) {
-      return upsertSourceRecord(repositories, input.now, sourceInput);
+      const record = upsertSourceRecord(repositories, input.now, sourceInput);
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [{
+          writeKind: "source_record_written",
+          sourceRef: record.entity.sourceRef,
+        }],
+      });
+      return record;
     },
     upsertMaterialRecord(materialInput) {
-      return upsertMaterialRecord(repositories, input.now, materialInput);
+      const record = upsertMaterialRecord(repositories, input.now, materialInput);
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [{
+          writeKind: "material_record_written",
+          materialRef: record.entity.materialRef,
+        }],
+      });
+      return record;
     },
     upsertCanonicalRecord(canonicalInput) {
-      return upsertCanonicalRecord(repositories, input.now, canonicalInput);
+      const record = upsertCanonicalRecord(repositories, input.now, canonicalInput);
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [{
+          writeKind: "canonical_record_written",
+          canonicalRef: record.entity.canonicalRef,
+        }],
+      });
+      return record;
     },
     bindSourceToMaterial(bindingInput) {
-      return bindSourceToMaterial(repositories, input.now, bindingInput);
+      const result = bindSourceToMaterial(repositories, input.now, bindingInput);
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [
+          {
+            writeKind: "source_material_binding_written",
+            sourceRef: result.binding.sourceRef,
+            ...(result.previousMaterialRecord === undefined
+              ? {}
+              : { previousMaterialRef: result.previousMaterialRecord.entity.materialRef }),
+            nextMaterialRef: result.materialRecord.entity.materialRef,
+          },
+          ...(result.previousMaterialRecord === undefined ? [] : [{
+            writeKind: "material_record_written" as const,
+            materialRef: result.previousMaterialRecord.entity.materialRef,
+          }]),
+          {
+            writeKind: "material_record_written",
+            materialRef: result.materialRecord.entity.materialRef,
+          },
+        ],
+      });
+      return result;
     },
     bindMaterialToCanonical(bindingInput) {
-      return bindMaterialToCanonical(repositories, input.now, bindingInput);
+      const record = bindMaterialToCanonical(repositories, input.now, bindingInput);
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [{
+          writeKind: "material_record_written",
+          materialRef: record.entity.materialRef,
+        }],
+      });
+      return record;
     },
     mergeMaterialRecord(mergeInput) {
-      return mergeMaterialRecord(repositories, input.now, mergeInput);
+      const result = mergeMaterialRecord(repositories, input.now, mergeInput);
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [
+          {
+            writeKind: "material_record_written",
+            materialRef: result.loserRecord.entity.materialRef,
+          },
+          {
+            writeKind: "material_record_written",
+            materialRef: result.winnerRecord.entity.materialRef,
+          },
+          ...result.movedBindings.map((binding) => ({
+            writeKind: "source_material_binding_written" as const,
+            sourceRef: binding.sourceRef,
+            previousMaterialRef: result.loserRecord.entity.materialRef,
+            nextMaterialRef: result.winnerRecord.entity.materialRef,
+          })),
+        ],
+      });
+      return result;
     },
   };
 }

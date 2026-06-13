@@ -8,10 +8,8 @@ import {
   DEFAULT_OWNER_SCOPE,
   assertOwnerMaterialRelationRef,
   assertOwnerRelationPoolRef,
-  createIdentityWriteCommands,
   createOwnerCatalogProjectionCommands,
   createOwnerCatalogRecords,
-  createOwnerMaterialRelationCommands,
   createOwnerMaterialRelationRecords,
   createOwnerMaterialRelationRef,
   createOwnerRelationPoolRef,
@@ -29,11 +27,14 @@ import {
   type RecordOwnerMaterialRelationInput,
   type RemoveOwnerMaterialRelationInput,
 } from "../../src/music_data_platform/index.js";
+import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
+import { createOwnerMaterialRelationCommands } from "../../src/music_data_platform/owner_material_relation_commands.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import {
   SqliteMusicDatabase,
   type MusicDatabaseTransactionContext,
 } from "../../src/storage/index.js";
+import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,
@@ -42,6 +43,28 @@ type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   : false;
 
 type Expect<Check extends true> = Check;
+
+function createIdentityTestCommands(
+  db: Parameters<typeof createIdentityWriteCommands>[0]["db"],
+  now: string,
+) {
+  return createIdentityWriteCommands({
+    db,
+    now,
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+}
+
+function createOwnerRelationTestCommands(
+  db: Parameters<typeof createOwnerMaterialRelationCommands>[0]["db"],
+  now: string,
+) {
+  return createOwnerMaterialRelationCommands({
+    db,
+    now,
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+}
 
 export type _ownerMaterialRelationRecordShape = Expect<
   Equal<
@@ -230,16 +253,13 @@ const secondRecordMaterialRef: Ref = {
 };
 
 recordDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T00:00:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T00:00:00.000Z");
   identity.upsertMaterialRecord({ materialRef: recordMaterialRef, kind: "recording" });
   identity.upsertMaterialRecord({ materialRef: secondRecordMaterialRef, kind: "recording" });
 });
 
 const initialSaved = recordDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:01:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:01:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: recordMaterialRef,
     relationKind: "saved",
@@ -258,10 +278,7 @@ assert.equal(
 );
 
 const rewrittenSaved = recordDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:02:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:02:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: recordMaterialRef,
     relationKind: "saved",
@@ -274,10 +291,7 @@ assert.equal(rewrittenSaved.origin, "imported");
 assert.equal("note" in rewrittenSaved, false);
 
 const removedSaved = recordDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:03:00.000Z",
-  }).removeOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:03:00.000Z").removeOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: recordMaterialRef,
     relationKind: "saved",
@@ -313,10 +327,7 @@ assert.deepEqual(
 );
 
 const removedAgain = recordDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:04:00.000Z",
-  }).removeOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:04:00.000Z").removeOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: recordMaterialRef,
     relationKind: "saved",
@@ -325,10 +336,7 @@ assert.equal(removedAgain.status, "removed");
 assert.equal(removedAgain.updatedAt, "2026-06-13T00:03:00.000Z");
 
 const reactivatedSaved = recordDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:05:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:05:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: recordMaterialRef,
     relationKind: "saved",
@@ -342,10 +350,7 @@ assert.equal(reactivatedSaved.origin, "system");
 assert.equal(reactivatedSaved.note, "reactivated");
 
 const favoriteWithNote = recordDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:06:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:06:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: secondRecordMaterialRef,
     relationKind: "favorite",
@@ -353,10 +358,7 @@ const favoriteWithNote = recordDatabase.transaction((db) =>
     note: "keep this note",
   }));
 const removedFavorite = recordDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:07:00.000Z",
-  }).removeOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:07:00.000Z").removeOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: secondRecordMaterialRef,
     relationKind: "favorite",
@@ -378,6 +380,71 @@ assert.throws(
 );
 recordDatabase.close();
 
+const invalidationDatabase = initializedDatabase();
+const invalidationMaterialRef: Ref = {
+  namespace: "material",
+  kind: "recording",
+  id: "m_relation_invalidation",
+};
+invalidationDatabase.transaction((db) => {
+  createIdentityTestCommands(db, "2026-06-13T00:07:30.000Z")
+    .upsertMaterialRecord({ materialRef: invalidationMaterialRef, kind: "recording" });
+});
+const recordedInvalidation = createRecordingProjectionInvalidationCommands();
+invalidationDatabase.transaction((db) => {
+  const commands = createOwnerMaterialRelationCommands({
+    db,
+    now: "2026-06-13T00:08:00.000Z",
+    projectionInvalidationCommands: recordedInvalidation,
+  });
+  commands.recordOwnerMaterialRelation({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: invalidationMaterialRef,
+    relationKind: "saved",
+    origin: "user_explicit",
+  });
+});
+assert.deepEqual(recordedInvalidation.batches, [[{
+  writeKind: "owner_relation_written",
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  relationKind: "saved",
+  materialRef: invalidationMaterialRef,
+}]]);
+recordedInvalidation.clear();
+invalidationDatabase.transaction((db) => {
+  const commands = createOwnerMaterialRelationCommands({
+    db,
+    now: "2026-06-13T00:08:30.000Z",
+    projectionInvalidationCommands: recordedInvalidation,
+  });
+  commands.removeOwnerMaterialRelation({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: invalidationMaterialRef,
+    relationKind: "saved",
+  });
+});
+assert.deepEqual(recordedInvalidation.batches, [[{
+  writeKind: "owner_relation_written",
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  relationKind: "saved",
+  materialRef: invalidationMaterialRef,
+}]]);
+recordedInvalidation.clear();
+invalidationDatabase.transaction((db) => {
+  const commands = createOwnerMaterialRelationCommands({
+    db,
+    now: "2026-06-13T00:09:00.000Z",
+    projectionInvalidationCommands: recordedInvalidation,
+  });
+  commands.removeOwnerMaterialRelation({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: invalidationMaterialRef,
+    relationKind: "saved",
+  });
+});
+assert.deepEqual(recordedInvalidation.batches, []);
+invalidationDatabase.close();
+
 const archivedDatabase = initializedDatabase();
 const archivedMaterialRef: Ref = {
   namespace: "material",
@@ -385,7 +452,7 @@ const archivedMaterialRef: Ref = {
   id: "m_archived_relation",
 };
 archivedDatabase.transaction((db) => {
-  createIdentityWriteCommands({ db, now: "2026-06-13T00:08:00.000Z" })
+  createIdentityTestCommands(db, "2026-06-13T00:08:00.000Z")
     .upsertMaterialRecord({ materialRef: archivedMaterialRef, kind: "recording" });
   insertOwnerMaterialRelationRow(db, {
     ownerScope: DEFAULT_OWNER_SCOPE,
@@ -423,10 +490,7 @@ assert.equal(
   1,
 );
 const archivedReactivated = archivedDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:09:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:09:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: archivedMaterialRef,
     relationKind: "saved",
@@ -444,15 +508,12 @@ const validationMaterialRef: Ref = {
   id: "m_validation",
 };
 validationDatabase.transaction((db) => {
-  createIdentityWriteCommands({ db, now: "2026-06-13T00:10:00.000Z" })
+  createIdentityTestCommands(db, "2026-06-13T00:10:00.000Z")
     .upsertMaterialRecord({ materialRef: validationMaterialRef, kind: "recording" });
 });
 assert.throws(
   () => validationDatabase.transaction((db) =>
-    createOwnerMaterialRelationCommands({
-      db,
-      now: "2026-06-13T00:11:00.000Z",
-    }).recordOwnerMaterialRelation({
+    createOwnerRelationTestCommands(db, "2026-06-13T00:11:00.000Z").recordOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: validationMaterialRef,
       relationKind: "saved",
@@ -463,10 +524,7 @@ assert.throws(
 );
 assert.throws(
   () => validationDatabase.transaction((db) =>
-    createOwnerMaterialRelationCommands({
-      db,
-      now: "2026-06-13T00:11:30.000Z",
-    }).recordOwnerMaterialRelation({
+    createOwnerRelationTestCommands(db, "2026-06-13T00:11:30.000Z").recordOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: validationMaterialRef,
       relationKind: "saved",
@@ -478,10 +536,7 @@ assert.throws(
 );
 assert.throws(
   () => validationDatabase.transaction((db) =>
-    createOwnerMaterialRelationCommands({
-      db,
-      now: "2026-06-13T00:12:00.000Z",
-    }).recordOwnerMaterialRelation({
+    createOwnerRelationTestCommands(db, "2026-06-13T00:12:00.000Z").recordOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: validationMaterialRef,
       relationKind: "saved",
@@ -494,10 +549,7 @@ assert.throws(
 );
 assert.throws(
   () => validationDatabase.transaction((db) =>
-    createOwnerMaterialRelationCommands({
-      db,
-      now: "2026-06-13T00:12:30.000Z",
-    }).recordOwnerMaterialRelation({
+    createOwnerRelationTestCommands(db, "2026-06-13T00:12:30.000Z").recordOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: {
         namespace: "material",
@@ -522,11 +574,8 @@ const winnerValidationMaterialRef: Ref = {
   id: "m_winner_validation",
 };
 validationDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T00:13:00.000Z" });
-  const relations = createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:13:15.000Z",
-  });
+  const identity = createIdentityTestCommands(db, "2026-06-13T00:13:00.000Z");
+  const relations = createOwnerRelationTestCommands(db, "2026-06-13T00:13:15.000Z");
   identity.upsertMaterialRecord({ materialRef: loserValidationMaterialRef, kind: "recording" });
   identity.upsertMaterialRecord({ materialRef: winnerValidationMaterialRef, kind: "recording" });
   relations.recordOwnerMaterialRelation({
@@ -542,10 +591,7 @@ validationDatabase.transaction((db) => {
 });
 assert.throws(
   () => validationDatabase.transaction((db) =>
-    createOwnerMaterialRelationCommands({
-      db,
-      now: "2026-06-13T00:13:30.000Z",
-    }).recordOwnerMaterialRelation({
+    createOwnerRelationTestCommands(db, "2026-06-13T00:13:30.000Z").recordOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: loserValidationMaterialRef,
       relationKind: "saved",
@@ -557,10 +603,7 @@ assert.throws(
 );
 assert.throws(
   () => validationDatabase.transaction((db) =>
-    createOwnerMaterialRelationCommands({
-      db,
-      now: "2026-06-13T00:13:45.000Z",
-    }).removeOwnerMaterialRelation({
+    createOwnerRelationTestCommands(db, "2026-06-13T00:13:45.000Z").removeOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: loserValidationMaterialRef,
       relationKind: "saved",
@@ -580,10 +623,7 @@ assert.equal(mergedTargetRelation?.status, "active");
 assert.equal(mergedTargetRelation?.updatedAt, "2026-06-13T00:13:15.000Z");
 assert.throws(
   () => validationDatabase.transaction((db) =>
-    createOwnerMaterialRelationCommands({
-      db,
-      now: "2026-06-13T00:14:00.000Z",
-    }).removeOwnerMaterialRelation({
+    createOwnerRelationTestCommands(db, "2026-06-13T00:14:00.000Z").removeOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: validationMaterialRef,
       relationKind: "blocked",
@@ -606,8 +646,8 @@ const projectionMaterialTwo: Ref = {
   id: "m_projection_two",
 };
 projectionDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T00:20:00.000Z" });
-  const relations = createOwnerMaterialRelationCommands({ db, now: "2026-06-13T00:20:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T00:20:00.000Z");
+  const relations = createOwnerRelationTestCommands(db, "2026-06-13T00:20:00.000Z");
 
   identity.upsertMaterialRecord({ materialRef: projectionMaterialOne, kind: "recording" });
   identity.upsertMaterialRecord({ materialRef: projectionMaterialTwo, kind: "recording" });
@@ -617,14 +657,14 @@ projectionDatabase.transaction((db) => {
     relationKind: "saved",
     origin: "user_explicit",
   });
-  createOwnerMaterialRelationCommands({ db, now: "2026-06-13T00:21:00.000Z" })
+  createOwnerRelationTestCommands(db, "2026-06-13T00:21:00.000Z")
     .recordOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: projectionMaterialOne,
       relationKind: "favorite",
       origin: "user_explicit",
     });
-  createOwnerMaterialRelationCommands({ db, now: "2026-06-13T00:22:00.000Z" })
+  createOwnerRelationTestCommands(db, "2026-06-13T00:22:00.000Z")
     .recordOwnerMaterialRelation({
       ownerScope: DEFAULT_OWNER_SCOPE,
       materialRef: projectionMaterialTwo,
@@ -756,10 +796,7 @@ assert.deepEqual(
   ],
 );
 projectionDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:24:00.000Z",
-  }).removeOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:24:00.000Z").removeOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: projectionMaterialOne,
     relationKind: "saved",
@@ -813,12 +850,9 @@ const blockedMaterialRef: Ref = {
   id: "m_blocked",
 };
 blockedDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T00:30:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T00:30:00.000Z");
   identity.upsertMaterialRecord({ materialRef: blockedMaterialRef, kind: "recording" });
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:31:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:31:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: blockedMaterialRef,
     relationKind: "saved",
@@ -840,10 +874,7 @@ assert.equal(
   1,
 );
 blockedDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:33:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:33:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: blockedMaterialRef,
     relationKind: "blocked",
@@ -871,10 +902,7 @@ assert.equal(
   1,
 );
 blockedDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:34:00.000Z",
-  }).removeOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:34:00.000Z").removeOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: blockedMaterialRef,
     relationKind: "blocked",
@@ -896,7 +924,7 @@ const mixedMaterialRef: Ref = {
 const mixedSource = sourceTrack("2001", "Mixed Track");
 const mixedLibraryRef = sourceLibraryRef("130950618", "saved_source_track");
 mixedDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T00:40:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T00:40:00.000Z");
   const libraries = createSourceLibraryRepositories({ db });
 
   identity.upsertSourceRecord({ entity: mixedSource });
@@ -922,7 +950,6 @@ mixedDatabase.transaction((db) => {
     addedAt: "2026-06-13T00:41:30.000Z",
     providerAddedAt: "2026-06-07T03:00:00.000Z",
     firstImportedAt: "2026-06-13T00:41:30.000Z",
-    lastSeenAt: "2026-06-13T00:41:30.000Z",
   });
   createOwnerCatalogProjectionCommands({
     db,
@@ -931,10 +958,7 @@ mixedDatabase.transaction((db) => {
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: mixedLibraryRef,
   });
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:50:00.000Z",
-  }).recordOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:50:00.000Z").recordOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: mixedMaterialRef,
     relationKind: "saved",
@@ -978,10 +1002,7 @@ assert.deepEqual(
   ]),
 );
 mixedDatabase.transaction((db) =>
-  createOwnerMaterialRelationCommands({
-    db,
-    now: "2026-06-13T00:52:00.000Z",
-  }).removeOwnerMaterialRelation({
+  createOwnerRelationTestCommands(db, "2026-06-13T00:52:00.000Z").removeOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,
     materialRef: mixedMaterialRef,
     relationKind: "saved",
@@ -1024,8 +1045,8 @@ const mergedWinnerMaterialRef: Ref = {
   id: "m_relation_winner",
 };
 mergedRelationDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T01:00:00.000Z" });
-  const relations = createOwnerMaterialRelationCommands({ db, now: "2026-06-13T01:01:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T01:00:00.000Z");
+  const relations = createOwnerRelationTestCommands(db, "2026-06-13T01:01:00.000Z");
 
   identity.upsertMaterialRecord({ materialRef: mergedLoserMaterialRef, kind: "recording" });
   identity.upsertMaterialRecord({ materialRef: mergedWinnerMaterialRef, kind: "recording" });
@@ -1044,7 +1065,7 @@ mergedRelationDatabase.transaction((db) => {
   });
 });
 mergedRelationDatabase.transaction((db) => {
-  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T01:03:00.000Z" });
+  const identity = createIdentityTestCommands(db, "2026-06-13T01:03:00.000Z");
   identity.mergeMaterialRecord({
     loserMaterialRef: mergedLoserMaterialRef,
     winnerMaterialRef: mergedWinnerMaterialRef,

@@ -11,13 +11,13 @@ import {
 } from "../../src/contracts/index.js";
 import {
   DEFAULT_OWNER_SCOPE,
-  createIdentityWriteCommands,
   createMaterialRefFactory,
   createSourceLibraryRef,
-  createSourceLibraryImportService,
-  isMusicDataPlatformError,
-  musicDataPlatformIdentitySchema,
-  musicDataPlatformSourceLibrarySchema,
+    createSourceLibraryImportService,
+    isMusicDataPlatformError,
+    musicDataPlatformIdentitySchema,
+    musicDataPlatformProjectionMaintenanceSchema,
+    musicDataPlatformSourceLibrarySchema,
   type PlatformLibraryReadPort,
   type SourceLibraryImportBatchRecord,
   type SourceLibraryImportItemOutcomeRecord,
@@ -26,8 +26,11 @@ import {
   type SourceLibraryCommands,
   type SourceLibraryReadPort,
 } from "../../src/music_data_platform/index.js";
+import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
+import { createSourceLibraryCommands } from "../../src/music_data_platform/source_library_commands.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
 import { SqliteMusicDatabase } from "../../src/storage/index.js";
+import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,
@@ -42,6 +45,17 @@ type ProviderReadRequest = {
   providerId: string;
   request: PlatformLibraryReadInput;
 };
+
+function createIdentityTestCommands(
+  db: Parameters<typeof createIdentityWriteCommands>[0]["db"],
+  now: string,
+) {
+  return createIdentityWriteCommands({
+    db,
+    now,
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+}
 
 export type _sourceLibraryRecordShape = Expect<
   Equal<
@@ -64,7 +78,6 @@ export type _sourceLibraryItemRecordShape = Expect<
     | "addedAt"
     | "providerAddedAt"
     | "firstImportedAt"
-    | "lastSeenAt"
   > &
     Equal<
       ForbiddenKeys<
@@ -153,7 +166,7 @@ repositoryDatabase.initialize({
 });
 
 repositoryDatabase.transaction((db) => {
-  const commands = createIdentityWriteCommands({ db, now: "2026-06-08T00:00:00.000Z" });
+  const commands = createIdentityTestCommands(db, "2026-06-08T00:00:00.000Z");
   const source = sourceTrack("1001", "Repository Track");
   const materialRef: Ref = {
     namespace: "material",
@@ -193,7 +206,6 @@ repositoryDatabase.transaction((db) => {
     addedAt: "2026-06-08T00:00:00.000Z",
     providerAddedAt: "2026-06-07T00:00:00.000Z",
     firstImportedAt: "2026-06-08T00:00:00.000Z",
-    lastSeenAt: "2026-06-08T00:00:00.000Z",
   });
 
   assert.equal(refKey(library.libraryRef), refKey(libraryRef));
@@ -203,13 +215,11 @@ repositoryDatabase.transaction((db) => {
 
   const repeated = repositories.items.upsert({
     ...item,
-    lastSeenAt: "2026-06-08T00:01:00.000Z",
   });
 
   assert.equal(repeated.firstImportedAt, "2026-06-08T00:00:00.000Z");
   assert.equal(repeated.addedAt, "2026-06-08T00:00:00.000Z");
   assert.equal(repeated.providerAddedAt, "2026-06-07T00:00:00.000Z");
-  assert.equal(repeated.lastSeenAt, "2026-06-08T00:01:00.000Z");
 
   const batch = repositories.batches.upsert({
     batchId: "repo-batch",
@@ -317,6 +327,82 @@ assert.throws(() => repositoryDatabase.transaction((db) => {
 }));
 repositoryDatabase.close();
 
+const invalidationDatabase = initializedDatabase();
+const invalidationSource = sourceTrack("1001", "Invalidation Track");
+const invalidationMaterialRef: Ref = {
+  namespace: "material",
+  kind: "recording",
+  id: "m_invalidation",
+};
+invalidationDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:30:00.000Z");
+  identity.upsertSourceRecord({ entity: invalidationSource });
+  identity.upsertMaterialRecord({ materialRef: invalidationMaterialRef, kind: "recording" });
+  identity.bindSourceToMaterial({
+    sourceRef: invalidationSource.sourceRef,
+    materialRef: invalidationMaterialRef,
+    makePrimary: true,
+  });
+});
+const recordedInvalidation = createRecordingProjectionInvalidationCommands();
+invalidationDatabase.transaction((db) => {
+  const commands = createSourceLibraryCommands({
+    db,
+    now: "2026-06-08T00:31:00.000Z",
+    projectionInvalidationCommands: recordedInvalidation,
+  });
+  const createdBatch = commands.createImportBatch({
+    batchId: "invalidation-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+  });
+  const batch = commands.resolveImportBatchLibraryScope({
+    batch: createdBatch,
+    providerAccountId: "130950618",
+  });
+
+  const imported = commands.recordImportItem({
+    batch,
+    sourceRef: invalidationSource.sourceRef,
+    providerId: "netease",
+    providerEntityId: "1001",
+    materialRef: invalidationMaterialRef,
+  });
+  const repeated = commands.recordImportItem({
+    batch: imported.batch,
+    sourceRef: invalidationSource.sourceRef,
+    providerId: "netease",
+    providerEntityId: "1001",
+    materialRef: invalidationMaterialRef,
+  });
+  const refreshed = commands.recordImportItem({
+    batch: repeated.batch,
+    sourceRef: invalidationSource.sourceRef,
+    providerId: "netease",
+    providerEntityId: "1001",
+    materialRef: invalidationMaterialRef,
+    providerAddedAt: "2026-06-07T00:00:00.000Z",
+  });
+
+  assert.equal(imported.outcome.outcome, "imported");
+  assert.equal(repeated.outcome.outcome, "already_present");
+  assert.equal(refreshed.outcome.outcome, "already_present");
+});
+assert.deepEqual(recordedInvalidation.batches, [
+  [{
+    writeKind: "source_library_item_written",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    sourceRef: invalidationSource.sourceRef,
+  }],
+  [{
+    writeKind: "source_library_item_written",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    sourceRef: invalidationSource.sourceRef,
+  }],
+]);
+invalidationDatabase.close();
+
 const materialRefFactory = createMaterialRefFactory({
   nextOpaqueId: () => "opaque_1",
 });
@@ -394,7 +480,6 @@ assert.deepEqual(
       added_at: string;
       provider_added_at: string | null;
       first_imported_at: string;
-      last_seen_at: string;
     }>(
       `
         SELECT
@@ -402,8 +487,7 @@ assert.deepEqual(
           source_ref_key,
           added_at,
           provider_added_at,
-          first_imported_at,
-          last_seen_at
+          first_imported_at
         FROM source_library_items
       `,
     ),
@@ -414,7 +498,6 @@ assert.deepEqual(
     added_at: "2026-06-08T01:00:00.000Z",
     provider_added_at: null,
     first_imported_at: "2026-06-08T01:00:00.000Z",
-    last_seen_at: "2026-06-08T01:00:00.000Z",
   },
 );
 assert.equal(
@@ -506,15 +589,13 @@ assert.deepEqual(
       added_at: string;
       provider_added_at: string;
       first_imported_at: string;
-      last_seen_at: string;
     }>(
       `
         SELECT
           library_ref_key,
           added_at,
           provider_added_at,
-          first_imported_at,
-          last_seen_at
+          first_imported_at
         FROM source_library_items
         WHERE source_ref_key = ?
       `,
@@ -526,7 +607,6 @@ assert.deepEqual(
     added_at: "2026-06-08T06:02:00.000Z",
     provider_added_at: "2026-06-07T01:00:00.000Z",
     first_imported_at: "2026-06-08T06:02:00.000Z",
-    last_seen_at: "2026-06-08T06:05:00.000Z",
   },
 );
 providerAddedAtDatabase.close();
@@ -967,6 +1047,7 @@ function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
     schemas: [
       musicDataPlatformIdentitySchema,
       musicDataPlatformSourceLibrarySchema,
+      musicDataPlatformProjectionMaintenanceSchema,
     ],
   });
 

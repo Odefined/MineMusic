@@ -1,4 +1,5 @@
 import {
+  refKey,
   type PlatformLibraryKind,
   type Ref,
   type SourceLibraryImportCompletionReason,
@@ -7,6 +8,7 @@ import {
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
+import type { ProjectionInvalidationCommands } from "./projection_maintenance_commands.js";
 import {
   createSourceLibraryRepositories,
   type SourceLibraryImportBatchRecord,
@@ -18,6 +20,7 @@ import { createSourceLibraryRef } from "./source_library_ref.js";
 export type CreateSourceLibraryCommandsInput = {
   db: MusicDatabaseTransactionContext;
   now: string;
+  projectionInvalidationCommands: ProjectionInvalidationCommands;
 };
 
 export type CreateSourceLibraryImportBatchInput = {
@@ -36,10 +39,10 @@ export type ResolveSourceLibraryImportBatchScopeInput = {
 
 export type RecordSourceLibraryImportItemInput = {
   batch: SourceLibraryImportBatchRecord;
-  sourceRefKey: string;
+  sourceRef: Ref;
   providerId: string;
   providerEntityId: string;
-  materialRefKey: string;
+  materialRef: Ref;
   providerAddedAt?: string;
 };
 
@@ -161,29 +164,34 @@ export function createSourceLibraryCommands(
     },
     recordImportItem(commandInput) {
       const batchScope = requireBatchLibraryScope(commandInput.batch);
+      const sourceRefKey = refKey(commandInput.sourceRef);
+      const materialRefKey = refKey(commandInput.materialRef);
       const existingItem = repositories.items.get({
         libraryRef: batchScope.libraryRef,
-        sourceRefKey: commandInput.sourceRefKey,
+        sourceRefKey,
       });
       const nextProviderAddedAt = commandInput.providerAddedAt ?? existingItem?.providerAddedAt;
-      const sourceLibraryItem = repositories.items.upsert({
-        libraryRef: batchScope.libraryRef,
-        sourceRefKey: commandInput.sourceRefKey,
-        addedAt: existingItem?.addedAt ?? input.now,
-        ...(nextProviderAddedAt === undefined ? {} : { providerAddedAt: nextProviderAddedAt }),
-        firstImportedAt: existingItem?.firstImportedAt ?? input.now,
-        lastSeenAt: input.now,
-      });
+      const shouldWriteItem = existingItem === undefined ||
+        nextProviderAddedAt !== existingItem.providerAddedAt;
+      const sourceLibraryItem = shouldWriteItem
+        ? repositories.items.upsert({
+          libraryRef: batchScope.libraryRef,
+          sourceRefKey,
+          addedAt: existingItem?.addedAt ?? input.now,
+          ...(nextProviderAddedAt === undefined ? {} : { providerAddedAt: nextProviderAddedAt }),
+          firstImportedAt: existingItem?.firstImportedAt ?? input.now,
+        })
+        : existingItem;
       const outcomeKind: SourceLibraryImportItemOutcome =
         existingItem === undefined ? "imported" : "already_present";
       const outcome = repositories.itemOutcomes.insert({
         batchId: commandInput.batch.batchId,
         sequence: commandInput.batch.processedCount + 1,
         outcome: outcomeKind,
-        sourceRefKey: commandInput.sourceRefKey,
+        sourceRefKey,
         providerId: commandInput.providerId,
         providerEntityId: commandInput.providerEntityId,
-        materialRefKey: commandInput.materialRefKey,
+        materialRefKey,
         createdAt: input.now,
       });
       const batch = repositories.batches.upsert(incrementBatchCounts(
@@ -191,6 +199,20 @@ export function createSourceLibraryCommands(
         outcomeKind,
         input.now,
       ));
+
+      if (shouldWriteItem) {
+        input.projectionInvalidationCommands.markProjectionInvalidated({
+          writes: [{
+            writeKind: "source_library_item_written",
+            ownerScope: commandInput.batch.ownerScope,
+            sourceRef: commandInput.sourceRef,
+          }],
+        });
+      }
+
+      if (sourceLibraryItem === undefined) {
+        throw new Error("source library item write did not return a stored record");
+      }
 
       return {
         sourceLibraryItem,

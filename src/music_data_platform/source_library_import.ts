@@ -20,20 +20,15 @@ import { isMusicDataPlatformError } from "./errors.js";
 import {
   createIdentityReadPort,
 } from "./identity_read_model.js";
-import {
-  createIdentityWriteCommands,
-} from "./identity_write_model.js";
 import type { MaterialRefFactory } from "./material_ref_factory.js";
 import { DEFAULT_OWNER_SCOPE } from "./owner_scope.js";
-import {
-  createSourceLibraryCommands,
-} from "./source_library_commands.js";
 import {
   type SourceLibraryImportBatchRecord,
   type SourceLibraryImportItemOutcomeRecord,
   type SourceLibraryItemRecord,
 } from "./source_library_records.js";
 import { createSourceLibraryReadPort } from "./source_library_read_model.js";
+import { createMusicDataPlatformSourceOfTruthWriteCommands } from "./source_of_truth_write_commands.js";
 
 export type PlatformLibraryReadPort = {
   readPlatformLibraryProvider(input: {
@@ -123,7 +118,10 @@ export function createSourceLibraryImportService(
       const created = input.database.transaction((db) => {
         const timestamp = now();
         const batchId = newBatchId();
-        const commands = createSourceLibraryCommands({ db, now: timestamp });
+        const commands = createMusicDataPlatformSourceOfTruthWriteCommands({
+          db,
+          now: timestamp,
+        }).sourceLibrary;
 
         return musicDataCommandResult(() => commands.createImportBatch({
           batchId,
@@ -308,9 +306,12 @@ export function createSourceLibraryImportService(
       return input.database.transaction((db) => {
         const timestamp = now();
         const identityRead = createIdentityReadPort({ db });
-        const identityCommands = createIdentityWriteCommands({ db, now: timestamp });
-        const sourceLibraryCommands = createSourceLibraryCommands({ db, now: timestamp });
-        const sourceRefKey = refKey(candidate.sourceEntity.sourceRef);
+        const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
+          db,
+          now: timestamp,
+        });
+        const identityCommands = writes.identity;
+        const sourceLibraryCommands = writes.sourceLibrary;
         const sourceRecord = identityCommands.upsertSourceRecord({
           entity: candidate.sourceEntity,
         });
@@ -336,10 +337,10 @@ export function createSourceLibraryImportService(
 
         const itemWrite = sourceLibraryCommands.recordImportItem({
           batch,
-          sourceRefKey,
+          sourceRef: candidate.sourceEntity.sourceRef,
           providerId: candidate.sourceEntity.providerId,
           providerEntityId: candidate.sourceEntity.providerEntityId,
-          materialRefKey: refKey(materialRef),
+          materialRef,
           ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
         });
 
@@ -363,7 +364,10 @@ export function createSourceLibraryImportService(
   ): SourceLibraryImportItemResult {
     return input.database.transaction((db) => {
       const timestamp = now();
-      const commands = createSourceLibraryCommands({ db, now: timestamp });
+      const commands = createMusicDataPlatformSourceOfTruthWriteCommands({
+        db,
+        now: timestamp,
+      }).sourceLibrary;
       const compactError = compactItemError(error);
       const sourceRefKey = optionalSourceRefKey(candidate);
       const write = commands.recordImportItemFailure({
@@ -402,7 +406,10 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord {
     return input.database.transaction((db) => {
-      return createSourceLibraryCommands({ db, now: timestamp }).resolveImportBatchLibraryScope({
+      return createMusicDataPlatformSourceOfTruthWriteCommands({
+        db,
+        now: timestamp,
+      }).sourceLibrary.resolveImportBatchLibraryScope({
         batch,
         providerAccountId,
       });
@@ -415,7 +422,10 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord | undefined {
     return input.database.transaction((db) => {
-      return createSourceLibraryCommands({ db, now: timestamp }).failImportBatch({
+      return createMusicDataPlatformSourceOfTruthWriteCommands({
+        db,
+        now: timestamp,
+      }).sourceLibrary.failImportBatch({
         batchId,
         errorCode: error.code,
         errorMessage: error.message,
@@ -429,7 +439,10 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord {
     return input.database.transaction((db) => {
-      return createSourceLibraryCommands({ db, now: timestamp }).completeImportBatch({
+      return createMusicDataPlatformSourceOfTruthWriteCommands({
+        db,
+        now: timestamp,
+      }).sourceLibrary.completeImportBatch({
         batch,
         completionReason,
       });
@@ -442,7 +455,10 @@ export function createSourceLibraryImportService(
     timestamp: string,
   ): SourceLibraryImportBatchRecord {
     return input.database.transaction((db) => {
-      return createSourceLibraryCommands({ db, now: timestamp }).advanceImportBatchCursor({
+      return createMusicDataPlatformSourceOfTruthWriteCommands({
+        db,
+        now: timestamp,
+      }).sourceLibrary.advanceImportBatchCursor({
         batch,
         cursor,
       });

@@ -19,10 +19,12 @@ import {
   type OwnerMaterialRelationOrigin,
 } from "./owner_material_relation_ref.js";
 import { assertOwnerScope } from "./owner_scope.js";
+import type { ProjectionInvalidationCommands } from "./projection_maintenance_commands.js";
 
 export type CreateOwnerMaterialRelationCommandsInput = {
   db: MusicDatabaseTransactionContext;
   now: string;
+  projectionInvalidationCommands: ProjectionInvalidationCommands;
 };
 
 export type RecordOwnerMaterialRelationInput = {
@@ -117,7 +119,7 @@ export function createOwnerMaterialRelationCommands(
         ],
       );
 
-      return requireRelationRecord(
+      const record = requireRelationRecord(
         records.getOwnerMaterialRelation({
           ownerScope: commandInput.ownerScope,
           materialRef: commandInput.materialRef,
@@ -125,6 +127,15 @@ export function createOwnerMaterialRelationCommands(
         }),
         "Owner material relation upsert did not return a stored record.",
       );
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [{
+          writeKind: "owner_relation_written",
+          ownerScope: commandInput.ownerScope,
+          relationKind: commandInput.relationKind,
+          materialRef: commandInput.materialRef,
+        }],
+      });
+      return record;
     },
     removeOwnerMaterialRelation(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
@@ -159,7 +170,7 @@ export function createOwnerMaterialRelationCommands(
         [input.now, existing.relationRefKey],
       );
 
-      return requireRelationRecord(
+      const record = requireRelationRecord(
         records.getOwnerMaterialRelation({
           ownerScope: commandInput.ownerScope,
           materialRef: commandInput.materialRef,
@@ -167,6 +178,15 @@ export function createOwnerMaterialRelationCommands(
         }),
         "Owner material relation remove did not return a stored record.",
       );
+      input.projectionInvalidationCommands.markProjectionInvalidated({
+        writes: [{
+          writeKind: "owner_relation_written",
+          ownerScope: commandInput.ownerScope,
+          relationKind: commandInput.relationKind,
+          materialRef: commandInput.materialRef,
+        }],
+      });
+      return record;
     },
   };
 }
