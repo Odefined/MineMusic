@@ -1,6 +1,7 @@
 export type MusicDataPlatformErrorCode =
   | "music_data.record_ref_key_mismatch"
   | "music_data.record_kind_mismatch"
+  | "music_data.material_text_projection_invalid"
   | "music_data.owner_scope_invalid"
   | "music_data.owner_material_relation_ref_invalid"
   | "music_data.owner_relation_pool_ref_invalid"

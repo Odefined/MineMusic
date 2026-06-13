@@ -143,6 +143,10 @@ assert.deepEqual(
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/index.ts",
     "src/music_data_platform/material_ref_factory.ts",
+    "src/music_data_platform/material_text_normalization.ts",
+    "src/music_data_platform/material_text_projection_commands.ts",
+    "src/music_data_platform/material_text_projection_records.ts",
+    "src/music_data_platform/material_text_projection_schema.ts",
     "src/music_data_platform/owner_catalog_projection.ts",
     "src/music_data_platform/owner_catalog_records.ts",
     "src/music_data_platform/owner_catalog_schema.ts",
@@ -345,6 +349,11 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_data_p
     "../collection/",
     "../memory/",
     "../effects/",
+    "../music_intelligence/",
+    "../music_experience/",
+    "../query/",
+    "../retrieval/",
+    "../presentation/",
   ]) {
     if (
       text.includes(`from "${forbiddenImport}`) ||

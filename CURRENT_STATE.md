@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 9 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 10 of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -19,7 +19,10 @@ refs, and introduces the first internal owner catalog projection schema,
 rebuild command, and SQL catalog view. Phase 9 adds
 `owner_material_relations`, deterministic owner relation refs/pool refs,
 material-scope `saved/favorite/blocked`, owner-relation projection, and
-ordinary catalog exclusion for active blocked facts.
+ordinary catalog exclusion for active blocked facts. Phase 10 adds
+`material_text_documents`, `material_text_fts`, command-owned rebuild by
+explicit material ref, and an owner-neutral internal material text read/FTS
+probe.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -265,6 +268,24 @@ Phase 8/9 owner catalog and owner relation vocabulary includes:
 - `blocked` affecting ordinary catalog visibility through the catalog SQL view,
   not through `owner_material_entries`.
 
+Phase 10 material text projection vocabulary includes:
+
+- `musicDataPlatformMaterialTextProjectionSchema` for
+  `material_text_documents` plus `material_text_fts`;
+- `createMaterialTextProjectionCommands({ db, now })` with
+  `rebuildMaterialTextDocument({ materialRef })` and
+  `rebuildMaterialTextDocuments({ materialRefs })`;
+- `createMaterialTextProjectionRecords({ db })` with
+  `getMaterialTextDocument({ materialRef })` and
+  `matchMaterialTextDocuments({ text, limit? })`;
+- `music_data.material_text_projection_invalid` for internal read-port input
+  validation;
+- current bound source truth for text projection coming from
+  `source_material_bindings`, not from `MaterialEntity.sourceRefs`;
+- `document_json` as compact current projection debug structure only;
+- strict owner-neutral conjunctive FTS matching over projected
+  `title/artist/album/version/alias` text.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -362,6 +383,14 @@ The active TypeScript tree is now a formal skeleton:
   catalog read port;
 - `src/music_data_platform/owner_catalog_projection.ts` owns owner catalog
   rebuild commands for source-library and owner-relation projection scopes;
+- `src/music_data_platform/material_text_projection_schema.ts` owns the
+  material text projection schema contribution;
+- `src/music_data_platform/material_text_normalization.ts` owns internal
+  normalization, dedupe, and strict FTS query construction helpers;
+- `src/music_data_platform/material_text_projection_records.ts` owns the
+  internal material text read port;
+- `src/music_data_platform/material_text_projection_commands.ts` owns
+  command-owned material text rebuilds;
 - `src/music_data_platform/index.ts` owns Music Data Platform public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
@@ -417,8 +446,8 @@ restored as compatibility layers.
 - `docs/music-data-platform/README.md`, `docs/music-data-platform/design.md`,
   `docs/music-data-platform/ports.md`, and
   `docs/music-data-platform/progress.md` are the current Music Data Platform
-  area docs for identity, source-library import, owner material relation, and
-  owner catalog projection foundation.
+  area docs for identity, source-library import, owner material relation,
+  owner catalog projection, and material text projection.
 - `docs/formal-rebuild/phase-6-source-provider-slot.md` records the
   implemented Phase 6 Source Provider Slot search spec.
 - `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`
@@ -435,6 +464,10 @@ restored as compatibility layers.
   records the implemented Phase 9 owner material relation foundation spec.
 - `docs/formal-rebuild/phase-9-owner-material-relations-foundation-implementation-plan.md`
   records the implemented Phase 9 execution plan.
+- `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation.md`
+  records the implemented Phase 10 material text projection foundation spec.
+- `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md`
+  records the implemented Phase 10 execution plan.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under

@@ -1,15 +1,15 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority for implemented Phase 9
-> Scope: Identity write model, source-library import, owner relation, and owner catalog projection ports
+> Status: Current boundary authority for implemented Phase 10
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, and material text projection ports
 
 Music Data Platform provides identity repositories, identity write commands,
 source-library repositories, Library Import service, source-library and owner
 relation ref helpers, owner relation commands/read port, owner catalog
-projection commands/read port, schema contributions, a material ref factory,
-and error types. It consumes generic Storage database ports and a narrow
-provider-library read port, but does not know SQLite primitives or provider
-plugin implementations.
+projection commands/read port, material text projection commands/read port,
+schema contributions, a material ref factory, and error types. It consumes
+generic Storage database ports and a narrow provider-library read port, but
+does not know SQLite primitives or provider plugin implementations.
 
 ## Provides
 
@@ -20,6 +20,7 @@ plugin implementations.
 | `musicDataPlatformOwnerCatalogEntriesSchema` | Storage initialization callers | Creates `owner_material_entries`. | `src/music_data_platform/owner_catalog_schema.ts` |
 | `musicDataPlatformOwnerRelationSchema` | Storage initialization callers | Creates `owner_material_relations`. | `src/music_data_platform/owner_material_relation_schema.ts` |
 | `musicDataPlatformOwnerCatalogViewSchema` | Storage initialization callers | Creates the final `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
+| `musicDataPlatformMaterialTextProjectionSchema` | Storage initialization callers | Creates `material_text_documents` and `material_text_fts`. | `src/music_data_platform/material_text_projection_schema.ts` |
 | `createIdentityRepositories` | Internal commands/tests | Low-level source/material/canonical/binding persistence. | `src/music_data_platform/identity_records.ts` |
 | `createIdentityWriteCommands` | Internal Music Data Platform callers/tests | Invariant-preserving identity writes. | `src/music_data_platform/identity_write_model.ts` |
 | `assertOwnerScope` / `DEFAULT_OWNER_SCOPE` | Internal callers/tests | Validate owner-scope inputs and provide the current local default scope. | `src/music_data_platform/owner_scope.ts` |
@@ -33,6 +34,8 @@ plugin implementations.
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild source-library and owner-relation owner catalog scopes through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
+| `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
+| `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
 | `MusicDataPlatformError` | Internal callers/tests | Music Data Platform-owned invariant errors. | `src/music_data_platform/errors.ts` |
 
 ## Consumes
@@ -89,6 +92,8 @@ Command outputs are internal records. They are not agent-facing DTOs.
 | `createOwnerMaterialRelationRecords({ db })` | database context | `getOwnerMaterialRelation(...)`, `listOwnerMaterialRelations(...)` | reads `owner_material_relations` |
 | `createOwnerCatalogProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildSourceLibraryEntries({ ownerScope, libraryRef })` and `rebuildOwnerRelationEntries({ ownerScope, relationKind?, materialRef? })` | writes `owner_material_entries` only |
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
+| `createMaterialTextProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildMaterialTextDocument({ materialRef })` and `rebuildMaterialTextDocuments({ materialRefs })` | writes `material_text_documents` and `material_text_fts` only |
+| `createMaterialTextProjectionRecords({ db })` | database context | `getMaterialTextDocument({ materialRef })`, `matchMaterialTextDocuments({ text, limit? })` | reads `material_text_documents` and `material_text_fts` |
 
 Projection commands are Music Data Platform-owned database commands. They
 rebuild one source-library scope or one positive owner-relation pool scope
@@ -169,14 +174,19 @@ Current guards:
   idempotent rebuild, missing-library rejection, owner-scope mismatch, rebind
   cleanup, material-merge cleanup, and empty-library rebuild under the split
   entries/relation/view schema order.
+- material text projection tests cover record/command/read-port key sets,
+  schema/FTS column shape, strict normalization/query construction, operator
+  escaping, bound-source truth from `source_material_bindings`, canonical
+  inclusion guards, repeated rebuild replacement, active-empty rebuild, and
+  delete-on-missing-or-inactive behavior.
 
 ## Out Of Scope
 
 - source-canonical binding tables;
 - command audit;
 - public import tools;
-- update baselines, removed-item reconciliation, local pool query, public query,
-  and presentation;
+- update baselines, removed-item reconciliation, local pool algebra,
+  owner-scoped/public query, and presentation;
 - Collection writes and additional owner catalog producers beyond
   source-library and owner-relation;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction

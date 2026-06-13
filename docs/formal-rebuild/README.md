@@ -29,6 +29,8 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-8-owner-catalog-projection-foundation-implementation-plan.md` | Implemented execution plan for Phase 8 source-library fact rewrite, owner catalog projection schema, rebuild commands, read port, guards, and docs. |
 | `phase-9-owner-material-relations-foundation.md` | Implemented Phase 9 spec for owner-material relation source-of-truth, scoped relation writes, owner-relation projection, and material-scope blocked catalog exclusion. |
 | `phase-9-owner-material-relations-foundation-implementation-plan.md` | Implemented Phase 9 execution plan for owner relation facts, scoped relation commands, owner-relation projection, blocked catalog exclusion, guards, and docs. |
+| `phase-10-music-data-platform-material-text-projection-foundation.md` | Implemented Phase 10 spec for material-centered text documents, owner-neutral FTS, explicit material ref rebuild commands, and internal match probes. |
+| `phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md` | Implemented Phase 10 execution plan for schema, normalization, read port, rebuild commands, guards, runtime schema wiring, docs, and verification. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit
