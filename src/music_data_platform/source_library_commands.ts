@@ -6,6 +6,7 @@ import {
   type SourceLibraryImportItemOutcome,
 } from "../contracts/index.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
+import { createIdentityReadPort } from "./identity_read_model.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import type { ProjectionInvalidationCommands } from "./projection_maintenance_commands.js";
@@ -107,6 +108,7 @@ export type SourceLibraryCommands = {
 export function createSourceLibraryCommands(
   input: CreateSourceLibraryCommandsInput,
 ): SourceLibraryCommands {
+  const identityRead = createIdentityReadPort({ db: input.db });
   const repositories = createSourceLibraryRepositories({ db: input.db });
 
   return {
@@ -166,6 +168,20 @@ export function createSourceLibraryCommands(
       const batchScope = requireBatchLibraryScope(commandInput.batch);
       const sourceRefKey = refKey(commandInput.sourceRef);
       const materialRefKey = refKey(commandInput.materialRef);
+      const currentBinding = identityRead.findMaterialForSource({
+        sourceRef: commandInput.sourceRef,
+      });
+
+      if (
+        currentBinding === undefined ||
+        refKey(currentBinding.materialRef) !== materialRefKey
+      ) {
+        throw new MusicDataPlatformError({
+          code: "music_data.source_library_material_binding_mismatch",
+          message: "Source library item write requires the provided material ref to match the current source-material binding.",
+        });
+      }
+
       const existingItem = repositories.items.get({
         libraryRef: batchScope.libraryRef,
         sourceRefKey,

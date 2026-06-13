@@ -511,10 +511,14 @@ invalidation clearly enough after the area docs are updated.
    - remove `last_seen_at` from source-library item facts and commands;
    - `recordImportItem(...)` receives `sourceRef: Ref` and `materialRef: Ref`
      and derives storage ref keys internally;
+   - `recordImportItem(...)` validates that the provided `materialRef`
+     matches the current `source_material_bindings` row for the same
+     `sourceRef`;
    - item insert or `providerAddedAt` update reports
      `source_library_item_written(ownerScope, sourceRef)`;
    - already-present unchanged item records import outcome and batch counters
-     without updating `source_library_items` and without marking dirty;
+     without updating `source_library_items` and without emitting
+     `source_library_item_written`;
    - item failures, batch failure/completion, and cursor advancement do not
      mark dirty.
 
@@ -528,7 +532,9 @@ invalidation clearly enough after the area docs are updated.
    - returns `{ identity, sourceLibrary, ownerRelations }`;
    - creates Projection Maintenance commands internally;
    - injects only the narrow invalidation capability into lower-level
-     factories.
+     factories;
+   - rejects non-default owner scopes on workflow-facing owner-scoped write
+     methods in Phase 11.
 
 8. Migrate workflows and public API:
    - Source Library Import creates and uses the top-level facade inside write
@@ -565,7 +571,9 @@ Write wiring:
 - source-library item writes create pending source-library material targets
   only when `source_library_items` is inserted or updated;
 - unchanged already-present import items do not write `source_library_items`
-  and do not mark dirty;
+  and do not emit `source_library_item_written`;
+- `recordImportItem(...)` rejects a provided `materialRef` that does not match
+  the current binding for the same `sourceRef`;
 - owner relation writes create pending owner-relation material targets;
 - dirty mark failure rolls back the source-of-truth write transaction.
 
@@ -575,6 +583,8 @@ Bypass prevention:
 - public barrel import of lower-level write factories is unavailable;
 - ordinary active source files cannot call lower-level source-of-truth write
   factories directly;
+- ordinary active source files cannot call projection rebuild commands
+  directly; the runner owns rebuild-plus-clean flow;
 - focused tests may construct lower-level factories only with a recording
   invalidation fake and must assert reported write scopes.
 

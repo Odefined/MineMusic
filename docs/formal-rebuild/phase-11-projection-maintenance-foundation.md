@@ -668,6 +668,10 @@ They belong to the Projection Maintenance command boundary. The runner is
 orchestration: it reads dirty targets, calls projection rebuild commands, and
 then calls Projection Maintenance commands to record the outcome.
 
+Direct projection rebuild command calls do not clear dirty targets on their
+own. Cleaning a pending target is runner-owned behavior through
+`markProjectionClean(...)`, not part of the projection rebuild command surface.
+
 ### Schema Ownership
 
 Phase 11 adds a dedicated schema contribution:
@@ -1265,6 +1269,12 @@ semantics. Phase 11 should not invent multi-owner traversal.
 Source-library item writes already have an `ownerScope` on the batch and use
 that explicit owner scope when reporting `source_library_item_written`.
 
+The workflow-facing `createMusicDataPlatformSourceOfTruthWriteCommands(...)`
+facade currently accepts only `DEFAULT_OWNER_SCOPE` on owner-scoped write
+methods. Lower-level source-library and owner-relation commands remain
+owner-scoped internally, but Phase 11 does not support arbitrary workflow
+owner fanout.
+
 ### Initial Write Command Invalidation Reporting
 
 Write commands report source-of-truth write scopes. They do not choose
@@ -1332,7 +1342,9 @@ import bookkeeping, not a source-library membership fact.
 `already_present` still records an import item outcome and increments the batch
 bookkeeping counters. It does not update `source_library_items` unless the
 item row itself needs to be inserted or updated, such as `providerAddedAt`
-being filled or changed.
+being filled or changed. This narrow rule is about
+`source_library_item_written(...)`; conservative identity writes during the
+same import flow may still dirty material-local projection targets.
 
 `recordImportItem(...)` item-row write semantics:
 
@@ -1352,6 +1364,11 @@ fact.
 then derive stored `refKey(sourceRef)` and `refKey(materialRef)` internally.
 Projection Maintenance write scopes and source-library command inputs use
 `Ref` values, not database ref keys.
+
+`recordImportItem(...)` must validate that the provided `materialRef` matches
+the current `source_material_bindings` row for the same `sourceRef`. The
+command must not record a source-library item outcome against one material ref
+while the current binding points to another.
 
 Import item failures, batch failure/completion, and cursor advancement do not
 mark projection dirty because they update import bookkeeping, not

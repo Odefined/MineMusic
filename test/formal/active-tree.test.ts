@@ -506,6 +506,34 @@ for (const file of activeFiles) {
 }
 assert.deepEqual(projectionTargetDirtyCallFailures, []);
 
+const projectionRebuildCallAllowedFiles = new Set([
+  "src/music_data_platform/projection_maintenance_runner.ts",
+]);
+const projectionRebuildCallFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const rebuildCall of [
+    ".rebuildSourceLibraryEntriesForLibrary(",
+    ".rebuildSourceLibraryEntriesForMaterial(",
+    ".rebuildOwnerRelationEntries(",
+    ".rebuildMaterialTextDocument(",
+    ".rebuildMaterialTextDocuments(",
+  ]) {
+    if (
+      text.includes(rebuildCall) &&
+      !projectionRebuildCallAllowedFiles.has(relativeFile)
+    ) {
+      projectionRebuildCallFailures.push(
+        `${relativeFile} calls projection rebuild command '${rebuildCall}' outside Projection Maintenance runner ownership`,
+      );
+    }
+  }
+}
+assert.deepEqual(projectionRebuildCallFailures, []);
+
 const directWriteAllowedFiles = new Set([
   "src/music_data_platform/identity_records.ts",
   "src/music_data_platform/identity_schema.ts",

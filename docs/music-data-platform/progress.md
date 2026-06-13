@@ -120,18 +120,25 @@
   projection commands one target transaction at a time.
 - `src/music_data_platform/source_of_truth_write_commands.ts` implements the
   workflow-facing source-of-truth write facade for identity, source-library,
-  and owner relation writes.
+  and owner relation writes, and currently rejects non-default owner scopes on
+  owner-scoped workflow methods.
 - Identity, source-library, and owner relation write commands now require a
   narrow projection invalidation dependency and report typed source-of-truth
   write scopes instead of writing dirty targets directly.
 - `markProjectionInvalidated({ writes })` plans target rows from typed
   source/material/canonical/binding/library/relation write scopes inside the
   same transaction as the source-of-truth write.
+- active-tree now also rejects direct projection rebuild command calls outside
+  `projection_maintenance_runner.ts`, so workflow/runtime code cannot rebuild a
+  projection and silently leave its dirty target pending.
 - Library Import now uses the top-level source-of-truth write facade and does
   not call lower-level identity/source-library write factories directly.
 - `source_library_items` no longer store `last_seen_at`; unchanged repeated
-  imports keep batch/outcome bookkeeping but do not rewrite the item row or
-  re-mark projection dirty.
+  imports keep batch/outcome bookkeeping, do not rewrite the item row, and do
+  not emit `source_library_item_written`; conservative identity writes may
+  still dirty local projection targets.
+- `recordImportItem(...)` now rejects a provided `materialRef` that does not
+  match the current `source_material_bindings` row for the same `sourceRef`.
 - Owner catalog provenance stores compact projection basis only; it does not
   store raw provider payload, query score/rank, `MaterialCard` data, or
   source-library `lastSeenAt`.

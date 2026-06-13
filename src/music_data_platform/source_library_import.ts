@@ -161,6 +161,13 @@ export function createSourceLibraryImportService(
         );
       }
 
+      if (batch.ownerScope !== DEFAULT_OWNER_SCOPE) {
+        return failMusicData(
+          "music_data.owner_scope_unsupported",
+          `Workflow-facing source library import currently supports only owner scope '${DEFAULT_OWNER_SCOPE}'.`,
+        );
+      }
+
       if (batch.status === "completed") {
         return ok({
           batch,

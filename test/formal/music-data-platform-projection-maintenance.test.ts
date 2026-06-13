@@ -829,6 +829,113 @@ assert.deepEqual(
 );
 facadeRelationDatabase.close();
 
+const facadeOwnerScopeDatabase = initializedDatabase();
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:21:45.000Z",
+    }).sourceLibrary.createImportBatch({
+      batchId: "other-owner-batch",
+      ownerScope: "other_owner",
+      providerId: "netease",
+      libraryKind: "saved_source_track",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+facadeOwnerScopeDatabase.transaction((db) => {
+  createSourceLibraryRepositories({ db }).batches.insert({
+    batchId: "foreign-owner-batch",
+    ownerScope: "other_owner",
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+    status: "running",
+    processedCount: 0,
+    importedCount: 0,
+    alreadyPresentCount: 0,
+    failedCount: 0,
+    createdAt: "2026-06-13T12:22:00.000Z",
+    updatedAt: "2026-06-13T12:22:00.000Z",
+  });
+});
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
+    const batch = createSourceLibraryRepositories({ db }).batches.get({
+      batchId: "foreign-owner-batch",
+    });
+    assert.notEqual(batch, undefined);
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:22:15.000Z",
+    }).sourceLibrary.resolveImportBatchLibraryScope({
+      batch: batch!,
+      providerAccountId: "130950699",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:22:20.000Z",
+    }).sourceLibrary.recordImportItemFailure({
+      batchId: "foreign-owner-batch",
+      providerId: "netease",
+      providerEntityId: "1001",
+      errorCode: "music_data.test_failure",
+      errorMessage: "test failure",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:22:25.000Z",
+    }).sourceLibrary.failImportBatch({
+      batchId: "foreign-owner-batch",
+      errorCode: "music_data.test_failure",
+      errorMessage: "test failure",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+facadeOwnerScopeDatabase.transaction((db) => {
+  createIdentityTestCommands(db, "2026-06-13T12:22:30.000Z")
+    .upsertMaterialRecord({
+      materialRef: materialRef("recording", "m_other_owner_relation"),
+      kind: "recording",
+    });
+});
+assert.throws(
+  () => facadeOwnerScopeDatabase.transaction((db) => {
+    createMusicDataPlatformSourceOfTruthWriteCommands({
+      db,
+      now: "2026-06-13T12:22:45.000Z",
+    }).ownerRelations.recordOwnerMaterialRelation({
+      ownerScope: "other_owner",
+      materialRef: materialRef("recording", "m_other_owner_relation"),
+      relationKind: "saved",
+      origin: "user_explicit",
+    });
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.owner_scope_unsupported",
+);
+facadeOwnerScopeDatabase.close();
+
 const runnerSuccessDatabase = initializedDatabase();
 const runnerMaterialRef: Ref = {
   namespace: "material",

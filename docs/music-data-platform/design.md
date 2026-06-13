@@ -305,6 +305,11 @@ Import batches persist `ownerScope` from the beginning and store
 creates or upserts the `SourceLibrary` before item writes and then uses
 `(libraryRef, sourceRefKey)` as the source-library item identity.
 
+`recordImportItem(...)` validates that the provided `materialRef` still matches
+the current `source_material_bindings` row for the same `sourceRef`. The
+command must not persist source-library bookkeeping against a material ref that
+has already drifted from the current binding.
+
 Before item writes, the service validates that the provider page belongs to the
 batch provider id, batch library kind, resolved provider account, and expected
 `source_<providerId>` source namespace. A direct `PlatformLibraryReadPort`
@@ -324,6 +329,12 @@ Library Import reuses the existing top-level source-of-truth write facade:
 4. bind source to material through `bindSourceToMaterial`;
 5. upsert `SourceLibrary` / `SourceLibraryItem`;
 6. record import outcome.
+
+The workflow-facing facade currently accepts only `DEFAULT_OWNER_SCOPE` on
+owner-scoped write methods. Lower-level source-library and owner-relation
+commands still keep explicit `ownerScope` because the formal storage and
+projection model are owner-scoped, but Phase 11 does not support arbitrary
+workflow-facing owner fanout yet.
 
 Phase 8 does not introduce a second material creation policy, direct material
 row construction inside import callers, or synchronous owner catalog projection
@@ -606,6 +617,11 @@ database transaction by dispatching to the owning projection command, and then:
 - leaves a newer generation pending when rebuild output becomes stale during
   the same run.
 
+Direct projection rebuild command calls do not clear
+`projection_maintenance_targets` on their own. Cleaning a dirty target is part
+of the runner flow through `markProjectionClean(...)`, not part of the rebuild
+command surface.
+
 Malformed target payloads are treated as failed targets for that row only; the
 runner continues with later targets.
 
@@ -620,7 +636,8 @@ typed write scopes such as `source_record_written`,
 write. Workflow-facing callers use
 `createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })`; ordinary
 workflow code must not call lower-level identity/source-library/relation write
-factories directly.
+factories directly, and workflow-facing owner-scoped writes currently reject
+non-default owner scopes.
 
 ## Material Merge
 

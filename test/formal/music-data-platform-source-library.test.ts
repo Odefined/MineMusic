@@ -11,13 +11,21 @@ import {
 } from "../../src/contracts/index.js";
 import {
   DEFAULT_OWNER_SCOPE,
+  createMaterialTextProjectionRecords,
   createMaterialRefFactory,
+  createOwnerCatalogRecords,
+  createProjectionMaintenanceRecords,
+  createProjectionMaintenanceRunner,
   createSourceLibraryRef,
-    createSourceLibraryImportService,
-    isMusicDataPlatformError,
-    musicDataPlatformIdentitySchema,
-    musicDataPlatformProjectionMaintenanceSchema,
-    musicDataPlatformSourceLibrarySchema,
+  createSourceLibraryImportService,
+  isMusicDataPlatformError,
+  musicDataPlatformIdentitySchema,
+  musicDataPlatformMaterialTextProjectionSchema,
+  musicDataPlatformOwnerCatalogEntriesSchema,
+  musicDataPlatformOwnerCatalogViewSchema,
+  musicDataPlatformOwnerRelationSchema,
+  musicDataPlatformProjectionMaintenanceSchema,
+  musicDataPlatformSourceLibrarySchema,
   type PlatformLibraryReadPort,
   type SourceLibraryImportBatchRecord,
   type SourceLibraryImportItemOutcomeRecord,
@@ -403,6 +411,59 @@ assert.deepEqual(recordedInvalidation.batches, [
 ]);
 invalidationDatabase.close();
 
+const bindingMismatchDatabase = initializedDatabase();
+const bindingMismatchSource = sourceTrack("1003", "Binding Mismatch Track");
+const boundMaterialRef: Ref = {
+  namespace: "material",
+  kind: "recording",
+  id: "m_bound",
+};
+bindingMismatchDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:40:00.000Z");
+  identity.upsertSourceRecord({ entity: bindingMismatchSource });
+  identity.upsertMaterialRecord({ materialRef: boundMaterialRef, kind: "recording" });
+  identity.bindSourceToMaterial({
+    sourceRef: bindingMismatchSource.sourceRef,
+    materialRef: boundMaterialRef,
+    makePrimary: true,
+  });
+});
+bindingMismatchDatabase.transaction((db) => {
+  const commands = createSourceLibraryCommands({
+    db,
+    now: "2026-06-08T00:41:00.000Z",
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+  const createdBatch = commands.createImportBatch({
+    batchId: "binding-mismatch-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+  });
+  const batch = commands.resolveImportBatchLibraryScope({
+    batch: createdBatch,
+    providerAccountId: "130950618",
+  });
+
+  assert.throws(
+    () => commands.recordImportItem({
+      batch,
+      sourceRef: bindingMismatchSource.sourceRef,
+      providerId: "netease",
+      providerEntityId: "1003",
+      materialRef: {
+        namespace: "material",
+        kind: "recording",
+        id: "m_wrong",
+      },
+    }),
+    (error: unknown) =>
+      isMusicDataPlatformError(error) &&
+      error.code === "music_data.source_library_material_binding_mismatch",
+  );
+});
+bindingMismatchDatabase.close();
+
 const materialRefFactory = createMaterialRefFactory({
   nextOpaqueId: () => "opaque_1",
 });
@@ -617,6 +678,122 @@ const completedContinue = await assertOk(duplicateImport.continueImport({
 assert.equal(completedContinue.batch.status, "completed");
 assert.equal(duplicateReads.requests.length, 1);
 duplicateDatabase.close();
+
+const foreignOwnerContinueDatabase = initializedDatabase();
+foreignOwnerContinueDatabase.transaction((db) => {
+  createSourceLibraryRepositories({ db }).batches.insert({
+    batchId: "foreign-owner-batch",
+    ownerScope: "other_owner",
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+    status: "running",
+    processedCount: 0,
+    importedCount: 0,
+    alreadyPresentCount: 0,
+    failedCount: 0,
+    createdAt: "2026-06-08T01:10:00.000Z",
+    updatedAt: "2026-06-08T01:10:00.000Z",
+  });
+});
+const foreignOwnerContinueReads = scriptedReadPort([
+  okRead({
+    providerId: "netease",
+    providerAccountId: "130950618",
+    kind: "saved_source_track",
+    candidates: [],
+  }),
+]);
+const foreignOwnerContinueImport = createSourceLibraryImportService({
+  database: foreignOwnerContinueDatabase,
+  platformLibraryProvider: foreignOwnerContinueReads.port,
+  materialRefFactory: createMaterialRefFactory({
+    nextOpaqueId: () => "unused",
+  }),
+  now: fixedNow("2026-06-08T01:11:00.000Z"),
+});
+assertErrorCode(
+  await foreignOwnerContinueImport.continueImport({
+    batchId: "foreign-owner-batch",
+    limit: 1,
+  }),
+  "music_data.owner_scope_unsupported",
+);
+assert.equal(foreignOwnerContinueReads.requests.length, 0);
+foreignOwnerContinueDatabase.close();
+
+const projectionMaintenanceDatabase = initializedDatabase();
+const projectionMaintenanceReads = scriptedReadPort([
+  okRead({
+    providerId: "netease",
+    providerAccountId: "130950618",
+    kind: "saved_source_track",
+    candidates: [
+      platformCandidate("saved_source_track", sourceTrack("1004", "Projection Maintenance Track")),
+    ],
+  }),
+]);
+const projectionMaintenanceImport = createSourceLibraryImportService({
+  database: projectionMaintenanceDatabase,
+  platformLibraryProvider: projectionMaintenanceReads.port,
+  materialRefFactory: createMaterialRefFactory({
+    nextOpaqueId: () => "projection_maintenance_material",
+  }),
+  now: fixedNow("2026-06-08T01:15:00.000Z"),
+  newBatchId: () => "projection-maintenance-batch",
+});
+const projectionMaintenanceResult = await assertOk(projectionMaintenanceImport.startImport({
+  providerId: "netease",
+  libraryKind: "saved_source_track",
+  limit: 1,
+}));
+assert.equal(projectionMaintenanceResult.batch.status, "completed");
+assert.deepEqual(
+  createProjectionMaintenanceRecords({ db: projectionMaintenanceDatabase.context() })
+    .listPendingProjectionTargets()
+    .map((target) => target.projectionKind)
+    .sort(),
+  [
+    "material_text",
+    "owner_catalog_relation_material",
+    "owner_catalog_source_library_material",
+  ],
+);
+assert.deepEqual(
+  createProjectionMaintenanceRunner({
+    database: projectionMaintenanceDatabase,
+    now: "2026-06-08T01:16:00.000Z",
+  }).runProjectionMaintenance(),
+  {
+    selectedCount: 3,
+    rebuiltCount: 3,
+    failedCount: 0,
+    skippedStaleGenerationCount: 0,
+  },
+);
+assert.equal(
+  createProjectionMaintenanceRecords({ db: projectionMaintenanceDatabase.context() })
+    .listPendingProjectionTargets()
+    .length,
+  0,
+);
+const projectionMaintenanceMaterialRef = projectionMaintenanceResult.itemResults[0]?.materialRef;
+assert.notEqual(projectionMaintenanceMaterialRef, undefined);
+assert.equal(
+  createMaterialTextProjectionRecords({ db: projectionMaintenanceDatabase.context() })
+    .getMaterialTextDocument({ materialRef: projectionMaintenanceMaterialRef! })
+    ?.materialRefKey,
+  refKey(projectionMaintenanceMaterialRef!),
+);
+assert.notEqual(projectionMaintenanceResult.batch.libraryRef, undefined);
+assert.equal(
+  createOwnerCatalogRecords({ db: projectionMaintenanceDatabase.context() })
+    .listOwnerMaterialEntries({
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      entryRef: projectionMaintenanceResult.batch.libraryRef!,
+    }).length,
+  1,
+);
+projectionMaintenanceDatabase.close();
 
 const invalidLimitDatabase = initializedDatabase();
 const invalidLimitReads = scriptedReadPort([]);
@@ -1046,6 +1223,10 @@ function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
   database.initialize({
     schemas: [
       musicDataPlatformIdentitySchema,
+      musicDataPlatformOwnerRelationSchema,
+      musicDataPlatformOwnerCatalogEntriesSchema,
+      musicDataPlatformOwnerCatalogViewSchema,
+      musicDataPlatformMaterialTextProjectionSchema,
       musicDataPlatformSourceLibrarySchema,
       musicDataPlatformProjectionMaintenanceSchema,
     ],

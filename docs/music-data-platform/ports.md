@@ -35,7 +35,7 @@ port, but does not know SQLite primitives or provider plugin implementations.
 | `createSourceLibraryCommands` | Internal Music Data Platform callers/tests | Command-owned source-library import batch, library scope, item, and item-outcome writes. | `src/music_data_platform/source_library_commands.ts` |
 | `createSourceLibraryReadPort` | Internal Music Data Platform callers/tests | Narrow source-library import-batch reads without exposing repository write methods. | `src/music_data_platform/source_library_read_model.ts` |
 | `createMaterialRefFactory` | Library Import service/composition/tests | Opaque MineMusic material ref generation for new material anchors. | `src/music_data_platform/material_ref_factory.ts` |
-| `createMusicDataPlatformSourceOfTruthWriteCommands` | Workflow-facing Music Data Platform callers/tests | Top-level source-of-truth write facade that wires identity/source-library/owner-relation writes through projection invalidation. | `src/music_data_platform/source_of_truth_write_commands.ts` |
+| `createMusicDataPlatformSourceOfTruthWriteCommands` | Workflow-facing Music Data Platform callers/tests | Top-level source-of-truth write facade that wires identity/source-library/owner-relation writes through projection invalidation; owner-scoped workflow writes currently accept only `DEFAULT_OWNER_SCOPE`. | `src/music_data_platform/source_of_truth_write_commands.ts` |
 | `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port and owning commands. | `src/music_data_platform/source_library_import.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
@@ -107,6 +107,8 @@ Commands are created with `db: MusicDatabaseTransactionContext` and
 | `markProjectionFailed` | `projectionKind`, `targetKey`, `expectedDirtyGeneration`, compact failure | `{ failed }` | `projection_maintenance_targets` |
 
 Command outputs are internal records. They are not agent-facing DTOs.
+`recordImportItem(...)` requires the provided `materialRef` to match the
+current `source_material_bindings` row for the same `sourceRef`.
 
 ## Projection And Read Ports
 
@@ -139,7 +141,9 @@ plans the affected projection targets inside the same transaction as the write.
 deterministic digest, and only the owning projection maintenance commands may
 mutate `projection_maintenance_targets`. The runner may dispatch only to owning
 projection rebuild commands; it must not construct projection rows directly or
-expose Stage Interface DTOs.
+expose Stage Interface DTOs. Direct rebuild command calls do not clear dirty
+targets on their own; only the runner performs rebuild plus
+`markProjectionClean(...)`.
 
 ## Library Import Service
 
@@ -168,6 +172,9 @@ All writes listed above happen through
 `createMusicDataPlatformSourceOfTruthWriteCommands(...)`. The service may use
 narrow read ports, but it must not construct source-library or identity
 repositories directly and must not call lower-level write factories directly.
+Unchanged repeated imports do not rewrite `source_library_items` or emit
+`source_library_item_written`, but conservative identity writes may still dirty
+material-local projection targets.
 
 The service output is internal and complete enough for tests, smoke, and later
 Stage Interface projection. It is not a compact agent-facing DTO and does not
