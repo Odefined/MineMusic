@@ -8,6 +8,7 @@ const testModules = [
   "./formal/music-data-platform-source-library.test.js",
   "./formal/music-data-platform-owner-relations.test.js",
   "./formal/music-data-platform-owner-catalog.test.js",
+  "./formal/music-data-platform-material-text-projection.test.js",
   "./formal/stage-runtime.test.js",
   "./formal/server-host.test.js",
 ];

@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented Phase 9 owner material relation foundation
+> Status: Implemented Phase 10 material text projection foundation
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -75,6 +75,17 @@
   set-based projection refresh and scoped obsolete-row cleanup.
 - `src/music_data_platform/owner_catalog_records.ts` exposes the internal owner
   catalog read port for tests and later query phases.
+- `src/music_data_platform/material_text_projection_schema.ts` contributes
+  `material_text_documents` and `material_text_fts`.
+- `src/music_data_platform/material_text_normalization.ts` implements
+  Phase 10 internal normalization, field-level dedupe, and strict plain-text
+  FTS query construction.
+- `src/music_data_platform/material_text_projection_commands.ts` implements
+  command-owned rebuild of current material text documents and replacement FTS
+  rows by explicit material ref.
+- `src/music_data_platform/material_text_projection_records.ts` exposes the
+  internal material text read port with exact document reads and strict
+  owner-neutral FTS probes.
 - Owner catalog provenance stores compact projection basis only; it does not
   store raw provider payload, query score/rank, or `MaterialCard` data.
 - `owner_material_relations` is now the current-state source-of-truth for
@@ -88,6 +99,20 @@
   refs and does not expose per-material relation refs as `entry_ref_key`.
 - `blocked` does not create `owner_material_entries`; it suppresses ordinary
   owner catalog visibility through `owner_material_catalog_view`.
+- Material text projection derives only from current `material_records`,
+  current `source_material_bindings -> source_records`, and confirmed active
+  canonical rows.
+- Material text rebuild treats `source_material_bindings` as the current bound
+  source truth and uses `primarySourceRef` only to label a currently bound
+  source contribution.
+- Material text projection stores structured text fields plus deterministic
+  `document_json`; `material_kind` remains a structured column and does not
+  enter FTS text or contribution JSON.
+- `material_text_fts` indexes `title/artist/album/version/alias` only.
+  `search_text` is stored on the document row but intentionally not indexed.
+- Missing or non-active materials delete current material text rows. Active
+  materials rebuild one current document row even when every text field is
+  empty.
 - Mixed source-library plus owner-relation catalog rows preserve both
   provenance objects and keep source-library added-time priority over owner
   relation update time.
@@ -108,6 +133,11 @@
   validation, removed/archived reactivation semantics, blocked catalog
   exclusion, owner-relation projection shape, mixed provenance priority,
   scoped cleanup, and inactive-material projection skip behavior.
+- Phase 10 tests cover material text schema/FTS shape, key-set guards,
+  normalization/query construction, repeated rebuild replacement, strict
+  conjunctive match semantics, operator escaping, canonical inclusion guards,
+  bound-source truth from `source_material_bindings`, and active-empty plus
+  delete-on-missing-or-inactive rebuild behavior.
 - Active-tree guards cover Music Data Platform root shape and forbidden
   dependencies.
 
@@ -132,7 +162,8 @@ Out of the current Music Data Platform implementation:
 - Collection membership and Collection source-of-truth writes;
 - provider execution and provider config;
 - update baselines and removed-from-library reconciliation;
-- local pool query, text/FTS query, query/retrieval, and presentation;
+- local pool query, owner-scoped/public query, query/retrieval, and
+  presentation;
 - dirty-projection marking, scheduler/worker orchestration, and automatic
   projection refresh policy;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction

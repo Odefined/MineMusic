@@ -458,6 +458,46 @@ implemented plan lives at
 `docs/formal-rebuild/phase-9-owner-material-relations-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
 
+## 2026-06-13: Phase 10 Material Text Projection Foundation
+
+Phase 10 implements the first owner-neutral material text read-model
+foundation:
+
+- `musicDataPlatformMaterialTextProjectionSchema` creates
+  `material_text_documents` and `material_text_fts`;
+- one current material text document is stored per active material ref;
+- material text projection derives only from `material_records`, current
+  `source_material_bindings -> source_records`, and confirmed active canonical
+  rows;
+- `source_material_bindings` is the current bound source truth; stale
+  `MaterialEntity.sourceRefs` are ignored for projection rebuild;
+- projected document rows store structured
+  `title/artist/album/version/alias/search_text` plus deterministic
+  `document_json`;
+- `material_kind` remains a structured projection column and does not enter
+  FTS text or contribution JSON;
+- `material_text_fts` indexes `title/artist/album/version/alias` only and
+  intentionally does not index `search_text`;
+- rebuild is command-owned through
+  `createMaterialTextProjectionCommands({ db, now })` with explicit material
+  refs;
+- missing or non-active materials delete current material text rows, while
+  active empty materials still keep one current empty document/FTS row;
+- internal reads use `createMaterialTextProjectionRecords({ db })` with exact
+  document lookup and strict owner-neutral conjunctive FTS matching;
+- Stage Interface query tools, local pool query algebra, ranking, query-hit
+  shaping, and `MaterialCard` remain out of scope;
+- tests guard schema shape, FTS column set, read/command key sets,
+  normalization/query construction, operator escaping, canonical inclusion
+  guards, bound-source truth, repeated rebuild replacement, strict conjunctive
+  match semantics, and active-empty/delete-on-inactive behavior.
+
+The implemented Phase 10 spec lives at
+`docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation.md`.
+The implemented plan lives at
+`docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md`.
+Current Music Data Platform docs live under `docs/music-data-platform/`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

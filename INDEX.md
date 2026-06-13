@@ -60,6 +60,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   implemented Phase 9 execution plan for owner relation facts, scoped
   relation commands, owner-relation projection, blocked catalog exclusion,
   guards, and docs.
+- `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation.md`:
+  implemented Phase 10 spec for material-centered text documents,
+  owner-neutral FTS, explicit rebuild commands, and internal match probes.
+- `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md`:
+  implemented Phase 10 execution plan.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -84,10 +89,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/music-data-platform/README.md`: Music Data Platform area
   documentation entrypoint.
 - `docs/music-data-platform/design.md`: Music Data Platform identity,
-  source-library, owner relation, and owner-catalog design authority.
+  source-library, owner relation, owner catalog, and material text projection
+  design authority.
 - `docs/music-data-platform/ports.md`: Music Data Platform identity,
-  source-library, owner relation, and owner-catalog ports, forbidden
-  dependencies, composition, and guards.
+  source-library, owner relation, owner catalog, and material text projection
+  ports, forbidden dependencies, composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
   state, verification evidence, and remaining gaps.
 
@@ -197,6 +203,14 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   read port.
 - `src/music_data_platform/owner_catalog_projection.ts`: owner catalog rebuild
   commands for source-library and owner-relation projection scopes.
+- `src/music_data_platform/material_text_projection_schema.ts`: material text
+  projection schema contribution.
+- `src/music_data_platform/material_text_normalization.ts`: internal material
+  text normalization and strict FTS query construction helpers.
+- `src/music_data_platform/material_text_projection_records.ts`: internal
+  material text read port.
+- `src/music_data_platform/material_text_projection_commands.ts`: internal
+  material text rebuild commands.
 - `src/music_data_platform/source_library_import.ts`: internal Library Import
   application service.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.

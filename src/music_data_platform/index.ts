@@ -92,6 +92,9 @@ export {
   musicDataPlatformOwnerRelationSchema,
 } from "./owner_material_relation_schema.js";
 export {
+  musicDataPlatformMaterialTextProjectionSchema,
+} from "./material_text_projection_schema.js";
+export {
   createOwnerCatalogRecords,
 } from "./owner_catalog_records.js";
 export type {
@@ -124,6 +127,17 @@ export type {
   SourceLibraryEntryProjectionSummary,
 } from "./owner_catalog_projection.js";
 export {
+  createMaterialTextProjectionRecords,
+} from "./material_text_projection_records.js";
+export type {
+  CreateMaterialTextProjectionRecordsInput,
+  GetMaterialTextDocumentInput,
+  MaterialTextDocumentRecord,
+  MaterialTextMatchRecord,
+  MaterialTextProjectionReadPort,
+  MatchMaterialTextDocumentsInput,
+} from "./material_text_projection_records.js";
+export {
   createOwnerMaterialRelationCommands,
 } from "./owner_material_relation_commands.js";
 export type {
@@ -132,6 +146,17 @@ export type {
   RecordOwnerMaterialRelationInput,
   RemoveOwnerMaterialRelationInput,
 } from "./owner_material_relation_commands.js";
+export {
+  createMaterialTextProjectionCommands,
+} from "./material_text_projection_commands.js";
+export type {
+  CreateMaterialTextProjectionCommandsInput,
+  MaterialTextProjectionCommands,
+  RebuildMaterialTextDocumentInput,
+  RebuildMaterialTextDocumentSummary,
+  RebuildMaterialTextDocumentsInput,
+  RebuildMaterialTextDocumentsSummary,
+} from "./material_text_projection_commands.js";
 export {
   createSourceLibraryImportService,
 } from "./source_library_import.js";

@@ -1,15 +1,16 @@
 # Music Data Platform Design
 
-> Status: Current design authority for implemented Phase 9
-> Scope: Identity write model, source-library import, owner material relation foundation, and owner catalog projection
+> Status: Current design authority for implemented Phase 10
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, and material text projection
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
 source-to-material binding facts, and the source-library import persistence
 foundation that lets later phases move from provider account-library
 observations to MineMusic source-backed material anchors. It also owns
-material-scope owner relation facts and the internal owner catalog
-projection/read-model foundation built from those durable facts.
+material-scope owner relation facts, the internal owner catalog
+projection/read-model foundation, and the owner-neutral material text
+projection/FTS foundation built from those durable facts.
 
 ## Core Concepts
 
@@ -29,6 +30,8 @@ projection/read-model foundation built from those durable facts.
 | Owner relation pool ref | Deterministic positive owner-relation projection scope. | `owner_material_relation_pool:<kind>:rp_<opaque>` derived from owner scope and positive relation kind. |
 | `owner_material_entries` | Owner catalog projection row. | One row per `owner_scope + entry_kind + entry_ref_key + material_ref_key`; not source-of-truth. |
 | `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material and excludes active material-scope blocked facts. |
+| `material_text_documents` | Current material-centered text document projection. | One row per active material ref; built only from current material/bound-source/confirmed-canonical facts. |
+| `material_text_fts` | SQLite FTS read model for projected material text. | Indexes `title/artist/album/version/alias` only; `search_text` remains a non-FTS stored projection column. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
 | Identity write command | Internal write boundary for invariant-preserving mutations. | Created with transaction-scoped `db` and caller-supplied `now`. |
@@ -422,6 +425,113 @@ Callers do not construct projection rows themselves. Projection maintenance is
 not public Stage Interface behavior, and ordinary owner relation writes do not
 implicitly rebuild the projection.
 
+## Material Text Projection
+
+Phase 10 adds an owner-neutral material-centered text projection/read-model
+foundation for later Music Intelligence retrieval.
+
+Projection source-of-truth is:
+
+```text
+material_records
+source_material_bindings
+source_records
+canonical_records (confirmed active canonical only)
+```
+
+Projection output is:
+
+```text
+material_text_documents
+material_text_fts
+```
+
+`material_text_documents` keeps one current document per active material:
+
+```text
+material_ref_key
+material_kind
+title_text
+artist_text
+album_text
+version_text
+alias_text
+search_text
+document_json
+updated_at
+```
+
+`material_text_fts` indexes only:
+
+```text
+material_ref_key
+title_text
+artist_text
+album_text
+version_text
+alias_text
+```
+
+`search_text` is stored on the document row for internal inspection and later
+consumption, but Phase 10 does not index it in FTS.
+
+Text projection derives only from current durable facts:
+
+- `MaterialEntity.versionInfo`;
+- current `source_material_bindings -> source_records`;
+- current `MaterialEntity.primarySourceRef` only as a label for an already
+  bound source contribution;
+- current `CanonicalRecord` only when the material is
+  `identityStatus = canonical_confirmed`, has `canonicalRef`, and that
+  canonical record is `status = active`.
+
+`MaterialEntity.sourceRefs` is not authoritative input for projection rebuild.
+Current bound source truth comes from `source_material_bindings`.
+
+`document_json` is current projection debug structure only. It stores compact
+field contribution arrays in fixed key order:
+
+```text
+title
+artist
+album
+version
+alias
+```
+
+Contribution objects are normalized searchable values only:
+
+```text
+source
+basis
+value
+```
+
+Phase 10 rebuild is command-owned:
+
+```text
+createMaterialTextProjectionCommands({ db, now })
+  -> rebuildMaterialTextDocument({ materialRef })
+  -> rebuildMaterialTextDocuments({ materialRefs })
+```
+
+Missing or non-active materials delete current projection rows. Active
+materials always rebuild one current document row, even when every text field
+is empty; the command also replaces the single FTS row for that material.
+
+Phase 10 reads are internal only:
+
+```text
+createMaterialTextProjectionRecords({ db })
+  -> getMaterialTextDocument({ materialRef })
+  -> matchMaterialTextDocuments({ text, limit? })
+```
+
+`matchMaterialTextDocuments` is an owner-neutral strict conjunctive plain-text
+FTS probe over projected material text. It does not implement owner catalog
+pool logic, provider candidate search, query-hit shaping, ranking, or
+presentation output.
+
 ## Material Merge
 
 `mergeMaterialRecord(loser, winner)` is identity-level only.
@@ -449,7 +559,7 @@ collections, rewrite projections, or touch presentation history.
 - Collection membership;
 - public Stage Interface import tools;
 - update baselines and removed-from-library reconciliation;
-- local pool query, text/FTS query, and query result shaping;
+- local pool query, owner-scoped/public query, and query result shaping;
 - Collection source-of-truth writes and additional owner catalog producers
   beyond source-library and owner-relation;
 - query/retrieval/ranking;
