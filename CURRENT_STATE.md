@@ -171,9 +171,10 @@ Phase 5 Music Data Platform vocabulary includes:
   implementations and low-level tests;
 - `createIdentityReadPort({ db })` for narrow identity workflow reads without
   repository write methods;
-- `createIdentityWriteCommands({ db, now })` for narrow identity commands
-  using a `MusicDatabaseTransactionContext` plus required projection
-  invalidation dependency;
+- `createIdentityWriteCommands({ db, now, projectionInvalidationCommands })`
+  for internal narrow identity commands using a
+  `MusicDatabaseTransactionContext` plus required projection invalidation
+  dependency;
 - `upsertSourceRecord`, `upsertMaterialRecord`, `upsertCanonicalRecord`,
   `bindSourceToMaterial`, `bindMaterialToCanonical`, and
   `mergeMaterialRecord`;
@@ -232,8 +233,9 @@ Phase 7 Source Library Import vocabulary includes:
   contribution later rewritten by Phase 8 around formal `libraryRef` identity;
 - `createMaterialRefFactory` for opaque MineMusic material refs;
 - `createSourceLibraryImportService` with `startImport` and `continueImport`;
-- `createSourceLibraryCommands({ db, now })` for source-library import batch,
-  library scope, item, and item-outcome writes;
+- `createSourceLibraryCommands({ db, now, projectionInvalidationCommands })`
+  for internal source-library import batch, library scope, item, and
+  item-outcome writes;
 - `createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })` as the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes;
@@ -268,8 +270,9 @@ Phase 8/9 owner catalog and owner relation vocabulary includes:
   `musicDataPlatformOwnerRelationSchema`, and
   `musicDataPlatformOwnerCatalogViewSchema` as the split schema
   contributions;
-- `createOwnerMaterialRelationCommands({ db, now })` with
-  `recordOwnerMaterialRelation(...)` and `removeOwnerMaterialRelation(...)`;
+- `createOwnerMaterialRelationCommands({ db, now, projectionInvalidationCommands })`
+  with `recordOwnerMaterialRelation(...)` and
+  `removeOwnerMaterialRelation(...)`;
 - `createOwnerMaterialRelationRecords({ db })` as the internal owner relation
   read port;
 - `createOwnerCatalogProjectionCommands({ db, now })` with
