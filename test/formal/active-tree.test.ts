@@ -143,6 +143,7 @@ assert.deepEqual(
     "src/music_data_platform/identity_schema.ts",
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/index.ts",
+    "src/music_data_platform/material_ref.ts",
     "src/music_data_platform/material_ref_factory.ts",
     "src/music_data_platform/material_text_normalization.ts",
     "src/music_data_platform/material_text_projection_commands.ts",

@@ -1,11 +1,11 @@
 import {
-  assertRefSafe,
   refKey,
   type MaterialEntityKind,
   type Ref,
 } from "../contracts/index.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
+import { assertMaterialRef } from "./material_ref.js";
 import {
   createOwnerMaterialRelationRecords,
   type OwnerMaterialRelationRecord,
@@ -62,7 +62,7 @@ export function createOwnerMaterialRelationCommands(
   return {
     recordOwnerMaterialRelation(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
-      assertRefSafe(commandInput.materialRef);
+      assertMaterialRef(commandInput.materialRef);
       assertOwnerMaterialRelationKind(commandInput.relationKind);
       assertOwnerMaterialRelationOrigin(commandInput.origin);
       assertRelationNote(commandInput.note);
@@ -128,7 +128,7 @@ export function createOwnerMaterialRelationCommands(
     },
     removeOwnerMaterialRelation(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
-      assertRefSafe(commandInput.materialRef);
+      assertMaterialRef(commandInput.materialRef);
       assertOwnerMaterialRelationKind(commandInput.relationKind);
       requireActiveMaterial(input.db, commandInput.materialRef);
 

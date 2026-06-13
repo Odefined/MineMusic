@@ -161,6 +161,28 @@ database.transaction((db) => {
     refKey(requiredRef(bindResult.materialRecord.entity.primarySourceRef)),
     refKey(sourceRef("source-1")),
   );
+  assertMusicDataError(
+    () => commands.bindSourceToMaterial({
+      sourceRef: sourceRef("source-1"),
+      materialRef: {
+        namespace: "source_netease",
+        kind: "track",
+        id: "not-a-material-ref",
+      },
+    }),
+    "music_data.material_ref_invalid",
+  );
+  assertMusicDataError(
+    () => commands.bindSourceToMaterial({
+      sourceRef: sourceRef("source-1"),
+      materialRef: {
+        namespace: "material",
+        kind: "recording",
+        id: "bad:id",
+      },
+    }),
+    "music_data.material_ref_invalid",
+  );
 
   commands.upsertCanonicalRecord({
     entity: canonicalEntity("canonical-provisional", "Canonical Provisional"),
@@ -204,6 +226,17 @@ database.transaction((db) => {
       canonicalRef: canonicalRef("canonical-1"),
     }),
     "music_data.material_not_found",
+  );
+  assertMusicDataError(
+    () => commands.bindMaterialToCanonical({
+      materialRef: {
+        namespace: "source_netease",
+        kind: "track",
+        id: "not-a-material-ref",
+      },
+      canonicalRef: canonicalRef("canonical-1"),
+    }),
+    "music_data.material_ref_invalid",
   );
   assertMusicDataError(
     () => commands.bindMaterialToCanonical({

@@ -14,6 +14,7 @@ import {
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { createIdentityRepositories, type SourceToMaterialBindingRecord } from "./identity_records.js";
+import { assertMaterialRef } from "./material_ref.js";
 import {
   buildMaterialTextFieldState,
   buildMaterialTextSearchText,
@@ -94,6 +95,7 @@ export function createMaterialTextProjectionCommands(
       const materialRefsByKey = new Map<string, Ref>();
 
       for (const materialRef of commandInput.materialRefs) {
+        assertMaterialRef(materialRef);
         materialRefsByKey.set(refKey(materialRef), materialRef);
       }
 
@@ -138,6 +140,7 @@ function rebuildSingleMaterialTextDocument(input: {
   repositories: ReturnType<typeof createIdentityRepositories>;
   materialRef: Ref;
 }): RebuildMaterialTextDocumentSummary {
+  assertMaterialRef(input.materialRef);
   const materialRefKey = refKey(input.materialRef);
   const materialRecord = input.repositories.materialRecords.get({ materialRef: input.materialRef });
 

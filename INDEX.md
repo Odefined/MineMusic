@@ -189,6 +189,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/identity_read_model.ts`: narrow identity read port.
 - `src/music_data_platform/identity_write_model.ts`: narrow identity write
   command factory.
+- `src/music_data_platform/material_ref.ts`: internal material ref validator
+  shared by Music Data Platform write/projection boundaries.
 - `src/music_data_platform/owner_scope.ts`: default owner-scope constant and
   owner-scope validation.
 - `src/music_data_platform/source_library_ref.ts`: source-library ref helpers.

@@ -5,6 +5,7 @@ import {
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { createDeterministicRefDigest } from "./ref_digest.js";
 import { MusicDataPlatformError } from "./errors.js";
+import { assertMaterialRef } from "./material_ref.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
 
@@ -308,7 +309,7 @@ export function parseProjectionMaintenanceTargetPayload(input: {
       const ownerScope = requireStringField(payload.ownerScope, "ownerScope");
       assertOwnerScope(ownerScope);
       const materialRef = refFromPayload(payload.materialRef, "materialRef");
-      refKey(materialRef);
+      assertMaterialRef(materialRef);
       return {
         projectionKind: input.projectionKind,
         ownerScope,
@@ -319,7 +320,7 @@ export function parseProjectionMaintenanceTargetPayload(input: {
       const payload = requireObjectPayload(parsed);
       assertExactObjectKeys(payload, ["materialRef"]);
       const materialRef = refFromPayload(payload.materialRef, "materialRef");
-      refKey(materialRef);
+      assertMaterialRef(materialRef);
       return {
         projectionKind: input.projectionKind,
         materialRef,
@@ -360,7 +361,7 @@ function buildNormalizedTargetPayloadJson(input: ProjectionMaintenanceTargetInpu
     case "owner_catalog_source_library_material":
     case "owner_catalog_relation_material": {
       assertOwnerScope(input.ownerScope);
-      refKey(input.materialRef);
+      assertMaterialRef(input.materialRef);
       const payload: OwnerCatalogMaterialPayload = {
         ownerScope: input.ownerScope,
         materialRef: normalizedRefPayload(input.materialRef),
@@ -368,7 +369,7 @@ function buildNormalizedTargetPayloadJson(input: ProjectionMaintenanceTargetInpu
       return JSON.stringify(payload);
     }
     case "material_text": {
-      refKey(input.materialRef);
+      assertMaterialRef(input.materialRef);
       const payload: MaterialTextPayload = {
         materialRef: normalizedRefPayload(input.materialRef),
       };

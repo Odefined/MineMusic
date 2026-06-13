@@ -23,6 +23,7 @@ import {
   type IdentityRepositories,
   type SourceToMaterialBindingRecord,
 } from "./identity_records.js";
+import { assertMaterialRef } from "./material_ref.js";
 
 export type CreateIdentityWriteCommandsInput = {
   db: MusicDatabaseTransactionContext;
@@ -234,6 +235,7 @@ function bindSourceToMaterial(
   now: string,
   input: BindSourceToMaterialInput,
 ): BindSourceToMaterialResult {
+  assertMaterialRef(input.materialRef);
   const sourceRecord = repositories.sourceRecords.get({ sourceRef: input.sourceRef });
   if (sourceRecord === undefined) {
     throwMusicDataError({
@@ -327,6 +329,7 @@ function bindMaterialToCanonical(
   now: string,
   input: BindMaterialToCanonicalInput,
 ): MaterialRecord {
+  assertMaterialRef(input.materialRef);
   const materialRecord = repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
@@ -395,6 +398,8 @@ function mergeMaterialRecord(
   now: string,
   input: MergeMaterialRecordInput,
 ): MergeMaterialRecordResult {
+  assertMaterialRef(input.loserMaterialRef);
+  assertMaterialRef(input.winnerMaterialRef);
   if (sameRef(input.loserMaterialRef, input.winnerMaterialRef)) {
     throwMusicDataError({
       code: "music_data.material_merge_invalid_target",
@@ -661,7 +666,9 @@ function assertSourceEntityRefShape(entity: SourceEntity): void {
 }
 
 function assertMaterialRefShape(ref: Ref, kind: MaterialEntityKind): void {
-  if (ref.namespace !== "material" || ref.kind !== kind) {
+  assertMaterialRef(ref);
+
+  if (ref.kind !== kind) {
     throwMusicDataError({
       code: "music_data.record_ref_key_mismatch",
       message: "Material ref namespace/kind does not match MaterialEntity.",

@@ -15,6 +15,7 @@ import {
   createMaterialRefFactory,
   createSourceLibraryRef,
   createSourceLibraryImportService,
+  isMusicDataPlatformError,
   musicDataPlatformIdentitySchema,
   musicDataPlatformSourceLibrarySchema,
   type PlatformLibraryReadPort,
@@ -330,7 +331,10 @@ assert.equal(generatedMaterialRef.id.includes("netease"), false);
 assert.equal(generatedMaterialRef.id.includes("1001"), false);
 assert.throws(() => createMaterialRefFactory({
   nextOpaqueId: () => "bad:id",
-}).createMaterialRef("recording"));
+}).createMaterialRef("recording"), (error) =>
+  isMusicDataPlatformError(error) &&
+  error.code === "music_data.material_ref_invalid" &&
+  error.message === "Material ref id must be a non-empty ref-safe string.");
 
 const duplicateDatabase = initializedDatabase();
 const duplicateReads = scriptedReadPort([

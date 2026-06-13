@@ -35,6 +35,7 @@ src/music_data_platform/errors.ts
 src/music_data_platform/identity_schema.ts
 src/music_data_platform/identity_records.ts
 src/music_data_platform/identity_write_model.ts
+src/music_data_platform/material_ref.ts
 src/music_data_platform/owner_scope.ts
 src/music_data_platform/ref_digest.ts
 src/music_data_platform/source_library_ref.ts

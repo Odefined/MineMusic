@@ -55,6 +55,8 @@
   `MusicDatabaseTransactionContext`.
 - `src/music_data_platform/material_ref_factory.ts` implements opaque
   MineMusic material ref generation for new source-backed material anchors.
+- `src/music_data_platform/material_ref.ts` implements the shared internal
+  material ref validator used by write and projection boundaries.
 - `src/music_data_platform/source_library_import.ts` implements the internal
   Library Import application service with `startImport` and
   `continueImport`.

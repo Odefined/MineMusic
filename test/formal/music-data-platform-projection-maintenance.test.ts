@@ -10,6 +10,8 @@ import {
   createIdentityWriteCommands,
   createMaterialTextProjectionRecords,
   createOwnerCatalogRecords,
+  createOwnerMaterialRelationCommands,
+  createOwnerRelationPoolRef,
   createProjectionMaintenanceCommands,
   createProjectionMaintenanceRecords,
   createProjectionMaintenanceRunner,
@@ -219,6 +221,15 @@ assert.throws(
     isMusicDataPlatformError(error) &&
     error.code === "music_data.projection_maintenance_target_invalid",
 );
+assert.throws(
+  () => parseProjectionMaintenanceTargetPayload({
+    projectionKind: "material_text",
+    targetPayloadJson: "{\"materialRef\":{\"namespace\":\"source_netease\",\"kind\":\"track\",\"id\":\"bad\"}}",
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.material_ref_invalid",
+);
 
 const schemaDatabase = initializedDatabase();
 assert.equal(
@@ -321,6 +332,24 @@ const materialTextTarget: Ref = {
   kind: "recording",
   id: "m_dirty",
 };
+assert.throws(
+  () =>
+    commandDatabase.transaction((db) =>
+      createProjectionMaintenanceCommands({
+        db,
+        now: "2026-06-13T12:09:00.000Z",
+      }).markProjectionTargetDirty({
+        projectionKind: "material_text",
+        materialRef: {
+          namespace: "source_netease",
+          kind: "track",
+          id: "bad_projection_target",
+        },
+      })),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.material_ref_invalid",
+);
 
 const initialDirty = commandDatabase.transaction((db) =>
   createProjectionMaintenanceCommands({
@@ -553,6 +582,150 @@ assert.equal(
 );
 runnerSuccessDatabase.close();
 
+const runnerLibraryScopeDatabase = initializedDatabase();
+const runnerLibraryScopeMaterialRef: Ref = {
+  namespace: "material",
+  kind: "recording",
+  id: "m_runner_library_scope",
+};
+const runnerLibraryScopeLibraryRef = sourceLibraryRef("130950619", "saved_source_track");
+const runnerLibraryScopeSource = sourceTrack("3002", "Runner Library Scope");
+runnerLibraryScopeDatabase.transaction((db) => {
+  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T12:24:00.000Z" });
+  const libraries = createSourceLibraryRepositories({ db });
+
+  identity.upsertSourceRecord({ entity: runnerLibraryScopeSource });
+  identity.upsertMaterialRecord({
+    materialRef: runnerLibraryScopeMaterialRef,
+    kind: "recording",
+  });
+  identity.bindSourceToMaterial({
+    sourceRef: runnerLibraryScopeSource.sourceRef,
+    materialRef: runnerLibraryScopeMaterialRef,
+    makePrimary: true,
+  });
+  libraries.libraries.upsert({
+    libraryRef: runnerLibraryScopeLibraryRef,
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950619",
+    libraryKind: "saved_source_track",
+    createdAt: "2026-06-13T12:24:00.000Z",
+    updatedAt: "2026-06-13T12:24:00.000Z",
+  });
+  libraries.items.upsert({
+    libraryRef: runnerLibraryScopeLibraryRef,
+    sourceRefKey: refKey(runnerLibraryScopeSource.sourceRef),
+    addedAt: "2026-06-13T12:24:30.000Z",
+    providerAddedAt: "2026-06-13T12:23:30.000Z",
+    firstImportedAt: "2026-06-13T12:24:30.000Z",
+    lastSeenAt: "2026-06-13T12:24:30.000Z",
+  });
+  createProjectionMaintenanceCommands({
+    db,
+    now: "2026-06-13T12:25:00.000Z",
+  }).markProjectionTargetDirty({
+    projectionKind: "owner_catalog_source_library",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    libraryRef: runnerLibraryScopeLibraryRef,
+  });
+});
+assert.deepEqual(
+  createProjectionMaintenanceRunner({
+    database: runnerLibraryScopeDatabase,
+    now: "2026-06-13T12:26:00.000Z",
+  }).runProjectionMaintenance(),
+  {
+    selectedCount: 1,
+    rebuiltCount: 1,
+    failedCount: 0,
+    skippedStaleGenerationCount: 0,
+  },
+);
+assert.deepEqual(
+  createProjectionMaintenanceRecords({ db: runnerLibraryScopeDatabase.context() }).listPendingProjectionTargets(),
+  [],
+);
+assert.deepEqual(
+  createOwnerCatalogRecords({ db: runnerLibraryScopeDatabase.context() }).listOwnerMaterialEntries({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    entryRef: runnerLibraryScopeLibraryRef,
+  }).map((entry) => ({
+    entryKind: entry.entryKind,
+    materialRefKey: entry.materialRefKey,
+  })),
+  [
+    {
+      entryKind: "source_library",
+      materialRefKey: refKey(runnerLibraryScopeMaterialRef),
+    },
+  ],
+);
+runnerLibraryScopeDatabase.close();
+
+const runnerRelationDatabase = initializedDatabase();
+const runnerRelationMaterialRef = materialRef("recording", "m_runner_relation");
+const runnerRelationPoolRef = createOwnerRelationPoolRef({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  relationKind: "saved",
+});
+runnerRelationDatabase.transaction((db) => {
+  const identity = createIdentityWriteCommands({ db, now: "2026-06-13T12:27:00.000Z" });
+  const relations = createOwnerMaterialRelationCommands({
+    db,
+    now: "2026-06-13T12:27:30.000Z",
+  });
+
+  identity.upsertMaterialRecord({ materialRef: runnerRelationMaterialRef, kind: "recording" });
+  relations.recordOwnerMaterialRelation({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: runnerRelationMaterialRef,
+    relationKind: "saved",
+    origin: "user_explicit",
+  });
+  createProjectionMaintenanceCommands({
+    db,
+    now: "2026-06-13T12:28:00.000Z",
+  }).markProjectionTargetDirty({
+    projectionKind: "owner_catalog_relation_material",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    materialRef: runnerRelationMaterialRef,
+  });
+});
+assert.deepEqual(
+  createProjectionMaintenanceRunner({
+    database: runnerRelationDatabase,
+    now: "2026-06-13T12:29:00.000Z",
+  }).runProjectionMaintenance(),
+  {
+    selectedCount: 1,
+    rebuiltCount: 1,
+    failedCount: 0,
+    skippedStaleGenerationCount: 0,
+  },
+);
+assert.deepEqual(
+  createProjectionMaintenanceRecords({ db: runnerRelationDatabase.context() }).listPendingProjectionTargets(),
+  [],
+);
+assert.deepEqual(
+  createOwnerCatalogRecords({ db: runnerRelationDatabase.context() }).listOwnerMaterialEntries({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    entryKind: "owner_relation",
+    entryRef: runnerRelationPoolRef,
+  }).map((entry) => ({
+    entryKind: entry.entryKind,
+    materialRefKey: entry.materialRefKey,
+  })),
+  [
+    {
+      entryKind: "owner_relation",
+      materialRefKey: refKey(runnerRelationMaterialRef),
+    },
+  ],
+);
+runnerRelationDatabase.close();
+
 const runnerLimitDatabase = initializedDatabase();
 runnerLimitDatabase.transaction((db) => {
   const identity = createIdentityWriteCommands({ db, now: "2026-06-13T12:30:00.000Z" });
@@ -660,6 +833,62 @@ assert.deepEqual(runnerMalformed.runProjectionMaintenance(), {
   skippedStaleGenerationCount: 0,
 });
 runnerMalformedDatabase.close();
+
+const runnerInvalidMaterialRefDatabase = initializedDatabase();
+runnerInvalidMaterialRefDatabase.transaction((db) => {
+  db.run(
+    `
+      INSERT INTO projection_maintenance_targets (
+        projection_kind,
+        target_key,
+        target_payload_json,
+        status,
+        dirty_generation,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, 'dirty', 1, ?, ?)
+    `,
+    [
+      "material_text",
+      "pmt_invalid_material_ref_target",
+      "{\"materialRef\":{\"namespace\":\"source_netease\",\"kind\":\"track\",\"id\":\"bad\"}}",
+      "2026-06-13T12:49:00.000Z",
+      "2026-06-13T12:49:00.000Z",
+    ],
+  );
+});
+assert.deepEqual(
+  createProjectionMaintenanceRunner({
+    database: runnerInvalidMaterialRefDatabase,
+    now: "2026-06-13T12:49:30.000Z",
+  }).runProjectionMaintenance(),
+  {
+    selectedCount: 1,
+    rebuiltCount: 0,
+    failedCount: 1,
+    skippedStaleGenerationCount: 0,
+  },
+);
+assert.deepEqual(
+  createProjectionMaintenanceRecords({ db: runnerInvalidMaterialRefDatabase.context() }).getProjectionTarget({
+    projectionKind: "material_text",
+    targetKey: "pmt_invalid_material_ref_target",
+  }),
+  {
+    projectionKind: "material_text",
+    targetKey: "pmt_invalid_material_ref_target",
+    targetPayloadJson:
+      "{\"materialRef\":{\"namespace\":\"source_netease\",\"kind\":\"track\",\"id\":\"bad\"}}",
+    status: "failed",
+    dirtyGeneration: 1,
+    failureCode: "music_data.material_ref_invalid",
+    failureMessage: "Material ref namespace/kind must match MineMusic material identity.",
+    createdAt: "2026-06-13T12:49:00.000Z",
+    updatedAt: "2026-06-13T12:49:30.000Z",
+  },
+);
+runnerInvalidMaterialRefDatabase.close();
 
 const rollbackDatabase = initializedDatabase();
 rollbackDatabase.transaction((db) => {

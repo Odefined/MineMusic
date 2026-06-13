@@ -1,6 +1,7 @@
 import { refKey, type Ref } from "../contracts/index.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
+import { assertMaterialRef } from "./material_ref.js";
 import {
   createOwnerRelationPoolRef,
   type OwnerRelationEntryKind,
@@ -191,6 +192,7 @@ export function createOwnerCatalogProjectionCommands(
     },
     rebuildSourceLibraryEntriesForMaterial(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
+      assertMaterialRef(commandInput.materialRef);
 
       const materialRefKey = refKey(commandInput.materialRef);
       const sourceLibraryItemCount = countCurrentSourceLibraryItemsForMaterial(
@@ -287,6 +289,7 @@ export function createOwnerCatalogProjectionCommands(
     },
     rebuildOwnerRelationEntries(commandInput) {
       assertOwnerScope(commandInput.ownerScope);
+      assertMaterialRef(commandInput.materialRef);
       const materialRefKey = refKey(commandInput.materialRef);
       const selectedRelationKinds = ["saved", "favorite"] satisfies readonly OwnerRelationEntryKind[];
       const selectedPoolRefKeys = selectedRelationKinds.map((relationKind) =>
