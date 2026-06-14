@@ -672,6 +672,33 @@ without introducing Music Intelligence Retrieval or public query tools:
   deduped/capped tokens, field-aware ranking, text evidence, text keyset
   pagination, and explicit `text_relevance` validation failures.
 
+## 2026-06-14: Phase 12C Music Intelligence Retrieval Service
+
+Phase 12C adds the first internal Music Intelligence boundary without adding a
+public Stage Interface query tool:
+
+- `src/music_intelligence/errors.ts` defines `MusicIntelligenceError`;
+- `src/music_intelligence/retrieval/contracts.ts` defines Retrieval query
+  input/result/hit contracts, pool filters, and the
+  `createRetrievalQueryService({ readPort })` service shape;
+- `src/music_intelligence/retrieval/query_normalization.ts` defaults the local
+  owner scope, normalizes text for query echo/fingerprints, validates order and
+  limit, normalizes pool filters, dedupes pool refs, and rejects unsupported
+  pool refs plus positive-vs-`noneOf` conflicts;
+- `src/music_intelligence/retrieval/cursor.ts` owns versioned opaque cursor
+  encode/decode and query-fingerprint mismatch detection;
+- `src/music_intelligence/retrieval/query_service.ts` calls only the narrow
+  Music Data Platform retrieval read port, wraps typed next cursor positions,
+  reads coarse freshness, and shapes compact Retrieval hits;
+- Retrieval preserves Music Data Platform row order and does not own SQL,
+  pool algebra, FTS ranking, projection rebuilds, provider calls, writes,
+  playable links, or presentation cards;
+- `docs/music-intelligence/` now records the Music Intelligence Retrieval
+  boundary, ports, guards, and progress;
+- formal tests cover query normalization, pool filter normalization, cursor
+  fingerprint behavior, decoded cursor pass-through, hit shaping, freshness
+  passthrough, and active-tree boundary guards.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -686,7 +713,7 @@ in scope. Known later areas include:
   boundaries stabilize;
 - Music Data Platform Collection writes and later owner catalog producers such
   as signals/problem facts;
-- Phase 12C Music Intelligence Retrieval and Library Update baselines;
+- Library Update baselines;
 - canonical maintenance workflow;
 - Music Intelligence Knowledge;
 - Music Experience radio/listening behavior;

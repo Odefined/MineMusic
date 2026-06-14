@@ -118,6 +118,11 @@ assert.equal(
   true,
   "formal Music Data Platform root must exist in active source after Phase 5",
 );
+assert.equal(
+  await pathExists(join(repositoryRoot, "src/music_intelligence")),
+  true,
+  "formal Music Intelligence root must exist in active source after Phase 12C",
+);
 
 assert.deepEqual(
   (await sourceFilesUnder(join(repositoryRoot, "src/storage")))
@@ -173,6 +178,50 @@ assert.deepEqual(
     "src/music_data_platform/source_of_truth_write_commands.ts",
   ],
   "formal Music Data Platform root must not grow unrelated implementations",
+);
+
+assert.deepEqual(
+  (await sourceFilesUnder(join(repositoryRoot, "src/music_intelligence")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(),
+  [
+    "src/music_intelligence/errors.ts",
+    "src/music_intelligence/index.ts",
+    "src/music_intelligence/retrieval/contracts.ts",
+    "src/music_intelligence/retrieval/cursor.ts",
+    "src/music_intelligence/retrieval/index.ts",
+    "src/music_intelligence/retrieval/query_normalization.ts",
+    "src/music_intelligence/retrieval/query_service.ts",
+  ],
+  "formal Music Intelligence root must stay inside the Phase 12C Retrieval boundary",
+);
+
+const musicIntelligencePublicBarrelExportFailures: string[] = [];
+for (const publicBarrel of [
+  "src/music_intelligence/index.ts",
+  "src/music_intelligence/retrieval/index.ts",
+]) {
+  const text = await readFile(join(repositoryRoot, publicBarrel), "utf8");
+
+  for (const forbiddenExport of [
+    "decodeRetrievalCursor",
+    "encodeRetrievalCursor",
+    "fingerprintForRetrievalQuery",
+    "normalizeRetrievalQueryInput",
+    "normalizeRetrievalQueryText",
+    "RetrievalCursorPayload",
+  ]) {
+    if (exportsName(text, forbiddenExport)) {
+      musicIntelligencePublicBarrelExportFailures.push(
+        `${publicBarrel} exports Retrieval internal '${forbiddenExport}'`,
+      );
+    }
+  }
+}
+assert.deepEqual(
+  musicIntelligencePublicBarrelExportFailures,
+  [],
+  "Music Intelligence public barrels must not expose opaque cursor or query-normalization internals",
 );
 
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));
@@ -387,6 +436,137 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_data_p
   }
 }
 assert.deepEqual(musicDataPlatformImportFailures, []);
+
+const musicIntelligenceImportFailures: string[] = [];
+const musicIntelligenceAllowedMdpImports = new Set([
+  "MusicDataPlatformRetrievalMaterialRow",
+  "MusicDataPlatformRetrievalReadPort",
+  "MusicDataPlatformRetrievalSearchInput",
+  "RetrievalFreshness",
+  "RetrievalMatchedTextTokenEvidence",
+  "RetrievalOrder",
+  "RetrievalReadCursorPosition",
+  "RetrievalTextField",
+]);
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intelligence"))) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of [
+    "../stage_interface/",
+    "../../stage_interface/",
+    "../stage_core/",
+    "../../stage_core/",
+    "../server/",
+    "../../server/",
+    "../extension/",
+    "../../extension/",
+    "../storage/",
+    "../../storage/",
+    "../storage/sqlite/",
+    "../../storage/sqlite/",
+    "../providers/",
+    "../../providers/",
+    "../material/",
+    "../../material/",
+    "../collection/",
+    "../../collection/",
+    "../memory/",
+    "../../memory/",
+    "../effects/",
+    "../../effects/",
+    "../music_experience/",
+    "../../music_experience/",
+    "../query/",
+    "../../query/",
+    "../presentation/",
+    "../../presentation/",
+  ]) {
+    if (
+      text.includes(`from "${forbiddenImport}`) ||
+      text.includes(`from '${forbiddenImport}`)
+    ) {
+      musicIntelligenceImportFailures.push(
+        `${relativeFile} imports forbidden Music Intelligence dependency '${forbiddenImport}'`,
+      );
+    }
+  }
+
+  for (const mdpImport of [
+    "../music_data_platform/",
+    "../../music_data_platform/",
+  ]) {
+    if (
+      (text.includes(`from "${mdpImport}`) || text.includes(`from '${mdpImport}`)) &&
+      !(text.includes(`from "${mdpImport}index.js"`) || text.includes(`from '${mdpImport}index.js'`))
+    ) {
+      musicIntelligenceImportFailures.push(
+        `${relativeFile} imports Music Data Platform internals instead of the public retrieval read-port boundary`,
+      );
+    }
+  }
+
+  for (const importedName of musicDataPlatformIndexImportNames(text)) {
+    if (!musicIntelligenceAllowedMdpImports.has(importedName)) {
+      musicIntelligenceImportFailures.push(
+        `${relativeFile} imports disallowed Music Data Platform index symbol '${importedName}'`,
+      );
+    }
+  }
+
+  if (hasMusicDataPlatformIndexNamespaceImport(text)) {
+    musicIntelligenceImportFailures.push(
+      `${relativeFile} imports Music Data Platform index through a namespace import`,
+    );
+  }
+
+  for (const forbiddenMdpSymbol of [
+    "createIdentity",
+    "createSourceLibrary",
+    "createOwnerCatalog",
+    "createOwnerMaterialRelation",
+    "createMaterialText",
+    "createProjectionMaintenance",
+    "createMusicDataPlatformSourceOfTruthWriteCommands",
+    "SourceLibraryRecord",
+    "SourceLibraryItemRecord",
+    "OwnerCatalogMaterialRecord",
+    "OwnerMaterialEntryRecord",
+    "MaterialTextDocumentRecord",
+    "ProjectionMaintenanceTargetRecord",
+  ]) {
+    if (text.includes(forbiddenMdpSymbol)) {
+      musicIntelligenceImportFailures.push(
+        `${relativeFile} mentions forbidden Music Data Platform symbol '${forbiddenMdpSymbol}'`,
+      );
+    }
+  }
+
+  for (const sqlToken of [
+    "SELECT ",
+    " JOIN ",
+    " ORDER BY ",
+    " WHERE ",
+    " LIMIT ",
+  ]) {
+    if (text.includes(sqlToken)) {
+      musicIntelligenceImportFailures.push(
+        `${relativeFile} contains SQL token '${sqlToken.trim()}' outside Music Data Platform ownership`,
+      );
+    }
+  }
+}
+assert.deepEqual(musicIntelligenceImportFailures, []);
+
+const retrievalServiceText = await readFile(
+  join(repositoryRoot, "src/music_intelligence/retrieval/query_service.ts"),
+  "utf8",
+);
+assert.equal(
+  retrievalServiceText.includes(".sort("),
+  false,
+  "Retrieval query service must preserve Music Data Platform row order instead of sorting hits",
+);
 
 const musicDataPlatformRawRefAssertFailures: string[] = [];
 const rawRefPrimitiveAllowedFiles = new Set([
@@ -663,4 +843,42 @@ function forbiddenImportHits(text: string, forbiddenImports: readonly string[]):
   }
 
   return failures;
+}
+
+function musicDataPlatformIndexImportNames(text: string): string[] {
+  const names: string[] = [];
+  const importPattern =
+    /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["'](?:\.\.\/){1,2}music_data_platform\/index\.js["'];/g;
+
+  for (const match of text.matchAll(importPattern)) {
+    const importBody = match[1];
+
+    if (importBody === undefined) {
+      continue;
+    }
+
+    for (const rawName of importBody.split(",")) {
+      const importedName = rawName.trim().replace(/^type\s+/, "").split(/\s+as\s+/u)[0]?.trim();
+
+      if (importedName !== undefined && importedName.length > 0) {
+        names.push(importedName);
+      }
+    }
+  }
+
+  return names;
+}
+
+function hasMusicDataPlatformIndexNamespaceImport(text: string): boolean {
+  return /import\s+(?:type\s+)?\*\s+as\s+\w+\s+from\s+["'](?:\.\.\/){1,2}music_data_platform\/index\.js["'];/u
+    .test(text);
+}
+
+function exportsName(text: string, name: string): boolean {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+  return new RegExp(
+    `export\\s+(?:type\\s+)?\\{[^}]*\\b${escapedName}\\b[^}]*\\}`,
+    "su",
+  ).test(text);
 }

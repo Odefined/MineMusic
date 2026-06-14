@@ -33,8 +33,8 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-10-music-data-platform-material-text-projection-foundation-implementation-plan.md` | Implemented Phase 10 execution plan for schema, normalization, read port, rebuild commands, guards, runtime schema wiring, docs, and verification. |
 | `phase-11-projection-maintenance-foundation.md` | Implemented Phase 11 spec for command-owned dirty projection maintenance, explicit rebuild runner boundaries, and source-of-truth invalidation wiring; PR11A, PR11B, and PR11C are complete. |
 | `phase-11-projection-maintenance-foundation-implementation-plan.md` | Implemented Phase 11 execution plan split into PR 11A owner catalog projection scope repair, PR 11B Projection Maintenance Core, and PR 11C source-of-truth invalidation wiring. |
-| `phase-12-retrieval-query-foundation.md` | Draft Phase 12 spec for internal Music Intelligence Retrieval over local owner catalog and material text projections. |
-| `phase-12-retrieval-query-foundation-implementation-plan.md` | Draft Phase 12 execution plan split into PR 12A no-text Music Data Platform Retrieval Read Port, PR 12B Music Data Platform Text Query Integration, and PR 12C Music Intelligence Retrieval Service. |
+| `phase-12-retrieval-query-foundation.md` | Implemented Phase 12 spec for internal Music Intelligence Retrieval over local owner catalog and material text projections. |
+| `phase-12-retrieval-query-foundation-implementation-plan.md` | Implemented Phase 12 execution plan split into PR 12A no-text Music Data Platform Retrieval Read Port, PR 12B Music Data Platform Text Query Integration, and PR 12C Music Intelligence Retrieval Service. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

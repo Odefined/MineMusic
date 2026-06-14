@@ -74,15 +74,14 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   scope repair, PR 11B Projection Maintenance Core, and PR 11C
   source-of-truth invalidation wiring; PR11A, PR11B, and PR11C are
   implemented.
-- `docs/formal-rebuild/phase-12-retrieval-query-foundation.md`: draft Phase
-  12 spec for internal Music Intelligence Retrieval over local owner catalog
-  and material text projections; PR12A no-text Music Data Platform retrieval
-  read port is implemented.
+- `docs/formal-rebuild/phase-12-retrieval-query-foundation.md`: Phase 12
+  spec for internal Music Intelligence Retrieval over local owner catalog
+  and material text projections; PR12A, PR12B, and PR12C are implemented.
 - `docs/formal-rebuild/phase-12-retrieval-query-foundation-implementation-plan.md`:
-  active Phase 12 execution plan split into PR 12A no-text Music Data
+  Phase 12 execution plan split into PR 12A no-text Music Data
   Platform Retrieval Read Port, PR 12B Music Data Platform Text Query
-  Integration, and PR 12C Music Intelligence Retrieval Service; PR12A is
-  implemented.
+  Integration, and PR 12C Music Intelligence Retrieval Service; PR12A/12B/12C
+  are implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -113,6 +112,14 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   source-library, owner relation, owner catalog, material text projection,
   retrieval read-port ports, forbidden dependencies, composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
+  state, verification evidence, and remaining gaps.
+- `docs/music-intelligence/README.md`: Music Intelligence area documentation
+  entrypoint.
+- `docs/music-intelligence/design.md`: Music Intelligence Retrieval query
+  service design authority.
+- `docs/music-intelligence/ports.md`: Music Intelligence provided/consumed
+  ports, forbidden dependencies, composition, and guards.
+- `docs/music-intelligence/progress.md`: Music Intelligence implementation
   state, verification evidence, and remaining gaps.
 
 ## Formal ADRs
@@ -245,6 +252,15 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/retrieval_read_model.ts`: internal retrieval read
   port over owner catalog, pool algebra, text evidence/ranking, keyset
   pagination, and coarse freshness.
+- `src/music_intelligence/retrieval/query_service.ts`: internal Retrieval
+  query service over the Music Data Platform retrieval read port.
+- `src/music_intelligence/retrieval/query_normalization.ts`: Retrieval-owned
+  input normalization and cursor fingerprint input construction.
+- `src/music_intelligence/retrieval/cursor.ts`: Retrieval-owned opaque cursor
+  encoding/decoding.
+- `src/music_intelligence/retrieval/contracts.ts`: Retrieval query input,
+  result, hit, pool filter, and service contracts.
+- `src/music_intelligence/errors.ts`: Music Intelligence area errors.
 - `src/music_data_platform/projection_maintenance_schema.ts`: projection
   maintenance target schema contribution.
 - `src/music_data_platform/projection_maintenance_records.ts`: internal

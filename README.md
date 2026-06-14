@@ -45,7 +45,9 @@ material text projection plus internal FTS, Phase 11 adds projection
 maintenance dirty/failed tracking plus the rebuild runner, and Phase 12A/12B
 add the first internal retrieval read foundation for owner-visible local-pool
 catalog query, text filtering, field-aware evidence/ranking, and coarse
-freshness reads.
+freshness reads. Phase 12C adds the first internal Music Intelligence
+Retrieval query service over that read port with input normalization, opaque
+cursors, and compact query-hit evidence.
 
 The skeleton creates a Stage Runtime, mounts Music Data Platform and Extension
 runtime modules, starts them through Server Host, and exposes a JSON status
@@ -77,6 +79,6 @@ npm run smoke:ncm:library
 ## Current Runtime Non-Goals
 
 The current formal skeleton does not implement public provider/import/query
-tools, Music Intelligence retrieval service, autoplay, queue mutation, source
-writeback, playlist mutation, autonomous DJ sessions, query-to-present,
-handbook tools, music-domain tools, or final musical judgment.
+tools, autoplay, queue mutation, source writeback, playlist mutation,
+autonomous DJ sessions, query-to-present, handbook tools, music-domain tools,
+or final musical judgment.
