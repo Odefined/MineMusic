@@ -118,6 +118,9 @@
 - `src/music_data_platform/projection_maintenance_runner.ts` implements the
   internal rebuild runner that dispatches to owner catalog and material text
   projection commands one target transaction at a time.
+- `src/music_data_platform/ref_validation.ts` now owns Music Data Platform
+  internal ref/refKey input hardening so malformed external refs become
+  `MusicDataPlatformError` instead of leaking contracts-layer `Error`.
 - `src/music_data_platform/retrieval_read_model.ts` implements the first
   query-ready Music Data Platform retrieval read port for owner-visible
   no-text catalog queries and coarse projection freshness reads.
@@ -230,6 +233,9 @@
   source-library and owner-relation pool filters, blocked exclusion, material
   kind filtering, missing text tolerance, SQL keyset pagination, validation
   errors, and coarse freshness reads.
+- focused ref-validation tests cover malformed ref/refKey inputs plus
+  area-specific validator codes for material, source-library, owner-relation,
+  and owner-scope boundaries.
 - Active-tree architecture tests reject low-level repository factory calls
   outside owning command/read/projection boundaries and direct write tokens
   outside repository, command/projection, schema, and storage infrastructure

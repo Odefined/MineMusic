@@ -1,5 +1,4 @@
 import {
-  assertRefSafe,
   refKey,
   type MaterialEntityKind,
   type PlatformLibraryKind,
@@ -17,6 +16,10 @@ import {
   type OwnerRelationEntryKind,
 } from "./owner_material_relation_ref.js";
 import { DEFAULT_OWNER_SCOPE, assertOwnerScope } from "./owner_scope.js";
+import {
+  assertMusicDataPlatformPublicRefKey,
+  musicDataPlatformRefKey,
+} from "./ref_validation.js";
 import { assertSourceLibraryRef, createSourceLibraryRef } from "./source_library_ref.js";
 
 export type RetrievalOrder =
@@ -309,11 +312,19 @@ function validatedCursorPosition(
 
   switch (cursorPosition.order) {
     case "stable":
-      assertPublicRefKey(cursorPosition.materialRefKey, "cursorPosition.materialRefKey");
+      assertMusicDataPlatformPublicRefKey({
+        refKey: cursorPosition.materialRefKey,
+        fieldName: "cursorPosition.materialRefKey",
+        code: "music_data.retrieval_read_invalid",
+      });
       return cursorPosition;
     case "recently_added":
       assertComparableTimestamp(cursorPosition.recentlyAddedAt, "cursorPosition.recentlyAddedAt");
-      assertPublicRefKey(cursorPosition.materialRefKey, "cursorPosition.materialRefKey");
+      assertMusicDataPlatformPublicRefKey({
+        refKey: cursorPosition.materialRefKey,
+        fieldName: "cursorPosition.materialRefKey",
+        code: "music_data.retrieval_read_invalid",
+      });
       return cursorPosition;
   }
 }
@@ -365,8 +376,12 @@ function normalizePoolRefs(refs: readonly Ref[] | undefined): readonly Ref[] {
 
   const deduped = new Map<string, Ref>();
   for (const ref of refs) {
-    assertRefSafe(ref);
-    deduped.set(refKey(ref), ref);
+    const key = musicDataPlatformRefKey({
+      ref,
+      fieldName: "poolFilter ref",
+      code: "music_data.retrieval_read_invalid",
+    });
+    deduped.set(key, ref);
   }
 
   return [...deduped.entries()]
@@ -786,23 +801,6 @@ function assertComparableTimestamp(value: string, fieldName: string): void {
   if (typeof value !== "string" || value.length === 0 || Number.isNaN(Date.parse(value))) {
     throw invalidRetrievalRead(`${fieldName} must be a valid comparable timestamp string.`);
   }
-}
-
-function assertPublicRefKey(value: string, fieldName: string): void {
-  if (typeof value !== "string" || value.length === 0) {
-    throw invalidRetrievalRead(`${fieldName} must be a non-empty ref key string.`);
-  }
-
-  const parts = value.split(":");
-  if (parts.length !== 3) {
-    throw invalidRetrievalRead(`${fieldName} must be a namespace:kind:id ref key.`);
-  }
-
-  assertRefSafe({
-    namespace: parts[0]!,
-    kind: parts[1]!,
-    id: parts[2]!,
-  });
 }
 
 function sqlPlaceholders(count: number): string {

@@ -253,6 +253,9 @@ Current guards:
   escaping, bound-source truth from `source_material_bindings`, canonical
   inclusion guards, repeated rebuild replacement, active-empty rebuild, and
   delete-on-missing-or-inactive behavior.
+- ref-validation tests cover the internal Music Data Platform ref/refKey
+  helper plus area-specific validator error codes for malformed external
+  inputs.
 - retrieval read-model tests cover no-text owner-visible query behavior,
   source-library and owner-relation pool validation/algebra, blocked
   exclusion, kind filtering, missing text tolerance, SQL keyset pagination,
@@ -263,6 +266,10 @@ Current guards:
   reads, malformed-payload failure handling, projection-write rollback on
   rebuild failure, stale-generation skip semantics, runner limit behavior, and
   helper confinement outside the public barrel.
+- active-tree guards keep contracts-layer raw ref primitives out of ordinary
+  Music Data Platform files: `assertRefSafe` is confined to
+  `ref_validation.ts`, and raw `isRefComponentSafe` is limited to explicit
+  low-level exceptions.
 
 ## Out Of Scope
 

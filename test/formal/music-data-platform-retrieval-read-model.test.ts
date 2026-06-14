@@ -685,11 +685,42 @@ assert.throws(
     order: "stable",
     limit: 10,
     cursorPosition: {
+      order: "stable",
+      materialRefKey: "material:recording:cursor:bad",
+    },
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.retrieval_read_invalid",
+);
+assert.throws(
+  () => validationReadPort.searchOwnerCatalogMaterials({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    order: "stable",
+    limit: 10,
+    cursorPosition: {
       order: "text_relevance",
       matchedTokenCount: 1,
       bestFieldPriority: 1,
       rankSortValue: 1,
       materialRefKey: refKey(materialRef("recording", "cursor_text")),
+    },
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.retrieval_read_invalid",
+);
+assert.throws(
+  () => validationReadPort.searchOwnerCatalogMaterials({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    order: "stable",
+    limit: 10,
+    poolFilter: {
+      anyOf: [{
+        namespace: "source_library",
+        kind: "saved_source_track",
+        id: "l:bad",
+      }],
     },
   }),
   (error: unknown) =>

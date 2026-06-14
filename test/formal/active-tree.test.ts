@@ -162,6 +162,7 @@ assert.deepEqual(
     "src/music_data_platform/projection_maintenance_runner.ts",
     "src/music_data_platform/projection_maintenance_schema.ts",
     "src/music_data_platform/ref_digest.ts",
+    "src/music_data_platform/ref_validation.ts",
     "src/music_data_platform/retrieval_read_model.ts",
     "src/music_data_platform/source_library_commands.ts",
     "src/music_data_platform/source_library_import.ts",
@@ -386,6 +387,37 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_data_p
   }
 }
 assert.deepEqual(musicDataPlatformImportFailures, []);
+
+const musicDataPlatformRawRefAssertFailures: string[] = [];
+const rawRefPrimitiveAllowedFiles = new Set([
+  "src/music_data_platform/ref_validation.ts",
+  "src/music_data_platform/identity_write_model.ts",
+  "src/music_data_platform/source_library_import.ts",
+]);
+
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_data_platform"))) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  if (
+    text.includes("assertRefSafe") &&
+    !rawRefPrimitiveAllowedFiles.has(relativeFile)
+  ) {
+    musicDataPlatformRawRefAssertFailures.push(
+      `${relativeFile} imports or calls contracts assertRefSafe outside ref_validation ownership`,
+    );
+  }
+
+  if (
+    text.includes("isRefComponentSafe") &&
+    !rawRefPrimitiveAllowedFiles.has(relativeFile)
+  ) {
+    musicDataPlatformRawRefAssertFailures.push(
+      `${relativeFile} imports or calls contracts isRefComponentSafe outside allowed low-level ownership`,
+    );
+  }
+}
+assert.deepEqual(musicDataPlatformRawRefAssertFailures, []);
 
 const musicDataPlatformBarrelText = await readFile(
   join(repositoryRoot, "src/music_data_platform/index.ts"),

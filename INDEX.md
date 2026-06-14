@@ -239,6 +239,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   material text read port.
 - `src/music_data_platform/material_text_projection_commands.ts`: internal
   material text rebuild commands.
+- `src/music_data_platform/ref_validation.ts`: internal Music Data Platform
+  ref/refKey validation helper that converts malformed external ref inputs
+  into `MusicDataPlatformError`.
 - `src/music_data_platform/retrieval_read_model.ts`: internal no-text
   retrieval read port over owner catalog, pool algebra, keyset pagination,
   and coarse freshness.
