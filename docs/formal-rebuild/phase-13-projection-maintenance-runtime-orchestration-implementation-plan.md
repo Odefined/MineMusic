@@ -1,6 +1,6 @@
 # Phase 13 Projection Maintenance Runtime Orchestration Implementation Plan
 
-> Status: Draft execution plan
+> Status: Implemented through PR13A, PR13B, and PR13C
 > Spec: `phase-13-projection-maintenance-runtime-orchestration.md`
 > Owning bounded contexts: Server Host / Runtime Orchestration and Music Data
 > Platform / Projection Maintenance
@@ -411,8 +411,7 @@ and Phase 12 retrieval freshness close the projection-maintenance loop.
 
 Expected existing files to edit:
 
-- `test/formal/server-projection-maintenance-scheduler.test.ts` or a focused
-  integration test file
+- `test/formal/server-music-data-platform-runtime-module.test.ts`
 - `test/formal/music-data-platform-projection-maintenance.test.ts` only if
   stale-generation coverage is missing
 - `test/formal/active-tree.test.ts` only if guard expectations change

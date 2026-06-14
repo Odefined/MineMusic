@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 12C of a same-repo formal rebuild. The active
+MineMusic has completed Phase 13C of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -33,7 +33,10 @@ freshness reads. Phase 12B extends that same read port with FTS-backed text
 recall, field-aware text evidence/ranking, and `text_relevance` keyset
 pagination. Phase 12C adds the first internal Music Intelligence Retrieval
 query service with input normalization, opaque cursor ownership, query
-fingerprinting, read-port calls, and compact retrieval hit evidence.
+fingerprinting, read-port calls, and compact retrieval hit evidence. Phase 13
+adds Server Host-owned background Projection Maintenance scheduling,
+runtime-module lifecycle wiring, and end-to-end freshness closure from
+source-of-truth writes through retrieval reads.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -340,6 +343,18 @@ Phase 12C Music Intelligence Retrieval vocabulary includes:
 - `MusicIntelligenceError` with retrieval query, cursor, cursor mismatch, and
   retrieval result invariant codes.
 
+Phase 13 runtime-orchestrated Projection Maintenance vocabulary includes:
+
+- `projectionMaintenance` runtime config with `enabled`, `intervalMs`, and
+  `batchLimit`;
+- `createProjectionMaintenanceScheduler(...)` as the Server Host internal
+  helper that owns config normalization, timers, in-flight guard, and graceful
+  stop;
+- immediate background startup tick plus interval ticks owned by the runtime
+  module lifecycle, not by writes, import flows, or retrieval;
+- retrieval freshness closure where dirty owner-catalog/material-text targets
+  can move from `possibly_stale` to `current` after scheduler-driven rebuild.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -390,8 +405,11 @@ The active TypeScript tree is now a formal skeleton:
 - `src/server/config.ts` owns default runtime composition config, including
   overall database/import config and plugin-id keyed NCM config;
 - `src/server/music_data_platform_runtime_module.ts` owns Server Host
-  composition wiring for Storage, Music Data Platform schemas, and the
-  internal Library Import service;
+  composition wiring for Storage, Music Data Platform schemas, the internal
+  Library Import service, and Projection Maintenance scheduler lifecycle
+  ownership;
+- `src/server/projection_maintenance_scheduler.ts` owns the internal Server
+  Host scheduler helper for automatic Projection Maintenance ticks;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
 - `src/storage/database.ts` owns the generic `MusicDatabase` contract,
   `MusicDatabaseContext`, `MusicDatabaseTransactionContext`, schema
@@ -525,7 +543,8 @@ restored as compatibility layers.
   `docs/music-data-platform/progress.md` are the current Music Data Platform
   area docs for identity, source-library import, owner material relation,
   owner catalog projection, material text projection, projection
-  maintenance core, and the Phase 12B retrieval read port.
+  maintenance core, runtime-integrated freshness closure, and the retrieval
+  read port.
 - `docs/music-intelligence/README.md`, `docs/music-intelligence/design.md`,
   `docs/music-intelligence/ports.md`, and
   `docs/music-intelligence/progress.md` are the current Music Intelligence
@@ -555,6 +574,18 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation-implementation-plan.md`
   remains the active Phase 11 execution plan; PR11A, PR11B, and PR11C are
   implemented.
+- `docs/formal-rebuild/phase-12-retrieval-query-foundation.md` records the
+  implemented Phase 12 Retrieval foundation spec; PR12A, PR12B, and PR12C are
+  implemented.
+- `docs/formal-rebuild/phase-12-retrieval-query-foundation-implementation-plan.md`
+  records the implemented Phase 12 execution plan; PR12A, PR12B, and PR12C are
+  implemented.
+- `docs/formal-rebuild/phase-13-projection-maintenance-runtime-orchestration.md`
+  records the implemented Phase 13 runtime-orchestration spec; PR13A, PR13B,
+  and PR13C are implemented.
+- `docs/formal-rebuild/phase-13-projection-maintenance-runtime-orchestration-implementation-plan.md`
+  records the implemented Phase 13 execution plan; PR13A, PR13B, and PR13C are
+  implemented.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -583,8 +614,8 @@ Current formal state does not implement:
 - update baselines, removed-from-library reconciliation, collection,
   additional owner catalog producers, wrong-version, not-playable, bad-match,
   feedback/correction facts, signals, or recording-to-work relation workflows;
-- background rebuild orchestration or synchronous import-path projection
-  refresh;
+- advanced scheduler wake/backoff policy, multi-worker coordination, or
+  synchronous import-path projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;
 - handbook tools or music-domain tools beyond the internal runtime status
   tool.
@@ -594,7 +625,7 @@ contracts.
 
 ## Verification Pointers
 
-Phase 12B verification for this state should include:
+Phase 13C verification for this state should include:
 
 ```bash
 npm run typecheck

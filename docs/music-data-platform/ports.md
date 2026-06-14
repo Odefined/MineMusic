@@ -1,6 +1,6 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 12B
+> Status: Current boundary authority through implemented Phase 13C runtime-integrated projection maintenance and retrieval freshness closure
 > Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, and the retrieval read port
 
 Music Data Platform provides identity repositories, identity read/write
@@ -47,7 +47,7 @@ provider plugin implementations.
 | `createMusicDataPlatformRetrievalReadPort` | Internal Music Intelligence retrieval/tests | Run owner-visible catalog query SQL with pool/text filtering, field-aware evidence/ranking, cursor validation, and coarse projection freshness. | `src/music_data_platform/retrieval_read_model.ts` |
 | `createProjectionMaintenanceCommands` | Internal commands/tests | Plan invalidation from typed write scopes, and mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
 | `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
-| `createProjectionMaintenanceRunner` | Internal runtime/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
+| `createProjectionMaintenanceRunner` | Server Host scheduler helper/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
 | `MusicDataPlatformError` | Internal callers/tests | Music Data Platform-owned invariant errors. | `src/music_data_platform/errors.ts` |
 
 ## Consumes
@@ -146,7 +146,10 @@ mutate `projection_maintenance_targets`. The runner may dispatch only to owning
 projection rebuild commands; it must not construct projection rows directly or
 expose Stage Interface DTOs. Direct rebuild command calls do not clear dirty
 targets on their own; only the runner performs rebuild plus
-`markProjectionClean(...)`.
+`markProjectionClean(...)`. Automatic background execution is owned by the
+Server Host scheduler helper and may consume only
+`createProjectionMaintenanceRunner(...)` from the Music Data Platform public
+barrel.
 
 `createMusicDataPlatformRetrievalReadPort({ db })` is the first query-ready
 Music Data Platform read boundary. It currently accepts only
@@ -228,6 +231,14 @@ Current guards:
   outside the owning write modules and the top-level source-of-truth facade;
 - active-tree test rejects direct write tokens outside repository,
   command/projection, schema, and storage infrastructure files;
+- active-tree test rejects direct Projection Maintenance runner usage outside
+  `projection_maintenance_runner.ts`, `src/music_data_platform/index.ts`,
+  `src/server/projection_maintenance_scheduler.ts`, and focused tests;
+- active-tree test rejects
+  `src/server/music_data_platform_runtime_module.ts` importing
+  `createProjectionMaintenanceRunner` directly and constrains
+  `src/server/projection_maintenance_scheduler.ts` to Music Data Platform
+  public-barrel runner imports plus Storage public `MusicDatabase`;
 - contract test rejects `recordId` returning to source/material/canonical
   records;
 - identity test covers source provider identity stability, source-material
