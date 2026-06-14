@@ -906,6 +906,28 @@ for (const file of activeFiles) {
 }
 assert.deepEqual(directWriteFailures, []);
 
+const schemaDestructiveResetFailures: string[] = [];
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+
+  if (!relativeFile.endsWith("_schema.ts")) {
+    continue;
+  }
+
+  const text = await readFile(file, "utf8");
+
+  if (text.toUpperCase().includes("DROP TABLE")) {
+    schemaDestructiveResetFailures.push(
+      `${relativeFile} contains destructive schema initialization SQL 'DROP TABLE'`,
+    );
+  }
+}
+assert.deepEqual(
+  schemaDestructiveResetFailures,
+  [],
+  "schema initialization must not hide destructive table resets",
+);
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);

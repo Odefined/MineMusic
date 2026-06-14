@@ -3,13 +3,6 @@ import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContribution = {
   id: "music_data_platform.source_library_v3",
   apply(context) {
-    if (requiresPhase8SourceLibraryReset(context)) {
-      context.run("DROP TABLE IF EXISTS source_library_import_item_outcomes");
-      context.run("DROP TABLE IF EXISTS source_library_import_batches");
-      context.run("DROP TABLE IF EXISTS source_library_items");
-      context.run("DROP TABLE IF EXISTS source_libraries");
-    }
-
     context.run(`
       CREATE TABLE IF NOT EXISTS source_libraries (
         library_ref_key TEXT PRIMARY KEY,
@@ -88,21 +81,3 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
     `);
   },
 };
-
-function requiresPhase8SourceLibraryReset(
-  context: Parameters<MusicDatabaseSchemaContribution["apply"]>[0],
-): boolean {
-  const itemColumns = context.all<{ name: string }>("PRAGMA table_info(source_library_items)");
-  const batchColumns = context.all<{ name: string }>("PRAGMA table_info(source_library_import_batches)");
-
-  if (itemColumns.length === 0 && batchColumns.length === 0) {
-    return false;
-  }
-
-  return itemColumns.some((column) =>
-    column.name === "provider_id" ||
-    column.name === "provider_account_id" ||
-    column.name === "library_kind" ||
-    column.name === "last_seen_at",
-  ) || batchColumns.every((column) => column.name !== "owner_scope");
-}
