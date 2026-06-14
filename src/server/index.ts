@@ -24,9 +24,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const host = createServerHost();
   const started = await host.start();
 
-  console.log(JSON.stringify(host.snapshot(), null, 2));
+  try {
+    console.log(JSON.stringify(host.snapshot(), null, 2));
 
-  if (!started.ok) {
-    process.exitCode = 1;
+    if (!started.ok) {
+      process.exitCode = 1;
+    }
+  } finally {
+    const stopped = await host.stop();
+
+    if (!stopped.ok) {
+      process.exitCode = 1;
+      console.error(JSON.stringify(stopped.error, null, 2));
+    }
   }
 }

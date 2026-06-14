@@ -374,17 +374,19 @@ target failures are already durable as `failed` pending targets.
 
 ## Architecture Guards
 
-Phase 13 must add or update active-tree guards for runner access.
+Phase 13 must add or update active-tree guards for production runner access.
 
-`createProjectionMaintenanceRunner` may appear only in:
+In active `src`, `createProjectionMaintenanceRunner` may appear only in:
 
 ```text
 src/music_data_platform/projection_maintenance_runner.ts
 src/music_data_platform/index.ts
 src/server/projection_maintenance_scheduler.ts
-test/formal/music-data-platform-projection-maintenance.test.ts
-test/formal/server-projection-maintenance-scheduler.test.ts
 ```
+
+Focused formal tests may call the runner directly when they are proving
+Projection Maintenance behavior, import-to-projection catch-up, or runtime
+freshness closure.
 
 The Music Data Platform runtime module should compose the Server Host
 scheduler helper and must not import `createProjectionMaintenanceRunner`

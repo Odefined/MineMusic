@@ -258,16 +258,18 @@ Tests may call `ProjectionMaintenanceScheduler.snapshot()`. Do not add
 
 6. Add helper runner access guards.
 
-Update architecture guards so `createProjectionMaintenanceRunner` may appear
-only in:
+Update architecture guards so active `src` mentions of
+`createProjectionMaintenanceRunner` may appear only in:
 
 ```text
 src/music_data_platform/projection_maintenance_runner.ts
 src/music_data_platform/index.ts
 src/server/projection_maintenance_scheduler.ts
-test/formal/music-data-platform-projection-maintenance.test.ts
-test/formal/server-projection-maintenance-scheduler.test.ts
 ```
+
+Focused formal tests may call the runner directly when they are proving
+Projection Maintenance behavior, import-to-projection catch-up, or runtime
+freshness closure.
 
 Guard that `src/server/projection_maintenance_scheduler.ts` imports the runner
 only through `../music_data_platform/index.js` and not through Music Data
