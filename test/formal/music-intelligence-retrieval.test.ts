@@ -12,7 +12,6 @@ import {
   MusicIntelligenceError,
   createRetrievalQueryService,
   isMusicIntelligenceError,
-  normalizeRetrievalQueryText,
   type CreateRetrievalQueryServiceInput,
   type RetrievalEffectiveQuery,
   type RetrievalPoolFilter,
@@ -120,7 +119,20 @@ assert.deepEqual(textResult.query, {
   text: "plainsong live",
   order: "text_relevance",
 });
-assert.equal(normalizeRetrievalQueryText("  Café　Del   Mar "), "café del mar");
+
+const unicodeTextHarness = createReadPortHarness([{
+  rows: [],
+}]);
+unicodeTextHarness.service.query({
+  text: "  Café　Del   Mar ",
+  limit: 4,
+});
+assert.deepEqual(unicodeTextHarness.searchInputs, [{
+  ownerScope: "local",
+  text: "café del mar",
+  order: "text_relevance",
+  limit: 4,
+}]);
 
 const normalizedEmptyHarness = createReadPortHarness([{
   rows: [],

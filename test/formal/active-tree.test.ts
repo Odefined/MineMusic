@@ -196,6 +196,34 @@ assert.deepEqual(
   "formal Music Intelligence root must stay inside the Phase 12C Retrieval boundary",
 );
 
+const musicIntelligencePublicBarrelExportFailures: string[] = [];
+for (const publicBarrel of [
+  "src/music_intelligence/index.ts",
+  "src/music_intelligence/retrieval/index.ts",
+]) {
+  const text = await readFile(join(repositoryRoot, publicBarrel), "utf8");
+
+  for (const forbiddenExport of [
+    "decodeRetrievalCursor",
+    "encodeRetrievalCursor",
+    "fingerprintForRetrievalQuery",
+    "normalizeRetrievalQueryInput",
+    "normalizeRetrievalQueryText",
+    "RetrievalCursorPayload",
+  ]) {
+    if (exportsName(text, forbiddenExport)) {
+      musicIntelligencePublicBarrelExportFailures.push(
+        `${publicBarrel} exports Retrieval internal '${forbiddenExport}'`,
+      );
+    }
+  }
+}
+assert.deepEqual(
+  musicIntelligencePublicBarrelExportFailures,
+  [],
+  "Music Intelligence public barrels must not expose opaque cursor or query-normalization internals",
+);
+
 const activeFiles = await sourceFilesUnder(join(repositoryRoot, "src"));
 const failures: string[] = [];
 
@@ -844,4 +872,13 @@ function musicDataPlatformIndexImportNames(text: string): string[] {
 function hasMusicDataPlatformIndexNamespaceImport(text: string): boolean {
   return /import\s+(?:type\s+)?\*\s+as\s+\w+\s+from\s+["'](?:\.\.\/){1,2}music_data_platform\/index\.js["'];/u
     .test(text);
+}
+
+function exportsName(text: string, name: string): boolean {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+  return new RegExp(
+    `export\\s+(?:type\\s+)?\\{[^}]*\\b${escapedName}\\b[^}]*\\}`,
+    "su",
+  ).test(text);
 }
