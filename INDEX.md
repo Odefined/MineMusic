@@ -74,6 +74,15 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   scope repair, PR 11B Projection Maintenance Core, and PR 11C
   source-of-truth invalidation wiring; PR11A, PR11B, and PR11C are
   implemented.
+- `docs/formal-rebuild/phase-12-retrieval-query-foundation.md`: draft Phase
+  12 spec for internal Music Intelligence Retrieval over local owner catalog
+  and material text projections; PR12A no-text Music Data Platform retrieval
+  read port is implemented.
+- `docs/formal-rebuild/phase-12-retrieval-query-foundation-implementation-plan.md`:
+  active Phase 12 execution plan split into PR 12A no-text Music Data
+  Platform Retrieval Read Port, PR 12B Music Data Platform Text Query
+  Integration, and PR 12C Music Intelligence Retrieval Service; PR12A is
+  implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -98,11 +107,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/music-data-platform/README.md`: Music Data Platform area
   documentation entrypoint.
 - `docs/music-data-platform/design.md`: Music Data Platform identity,
-  source-library, owner relation, owner catalog, and material text projection
-  design authority.
+  source-library, owner relation, owner catalog, material text projection,
+  and retrieval read-port design authority.
 - `docs/music-data-platform/ports.md`: Music Data Platform identity,
-  source-library, owner relation, owner catalog, and material text projection
-  ports, forbidden dependencies, composition, and guards.
+  source-library, owner relation, owner catalog, material text projection,
+  retrieval read-port ports, forbidden dependencies, composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
   state, verification evidence, and remaining gaps.
 
@@ -230,6 +239,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   material text read port.
 - `src/music_data_platform/material_text_projection_commands.ts`: internal
   material text rebuild commands.
+- `src/music_data_platform/retrieval_read_model.ts`: internal no-text
+  retrieval read port over owner catalog, pool algebra, keyset pagination,
+  and coarse freshness.
 - `src/music_data_platform/projection_maintenance_schema.ts`: projection
   maintenance target schema contribution.
 - `src/music_data_platform/projection_maintenance_records.ts`: internal

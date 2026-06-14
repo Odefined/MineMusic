@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 11C source-of-truth invalidation wiring
+> Status: Implemented through Phase 12A no-text retrieval read port
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -118,6 +118,9 @@
 - `src/music_data_platform/projection_maintenance_runner.ts` implements the
   internal rebuild runner that dispatches to owner catalog and material text
   projection commands one target transaction at a time.
+- `src/music_data_platform/retrieval_read_model.ts` implements the first
+  query-ready Music Data Platform retrieval read port for owner-visible
+  no-text catalog queries and coarse projection freshness reads.
 - `src/music_data_platform/source_of_truth_write_commands.ts` implements the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, and currently rejects non-default owner scopes on
@@ -169,6 +172,18 @@
 - Missing or non-active materials delete current material text rows. Active
   materials rebuild one current document row even when every text field is
   empty.
+- Retrieval read validates only `DEFAULT_OWNER_SCOPE` in Phase 12A, rejects
+  any text query branch before PR12B, and supports `stable` /
+  `recently_added` owner-visible catalog queries over SQL-owned pool algebra.
+- Retrieval read currently accepts only `source_library` and
+  `owner_material_relation_pool` refs, validates them against current
+  Music Data Platform truth, and returns matched positive pool evidence per
+  row.
+- Retrieval read left-joins `material_text_documents` for normalized display
+  text only, tolerates missing text rows as projection staleness, and returns
+  empty text evidence until PR12B text integration lands.
+- Retrieval freshness counts dirty/failed current-owner owner-catalog targets
+  plus global `material_text` targets without rebuilding them.
 - Projection maintenance keeps one current row per typed projection target and
   uses monotonic `dirty_generation` so repeated dirty marks never duplicate
   pending work.
@@ -211,6 +226,10 @@
   limit/order, runner success dispatch, malformed-target retry, rebuild
   rollback, stale-generation skip behavior, command-owned invalidation
   reporting, and top-level source-of-truth write wiring.
+- Phase 12A tests cover retrieval read contract shape, no-text default query,
+  source-library and owner-relation pool filters, blocked exclusion, material
+  kind filtering, missing text tolerance, SQL keyset pagination, validation
+  errors, and coarse freshness reads.
 - Active-tree architecture tests reject low-level repository factory calls
   outside owning command/read/projection boundaries and direct write tokens
   outside repository, command/projection, schema, and storage infrastructure
@@ -239,8 +258,8 @@ Out of the current Music Data Platform implementation:
 - Collection membership and Collection source-of-truth writes;
 - provider execution and provider config;
 - update baselines and removed-from-library reconciliation;
-- local pool query, owner-scoped/public query, query/retrieval, and
-  presentation;
+- text-query integration, Music Intelligence Retrieval service, public
+  owner-scoped query surfaces, and presentation;
 - background scheduler/worker orchestration and automatic projection refresh
   policy;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction

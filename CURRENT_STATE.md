@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 11C of a same-repo formal rebuild. The active
+MineMusic has completed Phase 12A of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -26,7 +26,10 @@ probe. Phase 11 adds `projection_maintenance_targets`, typed invalidation/
 dirty/failed projection maintenance commands, an internal rebuild runner that
 dispatches to owner catalog and material text projection commands, and a
 top-level source-of-truth write facade that wires identity/source-library/
-relation writes into projection invalidation planning.
+relation writes into projection invalidation planning. Phase 12A adds the
+first query-ready Music Data Platform retrieval read port for owner-visible
+no-text catalog queries, SQL pool algebra, keyset pagination, and coarse
+projection freshness reads.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -308,6 +311,21 @@ Phase 10 material text projection vocabulary includes:
 - strict owner-neutral conjunctive FTS matching over projected
   `title/artist/album/version/alias` text.
 
+Phase 12A retrieval-read vocabulary includes:
+
+- `createMusicDataPlatformRetrievalReadPort({ db })`;
+- `MusicDataPlatformRetrievalReadPort` with
+  `searchOwnerCatalogMaterials(...)` and `getRetrievalFreshness(...)`;
+- `MusicDataPlatformRetrievalSearchInput`,
+  `MusicDataPlatformRetrievalSearchPage`, and
+  `MusicDataPlatformRetrievalMaterialRow`;
+- `RetrievalReadCursorPosition` for `stable`, `recently_added`, and future
+  `text_relevance` positions, with the text branch still rejected in PR12A;
+- `RetrievalFreshness` as coarse dirty/failed projection state for retrieval
+  callers;
+- `music_data.retrieval_read_invalid` for Music Data Platform retrieval
+  read-port validation.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -420,6 +438,9 @@ The active TypeScript tree is now a formal skeleton:
   internal material text read port;
 - `src/music_data_platform/material_text_projection_commands.ts` owns
   command-owned material text rebuilds;
+- `src/music_data_platform/retrieval_read_model.ts` owns the internal
+  query-ready Music Data Platform retrieval read port for no-text owner
+  catalog search and coarse freshness;
 - `src/music_data_platform/index.ts` owns Music Data Platform public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
@@ -479,8 +500,8 @@ restored as compatibility layers.
   `docs/music-data-platform/ports.md`, and
   `docs/music-data-platform/progress.md` are the current Music Data Platform
   area docs for identity, source-library import, owner material relation,
-  owner catalog projection, material text projection, and projection
-  maintenance core.
+  owner catalog projection, material text projection, projection
+  maintenance core, and the Phase 12A no-text retrieval read port.
 - `docs/formal-rebuild/phase-6-source-provider-slot.md` records the
   implemented Phase 6 Source Provider Slot search spec.
 - `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`
@@ -520,7 +541,7 @@ implementation explanation.
 
 ## Not Yet Migrated
 
-Phase 11 does not implement:
+Phase 12A does not implement:
 
 - public Stage Interface provider/search tools;
 - generic provider platform/runtime;
@@ -528,8 +549,8 @@ Phase 11 does not implement:
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
 - MCP/HTTP transport;
-- local pool query, text/FTS query, or query result shaping;
-- query engine behavior;
+- text/FTS query integration;
+- Music Intelligence Retrieval service and query hit shaping;
 - query hit public output shape;
 - query-to-present flow;
 - final `MaterialCard` key set;
@@ -547,7 +568,7 @@ contracts.
 
 ## Verification Pointers
 
-Phase 11 verification for this state should include:
+Phase 12A verification for this state should include:
 
 ```bash
 npm run typecheck

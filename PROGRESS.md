@@ -608,6 +608,44 @@ The architecture rule for writes is now explicit and executable:
   helpers, repository factory usage, and direct write tokens so new
   orchestration-layer writes fail during verification.
 
+## 2026-06-14: Phase 12A Retrieval Read Port, No Text
+
+Phase 12A implements the first query-ready Music Data Platform retrieval read
+boundary without introducing Music Intelligence Retrieval or public query
+tools:
+
+- `src/music_data_platform/retrieval_read_model.ts` adds
+  `createMusicDataPlatformRetrievalReadPort({ db })` with
+  `searchOwnerCatalogMaterials(...)` and `getRetrievalFreshness(...)`;
+- retrieval read currently supports only `DEFAULT_OWNER_SCOPE`;
+- Phase 12A rejects `text`, `order = text_relevance`, and
+  `cursorPosition.order = text_relevance`;
+- query membership comes from `owner_material_catalog_view`, so active
+  blocked relations stay excluded through owner catalog visibility;
+- pool algebra is SQL-owned and supports `source_library` plus
+  `owner_material_relation_pool` refs with `allOf`, `anyOf`, and `noneOf`
+  semantics;
+- `stable` and `recently_added` ordering use SQL keyset pagination instead of
+  TypeScript sorting/slicing;
+- returned rows reconstruct full material refs from stored material entities,
+  validate stored ref/kind integrity, and expose matched positive pool refs;
+- material text is left-joined only for normalized display/debug fields, so
+  missing `material_text_documents` rows return empty strings and empty text
+  evidence instead of crashing the query;
+- coarse freshness reads count current-owner owner-catalog dirty/failed
+  targets plus global `material_text` dirty/failed targets without rebuilding
+  projections;
+- formal tests cover contract shape, no-text owner-visible query behavior,
+  pool validation/algebra, blocked exclusion, material-kind filtering, missing
+  text tolerance, SQL keyset pagination, validation failures, and freshness
+  reads.
+
+The implementing spec remains
+`docs/formal-rebuild/phase-12-retrieval-query-foundation.md`.
+The implementing plan remains
+`docs/formal-rebuild/phase-12-retrieval-query-foundation-implementation-plan.md`.
+Current Music Data Platform docs live under `docs/music-data-platform/`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -622,9 +660,10 @@ in scope. Known later areas include:
   boundaries stabilize;
 - Music Data Platform Collection writes and later owner catalog producers such
   as signals/problem facts;
-- local pool query, owner catalog query/read APIs, and Library Update baselines;
+- Phase 12B text query integration, Phase 12C Music Intelligence Retrieval,
+  and Library Update baselines;
 - canonical maintenance workflow;
-- Music Intelligence Retrieval and Knowledge;
+- Music Intelligence Knowledge;
 - Music Experience radio/listening behavior;
 - Memory;
 - Effect Boundary;
