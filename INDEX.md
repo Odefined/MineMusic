@@ -242,9 +242,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/ref_validation.ts`: internal Music Data Platform
   ref/refKey validation helper that converts malformed external ref inputs
   into `MusicDataPlatformError`.
-- `src/music_data_platform/retrieval_read_model.ts`: internal no-text
-  retrieval read port over owner catalog, pool algebra, keyset pagination,
-  and coarse freshness.
+- `src/music_data_platform/retrieval_read_model.ts`: internal retrieval read
+  port over owner catalog, pool algebra, text evidence/ranking, keyset
+  pagination, and coarse freshness.
 - `src/music_data_platform/projection_maintenance_schema.ts`: projection
   maintenance target schema contribution.
 - `src/music_data_platform/projection_maintenance_records.ts`: internal

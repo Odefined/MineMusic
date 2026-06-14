@@ -4,12 +4,14 @@ import {
   refKey,
 } from "../../src/contracts/index.js";
 import type {
+  CanonicalEntity,
   MaterialEntityKind,
   Ref,
   SourceAlbum,
   SourceArtist,
   SourceEntity,
   SourceTrack,
+  VersionInfo,
 } from "../../src/contracts/index.js";
 import {
   DEFAULT_OWNER_SCOPE,
@@ -608,6 +610,296 @@ assert.deepEqual(
 );
 paginationDatabase.close();
 
+const textQueryDatabase = initializedDatabase();
+const textLibraryRef = sourceLibraryRef(DEFAULT_OWNER_SCOPE, "4001", "saved_source_track");
+const multiTokenSource = sourceTrack("4101", "plainsong live");
+const singleTokenSource = sourceTrack("4102", "plainsong");
+const titlePrioritySource = sourceTrack("4103", "lilt horizon");
+const artistVersionSource = sourceTrackWith("4104", "quiet tide", {
+  artistLabels: ["lilt chorus"],
+  versionInfo: {
+    tags: ["lilt"],
+  },
+});
+const versionOnlySource = sourceTrackWith("4105", "quiet dusk", {
+  versionInfo: {
+    tags: ["lilt"],
+  },
+});
+const aliasSource = sourceTrack("4106", "silent sky");
+const operatorSource = sourceTrack("4107", "or live");
+const missingProjectionSource = sourceTrack("4108", "forgotten plainsong");
+const multiTokenMaterialRef = materialRef("recording", "m_text_multi");
+const singleTokenMaterialRef = materialRef("recording", "m_text_single");
+const titlePriorityMaterialRef = materialRef("recording", "m_text_title");
+const artistVersionMaterialRef = materialRef("recording", "m_text_artist_version");
+const versionOnlyMaterialRef = materialRef("recording", "m_text_version");
+const aliasMaterialRef = materialRef("recording", "m_text_alias");
+const operatorMaterialRef = materialRef("recording", "m_text_operator");
+const missingProjectionMaterialRef = materialRef("recording", "m_text_missing");
+
+textQueryDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-14T04:00:00.000Z");
+  const libraries = createSourceLibraryRepositories({ db });
+
+  bindSourceToMaterial(identity, multiTokenSource, multiTokenMaterialRef);
+  bindSourceToMaterial(identity, singleTokenSource, singleTokenMaterialRef);
+  bindSourceToMaterial(identity, titlePrioritySource, titlePriorityMaterialRef);
+  bindSourceToMaterial(identity, artistVersionSource, artistVersionMaterialRef);
+  bindSourceToMaterial(identity, versionOnlySource, versionOnlyMaterialRef);
+  bindSourceToMaterial(identity, aliasSource, aliasMaterialRef);
+  bindSourceToMaterial(identity, operatorSource, operatorMaterialRef);
+  bindSourceToMaterial(identity, missingProjectionSource, missingProjectionMaterialRef);
+
+  identity.upsertCanonicalRecord({
+    entity: canonicalEntity("text-alias", "Alias Canonical", {
+      aliases: ["lilt horizon"],
+    }),
+    status: "active",
+  });
+  identity.bindMaterialToCanonical({
+    materialRef: aliasMaterialRef,
+    canonicalRef: canonicalRef("text-alias"),
+  });
+
+  upsertLibrary(libraries, textLibraryRef, DEFAULT_OWNER_SCOPE, "4001", "saved_source_track");
+  upsertLibraryItem(libraries, textLibraryRef, multiTokenSource.sourceRef, "2026-06-14T04:01:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, singleTokenSource.sourceRef, "2026-06-14T04:02:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, titlePrioritySource.sourceRef, "2026-06-14T04:03:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, artistVersionSource.sourceRef, "2026-06-14T04:04:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, versionOnlySource.sourceRef, "2026-06-14T04:05:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, aliasSource.sourceRef, "2026-06-14T04:06:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, operatorSource.sourceRef, "2026-06-14T04:07:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, missingProjectionSource.sourceRef, "2026-06-14T04:08:00.000Z");
+
+  createOwnerCatalogProjectionCommands({
+    db,
+    now: "2026-06-14T04:10:00.000Z",
+  }).rebuildSourceLibraryEntriesForLibrary({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    libraryRef: textLibraryRef,
+  });
+
+  const textCommands = createMaterialTextProjectionCommands({
+    db,
+    now: "2026-06-14T04:11:00.000Z",
+  });
+  for (const materialRefValue of [
+    multiTokenMaterialRef,
+    singleTokenMaterialRef,
+    titlePriorityMaterialRef,
+    artistVersionMaterialRef,
+    versionOnlyMaterialRef,
+    aliasMaterialRef,
+    operatorMaterialRef,
+  ]) {
+    textCommands.rebuildMaterialTextDocument({
+      materialRef: materialRefValue,
+    });
+  }
+});
+
+const textQueryReadPort = createMusicDataPlatformRetrievalReadPort({
+  db: textQueryDatabase.context(),
+});
+const multiTokenPage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "plainsong live",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.equal(refKey(requiredRow(multiTokenPage, 0).materialRef), refKey(multiTokenMaterialRef));
+assert.equal(requiredRow(multiTokenPage, 0).matchedTokenCount, 2);
+assert.deepEqual(requiredRow(multiTokenPage, 0).matchedTextFields, ["title"]);
+assert.deepEqual(requiredRow(multiTokenPage, 0).matchedTextTokensByField, [{
+  field: "title",
+  tokens: ["plainsong", "live"],
+}]);
+assert.equal(requiredRow(multiTokenPage, 0).rankScore?.kind, "fts_bm25");
+assert.ok((requiredRow(multiTokenPage, 0).rankScore?.value ?? 0) > 0);
+assert.ok(
+  multiTokenPage.rows.slice(1).every((row) => row.matchedTokenCount === 1),
+);
+
+const fieldPriorityPage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "lilt",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.deepEqual(
+  fieldPriorityPage.rows.map((row) => refKey(row.materialRef)),
+  [
+    refKey(titlePriorityMaterialRef),
+    refKey(artistVersionMaterialRef),
+    refKey(versionOnlyMaterialRef),
+    refKey(aliasMaterialRef),
+  ],
+);
+assert.deepEqual(requiredRow(fieldPriorityPage, 1).matchedTextFields, ["artist", "version"]);
+assert.deepEqual(requiredRow(fieldPriorityPage, 1).matchedTextTokensByField, [
+  {
+    field: "artist",
+    tokens: ["lilt"],
+  },
+  {
+    field: "version",
+    tokens: ["lilt"],
+  },
+]);
+assert.equal(requiredRow(fieldPriorityPage, 1).matchedTokenCount, 1);
+assert.deepEqual(requiredRow(fieldPriorityPage, 3).matchedTextFields, ["alias"]);
+assert.equal(requiredRow(fieldPriorityPage, 3).matchedTokenCount, 1);
+
+const stableTextPage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "lilt",
+  order: "stable",
+  limit: 10,
+});
+assert.deepEqual(
+  stableTextPage.rows.map((row) => refKey(row.materialRef)),
+  [
+    refKey(aliasMaterialRef),
+    refKey(artistVersionMaterialRef),
+    refKey(titlePriorityMaterialRef),
+    refKey(versionOnlyMaterialRef),
+  ],
+);
+assert.equal(requiredRow(stableTextPage, 0).rankScore, undefined);
+assert.deepEqual(requiredRow(stableTextPage, 0).matchedTextFields, ["alias"]);
+
+const dedupedTokenPage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "plainsong plainsong live live",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.equal(refKey(requiredRow(dedupedTokenPage, 0).materialRef), refKey(multiTokenMaterialRef));
+assert.equal(requiredRow(dedupedTokenPage, 0).matchedTokenCount, 2);
+assert.deepEqual(requiredRow(dedupedTokenPage, 0).matchedTextTokensByField, [{
+  field: "title",
+  tokens: ["plainsong", "live"],
+}]);
+
+const noTextStablePage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  order: "stable",
+  limit: 3,
+});
+const allDroppedTextPage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "--- !!!",
+  order: "stable",
+  limit: 3,
+});
+assert.deepEqual(
+  allDroppedTextPage.rows.map((row) => refKey(row.materialRef)),
+  noTextStablePage.rows.map((row) => refKey(row.materialRef)),
+);
+
+const operatorSafePage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "\"or\" ---",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.deepEqual(
+  operatorSafePage.rows.map((row) => refKey(row.materialRef)),
+  [refKey(operatorMaterialRef)],
+);
+
+const missingProjectionTextPage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "forgotten",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.deepEqual(missingProjectionTextPage.rows, []);
+
+const textPageOne = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "lilt",
+  order: "text_relevance",
+  limit: 2,
+});
+assert.deepEqual(
+  textPageOne.rows.map((row) => refKey(row.materialRef)),
+  [refKey(titlePriorityMaterialRef), refKey(artistVersionMaterialRef)],
+);
+const textPageOneSecondRow = requiredRow(textPageOne, 1);
+assert.deepEqual(textPageOne.nextCursorPosition, {
+  order: "text_relevance",
+  matchedTokenCount: 1,
+  bestFieldPriority: 2,
+  rankSortValue: textPageOneSecondRow.rankScore === undefined
+    ? NaN
+    : -textPageOneSecondRow.rankScore.value,
+  materialRefKey: refKey(artistVersionMaterialRef),
+});
+const textCursor = textPageOne.nextCursorPosition;
+if (textCursor === undefined) {
+  throw new Error("expected text_relevance page 1 to expose a continuation cursor");
+}
+const textPageTwo = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "lilt",
+  order: "text_relevance",
+  limit: 2,
+  cursorPosition: textCursor,
+});
+assert.deepEqual(
+  textPageTwo.rows.map((row) => refKey(row.materialRef)),
+  [refKey(versionOnlyMaterialRef), refKey(aliasMaterialRef)],
+);
+textQueryDatabase.close();
+
+const tokenCapDatabase = initializedDatabase();
+const tokenCapLibraryRef = sourceLibraryRef(DEFAULT_OWNER_SCOPE, "5001", "saved_source_track");
+const cappedSource = sourceTrack("5101", "cap01 cap02 cap03 cap04 cap05 cap06 cap07 cap08 cap09 cap10 cap11 cap12");
+const droppedSource = sourceTrack("5102", "cap13");
+const cappedMaterialRef = materialRef("recording", "m_cap_12");
+const droppedMaterialRef = materialRef("recording", "m_cap_13");
+
+tokenCapDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-14T05:10:00.000Z");
+  const libraries = createSourceLibraryRepositories({ db });
+
+  bindSourceToMaterial(identity, cappedSource, cappedMaterialRef);
+  bindSourceToMaterial(identity, droppedSource, droppedMaterialRef);
+  upsertLibrary(libraries, tokenCapLibraryRef, DEFAULT_OWNER_SCOPE, "5001", "saved_source_track");
+  upsertLibraryItem(libraries, tokenCapLibraryRef, cappedSource.sourceRef, "2026-06-14T05:11:00.000Z");
+  upsertLibraryItem(libraries, tokenCapLibraryRef, droppedSource.sourceRef, "2026-06-14T05:12:00.000Z");
+  createOwnerCatalogProjectionCommands({
+    db,
+    now: "2026-06-14T05:13:00.000Z",
+  }).rebuildSourceLibraryEntriesForLibrary({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    libraryRef: tokenCapLibraryRef,
+  });
+  const textCommands = createMaterialTextProjectionCommands({
+    db,
+    now: "2026-06-14T05:14:00.000Z",
+  });
+  textCommands.rebuildMaterialTextDocument({ materialRef: cappedMaterialRef });
+  textCommands.rebuildMaterialTextDocument({ materialRef: droppedMaterialRef });
+});
+
+const tokenCapPage = createMusicDataPlatformRetrievalReadPort({
+  db: tokenCapDatabase.context(),
+}).searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "cap01 cap02 cap03 cap04 cap05 cap06 cap07 cap08 cap09 cap10 cap11 cap12 cap13",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.deepEqual(
+  tokenCapPage.rows.map((row) => refKey(row.materialRef)),
+  [refKey(cappedMaterialRef)],
+);
+assert.equal(requiredRow(tokenCapPage, 0).matchedTokenCount, 12);
+tokenCapDatabase.close();
+
 const validationDatabase = initializedDatabase();
 const validationReadPort = createMusicDataPlatformRetrievalReadPort({
   db: validationDatabase.context(),
@@ -625,17 +917,6 @@ assert.throws(
 assert.throws(
   () => validationReadPort.searchOwnerCatalogMaterials({
     ownerScope: DEFAULT_OWNER_SCOPE,
-    order: "stable",
-    limit: 10,
-    text: "plainsong",
-  }),
-  (error: unknown) =>
-    isMusicDataPlatformError(error) &&
-    error.code === "music_data.retrieval_read_invalid",
-);
-assert.throws(
-  () => validationReadPort.searchOwnerCatalogMaterials({
-    ownerScope: DEFAULT_OWNER_SCOPE,
     order: "text_relevance",
     limit: 10,
   }),
@@ -648,6 +929,71 @@ assert.throws(
     ownerScope: DEFAULT_OWNER_SCOPE,
     order: "stable",
     limit: 0,
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.retrieval_read_invalid",
+);
+assert.throws(
+  () => validationReadPort.searchOwnerCatalogMaterials({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    order: "text_relevance",
+    limit: 10,
+    text: "--- !!!",
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.retrieval_read_invalid",
+);
+assert.throws(
+  () => validationReadPort.searchOwnerCatalogMaterials({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    order: "text_relevance",
+    limit: 10,
+    text: "plainsong",
+    cursorPosition: {
+      order: "text_relevance",
+      matchedTokenCount: 0,
+      bestFieldPriority: 1,
+      rankSortValue: 1,
+      materialRefKey: refKey(materialRef("recording", "cursor_bad_count")),
+    },
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.retrieval_read_invalid",
+);
+assert.throws(
+  () => validationReadPort.searchOwnerCatalogMaterials({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    order: "text_relevance",
+    limit: 10,
+    text: "plainsong",
+    cursorPosition: {
+      order: "text_relevance",
+      matchedTokenCount: 1,
+      bestFieldPriority: 5,
+      rankSortValue: 1,
+      materialRefKey: refKey(materialRef("recording", "cursor_bad_priority")),
+    },
+  }),
+  (error: unknown) =>
+    isMusicDataPlatformError(error) &&
+    error.code === "music_data.retrieval_read_invalid",
+);
+assert.throws(
+  () => validationReadPort.searchOwnerCatalogMaterials({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    order: "text_relevance",
+    limit: 10,
+    text: "plainsong",
+    cursorPosition: {
+      order: "text_relevance",
+      matchedTokenCount: 1,
+      bestFieldPriority: 1,
+      rankSortValue: Number.POSITIVE_INFINITY,
+      materialRefKey: refKey(materialRef("recording", "cursor_bad_rank")),
+    },
   }),
   (error: unknown) =>
     isMusicDataPlatformError(error) &&
@@ -935,6 +1281,18 @@ function materialRef(kind: MaterialEntityKind, id: string): Ref {
 }
 
 function sourceTrack(id: string, title: string): SourceTrack {
+  return sourceTrackWith(id, title);
+}
+
+function sourceTrackWith(
+  id: string,
+  title: string,
+  input?: {
+    artistLabels?: readonly string[];
+    albumLabel?: string;
+    versionInfo?: VersionInfo;
+  },
+): SourceTrack {
   return {
     kind: "track",
     sourceRef: sourceRef("track", id),
@@ -942,6 +1300,9 @@ function sourceTrack(id: string, title: string): SourceTrack {
     providerEntityId: id,
     label: title,
     title,
+    ...(input?.artistLabels === undefined ? {} : { artistLabels: input.artistLabels }),
+    ...(input?.albumLabel === undefined ? {} : { albumLabel: input.albumLabel }),
+    ...(input?.versionInfo === undefined ? {} : { versionInfo: input.versionInfo }),
   };
 }
 
@@ -965,6 +1326,59 @@ function sourceArtist(id: string, name: string): SourceArtist {
     label: name,
     name,
   };
+}
+
+function canonicalEntity(
+  id: string,
+  label: string,
+  input?: {
+    aliases?: readonly string[];
+    versionInfo?: VersionInfo;
+  },
+): CanonicalEntity {
+  return {
+    canonicalRef: canonicalRef(id),
+    kind: "recording",
+    label,
+    ...(input?.aliases === undefined ? {} : { aliases: input.aliases }),
+    ...(input?.versionInfo === undefined ? {} : { versionInfo: input.versionInfo }),
+  };
+}
+
+function canonicalRef(id: string): Ref {
+  return {
+    namespace: "canonical_minemusic",
+    kind: "recording",
+    id,
+  };
+}
+
+function upsertLibraryItem(
+  libraries: ReturnType<typeof createSourceLibraryRepositories>,
+  libraryRef: Ref,
+  sourceRef: Ref,
+  addedAt: string,
+): void {
+  libraries.items.upsert({
+    libraryRef,
+    sourceRefKey: refKey(sourceRef),
+    addedAt,
+    providerAddedAt: addedAt,
+    firstImportedAt: addedAt,
+  });
+}
+
+function requiredRow(
+  page: MusicDataPlatformRetrievalSearchPage,
+  index: number,
+): MusicDataPlatformRetrievalMaterialRow {
+  const row = page.rows[index];
+
+  if (row === undefined) {
+    throw new Error(`Expected row ${index} to be present.`);
+  }
+
+  return row;
 }
 
 function sourceRef(kind: "track" | "album" | "artist", id: string): Ref {

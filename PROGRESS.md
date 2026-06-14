@@ -646,6 +646,32 @@ The implementing plan remains
 `docs/formal-rebuild/phase-12-retrieval-query-foundation-implementation-plan.md`.
 Current Music Data Platform docs live under `docs/music-data-platform/`.
 
+## 2026-06-14: Phase 12B Music Data Platform Text Query Integration
+
+Phase 12B extends the same internal Music Data Platform retrieval read port
+without introducing Music Intelligence Retrieval or public query tools:
+
+- `src/music_data_platform/retrieval_read_model.ts` now accepts effective
+  `text` queries and supports `order = text_relevance`;
+- text recall stays SQL-owned inside Music Data Platform using
+  `material_text_documents` plus `material_text_fts`;
+- query tokens are normalized, deduped, capped, and turned into prefix-OR FTS
+  queries;
+- text ranking is field-aware: more matched query tokens rank above fewer
+  matches, and earlier fields (`title`, then `artist/album`, then `version`,
+  then `alias`) break ties before raw FTS sort value;
+- `stable` and `recently_added` can also run with effective text filters, while
+  `rankScore` is exposed only for `text_relevance`;
+- returned rows now expose `matchedTextFields`,
+  `matchedTextTokensByField`, and distinct `matchedTokenCount` when effective
+  text is present;
+- missing material text projections remain tolerated as staleness: no-text
+  reads still return empty display fields, and text reads simply do not recall
+  those rows;
+- formal tests cover prefix-OR recall, operator-safe query construction,
+  deduped/capped tokens, field-aware ranking, text evidence, text keyset
+  pagination, and explicit `text_relevance` validation failures.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -660,8 +686,7 @@ in scope. Known later areas include:
   boundaries stabilize;
 - Music Data Platform Collection writes and later owner catalog producers such
   as signals/problem facts;
-- Phase 12B text query integration, Phase 12C Music Intelligence Retrieval,
-  and Library Update baselines;
+- Phase 12C Music Intelligence Retrieval and Library Update baselines;
 - canonical maintenance workflow;
 - Music Intelligence Knowledge;
 - Music Experience radio/listening behavior;

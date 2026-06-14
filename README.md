@@ -40,7 +40,12 @@ wiring, the Phase 8 owner catalog projection foundation with
 library-ref-based source-library facts and an internal SQL catalog view, and
 the Phase 9 owner material relation foundation with deterministic
 material-scope relation refs, current-state `owner_material_relations`,
-owner-relation projection, and blocked catalog exclusion.
+owner-relation projection, and blocked catalog exclusion. Phase 10 adds
+material text projection plus internal FTS, Phase 11 adds projection
+maintenance dirty/failed tracking plus the rebuild runner, and Phase 12A/12B
+add the first internal retrieval read foundation for owner-visible local-pool
+catalog query, text filtering, field-aware evidence/ranking, and coarse
+freshness reads.
 
 The skeleton creates a Stage Runtime, mounts Music Data Platform and Extension
 runtime modules, starts them through Server Host, and exposes a JSON status
@@ -72,6 +77,6 @@ npm run smoke:ncm:library
 ## Current Runtime Non-Goals
 
 The current formal skeleton does not implement public provider/import/query
-tools, local pool query, text/FTS query, autoplay, queue mutation, source
+tools, Music Intelligence retrieval service, autoplay, queue mutation, source
 writeback, playlist mutation, autonomous DJ sessions, query-to-present,
 handbook tools, music-domain tools, or final musical judgment.
