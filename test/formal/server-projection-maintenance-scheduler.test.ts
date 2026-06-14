@@ -317,6 +317,41 @@ assert.throws(
 
 {
   const timers = createFakeTimerQueue();
+  const scheduler = createProjectionMaintenanceScheduler({
+    database: untouchedDatabase(),
+    dependencies: {
+      ...timers.dependencies(),
+      now: () => {
+        throw new Error("clock failed");
+      },
+    },
+  });
+
+  scheduler.start();
+  assert.doesNotThrow(() => {
+    timers.runNext(0);
+  });
+  await flushMicrotasks();
+
+  assert.deepEqual(scheduler.snapshot(), {
+    enabled: true,
+    running: false,
+    lastError: {
+      code: "server_host.music_data_platform_projection_maintenance_tick_failed",
+      message: "clock failed",
+    },
+  });
+  assert.deepEqual(timers.activeDelays(), [1000]);
+
+  timers.runNext(1000);
+  await flushMicrotasks();
+  assert.deepEqual(timers.activeDelays(), [1000]);
+
+  await scheduler.stop();
+}
+
+{
+  const timers = createFakeTimerQueue();
   const database = initializedDatabase();
   markMaterialTextTargetDirty(database, "material-1");
   const nowCalls: string[] = [];
@@ -335,11 +370,12 @@ assert.throws(
   timers.runNext(0);
   timers.runNext(1000);
 
-  assert.deepEqual(nowCalls, ["2026-06-14T10:10:00.000Z"]);
+  assert.deepEqual(nowCalls, []);
   assert.equal(scheduler.snapshot().running, true);
   assert.deepEqual(timers.activeDelays(), [1000]);
 
   await flushMicrotasks();
+  assert.deepEqual(nowCalls, ["2026-06-14T10:10:00.000Z"]);
   await scheduler.stop();
   database.close();
 }

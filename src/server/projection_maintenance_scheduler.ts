@@ -132,10 +132,10 @@ export function createProjectionMaintenanceScheduler<TimerHandle = DefaultTimerH
       return undefined;
     }
 
-    const runAt = dependencies.now();
     state.snapshot.running = true;
-    state.snapshot.lastRunAt = runAt;
     const inFlightTick = Promise.resolve().then(() => {
+      const runAt = dependencies.now();
+      state.snapshot.lastRunAt = runAt;
       const summary = createProjectionMaintenanceRunner({
         database: input.database,
         now: runAt,
