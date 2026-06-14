@@ -82,6 +82,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Platform Retrieval Read Port, PR 12B Music Data Platform Text Query
   Integration, and PR 12C Music Intelligence Retrieval Service; PR12A/12B/12C
   are implemented.
+- `docs/formal-rebuild/phase-13-projection-maintenance-runtime-orchestration.md`:
+  draft Phase 13 spec for Server Host background Projection Maintenance runner
+  scheduling, batch policy, lifecycle, and diagnostics boundaries.
+- `docs/formal-rebuild/phase-13-projection-maintenance-runtime-orchestration-implementation-plan.md`:
+  draft Phase 13 execution plan split into PR 13A scheduler helper, PR 13B
+  runtime module integration, and PR 13C freshness closure integration.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

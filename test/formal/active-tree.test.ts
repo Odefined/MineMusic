@@ -138,6 +138,20 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
+  (await sourceFilesUnder(join(repositoryRoot, "src/server")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(),
+  [
+    "src/server/config.ts",
+    "src/server/host.ts",
+    "src/server/index.ts",
+    "src/server/music_data_platform_runtime_module.ts",
+    "src/server/projection_maintenance_scheduler.ts",
+  ],
+  "formal Server Host root must stay inside the Phase 13 runtime-orchestration boundary",
+);
+
+assert.deepEqual(
   (await sourceFilesUnder(join(repositoryRoot, "src/music_data_platform")))
     .map((file) => relative(repositoryRoot, file))
     .sort(),
@@ -290,6 +304,72 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/server"))) {
   }
 }
 assert.deepEqual(serverImportFailures, []);
+
+const projectionMaintenanceSchedulerText = await readFile(
+  join(repositoryRoot, "src/server/projection_maintenance_scheduler.ts"),
+  "utf8",
+);
+const projectionMaintenanceSchedulerImportFailures: string[] = [];
+const projectionMaintenanceSchedulerAllowedMdpImports = new Set([
+  "createProjectionMaintenanceRunner",
+  "ProjectionMaintenanceRunSummary",
+]);
+
+for (const forbiddenImport of [
+  "../music_data_platform/",
+  "../storage/",
+]) {
+  if (
+    (projectionMaintenanceSchedulerText.includes(`from "${forbiddenImport}`)
+      || projectionMaintenanceSchedulerText.includes(`from '${forbiddenImport}`))
+    && !projectionMaintenanceSchedulerText.includes(
+      `from "${forbiddenImport === "../music_data_platform/" ? "../music_data_platform/index.js" : "../storage/index.js"}"`,
+    )
+    && !projectionMaintenanceSchedulerText.includes(
+      `from '${forbiddenImport === "../music_data_platform/" ? "../music_data_platform/index.js" : "../storage/index.js"}'`,
+    )
+  ) {
+    projectionMaintenanceSchedulerImportFailures.push(
+      `src/server/projection_maintenance_scheduler.ts imports forbidden internal boundary '${forbiddenImport}'`,
+    );
+  }
+}
+
+for (const importedName of musicDataPlatformIndexImportNames(projectionMaintenanceSchedulerText)) {
+  if (!projectionMaintenanceSchedulerAllowedMdpImports.has(importedName)) {
+    projectionMaintenanceSchedulerImportFailures.push(
+      `src/server/projection_maintenance_scheduler.ts imports disallowed Music Data Platform index symbol '${importedName}'`,
+    );
+  }
+}
+
+if (hasMusicDataPlatformIndexNamespaceImport(projectionMaintenanceSchedulerText)) {
+  projectionMaintenanceSchedulerImportFailures.push(
+    "src/server/projection_maintenance_scheduler.ts imports Music Data Platform index through a namespace import",
+  );
+}
+
+for (const forbiddenImport of [
+  "../music_data_platform/projection_maintenance_",
+  "../music_data_platform/owner_catalog_",
+  "../music_data_platform/material_text_",
+  "../storage/sqlite/",
+]) {
+  if (
+    projectionMaintenanceSchedulerText.includes(`from "${forbiddenImport}`)
+    || projectionMaintenanceSchedulerText.includes(`from '${forbiddenImport}`)
+  ) {
+    projectionMaintenanceSchedulerImportFailures.push(
+      `src/server/projection_maintenance_scheduler.ts imports forbidden implementation root '${forbiddenImport}'`,
+    );
+  }
+}
+
+assert.deepEqual(
+  projectionMaintenanceSchedulerImportFailures,
+  [],
+  "Projection Maintenance scheduler helper must depend only on Server Host policy, Music Data Platform public runner access, and Storage public database types",
+);
 
 const extensionImportFailures: string[] = [];
 for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))) {
@@ -745,6 +825,28 @@ for (const file of activeFiles) {
   }
 }
 assert.deepEqual(projectionRebuildCallFailures, []);
+
+const projectionMaintenanceRunnerFactoryAllowedFiles = new Set([
+  "src/music_data_platform/index.ts",
+  "src/music_data_platform/projection_maintenance_runner.ts",
+  "src/server/projection_maintenance_scheduler.ts",
+]);
+const projectionMaintenanceRunnerFactoryFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  if (
+    text.includes("createProjectionMaintenanceRunner")
+    && !projectionMaintenanceRunnerFactoryAllowedFiles.has(relativeFile)
+  ) {
+    projectionMaintenanceRunnerFactoryFailures.push(
+      `${relativeFile} mentions Projection Maintenance runner factory outside the allowed runtime orchestration boundary`,
+    );
+  }
+}
+assert.deepEqual(projectionMaintenanceRunnerFactoryFailures, []);
 
 const directWriteAllowedFiles = new Set([
   "src/music_data_platform/identity_records.ts",
