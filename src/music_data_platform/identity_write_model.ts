@@ -1,5 +1,4 @@
 import {
-  isRefComponentSafe,
   refKey,
   type CanonicalEntity,
   type CanonicalRecord,
@@ -25,6 +24,10 @@ import {
 } from "./identity_records.js";
 import { assertMaterialRef } from "./material_ref.js";
 import type { ProjectionInvalidationCommands } from "./projection_maintenance_commands.js";
+import {
+  assertMusicDataPlatformRefComponentSafe,
+  musicDataPlatformRefKey,
+} from "./ref_validation.js";
 
 export type CreateIdentityWriteCommandsInput = {
   db: MusicDatabaseTransactionContext;
@@ -188,13 +191,17 @@ function upsertSourceRecord(
   input: UpsertSourceRecordInput,
 ): SourceRecord {
   assertSourceEntityRefShape(input.entity);
+  const sourceRefKey = musicDataPlatformRefKey({
+    ref: input.entity.sourceRef,
+    fieldName: "sourceRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
 
   const lookup = {
     providerId: input.entity.providerId,
     providerEntityId: input.entity.providerEntityId,
     kind: input.entity.kind,
   };
-  const sourceRefKey = refKey(input.entity.sourceRef);
 
   const existingByProvider = repositories.sourceRecords.findByProviderIdentity(lookup);
   if (
@@ -236,10 +243,10 @@ function upsertMaterialRecord(
   now: string,
   input: UpsertMaterialRecordInput,
 ): MaterialRecord {
+  assertMaterialRefShape(input.materialRef, input.kind);
   const existing = repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
-  assertMaterialRefShape(input.materialRef, input.kind);
   if (existing !== undefined) {
     assertMaterialWritable(existing);
     assertSameMaterialKind(existing.entity.kind, input.kind);
@@ -252,6 +259,7 @@ function upsertMaterialRecord(
   const lifecycleStatus = existing?.entity.lifecycleStatus ?? "active";
 
   if (primarySourceRef !== undefined) {
+    assertSourceRefCompatibleWithMaterial(primarySourceRef, input.kind);
     assertPrimarySourceBound(repositories, input.materialRef, primarySourceRef);
   }
 
@@ -281,10 +289,10 @@ function upsertCanonicalRecord(
   now: string,
   input: UpsertCanonicalRecordInput,
 ): CanonicalRecord {
+  assertCanonicalEntityRefShape(input.entity);
   const existing = repositories.canonicalRecords.get({
     canonicalRef: input.entity.canonicalRef,
   });
-  assertCanonicalEntityRefShape(input.entity);
   assertCanonicalStatusWritable(repositories, input.entity.canonicalRef, input.status);
   const factsJson = optionalPatchValue(input.factsJson, existing?.factsJson);
   const record = buildCanonicalRecord({
@@ -306,6 +314,7 @@ function bindSourceToMaterial(
   input: BindSourceToMaterialInput,
 ): BindSourceToMaterialResult {
   assertMaterialRef(input.materialRef);
+  assertSourceRefShape(input.sourceRef);
   const sourceRecord = repositories.sourceRecords.get({ sourceRef: input.sourceRef });
   if (sourceRecord === undefined) {
     throwMusicDataError({
@@ -400,6 +409,7 @@ function bindMaterialToCanonical(
   input: BindMaterialToCanonicalInput,
 ): MaterialRecord {
   assertMaterialRef(input.materialRef);
+  assertCanonicalRefShape(input.canonicalRef);
   const materialRecord = repositories.materialRecords.get({
     materialRef: input.materialRef,
   });
@@ -502,19 +512,14 @@ function mergeMaterialRecord(
     assertCanonicalRefBindable(repositories, winnerCanonicalRef);
     assertCanonicalRefOwnedByMergeParticipants(repositories, winnerCanonicalRef, loser, winner);
   }
-  const movedBindings = repositories.sourceMaterialBindings.listSourcesForMaterial({
+  const loserBindings = repositories.sourceMaterialBindings.listSourcesForMaterial({
     materialRef: loser.entity.materialRef,
-  }).map((binding) => repositories.sourceMaterialBindings.upsertCurrentBinding({
-    sourceRef: binding.sourceRef,
-    materialRef: winner.entity.materialRef,
-    createdAt: binding.createdAt,
-    updatedAt: now,
-  }));
+  });
 
   const winnerSourceRefs = uniqueRefs([
     ...winner.entity.sourceRefs,
     ...loser.entity.sourceRefs,
-    ...movedBindings.map((binding) => binding.sourceRef),
+    ...loserBindings.map((binding) => binding.sourceRef),
   ]);
   const winnerPrimarySourceRef = optionalPatchRef(
     input.primarySourceRef,
@@ -522,8 +527,16 @@ function mergeMaterialRecord(
   );
 
   if (winnerPrimarySourceRef !== undefined) {
+    assertSourceRefCompatibleWithMaterial(winnerPrimarySourceRef, winner.entity.kind);
     assertPrimarySourceInRefs(winnerPrimarySourceRef, winnerSourceRefs);
   }
+
+  const movedBindings = loserBindings.map((binding) => repositories.sourceMaterialBindings.upsertCurrentBinding({
+    sourceRef: binding.sourceRef,
+    materialRef: winner.entity.materialRef,
+    createdAt: binding.createdAt,
+    updatedAt: now,
+  }));
 
   const loserRecord = repositories.materialRecords.upsert(buildMaterialRecord({
     entity: buildMaterialEntity({
@@ -624,13 +637,10 @@ function canonicalRefAfterMaterialMerge(
 }
 
 function assertSourceRecordConsistency(record: SourceRecord): void {
-  const sourceRefKey = refKey(record.entity.sourceRef);
-
   if (
     record.entity.providerId !== record.lookup.providerId ||
     record.entity.providerEntityId !== record.lookup.providerEntityId ||
-    record.entity.kind !== record.lookup.kind ||
-    sourceRefKey.length === 0
+    record.entity.kind !== record.lookup.kind
   ) {
     throwMusicDataError({
       code: "music_data.record_ref_key_mismatch",
@@ -642,14 +652,11 @@ function assertSourceRecordConsistency(record: SourceRecord): void {
 }
 
 function assertMaterialRecordConsistency(record: MaterialRecord): void {
-  const materialRefKey = refKey(record.entity.materialRef);
-
-  if (materialRefKey.length === 0) {
-    throwMusicDataError({
-      code: "music_data.record_ref_key_mismatch",
-      message: "Material record ref key is invalid.",
-    });
-  }
+  musicDataPlatformRefKey({
+    ref: record.entity.materialRef,
+    fieldName: "materialRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
 
   assertMaterialRefShape(record.entity.materialRef, record.entity.kind);
 
@@ -699,14 +706,11 @@ function assertMaterialRecordConsistency(record: MaterialRecord): void {
 }
 
 function assertCanonicalRecordConsistency(record: CanonicalRecord): void {
-  const canonicalRefKey = refKey(record.entity.canonicalRef);
-
-  if (canonicalRefKey.length === 0) {
-    throwMusicDataError({
-      code: "music_data.record_ref_key_mismatch",
-      message: "Canonical record ref key is invalid.",
-    });
-  }
+  musicDataPlatformRefKey({
+    ref: record.entity.canonicalRef,
+    fieldName: "canonicalRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
 
   assertCanonicalEntityRefShape(record.entity);
 
@@ -722,9 +726,19 @@ function assertCanonicalRecordConsistency(record: CanonicalRecord): void {
 }
 
 function assertSourceEntityRefShape(entity: SourceEntity): void {
+  assertMusicDataPlatformRefComponentSafe({
+    value: entity.providerId,
+    fieldName: "providerId",
+    code: "music_data.record_ref_key_mismatch",
+    message: "Source entity providerId must be a non-empty ref-safe string.",
+  });
+  musicDataPlatformRefKey({
+    ref: entity.sourceRef,
+    fieldName: "sourceRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
   const expectedNamespace = `source_${entity.providerId}`;
   if (
-    !isRefComponentSafe(entity.providerId) ||
     entity.sourceRef.namespace !== expectedNamespace ||
     entity.sourceRef.kind !== entity.kind
   ) {
@@ -750,8 +764,17 @@ function assertCanonicalEntityRefShape(entity: CanonicalEntity): void {
   assertCanonicalRefShape(entity.canonicalRef, entity.kind);
 }
 
-function assertCanonicalRefShape(ref: Ref, kind: MaterialEntityKind): void {
-  if (!ref.namespace.startsWith("canonical_") || ref.kind !== kind) {
+function assertCanonicalRefShape(
+  ref: Ref,
+  kind?: MaterialEntityKind,
+): void {
+  musicDataPlatformRefKey({
+    ref,
+    fieldName: "canonicalRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
+
+  if (!ref.namespace.startsWith("canonical_") || (kind !== undefined && ref.kind !== kind)) {
     throwMusicDataError({
       code: "music_data.record_ref_key_mismatch",
       message: "Canonical ref namespace/kind does not match CanonicalEntity.",
@@ -783,13 +806,29 @@ function assertSourceRefCompatibleWithMaterial(
   sourceRef: Ref,
   materialKind: MaterialEntityKind,
 ): void {
+  assertSourceRefShape(sourceRef);
+
   if (
-    !sourceRef.namespace.startsWith("source_") ||
     materialKindForSourceKind(sourceRef.kind) !== materialKind
   ) {
     throwMusicDataError({
       code: "music_data.record_kind_mismatch",
       message: "Source ref kind is not compatible with material kind.",
+    });
+  }
+}
+
+function assertSourceRefShape(sourceRef: Ref): void {
+  musicDataPlatformRefKey({
+    ref: sourceRef,
+    fieldName: "sourceRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
+
+  if (!sourceRef.namespace.startsWith("source_")) {
+    throwMusicDataError({
+      code: "music_data.record_ref_key_mismatch",
+      message: "Source ref namespace must start with 'source_'.",
     });
   }
 }

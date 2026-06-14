@@ -391,7 +391,6 @@ assert.deepEqual(musicDataPlatformImportFailures, []);
 const musicDataPlatformRawRefAssertFailures: string[] = [];
 const rawRefPrimitiveAllowedFiles = new Set([
   "src/music_data_platform/ref_validation.ts",
-  "src/music_data_platform/identity_write_model.ts",
   "src/music_data_platform/source_library_import.ts",
 ]);
 

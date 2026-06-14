@@ -123,6 +123,20 @@ database.transaction((db) => {
   assertMusicDataError(
     () => commands.upsertSourceRecord({
       entity: {
+        ...sourceTrack("source-bad-ref-id", "Source Bad Ref Id"),
+        sourceRef: {
+          namespace: "source_netease",
+          kind: "track",
+          id: "bad:id",
+        },
+      },
+    }),
+    "music_data.record_ref_key_mismatch",
+  );
+
+  assertMusicDataError(
+    () => commands.upsertSourceRecord({
+      entity: {
         ...sourceTrack("source-remap", "Source Remap"),
         providerEntityId: "source-1",
       },
@@ -230,6 +244,21 @@ database.transaction((db) => {
           namespace: "canonical",
           kind: "recording",
           id: "bad-canonical-namespace",
+        },
+      },
+      status: "active",
+    }),
+    "music_data.record_ref_key_mismatch",
+  );
+
+  assertMusicDataError(
+    () => commands.upsertCanonicalRecord({
+      entity: {
+        ...canonicalEntity("bad-canonical-id", "Bad Canonical Id"),
+        canonicalRef: {
+          namespace: "canonical_minemusic",
+          kind: "recording",
+          id: "bad:id",
         },
       },
       status: "active",
@@ -386,6 +415,27 @@ database.transaction((db) => {
     materialRef: materialRef("loser"),
     canonicalRef: canonicalRef("canonical-3"),
   });
+
+  assertMusicDataError(
+    () => commands.mergeMaterialRecord({
+      loserMaterialRef: materialRef("loser"),
+      winnerMaterialRef: materialRef("material-2"),
+      primarySourceRef: {
+        namespace: "source_netease",
+        kind: "track",
+        id: "bad:id",
+      },
+    }),
+    "music_data.record_ref_key_mismatch",
+  );
+  assert.equal(
+    refKey(requiredBinding(
+      repositories.sourceMaterialBindings.findMaterialForSource({
+        sourceRef: sourceRef("source-2"),
+      }),
+    ).materialRef),
+    refKey(materialRef("loser")),
+  );
 
   const mergeResult = commands.mergeMaterialRecord({
     loserMaterialRef: materialRef("loser"),
