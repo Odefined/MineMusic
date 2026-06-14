@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 12A no-text retrieval read port
+> Status: Implemented through Phase 12B text-integrated retrieval read port
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -99,8 +99,8 @@
 - `src/music_data_platform/material_text_projection_schema.ts` contributes
   `material_text_documents` and `material_text_fts`.
 - `src/music_data_platform/material_text_normalization.ts` implements
-  Phase 10 internal normalization, field-level dedupe, and strict plain-text
-  FTS query construction.
+  Phase 10/12 internal normalization, field-level dedupe, strict plain-text
+  FTS query construction, and retrieval prefix-query tokenization helpers.
 - `src/music_data_platform/material_text_projection_commands.ts` implements
   command-owned rebuild of current material text documents and replacement FTS
   rows by explicit material ref.
@@ -121,9 +121,9 @@
 - `src/music_data_platform/ref_validation.ts` now owns Music Data Platform
   internal ref/refKey input hardening so malformed external refs become
   `MusicDataPlatformError` instead of leaking contracts-layer `Error`.
-- `src/music_data_platform/retrieval_read_model.ts` implements the first
-  query-ready Music Data Platform retrieval read port for owner-visible
-  no-text catalog queries and coarse projection freshness reads.
+- `src/music_data_platform/retrieval_read_model.ts` implements the query-ready
+  Music Data Platform retrieval read port for owner-visible catalog queries,
+  text integration, and coarse projection freshness reads.
 - `src/music_data_platform/source_of_truth_write_commands.ts` implements the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, and currently rejects non-default owner scopes on
@@ -175,16 +175,24 @@
 - Missing or non-active materials delete current material text rows. Active
   materials rebuild one current document row even when every text field is
   empty.
-- Retrieval read validates only `DEFAULT_OWNER_SCOPE` in Phase 12A, rejects
-  any text query branch before PR12B, and supports `stable` /
-  `recently_added` owner-visible catalog queries over SQL-owned pool algebra.
+- Retrieval read validates only `DEFAULT_OWNER_SCOPE`, supports SQL-owned
+  owner-visible catalog queries over pool algebra, and accepts `stable`,
+  `recently_added`, and `text_relevance` orders.
 - Retrieval read currently accepts only `source_library` and
   `owner_material_relation_pool` refs, validates them against current
   Music Data Platform truth, and returns matched positive pool evidence per
   row.
 - Retrieval read left-joins `material_text_documents` for normalized display
-  text only, tolerates missing text rows as projection staleness, and returns
-  empty text evidence until PR12B text integration lands.
+  text when effective text is absent, and uses `material_text_documents` plus
+  `material_text_fts` for text recall when effective text is present.
+- Retrieval read builds prefix-OR FTS queries from deduped capped query tokens,
+  treats all-dropped text as absent text for `stable` / `recently_added`,
+  and rejects `text_relevance` without effective query text.
+- Retrieval read exposes matched text fields, matched tokens by field,
+  distinct `matchedTokenCount`, and `rankScore` only for `text_relevance`.
+- Missing material text projections remain tolerated as projection staleness:
+  no-text reads return empty display fields, and text reads simply do not
+  recall those rows.
 - Retrieval freshness counts dirty/failed current-owner owner-catalog targets
   plus global `material_text` targets without rebuilding them.
 - Projection maintenance keeps one current row per typed projection target and
@@ -229,10 +237,11 @@
   limit/order, runner success dispatch, malformed-target retry, rebuild
   rollback, stale-generation skip behavior, command-owned invalidation
   reporting, and top-level source-of-truth write wiring.
-- Phase 12A tests cover retrieval read contract shape, no-text default query,
-  source-library and owner-relation pool filters, blocked exclusion, material
-  kind filtering, missing text tolerance, SQL keyset pagination, validation
-  errors, and coarse freshness reads.
+- Phase 12A/12B tests cover retrieval read contract shape, no-text default
+  query, source-library and owner-relation pool filters, blocked exclusion,
+  material kind filtering, missing text tolerance, prefix-OR text recall,
+  operator-safe query construction, field-aware ranking, text evidence,
+  text keyset pagination, validation errors, and coarse freshness reads.
 - focused ref-validation tests cover malformed ref/refKey inputs plus
   area-specific validator codes for material, source-library, owner-relation,
   and owner-scope boundaries.
@@ -264,8 +273,8 @@ Out of the current Music Data Platform implementation:
 - Collection membership and Collection source-of-truth writes;
 - provider execution and provider config;
 - update baselines and removed-from-library reconciliation;
-- text-query integration, Music Intelligence Retrieval service, public
-  owner-scoped query surfaces, and presentation;
+- Music Intelligence Retrieval service, public owner-scoped query surfaces, and
+  presentation;
 - background scheduler/worker orchestration and automatic projection refresh
   policy;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction

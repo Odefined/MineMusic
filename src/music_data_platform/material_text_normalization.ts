@@ -29,6 +29,8 @@ const sourcePriority: Readonly<Record<MaterialTextContributionSource, number>> =
   material: 2,
   canonical: 3,
 };
+const materialTextTokenPattern = /[\p{L}\p{N}_]+/gu;
+const maxMaterialTextPrefixQueryTokens = 12;
 
 export function normalizeMaterialTextValue(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
@@ -86,6 +88,42 @@ export function buildMaterialTextSearchText(values: {
   ].filter((value) => value.length > 0).join("\n");
 }
 
+export function tokenizeMaterialTextValue(value: string): readonly string[] {
+  const normalized = normalizeMaterialTextValue(value);
+
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  return normalized.match(materialTextTokenPattern) ?? [];
+}
+
+export function buildMaterialTextPrefixQueryTokens(text: string): readonly string[] {
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+
+  for (const token of tokenizeMaterialTextValue(text)) {
+    if (seen.has(token)) {
+      continue;
+    }
+
+    seen.add(token);
+    deduped.push(token);
+
+    if (deduped.length === maxMaterialTextPrefixQueryTokens) {
+      break;
+    }
+  }
+
+  return deduped;
+}
+
+export function buildMaterialTextPrefixOrQuery(text: string): string {
+  return buildMaterialTextPrefixQueryTokens(text)
+    .map((token) => `${quotedMaterialTextToken(token)}*`)
+    .join(" OR ");
+}
+
 export function buildMaterialTextMatchQuery(text: string): string {
   const normalized = normalizeMaterialTextValue(text);
 
@@ -97,6 +135,10 @@ export function buildMaterialTextMatchQuery(text: string): string {
     .split(" ")
     .map((token) => `"${token.replaceAll('"', '""')}"`)
     .join(" AND ");
+}
+
+function quotedMaterialTextToken(token: string): string {
+  return `"${token.replaceAll('"', '""')}"`;
 }
 
 function compareContributions(

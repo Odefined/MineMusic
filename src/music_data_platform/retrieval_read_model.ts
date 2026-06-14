@@ -11,6 +11,11 @@ import type {
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef } from "./material_ref.js";
 import {
+  buildMaterialTextPrefixOrQuery,
+  buildMaterialTextPrefixQueryTokens,
+  normalizeMaterialTextValue,
+} from "./material_text_normalization.js";
+import {
   assertOwnerRelationPoolRef,
   createOwnerRelationPoolRef,
   type OwnerRelationEntryKind,
@@ -126,11 +131,23 @@ type SearchCatalogRow = {
   album_text: string;
   version_text: string;
   alias_text: string;
+  matched_token_count?: number;
+  best_field_priority?: number;
+  rank_sort_value?: number;
 };
 
 type MatchedPoolEntryRow = {
   material_ref_key: string;
   entry_ref_key: string;
+};
+
+type MatchedTextEvidenceRow = {
+  material_ref_key: string;
+  field: RetrievalTextField;
+  token: string;
+  field_priority: number;
+  field_order: number;
+  token_order: number;
 };
 
 type SourceLibraryRow = {
@@ -162,6 +179,33 @@ type NormalizedRetrievalReadPoolFilter = {
   hasFilter: boolean;
 };
 
+type RetrievalEffectiveTextQuery = {
+  normalizedText: string;
+  tokens: readonly string[];
+  matchQuery: string;
+};
+
+type RetrievalRowTextEvidence = {
+  matchedTextFields: readonly RetrievalTextField[];
+  matchedTextTokensByField: readonly RetrievalMatchedTextTokenEvidence[];
+  matchedTokenCount: number;
+  bestFieldPriority: number;
+};
+
+const retrievalTextFieldConfigs = [
+  { field: "title", column: "title_text", priority: 1 },
+  { field: "artist", column: "artist_text", priority: 2 },
+  { field: "album", column: "album_text", priority: 2 },
+  { field: "version", column: "version_text", priority: 3 },
+  { field: "alias", column: "alias_text", priority: 4 },
+] as const satisfies readonly {
+  field: RetrievalTextField;
+  column: string;
+  priority: number;
+}[];
+const comparableTimestampPattern =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
 export function createMusicDataPlatformRetrievalReadPort(
   input: CreateMusicDataPlatformRetrievalReadPortInput,
 ): MusicDataPlatformRetrievalReadPort {
@@ -172,34 +216,37 @@ export function createMusicDataPlatformRetrievalReadPort(
       const ownerScope = validatedOwnerScope(readInput.ownerScope);
       const order = validatedOrder(readInput.order);
       const limit = validatedLimit(readInput.limit);
-
-      if (readInput.text !== undefined) {
-        throw invalidRetrievalRead(
-          "Phase 12A retrieval read port does not support text queries before PR12B.",
-        );
-      }
-
-      if (order === "text_relevance") {
-        throw invalidRetrievalRead(
-          "Phase 12A retrieval read port does not support text_relevance ordering before PR12B.",
-        );
-      }
-
       const materialKind = validatedMaterialKind(readInput.materialKind);
-      const cursorPosition = validatedCursorPosition(readInput.cursorPosition, order);
       const poolFilter = normalizePoolFilter(readInput.poolFilter);
+      const effectiveTextQuery = normalizeEffectiveTextQuery(readInput.text);
+      const cursorPosition = validatedCursorPosition(
+        readInput.cursorPosition,
+        order,
+        effectiveTextQuery !== undefined,
+      );
       validatePoolRefs(db, ownerScope, poolFilter);
 
-      const selectedRows = db.all<SearchCatalogRow>(
-        searchSqlForOrder(order, poolFilter, materialKind, cursorPosition),
-        searchParamsForOrder({
-          ownerScope,
-          materialKind,
-          poolFilter,
-          cursorPosition,
-          limit: limit + 1,
-        }),
-      );
+      const selectedRows = effectiveTextQuery === undefined
+        ? db.all<SearchCatalogRow>(
+          searchSqlForOrder(order, poolFilter, materialKind, cursorPosition),
+          searchParamsForOrder({
+            ownerScope,
+            materialKind,
+            poolFilter,
+            cursorPosition,
+            limit: limit + 1,
+          }),
+        )
+        : db.all<SearchCatalogRow>(
+          searchSqlForText(order, poolFilter, materialKind, cursorPosition, effectiveTextQuery),
+          searchParamsForText({
+            ownerScope,
+            materialKind,
+            poolFilter,
+            cursorPosition,
+            limit: limit + 1,
+          }),
+        );
 
       const visibleRows = selectedRows.slice(0, limit);
       const matchedPoolRefsByMaterial = matchedPoolRefsByMaterialRefKey(
@@ -208,11 +255,21 @@ export function createMusicDataPlatformRetrievalReadPort(
         visibleRows.map((row) => row.material_ref_key),
         poolFilter,
       );
+      const matchedTextEvidenceByMaterial = effectiveTextQuery === undefined
+        ? undefined
+        : matchedTextEvidenceByMaterialRefKey(
+          db,
+          visibleRows.map((row) => row.material_ref_key),
+          effectiveTextQuery.tokens,
+        );
 
       return {
         rows: visibleRows.map((row) => searchResultRowFromCatalogRow(
           row,
           matchedPoolRefsByMaterial.get(row.material_ref_key) ?? [],
+          matchedTextEvidenceByMaterial?.get(row.material_ref_key),
+          order,
+          effectiveTextQuery !== undefined,
         )),
         ...(selectedRows.length > limit && visibleRows.length > 0
           ? { nextCursorPosition: cursorPositionFromCatalogRow(order, visibleRows[visibleRows.length - 1]!) }
@@ -292,22 +349,45 @@ function validatedMaterialKind(
   return value;
 }
 
+function normalizeEffectiveTextQuery(
+  text: string | undefined,
+): RetrievalEffectiveTextQuery | undefined {
+  if (text === undefined) {
+    return undefined;
+  }
+
+  const normalizedText = normalizeMaterialTextValue(text);
+
+  if (normalizedText.length === 0) {
+    return undefined;
+  }
+
+  const tokens = buildMaterialTextPrefixQueryTokens(normalizedText);
+
+  if (tokens.length === 0) {
+    return undefined;
+  }
+
+  return {
+    normalizedText,
+    tokens,
+    matchQuery: buildMaterialTextPrefixOrQuery(normalizedText),
+  };
+}
+
 function validatedCursorPosition(
   cursorPosition: RetrievalReadCursorPosition | undefined,
-  order: Exclude<RetrievalOrder, "text_relevance">,
+  order: RetrievalOrder,
+  hasEffectiveText: boolean,
 ): RetrievalReadCursorPosition | undefined {
   if (cursorPosition === undefined) {
     return undefined;
   }
 
-  if (cursorPosition.order === "text_relevance") {
-    throw invalidRetrievalRead(
-      "Phase 12A retrieval read port does not support text_relevance cursors before PR12B.",
-    );
-  }
-
   if (cursorPosition.order !== order) {
-    throw invalidRetrievalRead("Retrieval read cursor order must match the query order.");
+    throw invalidRetrievalRead(
+      "Retrieval read cursor order must match the query order.",
+    );
   }
 
   switch (cursorPosition.order) {
@@ -320,6 +400,44 @@ function validatedCursorPosition(
       return cursorPosition;
     case "recently_added":
       assertComparableTimestamp(cursorPosition.recentlyAddedAt, "cursorPosition.recentlyAddedAt");
+      assertMusicDataPlatformPublicRefKey({
+        refKey: cursorPosition.materialRefKey,
+        fieldName: "cursorPosition.materialRefKey",
+        code: "music_data.retrieval_read_invalid",
+      });
+      return cursorPosition;
+    case "text_relevance":
+      if (!hasEffectiveText) {
+        throw invalidRetrievalRead(
+          "Retrieval read text_relevance cursors require effective query text.",
+        );
+      }
+
+      if (
+        !Number.isInteger(cursorPosition.matchedTokenCount) ||
+        cursorPosition.matchedTokenCount < 1
+      ) {
+        throw invalidRetrievalRead(
+          "cursorPosition.matchedTokenCount must be a positive integer.",
+        );
+      }
+
+      if (
+        !Number.isInteger(cursorPosition.bestFieldPriority) ||
+        cursorPosition.bestFieldPriority < 1 ||
+        cursorPosition.bestFieldPriority > 4
+      ) {
+        throw invalidRetrievalRead(
+          "cursorPosition.bestFieldPriority must be an integer from 1 through 4.",
+        );
+      }
+
+      if (!Number.isFinite(cursorPosition.rankSortValue)) {
+        throw invalidRetrievalRead(
+          "cursorPosition.rankSortValue must be a finite number.",
+        );
+      }
+
       assertMusicDataPlatformPublicRefKey({
         refKey: cursorPosition.materialRefKey,
         fieldName: "cursorPosition.materialRefKey",
@@ -476,61 +594,18 @@ function validateOwnerRelationPoolRef(ownerScope: string, poolRef: Ref): void {
 }
 
 function searchSqlForOrder(
-  order: Exclude<RetrievalOrder, "text_relevance">,
+  order: RetrievalOrder,
   poolFilter: NormalizedRetrievalReadPoolFilter,
   materialKind: MaterialEntityKind | undefined,
   cursorPosition: RetrievalReadCursorPosition | undefined,
 ): string {
-  const whereClauses = [
-    "c.owner_scope = ?",
-    "m.lifecycle_status = 'active'",
-  ];
-
-  if (materialKind !== undefined) {
-    whereClauses.push("m.kind = ?");
+  if (order === "text_relevance") {
+    throw invalidRetrievalRead(
+      "Retrieval read text_relevance order requires effective query text.",
+    );
   }
 
-  if (poolFilter.allOfRefKeys.length > 0) {
-    whereClauses.push(`
-      (
-        SELECT COUNT(DISTINCT e.entry_ref_key)
-        FROM owner_material_entries e
-        WHERE e.owner_scope = c.owner_scope
-          AND e.material_ref_key = c.material_ref_key
-          AND e.active = 1
-          AND e.visibility_role = 'positive'
-          AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.allOfRefKeys.length)})
-      ) = ?
-    `);
-  }
-
-  if (poolFilter.anyOfRefKeys.length > 0) {
-    whereClauses.push(`
-      EXISTS (
-        SELECT 1
-        FROM owner_material_entries e
-        WHERE e.owner_scope = c.owner_scope
-          AND e.material_ref_key = c.material_ref_key
-          AND e.active = 1
-          AND e.visibility_role = 'positive'
-          AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.anyOfRefKeys.length)})
-      )
-    `);
-  }
-
-  if (poolFilter.noneOfRefKeys.length > 0) {
-    whereClauses.push(`
-      NOT EXISTS (
-        SELECT 1
-        FROM owner_material_entries e
-        WHERE e.owner_scope = c.owner_scope
-          AND e.material_ref_key = c.material_ref_key
-          AND e.active = 1
-          AND e.visibility_role = 'positive'
-          AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.noneOfRefKeys.length)})
-      )
-    `);
-  }
+  const whereClauses = catalogBaseWhereClauses(poolFilter, materialKind);
 
   if (cursorPosition !== undefined) {
     switch (order) {
@@ -582,23 +657,11 @@ function searchParamsForOrder(input: {
   cursorPosition: RetrievalReadCursorPosition | undefined;
   limit: number;
 }): readonly MusicDatabaseParameter[] {
-  const params: MusicDatabaseParameter[] = [input.ownerScope];
-
-  if (input.materialKind !== undefined) {
-    params.push(input.materialKind);
-  }
-
-  if (input.poolFilter.allOfRefKeys.length > 0) {
-    params.push(...input.poolFilter.allOfRefKeys, input.poolFilter.allOfRefKeys.length);
-  }
-
-  if (input.poolFilter.anyOfRefKeys.length > 0) {
-    params.push(...input.poolFilter.anyOfRefKeys);
-  }
-
-  if (input.poolFilter.noneOfRefKeys.length > 0) {
-    params.push(...input.poolFilter.noneOfRefKeys);
-  }
+  const params: MusicDatabaseParameter[] = catalogBaseParams(
+    input.ownerScope,
+    input.materialKind,
+    input.poolFilter,
+  );
 
   if (input.cursorPosition !== undefined) {
     switch (input.cursorPosition.order) {
@@ -614,13 +677,315 @@ function searchParamsForOrder(input: {
         break;
       case "text_relevance":
         throw invalidRetrievalRead(
-          "Phase 12A retrieval read port does not support text_relevance cursors before PR12B.",
+          "Retrieval read text_relevance cursors require effective query text.",
         );
     }
   }
 
   params.push(input.limit);
   return params;
+}
+
+function catalogBaseWhereClauses(
+  poolFilter: NormalizedRetrievalReadPoolFilter,
+  materialKind: MaterialEntityKind | undefined,
+): string[] {
+  const whereClauses = [
+    "c.owner_scope = ?",
+    "m.lifecycle_status = 'active'",
+  ];
+
+  if (materialKind !== undefined) {
+    whereClauses.push("m.kind = ?");
+  }
+
+  if (poolFilter.allOfRefKeys.length > 0) {
+    whereClauses.push(`
+      (
+        SELECT COUNT(DISTINCT e.entry_ref_key)
+        FROM owner_material_entries e
+        WHERE e.owner_scope = c.owner_scope
+          AND e.material_ref_key = c.material_ref_key
+          AND e.active = 1
+          AND e.visibility_role = 'positive'
+          AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.allOfRefKeys.length)})
+      ) = ?
+    `);
+  }
+
+  if (poolFilter.anyOfRefKeys.length > 0) {
+    whereClauses.push(`
+      EXISTS (
+        SELECT 1
+        FROM owner_material_entries e
+        WHERE e.owner_scope = c.owner_scope
+          AND e.material_ref_key = c.material_ref_key
+          AND e.active = 1
+          AND e.visibility_role = 'positive'
+          AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.anyOfRefKeys.length)})
+      )
+    `);
+  }
+
+  if (poolFilter.noneOfRefKeys.length > 0) {
+    whereClauses.push(`
+      NOT EXISTS (
+        SELECT 1
+        FROM owner_material_entries e
+        WHERE e.owner_scope = c.owner_scope
+          AND e.material_ref_key = c.material_ref_key
+          AND e.active = 1
+          AND e.visibility_role = 'positive'
+          AND e.entry_ref_key IN (${sqlPlaceholders(poolFilter.noneOfRefKeys.length)})
+      )
+    `);
+  }
+
+  return whereClauses;
+}
+
+function catalogBaseParams(
+  ownerScope: string,
+  materialKind: MaterialEntityKind | undefined,
+  poolFilter: NormalizedRetrievalReadPoolFilter,
+): MusicDatabaseParameter[] {
+  const params: MusicDatabaseParameter[] = [ownerScope];
+
+  if (materialKind !== undefined) {
+    params.push(materialKind);
+  }
+
+  if (poolFilter.allOfRefKeys.length > 0) {
+    params.push(...poolFilter.allOfRefKeys, poolFilter.allOfRefKeys.length);
+  }
+
+  if (poolFilter.anyOfRefKeys.length > 0) {
+    params.push(...poolFilter.anyOfRefKeys);
+  }
+
+  if (poolFilter.noneOfRefKeys.length > 0) {
+    params.push(...poolFilter.noneOfRefKeys);
+  }
+
+  return params;
+}
+
+function searchSqlForText(
+  order: RetrievalOrder,
+  poolFilter: NormalizedRetrievalReadPoolFilter,
+  materialKind: MaterialEntityKind | undefined,
+  cursorPosition: RetrievalReadCursorPosition | undefined,
+  textQuery: RetrievalEffectiveTextQuery,
+): string {
+  const whereClauses = catalogBaseWhereClauses(poolFilter, materialKind);
+  const matchedTokenCountSql = matchedTokenCountSqlExpression(textQuery.tokens);
+  const bestFieldPrioritySql = bestFieldPrioritySqlExpression(textQuery.tokens);
+  const cursorClause = textCursorClause(order, cursorPosition);
+
+  return `
+    WITH matched_catalog AS (
+      SELECT
+        c.material_ref_key,
+        m.kind AS material_kind,
+        m.entity_json AS material_entity_json,
+        c.recently_added_at,
+        t.title_text,
+        t.artist_text,
+        t.album_text,
+        t.version_text,
+        t.alias_text,
+        ${matchedTokenCountSql} AS matched_token_count,
+        ${bestFieldPrioritySql} AS best_field_priority,
+        bm25(material_text_fts, 1.0, 1.0, 1.0, 1.0, 1.0) AS rank_sort_value
+      FROM owner_material_catalog_view c
+      JOIN material_records m
+        ON m.ref_key = c.material_ref_key
+      JOIN material_text_documents t
+        ON t.material_ref_key = c.material_ref_key
+      JOIN material_text_fts
+        ON material_text_fts.material_ref_key = c.material_ref_key
+      WHERE material_text_fts MATCH ${sqlStringLiteral(textQuery.matchQuery)}
+        AND ${whereClauses.map((clause) => `(${clause.trim()})`).join("\n        AND ")}
+    )
+    SELECT
+      material_ref_key,
+      material_kind,
+      material_entity_json,
+      recently_added_at,
+      title_text,
+      artist_text,
+      album_text,
+      version_text,
+      alias_text,
+      matched_token_count,
+      best_field_priority,
+      rank_sort_value
+    FROM matched_catalog
+    ${cursorClause === undefined ? "" : `WHERE ${cursorClause}`}
+    ORDER BY ${textOrderBySql(order)}
+    LIMIT ?
+  `;
+}
+
+function searchParamsForText(input: {
+  ownerScope: string;
+  materialKind: MaterialEntityKind | undefined;
+  poolFilter: NormalizedRetrievalReadPoolFilter;
+  cursorPosition: RetrievalReadCursorPosition | undefined;
+  limit: number;
+}): readonly MusicDatabaseParameter[] {
+  const params: MusicDatabaseParameter[] = catalogBaseParams(
+    input.ownerScope,
+    input.materialKind,
+    input.poolFilter,
+  );
+
+  if (input.cursorPosition !== undefined) {
+    switch (input.cursorPosition.order) {
+      case "stable":
+        params.push(input.cursorPosition.materialRefKey);
+        break;
+      case "recently_added":
+        params.push(
+          input.cursorPosition.recentlyAddedAt,
+          input.cursorPosition.recentlyAddedAt,
+          input.cursorPosition.materialRefKey,
+        );
+        break;
+      case "text_relevance":
+        params.push(
+          input.cursorPosition.matchedTokenCount,
+          input.cursorPosition.matchedTokenCount,
+          input.cursorPosition.bestFieldPriority,
+          input.cursorPosition.bestFieldPriority,
+          input.cursorPosition.rankSortValue,
+          input.cursorPosition.rankSortValue,
+          input.cursorPosition.materialRefKey,
+        );
+        break;
+    }
+  }
+
+  params.push(input.limit);
+  return params;
+}
+
+function matchedTokenCountSqlExpression(tokens: readonly string[]): string {
+  return tokens.map((token) => `
+      CASE
+        WHEN ${anyFieldMatchSqlExpression(token)}
+        THEN 1
+        ELSE 0
+      END
+    `).join(" + ");
+}
+
+function bestFieldPrioritySqlExpression(tokens: readonly string[]): string {
+  return `
+    CASE
+      WHEN ${fieldMatchesAnyTokenSqlExpression("title_text", tokens)}
+      THEN 1
+      WHEN ${fieldMatchesAnyTokenSqlExpression("artist_text", tokens)}
+        OR ${fieldMatchesAnyTokenSqlExpression("album_text", tokens)}
+      THEN 2
+      WHEN ${fieldMatchesAnyTokenSqlExpression("version_text", tokens)}
+      THEN 3
+      WHEN ${fieldMatchesAnyTokenSqlExpression("alias_text", tokens)}
+      THEN 4
+      ELSE 5
+    END
+  `;
+}
+
+function anyFieldMatchSqlExpression(token: string): string {
+  return `(${retrievalTextFieldConfigs
+    .map((field) => fieldMatchSqlExpression(field.column, token))
+    .join(" OR ")})`;
+}
+
+function fieldMatchesAnyTokenSqlExpression(
+  fieldColumn: string,
+  tokens: readonly string[],
+): string {
+  return `(${tokens
+    .map((token) => fieldMatchSqlExpression(fieldColumn, token))
+    .join(" OR ")})`;
+}
+
+function fieldMatchSqlExpression(fieldColumn: string, token: string): string {
+  return `
+    EXISTS (
+      SELECT 1
+      FROM material_text_fts mf
+      WHERE mf.rowid = material_text_fts.rowid
+        AND material_text_fts MATCH ${sqlStringLiteral(fieldScopedPrefixQuery(fieldColumn, token))}
+    )
+  `.trim();
+}
+
+function fieldScopedPrefixQuery(fieldColumn: string, token: string): string {
+  return `${fieldColumn} : ${quotedPrefixQueryToken(token)}`;
+}
+
+function quotedPrefixQueryToken(token: string): string {
+  return `"${token.replaceAll('"', '""')}"*`;
+}
+
+function textCursorClause(
+  order: RetrievalOrder,
+  cursorPosition: RetrievalReadCursorPosition | undefined,
+): string | undefined {
+  if (cursorPosition === undefined) {
+    return undefined;
+  }
+
+  switch (order) {
+    case "stable":
+      return "material_ref_key > ?";
+    case "recently_added":
+      return `
+        (
+          recently_added_at < ?
+          OR (
+            recently_added_at = ?
+            AND material_ref_key > ?
+          )
+        )
+      `;
+    case "text_relevance":
+      return `
+        (
+          matched_token_count < ?
+          OR (
+            matched_token_count = ?
+            AND (
+              best_field_priority > ?
+              OR (
+                best_field_priority = ?
+                AND (
+                  rank_sort_value > ?
+                  OR (
+                    rank_sort_value = ?
+                    AND material_ref_key > ?
+                  )
+                )
+              )
+            )
+          )
+        )
+      `;
+  }
+}
+
+function textOrderBySql(order: RetrievalOrder): string {
+  switch (order) {
+    case "stable":
+      return "material_ref_key ASC";
+    case "recently_added":
+      return "recently_added_at DESC, material_ref_key ASC";
+    case "text_relevance":
+      return "matched_token_count DESC, best_field_priority ASC, rank_sort_value ASC, material_ref_key ASC";
+  }
 }
 
 function matchedPoolRefsByMaterialRefKey(
@@ -675,9 +1040,123 @@ function matchedPoolRefsByMaterialRefKey(
   return grouped;
 }
 
+function matchedTextEvidenceByMaterialRefKey(
+  db: MusicDatabaseContext,
+  materialRefKeys: readonly string[],
+  queryTokens: readonly string[],
+): ReadonlyMap<string, RetrievalRowTextEvidence> {
+  if (materialRefKeys.length === 0 || queryTokens.length === 0) {
+    return new Map();
+  }
+
+  const rows = db.all<MatchedTextEvidenceRow>(
+    matchedTextEvidenceSql(materialRefKeys.length, queryTokens),
+    [...materialRefKeys],
+  );
+
+  const grouped = new Map<string, {
+    matchedTextFields: RetrievalTextField[];
+    matchedTextTokensByField: {
+      field: RetrievalTextField;
+      tokens: string[];
+    }[];
+    matchedTokenKeys: Set<string>;
+    bestFieldPriority: number;
+  }>();
+
+  for (const row of rows) {
+    const existing = grouped.get(row.material_ref_key);
+
+    if (existing === undefined) {
+      grouped.set(row.material_ref_key, {
+        matchedTextFields: [row.field],
+        matchedTextTokensByField: [{
+          field: row.field,
+          tokens: [row.token],
+        }],
+        matchedTokenKeys: new Set([row.token]),
+        bestFieldPriority: row.field_priority,
+      });
+      continue;
+    }
+
+    const lastFieldEvidence =
+      existing.matchedTextTokensByField[existing.matchedTextTokensByField.length - 1];
+
+    if (lastFieldEvidence?.field === row.field) {
+      lastFieldEvidence.tokens.push(row.token);
+    } else {
+      existing.matchedTextFields.push(row.field);
+      existing.matchedTextTokensByField.push({
+        field: row.field,
+        tokens: [row.token],
+      });
+    }
+
+    existing.matchedTokenKeys.add(row.token);
+  }
+
+  return new Map(
+    [...grouped.entries()].map(([materialRefKey, evidence]) => [
+      materialRefKey,
+      {
+        matchedTextFields: evidence.matchedTextFields,
+        matchedTextTokensByField: evidence.matchedTextTokensByField,
+        matchedTokenCount: evidence.matchedTokenKeys.size,
+        bestFieldPriority: evidence.bestFieldPriority,
+      } satisfies RetrievalRowTextEvidence,
+    ]),
+  );
+}
+
+function matchedTextEvidenceSql(
+  materialRefKeyCount: number,
+  queryTokens: readonly string[],
+): string {
+  const unions: string[] = [];
+
+  for (const [tokenOrder, token] of queryTokens.entries()) {
+    for (const [fieldOrder, field] of retrievalTextFieldConfigs.entries()) {
+      unions.push(`
+        SELECT
+          material_text_fts.material_ref_key,
+          ${sqlStringLiteral(field.field)} AS field,
+          ${sqlStringLiteral(token)} AS token,
+          ${field.priority} AS field_priority,
+          ${fieldOrder} AS field_order,
+          ${tokenOrder} AS token_order
+        FROM material_text_fts
+        JOIN target_materials
+          ON target_materials.material_ref_key = material_text_fts.material_ref_key
+        WHERE material_text_fts MATCH ${sqlStringLiteral(fieldScopedPrefixQuery(field.column, token))}
+      `);
+    }
+  }
+
+  return `
+    WITH target_materials(material_ref_key) AS (
+      VALUES ${sqlValueTuples(materialRefKeyCount)}
+    )
+    SELECT
+      material_ref_key,
+      field,
+      token,
+      field_priority,
+      field_order,
+      token_order
+    FROM (
+      ${unions.join("\nUNION ALL\n")}
+    )
+    ORDER BY material_ref_key ASC, field_priority ASC, field_order ASC, token_order ASC
+  `;
+}
+
 function searchResultRowFromCatalogRow(
   row: SearchCatalogRow,
   matchedPoolRefs: readonly Ref[],
+  textEvidence: RetrievalRowTextEvidence | undefined,
+  order: RetrievalOrder,
+  hasEffectiveText: boolean,
 ): MusicDataPlatformRetrievalMaterialRow {
   const materialRef = materialRefFromEntityJson(
     row.material_entity_json,
@@ -686,6 +1165,47 @@ function searchResultRowFromCatalogRow(
   );
 
   assertComparableTimestamp(row.recently_added_at, "recently_added_at");
+
+  if (!hasEffectiveText) {
+    return {
+      materialRef,
+      materialKind: row.material_kind,
+      titleText: row.title_text,
+      artistText: row.artist_text,
+      albumText: row.album_text,
+      versionText: row.version_text,
+      aliasText: row.alias_text,
+      recentlyAddedAt: row.recently_added_at,
+      matchedPoolRefs,
+      matchedTextFields: [],
+    };
+  }
+  const matchedTokenCount = requiredPositiveInteger(
+    row.matched_token_count,
+    "matched_token_count",
+  );
+  const bestFieldPriority = requiredFieldPriority(
+    row.best_field_priority,
+    "best_field_priority",
+  );
+
+  if (textEvidence === undefined) {
+    throw invalidRetrievalRead(
+      "Text query row did not produce any matched text evidence.",
+    );
+  }
+
+  if (matchedTokenCount !== textEvidence.matchedTokenCount) {
+    throw invalidRetrievalRead(
+      "Text query matched_token_count did not match projected field evidence.",
+    );
+  }
+
+  if (bestFieldPriority !== textEvidence.bestFieldPriority) {
+    throw invalidRetrievalRead(
+      "Text query best_field_priority did not match projected field evidence.",
+    );
+  }
 
   return {
     materialRef,
@@ -697,12 +1217,25 @@ function searchResultRowFromCatalogRow(
     aliasText: row.alias_text,
     recentlyAddedAt: row.recently_added_at,
     matchedPoolRefs,
-    matchedTextFields: [],
+    matchedTextFields: textEvidence.matchedTextFields,
+    matchedTextTokensByField: textEvidence.matchedTextTokensByField,
+    matchedTokenCount,
+    ...(order === "text_relevance"
+      ? {
+          rankScore: {
+            kind: "fts_bm25" as const,
+            value: normalizedFtsRankScore(requiredFiniteNumber(
+              row.rank_sort_value,
+              "rank_sort_value",
+            )),
+          },
+        }
+      : {}),
   };
 }
 
 function cursorPositionFromCatalogRow(
-  order: Exclude<RetrievalOrder, "text_relevance">,
+  order: RetrievalOrder,
   row: SearchCatalogRow,
 ): RetrievalReadCursorPosition {
   switch (order) {
@@ -717,7 +1250,43 @@ function cursorPositionFromCatalogRow(
         recentlyAddedAt: row.recently_added_at,
         materialRefKey: row.material_ref_key,
       };
+    case "text_relevance":
+      return {
+        order,
+        matchedTokenCount: requiredPositiveInteger(row.matched_token_count, "matched_token_count"),
+        bestFieldPriority: requiredFieldPriority(row.best_field_priority, "best_field_priority"),
+        rankSortValue: requiredFiniteNumber(row.rank_sort_value, "rank_sort_value"),
+        materialRefKey: row.material_ref_key,
+      };
   }
+}
+
+function requiredPositiveInteger(value: number | undefined, fieldName: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw invalidRetrievalRead(`${fieldName} must be a positive integer.`);
+  }
+
+  return value;
+}
+
+function requiredFieldPriority(value: number | undefined, fieldName: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 4) {
+    throw invalidRetrievalRead(`${fieldName} must be an integer from 1 through 4.`);
+  }
+
+  return value;
+}
+
+function requiredFiniteNumber(value: number | undefined, fieldName: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw invalidRetrievalRead(`${fieldName} must be a finite number.`);
+  }
+
+  return value;
+}
+
+function normalizedFtsRankScore(rankSortValue: number): number {
+  return -rankSortValue;
 }
 
 function countDirtyTargets(
@@ -798,13 +1367,25 @@ function materialRefFromEntityJson(
 }
 
 function assertComparableTimestamp(value: string, fieldName: string): void {
-  if (typeof value !== "string" || value.length === 0 || Number.isNaN(Date.parse(value))) {
+  if (
+    typeof value !== "string" ||
+    !comparableTimestampPattern.test(value) ||
+    Number.isNaN(Date.parse(value))
+  ) {
     throw invalidRetrievalRead(`${fieldName} must be a valid comparable timestamp string.`);
   }
 }
 
 function sqlPlaceholders(count: number): string {
   return Array.from({ length: count }, () => "?").join(", ");
+}
+
+function sqlValueTuples(count: number): string {
+  return Array.from({ length: count }, () => "(?)").join(", ");
+}
+
+function sqlStringLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 function compareStrings(left: string, right: string): number {

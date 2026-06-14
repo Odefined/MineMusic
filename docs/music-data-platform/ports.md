@@ -1,7 +1,7 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority for implemented Phase 12A
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, and the no-text retrieval read port
+> Status: Current boundary authority through implemented Phase 12B
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, and the retrieval read port
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
@@ -44,7 +44,7 @@ provider plugin implementations.
 | `createOwnerCatalogRecords` | Internal tests/later query phases | Read owner catalog entries/material rows through Music Data Platform-owned row shapes. | `src/music_data_platform/owner_catalog_records.ts` |
 | `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
 | `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
-| `createMusicDataPlatformRetrievalReadPort` | Internal Music Intelligence retrieval/tests | Run owner-visible no-text catalog query SQL, validate pool refs/cursors, and expose coarse projection freshness. | `src/music_data_platform/retrieval_read_model.ts` |
+| `createMusicDataPlatformRetrievalReadPort` | Internal Music Intelligence retrieval/tests | Run owner-visible catalog query SQL with pool/text filtering, field-aware evidence/ranking, cursor validation, and coarse projection freshness. | `src/music_data_platform/retrieval_read_model.ts` |
 | `createProjectionMaintenanceCommands` | Internal commands/tests | Plan invalidation from typed write scopes, and mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
 | `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
 | `createProjectionMaintenanceRunner` | Internal runtime/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
@@ -123,7 +123,7 @@ current `source_material_bindings` row for the same `sourceRef`.
 | `createOwnerCatalogRecords({ db })` | database context | `listOwnerMaterialEntries(...)`, `listOwnerCatalogMaterials(...)` | reads `owner_material_entries` and `owner_material_catalog_view` |
 | `createMaterialTextProjectionCommands({ db, now })` | transaction-scoped database context plus timestamp | command object with `rebuildMaterialTextDocument({ materialRef })` and `rebuildMaterialTextDocuments({ materialRefs })` | writes `material_text_documents` and `material_text_fts` only |
 | `createMaterialTextProjectionRecords({ db })` | database context | `getMaterialTextDocument({ materialRef })`, `matchMaterialTextDocuments({ text, limit? })` | reads `material_text_documents` and `material_text_fts` |
-| `createMusicDataPlatformRetrievalReadPort({ db })` | database context | `searchOwnerCatalogMaterials(...)`, `getRetrievalFreshness({ ownerScope })` | reads `owner_material_catalog_view`, `owner_material_entries`, `material_records`, `material_text_documents`, `source_libraries`, and `projection_maintenance_targets` only |
+| `createMusicDataPlatformRetrievalReadPort({ db })` | database context | `searchOwnerCatalogMaterials(...)`, `getRetrievalFreshness({ ownerScope })` | reads `owner_material_catalog_view`, `owner_material_entries`, `material_records`, `material_text_documents`, `material_text_fts`, `source_libraries`, and `projection_maintenance_targets` only |
 | `createProjectionMaintenanceRecords({ db })` | database context | `getProjectionTarget(...)`, `listPendingProjectionTargets({ limit? })` | reads `projection_maintenance_targets` |
 | `createProjectionMaintenanceRunner({ database, now })` | root database plus timestamp | runner object with `runProjectionMaintenance({ limit? })` | reads `projection_maintenance_targets`; writes `projection_maintenance_targets`, `owner_material_entries`, and `material_text_*` through owning commands |
 
@@ -149,13 +149,15 @@ targets on their own; only the runner performs rebuild plus
 `markProjectionClean(...)`.
 
 `createMusicDataPlatformRetrievalReadPort({ db })` is the first query-ready
-Music Data Platform read boundary. Phase 12A accepts only `DEFAULT_OWNER_SCOPE`
-and no-text query inputs. It validates `source_library` and
+Music Data Platform read boundary. It currently accepts only
+`DEFAULT_OWNER_SCOPE`, validates `source_library` and
 `owner_material_relation_pool` refs against current Music Data Platform truth,
-executes pool algebra and keyset pagination in SQL, left-joins normalized
-material text rows for display/debug text only, and exposes coarse
-dirty/failed freshness counts for current-owner owner-catalog targets plus
-global `material_text` targets. It does not rebuild projections or perform
+executes pool algebra, FTS-backed text filtering, field-aware ranking, and
+keyset pagination in SQL, exposes normalized display text plus matched
+pool/text evidence, and returns coarse dirty/failed freshness counts for
+current-owner owner-catalog targets plus global `material_text` targets.
+Missing material text projections are tolerated for no-text reads and simply
+cannot be recalled by text. The port does not rebuild projections or perform
 any writes.
 
 ## Library Import Service
@@ -258,8 +260,9 @@ Current guards:
   inputs.
 - retrieval read-model tests cover no-text owner-visible query behavior,
   source-library and owner-relation pool validation/algebra, blocked
-  exclusion, kind filtering, missing text tolerance, SQL keyset pagination,
-  and coarse freshness reads.
+  exclusion, kind filtering, missing text tolerance, prefix-OR text recall,
+  field-aware text evidence/ranking, SQL keyset pagination, and coarse
+  freshness reads.
 - projection maintenance tests cover schema/record/command/runner key sets,
   deterministic payload/key generation, invalidation planning from typed write
   scopes, dirty-generation increments, failure clearing, dirty/failed pending
