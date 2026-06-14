@@ -1,12 +1,11 @@
 import {
-  assertRefSafe,
-  isRefComponentSafe,
   refKey,
   type Ref,
 } from "../contracts/index.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { createDeterministicRefDigest } from "./ref_digest.js";
+import { assertMusicDataPlatformRefSafe, musicDataPlatformRefKey } from "./ref_validation.js";
 
 export type OwnerMaterialRelationKind =
   | "saved"
@@ -42,7 +41,11 @@ export function createOwnerMaterialRelationRef(
   input: CreateOwnerMaterialRelationRefInput,
 ): Ref {
   assertOwnerScope(input.ownerScope);
-  assertRefSafe(input.materialRef);
+  const materialRefKey = musicDataPlatformRefKey({
+    ref: input.materialRef,
+    fieldName: "materialRef",
+    code: "music_data.owner_material_relation_ref_invalid",
+  });
   assertOwnerMaterialRelationKind(input.relationKind);
 
   const relationRef = {
@@ -50,17 +53,25 @@ export function createOwnerMaterialRelationRef(
     kind: input.relationKind,
     id: `r_${createDeterministicRefDigest([
       input.ownerScope,
-      refKey(input.materialRef),
+      materialRefKey,
       input.relationKind,
     ])}`,
   } satisfies Ref;
 
-  assertRefSafe(relationRef);
+  assertMusicDataPlatformRefSafe({
+    ref: relationRef,
+    fieldName: "ownerMaterialRelationRef",
+    code: "music_data.owner_material_relation_ref_invalid",
+  });
   return relationRef;
 }
 
 export function assertOwnerMaterialRelationRef(ref: Ref): void {
-  assertRefSafe(ref);
+  assertMusicDataPlatformRefSafe({
+    ref,
+    fieldName: "ownerMaterialRelationRef",
+    code: "music_data.owner_material_relation_ref_invalid",
+  });
 
   if (ref.namespace !== "owner_material_relation") {
     throw invalidOwnerMaterialRelationRef(
@@ -70,7 +81,7 @@ export function assertOwnerMaterialRelationRef(ref: Ref): void {
 
   assertOwnerMaterialRelationKind(ref.kind);
 
-  if (!ref.id.startsWith("r_") || !isRefComponentSafe(ref.id)) {
+  if (!ref.id.startsWith("r_")) {
     throw invalidOwnerMaterialRelationRef(
       "Owner material relation ref id must be ref-safe and start with 'r_'.",
     );
@@ -92,12 +103,20 @@ export function createOwnerRelationPoolRef(
     ])}`,
   } satisfies Ref;
 
-  assertRefSafe(poolRef);
+  assertMusicDataPlatformRefSafe({
+    ref: poolRef,
+    fieldName: "ownerRelationPoolRef",
+    code: "music_data.owner_relation_pool_ref_invalid",
+  });
   return poolRef;
 }
 
 export function assertOwnerRelationPoolRef(ref: Ref): void {
-  assertRefSafe(ref);
+  assertMusicDataPlatformRefSafe({
+    ref,
+    fieldName: "ownerRelationPoolRef",
+    code: "music_data.owner_relation_pool_ref_invalid",
+  });
 
   if (ref.namespace !== "owner_material_relation_pool") {
     throw invalidOwnerRelationPoolRef(
@@ -107,7 +126,7 @@ export function assertOwnerRelationPoolRef(ref: Ref): void {
 
   assertOwnerRelationEntryKind(ref.kind);
 
-  if (!ref.id.startsWith("rp_") || !isRefComponentSafe(ref.id)) {
+  if (!ref.id.startsWith("rp_")) {
     throw invalidOwnerRelationPoolRef(
       "Owner relation pool ref id must be ref-safe and start with 'rp_'.",
     );

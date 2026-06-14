@@ -1,12 +1,14 @@
 import {
-  assertRefSafe,
-  isRefComponentSafe,
   type PlatformLibraryKind,
   type Ref,
 } from "../contracts/index.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { createDeterministicRefDigest } from "./ref_digest.js";
+import {
+  assertMusicDataPlatformRefComponentSafe,
+  assertMusicDataPlatformRefSafe,
+} from "./ref_validation.js";
 
 export type CreateSourceLibraryRefInput = {
   ownerScope: string;
@@ -32,12 +34,20 @@ export function createSourceLibraryRef(input: CreateSourceLibraryRefInput): Ref 
     ])}`,
   } satisfies Ref;
 
-  assertRefSafe(libraryRef);
+  assertMusicDataPlatformRefSafe({
+    ref: libraryRef,
+    fieldName: "sourceLibraryRef",
+    code: "music_data.source_library_ref_invalid",
+  });
   return libraryRef;
 }
 
 export function assertSourceLibraryRef(ref: Ref): void {
-  assertRefSafe(ref);
+  assertMusicDataPlatformRefSafe({
+    ref,
+    fieldName: "sourceLibraryRef",
+    code: "music_data.source_library_ref_invalid",
+  });
 
   if (ref.namespace !== "source_library") {
     throw invalidSourceLibraryRef("Source library ref namespace must be 'source_library'.");
@@ -45,7 +55,7 @@ export function assertSourceLibraryRef(ref: Ref): void {
 
   assertPlatformLibraryKind(ref.kind);
 
-  if (!ref.id.startsWith("l_") || !isRefComponentSafe(ref.id)) {
+  if (!ref.id.startsWith("l_")) {
     throw invalidSourceLibraryRef("Source library ref id must be ref-safe and start with 'l_'.");
   }
 }
@@ -61,9 +71,12 @@ function assertPlatformLibraryKind(value: string): asserts value is PlatformLibr
 }
 
 function assertSafeId(value: string, field: string): void {
-  if (!isRefComponentSafe(value)) {
-    throw invalidSourceLibraryRef(`${field} must be a non-empty ref-safe string.`);
-  }
+  assertMusicDataPlatformRefComponentSafe({
+    value,
+    fieldName: field,
+    code: "music_data.source_library_ref_invalid",
+    message: `${field} must be a non-empty ref-safe string.`,
+  });
 }
 
 function invalidSourceLibraryRef(message: string): MusicDataPlatformError {

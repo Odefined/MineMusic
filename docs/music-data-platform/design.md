@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority for implemented Phase 11C
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, and projection maintenance core
+> Status: Current design authority for implemented Phase 12A
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, and the no-text retrieval read port
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -12,7 +12,9 @@ material-scope owner relation facts, the internal owner catalog
 projection/read-model foundation, the owner-neutral material text
 projection/FTS foundation built from those durable facts, and the
 projection-maintenance target table/runner that tracks explicit rebuild work
-for current projections.
+for current projections. Phase 12A also adds the first query-ready
+Music Data Platform retrieval read port for owner-visible no-text catalog
+search, SQL pool algebra, keyset pagination, and coarse freshness reads.
 
 ## Core Concepts
 
@@ -34,6 +36,7 @@ for current projections.
 | `owner_material_catalog_view` | Owner catalog SQL read model. | Aggregates active positive entries by owner/material and excludes active material-scope blocked facts. |
 | `material_text_documents` | Current material-centered text document projection. | One row per active material ref; built only from current material/bound-source/confirmed-canonical facts. |
 | `material_text_fts` | SQLite FTS read model for projected material text. | Indexes `title/artist/album/version/alias` only; `search_text` remains a non-FTS stored projection column. |
+| Retrieval read port | Query-ready read boundary over owner catalog/material text/projection freshness. | No-text Phase 12A supports owner-visible pool filtering, kind filtering, `stable` / `recently_added` ordering, SQL keyset pagination, and coarse freshness only. |
 | `projection_maintenance_targets` | Current projection maintenance worklist. | One row per `projection_kind + target_key`; `status` is `dirty` or `failed` and `dirty_generation` is monotonic. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
@@ -563,6 +566,62 @@ FTS probe over projected material text. It does not implement owner catalog
 pool logic, provider candidate search, query-hit shaping, ranking, or
 presentation output.
 
+## Retrieval Read Port
+
+Phase 12A adds the first query-ready internal Music Data Platform retrieval
+read port for later Music Intelligence Retrieval:
+
+```text
+createMusicDataPlatformRetrievalReadPort({ db })
+  -> searchOwnerCatalogMaterials(...)
+  -> getRetrievalFreshness(...)
+```
+
+`searchOwnerCatalogMaterials(...)` is read-only. It does not rebuild
+projections, mark dirty targets, materialize provider candidates, or write any
+durable state.
+
+The Phase 12A base set is `owner_material_catalog_view` for one owner scope.
+The port applies SQL-owned:
+
+- owner-visible blocked exclusion through the catalog view;
+- `materialKind` filtering;
+- pool algebra over `source_library` and `owner_material_relation_pool` refs;
+- `stable` and `recently_added` ordering;
+- SQL keyset pagination;
+- matched positive pool evidence per row.
+
+Pool filters are validated against current Music Data Platform truth before the
+query runs. `source_library` pool refs must exist and belong to the requested
+owner scope. `owner_material_relation_pool` refs must match the requested
+owner scope and only support positive relation kinds currently projected into
+the owner catalog.
+
+For Phase 12A, the read port supports only `DEFAULT_OWNER_SCOPE` and rejects:
+
+- non-default owner scopes;
+- any non-empty `text`;
+- `order = text_relevance`;
+- `cursorPosition.order = text_relevance`.
+
+Text rows are not yet part of query membership. Phase 12A left-joins
+`material_text_documents` only to surface normalized projection text for
+display/debug follow-up. Missing text documents are tolerated and return empty
+strings. Returned text fields are the current normalized projection text, not
+raw provider casing.
+
+`matchedTextFields` is always `[]` in Phase 12A. `matchedTextTokensByField`,
+`matchedTokenCount`, and `rankScore` remain absent until text-query
+integration.
+
+`getRetrievalFreshness({ ownerScope })` is a coarse read over
+`projection_maintenance_targets`. It counts:
+
+- current-owner `owner_catalog_*` dirty/failed targets;
+- global `material_text` dirty/failed targets.
+
+It does not rebuild anything and does not compute per-material freshness.
+
 ## Projection Maintenance Core
 
 Phase 11C implements a typed internal projection-maintenance worklist plus
@@ -668,10 +727,11 @@ collections, rewrite projections, or touch presentation history.
 - Collection membership;
 - public Stage Interface import tools;
 - update baselines and removed-from-library reconciliation;
-- local pool query, owner-scoped/public query, and query result shaping;
+- public owner-scoped query surfaces, text query integration, and query result
+  shaping beyond the Phase 12A no-text read port;
 - Collection source-of-truth writes and additional owner catalog producers
   beyond source-library and owner-relation;
-- query/retrieval/ranking;
+- Music Intelligence Retrieval service and ranking;
 - provider execution or provider config;
 - Stage Interface tools or public DTOs;
 - background scheduling or automatic rebuild orchestration;

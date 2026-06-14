@@ -1,9 +1,6 @@
-import {
-  isRefComponentSafe,
-  type MaterialEntityKind,
-  type Ref,
-} from "../contracts/index.js";
+import { type MaterialEntityKind, type Ref } from "../contracts/index.js";
 import { MusicDataPlatformError } from "./errors.js";
+import { assertMusicDataPlatformRefComponentSafe } from "./ref_validation.js";
 
 export function assertMaterialRef(ref: Ref): asserts ref is Ref & {
   namespace: "material";
@@ -14,11 +11,12 @@ export function assertMaterialRef(ref: Ref): asserts ref is Ref & {
     ["kind", ref.kind],
     ["id", ref.id],
   ] as const) {
-    if (!isRefComponentSafe(value)) {
-      throw invalidMaterialRef(
-        `Material ref ${field} must be a non-empty ref-safe string.`,
-      );
-    }
+    assertMusicDataPlatformRefComponentSafe({
+      value,
+      fieldName: `materialRef.${field}`,
+      code: "music_data.material_ref_invalid",
+      message: `Material ref ${field} must be a non-empty ref-safe string.`,
+    });
   }
 
   if (ref.namespace !== "material" || !isMaterialEntityKind(ref.kind)) {

@@ -1,5 +1,4 @@
 import {
-  isRefComponentSafe,
   refKey,
   type Ref,
 } from "../contracts/index.js";
@@ -12,6 +11,10 @@ import {
   type OwnerMaterialRelationKind,
 } from "./owner_material_relation_ref.js";
 import { DEFAULT_OWNER_SCOPE, assertOwnerScope } from "./owner_scope.js";
+import {
+  assertMusicDataPlatformRefSafe,
+  musicDataPlatformRefKey,
+} from "./ref_validation.js";
 import { assertSourceLibraryRef } from "./source_library_ref.js";
 
 export type ProjectionMaintenanceKind =
@@ -622,17 +625,11 @@ function materialRefFromEntityJson(entityJson: string): Ref {
 }
 
 function assertSafeRef(ref: Ref, fieldName: string): void {
-  for (const [componentName, value] of [
-    ["namespace", ref.namespace],
-    ["kind", ref.kind],
-    ["id", ref.id],
-  ] as const) {
-    if (!isRefComponentSafe(value)) {
-      throw invalidProjectionMaintenanceTarget(
-        `Projection maintenance ${fieldName}.${componentName} must be a non-empty ref-safe string.`,
-      );
-    }
-  }
+  assertMusicDataPlatformRefSafe({
+    ref,
+    fieldName: `Projection maintenance ${fieldName}`,
+    code: "music_data.projection_maintenance_target_invalid",
+  });
 }
 
 function assertProjectionMaintenanceTargetKey(targetKey: string): void {
@@ -708,7 +705,11 @@ function refFromPayload(value: unknown, fieldName: string): Ref {
     id: requireStringField(payload.id, `${fieldName}.id`),
   } satisfies RefPayload;
 
-  refKey(ref);
+  musicDataPlatformRefKey({
+    ref,
+    fieldName: `Projection maintenance ${fieldName}`,
+    code: "music_data.projection_maintenance_target_invalid",
+  });
   return ref;
 }
 

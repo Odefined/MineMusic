@@ -1,10 +1,10 @@
 import {
-  assertRefSafe,
   refKey,
   type Ref,
 } from "../contracts/index.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
+import { assertMaterialRef } from "./material_ref.js";
 import {
   assertOwnerMaterialRelationKind,
   assertOwnerMaterialRelationOrigin,
@@ -15,6 +15,7 @@ import {
   type OwnerMaterialRelationStatus,
 } from "./owner_material_relation_ref.js";
 import { assertOwnerScope } from "./owner_scope.js";
+import { musicDataPlatformRefKey } from "./ref_validation.js";
 
 export type OwnerMaterialRelationRecord = {
   relationRef: Ref;
@@ -78,7 +79,7 @@ export function createOwnerMaterialRelationRecords(
   return {
     getOwnerMaterialRelation(readInput) {
       assertOwnerScope(readInput.ownerScope);
-      assertRefSafe(readInput.materialRef);
+      assertMaterialRef(readInput.materialRef);
       assertOwnerMaterialRelationKind(readInput.relationKind);
 
       const row = db.get<OwnerMaterialRelationRow>(
@@ -103,7 +104,7 @@ export function createOwnerMaterialRelationRecords(
       assertOwnerMaterialRelationStatus(status);
 
       if (readInput.materialRef !== undefined) {
-        assertRefSafe(readInput.materialRef);
+        assertMaterialRef(readInput.materialRef);
       }
 
       if (readInput.relationKinds !== undefined) {
@@ -158,6 +159,7 @@ function ownerMaterialRelationFromRow(row: OwnerMaterialRelationRow): OwnerMater
   assertOwnerMaterialRelationRef(relationRef);
 
   const materialRef = parseStoredRef(row.material_ref_json, row.material_ref_key);
+  assertMaterialRef(materialRef);
 
   return {
     relationRef,
@@ -176,9 +178,13 @@ function ownerMaterialRelationFromRow(row: OwnerMaterialRelationRow): OwnerMater
 
 function parseStoredRef(json: string, storedRefKey: string): Ref {
   const parsed = JSON.parse(json) as Ref;
-  assertRefSafe(parsed);
+  const parsedRefKey = musicDataPlatformRefKey({
+    ref: parsed,
+    fieldName: "storedRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
 
-  if (refKey(parsed) !== storedRefKey) {
+  if (parsedRefKey !== storedRefKey) {
     throw new MusicDataPlatformError({
       code: "music_data.record_ref_key_mismatch",
       message: "Stored ref key does not match the parsed ref JSON value.",

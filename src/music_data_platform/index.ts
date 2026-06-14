@@ -154,6 +154,22 @@ export type {
   ProjectionMaintenanceRecords,
   ProjectionMaintenanceTargetRecord,
 } from "./projection_maintenance_records.js";
+export {
+  createMusicDataPlatformRetrievalReadPort,
+} from "./retrieval_read_model.js";
+export type {
+  CreateMusicDataPlatformRetrievalReadPortInput,
+  MusicDataPlatformRetrievalMaterialRow,
+  MusicDataPlatformRetrievalReadPort,
+  MusicDataPlatformRetrievalSearchInput,
+  MusicDataPlatformRetrievalSearchPage,
+  RetrievalFreshness,
+  RetrievalMatchedTextTokenEvidence,
+  RetrievalOrder,
+  RetrievalReadCursorPosition,
+  RetrievalReadPoolFilter,
+  RetrievalTextField,
+} from "./retrieval_read_model.js";
 export type {
   OwnerMaterialRelationCommands,
   RecordOwnerMaterialRelationInput,
