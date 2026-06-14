@@ -19,6 +19,11 @@ import {
 import type { RuntimeModule } from "../stage_core/index.js";
 import type { MineMusicRuntimeConfig } from "./config.js";
 import { mineMusicDatabaseFilename } from "./config.js";
+import {
+  createProjectionMaintenanceScheduler,
+  type ProjectionMaintenanceScheduler,
+  type ProjectionMaintenanceSchedulerDependencies,
+} from "./projection_maintenance_scheduler.js";
 
 export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
@@ -28,7 +33,9 @@ export type CreateMusicDataPlatformRuntimeModuleInput = {
   extensionRuntime: ExtensionRuntime;
   config?: MineMusicRuntimeConfig;
   database?: MusicDatabase;
+  databaseFactory?: () => MusicDatabase;
   materialRefFactory?: MaterialRefFactory;
+  projectionMaintenanceSchedulerDependencies?: Partial<ProjectionMaintenanceSchedulerDependencies<unknown>>;
 };
 
 export function createMusicDataPlatformRuntimeModule(
@@ -36,6 +43,7 @@ export function createMusicDataPlatformRuntimeModule(
 ): MusicDataPlatformRuntimeModule {
   let database: MusicDatabase | undefined;
   let sourceLibraryImportService: SourceLibraryImportService | undefined;
+  let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
   const ownsDatabase = input.database === undefined;
 
   return {
@@ -46,7 +54,7 @@ export function createMusicDataPlatformRuntimeModule(
     },
     async initialize() {
       try {
-        database = input.database ?? SqliteMusicDatabase.open({
+        database = input.database ?? input.databaseFactory?.() ?? SqliteMusicDatabase.open({
           filename: mineMusicDatabaseFilename(input.config),
         });
         database.initialize({
@@ -71,12 +79,24 @@ export function createMusicDataPlatformRuntimeModule(
             ? {}
             : { defaultLimit: input.config.sourceLibraryImport.defaultLimit }),
         });
+        projectionMaintenanceScheduler = createProjectionMaintenanceScheduler({
+          database,
+          ...(input.config?.projectionMaintenance === undefined
+            ? {}
+            : { config: input.config.projectionMaintenance }),
+          ...(input.projectionMaintenanceSchedulerDependencies === undefined
+            ? {}
+            : { dependencies: input.projectionMaintenanceSchedulerDependencies }),
+        });
+        projectionMaintenanceScheduler.start();
 
         return {
           ok: true,
           value: {},
         };
       } catch (cause) {
+        projectionMaintenanceScheduler = undefined;
+        sourceLibraryImportService = undefined;
         closeOwnedDatabase();
         return {
           ok: false,
@@ -92,6 +112,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     async stop() {
       try {
+        const scheduler = projectionMaintenanceScheduler;
+        projectionMaintenanceScheduler = undefined;
+        await scheduler?.stop();
         closeOwnedDatabase();
         sourceLibraryImportService = undefined;
 

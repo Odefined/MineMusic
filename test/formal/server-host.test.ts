@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 
 import { createMineMusicExtensionRuntime, createServerHost } from "../../src/server/index.js";
 
-const host = createServerHost();
+const host = createServerHost({
+  config: {
+    projectionMaintenance: {
+      enabled: false,
+    },
+  },
+});
 
 assert.equal(host.snapshot().status, "created");
 assert.equal(host.snapshot().interfaceContract.tools.length, 0);

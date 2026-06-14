@@ -14,6 +14,7 @@ const testModules = [
   "./formal/music-data-platform-retrieval-read-model.test.js",
   "./formal/music-intelligence-retrieval.test.js",
   "./formal/server-projection-maintenance-scheduler.test.js",
+  "./formal/server-music-data-platform-runtime-module.test.js",
   "./formal/stage-runtime.test.js",
   "./formal/server-host.test.js",
 ];

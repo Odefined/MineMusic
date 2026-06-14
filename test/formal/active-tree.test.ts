@@ -371,6 +371,22 @@ assert.deepEqual(
   "Projection Maintenance scheduler helper must depend only on Server Host policy, Music Data Platform public runner access, and Storage public database types",
 );
 
+const musicDataPlatformRuntimeModuleText = await readFile(
+  join(repositoryRoot, "src/server/music_data_platform_runtime_module.ts"),
+  "utf8",
+);
+assert.equal(
+  musicDataPlatformRuntimeModuleText.includes("createProjectionMaintenanceRunner"),
+  false,
+  "Music Data Platform runtime module must compose the scheduler helper and must not reference the Projection Maintenance runner directly",
+);
+assert.equal(
+  musicDataPlatformRuntimeModuleText.includes('from "./projection_maintenance_scheduler.js"')
+    || musicDataPlatformRuntimeModuleText.includes("from './projection_maintenance_scheduler.js'"),
+  true,
+  "Music Data Platform runtime module must compose the Projection Maintenance scheduler helper through the local Server Host boundary",
+);
+
 const extensionImportFailures: string[] = [];
 for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension"))) {
   const text = await readFile(file, "utf8");
