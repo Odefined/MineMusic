@@ -699,6 +699,28 @@ public Stage Interface query tool:
   fingerprint behavior, decoded cursor pass-through, hit shaping, freshness
   passthrough, and active-tree boundary guards.
 
+## 2026-06-14: Phase 13 Projection Maintenance Runtime Orchestration
+
+Phase 13 completes Projection Maintenance runtime ownership as three PR slices:
+
+- PR13A adds `src/server/projection_maintenance_scheduler.ts` as the internal
+  Server Host helper for config normalization, immediate and interval ticks,
+  in-flight guard, graceful stop, and runtime-only snapshot behavior;
+- PR13B wires that helper into
+  `src/server/music_data_platform_runtime_module.ts`, so automatic background
+  maintenance starts after database/schema initialization and stops before the
+  owned database closes;
+- PR13C adds the end-to-end closure check that a source-of-truth write can
+  dirty owner-catalog/material-text targets, retrieval freshness reports
+  stale, the scheduler tick rebuilds and cleans those targets, and retrieval
+  freshness plus retrieval results observe the rebuilt state afterward;
+- active-tree guards now confine `createProjectionMaintenanceRunner(...)` to
+  the Music Data Platform runner implementation, the Music Data Platform public
+  barrel, the Server Host scheduler helper, and focused tests;
+- runtime ownership remains clean: import, retrieval, provider, Stage
+  Interface, presentation, and Music Intelligence code still cannot call the
+  runner directly or perform projection rebuild writes.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

@@ -1,6 +1,6 @@
 # Phase 13 Projection Maintenance Runtime Orchestration
 
-> Status: Draft under discussion
+> Status: Implemented through PR13A, PR13B, and PR13C
 > Phase owner: Server Host / Runtime Orchestration and Music Data Platform /
 > Projection Maintenance
 > Output type: runtime policy for background projection maintenance execution

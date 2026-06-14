@@ -83,11 +83,14 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Integration, and PR 12C Music Intelligence Retrieval Service; PR12A/12B/12C
   are implemented.
 - `docs/formal-rebuild/phase-13-projection-maintenance-runtime-orchestration.md`:
-  draft Phase 13 spec for Server Host background Projection Maintenance runner
-  scheduling, batch policy, lifecycle, and diagnostics boundaries.
+  implemented Phase 13 spec for Server Host background Projection
+  Maintenance runner scheduling, batch policy, lifecycle, runtime-module
+  ownership, and diagnostics boundaries; PR13A, PR13B, and PR13C are
+  implemented.
 - `docs/formal-rebuild/phase-13-projection-maintenance-runtime-orchestration-implementation-plan.md`:
-  draft Phase 13 execution plan split into PR 13A scheduler helper, PR 13B
-  runtime module integration, and PR 13C freshness closure integration.
+  implemented Phase 13 execution plan split into PR 13A scheduler helper,
+  PR 13B runtime module integration, and PR 13C freshness closure
+  integration; PR13A/13B/13C are implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

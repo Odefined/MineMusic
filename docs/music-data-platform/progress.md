@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 12B text-integrated retrieval read port
+> Status: Implemented through Phase 13C runtime-integrated projection maintenance and retrieval freshness closure
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -206,6 +206,14 @@
 - Stale rebuild attempts do not clear newer work: generation-aware clean/fail
   calls leave a newer dirty row pending when the target is remarked during the
   same run.
+- `src/server/projection_maintenance_scheduler.ts` now consumes the Projection
+  Maintenance runner through the Music Data Platform public barrel only, so
+  automatic background maintenance stays a Server Host runtime responsibility
+  instead of leaking into imports, retrieval, or Stage Interface workflows.
+- focused runtime-module integration now covers the full freshness closure:
+  source-of-truth write -> dirty target -> retrieval freshness stale ->
+  scheduler tick -> dirty target cleaned -> retrieval freshness current ->
+  retrieval read sees rebuilt projection data.
 - Mixed source-library plus owner-relation catalog rows preserve both
   provenance objects and keep source-library added-time priority over owner
   relation update time.
@@ -274,8 +282,8 @@ Out of the current Music Data Platform implementation:
 - provider execution and provider config;
 - update baselines and removed-from-library reconciliation;
 - public owner-scoped query surfaces and presentation;
-- background scheduler/worker orchestration and automatic projection refresh
-  policy;
+- multi-process worker coordination, scheduler wake signals, retry backoff,
+  and public maintenance controls;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction
   fact families;
 - public Stage Interface import tools;
