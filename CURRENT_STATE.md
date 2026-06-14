@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 12B of a same-repo formal rebuild. The active
+MineMusic has completed Phase 12C of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -31,7 +31,9 @@ first query-ready Music Data Platform retrieval read port for owner-visible
 catalog queries, SQL pool algebra, keyset pagination, and coarse projection
 freshness reads. Phase 12B extends that same read port with FTS-backed text
 recall, field-aware text evidence/ranking, and `text_relevance` keyset
-pagination.
+pagination. Phase 12C adds the first internal Music Intelligence Retrieval
+query service with input normalization, opaque cursor ownership, query
+fingerprinting, read-port calls, and compact retrieval hit evidence.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -328,6 +330,16 @@ Phase 12 retrieval-read vocabulary includes:
 - `music_data.retrieval_read_invalid` for Music Data Platform retrieval
   read-port validation.
 
+Phase 12C Music Intelligence Retrieval vocabulary includes:
+
+- `createRetrievalQueryService({ readPort })`;
+- `RetrievalQueryService.query(input)`;
+- `RetrievalQueryInput`, `RetrievalQueryResult`, and `RetrievalQueryHit`;
+- `RetrievalPoolFilter` with `allOf`, `anyOf`, and `noneOf`;
+- opaque versioned Retrieval cursors with query fingerprints;
+- `MusicIntelligenceError` with retrieval query, cursor, cursor mismatch, and
+  retrieval result invariant codes.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -443,7 +455,17 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_data_platform/retrieval_read_model.ts` owns the internal
   query-ready Music Data Platform retrieval read port for owner-visible
   catalog search, text evidence/ranking, and coarse freshness;
-- `src/music_data_platform/index.ts` owns Music Data Platform public exports.
+- `src/music_data_platform/index.ts` owns Music Data Platform public exports;
+- `src/music_intelligence/errors.ts` owns Music Intelligence area errors;
+- `src/music_intelligence/retrieval/contracts.ts` owns Retrieval query
+  contracts;
+- `src/music_intelligence/retrieval/query_normalization.ts` owns effective
+  query normalization and fingerprint inputs;
+- `src/music_intelligence/retrieval/cursor.ts` owns opaque cursor
+  encode/decode;
+- `src/music_intelligence/retrieval/query_service.ts` owns the internal
+  Retrieval query service over the Music Data Platform retrieval read port;
+- `src/music_intelligence/index.ts` owns Music Intelligence public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
 through Server Host, mounts a configured Extension runtime module by default,
@@ -504,6 +526,10 @@ restored as compatibility layers.
   area docs for identity, source-library import, owner material relation,
   owner catalog projection, material text projection, projection
   maintenance core, and the Phase 12B retrieval read port.
+- `docs/music-intelligence/README.md`, `docs/music-intelligence/design.md`,
+  `docs/music-intelligence/ports.md`, and
+  `docs/music-intelligence/progress.md` are the current Music Intelligence
+  area docs for the Phase 12C Retrieval query service.
 - `docs/formal-rebuild/phase-6-source-provider-slot.md` records the
   implemented Phase 6 Source Provider Slot search spec.
 - `docs/formal-rebuild/phase-6-source-provider-slot-implementation-plan.md`
@@ -551,8 +577,7 @@ Current formal state does not implement:
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
 - MCP/HTTP transport;
-- Music Intelligence Retrieval service and query hit shaping;
-- query hit public output shape;
+- public query hit output shape;
 - query-to-present flow;
 - final `MaterialCard` key set;
 - update baselines, removed-from-library reconciliation, collection,

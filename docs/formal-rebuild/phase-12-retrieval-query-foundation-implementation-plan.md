@@ -1,6 +1,6 @@
 # Phase 12 Retrieval Query Foundation Implementation Plan
 
-> Status: Draft execution plan
+> Status: Implemented through PR12C
 > Spec: `phase-12-retrieval-query-foundation.md`
 > Owning bounded contexts: Music Data Platform / Retrieval Read Model,
 > Music Intelligence / Retrieval

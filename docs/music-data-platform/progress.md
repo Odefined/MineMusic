@@ -273,8 +273,7 @@ Out of the current Music Data Platform implementation:
 - Collection membership and Collection source-of-truth writes;
 - provider execution and provider config;
 - update baselines and removed-from-library reconciliation;
-- Music Intelligence Retrieval service, public owner-scoped query surfaces, and
-  presentation;
+- public owner-scoped query surfaces and presentation;
 - background scheduler/worker orchestration and automatic projection refresh
   policy;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction

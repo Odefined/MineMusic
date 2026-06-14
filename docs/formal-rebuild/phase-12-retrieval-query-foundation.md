@@ -1,6 +1,6 @@
 # Phase 12 Retrieval Query Foundation
 
-> Status: Draft under discussion
+> Status: Implemented through PR12C
 > Phase owner: Music Intelligence / Retrieval, with Music Data Platform read
 > support
 > Output type: internal retrieval query service and query-ready Music Data
