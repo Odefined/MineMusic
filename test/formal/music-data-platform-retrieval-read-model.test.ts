@@ -629,6 +629,9 @@ const versionOnlySource = sourceTrackWith("4105", "quiet dusk", {
 const aliasSource = sourceTrack("4106", "silent sky");
 const operatorSource = sourceTrack("4107", "or live");
 const missingProjectionSource = sourceTrack("4108", "forgotten plainsong");
+const accentSource = sourceTrack("4109", "café del mar");
+const naiveSource = sourceTrack("4110", "naïve art");
+const underscoreSource = sourceTrack("4111", "foo_bar baz");
 const multiTokenMaterialRef = materialRef("recording", "m_text_multi");
 const singleTokenMaterialRef = materialRef("recording", "m_text_single");
 const titlePriorityMaterialRef = materialRef("recording", "m_text_title");
@@ -637,6 +640,9 @@ const versionOnlyMaterialRef = materialRef("recording", "m_text_version");
 const aliasMaterialRef = materialRef("recording", "m_text_alias");
 const operatorMaterialRef = materialRef("recording", "m_text_operator");
 const missingProjectionMaterialRef = materialRef("recording", "m_text_missing");
+const accentMaterialRef = materialRef("recording", "m_text_accent");
+const naiveMaterialRef = materialRef("recording", "m_text_naive");
+const underscoreMaterialRef = materialRef("recording", "m_text_underscore");
 
 textQueryDatabase.transaction((db) => {
   const identity = createIdentityTestCommands(db, "2026-06-14T04:00:00.000Z");
@@ -650,6 +656,9 @@ textQueryDatabase.transaction((db) => {
   bindSourceToMaterial(identity, aliasSource, aliasMaterialRef);
   bindSourceToMaterial(identity, operatorSource, operatorMaterialRef);
   bindSourceToMaterial(identity, missingProjectionSource, missingProjectionMaterialRef);
+  bindSourceToMaterial(identity, accentSource, accentMaterialRef);
+  bindSourceToMaterial(identity, naiveSource, naiveMaterialRef);
+  bindSourceToMaterial(identity, underscoreSource, underscoreMaterialRef);
 
   identity.upsertCanonicalRecord({
     entity: canonicalEntity("text-alias", "Alias Canonical", {
@@ -671,10 +680,13 @@ textQueryDatabase.transaction((db) => {
   upsertLibraryItem(libraries, textLibraryRef, aliasSource.sourceRef, "2026-06-14T04:06:00.000Z");
   upsertLibraryItem(libraries, textLibraryRef, operatorSource.sourceRef, "2026-06-14T04:07:00.000Z");
   upsertLibraryItem(libraries, textLibraryRef, missingProjectionSource.sourceRef, "2026-06-14T04:08:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, accentSource.sourceRef, "2026-06-14T04:09:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, naiveSource.sourceRef, "2026-06-14T04:10:00.000Z");
+  upsertLibraryItem(libraries, textLibraryRef, underscoreSource.sourceRef, "2026-06-14T04:11:00.000Z");
 
   createOwnerCatalogProjectionCommands({
     db,
-    now: "2026-06-14T04:10:00.000Z",
+    now: "2026-06-14T04:12:00.000Z",
   }).rebuildSourceLibraryEntriesForLibrary({
     ownerScope: DEFAULT_OWNER_SCOPE,
     libraryRef: textLibraryRef,
@@ -682,7 +694,7 @@ textQueryDatabase.transaction((db) => {
 
   const textCommands = createMaterialTextProjectionCommands({
     db,
-    now: "2026-06-14T04:11:00.000Z",
+    now: "2026-06-14T04:13:00.000Z",
   });
   for (const materialRefValue of [
     multiTokenMaterialRef,
@@ -692,6 +704,9 @@ textQueryDatabase.transaction((db) => {
     versionOnlyMaterialRef,
     aliasMaterialRef,
     operatorMaterialRef,
+    accentMaterialRef,
+    naiveMaterialRef,
+    underscoreMaterialRef,
   ]) {
     textCommands.rebuildMaterialTextDocument({
       materialRef: materialRefValue,
@@ -808,6 +823,51 @@ assert.deepEqual(
   operatorSafePage.rows.map((row) => refKey(row.materialRef)),
   [refKey(operatorMaterialRef)],
 );
+
+const accentInsensitivePage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "cafe",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.deepEqual(
+  accentInsensitivePage.rows.map((row) => refKey(row.materialRef)),
+  [refKey(accentMaterialRef)],
+);
+assert.deepEqual(requiredRow(accentInsensitivePage, 0).matchedTextTokensByField, [{
+  field: "title",
+  tokens: ["cafe"],
+}]);
+
+const naiveAccentPage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "naive",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.deepEqual(
+  naiveAccentPage.rows.map((row) => refKey(row.materialRef)),
+  [refKey(naiveMaterialRef)],
+);
+assert.deepEqual(requiredRow(naiveAccentPage, 0).matchedTextTokensByField, [{
+  field: "title",
+  tokens: ["naive"],
+}]);
+
+const underscorePage = textQueryReadPort.searchOwnerCatalogMaterials({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "bar",
+  order: "text_relevance",
+  limit: 10,
+});
+assert.deepEqual(
+  underscorePage.rows.map((row) => refKey(row.materialRef)),
+  [refKey(underscoreMaterialRef)],
+);
+assert.deepEqual(requiredRow(underscorePage, 0).matchedTextTokensByField, [{
+  field: "title",
+  tokens: ["bar"],
+}]);
 
 const missingProjectionTextPage = textQueryReadPort.searchOwnerCatalogMaterials({
   ownerScope: DEFAULT_OWNER_SCOPE,
@@ -1017,7 +1077,7 @@ assert.throws(
     limit: 10,
     cursorPosition: {
       order: "recently_added",
-      recentlyAddedAt: "not-a-date",
+      recentlyAddedAt: "June 14, 2026",
       materialRefKey: refKey(materialRef("recording", "cursor_bad")),
     },
   }),
