@@ -8,6 +8,11 @@ export type MineMusicRuntimeConfig = {
   database?: {
     filename?: string;
   };
+  projectionMaintenance?: {
+    enabled?: boolean;
+    intervalMs?: number;
+    batchLimit?: number;
+  };
   sourceLibraryImport?: {
     defaultLimit?: number;
   };
