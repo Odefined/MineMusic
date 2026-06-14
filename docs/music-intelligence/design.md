@@ -34,8 +34,11 @@ The effective query supports:
 - `text_relevance`, `recently_added`, or `stable` ordering;
 - keyset pagination through opaque cursors.
 
-Retrieval normalizes text only for query echo and cursor fingerprinting:
-`NFKC`, trim, lowercase, and whitespace collapse. SQL-facing tokenization,
+Retrieval normalizes text for query echo and cursor fingerprinting with
+`NFKC`, trim, lowercase, whitespace collapse, and a minimal
+`prefix_or_v1` token-presence check. Text that has no usable prefix token,
+such as punctuation-only input, is treated as absent text before Retrieval
+chooses its effective order or fingerprints the query. SQL-facing tokenization,
 prefix-OR FTS construction, field-aware ranking, pool algebra, ordering, and
 typed keyset positions remain owned by Music Data Platform.
 

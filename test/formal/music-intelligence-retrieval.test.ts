@@ -6,6 +6,8 @@ import {
 import type {
   MaterialEntityKind,
   Ref,
+  SourceEntity,
+  SourceTrack,
 } from "../../src/contracts/index.js";
 import {
   DEFAULT_RETRIEVAL_LIMIT,
@@ -20,6 +22,20 @@ import {
   type RetrievalQueryResult,
   type RetrievalQueryService,
 } from "../../src/music_intelligence/index.js";
+import {
+  DEFAULT_OWNER_SCOPE,
+  createMaterialTextProjectionCommands,
+  createMusicDataPlatformRetrievalReadPort,
+  createOwnerCatalogProjectionCommands,
+  createSourceLibraryRef,
+  musicDataPlatformIdentitySchema,
+  musicDataPlatformMaterialTextProjectionSchema,
+  musicDataPlatformOwnerCatalogEntriesSchema,
+  musicDataPlatformOwnerCatalogViewSchema,
+  musicDataPlatformOwnerRelationSchema,
+  musicDataPlatformProjectionMaintenanceSchema,
+  musicDataPlatformSourceLibrarySchema,
+} from "../../src/music_data_platform/index.js";
 import type {
   MusicDataPlatformRetrievalMaterialRow,
   MusicDataPlatformRetrievalReadPort,
@@ -28,6 +44,10 @@ import type {
   RetrievalFreshness,
   RetrievalReadCursorPosition,
 } from "../../src/music_data_platform/index.js";
+import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
+import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
+import { SqliteMusicDatabase } from "../../src/storage/index.js";
+import { createRecordingProjectionInvalidationCommands } from "./helpers/projection-invalidation.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,
@@ -149,6 +169,30 @@ assert.deepEqual(normalizedEmptyHarness.searchInputs, [{
 assertMusicIntelligenceError(
   () => normalizedEmptyHarness.service.query({
     text: "   ",
+    order: "text_relevance",
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+
+const droppedTextHarness = createReadPortHarness([{
+  rows: [],
+}]);
+const droppedTextResult = droppedTextHarness.service.query({
+  text: "--- !!!",
+  limit: 3,
+});
+assert.deepEqual(droppedTextHarness.searchInputs, [{
+  ownerScope: "local",
+  order: "recently_added",
+  limit: 3,
+}]);
+assert.deepEqual(droppedTextResult.query, {
+  ownerScope: "local",
+  order: "recently_added",
+});
+assertMusicIntelligenceError(
+  () => droppedTextHarness.service.query({
+    text: "--- !!!",
     order: "text_relevance",
   }),
   "music_intelligence.retrieval_query_invalid",
@@ -620,6 +664,151 @@ assertMusicIntelligenceError(
   "music_intelligence.retrieval_result_invalid",
 );
 
+const integrationDatabase = initializedDatabase();
+const integrationLibraryRef = mdpSourceLibraryRef(
+  DEFAULT_OWNER_SCOPE,
+  "7601",
+  "saved_source_track",
+);
+const integrationAccentSource = sourceTrackEntity("7601", "café del mar");
+const integrationLiltSourceOne = sourceTrackEntity("7602", "lilt horizon");
+const integrationLiltSourceTwo = sourceTrackEntity("7603", "lilt night");
+const integrationAccentMaterialRef = materialRef("recording", "m_integration_accent");
+const integrationLiltMaterialRefOne = materialRef("recording", "m_integration_lilt_1");
+const integrationLiltMaterialRefTwo = materialRef("recording", "m_integration_lilt_2");
+
+integrationDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-14T06:00:00.000Z");
+  const libraries = createSourceLibraryRepositories({ db });
+
+  bindSourceToMaterial(identity, integrationAccentSource, integrationAccentMaterialRef);
+  bindSourceToMaterial(identity, integrationLiltSourceOne, integrationLiltMaterialRefOne);
+  bindSourceToMaterial(identity, integrationLiltSourceTwo, integrationLiltMaterialRefTwo);
+  upsertActualLibrary(
+    libraries,
+    integrationLibraryRef,
+    DEFAULT_OWNER_SCOPE,
+    "7601",
+    "saved_source_track",
+  );
+  upsertActualLibraryItem(
+    libraries,
+    integrationLibraryRef,
+    integrationAccentSource.sourceRef,
+    "2026-06-14T06:01:00.000Z",
+  );
+  upsertActualLibraryItem(
+    libraries,
+    integrationLibraryRef,
+    integrationLiltSourceOne.sourceRef,
+    "2026-06-14T06:02:00.000Z",
+  );
+  upsertActualLibraryItem(
+    libraries,
+    integrationLibraryRef,
+    integrationLiltSourceTwo.sourceRef,
+    "2026-06-14T06:03:00.000Z",
+  );
+  createOwnerCatalogProjectionCommands({
+    db,
+    now: "2026-06-14T06:04:00.000Z",
+  }).rebuildSourceLibraryEntriesForLibrary({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    libraryRef: integrationLibraryRef,
+  });
+  const textCommands = createMaterialTextProjectionCommands({
+    db,
+    now: "2026-06-14T06:05:00.000Z",
+  });
+  textCommands.rebuildMaterialTextDocument({ materialRef: integrationAccentMaterialRef });
+  textCommands.rebuildMaterialTextDocument({ materialRef: integrationLiltMaterialRefOne });
+  textCommands.rebuildMaterialTextDocument({ materialRef: integrationLiltMaterialRefTwo });
+});
+
+const integrationService = createRetrievalQueryService({
+  readPort: createMusicDataPlatformRetrievalReadPort({
+    db: integrationDatabase.context(),
+  }),
+});
+
+const integrationAccentResult = integrationService.query({
+  text: "cafe",
+  limit: 10,
+});
+assert.deepEqual(integrationAccentResult.query, {
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "cafe",
+  order: "text_relevance",
+});
+assert.deepEqual(
+  integrationAccentResult.hits.map((hit) => refKey(hit.materialRef)),
+  [refKey(integrationAccentMaterialRef)],
+);
+assert.equal(integrationAccentResult.hits[0]?.rankScore?.kind, "fts_bm25");
+assert.deepEqual(integrationAccentResult.hits[0]?.matchedText, {
+  fields: ["title"],
+  tokensByField: [{
+    field: "title",
+    tokens: ["cafe"],
+  }],
+  summary: "title matched cafe",
+});
+
+const integrationTextPageOne = integrationService.query({
+  text: "lilt",
+  limit: 1,
+});
+assert.equal(typeof integrationTextPageOne.page.nextCursor, "string");
+const integrationNextCursor = integrationTextPageOne.page.nextCursor;
+if (integrationNextCursor === undefined) {
+  throw new Error("Expected integration text query to expose a continuation cursor.");
+}
+const integrationTextPageTwo = integrationService.query({
+  text: "lilt",
+  limit: 1,
+  cursor: integrationNextCursor,
+});
+assert.equal(integrationTextPageOne.hits.length, 1);
+assert.equal(integrationTextPageTwo.hits.length, 1);
+assert.notEqual(
+  refKey(integrationTextPageOne.hits[0]?.materialRef ?? materialRef("recording", "missing")),
+  refKey(integrationTextPageTwo.hits[0]?.materialRef ?? materialRef("recording", "missing")),
+);
+assert.deepEqual(
+  [
+    refKey(integrationTextPageOne.hits[0]?.materialRef ?? materialRef("recording", "missing")),
+    refKey(integrationTextPageTwo.hits[0]?.materialRef ?? materialRef("recording", "missing")),
+  ].sort(),
+  [
+    refKey(integrationLiltMaterialRefOne),
+    refKey(integrationLiltMaterialRefTwo),
+  ].sort(),
+);
+
+const integrationDroppedTextResult = integrationService.query({
+  text: "--- !!!",
+  limit: 2,
+});
+assert.deepEqual(integrationDroppedTextResult.query, {
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  order: "recently_added",
+});
+assert.deepEqual(
+  integrationDroppedTextResult.hits.map((hit) => refKey(hit.materialRef)),
+  [
+    refKey(integrationLiltMaterialRefTwo),
+    refKey(integrationLiltMaterialRefOne),
+  ],
+);
+assertMusicIntelligenceError(
+  () => integrationService.query({
+    text: "--- !!!",
+    order: "text_relevance",
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+integrationDatabase.close();
+
 function createReadPortHarness(pages: readonly (MusicDataPlatformRetrievalSearchPage & {
   freshness?: RetrievalFreshness;
 })[]): {
@@ -710,6 +899,17 @@ function assertMusicIntelligenceError(
   );
 }
 
+function createIdentityTestCommands(
+  db: Parameters<typeof createIdentityWriteCommands>[0]["db"],
+  now: string,
+) {
+  return createIdentityWriteCommands({
+    db,
+    now,
+    projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+  });
+}
+
 function materialRef(kind: MaterialEntityKind, id: string): Ref {
   return {
     namespace: "material",
@@ -740,4 +940,102 @@ function refWithoutLabel(ref: Ref): Ref {
     kind: ref.kind,
     id: ref.id,
   };
+}
+
+function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
+  const database = SqliteMusicDatabase.open({ filename: ":memory:" });
+  database.initialize({
+    schemas: [
+      musicDataPlatformIdentitySchema,
+      musicDataPlatformSourceLibrarySchema,
+      musicDataPlatformOwnerRelationSchema,
+      musicDataPlatformOwnerCatalogEntriesSchema,
+      musicDataPlatformOwnerCatalogViewSchema,
+      musicDataPlatformMaterialTextProjectionSchema,
+      musicDataPlatformProjectionMaintenanceSchema,
+    ],
+  });
+  return database;
+}
+
+function bindSourceToMaterial(
+  identity: ReturnType<typeof createIdentityTestCommands>,
+  source: SourceEntity,
+  nextMaterialRef: Ref,
+): void {
+  identity.upsertSourceRecord({ entity: source });
+  identity.upsertMaterialRecord({
+    materialRef: nextMaterialRef,
+    kind: nextMaterialRef.kind as MaterialEntityKind,
+  });
+  identity.bindSourceToMaterial({
+    sourceRef: source.sourceRef,
+    materialRef: nextMaterialRef,
+    makePrimary: true,
+  });
+}
+
+function upsertActualLibrary(
+  libraries: ReturnType<typeof createSourceLibraryRepositories>,
+  libraryRef: Ref,
+  ownerScope: string,
+  providerAccountId: string,
+  libraryKind: "saved_source_track" | "saved_source_album" | "followed_source_artist",
+): void {
+  libraries.libraries.upsert({
+    libraryRef,
+    ownerScope,
+    providerId: "netease",
+    providerAccountId,
+    libraryKind,
+    createdAt: "2026-06-14T00:00:00.000Z",
+    updatedAt: "2026-06-14T00:00:00.000Z",
+  });
+}
+
+function upsertActualLibraryItem(
+  libraries: ReturnType<typeof createSourceLibraryRepositories>,
+  libraryRef: Ref,
+  sourceRef: Ref,
+  addedAt: string,
+): void {
+  libraries.items.upsert({
+    libraryRef,
+    sourceRefKey: refKey(sourceRef),
+    addedAt,
+    providerAddedAt: addedAt,
+    firstImportedAt: addedAt,
+  });
+}
+
+function sourceTrackEntity(id: string, title: string): SourceTrack {
+  return {
+    kind: "track",
+    sourceRef: sourceRef("track", id),
+    providerId: "netease",
+    providerEntityId: id,
+    label: title,
+    title,
+  };
+}
+
+function sourceRef(kind: "track" | "album" | "artist", id: string): Ref {
+  return {
+    namespace: "source_netease",
+    kind,
+    id,
+  };
+}
+
+function mdpSourceLibraryRef(
+  ownerScope: string,
+  providerAccountId: string,
+  libraryKind: "saved_source_track" | "saved_source_album" | "followed_source_artist",
+): Ref {
+  return createSourceLibraryRef({
+    ownerScope,
+    providerId: "netease",
+    providerAccountId,
+    libraryKind,
+  });
 }

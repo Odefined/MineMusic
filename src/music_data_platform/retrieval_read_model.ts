@@ -796,7 +796,7 @@ function searchSqlForText(
         t.alias_text,
         ${matchedTokenCountSql} AS matched_token_count,
         ${bestFieldPrioritySql} AS best_field_priority,
-        bm25(material_text_fts, 1.0, 1.0, 1.0, 1.0, 1.0) AS rank_sort_value
+        ${rankSortValueSqlExpression(order)} AS rank_sort_value
       FROM owner_material_catalog_view c
       JOIN material_records m
         ON m.ref_key = c.material_ref_key
@@ -825,6 +825,12 @@ function searchSqlForText(
     ORDER BY ${textOrderBySql(order)}
     LIMIT ?
   `;
+}
+
+function rankSortValueSqlExpression(order: RetrievalOrder): string {
+  return order === "text_relevance"
+    ? "bm25(material_text_fts, 1.0, 1.0, 1.0, 1.0, 1.0)"
+    : "NULL";
 }
 
 function searchParamsForText(input: {

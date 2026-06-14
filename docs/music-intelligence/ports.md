@@ -51,8 +51,8 @@ It must not import:
   query roots.
 
 Retrieval must not import Music Data Platform material text normalization
-helpers. Minimal query normalization for cursor fingerprinting is owned inside
-Retrieval.
+helpers. Minimal query normalization for cursor fingerprinting and
+token-presence fallback is owned inside Retrieval.
 
 ## Guards
 

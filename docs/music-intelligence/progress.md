@@ -13,7 +13,8 @@
 - `src/music_intelligence/retrieval/query_normalization.ts` defaults the local
   owner scope, normalizes query text for echo/fingerprints, validates order and
   limit, normalizes pool filters, dedupes pool refs, rejects unsupported pool
-  refs, and rejects positive-vs-`noneOf` pool conflicts.
+  refs, rejects positive-vs-`noneOf` pool conflicts, and treats tokenless
+  punctuation-only text as absent text before defaulting order.
 - `src/music_intelligence/retrieval/cursor.ts` owns versioned opaque cursor
   encode/decode and query-fingerprint mismatch detection.
 - `src/music_intelligence/retrieval/query_service.ts` creates
@@ -45,6 +46,8 @@ Formal tests cover:
 
 - default order selection with and without text;
 - text normalization and normalized-empty behavior;
+- tokenless punctuation text falling back to no-text behavior and rejecting
+  explicit `text_relevance` before Music Data Platform is called;
 - explicit `text_relevance` without effective text rejection;
 - limit, owner scope, material kind, and pool ref validation;
 - pool filter dedupe, empty arrays, sorted ref-key normalization, and
@@ -52,6 +55,8 @@ Formal tests cover:
 - opaque cursor encode/decode, query fingerprint mismatch, and `limit`
   exclusion from fingerprints;
 - query service decoded-cursor pass-through to Music Data Platform;
+- real Retrieval + Music Data Platform integration for accent-insensitive text
+  recall, text cursor pagination, and dropped-text fallback;
 - hit display, matched text, matched pool, basis, rankScore, and freshness
   shaping;
 - preserving Music Data Platform row order instead of sorting by rank score.

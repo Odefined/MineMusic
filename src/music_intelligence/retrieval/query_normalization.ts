@@ -24,6 +24,7 @@ export type NormalizedRetrievalQuery = {
   fingerprint: string;
 };
 
+const retrievalTextTokenPattern = /[\p{L}\p{N}_]+/gu;
 const materialKinds = new Set<string>([
   "recording",
   "album",
@@ -70,7 +71,12 @@ export function normalizeRetrievalQueryText(value: string | undefined): string |
   }
 
   const normalized = value.normalize("NFKC").trim().toLowerCase().replace(/\s+/gu, " ");
-  return normalized.length === 0 ? undefined : normalized;
+
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  return normalized.match(retrievalTextTokenPattern) === null ? undefined : normalized;
 }
 
 export function fingerprintForRetrievalQuery(query: RetrievalEffectiveQuery): string {
