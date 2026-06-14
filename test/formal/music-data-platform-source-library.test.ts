@@ -335,6 +335,200 @@ assert.throws(() => repositoryDatabase.transaction((db) => {
 }));
 repositoryDatabase.close();
 
+const reconciliationRepositoryDatabase = initializedDatabase();
+const reconciliationRepositoryLibraryRef = sourceLibraryRef("130950710", "saved_source_track");
+const reconciliationRepositorySeenSource = sourceTrack("1010", "Repository Seen");
+const reconciliationRepositoryStaleSource = sourceTrack("1011", "Repository Stale");
+reconciliationRepositoryDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:10:00.000Z");
+  const repositories = createSourceLibraryRepositories({ db });
+
+  for (const [source, materialId] of [
+    [reconciliationRepositorySeenSource, "m_repository_seen"],
+    [reconciliationRepositoryStaleSource, "m_repository_stale"],
+  ] as const) {
+    const sourceMaterialRef = materialRef("recording", materialId);
+    identity.upsertSourceRecord({ entity: source });
+    identity.upsertMaterialRecord({
+      materialRef: sourceMaterialRef,
+      kind: "recording",
+    });
+    identity.bindSourceToMaterial({
+      sourceRef: source.sourceRef,
+      materialRef: sourceMaterialRef,
+      makePrimary: true,
+    });
+  }
+
+  repositories.libraries.upsert({
+    libraryRef: reconciliationRepositoryLibraryRef,
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950710",
+    libraryKind: "saved_source_track",
+    createdAt: "2026-06-08T00:10:00.000Z",
+    updatedAt: "2026-06-08T00:10:00.000Z",
+  });
+  repositories.items.upsert({
+    libraryRef: reconciliationRepositoryLibraryRef,
+    sourceRefKey: refKey(reconciliationRepositorySeenSource.sourceRef),
+    addedAt: "2026-06-08T00:10:10.000Z",
+    firstImportedAt: "2026-06-08T00:10:10.000Z",
+  });
+  repositories.items.upsert({
+    libraryRef: reconciliationRepositoryLibraryRef,
+    sourceRefKey: refKey(reconciliationRepositoryStaleSource.sourceRef),
+    addedAt: "2026-06-08T00:10:11.000Z",
+    firstImportedAt: "2026-06-08T00:10:11.000Z",
+  });
+  repositories.batches.insert({
+    batchId: "repository-reconcile-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950710",
+    libraryKind: "saved_source_track",
+    libraryRef: reconciliationRepositoryLibraryRef,
+    status: "running",
+    processedCount: 1,
+    importedCount: 1,
+    alreadyPresentCount: 0,
+    failedCount: 0,
+    createdAt: "2026-06-08T00:10:20.000Z",
+    updatedAt: "2026-06-08T00:10:20.000Z",
+  });
+  repositories.itemOutcomes.insert({
+    batchId: "repository-reconcile-batch",
+    sequence: 1,
+    outcome: "imported",
+    sourceRefKey: refKey(reconciliationRepositorySeenSource.sourceRef),
+    providerId: "netease",
+    providerEntityId: "1010",
+    materialRefKey: refKey(materialRef("recording", "m_repository_seen")),
+    createdAt: "2026-06-08T00:10:25.000Z",
+  });
+
+  assert.deepEqual(
+    repositories.items.deleteItemsNotObservedInBatch({
+      libraryRef: reconciliationRepositoryLibraryRef,
+      batchId: "repository-reconcile-batch",
+    }),
+    { deletedCount: 1 },
+  );
+  assert.equal(
+    db.get<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM source_library_items WHERE library_ref_key = ?",
+      [refKey(reconciliationRepositoryLibraryRef)],
+    )?.count,
+    1,
+  );
+
+  repositories.batches.insert({
+    batchId: "repository-empty-reconcile-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950710",
+    libraryKind: "saved_source_track",
+    libraryRef: reconciliationRepositoryLibraryRef,
+    status: "running",
+    processedCount: 0,
+    importedCount: 0,
+    alreadyPresentCount: 0,
+    failedCount: 0,
+    createdAt: "2026-06-08T00:10:30.000Z",
+    updatedAt: "2026-06-08T00:10:30.000Z",
+  });
+
+  assert.deepEqual(
+    repositories.items.deleteItemsNotObservedInBatch({
+      libraryRef: reconciliationRepositoryLibraryRef,
+      batchId: "repository-empty-reconcile-batch",
+    }),
+    { deletedCount: 1 },
+  );
+  assert.equal(
+    db.get<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM source_library_items WHERE library_ref_key = ?",
+      [refKey(reconciliationRepositoryLibraryRef)],
+    )?.count,
+    0,
+  );
+});
+reconciliationRepositoryDatabase.close();
+
+const reconciliationMismatchRepositoryDatabase = initializedDatabase();
+const reconciliationMismatchTargetLibraryRef = sourceLibraryRef("130950712", "saved_source_track");
+const reconciliationMismatchBatchLibraryRef = sourceLibraryRef("130950713", "saved_source_track");
+const reconciliationMismatchSource = sourceTrack("1012", "Repository Mismatch Guard");
+reconciliationMismatchRepositoryDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:12:00.000Z");
+  const repositories = createSourceLibraryRepositories({ db });
+  const mismatchMaterialRef = materialRef("recording", "m_repository_mismatch_guard");
+
+  identity.upsertSourceRecord({ entity: reconciliationMismatchSource });
+  identity.upsertMaterialRecord({
+    materialRef: mismatchMaterialRef,
+    kind: "recording",
+  });
+  identity.bindSourceToMaterial({
+    sourceRef: reconciliationMismatchSource.sourceRef,
+    materialRef: mismatchMaterialRef,
+    makePrimary: true,
+  });
+  for (const libraryRef of [
+    reconciliationMismatchTargetLibraryRef,
+    reconciliationMismatchBatchLibraryRef,
+  ]) {
+    repositories.libraries.upsert({
+      libraryRef,
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      providerId: "netease",
+      providerAccountId: libraryRef.id === reconciliationMismatchTargetLibraryRef.id ? "130950712" : "130950713",
+      libraryKind: "saved_source_track",
+      createdAt: "2026-06-08T00:12:00.000Z",
+      updatedAt: "2026-06-08T00:12:00.000Z",
+    });
+  }
+  repositories.items.upsert({
+    libraryRef: reconciliationMismatchTargetLibraryRef,
+    sourceRefKey: refKey(reconciliationMismatchSource.sourceRef),
+    addedAt: "2026-06-08T00:12:10.000Z",
+    firstImportedAt: "2026-06-08T00:12:10.000Z",
+  });
+  repositories.batches.insert({
+    batchId: "repository-mismatched-reconcile-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950713",
+    libraryKind: "saved_source_track",
+    libraryRef: reconciliationMismatchBatchLibraryRef,
+    status: "running",
+    processedCount: 0,
+    importedCount: 0,
+    alreadyPresentCount: 0,
+    failedCount: 0,
+    createdAt: "2026-06-08T00:12:20.000Z",
+    updatedAt: "2026-06-08T00:12:20.000Z",
+  });
+
+  assert.throws(
+    () => repositories.items.deleteItemsNotObservedInBatch({
+      libraryRef: reconciliationMismatchTargetLibraryRef,
+      batchId: "repository-mismatched-reconcile-batch",
+    }),
+    (error) =>
+      isMusicDataPlatformError(error) &&
+      error.code === "music_data.record_ref_key_mismatch",
+  );
+  assert.equal(
+    db.get<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM source_library_items WHERE library_ref_key = ?",
+      [refKey(reconciliationMismatchTargetLibraryRef)],
+    )?.count,
+    1,
+  );
+});
+reconciliationMismatchRepositoryDatabase.close();
+
 const invalidationDatabase = initializedDatabase();
 const invalidationSource = sourceTrack("1001", "Invalidation Track");
 const invalidationMaterialRef: Ref = {
@@ -410,6 +604,343 @@ assert.deepEqual(recordedInvalidation.batches, [
   }],
 ]);
 invalidationDatabase.close();
+
+const reconciliationCommandDatabase = initializedDatabase();
+const reconciliationCommandLibraryRef = sourceLibraryRef("130950720", "saved_source_track");
+const reconciliationCommandOtherLibraryRef = sourceLibraryRef("130950721", "saved_source_track");
+const reconciliationSeenSource = sourceTrack("1020", "Reconciliation Seen");
+const reconciliationStaleSource = sourceTrack("1021", "Reconciliation Stale");
+reconciliationCommandDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:35:00.000Z");
+  const repositories = createSourceLibraryRepositories({ db });
+
+  for (const [source, materialId] of [
+    [reconciliationSeenSource, "m_reconcile_seen"],
+    [reconciliationStaleSource, "m_reconcile_stale"],
+  ] as const) {
+    const sourceMaterialRef = materialRef("recording", materialId);
+    identity.upsertSourceRecord({ entity: source });
+    identity.upsertMaterialRecord({
+      materialRef: sourceMaterialRef,
+      kind: "recording",
+    });
+    identity.bindSourceToMaterial({
+      sourceRef: source.sourceRef,
+      materialRef: sourceMaterialRef,
+      makePrimary: true,
+    });
+  }
+
+  for (const libraryRef of [
+    reconciliationCommandLibraryRef,
+    reconciliationCommandOtherLibraryRef,
+  ]) {
+    repositories.libraries.upsert({
+      libraryRef,
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      providerId: "netease",
+      providerAccountId: libraryRef.id === reconciliationCommandLibraryRef.id ? "130950720" : "130950721",
+      libraryKind: "saved_source_track",
+      createdAt: "2026-06-08T00:35:10.000Z",
+      updatedAt: "2026-06-08T00:35:10.000Z",
+    });
+  }
+  repositories.items.upsert({
+    libraryRef: reconciliationCommandLibraryRef,
+    sourceRefKey: refKey(reconciliationSeenSource.sourceRef),
+    addedAt: "2026-06-08T00:35:20.000Z",
+    firstImportedAt: "2026-06-08T00:35:20.000Z",
+  });
+  repositories.items.upsert({
+    libraryRef: reconciliationCommandLibraryRef,
+    sourceRefKey: refKey(reconciliationStaleSource.sourceRef),
+    addedAt: "2026-06-08T00:35:21.000Z",
+    firstImportedAt: "2026-06-08T00:35:21.000Z",
+  });
+  repositories.items.upsert({
+    libraryRef: reconciliationCommandOtherLibraryRef,
+    sourceRefKey: refKey(reconciliationStaleSource.sourceRef),
+    addedAt: "2026-06-08T00:35:22.000Z",
+    firstImportedAt: "2026-06-08T00:35:22.000Z",
+  });
+});
+const reconciliationCommandInvalidation = createRecordingProjectionInvalidationCommands();
+reconciliationCommandDatabase.transaction((db) => {
+  const commands = createSourceLibraryCommands({
+    db,
+    now: "2026-06-08T00:36:00.000Z",
+    projectionInvalidationCommands: reconciliationCommandInvalidation,
+  });
+  const createdBatch = commands.createImportBatch({
+    batchId: "reconciliation-command-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+  });
+  const batch = commands.resolveImportBatchLibraryScope({
+    batch: createdBatch,
+    providerAccountId: "130950720",
+  });
+  const observed = commands.recordImportItem({
+    batch,
+    sourceRef: reconciliationSeenSource.sourceRef,
+    providerId: "netease",
+    providerEntityId: "1020",
+    materialRef: materialRef("recording", "m_reconcile_seen"),
+  });
+  const completed = commands.completeImportBatch({
+    batch: observed.batch,
+    completionReason: "provider_exhausted",
+  });
+
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.completionReason, "provider_exhausted");
+});
+assert.deepEqual(reconciliationCommandInvalidation.batches, [
+  [{
+    writeKind: "source_library_scope_written",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    libraryRef: reconciliationCommandLibraryRef,
+  }],
+]);
+assert.deepEqual(
+  reconciliationCommandDatabase.context().all<{ source_ref_key: string }>(
+    `
+      SELECT source_ref_key
+      FROM source_library_items
+      WHERE library_ref_key = ?
+      ORDER BY source_ref_key ASC
+    `,
+    [refKey(reconciliationCommandLibraryRef)],
+  ).map((row) => row.source_ref_key),
+  [refKey(reconciliationSeenSource.sourceRef)],
+);
+assert.equal(
+  reconciliationCommandDatabase.context().get<{ count: number }>(
+    `
+      SELECT COUNT(*) AS count
+      FROM source_library_items
+      WHERE library_ref_key = ?
+    `,
+    [refKey(reconciliationCommandOtherLibraryRef)],
+  )?.count,
+  1,
+);
+reconciliationCommandDatabase.close();
+
+const emptyReconciliationCommandDatabase = initializedDatabase();
+const emptyReconciliationCommandLibraryRef = sourceLibraryRef("130950725", "saved_source_track");
+const emptyReconciliationStaleSource = sourceTrack("1025", "Empty Reconciliation Stale");
+emptyReconciliationCommandDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:36:30.000Z");
+  const repositories = createSourceLibraryRepositories({ db });
+  const emptyMaterialRef = materialRef("recording", "m_empty_reconcile_stale");
+
+  identity.upsertSourceRecord({ entity: emptyReconciliationStaleSource });
+  identity.upsertMaterialRecord({
+    materialRef: emptyMaterialRef,
+    kind: "recording",
+  });
+  identity.bindSourceToMaterial({
+    sourceRef: emptyReconciliationStaleSource.sourceRef,
+    materialRef: emptyMaterialRef,
+    makePrimary: true,
+  });
+  repositories.libraries.upsert({
+    libraryRef: emptyReconciliationCommandLibraryRef,
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950725",
+    libraryKind: "saved_source_track",
+    createdAt: "2026-06-08T00:36:30.000Z",
+    updatedAt: "2026-06-08T00:36:30.000Z",
+  });
+  repositories.items.upsert({
+    libraryRef: emptyReconciliationCommandLibraryRef,
+    sourceRefKey: refKey(emptyReconciliationStaleSource.sourceRef),
+    addedAt: "2026-06-08T00:36:35.000Z",
+    firstImportedAt: "2026-06-08T00:36:35.000Z",
+  });
+});
+const emptyReconciliationCommandInvalidation = createRecordingProjectionInvalidationCommands();
+emptyReconciliationCommandDatabase.transaction((db) => {
+  const commands = createSourceLibraryCommands({
+    db,
+    now: "2026-06-08T00:37:00.000Z",
+    projectionInvalidationCommands: emptyReconciliationCommandInvalidation,
+  });
+  const createdBatch = commands.createImportBatch({
+    batchId: "empty-reconciliation-command-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+  });
+  const batch = commands.resolveImportBatchLibraryScope({
+    batch: createdBatch,
+    providerAccountId: "130950725",
+  });
+  const completed = commands.completeImportBatch({
+    batch,
+    completionReason: "provider_exhausted",
+  });
+
+  assert.equal(completed.status, "completed");
+  assert.equal(completed.completionReason, "provider_exhausted");
+});
+assert.deepEqual(emptyReconciliationCommandInvalidation.batches, [
+  [{
+    writeKind: "source_library_scope_written",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    libraryRef: emptyReconciliationCommandLibraryRef,
+  }],
+]);
+assert.equal(
+  emptyReconciliationCommandDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM source_library_items WHERE library_ref_key = ?",
+    [refKey(emptyReconciliationCommandLibraryRef)],
+  )?.count,
+  0,
+);
+emptyReconciliationCommandDatabase.close();
+
+const failedReconciliationDatabase = initializedDatabase();
+const failedReconciliationLibraryRef = sourceLibraryRef("130950730", "saved_source_track");
+const failedReconciliationStaleSource = sourceTrack("1030", "Failed Reconciliation Stale");
+failedReconciliationDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:37:00.000Z");
+  const repositories = createSourceLibraryRepositories({ db });
+  const failedMaterialRef = materialRef("recording", "m_failed_reconcile");
+
+  identity.upsertSourceRecord({ entity: failedReconciliationStaleSource });
+  identity.upsertMaterialRecord({
+    materialRef: failedMaterialRef,
+    kind: "recording",
+  });
+  identity.bindSourceToMaterial({
+    sourceRef: failedReconciliationStaleSource.sourceRef,
+    materialRef: failedMaterialRef,
+    makePrimary: true,
+  });
+  repositories.libraries.upsert({
+    libraryRef: failedReconciliationLibraryRef,
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950730",
+    libraryKind: "saved_source_track",
+    createdAt: "2026-06-08T00:37:00.000Z",
+    updatedAt: "2026-06-08T00:37:00.000Z",
+  });
+  repositories.items.upsert({
+    libraryRef: failedReconciliationLibraryRef,
+    sourceRefKey: refKey(failedReconciliationStaleSource.sourceRef),
+    addedAt: "2026-06-08T00:37:10.000Z",
+    firstImportedAt: "2026-06-08T00:37:10.000Z",
+  });
+});
+const failedReconciliationInvalidation = createRecordingProjectionInvalidationCommands();
+failedReconciliationDatabase.transaction((db) => {
+  const commands = createSourceLibraryCommands({
+    db,
+    now: "2026-06-08T00:38:00.000Z",
+    projectionInvalidationCommands: failedReconciliationInvalidation,
+  });
+  const createdBatch = commands.createImportBatch({
+    batchId: "failed-reconciliation-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+  });
+  const batch = commands.resolveImportBatchLibraryScope({
+    batch: createdBatch,
+    providerAccountId: "130950730",
+  });
+  const failed = commands.recordImportItemFailure({
+    batchId: batch.batchId,
+    providerId: "netease",
+    providerEntityId: "1030",
+    errorCode: "music_data.test_failure",
+    errorMessage: "test failure",
+  });
+  commands.completeImportBatch({
+    batch: failed.batch,
+    completionReason: "provider_exhausted",
+  });
+});
+assert.equal(failedReconciliationInvalidation.batches.length, 0);
+assert.equal(
+  failedReconciliationDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM source_library_items WHERE library_ref_key = ?",
+    [refKey(failedReconciliationLibraryRef)],
+  )?.count,
+  1,
+);
+failedReconciliationDatabase.close();
+
+const boundedReconciliationDatabase = initializedDatabase();
+const boundedReconciliationLibraryRef = sourceLibraryRef("130950740", "saved_source_track");
+const boundedReconciliationStaleSource = sourceTrack("1040", "Bounded Reconciliation Stale");
+boundedReconciliationDatabase.transaction((db) => {
+  const identity = createIdentityTestCommands(db, "2026-06-08T00:39:00.000Z");
+  const repositories = createSourceLibraryRepositories({ db });
+  const boundedMaterialRef = materialRef("recording", "m_bounded_reconcile");
+
+  identity.upsertSourceRecord({ entity: boundedReconciliationStaleSource });
+  identity.upsertMaterialRecord({
+    materialRef: boundedMaterialRef,
+    kind: "recording",
+  });
+  identity.bindSourceToMaterial({
+    sourceRef: boundedReconciliationStaleSource.sourceRef,
+    materialRef: boundedMaterialRef,
+    makePrimary: true,
+  });
+  repositories.libraries.upsert({
+    libraryRef: boundedReconciliationLibraryRef,
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    providerAccountId: "130950740",
+    libraryKind: "saved_source_track",
+    createdAt: "2026-06-08T00:39:00.000Z",
+    updatedAt: "2026-06-08T00:39:00.000Z",
+  });
+  repositories.items.upsert({
+    libraryRef: boundedReconciliationLibraryRef,
+    sourceRefKey: refKey(boundedReconciliationStaleSource.sourceRef),
+    addedAt: "2026-06-08T00:39:10.000Z",
+    firstImportedAt: "2026-06-08T00:39:10.000Z",
+  });
+});
+const boundedReconciliationInvalidation = createRecordingProjectionInvalidationCommands();
+boundedReconciliationDatabase.transaction((db) => {
+  const commands = createSourceLibraryCommands({
+    db,
+    now: "2026-06-08T00:40:00.000Z",
+    projectionInvalidationCommands: boundedReconciliationInvalidation,
+  });
+  const createdBatch = commands.createImportBatch({
+    batchId: "bounded-reconciliation-batch",
+    ownerScope: DEFAULT_OWNER_SCOPE,
+    providerId: "netease",
+    libraryKind: "saved_source_track",
+  });
+  const batch = commands.resolveImportBatchLibraryScope({
+    batch: createdBatch,
+    providerAccountId: "130950740",
+  });
+  commands.completeImportBatch({
+    batch,
+    completionReason: "max_new_items_reached",
+  });
+});
+assert.equal(boundedReconciliationInvalidation.batches.length, 0);
+assert.equal(
+  boundedReconciliationDatabase.context().get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM source_library_items WHERE library_ref_key = ?",
+    [refKey(boundedReconciliationLibraryRef)],
+  )?.count,
+  1,
+);
+boundedReconciliationDatabase.close();
 
 const bindingMismatchDatabase = initializedDatabase();
 const bindingMismatchSource = sourceTrack("1003", "Binding Mismatch Track");
@@ -1323,6 +1854,14 @@ function sourceLibraryRef(
     providerAccountId,
     libraryKind,
   });
+}
+
+function materialRef(kind: Ref["kind"], id: string): Ref {
+  return {
+    namespace: "material",
+    kind,
+    id,
+  };
 }
 
 function countRows(database: ReturnType<typeof SqliteMusicDatabase.open>, tableName: string): number {

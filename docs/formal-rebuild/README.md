@@ -37,6 +37,8 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-12-retrieval-query-foundation-implementation-plan.md` | Implemented Phase 12 execution plan split into PR 12A no-text Music Data Platform Retrieval Read Port, PR 12B Music Data Platform Text Query Integration, and PR 12C Music Intelligence Retrieval Service. |
 | `phase-13-projection-maintenance-runtime-orchestration.md` | Implemented Phase 13 spec for Server Host background Projection Maintenance runner scheduling, batch policy, lifecycle, runtime-module ownership, and diagnostics boundaries. |
 | `phase-13-projection-maintenance-runtime-orchestration-implementation-plan.md` | Implemented Phase 13 execution plan split into PR 13A scheduler helper, PR 13B runtime module integration, and PR 13C freshness closure integration. |
+| `phase-14-source-library-update-reconciliation.md` | Implemented Phase 14 spec for reconciling source-library current membership after complete provider scans. |
+| `phase-14-source-library-update-reconciliation-implementation-plan.md` | Implemented Phase 14 execution plan for command-owned source-library update reconciliation, guards, docs, and verification. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

@@ -94,6 +94,12 @@ export type SourceLibraryItemRepository = {
     sourceRefKey: string;
   }): SourceLibraryItemRecord | undefined;
   upsert(record: SourceLibraryItemRecord): SourceLibraryItemRecord;
+  deleteItemsNotObservedInBatch(input: {
+    libraryRef: Ref;
+    batchId: string;
+  }): {
+    deletedCount: number;
+  };
 };
 
 export type SourceLibraryImportBatchRepository = {
@@ -294,6 +300,52 @@ export function createSourceLibraryRepositories(
         }),
         "source library item upsert did not return a stored record",
       );
+    },
+    deleteItemsNotObservedInBatch(input) {
+      assertSourceLibraryRef(input.libraryRef);
+
+      const libraryRefKey = refKey(input.libraryRef);
+      assertImportBatchMatchesLibraryRef({
+        batchId: input.batchId,
+        db,
+        libraryRefKey,
+      });
+      const deletedCount = db.get<{ count: number }>(
+        `
+          SELECT COUNT(*) AS count
+          FROM source_library_items AS current_items
+          WHERE current_items.library_ref_key = ?
+            AND NOT EXISTS (
+              SELECT 1
+              FROM source_library_import_item_outcomes AS observed
+              WHERE observed.batch_id = ?
+                AND observed.outcome IN ('imported', 'already_present')
+                AND observed.source_ref_key = current_items.source_ref_key
+            )
+        `,
+        [libraryRefKey, input.batchId],
+      )?.count ?? 0;
+
+      if (deletedCount === 0) {
+        return { deletedCount: 0 };
+      }
+
+      db.run(
+        `
+          DELETE FROM source_library_items
+          WHERE library_ref_key = ?
+            AND NOT EXISTS (
+              SELECT 1
+              FROM source_library_import_item_outcomes AS observed
+              WHERE observed.batch_id = ?
+                AND observed.outcome IN ('imported', 'already_present')
+                AND observed.source_ref_key = source_library_items.source_ref_key
+            )
+        `,
+        [libraryRefKey, input.batchId],
+      );
+
+      return { deletedCount };
     },
   };
 
@@ -653,6 +705,31 @@ function assertSourceLibraryImportBatchConsistency(record: SourceLibraryImportBa
         message: "Source library import batch libraryRef does not match owner/provider/account/library identity.",
       });
     }
+  }
+}
+
+function assertImportBatchMatchesLibraryRef(input: {
+  batchId: string;
+  db: MusicDatabaseContext;
+  libraryRefKey: string;
+}): void {
+  const row = input.db.get<{ library_ref_key: string | null }>(
+    "SELECT library_ref_key FROM source_library_import_batches WHERE batch_id = ?",
+    [input.batchId],
+  );
+
+  if (row === undefined) {
+    throw new MusicDataPlatformError({
+      code: "music_data.source_library_import_batch_not_found",
+      message: `Source library import batch '${input.batchId}' was not found.`,
+    });
+  }
+
+  if (row.library_ref_key !== input.libraryRefKey) {
+    throw new MusicDataPlatformError({
+      code: "music_data.record_ref_key_mismatch",
+      message: "Source library reconciliation batch libraryRef does not match the target library ref.",
+    });
   }
 }
 

@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 13C of a same-repo formal rebuild. The active
+MineMusic has completed Phase 14 of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -36,7 +36,9 @@ query service with input normalization, opaque cursor ownership, query
 fingerprinting, read-port calls, and compact retrieval hit evidence. Phase 13
 adds Server Host-owned background Projection Maintenance scheduling,
 runtime-module lifecycle wiring, and end-to-end freshness closure from
-source-of-truth writes through retrieval reads.
+source-of-truth writes through retrieval reads. Phase 14 adds
+provider-exhausted source-library current-membership reconciliation through the
+source-library command boundary and library-scope owner catalog invalidation.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -246,6 +248,9 @@ Phase 7 Source Library Import vocabulary includes:
 - `createSourceLibraryCommands({ db, now, projectionInvalidationCommands })`
   for internal source-library import batch, library scope, item, and
   item-outcome writes;
+- `completeImportBatch(...)` reconciling current source-library membership only
+  for `provider_exhausted` batches with resolved `libraryRef` and
+  `failedCount = 0`;
 - `createMusicDataPlatformSourceOfTruthWriteCommands({ db, now })` as the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, currently restricted to
@@ -354,6 +359,15 @@ Phase 13 runtime-orchestrated Projection Maintenance vocabulary includes:
   module lifecycle, not by writes, import flows, or retrieval;
 - retrieval freshness closure where dirty owner-catalog/material-text targets
   can move from `possibly_stale` to `current` after scheduler-driven rebuild.
+
+Phase 14 source-library update reconciliation vocabulary includes:
+
+- `source_library_scope_written` as the typed library-scope projection
+  invalidation write for reconciled membership changes;
+- repository-owned deletion of current `source_library_items` not observed in a
+  completed batch's successful `imported` / `already_present` outcomes;
+- command-owned reconciliation only on
+  `provider_exhausted + resolved libraryRef + failedCount = 0`.
 
 ## Deleted Formal v1 Surfaces
 
@@ -586,6 +600,10 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-13-projection-maintenance-runtime-orchestration-implementation-plan.md`
   records the implemented Phase 13 execution plan; PR13A, PR13B, and PR13C are
   implemented.
+- `docs/formal-rebuild/phase-14-source-library-update-reconciliation.md`
+  records the implemented Phase 14 source-library update reconciliation spec.
+- `docs/formal-rebuild/phase-14-source-library-update-reconciliation-implementation-plan.md`
+  records the implemented Phase 14 execution plan.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -611,9 +629,9 @@ Current formal state does not implement:
 - public query hit output shape;
 - query-to-present flow;
 - final `MaterialCard` key set;
-- update baselines, removed-from-library reconciliation, collection,
-  additional owner catalog producers, wrong-version, not-playable, bad-match,
-  feedback/correction facts, signals, or recording-to-work relation workflows;
+- update baselines, collection, additional owner catalog producers,
+  wrong-version, not-playable, bad-match, feedback/correction facts, signals,
+  or recording-to-work relation workflows;
 - advanced scheduler wake/backoff policy, multi-worker coordination, or
   synchronous import-path projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;
@@ -625,7 +643,7 @@ contracts.
 
 ## Verification Pointers
 
-Phase 13C verification for this state should include:
+Phase 14 verification for this state should include:
 
 ```bash
 npm run typecheck

@@ -91,6 +91,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   implemented Phase 13 execution plan split into PR 13A scheduler helper,
   PR 13B runtime module integration, and PR 13C freshness closure
   integration; PR13A/13B/13C are implemented.
+- `docs/formal-rebuild/phase-14-source-library-update-reconciliation.md`:
+  implemented Phase 14 spec for reconciling source-library current membership
+  after complete provider scans.
+- `docs/formal-rebuild/phase-14-source-library-update-reconciliation-implementation-plan.md`:
+  implemented Phase 14 execution plan for command-owned source-library update
+  reconciliation, guards, docs, and verification.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

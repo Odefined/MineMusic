@@ -52,6 +52,11 @@ export type ProjectionSourceWrite =
       sourceRef: Ref;
     }
   | {
+      writeKind: "source_library_scope_written";
+      ownerScope: string;
+      libraryRef: Ref;
+    }
+  | {
       writeKind: "owner_relation_written";
       ownerScope: string;
       relationKind: OwnerMaterialRelationKind;
@@ -537,6 +542,14 @@ function planProjectionInvalidationTargets(
           materialRef: currentMaterialRef,
         }];
     }
+    case "source_library_scope_written":
+      assertOwnerScope(write.ownerScope);
+      assertSourceLibraryRef(write.libraryRef);
+      return [{
+        projectionKind: "owner_catalog_source_library",
+        ownerScope: write.ownerScope,
+        libraryRef: write.libraryRef,
+      }];
     case "owner_relation_written":
       assertOwnerScope(write.ownerScope);
       assertOwnerMaterialRelationKind(write.relationKind);
