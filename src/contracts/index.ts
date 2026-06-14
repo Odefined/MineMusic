@@ -57,6 +57,11 @@ export function refKey(ref: Pick<Ref, "namespace" | "kind" | "id">): PublicRefKe
   return `${ref.namespace}:${ref.kind}:${ref.id}`;
 }
 
+export {
+  hasPrefixOrV1Token,
+  tokenizePrefixOrV1Text,
+} from "./prefix_or_v1_text.js";
+
 export type PublicHandle = {
   handleKind: string;
   handle: string;

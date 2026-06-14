@@ -15,7 +15,7 @@
 | Consumed capability | Provided by | Used for | Reads | Writes |
 | --- | --- | --- | --- | --- |
 | `MusicDataPlatformRetrievalReadPort` | Music Data Platform | Query owner-visible catalog/material text projections and read coarse freshness. | `searchOwnerCatalogMaterials(...)`, `getRetrievalFreshness(...)` | None |
-| `Ref`, `refKey(ref)`, `MaterialEntityKind` | Contracts | Pool ref validation, query fingerprinting, and result contracts. | Contract fields only | None |
+| `Ref`, `refKey(ref)`, `MaterialEntityKind`, `hasPrefixOrV1Token(...)` | Contracts | Pool ref validation, shared token-presence fallback, query fingerprinting, and result contracts. | Contract fields and shared token helper | None |
 
 ## Retrieval Service Contract
 
@@ -51,8 +51,9 @@ It must not import:
   query roots.
 
 Retrieval must not import Music Data Platform material text normalization
-helpers. Minimal query normalization for cursor fingerprinting and
-token-presence fallback is owned inside Retrieval.
+helpers. Retrieval uses the shared Contracts token helper for
+`prefix_or_v1` token-presence fallback, while Music Data Platform continues to
+own SQL-facing tokenization and FTS query construction.
 
 ## Guards
 

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import {
+  hasPrefixOrV1Token,
   refKey,
   type MaterialEntityKind,
   type Ref,
@@ -24,7 +25,6 @@ export type NormalizedRetrievalQuery = {
   fingerprint: string;
 };
 
-const retrievalTextTokenPattern = /[\p{L}\p{N}_]+/gu;
 const materialKinds = new Set<string>([
   "recording",
   "album",
@@ -76,7 +76,7 @@ export function normalizeRetrievalQueryText(value: string | undefined): string |
     return undefined;
   }
 
-  return normalized.match(retrievalTextTokenPattern) === null ? undefined : normalized;
+  return hasPrefixOrV1Token(normalized) ? normalized : undefined;
 }
 
 export function fingerprintForRetrievalQuery(query: RetrievalEffectiveQuery): string {

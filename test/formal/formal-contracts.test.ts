@@ -40,7 +40,12 @@ import type {
   VersionInfo,
   VersionTag,
 } from "../../src/contracts/index.js";
-import { assertRefSafe, refKey } from "../../src/contracts/index.js";
+import {
+  assertRefSafe,
+  hasPrefixOrV1Token,
+  refKey,
+  tokenizePrefixOrV1Text,
+} from "../../src/contracts/index.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,
@@ -255,3 +260,7 @@ assert.doesNotThrow(() => assertRefSafe(sourceRef));
 assert.doesNotThrow(() => assertRefSafe(canonicalRef));
 assert.throws(() => refKey({ namespace: "source:netease", kind: "track", id: "1" }));
 assert.throws(() => refKey({ namespace: "source_netease", kind: "", id: "1" }));
+assert.deepEqual(tokenizePrefixOrV1Text("café del mar"), ["café", "del", "mar"]);
+assert.deepEqual(tokenizePrefixOrV1Text("--- !!!"), []);
+assert.equal(hasPrefixOrV1Token("foo_bar"), true);
+assert.equal(hasPrefixOrV1Token("--- !!!"), false);

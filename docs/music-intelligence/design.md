@@ -35,12 +35,13 @@ The effective query supports:
 - keyset pagination through opaque cursors.
 
 Retrieval normalizes text for query echo and cursor fingerprinting with
-`NFKC`, trim, lowercase, whitespace collapse, and a minimal
-`prefix_or_v1` token-presence check. Text that has no usable prefix token,
-such as punctuation-only input, is treated as absent text before Retrieval
-chooses its effective order or fingerprints the query. SQL-facing tokenization,
-prefix-OR FTS construction, field-aware ranking, pool algebra, ordering, and
-typed keyset positions remain owned by Music Data Platform.
+`NFKC`, trim, lowercase, whitespace collapse, and the shared
+`prefix_or_v1` token helper from Contracts. Text that has no usable prefix
+token, such as punctuation-only input, is treated as absent text before
+Retrieval chooses its effective order or fingerprints the query.
+SQL-facing tokenization, prefix-OR FTS construction, field-aware ranking, pool
+algebra, ordering, and typed keyset positions remain owned by Music Data
+Platform.
 
 ## Result Shape
 

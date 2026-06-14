@@ -1,3 +1,5 @@
+import { tokenizePrefixOrV1Text } from "../contracts/index.js";
+
 export type MaterialTextContributionSource =
   | "material"
   | "primary_source"
@@ -29,7 +31,6 @@ const sourcePriority: Readonly<Record<MaterialTextContributionSource, number>> =
   material: 2,
   canonical: 3,
 };
-const materialTextTokenPattern = /[\p{L}\p{N}_]+/gu;
 const maxMaterialTextPrefixQueryTokens = 12;
 
 export function normalizeMaterialTextValue(value: string): string {
@@ -95,7 +96,7 @@ export function tokenizeMaterialTextValue(value: string): readonly string[] {
     return [];
   }
 
-  return normalized.match(materialTextTokenPattern) ?? [];
+  return tokenizePrefixOrV1Text(normalized);
 }
 
 export function buildMaterialTextPrefixQueryTokens(text: string): readonly string[] {

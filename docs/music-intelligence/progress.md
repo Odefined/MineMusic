@@ -13,8 +13,9 @@
 - `src/music_intelligence/retrieval/query_normalization.ts` defaults the local
   owner scope, normalizes query text for echo/fingerprints, validates order and
   limit, normalizes pool filters, dedupes pool refs, rejects unsupported pool
-  refs, rejects positive-vs-`noneOf` pool conflicts, and treats tokenless
-  punctuation-only text as absent text before defaulting order.
+  refs, rejects positive-vs-`noneOf` pool conflicts, and uses the shared
+  Contracts `prefix_or_v1` token helper so tokenless punctuation-only text is
+  treated as absent text before defaulting order.
 - `src/music_intelligence/retrieval/cursor.ts` owns versioned opaque cursor
   encode/decode and query-fingerprint mismatch detection.
 - `src/music_intelligence/retrieval/query_service.ts` creates
