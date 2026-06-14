@@ -486,6 +486,12 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
     }
   }
 
+  if (hasMusicDataPlatformIndexNamespaceImport(text)) {
+    musicIntelligenceImportFailures.push(
+      `${relativeFile} imports Music Data Platform index through a namespace import`,
+    );
+  }
+
   for (const forbiddenMdpSymbol of [
     "createIdentity",
     "createSourceLibrary",
@@ -833,4 +839,9 @@ function musicDataPlatformIndexImportNames(text: string): string[] {
   }
 
   return names;
+}
+
+function hasMusicDataPlatformIndexNamespaceImport(text: string): boolean {
+  return /import\s+(?:type\s+)?\*\s+as\s+\w+\s+from\s+["'](?:\.\.\/){1,2}music_data_platform\/index\.js["'];/u
+    .test(text);
 }

@@ -88,7 +88,7 @@ function hitFromRow(input: {
   row: MusicDataPlatformRetrievalMaterialRow;
   query: RetrievalEffectiveQuery;
 }): RetrievalQueryHit {
-  const matchedText = matchedTextFromRow(input.row);
+  const matchedText = matchedTextFromRow(input);
   const rankScore = rankScoreFromRow(input);
 
   return {
@@ -135,21 +135,32 @@ function rankScoreFromRow(input: {
   return input.row.rankScore;
 }
 
-function matchedTextFromRow(
-  row: MusicDataPlatformRetrievalMaterialRow,
-): RetrievalQueryHit["matchedText"] | undefined {
-  if (
-    row.matchedTextFields.length === 0 ||
-    row.matchedTextTokensByField === undefined ||
-    row.matchedTextTokensByField.length === 0
-  ) {
+function matchedTextFromRow(input: {
+  row: MusicDataPlatformRetrievalMaterialRow;
+  query: RetrievalEffectiveQuery;
+}): RetrievalQueryHit["matchedText"] | undefined {
+  if (input.query.text === undefined) {
     return undefined;
   }
 
+  if (
+    input.row.matchedTextFields.length === 0 ||
+    input.row.matchedTextTokensByField === undefined ||
+    input.row.matchedTextTokensByField.length === 0 ||
+    input.row.matchedTextTokensByField.some((entry) => entry.tokens.length === 0) ||
+    input.row.matchedTokenCount === undefined ||
+    input.row.matchedTokenCount < 1
+  ) {
+    throw new MusicIntelligenceError({
+      code: "music_intelligence.retrieval_result_invalid",
+      message: "Text query hits must include matched text evidence.",
+    });
+  }
+
   return {
-    fields: row.matchedTextFields,
-    tokensByField: row.matchedTextTokensByField,
-    summary: matchedTextSummary(row.matchedTextTokensByField),
+    fields: input.row.matchedTextFields,
+    tokensByField: input.row.matchedTextTokensByField,
+    summary: matchedTextSummary(input.row.matchedTextTokensByField),
   };
 }
 

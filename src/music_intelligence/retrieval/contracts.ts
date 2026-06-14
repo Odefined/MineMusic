@@ -17,6 +17,8 @@ export type {
   RetrievalTextField,
 };
 
+// Mirrors the current Music Data Platform local owner scope without importing
+// owner-scope helpers into Retrieval's narrow read-port dependency.
 export const DEFAULT_RETRIEVAL_OWNER_SCOPE = "local";
 export const RETRIEVAL_TEXT_MATCHING_STRATEGY = "prefix_or_v1";
 export const DEFAULT_RETRIEVAL_LIMIT = 20;

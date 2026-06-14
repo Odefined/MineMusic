@@ -419,6 +419,33 @@ assert.deepEqual(hitResult.hits, [{
   },
 }]);
 
+const recentTextHarness = createReadPortHarness([{
+  rows: [materialRow({
+    materialRef: materialRef("recording", "m_recent_text_hit"),
+    titleText: "recent text",
+    matchedTextFields: ["title"],
+    matchedTextTokensByField: [{
+      field: "title",
+      tokens: ["recent"],
+    }],
+    matchedTokenCount: 1,
+  })],
+}]);
+const recentTextResult = recentTextHarness.service.query({
+  text: "recent",
+  order: "recently_added",
+});
+assert.deepEqual(recentTextResult.hits[0]?.matchedText, {
+  fields: ["title"],
+  tokensByField: [{
+    field: "title",
+    tokens: ["recent"],
+  }],
+  summary: "title matched recent",
+});
+assert.equal(recentTextResult.hits[0]?.rankScore, undefined);
+assert.equal(recentTextResult.hits[0]?.basis.textMatched, true);
+
 const stableRankHarness = createReadPortHarness([{
   rows: [
     materialRow({
@@ -494,6 +521,88 @@ const invalidRankHarness = createReadPortHarness([{
 }]);
 assertMusicIntelligenceError(
   () => invalidRankHarness.service.query({
+    text: "plain",
+  }),
+  "music_intelligence.retrieval_result_invalid",
+);
+
+const missingTextFieldsHarness = createReadPortHarness([{
+  rows: [materialRow({
+    materialRef: materialRef("recording", "m_missing_text_fields"),
+    matchedTextTokensByField: [{
+      field: "title",
+      tokens: ["plain"],
+    }],
+    matchedTokenCount: 1,
+    rankScore: {
+      kind: "fts_bm25",
+      value: 1,
+    },
+  })],
+}]);
+assertMusicIntelligenceError(
+  () => missingTextFieldsHarness.service.query({
+    text: "plain",
+  }),
+  "music_intelligence.retrieval_result_invalid",
+);
+
+const missingTextTokensHarness = createReadPortHarness([{
+  rows: [materialRow({
+    materialRef: materialRef("recording", "m_missing_text_tokens"),
+    matchedTextFields: ["title"],
+    matchedTokenCount: 1,
+    rankScore: {
+      kind: "fts_bm25",
+      value: 1,
+    },
+  })],
+}]);
+assertMusicIntelligenceError(
+  () => missingTextTokensHarness.service.query({
+    text: "plain",
+  }),
+  "music_intelligence.retrieval_result_invalid",
+);
+
+const missingTextTokenCountHarness = createReadPortHarness([{
+  rows: [materialRow({
+    materialRef: materialRef("recording", "m_missing_text_token_count"),
+    matchedTextFields: ["title"],
+    matchedTextTokensByField: [{
+      field: "title",
+      tokens: ["plain"],
+    }],
+    rankScore: {
+      kind: "fts_bm25",
+      value: 1,
+    },
+  })],
+}]);
+assertMusicIntelligenceError(
+  () => missingTextTokenCountHarness.service.query({
+    text: "plain",
+  }),
+  "music_intelligence.retrieval_result_invalid",
+);
+
+const zeroTextTokenCountHarness = createReadPortHarness([{
+  rows: [materialRow({
+    materialRef: materialRef("recording", "m_zero_text_token_count"),
+    matchedTextFields: ["title"],
+    matchedTextTokensByField: [{
+      field: "title",
+      tokens: ["plain"],
+    }],
+    matchedTokenCount: 0,
+    rankScore: {
+      kind: "fts_bm25",
+      value: 1,
+    },
+  })],
+}]);
+assertMusicIntelligenceError(
+  () => zeroTextTokenCountHarness.service.query({
     text: "plain",
   }),
   "music_intelligence.retrieval_result_invalid",
