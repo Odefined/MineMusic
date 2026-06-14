@@ -1,6 +1,6 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 13C runtime-integrated projection maintenance and retrieval freshness closure
+> Status: Current boundary authority through implemented Phase 14 source-library update reconciliation
 > Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, and the retrieval read port
 
 Music Data Platform provides identity repositories, identity read/write
@@ -99,7 +99,7 @@ Commands are created with `db: MusicDatabaseTransactionContext` and
 | `recordImportItem` | resolved batch, `sourceRef`, provider identity, `materialRef`, optional provider added time | source-library item, item outcome, and after-state batch records | `source_library_items`, `source_library_import_item_outcomes`, `source_library_import_batches` |
 | `recordImportItemFailure` | batch id, optional source ref key, provider identity, compact error | item outcome and after-state batch records | `source_library_import_item_outcomes`, `source_library_import_batches` |
 | `failImportBatch` | batch id plus compact error | after-state batch record or `undefined` when missing | `source_library_import_batches` |
-| `completeImportBatch` | batch plus completion reason | after-state batch record | `source_library_import_batches` |
+| `completeImportBatch` | batch plus completion reason | after-state batch record | `source_library_import_batches`, conditional reconciliation delete on `source_library_items`, conditional library-scope projection invalidation |
 | `advanceImportBatchCursor` | batch plus next cursor | after-state batch record | `source_library_import_batches` |
 | `recordOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind`, explicit `origin`, optional `note` | current relation record | `owner_material_relations` |
 | `removeOwnerMaterialRelation` | `ownerScope`, `materialRef`, `relationKind` | current relation record | `owner_material_relations` |
@@ -193,6 +193,11 @@ repositories directly and must not call lower-level write factories directly.
 Unchanged repeated imports do not rewrite `source_library_items` or emit
 `source_library_item_written`, but conservative identity writes may still dirty
 material-local projection targets.
+When a batch completes with `provider_exhausted`, a resolved `libraryRef`, and
+`failedCount = 0`, `completeImportBatch(...)` reconciles current membership by
+deleting source-library rows not observed in that batch's `imported` or
+`already_present` outcomes, then invalidates the affected
+`owner_catalog_source_library` target.
 
 The service output is internal and complete enough for tests, smoke, and later
 Stage Interface projection. It is not a compact agent-facing DTO and does not
@@ -290,7 +295,7 @@ Current guards:
 - source-canonical binding tables;
 - command audit;
 - public import tools;
-- update baselines, removed-item reconciliation, local pool algebra,
+- update baselines, local pool algebra,
   owner-scoped/public query surfaces, text-query integration, and
   presentation;
 - Collection writes and additional owner catalog producers beyond

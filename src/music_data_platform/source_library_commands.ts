@@ -279,12 +279,37 @@ export function createSourceLibraryCommands(
       });
     },
     completeImportBatch(commandInput) {
-      return repositories.batches.upsert({
+      const completedBatch = repositories.batches.upsert({
         ...withoutCursor(commandInput.batch),
         status: "completed",
         completionReason: commandInput.completionReason,
         updatedAt: input.now,
       });
+
+      if (
+        commandInput.completionReason !== "provider_exhausted" ||
+        completedBatch.failedCount > 0 ||
+        completedBatch.libraryRef === undefined
+      ) {
+        return completedBatch;
+      }
+
+      const reconciliation = repositories.items.deleteItemsNotObservedInBatch({
+        libraryRef: completedBatch.libraryRef,
+        batchId: completedBatch.batchId,
+      });
+
+      if (reconciliation.deletedCount > 0) {
+        input.projectionInvalidationCommands.markProjectionInvalidated({
+          writes: [{
+            writeKind: "source_library_scope_written",
+            ownerScope: completedBatch.ownerScope,
+            libraryRef: completedBatch.libraryRef,
+          }],
+        });
+      }
+
+      return completedBatch;
     },
     advanceImportBatchCursor(commandInput) {
       return repositories.batches.upsert({

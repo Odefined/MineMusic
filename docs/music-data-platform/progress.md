@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 13C runtime-integrated projection maintenance and retrieval freshness closure
+> Status: Implemented through Phase 14 source-library update reconciliation
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -145,6 +145,14 @@
   imports keep batch/outcome bookkeeping, do not rewrite the item row, and do
   not emit `source_library_item_written`; conservative identity writes may
   still dirty local projection targets.
+- `completeImportBatch(...)` now reconciles current source-library membership
+  for `provider_exhausted` batches with resolved `libraryRef` and
+  `failedCount = 0`, deleting rows not observed in successful
+  `imported` / `already_present` batch outcomes.
+- Reconciliation deletes invalidate
+  `owner_catalog_source_library(ownerScope, libraryRef)` through the typed
+  projection invalidation seam instead of issuing direct rebuild writes or
+  per-material dirty writes.
 - `recordImportItem(...)` now rejects a provided `materialRef` that does not
   match the current `source_material_bindings` row for the same `sourceRef`.
 - Owner catalog provenance stores compact projection basis only; it does not
@@ -253,6 +261,10 @@
 - focused ref-validation tests cover malformed ref/refKey inputs plus
   area-specific validator codes for material, source-library, owner-relation,
   and owner-scope boundaries.
+- source-library tests cover repository-owned observation-set deletion,
+  command-owned provider-exhausted reconciliation, library-scope dirty
+  invalidation, failed-batch suppression, and `max_new_items_reached`
+  suppression.
 - Active-tree architecture tests reject low-level repository factory calls
   outside owning command/read/projection boundaries and direct write tokens
   outside repository, command/projection, schema, and storage infrastructure
@@ -280,7 +292,7 @@ Out of the current Music Data Platform implementation:
 
 - Collection membership and Collection source-of-truth writes;
 - provider execution and provider config;
-- update baselines and removed-from-library reconciliation;
+- update baseline tables;
 - public owner-scoped query surfaces and presentation;
 - multi-process worker coordination, scheduler wake signals, retry backoff,
   and public maintenance controls;

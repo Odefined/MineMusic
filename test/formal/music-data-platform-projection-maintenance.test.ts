@@ -162,6 +162,7 @@ export type _projectionSourceWriteShape = Expect<
     | "canonical_record_written"
     | "source_material_binding_written"
     | "source_library_item_written"
+    | "source_library_scope_written"
     | "owner_relation_written"
   >
 >;
@@ -636,6 +637,11 @@ assert.deepEqual(
           sourceRef: plannerSource.sourceRef,
         },
         {
+          writeKind: "source_library_scope_written",
+          ownerScope: DEFAULT_OWNER_SCOPE,
+          libraryRef: plannerLibraryRef,
+        },
+        {
           writeKind: "owner_relation_written",
           ownerScope: DEFAULT_OWNER_SCOPE,
           relationKind: "saved",
@@ -643,7 +649,7 @@ assert.deepEqual(
         },
       ],
     })),
-  { writeCount: 4, targetCount: 4 },
+  { writeCount: 5, targetCount: 5 },
 );
 assert.deepEqual(
   summarizePendingTargets(plannerDatabase),
@@ -661,6 +667,11 @@ assert.deepEqual(
     {
       projectionKind: "owner_catalog_relation_material",
       targetPayloadJson: ownerMaterialPayloadJson(DEFAULT_OWNER_SCOPE, plannerBoundMaterialRef),
+      dirtyGeneration: 1,
+    },
+    {
+      projectionKind: "owner_catalog_source_library",
+      targetPayloadJson: ownerLibraryPayloadJson(DEFAULT_OWNER_SCOPE, plannerLibraryRef),
       dirtyGeneration: 1,
     },
     {
@@ -1594,6 +1605,17 @@ function ownerMaterialPayloadJson(ownerScope: string, materialRef: Ref): string 
       namespace: materialRef.namespace,
       kind: materialRef.kind,
       id: materialRef.id,
+    },
+  });
+}
+
+function ownerLibraryPayloadJson(ownerScope: string, libraryRef: Ref): string {
+  return JSON.stringify({
+    ownerScope,
+    libraryRef: {
+      namespace: libraryRef.namespace,
+      kind: libraryRef.kind,
+      id: libraryRef.id,
     },
   });
 }

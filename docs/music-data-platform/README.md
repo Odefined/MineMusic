@@ -1,6 +1,6 @@
 # Music Data Platform
 
-> Status: Current area documentation for implemented Phase 11C
+> Status: Current area documentation for implemented Phase 14
 > Scope: Identity write model, source-library import, owner material relation, owner catalog projection, material text projection, and projection maintenance wiring
 
 Music Data Platform owns formal music data truth. The implemented slices cover
@@ -16,11 +16,9 @@ source-of-truth write facade that wires durable writes into projection
 invalidation planning.
 
 This area does not yet implement Collection membership, Library Update
-baselines, removed-from-library reconciliation, local pool query,
-owner-scoped/public query, provider execution, Stage Interface tools,
-canonical review/merge workflow, background projection scheduler/worker
-orchestration, Memory, or Music
-Experience.
+baseline tables, local pool query, owner-scoped/public query, provider
+execution, Stage Interface tools, canonical review/merge workflow, Memory, or
+Music Experience.
 
 ## Documents
 
@@ -72,3 +70,5 @@ Formal phase specs:
 - `docs/formal-rebuild/phase-9-owner-material-relations-foundation.md`
 - `docs/formal-rebuild/phase-10-music-data-platform-material-text-projection-foundation.md`
 - `docs/formal-rebuild/phase-11-projection-maintenance-foundation.md`
+- `docs/formal-rebuild/phase-14-source-library-update-reconciliation.md`
+- `docs/formal-rebuild/phase-14-source-library-update-reconciliation-implementation-plan.md`

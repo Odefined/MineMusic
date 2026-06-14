@@ -274,7 +274,7 @@ followed_source_artist
 Batch statuses are `running`, `completed`, and `failed`. Completion reasons
 are `provider_exhausted` and `max_new_items_reached`. Phase 8 supports
 `startImport` and `continueImport` only; it does not support cancel, pause,
-resume, retry, update baseline, or removed-from-library reconciliation.
+resume, retry, or update baseline tables.
 
 `limit` is a per-call processing limit and must stay within the provider-read
 contract range of 1 through 100. `maxNewItems` is an optional batch-level stop
@@ -341,6 +341,16 @@ with that persisted row instead of trusting caller-supplied batch fields.
 Lower-level source-library and owner-relation commands still keep explicit
 `ownerScope` because the formal storage and projection model are owner-scoped,
 but Phase 11 does not support arbitrary workflow-facing owner fanout yet.
+
+When `completeImportBatch(...)` finishes a batch with
+`completionReason = provider_exhausted`, a resolved `libraryRef`, and
+`failedCount = 0`, source-library commands reconcile current membership for
+that library by deleting `source_library_items` rows whose `source_ref_key`
+was not successfully observed in the completed batch. Successful observation
+means an item outcome of `imported` or `already_present`. The command then
+invalidates `owner_catalog_source_library(ownerScope, libraryRef)` through the
+typed projection invalidation seam. Failed batches, partial scans, and
+`max_new_items_reached` batches never delete current memberships.
 
 Phase 8 does not introduce a second material creation policy, direct material
 row construction inside import callers, or synchronous owner catalog projection
@@ -732,7 +742,7 @@ collections, rewrite projections, or touch presentation history.
 
 - Collection membership;
 - public Stage Interface import tools;
-- update baselines and removed-from-library reconciliation;
+- update baseline tables;
 - public owner-scoped query surfaces and query result shaping beyond the
   internal retrieval read port;
 - Collection source-of-truth writes and additional owner catalog producers

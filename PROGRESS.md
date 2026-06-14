@@ -721,6 +721,26 @@ Phase 13 completes Projection Maintenance runtime ownership as three PR slices:
   Interface, presentation, and Music Intelligence code still cannot call the
   runner directly or perform projection rebuild writes.
 
+## 2026-06-15: Phase 14 Source Library Update Reconciliation
+
+Phase 14 completes the first real source-library update removal behavior:
+
+- `completeImportBatch(...)` now reconciles current
+  `source_library_items` only when a batch completes with
+  `provider_exhausted`, a resolved `libraryRef`, and `failedCount = 0`;
+- reconciliation deletes local memberships not observed in that batch's
+  successful `imported` / `already_present` outcomes;
+- reconciliation deletes are scoped to one `libraryRef` and do not delete
+  source/material/canonical/binding records;
+- reconciliation invalidates the affected
+  `owner_catalog_source_library(ownerScope, libraryRef)` target through the
+  typed projection invalidation seam rather than direct rebuild calls;
+- failed batches and `max_new_items_reached` batches do not remove local
+  memberships;
+- focused tests now cover repository-owned observation-set deletion,
+  command-owned reconciliation, library-scope dirty invalidation, and the
+  suppression cases.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
