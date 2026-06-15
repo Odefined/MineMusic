@@ -599,6 +599,27 @@ assert.throws(
   isRetrievalResultSetError,
 );
 
+// P1-4 (cleanup now): the cleanup `now` input is compared lexicographically against
+// expires_at, so it must be a comparable ISO-8601 UTC timestamp too.
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+
+    assert.throws(
+      () => records.cleanupExpiredRetrievalResultSets({ now: "not-a-timestamp" }),
+      isRetrievalResultSetError,
+    );
+    assert.throws(
+      () => records.cleanupExpiredMaterialCandidates({ now: "2026-06-15 10:00:00" }),
+      isRetrievalResultSetError,
+    );
+  });
+
+  database.close();
+}
+
 // P2-1: listForResultSet returns rows in the Phase 15 mixed ranking order
 // (matched_token_count DESC first), not storage order.
 {

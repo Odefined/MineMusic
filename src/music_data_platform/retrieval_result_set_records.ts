@@ -379,6 +379,11 @@ export function createRetrievalResultSetRecords(
     resultTextFts,
     materialCandidates,
     cleanupExpiredRetrievalResultSets(cleanupInput) {
+      assertComparableTimestamp(
+        cleanupInput.now,
+        "now",
+        "music_data.retrieval_result_set_invalid",
+      );
       const limit = validatedCleanupLimit(cleanupInput.limit);
       const expiredIds = db.all<{ result_set_id: string }>(
         `
@@ -438,6 +443,11 @@ export function createRetrievalResultSetRecords(
       };
     },
     cleanupExpiredMaterialCandidates(cleanupInput) {
+      assertComparableTimestamp(
+        cleanupInput.now,
+        "now",
+        "music_data.retrieval_result_set_invalid",
+      );
       const limit = validatedCleanupLimit(cleanupInput.limit);
       const expiredKeys = db.all<{ material_candidate_ref_key: string }>(
         `
