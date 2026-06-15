@@ -342,3 +342,17 @@ Projects may add sections such as:
 - test matrix
 
 Keep overrides concrete. Prefer exact commands and file paths over generic advice.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues in this repo (via `gh`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles mapped to GitHub labels with default names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` at the repo root, plus `docs/adr/`. See `docs/agents/domain.md`.

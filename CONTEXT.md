@@ -108,6 +108,60 @@ A link shape in the Public Agent Protocol that contains only user-displayable
 link text and URL.
 _Avoid_: source ref, playable-link record, provider provenance.
 
+### Music Discovery
+
+The Public Agent Protocol term for the agent-facing workbench area of finding,
+identifying, comparing, and choosing candidate music items from an uncertain
+natural-language query, without writing user state.
+
+Music Discovery is the agent-facing seam over Music Intelligence Retrieval, not
+the internal Retrieval contract. It hides durable material, material candidate,
+source, canonical, pool-algebra, and result-set internals behind public handles
+and public result semantics. Today it maps to Retrieval local plus provider
+candidate recall; later retrieval backends may extend it without breaking the
+public contract.
+
+Music Discovery is exposed as the Stage Interface instrument `music.discovery`,
+with tools such as `music.discovery.search` and `music.discovery.list_scopes`.
+Music-domain agent instruments and tools use the `music.` namespace, distinct from
+the `stage.` namespace used for runtime and system tools. A Music Discovery result
+distinguishes a known catalog item from an unconfirmed provider candidate through
+public result semantics, never through internal refs. Music Discovery does not
+save, play, favorite, block, import, commit a candidate to a durable record, or
+expose a final recommendation.
+_Avoid_: internal Retrieval hit, material candidate ref, materialRef, sourceRef,
+canonicalRef, pool filter, result set id, provider raw id, Material Resolve.
+
+### Music Discovery Handle
+
+A Public Agent Protocol handle that lets an agent reference one Music Discovery
+result item across later turns or tools. It is kind-discriminated and carries its
+own lifetime in the public contract:
+
+- `catalog`: a known, durable catalog item. Stable indefinitely.
+- `candidate`: an unconfirmed provider candidate. Stable only within an active
+  discovery session window and may expire.
+
+A Music Discovery Handle is never a raw durable material ref, material candidate
+ref, source ref, or canonical ref; those internal anchors are resolved only
+inside MineMusic. A `candidate` handle that has expired must fail explicitly
+rather than silently resolve to a different item.
+_Avoid_: materialRef, materialCandidateRef, sourceRef, canonicalRef, provider
+entity id, raw database or provider key.
+
+### Music Scope Handle
+
+A Public Agent Protocol handle that lets an agent reference one durable
+owner-scoped recall set for use as a Music Search scope: a source library or a
+positive owner relation set (such as saved or favorite materials).
+
+A Music Scope Handle is kind-discriminated (`library` | `relation`) and durable.
+It is never a raw source library ref or owner relation pool ref; those internal
+anchors are resolved only inside MineMusic. A Music Scope Handle is obtained
+from the `music.discovery.list_scopes` tool, not constructed by the agent.
+_Avoid_: sourceLibraryRef, ownerRelationPoolRef, provider id, raw owner or
+library key, Collection (out of v1 scope).
+
 ### Stage Modules
 
 Small LLM-facing modules used by Stage Interface.
