@@ -999,6 +999,58 @@ fixtureMixedDatabase.close();
   assert.equal(mixedWorkspace.calls.length, 0);
 }
 
+// Provider-search contract: MI must NOT require sourceRef.id === providerEntityId.
+// Providers may encode the stable source identity (sourceRef.id) differently from the
+// raw provider entity id (prefixes, hashes, composite ids, id migrations). Such a
+// candidate must be accepted by MI validation and reach the mixed workspace; the
+// fixture helpers set them equal, so this case is the one that guards real providers.
+{
+  const mixedWorkspace = createMixedWorkspaceHarness();
+  const service = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search(input) {
+        return {
+          providerId: input.providerId,
+          query: input.query,
+          candidates: [
+            providerCandidate({
+              kind: "track",
+              sourceRef: sourceRefForProvider("netease", "track", "ncm_12345"),
+              providerId: "netease",
+              providerEntityId: "12345",
+              label: "divergent id alpha",
+              title: "divergent id alpha",
+            }),
+          ],
+        };
+      },
+    },
+  });
+
+  const result = await service.query({
+    text: "divergent id",
+    pools: { anyOf: [{ kind: "provider_search", providerId: "netease" }] },
+    limit: 1,
+  });
+
+  assert.equal(mixedWorkspace.calls.length, 1);
+  const accepted = mixedWorkspace.calls[0]?.providerCandidates?.[0];
+  if (accepted === undefined) {
+    throw new Error("Expected the divergent-id candidate to reach the mixed workspace.");
+  }
+  assert.equal(accepted.sourceEntity.providerEntityId, "12345");
+  assert.equal(
+    refKey(accepted.sourceEntity.sourceRef),
+    refKey(sourceRefForProvider("netease", "track", "ncm_12345")),
+  );
+  assert.deepEqual(result.basis, {
+    ownerCatalogVisibilityApplied: false,
+    blockedMaterialsExcluded: true,
+  });
+}
+
 for (const [status, code] of [
   ["result_set_expired", "music_intelligence.retrieval_result_set_expired"],
   ["material_candidate_expired", "music_intelligence.material_candidate_expired"],

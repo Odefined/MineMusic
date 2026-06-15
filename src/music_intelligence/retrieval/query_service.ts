@@ -608,13 +608,17 @@ function validateProviderSourceEntity(input: {
   const ref = providerSourceRef(sourceRef);
   safeProviderSearchRefKey(ref);
 
+  // MI validates the SourceRef contract shape (namespace/kind/ref-safety) but must
+  // NOT couple sourceRef.id to providerEntityId. Providers legitimately encode the
+  // stable source identity differently from the raw provider entity id (prefixes,
+  // hashes, composite ids, id migrations). Requiring equality would reject real
+  // provider candidates and leak provider id strategy into Music Intelligence.
   if (
     ref.namespace !== `source_${input.providerId}` ||
-    ref.kind !== kind ||
-    ref.id !== providerEntityId
+    ref.kind !== kind
   ) {
     throw providerSearchResultInvalid(
-      "Provider search sourceRef must match source provider namespace, kind, and providerEntityId.",
+      "Provider search sourceRef must match source provider namespace and kind.",
     );
   }
 
