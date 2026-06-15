@@ -100,12 +100,13 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-15-provider-search-pool-retrieval.md`:
   Phase 15 spec for internal provider-search pool retrieval, mixed result
   sets, material candidate cache, SQL ranking, and Source Provider Slot wiring;
-  PR15A typed pool migration and PR15B runtime result-set foundation are
+  PR15A typed pool migration, PR15B runtime result-set foundation, PR15C mixed
+  retrieval workspace, and PR15D provider slot wiring are
   implemented.
 - `docs/formal-rebuild/phase-15-provider-search-pool-retrieval-implementation-plan.md`:
   Phase 15 execution plan split into PR 15A typed pools, PR 15B runtime
   result-set foundation, PR 15C fixture mixed query, and PR 15D provider slot
-  wiring; PR15A and PR15B are implemented.
+  wiring; PR15A, PR15B, PR15C, and PR15D are implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -214,6 +215,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Storage, Music Data Platform schemas, and internal Library Import
   service wiring.
+- `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
+  Extension Runtime source-provider search to the Music Intelligence Retrieval
+  provider-search port.
 - `src/server/index.ts`: minimal Server Host entrypoint and snapshot command.
 - `src/index.ts`: formal skeleton package exports.
 - `src/storage/database.ts`: generic `MusicDatabase` boundary.
@@ -276,8 +280,11 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/retrieval_read_model.ts`: internal retrieval read
   port over owner catalog, pool algebra, text evidence/ranking, keyset
   pagination, and coarse freshness.
+- `src/music_data_platform/retrieval_mixed_workspace.ts`: internal mixed
+  local/provider result-set workspace and material-candidate cache boundary.
 - `src/music_intelligence/retrieval/query_service.ts`: internal Retrieval
-  query service over the Music Data Platform retrieval read port.
+  query service over Music Data Platform retrieval ports and provider-search
+  port wiring.
 - `src/music_intelligence/retrieval/query_normalization.ts`: Retrieval-owned
   input normalization and cursor fingerprint input construction.
 - `src/music_intelligence/retrieval/cursor.ts`: Retrieval-owned opaque cursor

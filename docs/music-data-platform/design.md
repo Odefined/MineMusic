@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority through implemented Phase 15B
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, retrieval read port, and runtime retrieval result-set/cache foundation
+> Status: Current design authority through implemented Phase 15D
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, retrieval read port, and mixed retrieval result-set/cache workspace
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -16,8 +16,10 @@ for current projections. Phases 12A and 12B add the first query-ready
 Music Data Platform retrieval read port for owner-visible catalog search, SQL
 pool algebra, text-aware ranking, keyset pagination, and coarse freshness
 reads. Phase 15B adds the runtime retrieval result-set and material-candidate
-cache foundation that later mixed retrieval uses for SQL-owned ranking,
-pagination, and candidate resolution.
+cache foundation. Phase 15C/15D use that foundation through a Music Data
+Platform mixed retrieval workspace that owns SQL ranking, pagination, resolved
+source candidate collapse, runtime result-set rows, and material-candidate
+cache writes.
 
 ## Core Concepts
 
@@ -42,9 +44,10 @@ pagination, and candidate resolution.
 | Retrieval read port | Query-ready read boundary over owner catalog/material text/projection freshness. | Phase 12A/12B support owner-visible pool filtering, kind filtering, `stable` / `recently_added` / `text_relevance` ordering, SQL keyset pagination, matched pool/text evidence, and coarse freshness. |
 | `materialCandidateRef` | Runtime material-facing handle for an unresolved provider candidate. | `material_candidate:provider_candidate:<opaque>` derived from `digest(refKey(sourceEntity.sourceRef))`; not durable material identity and not a source ref. |
 | `retrieval_result_sets` | Runtime mixed retrieval result-set header. | Stores query fingerprint, local result window metadata, and TTL; it does not store Stage Interface output. |
-| `retrieval_result_rows` | Runtime mixed retrieval row table. | Stores durable material rows and unresolved material-candidate rows for later SQL ranking/pagination. |
+| `retrieval_result_rows` | Runtime mixed retrieval row table. | Stores durable material rows and unresolved material-candidate rows for SQL ranking/pagination. |
 | `retrieval_result_text_fts` | Result-set-scoped FTS corpus. | Uses durable `material_text_documents` fields for material rows and provider candidate text only for unresolved material-candidate rows. |
 | `material_candidate_cache` | Runtime cache for validated provider material candidates. | Keyed by `material_candidate_ref_key`; cleanup never deletes a candidate still referenced by a non-expired result set. |
+| Mixed retrieval workspace | Music Data Platform boundary for mixed local/provider retrieval. | Builds first-page result sets from local result windows plus provider candidates, reuses result sets on cursor pages, and owns runtime result-set/cache writes. |
 | `projection_maintenance_targets` | Current projection maintenance worklist. | One row per `projection_kind + target_key`; `status` is `dirty` or `failed` and `dirty_generation` is monotonic. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |

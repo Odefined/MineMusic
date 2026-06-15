@@ -1,4 +1,5 @@
 import type {
+  MixedRetrievalCursorPosition,
   RetrievalReadCursorPosition,
 } from "../../music_data_platform/index.js";
 import { MusicIntelligenceError } from "../errors.js";
@@ -6,18 +7,25 @@ import { MusicIntelligenceError } from "../errors.js";
 export type RetrievalCursorPayload = {
   version: 2;
   queryFingerprint: string;
-  position: RetrievalReadCursorPosition;
+  position: RetrievalReadCursorPosition | MixedRetrievalCursorPosition;
+  resultSetId?: string;
+};
+
+export type DecodedRetrievalCursor = {
+  position: RetrievalReadCursorPosition | MixedRetrievalCursorPosition;
   resultSetId?: string;
 };
 
 export function encodeRetrievalCursor(input: {
   queryFingerprint: string;
-  position: RetrievalReadCursorPosition;
+  position: RetrievalReadCursorPosition | MixedRetrievalCursorPosition;
+  resultSetId?: string;
 }): string {
   const payload = {
     version: 2,
     queryFingerprint: input.queryFingerprint,
     position: input.position,
+    ...(input.resultSetId === undefined ? {} : { resultSetId: input.resultSetId }),
   } satisfies RetrievalCursorPayload;
 
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
@@ -26,7 +34,7 @@ export function encodeRetrievalCursor(input: {
 export function decodeRetrievalCursor(input: {
   cursor: string;
   expectedQueryFingerprint: string;
-}): RetrievalReadCursorPosition {
+}): DecodedRetrievalCursor {
   const payload = decodePayload(input.cursor);
 
   if (payload.queryFingerprint !== input.expectedQueryFingerprint) {
@@ -36,7 +44,10 @@ export function decodeRetrievalCursor(input: {
     });
   }
 
-  return payload.position;
+  return {
+    position: payload.position,
+    ...(payload.resultSetId === undefined ? {} : { resultSetId: payload.resultSetId }),
+  };
 }
 
 function decodePayload(cursor: string): RetrievalCursorPayload {
@@ -66,7 +77,7 @@ function decodePayload(cursor: string): RetrievalCursorPayload {
     throw invalidCursor("Retrieval cursor query fingerprint is invalid.");
   }
 
-  if (!isRetrievalReadCursorPosition(parsed.position)) {
+  if (!isRetrievalCursorPosition(parsed.position)) {
     throw invalidCursor("Retrieval cursor position is invalid.");
   }
 
@@ -85,7 +96,9 @@ function decodePayload(cursor: string): RetrievalCursorPayload {
   };
 }
 
-function isRetrievalReadCursorPosition(value: unknown): value is RetrievalReadCursorPosition {
+function isRetrievalCursorPosition(
+  value: unknown,
+): value is RetrievalReadCursorPosition | MixedRetrievalCursorPosition {
   if (!isRecord(value) || typeof value.order !== "string") {
     return false;
   }
@@ -100,10 +113,20 @@ function isRetrievalReadCursorPosition(value: unknown): value is RetrievalReadCu
   }
 
   if (value.order === "text_relevance") {
-    return typeof value.matchedTokenCount === "number" &&
+    const hasTextRankFields = typeof value.matchedTokenCount === "number" &&
       typeof value.bestFieldPriority === "number" &&
-      typeof value.rankSortValue === "number" &&
-      typeof value.materialRefKey === "string";
+      typeof value.rankSortValue === "number";
+
+    if (!hasTextRankFields) {
+      return false;
+    }
+
+    if (typeof value.materialRefKey === "string") {
+      return true;
+    }
+
+    return (value.rowKind === "material" || value.rowKind === "material_candidate") &&
+      typeof value.stableRefKey === "string";
   }
 
   return false;

@@ -1,6 +1,8 @@
 import type { ExtensionRuntime } from "../extension/index.js";
 import {
   createMaterialRefFactory,
+  createMusicDataPlatformRetrievalReadPort,
+  createMusicDataPlatformRetrievalWorkspace,
   createSourceLibraryImportService,
   musicDataPlatformIdentitySchema,
   musicDataPlatformMaterialTextProjectionSchema,
@@ -14,6 +16,10 @@ import {
   type SourceLibraryImportService,
 } from "../music_data_platform/index.js";
 import {
+  createRetrievalQueryService,
+  type RetrievalQueryService,
+} from "../music_intelligence/index.js";
+import {
   SqliteMusicDatabase,
   type MusicDatabase,
 } from "../storage/index.js";
@@ -25,9 +31,11 @@ import {
   type ProjectionMaintenanceScheduler,
   type ProjectionMaintenanceSchedulerDependencies,
 } from "./projection_maintenance_scheduler.js";
+import { createExtensionRuntimeRetrievalProviderSearchPort } from "./retrieval_provider_search_adapter.js";
 
 export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
+  retrievalQuery(): RetrievalQueryService | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -44,6 +52,7 @@ export function createMusicDataPlatformRuntimeModule(
 ): MusicDataPlatformRuntimeModule {
   let database: MusicDatabase | undefined;
   let sourceLibraryImportService: SourceLibraryImportService | undefined;
+  let retrievalQueryService: RetrievalQueryService | undefined;
   let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
   const ownsDatabase = input.database === undefined;
 
@@ -81,6 +90,17 @@ export function createMusicDataPlatformRuntimeModule(
             ? {}
             : { defaultLimit: input.config.sourceLibraryImport.defaultLimit }),
         });
+        retrievalQueryService = createRetrievalQueryService({
+          readPort: createMusicDataPlatformRetrievalReadPort({
+            db: database.context(),
+          }),
+          mixedRetrievalWorkspace: createMusicDataPlatformRetrievalWorkspace({
+            database,
+          }),
+          providerSearch: createExtensionRuntimeRetrievalProviderSearchPort({
+            extensionRuntime: input.extensionRuntime,
+          }),
+        });
         projectionMaintenanceScheduler = createProjectionMaintenanceScheduler({
           database,
           ...(input.config?.projectionMaintenance === undefined
@@ -99,6 +119,7 @@ export function createMusicDataPlatformRuntimeModule(
       } catch (cause) {
         projectionMaintenanceScheduler = undefined;
         sourceLibraryImportService = undefined;
+        retrievalQueryService = undefined;
         closeOwnedDatabase();
         return {
           ok: false,
@@ -119,6 +140,7 @@ export function createMusicDataPlatformRuntimeModule(
         await scheduler?.stop();
         closeOwnedDatabase();
         sourceLibraryImportService = undefined;
+        retrievalQueryService = undefined;
 
         return {
           ok: true,
@@ -139,6 +161,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     sourceLibraryImport() {
       return sourceLibraryImportService;
+    },
+    retrievalQuery() {
+      return retrievalQueryService;
     },
   };
 

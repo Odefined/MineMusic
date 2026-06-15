@@ -18,6 +18,12 @@ export type {
   CreateMusicDataPlatformRuntimeModuleInput,
   MusicDataPlatformRuntimeModule,
 } from "./music_data_platform_runtime_module.js";
+export {
+  createExtensionRuntimeRetrievalProviderSearchPort,
+} from "./retrieval_provider_search_adapter.js";
+export type {
+  CreateExtensionRuntimeRetrievalProviderSearchPortInput,
+} from "./retrieval_provider_search_adapter.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { createServerHost } = await import("./host.js");

@@ -182,6 +182,19 @@ export type {
   RetrievalReadPoolFilter,
   RetrievalTextField,
 } from "./retrieval_read_model.js";
+export {
+  createMusicDataPlatformRetrievalWorkspace,
+} from "./retrieval_mixed_workspace.js";
+export type {
+  CreateMusicDataPlatformRetrievalWorkspaceInput,
+  MixedRetrievalCursorPosition,
+  MusicDataPlatformMixedRetrievalMaterialCandidateRow,
+  MusicDataPlatformMixedRetrievalMaterialRow,
+  MusicDataPlatformMixedRetrievalPage,
+  MusicDataPlatformMixedRetrievalRow,
+  MusicDataPlatformRetrievalWorkspace,
+  MusicDataPlatformMixedRetrievalSearchInput,
+} from "./retrieval_mixed_workspace.js";
 export type {
   OwnerMaterialRelationCommands,
   RecordOwnerMaterialRelationInput,

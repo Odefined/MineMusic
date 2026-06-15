@@ -788,6 +788,44 @@ Phase 15B does not enable mixed retrieval SQL, provider-search execution,
 provider slot wiring, Stage Interface tools, or candidate-to-material commit
 behavior.
 
+## 2026-06-16: Phase 15C/15D Mixed Retrieval And Provider Slot Wiring
+
+Phase 15C and Phase 15D complete internal provider-search pool retrieval:
+
+- `createMusicDataPlatformRetrievalWorkspace(...)` owns mixed local/provider
+  result-set construction, SQL ranking, keyset pagination, runtime
+  material-candidate cache upserts, and resolved-source candidate collapse to
+  already-bound materials;
+- mixed result-set construction runs inside Music Data Platform transactions,
+  while provider search execution happens before that boundary and outside the
+  database transaction;
+- `RetrievalQueryService.query(...)` is async and accepts provider-search
+  wiring through a narrow `RetrievalProviderSearchPort`;
+- provider-search pools execute only from `anyOf`, require effective top-level
+  query text and `text_relevance` order, reject duplicate provider ids, cap
+  provider limits at 50, and map `recording | album | artist` to source target
+  kinds `track | album | artist`;
+- cursor pages reuse the stored mixed result set and do not call providers
+  again;
+- `sessionId` passes through to provider search calls but is excluded from
+  retrieval fingerprints and result-set identity;
+- caller page `limit` is excluded from cursor/result-set fingerprints for both
+  local-only and mixed retrieval cursor pages;
+- Server Host composes an Extension Runtime-backed provider-search adapter and
+  exposes the internal retrieval query service through the runtime module;
+- adapter error mapping distinguishes unavailable provider/search capability,
+  provider failure, invalid provider results, and invalid provider-search pool
+  input;
+- active-tree guards keep Retrieval from importing Extension/server/provider
+  internals and keep provider plugins away from Music Data Platform
+  write/storage modules;
+- `npm run smoke:ncm:retrieval` adds an opt-in NCM-backed mixed retrieval smoke
+  that skips unless `MINEMUSIC_LIVE_NCM_RETRIEVAL=1` is set.
+
+Phase 15C/15D still do not add Stage Interface tools, public retrieval output,
+candidate-to-material commit commands, save/present flows, or recommendation
+judgement.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

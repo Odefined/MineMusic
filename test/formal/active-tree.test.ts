@@ -147,6 +147,7 @@ assert.deepEqual(
     "src/server/index.ts",
     "src/server/music_data_platform_runtime_module.ts",
     "src/server/projection_maintenance_scheduler.ts",
+    "src/server/retrieval_provider_search_adapter.ts",
   ],
   "formal Server Host root must stay inside the Phase 13 runtime-orchestration boundary",
 );
@@ -183,6 +184,7 @@ assert.deepEqual(
     "src/music_data_platform/projection_maintenance_schema.ts",
     "src/music_data_platform/ref_digest.ts",
     "src/music_data_platform/ref_validation.ts",
+    "src/music_data_platform/retrieval_mixed_workspace.ts",
     "src/music_data_platform/retrieval_read_model.ts",
     "src/music_data_platform/retrieval_result_set_records.ts",
     "src/music_data_platform/retrieval_result_set_schema.ts",
@@ -469,6 +471,41 @@ assert.deepEqual(
   "NCM plugin must stay inside Extension/provider mapping boundaries",
 );
 
+const sourceProviderPluginImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/extension/plugins"))) {
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of forbiddenRelativeRootImportHits(text, [
+    "music_data_platform",
+    "storage",
+    "server",
+    "stage_interface",
+    "query",
+    "materialization",
+    "presentation",
+  ])) {
+    sourceProviderPluginImportFailures.push(
+      `${relative(repositoryRoot, file)} imports forbidden provider implementation dependency '${forbiddenImport}'`,
+    );
+  }
+}
+assert.deepEqual(
+  sourceProviderPluginImportFailures,
+  [],
+  "Source provider plugins must not import Music Data Platform write/storage modules or presentation/runtime boundaries",
+);
+assert.deepEqual(
+  forbiddenRelativeRootImportHits(
+    `
+      import type { MusicDatabase } from "../../../storage/index.js";
+      import type { SourceEntity } from "../../contracts/index.js";
+    `,
+    ["storage"],
+  ),
+  ["../../../storage/index.js"],
+  "Source provider plugin guard must catch forbidden imports from nested plugin directories",
+);
+
 const extensionBarrelText = await readFile(
   join(repositoryRoot, "src/extension/index.ts"),
   "utf8",
@@ -539,9 +576,13 @@ assert.deepEqual(musicDataPlatformImportFailures, []);
 
 const musicIntelligenceImportFailures: string[] = [];
 const musicIntelligenceAllowedMdpImports = new Set([
+  "MixedRetrievalCursorPosition",
+  "MusicDataPlatformMixedRetrievalPage",
+  "MusicDataPlatformMixedRetrievalRow",
   "MusicDataPlatformRetrievalMaterialRow",
   "MusicDataPlatformRetrievalReadPort",
   "MusicDataPlatformRetrievalSearchInput",
+  "MusicDataPlatformRetrievalWorkspace",
   "RetrievalFreshness",
   "RetrievalMatchedTextTokenEvidence",
   "RetrievalOrder",
@@ -694,6 +735,16 @@ assert.equal(
   "Retrieval query service must preserve Music Data Platform row order instead of sorting hits",
 );
 
+const retrievalMixedWorkspaceText = await readFile(
+  join(repositoryRoot, "src/music_data_platform/retrieval_mixed_workspace.ts"),
+  "utf8",
+);
+assert.equal(
+  retrievalMixedWorkspaceText.includes(".sort("),
+  false,
+  "Mixed retrieval workspace must use SQL ranking/keyset pagination instead of TypeScript sorting",
+);
+
 const retrievalReadModelText = await readFile(
   join(repositoryRoot, "src/music_data_platform/retrieval_read_model.ts"),
   "utf8",
@@ -707,6 +758,12 @@ assert.equal(
   retrievalReadModelText.includes("RetrievalPool"),
   false,
   "Music Data Platform local retrieval read model must not depend on Music Intelligence typed pool objects",
+);
+assert.equal(
+  retrievalReadModelText.includes("retrieval_result_sets") ||
+    retrievalReadModelText.includes("material_candidate"),
+  false,
+  "Music Data Platform local retrieval read model must stay local-only and must not gain runtime mixed result-set/candidate behavior",
 );
 
 const musicDataPlatformRawRefAssertFailures: string[] = [];
@@ -922,6 +979,7 @@ const directWriteAllowedFiles = new Set([
   "src/music_data_platform/owner_material_relation_schema.ts",
   "src/music_data_platform/projection_maintenance_commands.ts",
   "src/music_data_platform/projection_maintenance_schema.ts",
+  "src/music_data_platform/retrieval_mixed_workspace.ts",
   "src/music_data_platform/retrieval_result_set_records.ts",
   "src/music_data_platform/retrieval_result_set_schema.ts",
   "src/music_data_platform/source_library_commands.ts",
@@ -1031,6 +1089,39 @@ function forbiddenImportHits(text: string, forbiddenImports: readonly string[]):
   }
 
   return failures;
+}
+
+function forbiddenRelativeRootImportHits(text: string, forbiddenRoots: readonly string[]): string[] {
+  const failures = new Set<string>();
+  const importPattern = /\bfrom\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/gu;
+
+  for (const match of text.matchAll(importPattern)) {
+    const specifier = match[1] ?? match[2];
+    if (specifier === undefined) {
+      continue;
+    }
+
+    const root = relativeImportRoot(specifier);
+    if (root !== undefined && forbiddenRoots.includes(root)) {
+      failures.add(specifier);
+    }
+  }
+
+  return [...failures].sort();
+}
+
+function relativeImportRoot(specifier: string): string | undefined {
+  if (!specifier.startsWith(".")) {
+    return undefined;
+  }
+
+  const segments = specifier.split("/").filter((segment) => segment.length > 0 && segment !== ".");
+
+  while (segments[0] === "..") {
+    segments.shift();
+  }
+
+  return segments[0];
 }
 
 function musicDataPlatformIndexImportNames(text: string): string[] {
