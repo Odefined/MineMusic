@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 14 source-library update reconciliation
+> Status: Implemented through Phase 15B runtime result-set foundation
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -32,6 +32,8 @@
 - `src/music_data_platform/owner_material_relation_ref.ts` defines
   deterministic owner material relation refs, owner relation pool refs, and
   relation kind/origin/status validators.
+- `src/music_data_platform/material_candidate_ref.ts` defines deterministic
+  runtime material-candidate refs from provider source refs.
 - `src/music_data_platform/source_library_schema.ts` contributes
   `source_libraries`, `source_library_items`, import batch, and import item
   outcome tables.
@@ -109,6 +111,9 @@
   owner-neutral FTS probes.
 - `src/music_data_platform/projection_maintenance_schema.ts` contributes
   `projection_maintenance_targets` plus a pending-order index.
+- `src/music_data_platform/retrieval_result_set_schema.ts` contributes
+  runtime `retrieval_result_sets`, `retrieval_result_rows`,
+  `retrieval_result_text_fts`, and `material_candidate_cache`.
 - `src/music_data_platform/projection_maintenance_commands.ts` implements
   typed invalidation/dirty/clean/failed projection maintenance commands with
   deterministic `pmt_` target keys and generation-aware completion.
@@ -124,6 +129,10 @@
 - `src/music_data_platform/retrieval_read_model.ts` implements the query-ready
   Music Data Platform retrieval read port for owner-visible catalog queries,
   text integration, and coarse projection freshness reads.
+- `src/music_data_platform/retrieval_result_set_records.ts` implements the
+  low-level runtime result-set/cache persistence boundary for result-set
+  headers, mixed rows, result-set FTS rows, material candidate cache upserts,
+  cache reads by `material_candidate_ref_key`, and TTL cleanup.
 - `src/music_data_platform/source_of_truth_write_commands.ts` implements the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, and currently rejects non-default owner scopes on
@@ -203,6 +212,12 @@
   recall those rows.
 - Retrieval freshness counts dirty/failed current-owner owner-catalog targets
   plus global `material_text` targets without rebuilding them.
+- Runtime result-set cleanup removes expired result-set FTS rows, mixed rows,
+  then headers; material-candidate cleanup deletes only expired cache rows that
+  are not referenced by any non-expired result-set row.
+- Phase 15B does not enable mixed retrieval SQL, provider-search execution,
+  Source Provider Slot wiring, Stage Interface tools, or candidate commit
+  commands.
 - Projection maintenance keeps one current row per typed projection target and
   uses monotonic `dirty_generation` so repeated dirty marks never duplicate
   pending work.

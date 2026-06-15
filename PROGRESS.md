@@ -762,6 +762,32 @@ Retrieval:
   read model does not accept `provider_search` or depend on Music Intelligence
   `RetrievalPool` objects.
 
+## 2026-06-15: Phase 15B Runtime Mixed Result-Set Foundation
+
+Phase 15B adds the Music Data Platform-owned runtime foundation required before
+mixed provider/local retrieval can run:
+
+- `musicDataPlatformRetrievalResultSetSchema` contributes
+  `retrieval_result_sets`, `retrieval_result_rows`,
+  `retrieval_result_text_fts`, and `material_candidate_cache`;
+- deterministic `material_candidate:provider_candidate:<opaque>` refs are
+  derived only from `digest(refKey(sourceEntity.sourceRef))`;
+- `createRetrievalResultSetRecords(...)` owns low-level runtime result-set
+  inserts, result-set FTS row inserts, material candidate cache upserts, cache
+  reads by `material_candidate_ref_key`, and TTL cleanup helpers;
+- expired result-set cleanup removes FTS rows, result rows, then headers;
+- expired material-candidate cleanup keeps cache rows that are still referenced
+  by any non-expired result set;
+- Server Host database initialization includes the new runtime schema
+  contribution;
+- active-tree guards keep Music Intelligence away from runtime result-set/cache
+  table names and keep direct writes inside the Music Data Platform-owned
+  result-set records/schema boundary.
+
+Phase 15B does not enable mixed retrieval SQL, provider-search execution,
+provider slot wiring, Stage Interface tools, or candidate-to-material commit
+behavior.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

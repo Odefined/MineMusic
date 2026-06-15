@@ -162,6 +162,7 @@ assert.deepEqual(
     "src/music_data_platform/identity_schema.ts",
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/index.ts",
+    "src/music_data_platform/material_candidate_ref.ts",
     "src/music_data_platform/material_ref.ts",
     "src/music_data_platform/material_ref_factory.ts",
     "src/music_data_platform/material_text_normalization.ts",
@@ -183,6 +184,8 @@ assert.deepEqual(
     "src/music_data_platform/ref_digest.ts",
     "src/music_data_platform/ref_validation.ts",
     "src/music_data_platform/retrieval_read_model.ts",
+    "src/music_data_platform/retrieval_result_set_records.ts",
+    "src/music_data_platform/retrieval_result_set_schema.ts",
     "src/music_data_platform/source_library_commands.ts",
     "src/music_data_platform/source_library_import.ts",
     "src/music_data_platform/source_library_read_model.ts",
@@ -190,6 +193,7 @@ assert.deepEqual(
     "src/music_data_platform/source_library_ref.ts",
     "src/music_data_platform/source_library_schema.ts",
     "src/music_data_platform/source_of_truth_write_commands.ts",
+    "src/music_data_platform/timestamp_validation.ts",
   ],
   "formal Music Data Platform root must not grow unrelated implementations",
 );
@@ -623,6 +627,7 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
     "createOwnerMaterialRelation",
     "createMaterialText",
     "createProjectionMaintenance",
+    "createRetrievalResultSetRecords",
     "createMusicDataPlatformSourceOfTruthWriteCommands",
     "SourceLibraryRecord",
     "SourceLibraryItemRecord",
@@ -653,6 +658,31 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
   }
 }
 assert.deepEqual(musicIntelligenceImportFailures, []);
+
+const musicIntelligenceRuntimeResultSetFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intelligence"))) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenRuntimeTable of [
+    "retrieval_result_sets",
+    "retrieval_result_rows",
+    "retrieval_result_text_fts",
+    "material_candidate_cache",
+    "material_candidate_ref_key",
+  ]) {
+    if (text.includes(forbiddenRuntimeTable)) {
+      musicIntelligenceRuntimeResultSetFailures.push(
+        `${relativeFile} mentions runtime result-set/cache table '${forbiddenRuntimeTable}'`,
+      );
+    }
+  }
+}
+assert.deepEqual(
+  musicIntelligenceRuntimeResultSetFailures,
+  [],
+  "Music Intelligence must not write or shape SQL around Music Data Platform runtime result-set/cache tables",
+);
 
 const retrievalServiceText = await readFile(
   join(repositoryRoot, "src/music_intelligence/retrieval/query_service.ts"),
@@ -720,6 +750,7 @@ for (const forbiddenBarrelExport of [
   "createIdentityWriteCommands",
   "createSourceLibraryCommands",
   "createOwnerMaterialRelationCommands",
+  "createRetrievalResultSetRecords",
 ]) {
   assert.equal(
     musicDataPlatformBarrelText.includes(forbiddenBarrelExport),
@@ -891,6 +922,8 @@ const directWriteAllowedFiles = new Set([
   "src/music_data_platform/owner_material_relation_schema.ts",
   "src/music_data_platform/projection_maintenance_commands.ts",
   "src/music_data_platform/projection_maintenance_schema.ts",
+  "src/music_data_platform/retrieval_result_set_records.ts",
+  "src/music_data_platform/retrieval_result_set_schema.ts",
   "src/music_data_platform/source_library_commands.ts",
   "src/music_data_platform/source_library_records.ts",
   "src/music_data_platform/source_library_schema.ts",

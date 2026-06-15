@@ -1,6 +1,6 @@
 # Phase 15 Provider Search Pool Retrieval Implementation Plan
 
-> Status: PR15A implemented; PR15B, PR15C, and PR15D planned
+> Status: PR15A and PR15B implemented; PR15C and PR15D planned
 > Spec: `phase-15-provider-search-pool-retrieval.md`
 > Owning bounded contexts: Music Intelligence / Retrieval, Music Data Platform
 > Mixed Retrieval Workspace, Extension / Source Provider Slot, and Server Host

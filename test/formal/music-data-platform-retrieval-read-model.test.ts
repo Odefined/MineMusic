@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import {
   refKey,
+  tokenizePrefixOrV1Text,
 } from "../../src/contracts/index.js";
 import type {
   CanonicalEntity,
@@ -1460,4 +1461,36 @@ function sourceLibraryRef(
     providerAccountId,
     libraryKind,
   });
+}
+
+// FTS-safety invariant: the shared prefix-OR-v1 tokenizer is the sole boundary keeping
+// caller text out of the `material_text_fts MATCH '<literal>'` SQL built by
+// retrieval_read_model (FTS5 MATCH expressions cannot be bound as parameters). Every emitted
+// token must be confined to letters/digits/underscore so no SQL quote ('), FTS quote ("),
+// column qualifier (:), or wildcard (*) can ever reach sqlStringLiteral.
+{
+  const tokenShape = /^[\p{L}\p{N}_]+$/u;
+  const inputs = [
+    "plain song",
+    "café résumé",
+    "hello-world",
+    "a'b\"c:d*e",
+    "UPPER_lower 123",
+    "中文 日本語",
+    "();,.<>{}[]",
+    "   ",
+  ];
+  for (const input of inputs) {
+    for (const token of tokenizePrefixOrV1Text(input)) {
+      assert.match(
+        token,
+        tokenShape,
+        `token '${token}' from input '${input}' must be letter/digit/underscore only`,
+      );
+    }
+  }
+
+  // Dangerous characters never survive tokenization — they act as separators, never tokens.
+  assert.deepEqual(tokenizePrefixOrV1Text("a'b\"c:d*e"), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(tokenizePrefixOrV1Text("'\":*^()"), []);
 }

@@ -23,6 +23,8 @@ export const DEFAULT_RETRIEVAL_OWNER_SCOPE = "local";
 export const RETRIEVAL_TEXT_MATCHING_STRATEGY = "prefix_or_v1";
 export const DEFAULT_RETRIEVAL_LIMIT = 20;
 export const MAX_RETRIEVAL_LIMIT = 100;
+export const MAX_RETRIEVAL_POOL_GROUP_SIZE = 64;
+export const MAX_RETRIEVAL_POOL_TOTAL = 128;
 
 export type RetrievalPool =
   | { kind: "local_catalog" }
