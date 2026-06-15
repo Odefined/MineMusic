@@ -1,8 +1,9 @@
 import type { SourceEntityKind } from "../contracts/index.js";
-import type { MusicDatabaseContext } from "../storage/database.js";
+import type { MusicDatabaseContext, MusicDatabaseParameter } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import type { MaterialCandidateKind } from "./material_candidate_ref.js";
 import { assertMusicDataPlatformPublicRefKey } from "./ref_validation.js";
+import { assertComparableTimestamp } from "./timestamp_validation.js";
 
 export const DEFAULT_RETRIEVAL_RESULT_SET_TTL_MS = 30 * 60 * 1000;
 export const DEFAULT_RETRIEVAL_RESULT_SET_CLEANUP_LIMIT = 500;
@@ -207,43 +208,32 @@ export function createRetrievalResultSetRecords(
   };
 
   const resultRows: RetrievalResultRowRepository = {
-    // Single multi-row INSERT binds cols × rows params. The storage driver's bind-variable
-    // ceiling is 32766, so this stays safe while each result-set window stays below ~2300 rows
-    // (14-col rows table) or ~4000 rows (8-col fts table). Chunk if windows grow past that.
     insertMany(records) {
-      if (records.length === 0) {
-        return;
-      }
-
       for (const record of records) {
         assertRetrievalResultRowRecord(record);
       }
 
-      const valuesClause = records
-        .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .join(", ");
-
-      db.run(
-        `
-          INSERT INTO retrieval_result_rows (
-            result_set_id,
-            row_kind,
-            stable_ref_key,
-            material_ref_key,
-            material_candidate_ref_key,
-            row_kind_sort,
-            matched_token_count,
-            best_field_priority,
-            rank_sort_value,
-            title_text,
-            artist_text,
-            album_text,
-            version_text,
-            alias_text
-          )
-          VALUES ${valuesClause}
-        `,
-        records.flatMap((record) => [
+      multiRowInsert({
+        db,
+        table: "retrieval_result_rows",
+        columns: [
+          "result_set_id",
+          "row_kind",
+          "stable_ref_key",
+          "material_ref_key",
+          "material_candidate_ref_key",
+          "row_kind_sort",
+          "matched_token_count",
+          "best_field_priority",
+          "rank_sort_value",
+          "title_text",
+          "artist_text",
+          "album_text",
+          "version_text",
+          "alias_text",
+        ],
+        records,
+        paramsFor: (record) => [
           record.resultSetId,
           record.rowKind,
           record.stableRefKey,
@@ -258,8 +248,8 @@ export function createRetrievalResultSetRecords(
           record.albumText,
           record.versionText,
           record.aliasText,
-        ]),
-      );
+        ],
+      });
     },
     listForResultSet(readInput) {
       assertNonEmptyString(readInput.resultSetId, "resultSetId");
@@ -269,7 +259,7 @@ export function createRetrievalResultSetRecords(
           SELECT *
           FROM retrieval_result_rows
           WHERE result_set_id = ?
-          ORDER BY row_kind_sort ASC, rank_sort_value ASC, stable_ref_key ASC
+          ORDER BY matched_token_count DESC, best_field_priority ASC, rank_sort_value ASC, row_kind_sort ASC, stable_ref_key ASC
         `,
         [readInput.resultSetId],
       ).map(retrievalResultRowFromRow);
@@ -278,33 +268,25 @@ export function createRetrievalResultSetRecords(
 
   const resultTextFts: RetrievalResultTextFtsRepository = {
     insertMany(records) {
-      if (records.length === 0) {
-        return;
-      }
-
       for (const record of records) {
         assertRetrievalResultTextFtsRecord(record);
       }
 
-      const valuesClause = records
-        .map(() => "(?, ?, ?, ?, ?, ?, ?, ?)")
-        .join(", ");
-
-      db.run(
-        `
-          INSERT INTO retrieval_result_text_fts (
-            result_set_id,
-            row_kind,
-            stable_ref_key,
-            title_text,
-            artist_text,
-            album_text,
-            version_text,
-            alias_text
-          )
-          VALUES ${valuesClause}
-        `,
-        records.flatMap((record) => [
+      multiRowInsert({
+        db,
+        table: "retrieval_result_text_fts",
+        columns: [
+          "result_set_id",
+          "row_kind",
+          "stable_ref_key",
+          "title_text",
+          "artist_text",
+          "album_text",
+          "version_text",
+          "alias_text",
+        ],
+        records,
+        paramsFor: (record) => [
           record.resultSetId,
           record.rowKind,
           record.stableRefKey,
@@ -313,8 +295,8 @@ export function createRetrievalResultSetRecords(
           record.albumText,
           record.versionText,
           record.aliasText,
-        ]),
-      );
+        ],
+      });
     },
   };
 
@@ -361,7 +343,11 @@ export function createRetrievalResultSetRecords(
             validated_provider_candidate_json = excluded.validated_provider_candidate_json,
             searchable_fields_json = excluded.searchable_fields_json,
             provider_score = excluded.provider_score,
-            expires_at = excluded.expires_at
+            expires_at = CASE
+              WHEN excluded.expires_at > material_candidate_cache.expires_at
+              THEN excluded.expires_at
+              ELSE material_candidate_cache.expires_at
+            END
         `,
         [
           record.materialCandidateRefKey,
@@ -494,12 +480,12 @@ export function expiresAtFromResultSetCreatedAt(input: {
   ttlMs?: number;
 }): string {
   const ttlMs = input.ttlMs ?? DEFAULT_RETRIEVAL_RESULT_SET_TTL_MS;
-
-  if (!Number.isInteger(ttlMs) || ttlMs <= 0) {
-    throw invalidRetrievalResultSetRecord(
-      "Retrieval result-set ttlMs must be a positive integer.",
-    );
-  }
+  assertPositiveInteger(ttlMs, "ttlMs");
+  assertComparableTimestamp(
+    input.createdAt,
+    "createdAt",
+    "music_data.retrieval_result_set_invalid",
+  );
 
   return new Date(Date.parse(input.createdAt) + ttlMs).toISOString();
 }
@@ -560,13 +546,13 @@ function assertRetrievalResultSetRecord(record: RetrievalResultSetRecord): void 
   assertNonEmptyString(record.queryFingerprint, "queryFingerprint");
   assertPositiveInteger(record.localResultWindowLimit, "localResultWindowLimit");
   assertNonNegativeInteger(record.localRowsInResultSet, "localRowsInResultSet");
-  assertNonEmptyString(record.expiresAt, "expiresAt");
-  assertNonEmptyString(record.createdAt, "createdAt");
+  assertComparableTimestamp(record.expiresAt, "expiresAt", "music_data.retrieval_result_set_invalid");
+  assertComparableTimestamp(record.createdAt, "createdAt", "music_data.retrieval_result_set_invalid");
+  assertExpiresAfterCreated(record.expiresAt, record.createdAt);
 }
 
 function assertRetrievalResultRowRecord(record: RetrievalResultRowRecord): void {
   assertRetrievalResultTextFtsRecord(record);
-  assertNonNegativeInteger(record.rowKindSort, "rowKindSort");
   assertNonNegativeInteger(record.matchedTokenCount, "matchedTokenCount");
   assertNonNegativeInteger(record.bestFieldPriority, "bestFieldPriority");
 
@@ -575,18 +561,58 @@ function assertRetrievalResultRowRecord(record: RetrievalResultRowRecord): void 
   }
 
   if (record.rowKind === "material") {
-    assertPublicRefKey(record.materialRefKey, "materialRefKey");
-    assertAbsent(record.materialCandidateRefKey, "materialCandidateRefKey");
+    assertMaterialRowInvariants(record);
     return;
   }
 
   if (record.rowKind === "material_candidate") {
-    assertPublicRefKey(record.materialCandidateRefKey, "materialCandidateRefKey");
-    assertAbsent(record.materialRefKey, "materialRefKey");
+    assertMaterialCandidateRowInvariants(record);
     return;
   }
 
   assertNeverRowKind(record.rowKind);
+}
+
+function assertMaterialRowInvariants(record: RetrievalResultRowRecord): void {
+  if (record.rowKindSort !== 0) {
+    throw invalidRetrievalResultSetRecord("material row rowKindSort must be 0.");
+  }
+
+  assertAbsent(record.materialCandidateRefKey, "materialCandidateRefKey");
+
+  const materialRefKey = record.materialRefKey;
+  if (materialRefKey === undefined) {
+    throw invalidRetrievalResultSetRecord("materialRefKey is required.");
+  }
+
+  assertPublicRefKey(materialRefKey, "materialRefKey");
+
+  if (record.stableRefKey !== materialRefKey) {
+    throw invalidRetrievalResultSetRecord(
+      "material row stableRefKey must equal materialRefKey.",
+    );
+  }
+}
+
+function assertMaterialCandidateRowInvariants(record: RetrievalResultRowRecord): void {
+  if (record.rowKindSort !== 1) {
+    throw invalidRetrievalResultSetRecord("material_candidate row rowKindSort must be 1.");
+  }
+
+  assertAbsent(record.materialRefKey, "materialRefKey");
+
+  const materialCandidateRefKey = record.materialCandidateRefKey;
+  if (materialCandidateRefKey === undefined) {
+    throw invalidRetrievalResultSetRecord("materialCandidateRefKey is required.");
+  }
+
+  assertMaterialCandidateRefKey(materialCandidateRefKey);
+
+  if (record.stableRefKey !== materialCandidateRefKey) {
+    throw invalidRetrievalResultSetRecord(
+      "material_candidate row stableRefKey must equal materialCandidateRefKey.",
+    );
+  }
 }
 
 function assertRetrievalResultTextFtsRecord(record: RetrievalResultTextFtsRecord): void {
@@ -623,8 +649,9 @@ function assertMaterialCandidateCacheRecord(record: MaterialCandidateCacheRecord
     throw invalidRetrievalResultSetRecord("providerScore must be finite when present.");
   }
 
-  assertNonEmptyString(record.expiresAt, "expiresAt");
-  assertNonEmptyString(record.createdAt, "createdAt");
+  assertComparableTimestamp(record.expiresAt, "expiresAt", "music_data.retrieval_result_set_invalid");
+  assertComparableTimestamp(record.createdAt, "createdAt", "music_data.retrieval_result_set_invalid");
+  assertExpiresAfterCreated(record.expiresAt, record.createdAt);
 }
 
 function assertRetrievalResultRowKind(
@@ -645,12 +672,20 @@ function assertSourceKind(value: string): asserts value is SourceEntityKind {
   }
 }
 
+const MATERIAL_CANDIDATE_REF_KEY_PREFIX = "material_candidate:provider_candidate:mc_";
+
 function assertMaterialCandidateRefKey(value: string): void {
   assertMusicDataPlatformPublicRefKey({
     refKey: value,
     fieldName: "materialCandidateRefKey",
     code: "music_data.retrieval_result_set_invalid",
   });
+
+  if (!value.startsWith(MATERIAL_CANDIDATE_REF_KEY_PREFIX)) {
+    throw invalidRetrievalResultSetRecord(
+      "materialCandidateRefKey must be a provider candidate ref key (material_candidate:provider_candidate:mc_).",
+    );
+  }
 }
 
 function assertPublicRefKey(value: string | undefined, fieldName: string): void {
@@ -696,6 +731,12 @@ function assertNonEmptyJsonString(value: string, fieldName: string): void {
   }
 }
 
+function assertExpiresAfterCreated(expiresAt: string, createdAt: string): void {
+  if (expiresAt <= createdAt) {
+    throw invalidRetrievalResultSetRecord("expiresAt must be later than createdAt.");
+  }
+}
+
 function assertPositiveInteger(value: number, fieldName: string): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw invalidRetrievalResultSetRecord(`${fieldName} must be a positive integer.`);
@@ -712,6 +753,34 @@ function validatedCleanupLimit(limit: number | undefined): number {
   const value = limit ?? DEFAULT_RETRIEVAL_RESULT_SET_CLEANUP_LIMIT;
   assertPositiveInteger(value, "cleanup limit");
   return value;
+}
+
+const SQLITE_MAX_VARIABLE_NUMBER = 32766;
+
+function multiRowInsert<TRecord>(args: {
+  db: MusicDatabaseContext;
+  table: string;
+  columns: readonly string[];
+  records: readonly TRecord[];
+  paramsFor: (record: TRecord) => readonly MusicDatabaseParameter[];
+}): void {
+  const { db, table, columns, records, paramsFor } = args;
+
+  if (records.length === 0) {
+    return;
+  }
+
+  const columnList = columns.join(", ");
+  const group = `(${columns.map(() => "?").join(", ")})`;
+  const chunkSize = Math.max(1, Math.floor(SQLITE_MAX_VARIABLE_NUMBER / columns.length));
+
+  for (let offset = 0; offset < records.length; offset += chunkSize) {
+    const chunk = records.slice(offset, offset + chunkSize);
+    db.run(
+      `INSERT INTO ${table} (${columnList}) VALUES ${chunk.map(() => group).join(", ")}`,
+      chunk.flatMap(paramsFor),
+    );
+  }
 }
 
 function placeholdersFor(values: readonly unknown[]): string {

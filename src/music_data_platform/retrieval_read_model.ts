@@ -9,6 +9,7 @@ import type {
   MusicDatabaseParameter,
 } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
+import { assertComparableTimestamp } from "./timestamp_validation.js";
 import { assertMaterialRef } from "./material_ref.js";
 import {
   buildMaterialTextPrefixOrQuery,
@@ -203,8 +204,6 @@ const retrievalTextFieldConfigs = [
   column: string;
   priority: number;
 }[];
-const comparableTimestampPattern =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 export function createMusicDataPlatformRetrievalReadPort(
   input: CreateMusicDataPlatformRetrievalReadPortInput,
@@ -399,7 +398,7 @@ function validatedCursorPosition(
       });
       return cursorPosition;
     case "recently_added":
-      assertComparableTimestamp(cursorPosition.recentlyAddedAt, "cursorPosition.recentlyAddedAt");
+      assertComparableTimestamp(cursorPosition.recentlyAddedAt, "cursorPosition.recentlyAddedAt", "music_data.retrieval_read_invalid");
       assertMusicDataPlatformPublicRefKey({
         refKey: cursorPosition.materialRefKey,
         fieldName: "cursorPosition.materialRefKey",
@@ -1170,7 +1169,7 @@ function searchResultRowFromCatalogRow(
     row.material_kind,
   );
 
-  assertComparableTimestamp(row.recently_added_at, "recently_added_at");
+  assertComparableTimestamp(row.recently_added_at, "recently_added_at", "music_data.retrieval_read_invalid");
 
   if (!hasEffectiveText) {
     return {
@@ -1370,16 +1369,6 @@ function materialRefFromEntityJson(
   }
 
   return parsedRef;
-}
-
-function assertComparableTimestamp(value: string, fieldName: string): void {
-  if (
-    typeof value !== "string" ||
-    !comparableTimestampPattern.test(value) ||
-    Number.isNaN(Date.parse(value))
-  ) {
-    throw invalidRetrievalRead(`${fieldName} must be a valid comparable timestamp string.`);
-  }
 }
 
 function sqlPlaceholders(count: number): string {

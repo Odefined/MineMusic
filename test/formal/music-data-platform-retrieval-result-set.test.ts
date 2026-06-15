@@ -205,6 +205,7 @@ assert.equal(
 
     records.resultSets.insert(resultSetRecord({
       resultSetId: "rs_expired",
+      createdAt: "2026-06-15T08:00:00.000Z",
       expiresAt: "2026-06-15T09:00:00.000Z",
     }));
     records.resultSets.insert(resultSetRecord({
@@ -220,6 +221,7 @@ assert.equal(
         materialCandidateRefKey: key,
         source: sourceTrack(key, title),
         title,
+        createdAt: "2026-06-15T09:00:00.000Z",
         expiresAt: "2026-06-15T09:30:00.000Z",
       }));
     }
@@ -399,14 +401,17 @@ assert.equal(
     const records = createRetrievalResultSetRecords({ db });
     records.resultSets.insert(resultSetRecord({
       resultSetId: "rs_old",
+      createdAt: "2026-06-15T07:00:00.000Z",
       expiresAt: "2026-06-15T08:00:00.000Z",
     }));
     records.resultSets.insert(resultSetRecord({
       resultSetId: "rs_mid",
+      createdAt: "2026-06-15T07:00:00.000Z",
       expiresAt: "2026-06-15T08:30:00.000Z",
     }));
     records.resultSets.insert(resultSetRecord({
       resultSetId: "rs_new",
+      createdAt: "2026-06-15T07:00:00.000Z",
       expiresAt: "2026-06-15T09:00:00.000Z",
     }));
 
@@ -447,6 +452,180 @@ assert.equal(
       providerScore: 0.8,
     });
     assert.deepEqual(records.materialCandidates.upsert(expected), expected);
+  });
+
+  database.close();
+}
+
+// P1-1: cache upsert must never shorten expires_at below the existing value, so a live
+// result-set referencing the candidate cannot have its cache expiry pulled earlier.
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    records.materialCandidates.upsert(candidateCacheRecord({
+      materialCandidateRefKey: alphaCandidateRefKey,
+      source: alphaSource,
+      createdAt: "2026-06-15T10:00:00.000Z",
+      expiresAt: "2026-06-15T11:00:00.000Z",
+    }));
+
+    const refreshed = records.materialCandidates.upsert(candidateCacheRecord({
+      materialCandidateRefKey: alphaCandidateRefKey,
+      source: alphaSource,
+      title: "Alpha Candidate Refreshed",
+      createdAt: "2026-06-15T10:05:00.000Z",
+      expiresAt: "2026-06-15T10:30:00.000Z",
+    }));
+
+    assert.equal(refreshed.expiresAt, "2026-06-15T11:00:00.000Z");
+    assert.equal(
+      JSON.parse(refreshed.searchableFieldsJson).titleText,
+      "Alpha Candidate Refreshed",
+    );
+  });
+
+  database.close();
+}
+
+// P1-2: result row invariants — rowKindSort, stableRefKey equivalence, candidate ref shape.
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    records.resultSets.insert(resultSetRecord({ resultSetId: "rs_rowinv" }));
+
+    assert.throws(
+      () => records.resultRows.insertMany([
+        {
+          ...materialRow({
+            resultSetId: "rs_rowinv",
+            materialRefKey: "material:recording:m_inv_a",
+            stableRefKey: "material:recording:m_inv_a",
+          }),
+          rowKindSort: 2,
+        },
+      ]),
+      isRetrievalResultSetError,
+    );
+
+    assert.throws(
+      () => records.resultRows.insertMany([
+        materialRow({
+          resultSetId: "rs_rowinv",
+          materialRefKey: "material:recording:m_inv_b",
+          stableRefKey: "material:recording:m_other",
+        }),
+      ]),
+      isRetrievalResultSetError,
+    );
+
+    assert.throws(
+      () => records.resultRows.insertMany([
+        candidateRow({
+          resultSetId: "rs_rowinv",
+          materialCandidateRefKey: "material:recording:not_a_candidate",
+          stableRefKey: "material:recording:not_a_candidate",
+        }),
+      ]),
+      isRetrievalResultSetError,
+    );
+  });
+
+  database.close();
+}
+
+// P1-3: insertMany must chunk under the SQLite bind-variable ceiling. 14 cols ->
+// floor(32766 / 14) = 2340 rows per chunk; inserting 2341 forces two chunks and would
+// exceed 32766 params without chunking.
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    records.resultSets.insert(resultSetRecord({ resultSetId: "rs_chunk" }));
+    const rowCount = 2341;
+    const rows: RetrievalResultRowRecord[] = Array.from({ length: rowCount }, (_, index) => {
+      const key = `material:recording:m_chunk_${String(index).padStart(4, "0")}`;
+      return materialRow({
+        resultSetId: "rs_chunk",
+        materialRefKey: key,
+        stableRefKey: key,
+        titleText: `Chunk ${index}`,
+      });
+    });
+    records.resultRows.insertMany(rows);
+    assert.equal(
+      records.resultRows.listForResultSet({ resultSetId: "rs_chunk" }).length,
+      rowCount,
+    );
+  });
+
+  database.close();
+}
+
+// P1-4: timestamps must be comparable ISO-8601 UTC and expiresAt must follow createdAt.
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+
+    assert.throws(
+      () => records.resultSets.insert(resultSetRecord({
+        resultSetId: "rs_bad_expiry",
+        expiresAt: "2026-06-15 10:30:00",
+      })),
+      isRetrievalResultSetError,
+    );
+
+    assert.throws(
+      () => records.resultSets.insert(resultSetRecord({
+        resultSetId: "rs_bad_order",
+        createdAt: "2026-06-15T10:30:00.000Z",
+        expiresAt: "2026-06-15T10:00:00.000Z",
+      })),
+      isRetrievalResultSetError,
+    );
+  });
+
+  database.close();
+}
+
+assert.throws(
+  () => expiresAtFromResultSetCreatedAt({ createdAt: "not-a-timestamp" }),
+  isRetrievalResultSetError,
+);
+
+// P2-1: listForResultSet returns rows in the Phase 15 mixed ranking order
+// (matched_token_count DESC first), not storage order.
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    records.resultSets.insert(resultSetRecord({ resultSetId: "rs_sort" }));
+    records.resultRows.insertMany([
+      materialRow({
+        resultSetId: "rs_sort",
+        materialRefKey: "material:recording:a_low",
+        stableRefKey: "material:recording:a_low",
+        matchedTokenCount: 1,
+      }),
+      materialRow({
+        resultSetId: "rs_sort",
+        materialRefKey: "material:recording:b_high",
+        stableRefKey: "material:recording:b_high",
+        matchedTokenCount: 3,
+      }),
+    ]);
+
+    assert.deepEqual(
+      records.resultRows.listForResultSet({ resultSetId: "rs_sort" }).map((row) => row.materialRefKey),
+      ["material:recording:b_high", "material:recording:a_low"],
+    );
   });
 
   database.close();
