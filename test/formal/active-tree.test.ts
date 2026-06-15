@@ -749,6 +749,7 @@ for (const forbiddenBarrelExport of [
   "createIdentityWriteCommands",
   "createSourceLibraryCommands",
   "createOwnerMaterialRelationCommands",
+  "createRetrievalResultSetRecords",
 ]) {
   assert.equal(
     musicDataPlatformBarrelText.includes(forbiddenBarrelExport),

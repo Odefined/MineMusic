@@ -12,6 +12,8 @@ import {
   DEFAULT_RETRIEVAL_LIMIT,
   DEFAULT_RETRIEVAL_OWNER_SCOPE,
   MAX_RETRIEVAL_LIMIT,
+  MAX_RETRIEVAL_POOL_GROUP_SIZE,
+  MAX_RETRIEVAL_POOL_TOTAL,
   RETRIEVAL_TEXT_MATCHING_STRATEGY,
   type RetrievalEffectiveQuery,
   type RetrievalOrder,
@@ -176,6 +178,13 @@ function normalizePoolFilter(input: unknown): RetrievalPoolFilter | undefined {
   const allOf = normalizePoolGroupField(input.allOf, "allOf");
   const anyOf = normalizePoolGroupField(input.anyOf, "anyOf");
   const noneOf = normalizePoolGroupField(input.noneOf, "noneOf");
+
+  if (allOf.length + anyOf.length + noneOf.length > MAX_RETRIEVAL_POOL_TOTAL) {
+    throw invalidQuery(
+      `Retrieval pools must contain at most ${MAX_RETRIEVAL_POOL_TOTAL} pools in total.`,
+    );
+  }
+
   const providerPools = [
     ...allOf.filter(isProviderSearchPool),
     ...anyOf.filter(isProviderSearchPool),
@@ -229,6 +238,12 @@ function normalizePoolGroupField(
 
   if (!Array.isArray(value)) {
     throw invalidQuery(`Retrieval pools.${groupName} must be an array.`);
+  }
+
+  if (value.length > MAX_RETRIEVAL_POOL_GROUP_SIZE) {
+    throw invalidQuery(
+      `Retrieval pools.${groupName} must contain at most ${MAX_RETRIEVAL_POOL_GROUP_SIZE} pools.`,
+    );
   }
 
   return normalizePoolGroup(value as readonly RetrievalPool[], groupName);

@@ -207,47 +207,59 @@ export function createRetrievalResultSetRecords(
   };
 
   const resultRows: RetrievalResultRowRepository = {
+    // Single multi-row INSERT binds cols × rows params. The storage driver's bind-variable
+    // ceiling is 32766, so this stays safe while each result-set window stays below ~2300 rows
+    // (14-col rows table) or ~4000 rows (8-col fts table). Chunk if windows grow past that.
     insertMany(records) {
+      if (records.length === 0) {
+        return;
+      }
+
       for (const record of records) {
         assertRetrievalResultRowRecord(record);
-        db.run(
-          `
-            INSERT INTO retrieval_result_rows (
-              result_set_id,
-              row_kind,
-              stable_ref_key,
-              material_ref_key,
-              material_candidate_ref_key,
-              row_kind_sort,
-              matched_token_count,
-              best_field_priority,
-              rank_sort_value,
-              title_text,
-              artist_text,
-              album_text,
-              version_text,
-              alias_text
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-            record.resultSetId,
-            record.rowKind,
-            record.stableRefKey,
-            record.materialRefKey ?? null,
-            record.materialCandidateRefKey ?? null,
-            record.rowKindSort,
-            record.matchedTokenCount,
-            record.bestFieldPriority,
-            record.rankSortValue,
-            record.titleText,
-            record.artistText,
-            record.albumText,
-            record.versionText,
-            record.aliasText,
-          ],
-        );
       }
+
+      const valuesClause = records
+        .map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .join(", ");
+
+      db.run(
+        `
+          INSERT INTO retrieval_result_rows (
+            result_set_id,
+            row_kind,
+            stable_ref_key,
+            material_ref_key,
+            material_candidate_ref_key,
+            row_kind_sort,
+            matched_token_count,
+            best_field_priority,
+            rank_sort_value,
+            title_text,
+            artist_text,
+            album_text,
+            version_text,
+            alias_text
+          )
+          VALUES ${valuesClause}
+        `,
+        records.flatMap((record) => [
+          record.resultSetId,
+          record.rowKind,
+          record.stableRefKey,
+          record.materialRefKey ?? null,
+          record.materialCandidateRefKey ?? null,
+          record.rowKindSort,
+          record.matchedTokenCount,
+          record.bestFieldPriority,
+          record.rankSortValue,
+          record.titleText,
+          record.artistText,
+          record.albumText,
+          record.versionText,
+          record.aliasText,
+        ]),
+      );
     },
     listForResultSet(readInput) {
       assertNonEmptyString(readInput.resultSetId, "resultSetId");
@@ -266,34 +278,43 @@ export function createRetrievalResultSetRecords(
 
   const resultTextFts: RetrievalResultTextFtsRepository = {
     insertMany(records) {
+      if (records.length === 0) {
+        return;
+      }
+
       for (const record of records) {
         assertRetrievalResultTextFtsRecord(record);
-        db.run(
-          `
-            INSERT INTO retrieval_result_text_fts (
-              result_set_id,
-              row_kind,
-              stable_ref_key,
-              title_text,
-              artist_text,
-              album_text,
-              version_text,
-              alias_text
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-            record.resultSetId,
-            record.rowKind,
-            record.stableRefKey,
-            record.titleText,
-            record.artistText,
-            record.albumText,
-            record.versionText,
-            record.aliasText,
-          ],
-        );
       }
+
+      const valuesClause = records
+        .map(() => "(?, ?, ?, ?, ?, ?, ?, ?)")
+        .join(", ");
+
+      db.run(
+        `
+          INSERT INTO retrieval_result_text_fts (
+            result_set_id,
+            row_kind,
+            stable_ref_key,
+            title_text,
+            artist_text,
+            album_text,
+            version_text,
+            alias_text
+          )
+          VALUES ${valuesClause}
+        `,
+        records.flatMap((record) => [
+          record.resultSetId,
+          record.rowKind,
+          record.stableRefKey,
+          record.titleText,
+          record.artistText,
+          record.albumText,
+          record.versionText,
+          record.aliasText,
+        ]),
+      );
     },
   };
 
@@ -410,27 +431,19 @@ export function createRetrievalResultSetRecords(
         expiredIds,
       )?.count ?? 0;
 
-      db.run(
-        `
-          DELETE FROM retrieval_result_text_fts
-          WHERE result_set_id IN (${placeholders})
-        `,
-        expiredIds,
-      );
-      db.run(
-        `
-          DELETE FROM retrieval_result_rows
-          WHERE result_set_id IN (${placeholders})
-        `,
-        expiredIds,
-      );
-      db.run(
-        `
-          DELETE FROM retrieval_result_sets
-          WHERE result_set_id IN (${placeholders})
-        `,
-        expiredIds,
-      );
+      for (const table of [
+        "retrieval_result_text_fts",
+        "retrieval_result_rows",
+        "retrieval_result_sets",
+      ] as const) {
+        db.run(
+          `
+            DELETE FROM ${table}
+            WHERE result_set_id IN (${placeholders})
+          `,
+          expiredIds,
+        );
+      }
 
       return {
         resultSetCount: expiredIds.length,
@@ -697,13 +710,7 @@ function assertNonNegativeInteger(value: number, fieldName: string): void {
 
 function validatedCleanupLimit(limit: number | undefined): number {
   const value = limit ?? DEFAULT_RETRIEVAL_RESULT_SET_CLEANUP_LIMIT;
-
-  if (!Number.isInteger(value) || value <= 0) {
-    throw invalidRetrievalResultSetRecord(
-      "Retrieval result-set cleanup limit must be a positive integer.",
-    );
-  }
-
+  assertPositiveInteger(value, "cleanup limit");
   return value;
 }
 

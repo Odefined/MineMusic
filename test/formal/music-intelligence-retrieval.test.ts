@@ -11,6 +11,8 @@ import type {
 } from "../../src/contracts/index.js";
 import {
   DEFAULT_RETRIEVAL_LIMIT,
+  MAX_RETRIEVAL_POOL_GROUP_SIZE,
+  MAX_RETRIEVAL_POOL_TOTAL,
   MusicIntelligenceError,
   createRetrievalQueryService,
   isMusicIntelligenceError,
@@ -298,6 +300,32 @@ assertMusicIntelligenceError(
       allOf: [libraryPoolA],
     },
   } as unknown as RetrievalQueryInput),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      allOf: Array.from({ length: MAX_RETRIEVAL_POOL_GROUP_SIZE + 1 }, (_, index) =>
+        sourceLibraryPool(sourceLibraryRef("saved_source_track", `cap_group_${index}`)),
+      ),
+    },
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      allOf: Array.from({ length: MAX_RETRIEVAL_POOL_GROUP_SIZE }, (_, index) =>
+        sourceLibraryPool(sourceLibraryRef("saved_source_track", `cap_total_all_${index}`)),
+      ),
+      anyOf: Array.from({ length: MAX_RETRIEVAL_POOL_GROUP_SIZE }, (_, index) =>
+        sourceLibraryPool(sourceLibraryRef("saved_source_album", `cap_total_any_${index}`)),
+      ),
+      noneOf: [
+        sourceLibraryPool(sourceLibraryRef("followed_source_artist", "cap_total_none")),
+      ],
+    },
+  }),
   "music_intelligence.retrieval_query_invalid",
 );
 assertMusicIntelligenceError(
@@ -590,6 +618,32 @@ assertMusicIntelligenceError(
       version: 1,
       queryFingerprint: "rqf_old",
       position: firstCursorPosition,
+    }), "utf8").toString("base64url"),
+  }),
+  "music_intelligence.retrieval_cursor_invalid",
+);
+// Cursor position shape must match its declared order: a text_relevance position missing
+// its rank-evidence fields is rejected during decode, before any fingerprint comparison.
+assertMusicIntelligenceError(
+  () => cursorHarness.service.query({
+    order: "stable",
+    cursor: Buffer.from(JSON.stringify({
+      version: 2,
+      queryFingerprint: "rqf_anything",
+      position: { order: "text_relevance", materialRefKey: "material:recording:m_x" },
+    }), "utf8").toString("base64url"),
+  }),
+  "music_intelligence.retrieval_cursor_invalid",
+);
+// A present resultSetId must be non-empty.
+assertMusicIntelligenceError(
+  () => cursorHarness.service.query({
+    order: "stable",
+    cursor: Buffer.from(JSON.stringify({
+      version: 2,
+      queryFingerprint: "rqf_anything",
+      position: firstCursorPosition,
+      resultSetId: "",
     }), "utf8").toString("base64url"),
   }),
   "music_intelligence.retrieval_cursor_invalid",

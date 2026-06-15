@@ -27,7 +27,7 @@ export function createProviderMaterialCandidateRef(
   const materialCandidateRef = {
     namespace: "material_candidate",
     kind: "provider_candidate",
-    id: createDeterministicRefDigest([sourceRefKey]),
+    id: `mc_${createDeterministicRefDigest([sourceRefKey])}`,
   } satisfies Ref;
 
   assertProviderMaterialCandidateRef(materialCandidateRef);
@@ -50,6 +50,12 @@ export function assertProviderMaterialCandidateRef(ref: Ref): void {
   if (ref.kind !== "provider_candidate") {
     throw invalidMaterialCandidateRef(
       "Material candidate ref kind must be 'provider_candidate'.",
+    );
+  }
+
+  if (!ref.id.startsWith("mc_")) {
+    throw invalidMaterialCandidateRef(
+      "Material candidate ref id must be ref-safe and start with 'mc_'.",
     );
   }
 }

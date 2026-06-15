@@ -6,6 +6,7 @@ import {
   type SourceTrack,
 } from "../../src/contracts/index.js";
 import {
+  assertProviderMaterialCandidateRef,
   createProviderMaterialCandidateRef,
   isMusicDataPlatformError,
   musicDataPlatformRetrievalResultSetSchema,
@@ -297,6 +298,160 @@ assert.equal(
   database.close();
 }
 
+{
+  const validCandidateRef = createProviderMaterialCandidateRef({
+    sourceRef: alphaSource.sourceRef,
+  });
+
+  assert.throws(
+    () => assertProviderMaterialCandidateRef({ ...validCandidateRef, namespace: "material" }),
+    isMaterialCandidateRefError,
+  );
+  assert.throws(
+    () => assertProviderMaterialCandidateRef({ ...validCandidateRef, kind: "owner_candidate" }),
+    isMaterialCandidateRefError,
+  );
+  assert.throws(
+    () => assertProviderMaterialCandidateRef({ ...validCandidateRef, id: validCandidateRef.id.slice(3) }),
+    isMaterialCandidateRefError,
+  );
+}
+
+{
+  assert.throws(
+    () => expiresAtFromResultSetCreatedAt({ createdAt: "2026-06-15T10:00:00.000Z", ttlMs: 0 }),
+    isRetrievalResultSetError,
+  );
+  assert.throws(
+    () => expiresAtFromResultSetCreatedAt({ createdAt: "2026-06-15T10:00:00.000Z", ttlMs: 1.5 }),
+    isRetrievalResultSetError,
+  );
+  assert.throws(
+    () => expiresAtFromResultSetCreatedAt({ createdAt: "2026-06-15T10:00:00.000Z", ttlMs: -1 }),
+    isRetrievalResultSetError,
+  );
+  assert.equal(
+    expiresAtFromResultSetCreatedAt({ createdAt: "2026-06-15T10:00:00.000Z", ttlMs: 60000 }),
+    "2026-06-15T10:01:00.000Z",
+  );
+}
+
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    records.resultSets.insert(resultSetRecord({ resultSetId: "rs_empty" }));
+    records.resultRows.insertMany([]);
+    records.resultTextFts.insertMany([]);
+    assert.deepEqual(
+      records.resultRows.listForResultSet({ resultSetId: "rs_empty" }),
+      [],
+    );
+  });
+
+  database.close();
+}
+
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    records.resultSets.insert(resultSetRecord({ resultSetId: "rs_batch" }));
+    const batchSize = 50;
+    const rows: RetrievalResultRowRecord[] = Array.from({ length: batchSize }, (_, index) => {
+      const key = `material:recording:m_batch_${String(index).padStart(2, "0")}`;
+      return materialRow({
+        resultSetId: "rs_batch",
+        materialRefKey: key,
+        stableRefKey: key,
+        titleText: `Batch Title ${index}`,
+      });
+    });
+    records.resultRows.insertMany(rows);
+    records.resultTextFts.insertMany(
+      rows.map((row) => ftsRow({
+        resultSetId: row.resultSetId,
+        rowKind: "material",
+        stableRefKey: row.stableRefKey,
+        titleText: row.titleText,
+      })),
+    );
+    const stored = records.resultRows.listForResultSet({ resultSetId: "rs_batch" });
+    assert.equal(stored.length, batchSize);
+    const firstStored = stored[0];
+    const lastStored = stored[batchSize - 1];
+    if (firstStored === undefined || lastStored === undefined) {
+      throw new Error("expected batch rows to be present");
+    }
+    assert.equal(firstStored.titleText, "Batch Title 0");
+    assert.equal(lastStored.titleText, `Batch Title ${batchSize - 1}`);
+  });
+
+  database.close();
+}
+
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    records.resultSets.insert(resultSetRecord({
+      resultSetId: "rs_old",
+      expiresAt: "2026-06-15T08:00:00.000Z",
+    }));
+    records.resultSets.insert(resultSetRecord({
+      resultSetId: "rs_mid",
+      expiresAt: "2026-06-15T08:30:00.000Z",
+    }));
+    records.resultSets.insert(resultSetRecord({
+      resultSetId: "rs_new",
+      expiresAt: "2026-06-15T09:00:00.000Z",
+    }));
+
+    const limited = records.cleanupExpiredRetrievalResultSets({
+      now: "2026-06-15T10:00:00.000Z",
+      limit: 1,
+    });
+    assert.equal(limited.resultSetCount, 1);
+    assert.equal(records.resultSets.get({ resultSetId: "rs_old" }), undefined);
+    assert.notEqual(records.resultSets.get({ resultSetId: "rs_mid" }), undefined);
+    assert.notEqual(records.resultSets.get({ resultSetId: "rs_new" }), undefined);
+
+    assert.deepEqual(
+      records.cleanupExpiredRetrievalResultSets({ now: "2026-06-15T07:00:00.000Z" }),
+      { resultSetCount: 0, resultRowCount: 0, textFtsRowCount: 0 },
+    );
+
+    assert.throws(
+      () => records.cleanupExpiredRetrievalResultSets({
+        now: "2026-06-15T10:00:00.000Z",
+        limit: 0,
+      }),
+      isRetrievalResultSetError,
+    );
+  });
+
+  database.close();
+}
+
+{
+  const database = initializedDatabase();
+
+  database.transaction((db) => {
+    const records = createRetrievalResultSetRecords({ db });
+    const expected = candidateCacheRecord({
+      materialCandidateRefKey: alphaCandidateRefKey,
+      source: alphaSource,
+      providerScore: 0.8,
+    });
+    assert.deepEqual(records.materialCandidates.upsert(expected), expected);
+  });
+
+  database.close();
+}
+
 function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
   const database = SqliteMusicDatabase.open({ filename: ":memory:" });
   database.initialize({
@@ -464,4 +619,9 @@ function candidateCacheRecord(input: {
 function isRetrievalResultSetError(error: unknown): boolean {
   return isMusicDataPlatformError(error) &&
     error.code === "music_data.retrieval_result_set_invalid";
+}
+
+function isMaterialCandidateRefError(error: unknown): boolean {
+  return isMusicDataPlatformError(error) &&
+    error.code === "music_data.material_candidate_ref_invalid";
 }
