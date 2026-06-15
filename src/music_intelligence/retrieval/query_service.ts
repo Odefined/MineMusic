@@ -109,7 +109,7 @@ function hitFromRow(input: {
     basis: {
       textMatched: matchedText !== undefined,
       poolFilterApplied: poolFilterApplied(input.query.pools),
-      positivePoolMatched: input.row.matchedPoolRefs.length > 0,
+      positivePoolMatched: positivePoolMatched(input.row, input.query.pools),
     },
   };
 }
@@ -241,4 +241,13 @@ function poolFilterApplied(pools: RetrievalPoolFilter | undefined): boolean {
   return (pools?.allOf?.length ?? 0) > 0 ||
     (pools?.anyOf?.length ?? 0) > 0 ||
     (pools?.noneOf?.length ?? 0) > 0;
+}
+
+function positivePoolMatched(
+  row: MusicDataPlatformRetrievalMaterialRow,
+  pools: RetrievalPoolFilter | undefined,
+): boolean {
+  return row.matchedPoolRefs.length > 0 ||
+    containsLocalCatalog(pools?.allOf) ||
+    containsLocalCatalog(pools?.anyOf);
 }

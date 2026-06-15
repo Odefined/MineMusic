@@ -302,6 +302,40 @@ assertMusicIntelligenceError(
 );
 assertMusicIntelligenceError(
   () => poolHarness.service.query({
+    pools: [] as unknown as RetrievalPoolFilter,
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: "not pools" as unknown as RetrievalPoolFilter,
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: null as unknown as RetrievalPoolFilter,
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      allOf: {} as unknown as RetrievalPool[],
+    },
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      anyOf: "not an array" as unknown as RetrievalPool[],
+    },
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
     pools: {
       allOf: [libraryPoolA as unknown as RetrievalPool],
     },
@@ -334,7 +368,9 @@ assertMusicIntelligenceError(
   "music_intelligence.retrieval_query_invalid",
 );
 const localCatalogAnyOfHarness = createReadPortHarness([{
-  rows: [],
+  rows: [materialRow({
+    materialRef: materialRef("recording", "m_local_catalog_positive"),
+  })],
 }]);
 const localCatalogAnyOfResult = localCatalogAnyOfHarness.service.query({
   pools: {
@@ -354,6 +390,11 @@ assert.deepEqual(localCatalogAnyOfResult.query.pools, {
     { kind: "local_catalog" },
     sourceLibraryPool(refWithoutLabel(libraryPoolA)),
   ],
+});
+assert.deepEqual(localCatalogAnyOfResult.hits[0]?.basis, {
+  textMatched: false,
+  poolFilterApplied: true,
+  positivePoolMatched: true,
 });
 const localCatalogAllOfHarness = createReadPortHarness([{
   rows: [],

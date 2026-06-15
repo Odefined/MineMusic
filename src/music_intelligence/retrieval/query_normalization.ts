@@ -164,16 +164,18 @@ function normalizeCursorInput(value: string | undefined): string | undefined {
   return value;
 }
 
-function normalizePoolFilter(
-  input: RetrievalPoolFilter | undefined,
-): RetrievalPoolFilter | undefined {
+function normalizePoolFilter(input: unknown): RetrievalPoolFilter | undefined {
   if (input === undefined) {
     return undefined;
   }
 
-  const allOf = normalizePoolGroup(input.allOf, "allOf");
-  const anyOf = normalizePoolGroup(input.anyOf, "anyOf");
-  const noneOf = normalizePoolGroup(input.noneOf, "noneOf");
+  if (!isRecord(input)) {
+    throw invalidQuery("Retrieval pools must be a typed pool filter object.");
+  }
+
+  const allOf = normalizePoolGroupField(input.allOf, "allOf");
+  const anyOf = normalizePoolGroupField(input.anyOf, "anyOf");
+  const noneOf = normalizePoolGroupField(input.noneOf, "noneOf");
   const providerPools = [
     ...allOf.filter(isProviderSearchPool),
     ...anyOf.filter(isProviderSearchPool),
@@ -215,6 +217,21 @@ function normalizePoolFilter(
     anyOf,
     noneOf,
   });
+}
+
+function normalizePoolGroupField(
+  value: unknown,
+  groupName: "allOf" | "anyOf" | "noneOf",
+): readonly RetrievalPool[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw invalidQuery(`Retrieval pools.${groupName} must be an array.`);
+  }
+
+  return normalizePoolGroup(value as readonly RetrievalPool[], groupName);
 }
 
 function normalizePoolGroup(
