@@ -1,15 +1,16 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 15B
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, and runtime retrieval result-set/cache foundation
+> Status: Current boundary authority through implemented Phase 15D
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, and mixed retrieval result-set/cache workspace
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
 Library Import service, source-library and owner relation ref helpers, owner
 relation commands/read port, owner catalog
 projection commands/read port, material text projection commands/read port,
-projection maintenance commands/reads/runner, the retrieval read port, schema
-contributions, runtime retrieval result-set records/cache helpers, a material
+projection maintenance commands/reads/runner, the retrieval read port, mixed
+retrieval workspace, schema contributions, runtime retrieval result-set
+records/cache helpers, a material
 ref factory, a top-level source-of-truth write facade, and error types. It
 consumes generic Storage database ports and a
 narrow provider-library read port, but does not know SQLite primitives or
@@ -48,6 +49,7 @@ provider plugin implementations.
 | `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
 | `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
 | `createMusicDataPlatformRetrievalReadPort` | Internal Music Intelligence retrieval/tests | Run owner-visible catalog query SQL with pool/text filtering, field-aware evidence/ranking, cursor validation, and coarse projection freshness. | `src/music_data_platform/retrieval_read_model.ts` |
+| `createMusicDataPlatformRetrievalWorkspace` | Internal Music Intelligence retrieval/tests | Build/read mixed local/provider result sets, rank through result-set FTS, upsert unresolved material candidates, collapse provider candidates already bound to active materials, and paginate with result-set cursors. | `src/music_data_platform/retrieval_mixed_workspace.ts` |
 | `createRetrievalResultSetRecords` | Internal mixed retrieval workspace/tests | Low-level runtime result-set rows, result-set FTS rows, material-candidate cache upserts, cache reads, and TTL cleanup helpers. | `src/music_data_platform/retrieval_result_set_records.ts` |
 | `createProjectionMaintenanceCommands` | Internal commands/tests | Plan invalidation from typed write scopes, and mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
 | `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
@@ -171,10 +173,11 @@ Missing material text projections are tolerated for no-text reads and simply
 cannot be recalled by text. The port does not rebuild projections or perform
 any writes.
 
-Phase 15A keeps this read port local and durable-only. Music Intelligence may
-accept typed Retrieval pools, but it must translate only durable local pools
-into this read port's ref-based `poolFilter`. This read port must not accept
-the provider-aware `RetrievalPool` union or `provider_search` pools.
+This read port remains local and durable-only. Music Intelligence may accept
+typed Retrieval pools, but it must translate only durable local pools into this
+read port's ref-based `poolFilter`. Provider-aware `RetrievalPool` unions and
+`provider_search` pools are handled by Music Intelligence normalization plus
+the mixed retrieval workspace, not by this local read port.
 
 ## Library Import Service
 

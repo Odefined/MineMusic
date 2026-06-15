@@ -1,8 +1,13 @@
 import type {
   MaterialEntityKind,
+  ProviderMaterialCandidate,
   Ref,
+  SourceQuery,
 } from "../../contracts/index.js";
 import type {
+  MixedRetrievalCursorPosition,
+  MusicDataPlatformMixedRetrievalRow,
+  MusicDataPlatformRetrievalWorkspace,
   MusicDataPlatformRetrievalReadPort,
   RetrievalFreshness,
   RetrievalMatchedTextTokenEvidence,
@@ -11,6 +16,7 @@ import type {
 } from "../../music_data_platform/index.js";
 
 export type {
+  MixedRetrievalCursorPosition,
   RetrievalFreshness,
   RetrievalMatchedTextTokenEvidence,
   RetrievalOrder,
@@ -46,6 +52,7 @@ export type RetrievalQueryInput = {
   order?: RetrievalOrder;
   limit?: number;
   cursor?: string;
+  sessionId?: string;
 };
 
 export type RetrievalEffectiveQuery = {
@@ -59,7 +66,7 @@ export type RetrievalEffectiveQuery = {
 export type RetrievalQueryResult = {
   query: RetrievalEffectiveQuery;
   basis: {
-    ownerCatalogVisibilityApplied: true;
+    ownerCatalogVisibilityApplied: boolean;
     blockedMaterialsExcluded: true;
   };
   hits: readonly RetrievalQueryHit[];
@@ -70,9 +77,22 @@ export type RetrievalQueryResult = {
   freshness?: RetrievalFreshness;
 };
 
-export type RetrievalQueryHit = {
+export type RetrievalQueryHit =
+  | RetrievalQueryMaterialHit
+  | RetrievalQueryMaterialCandidateHit;
+
+export type RetrievalQueryMaterialHit = RetrievalQueryHitBase & {
+  kind: "material";
   materialRef: Ref;
   materialKind: MaterialEntityKind;
+};
+
+export type RetrievalQueryMaterialCandidateHit = RetrievalQueryHitBase & {
+  kind: "material_candidate";
+  materialCandidateRef: Ref;
+};
+
+export type RetrievalQueryHitBase = {
   display: {
     title?: string;
     artistsText?: string;
@@ -98,10 +118,30 @@ export type RetrievalQueryHit = {
   };
 };
 
+export type RetrievalProviderSearchInput = {
+  providerId: string;
+  query: SourceQuery;
+  sessionId?: string;
+};
+
+export type RetrievalProviderSearchResult = {
+  providerId: string;
+  query: SourceQuery;
+  candidates: readonly ProviderMaterialCandidate[];
+};
+
+export type RetrievalProviderSearchPort = {
+  search(input: RetrievalProviderSearchInput): Promise<RetrievalProviderSearchResult>;
+};
+
 export type CreateRetrievalQueryServiceInput = {
   readPort: MusicDataPlatformRetrievalReadPort;
+  mixedRetrievalWorkspace?: MusicDataPlatformRetrievalWorkspace;
+  providerSearch?: RetrievalProviderSearchPort;
 };
 
 export type RetrievalQueryService = {
-  query(input: RetrievalQueryInput): RetrievalQueryResult;
+  query(input: RetrievalQueryInput): Promise<RetrievalQueryResult>;
 };
+
+export type RetrievalQueryServiceMixedRow = MusicDataPlatformMixedRetrievalRow;

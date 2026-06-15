@@ -11,12 +11,14 @@ import {
   type MusicDataPlatformRuntimeModule,
 } from "./music_data_platform_runtime_module.js";
 import type { SourceLibraryImportService } from "../music_data_platform/index.js";
+import type { RetrievalQueryService } from "../music_intelligence/index.js";
 
 export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
   stop(): Promise<Result<StageRuntimeSnapshot>>;
   snapshot(): StageRuntimeSnapshot;
   sourceLibraryImport(): SourceLibraryImportService | undefined;
+  retrievalQuery(): RetrievalQueryService | undefined;
 };
 
 export type CreateServerHostInput = {
@@ -55,6 +57,9 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     },
     sourceLibraryImport() {
       return musicDataPlatformModule?.sourceLibraryImport();
+    },
+    retrievalQuery() {
+      return musicDataPlatformModule?.retrievalQuery();
     },
   };
 }

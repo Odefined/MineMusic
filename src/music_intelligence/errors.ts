@@ -1,10 +1,15 @@
 export type MusicIntelligenceErrorCode =
   | "music_intelligence.cursor_invalid"
   | "music_intelligence.cursor_mismatch"
+  | "music_intelligence.provider_search_failed"
   | "music_intelligence.provider_search_pool_invalid"
+  | "music_intelligence.provider_search_result_invalid"
+  | "music_intelligence.provider_search_unavailable"
   | "music_intelligence.retrieval_cursor_invalid"
   | "music_intelligence.retrieval_query_invalid"
-  | "music_intelligence.retrieval_result_invalid";
+  | "music_intelligence.retrieval_result_invalid"
+  | "music_intelligence.retrieval_result_set_expired"
+  | "music_intelligence.material_candidate_expired";
 
 export type CreateMusicIntelligenceErrorInput = {
   code: MusicIntelligenceErrorCode;

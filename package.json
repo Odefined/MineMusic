@@ -8,6 +8,7 @@
     "server:minemusic": "npm run build:test && node ./.tmp-test/src/server/index.js",
     "smoke:ncm": "npm run build:test && node ./.tmp-test/test/live/ncm-source-smoke.js",
     "smoke:ncm:library": "npm run build:test && node ./.tmp-test/test/live/ncm-source-library-smoke.js",
+    "smoke:ncm:retrieval": "npm run build:test && node ./.tmp-test/test/live/ncm-mixed-retrieval-smoke.js",
     "test": "npm run typecheck && npm run test:stage-core",
     "test:stage-core": "npm run build:test && node ./.tmp-test/test/run-stage-core-tests.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"

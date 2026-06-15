@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 15B runtime result-set foundation
+> Status: Implemented through Phase 15D mixed retrieval workspace
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -133,6 +133,11 @@
   low-level runtime result-set/cache persistence boundary for result-set
   headers, mixed rows, result-set FTS rows, material candidate cache upserts,
   cache reads by `material_candidate_ref_key`, and TTL cleanup.
+- `src/music_data_platform/retrieval_mixed_workspace.ts` implements the
+  Music Data Platform-owned mixed retrieval workspace for local result windows,
+  provider candidates, SQL ranking, result-set cursor pages, resolved-source
+  candidate collapse, material-candidate cache upserts, and runtime result-set
+  writes.
 - `src/music_data_platform/source_of_truth_write_commands.ts` implements the
   workflow-facing source-of-truth write facade for identity, source-library,
   and owner relation writes, and currently rejects non-default owner scopes on
@@ -215,9 +220,9 @@
 - Runtime result-set cleanup removes expired result-set FTS rows, mixed rows,
   then headers; material-candidate cleanup deletes only expired cache rows that
   are not referenced by any non-expired result-set row.
-- Phase 15B does not enable mixed retrieval SQL, provider-search execution,
-  Source Provider Slot wiring, Stage Interface tools, or candidate commit
-  commands.
+- Mixed retrieval SQL is enabled through the internal workspace, while
+  provider-search execution remains outside Music Data Platform and Stage
+  Interface tools/candidate commit commands remain later work.
 - Projection maintenance keeps one current row per typed projection target and
   uses monotonic `dirty_generation` so repeated dirty marks never duplicate
   pending work.

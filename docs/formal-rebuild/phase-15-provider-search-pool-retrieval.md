@@ -872,19 +872,22 @@ cursor present
 ```
 
 Retrieval result sets are bound to the normalized query fingerprint. The
-fingerprint includes at least:
+fingerprint includes query semantics, not pagination or execution-context
+inputs:
 
 ```text
 ownerScope
 normalized top-level text
 materialKind
 order
-query limit
 normalized typed pools
-local_result_window_limit
 provider_search providerId
-provider_search effective limit
 ```
+
+The fingerprint excludes caller page `limit`, `local_result_window_limit`,
+cursor value, `sessionId`, and provider-search effective/default limits derived
+from the caller page limit. A cursor page may change page size while reading the
+same `resultSetId`.
 
 Retrieval cursors for mixed provider-search queries carry an opaque result set
 id and the query fingerprint. Cursor pages must compare the cursor fingerprint

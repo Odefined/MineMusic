@@ -223,6 +223,14 @@ becoming durable material records. Durable materialization occurs only at
 explicit commit boundaries such as save, present commit, feedback,
 add-to-collection, or another accepted write command.
 
+Retrieval may call provider search only through a narrow provider-search port
+owned by composition. Provider execution stays outside database transactions.
+Music Data Platform owns any runtime result-set rows, material-candidate cache
+rows, SQL ranking, and pagination needed to mix provider candidates with local
+materials. Retrieval owns query normalization, cursor/fingerprint validation,
+provider-search error mapping, and compact hit shaping; it does not import
+provider plugins or write runtime cache tables directly.
+
 Query output is query result/hit information for the agent's next decision.
 `MaterialCard` is final Stage Interface presentation output. It is not a
 provider candidate, not a query-engine internal result, and not

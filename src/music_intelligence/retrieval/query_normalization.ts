@@ -26,7 +26,12 @@ export type NormalizedRetrievalQuery = {
   query: RetrievalEffectiveQuery;
   limit: number;
   cursor?: string;
+  sessionId?: string;
   fingerprint: string;
+};
+
+export type NormalizeRetrievalQueryInputOptions = {
+  providerSearchMode?: "reject" | "provider";
 };
 
 const materialKinds = new Set<string>([
@@ -43,17 +48,27 @@ const retrievalOrders = new Set<string>([
   "stable",
 ]);
 
+const PROVIDER_SEARCH_LIMIT_MULTIPLIER = 2;
+const MAX_PROVIDER_SEARCH_LIMIT = 50;
+
 export function normalizeRetrievalQueryInput(
   input: RetrievalQueryInput,
+  options: NormalizeRetrievalQueryInputOptions = {},
 ): NormalizedRetrievalQuery {
   rejectRemovedPoolFilter(input);
 
   const ownerScope = normalizeOwnerScope(input.ownerScope);
   const text = normalizeRetrievalQueryText(input.text);
   const materialKind = normalizeMaterialKind(input.materialKind);
-  const pools = normalizePoolFilter(input.pools);
+  const pools = normalizePoolFilter(input.pools, options);
   const order = normalizeOrder(input.order, text !== undefined);
   const limit = normalizeLimit(input.limit);
+  validateProviderSearchQuery({
+    pools,
+    text,
+    materialKind,
+    order,
+  });
   const query = effectiveQuery({
     ownerScope,
     text,
@@ -62,11 +77,13 @@ export function normalizeRetrievalQueryInput(
     order,
   });
   const cursor = normalizeCursorInput(input.cursor);
+  const sessionId = normalizeSessionId(input.sessionId);
 
   return {
     query,
     limit,
     ...(cursor === undefined ? {} : { cursor }),
+    ...(sessionId === undefined ? {} : { sessionId }),
     fingerprint: fingerprintForRetrievalQuery(query),
   };
 }
@@ -166,7 +183,22 @@ function normalizeCursorInput(value: string | undefined): string | undefined {
   return value;
 }
 
-function normalizePoolFilter(input: unknown): RetrievalPoolFilter | undefined {
+function normalizeSessionId(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string" || value.length === 0) {
+    throw invalidQuery("sessionId must be a non-empty string when present.");
+  }
+
+  return value;
+}
+
+function normalizePoolFilter(
+  input: unknown,
+  options: NormalizeRetrievalQueryInputOptions,
+): RetrievalPoolFilter | undefined {
   if (input === undefined) {
     return undefined;
   }
@@ -206,8 +238,8 @@ function normalizePoolFilter(input: unknown): RetrievalPoolFilter | undefined {
     providerIds.add(providerPool.providerId);
   }
 
-  if (providerPools.length > 0) {
-    throw providerSearchPoolInvalid("provider_search pools are not wired until Phase 15D.");
+  if (providerPools.length > 0 && options.providerSearchMode !== "provider") {
+    throw providerSearchPoolInvalid("provider_search pools require mixed retrieval and provider-search wiring.");
   }
 
   const positiveKeys = new Set([
@@ -226,6 +258,32 @@ function normalizePoolFilter(input: unknown): RetrievalPoolFilter | undefined {
     anyOf,
     noneOf,
   });
+}
+
+function validateProviderSearchQuery(input: {
+  pools: RetrievalPoolFilter | undefined;
+  text: string | undefined;
+  materialKind: MaterialEntityKind | undefined;
+  order: RetrievalOrder;
+}): void {
+  if (!hasProviderSearchPool(input.pools)) {
+    return;
+  }
+
+  if (input.text === undefined) {
+    throw providerSearchPoolInvalid("provider_search pools require effective top-level query text.");
+  }
+
+  if (input.order !== "text_relevance") {
+    throw providerSearchPoolInvalid("provider_search pools support only text_relevance order.");
+  }
+
+  if (
+    input.materialKind !== undefined &&
+    sourceTargetKindForMaterialKind(input.materialKind) === undefined
+  ) {
+    throw providerSearchPoolInvalid("provider_search pools support only recording, album, and artist material kinds.");
+  }
 }
 
 function normalizePoolGroupField(
@@ -332,6 +390,32 @@ function keyedPoolFilter(pools: RetrievalPoolFilter | undefined): {
   };
 }
 
+export function effectiveProviderSearchLimit(
+  pool: Extract<RetrievalPool, { kind: "provider_search" }>,
+  queryLimit: number,
+): number {
+  return pool.limit ?? Math.min(
+    queryLimit * PROVIDER_SEARCH_LIMIT_MULTIPLIER,
+    MAX_PROVIDER_SEARCH_LIMIT,
+  );
+}
+
+export function sourceTargetKindForMaterialKind(
+  materialKind: MaterialEntityKind,
+): "track" | "album" | "artist" | undefined {
+  switch (materialKind) {
+    case "recording":
+      return "track";
+    case "album":
+      return "album";
+    case "artist":
+      return "artist";
+    case "release":
+    case "work":
+      return undefined;
+  }
+}
+
 function sortedPoolKeys(pools: readonly RetrievalPool[] | undefined): readonly string[] {
   return (pools ?? [])
     .map((pool) => poolKey(pool))
@@ -407,8 +491,15 @@ function normalizeProviderSearchPool(
 
   const { limit } = value;
   if (limit !== undefined) {
-    if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 50) {
-      throw providerSearchPoolInvalid("provider_search.limit must be an integer from 1 through 50.");
+    if (
+      typeof limit !== "number" ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > MAX_PROVIDER_SEARCH_LIMIT
+    ) {
+      throw providerSearchPoolInvalid(
+        `provider_search.limit must be an integer from 1 through ${MAX_PROVIDER_SEARCH_LIMIT}.`,
+      );
     }
 
     return {
@@ -497,10 +588,16 @@ function poolKey(pool: RetrievalPool): string {
   return `${pool.kind}:${safeRefKey(pool.ref)}`;
 }
 
-function isProviderSearchPool(pool: RetrievalPool): pool is Extract<RetrievalPool, {
+export function isProviderSearchPool(pool: RetrievalPool): pool is Extract<RetrievalPool, {
   kind: "provider_search";
 }> {
   return pool.kind === "provider_search";
+}
+
+export function hasProviderSearchPool(pools: RetrievalPoolFilter | undefined): boolean {
+  return (pools?.allOf ?? []).some(isProviderSearchPool) ||
+    (pools?.anyOf ?? []).some(isProviderSearchPool) ||
+    (pools?.noneOf ?? []).some(isProviderSearchPool);
 }
 
 function rejectRemovedPoolFilter(input: RetrievalQueryInput): void {

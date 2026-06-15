@@ -485,7 +485,8 @@ type RetrievalProviderSearchPort = {
    - Retrieval must not import Extension runtime internals or provider plugins;
    - `sessionId` may pass through as provider execution context only and must
      not affect `resultSetId`, candidate identity, fingerprint, or cache
-     identity.
+     identity;
+   - caller page `limit` must not affect cursor/result-set fingerprint identity.
 
 5. Map provider errors:
    - missing provider or unsupported search ->
@@ -580,6 +581,8 @@ PR establishes.
 - Provider candidates and local durable rows are ranked through one SQL-owned
   mixed result-set path.
 - Mixed cursor pages read the same `resultSetId` and do not re-run providers.
+- Cursor pages may change caller page `limit` without changing query
+  fingerprint identity.
 - `materialCandidateRef` survives query completion through runtime cache until
   expiry.
 - Result windows are bounded dynamically and are not failure conditions.

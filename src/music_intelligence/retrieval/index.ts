@@ -11,11 +11,18 @@ export {
 } from "./contracts.js";
 export type {
   CreateRetrievalQueryServiceInput,
+  MixedRetrievalCursorPosition,
   RetrievalEffectiveQuery,
   RetrievalPool,
   RetrievalPoolFilter,
+  RetrievalProviderSearchInput,
+  RetrievalProviderSearchPort,
+  RetrievalProviderSearchResult,
   RetrievalQueryHit,
+  RetrievalQueryHitBase,
   RetrievalQueryInput,
+  RetrievalQueryMaterialCandidateHit,
+  RetrievalQueryMaterialHit,
   RetrievalQueryResult,
   RetrievalQueryService,
 } from "./contracts.js";

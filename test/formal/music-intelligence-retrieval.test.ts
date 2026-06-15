@@ -5,8 +5,10 @@ import {
 } from "../../src/contracts/index.js";
 import type {
   MaterialEntityKind,
+  ProviderMaterialCandidate,
   Ref,
   SourceEntity,
+  SourceQuery,
   SourceTrack,
 } from "../../src/contracts/index.js";
 import {
@@ -22,12 +24,15 @@ import {
   type RetrievalPoolFilter,
   type RetrievalQueryHit,
   type RetrievalQueryInput,
+  type RetrievalQueryMaterialCandidateHit,
+  type RetrievalQueryMaterialHit,
   type RetrievalQueryResult,
   type RetrievalQueryService,
 } from "../../src/music_intelligence/index.js";
 import {
   DEFAULT_OWNER_SCOPE,
   createMaterialTextProjectionCommands,
+  createMusicDataPlatformRetrievalWorkspace,
   createMusicDataPlatformRetrievalReadPort,
   createOwnerCatalogProjectionCommands,
   createSourceLibraryRef,
@@ -37,9 +42,11 @@ import {
   musicDataPlatformOwnerCatalogViewSchema,
   musicDataPlatformOwnerRelationSchema,
   musicDataPlatformProjectionMaintenanceSchema,
+  musicDataPlatformRetrievalResultSetSchema,
   musicDataPlatformSourceLibrarySchema,
 } from "../../src/music_data_platform/index.js";
 import type {
+  MusicDataPlatformRetrievalWorkspace,
   MusicDataPlatformRetrievalMaterialRow,
   MusicDataPlatformRetrievalReadPort,
   MusicDataPlatformRetrievalSearchInput,
@@ -61,17 +68,21 @@ type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
 type Expect<Check extends true> = Check;
 
 export type _createRetrievalQueryServiceInputShape = Expect<
-  Equal<keyof CreateRetrievalQueryServiceInput, "readPort">
+  Equal<keyof CreateRetrievalQueryServiceInput, "readPort" | "mixedRetrievalWorkspace" | "providerSearch">
 >;
 
 export type _retrievalQueryServiceShape = Expect<
   Equal<keyof RetrievalQueryService, "query">
 >;
 
+export type _retrievalQueryServiceQueryReturnShape = Expect<
+  Equal<ReturnType<RetrievalQueryService["query"]>, Promise<RetrievalQueryResult>>
+>;
+
 export type _retrievalQueryInputShape = Expect<
   Equal<
     keyof RetrievalQueryInput,
-    "ownerScope" | "text" | "materialKind" | "pools" | "order" | "limit" | "cursor"
+    "ownerScope" | "text" | "materialKind" | "pools" | "order" | "limit" | "cursor" | "sessionId"
   >
 >;
 
@@ -89,7 +100,21 @@ export type _retrievalQueryResultShape = Expect<
 export type _retrievalQueryHitShape = Expect<
   Equal<
     keyof RetrievalQueryHit,
-    "materialRef" | "materialKind" | "display" | "rankScore" | "matchedText" | "pools" | "basis"
+    "kind" | "display" | "rankScore" | "matchedText" | "pools" | "basis"
+  >
+>;
+
+export type _retrievalQueryMaterialHitShape = Expect<
+  Equal<
+    keyof RetrievalQueryMaterialHit,
+    "kind" | "materialRef" | "materialKind" | "display" | "rankScore" | "matchedText" | "pools" | "basis"
+  >
+>;
+
+export type _retrievalQueryMaterialCandidateHitShape = Expect<
+  Equal<
+    keyof RetrievalQueryMaterialCandidateHit,
+    "kind" | "materialCandidateRef" | "display" | "rankScore" | "matchedText" | "pools" | "basis"
   >
 >;
 
@@ -112,7 +137,7 @@ const defaultHarness = createReadPortHarness([
     rows: [],
   },
 ]);
-const defaultResult = defaultHarness.service.query({});
+const defaultResult = await defaultHarness.service.query({});
 assert.deepEqual(defaultHarness.searchInputs, [{
   ownerScope: "local",
   order: "recently_added",
@@ -137,7 +162,7 @@ assert.deepEqual(defaultResult.freshness, {
 const textHarness = createReadPortHarness([{
   rows: [],
 }]);
-const textResult = textHarness.service.query({
+const textResult = await textHarness.service.query({
   text: "  Plainsong　LIVE  ",
   limit: 5,
 });
@@ -156,7 +181,7 @@ assert.deepEqual(textResult.query, {
 const unicodeTextHarness = createReadPortHarness([{
   rows: [],
 }]);
-unicodeTextHarness.service.query({
+await unicodeTextHarness.service.query({
   text: "  Café　Del   Mar ",
   limit: 4,
 });
@@ -170,7 +195,7 @@ assert.deepEqual(unicodeTextHarness.searchInputs, [{
 const normalizedEmptyHarness = createReadPortHarness([{
   rows: [],
 }]);
-normalizedEmptyHarness.service.query({
+await normalizedEmptyHarness.service.query({
   text: "   ",
   limit: 3,
 });
@@ -179,7 +204,7 @@ assert.deepEqual(normalizedEmptyHarness.searchInputs, [{
   order: "recently_added",
   limit: 3,
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => normalizedEmptyHarness.service.query({
     text: "   ",
     order: "text_relevance",
@@ -190,7 +215,7 @@ assertMusicIntelligenceError(
 const droppedTextHarness = createReadPortHarness([{
   rows: [],
 }]);
-const droppedTextResult = droppedTextHarness.service.query({
+const droppedTextResult = await droppedTextHarness.service.query({
   text: "--- !!!",
   limit: 3,
 });
@@ -203,7 +228,7 @@ assert.deepEqual(droppedTextResult.query, {
   ownerScope: "local",
   order: "recently_added",
 });
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => droppedTextHarness.service.query({
     text: "--- !!!",
     order: "text_relevance",
@@ -214,23 +239,23 @@ assertMusicIntelligenceError(
 const validationHarness = createReadPortHarness([{
   rows: [],
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => validationHarness.service.query({ ownerScope: "other" }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => validationHarness.service.query({ limit: 0 }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => validationHarness.service.query({ limit: 101 }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => validationHarness.service.query({ limit: 1.5 }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => validationHarness.service.query({
     materialKind: "playlist" as MaterialEntityKind,
   }),
@@ -246,7 +271,7 @@ const favoritePool = ownerRelationPoolRef("favorite", "fav");
 const poolHarness = createReadPortHarness([{
   rows: [],
 }]);
-const poolResult = poolHarness.service.query({
+const poolResult = await poolHarness.service.query({
   pools: {
     allOf: [
       sourceLibraryPool(libraryPoolB),
@@ -281,7 +306,7 @@ assert.deepEqual(poolResult.query.pools, {
 const emptyPoolHarness = createReadPortHarness([{
   rows: [],
 }]);
-const emptyPoolResult = emptyPoolHarness.service.query({
+const emptyPoolResult = await emptyPoolHarness.service.query({
   pools: {
     allOf: [],
     anyOf: [],
@@ -294,7 +319,7 @@ assert.deepEqual(emptyPoolHarness.searchInputs, [{
   order: "recently_added",
   limit: DEFAULT_RETRIEVAL_LIMIT,
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     poolFilter: {
       allOf: [libraryPoolA],
@@ -302,7 +327,7 @@ assertMusicIntelligenceError(
   } as unknown as RetrievalQueryInput),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       allOf: Array.from({ length: MAX_RETRIEVAL_POOL_GROUP_SIZE + 1 }, (_, index) =>
@@ -312,7 +337,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       allOf: Array.from({ length: MAX_RETRIEVAL_POOL_GROUP_SIZE }, (_, index) =>
@@ -328,25 +353,25 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: [] as unknown as RetrievalPoolFilter,
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: "not pools" as unknown as RetrievalPoolFilter,
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: null as unknown as RetrievalPoolFilter,
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       allOf: {} as unknown as RetrievalPool[],
@@ -354,7 +379,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       anyOf: "not an array" as unknown as RetrievalPool[],
@@ -362,7 +387,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       allOf: [libraryPoolA as unknown as RetrievalPool],
@@ -370,7 +395,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       allOf: [sourceLibraryPool(libraryPoolA)],
@@ -379,7 +404,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       anyOf: [sourceLibraryPool(materialRef("recording", "m_not_a_pool"))],
@@ -387,7 +412,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       anyOf: [ownerRelationPool(ownerRelationPoolRef("blocked", "blocked"))],
@@ -400,7 +425,7 @@ const localCatalogAnyOfHarness = createReadPortHarness([{
     materialRef: materialRef("recording", "m_local_catalog_positive"),
   })],
 }]);
-const localCatalogAnyOfResult = localCatalogAnyOfHarness.service.query({
+const localCatalogAnyOfResult = await localCatalogAnyOfHarness.service.query({
   pools: {
     anyOf: [
       { kind: "local_catalog" },
@@ -427,7 +452,7 @@ assert.deepEqual(localCatalogAnyOfResult.hits[0]?.basis, {
 const localCatalogAllOfHarness = createReadPortHarness([{
   rows: [],
 }]);
-localCatalogAllOfHarness.service.query({
+await localCatalogAllOfHarness.service.query({
   pools: {
     allOf: [
       { kind: "local_catalog" },
@@ -443,7 +468,7 @@ assert.deepEqual(localCatalogAllOfHarness.searchInputs, [{
   order: "recently_added",
   limit: DEFAULT_RETRIEVAL_LIMIT,
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       noneOf: [{ kind: "local_catalog" }],
@@ -451,7 +476,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_query_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       anyOf: [{
@@ -464,7 +489,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.provider_search_pool_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       allOf: [{
@@ -476,7 +501,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.provider_search_pool_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       anyOf: [
@@ -495,7 +520,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.provider_search_pool_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       anyOf: [
@@ -515,7 +540,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.provider_search_pool_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => poolHarness.service.query({
     pools: {
       anyOf: [{
@@ -528,6 +553,540 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.provider_search_pool_invalid",
 );
+
+const fixtureMixedDatabase = initializedDatabase();
+const fixtureProviderSearchCalls: {
+  providerId: string;
+  query: SourceQuery;
+  sessionId?: string;
+}[] = [];
+const fixtureMixedService = createRetrievalQueryService({
+  readPort: throwingReadPort(),
+  mixedRetrievalWorkspace: createMusicDataPlatformRetrievalWorkspace({
+    database: fixtureMixedDatabase,
+  }),
+  providerSearch: {
+    async search(input) {
+      fixtureProviderSearchCalls.push({
+        providerId: input.providerId,
+        query: input.query,
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      });
+
+      return {
+        providerId: input.providerId,
+        query: input.query,
+        candidates: [
+          providerCandidate(sourceTrackEntity("fixture_1", "fixture alpha one")),
+          providerCandidate(sourceTrackEntity("fixture_2", "fixture alpha two")),
+        ],
+      };
+    },
+  },
+});
+const fixtureMixedPageOne = await fixtureMixedService.query({
+  text: "fixture alpha",
+  pools: {
+    anyOf: [{
+      kind: "provider_search",
+      providerId: "netease",
+    }],
+  },
+  limit: 1,
+  sessionId: "s_fixture",
+});
+assert.deepEqual(fixtureProviderSearchCalls, [{
+  providerId: "netease",
+  query: {
+    text: "fixture alpha",
+    limit: 2,
+    offset: 0,
+  },
+  sessionId: "s_fixture",
+}]);
+assert.deepEqual(fixtureMixedPageOne.basis, {
+  ownerCatalogVisibilityApplied: false,
+  blockedMaterialsExcluded: true,
+});
+assert.equal(fixtureMixedPageOne.hits[0]?.kind, "material_candidate");
+assert.equal(
+  fixtureMixedPageOne.hits[0]?.kind === "material_candidate"
+    ? fixtureMixedPageOne.hits[0].materialCandidateRef.namespace
+    : undefined,
+  "material_candidate",
+);
+assert.equal(typeof fixtureMixedPageOne.page.nextCursor, "string");
+const fixtureMixedCursor = fixtureMixedPageOne.page.nextCursor;
+if (fixtureMixedCursor === undefined) {
+  throw new Error("Expected fixture mixed query to expose a result-set cursor.");
+}
+const fixtureMixedPageTwo = await fixtureMixedService.query({
+  text: "fixture alpha",
+  pools: {
+    anyOf: [{
+      kind: "provider_search",
+      providerId: "netease",
+    }],
+  },
+  limit: 2,
+  cursor: fixtureMixedCursor,
+  sessionId: "s_fixture",
+});
+assert.equal(fixtureProviderSearchCalls.length, 1);
+assert.equal(fixtureMixedPageTwo.hits[0]?.kind, "material_candidate");
+fixtureMixedDatabase.close();
+
+{
+  const mixedWorkspace = createMixedWorkspaceHarness();
+  const providerSearchCalls: {
+    providerId: string;
+    query: SourceQuery;
+    sessionId?: string;
+  }[] = [];
+  const service = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search(input) {
+        providerSearchCalls.push({
+          providerId: input.providerId,
+          query: input.query,
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        });
+        return {
+          providerId: input.providerId,
+          query: input.query,
+          candidates: [],
+        };
+      },
+    },
+  });
+
+  await service.query({
+    text: "Provider Limit",
+    materialKind: "recording",
+    pools: {
+      anyOf: [{
+        kind: "provider_search",
+        providerId: "netease",
+      }],
+    },
+    limit: 30,
+    sessionId: "s_a",
+  });
+  await service.query({
+    text: "Provider Limit",
+    materialKind: "recording",
+    pools: {
+      anyOf: [{
+        kind: "provider_search",
+        providerId: "netease",
+      }],
+    },
+    limit: 30,
+    sessionId: "s_b",
+  });
+
+  assert.deepEqual(providerSearchCalls, [
+    {
+      providerId: "netease",
+      query: {
+        text: "provider limit",
+        targetKinds: ["track"],
+        limit: 50,
+        offset: 0,
+      },
+      sessionId: "s_a",
+    },
+    {
+      providerId: "netease",
+      query: {
+        text: "provider limit",
+        targetKinds: ["track"],
+        limit: 50,
+        offset: 0,
+      },
+      sessionId: "s_b",
+    },
+  ]);
+  assert.equal(mixedWorkspace.calls.length, 2);
+  assert.equal(
+    mixedWorkspace.calls[0]?.queryFingerprint,
+    mixedWorkspace.calls[1]?.queryFingerprint,
+  );
+}
+
+{
+  const mixedWorkspace = createMixedWorkspaceHarness();
+  const providerSearchCalls: SourceQuery[] = [];
+  const service = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search(input) {
+        providerSearchCalls.push(input.query);
+        return {
+          providerId: input.providerId,
+          query: input.query,
+          candidates: [],
+        };
+      },
+    },
+  });
+
+  await service.query({
+    text: "Kind Map",
+    materialKind: "album",
+    pools: {
+      anyOf: [{
+        kind: "provider_search",
+        providerId: "netease",
+      }],
+    },
+    limit: 3,
+  });
+  await service.query({
+    text: "Kind Map",
+    materialKind: "artist",
+    pools: {
+      anyOf: [{
+        kind: "provider_search",
+        providerId: "netease",
+      }],
+    },
+    limit: 4,
+  });
+
+  assert.deepEqual(providerSearchCalls, [
+    {
+      text: "kind map",
+      targetKinds: ["album"],
+      limit: 6,
+      offset: 0,
+    },
+    {
+      text: "kind map",
+      targetKinds: ["artist"],
+      limit: 8,
+      offset: 0,
+    },
+  ]);
+
+  for (const materialKind of ["release", "work"] as const) {
+    await assertMusicIntelligenceError(
+      () => service.query({
+        text: "Kind Map",
+        materialKind,
+        pools: {
+          anyOf: [{
+            kind: "provider_search",
+            providerId: "netease",
+          }],
+        },
+      }),
+      "music_intelligence.provider_search_pool_invalid",
+    );
+  }
+}
+
+{
+  const mixedWorkspace = createMixedWorkspaceHarness();
+  const providerSearchCalls: string[] = [];
+  const resolvers: ((value: {
+    providerId: string;
+    query: SourceQuery;
+    candidates: readonly ProviderMaterialCandidate[];
+  }) => void)[] = [];
+  const service = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      search(input) {
+        providerSearchCalls.push(input.providerId);
+        return new Promise((resolve) => {
+          resolvers.push(resolve);
+        });
+      },
+    },
+  });
+  const queryPromise = service.query({
+    text: "Parallel Search",
+    pools: {
+      anyOf: [
+        {
+          kind: "provider_search",
+          providerId: "netease",
+          limit: 1,
+        },
+        {
+          kind: "provider_search",
+          providerId: "spotify",
+          limit: 1,
+        },
+      ],
+    },
+  });
+
+  await flushMicrotasks();
+
+  assert.deepEqual(providerSearchCalls, ["netease", "spotify"]);
+  assert.equal(mixedWorkspace.calls.length, 0);
+
+  resolvers[1]?.({
+    providerId: "spotify",
+    query: {
+      text: "parallel search",
+      limit: 1,
+      offset: 0,
+    },
+    candidates: [
+      providerCandidate(sourceTrackEntityForProvider("spotify", "sp_1", "parallel search spotify")),
+    ],
+  });
+  resolvers[0]?.({
+    providerId: "netease",
+    query: {
+      text: "parallel search",
+      limit: 1,
+      offset: 0,
+    },
+    candidates: [
+      providerCandidate(sourceTrackEntityForProvider("netease", "ne_1", "parallel search netease")),
+    ],
+  });
+  await queryPromise;
+
+  assert.equal(mixedWorkspace.calls.length, 1);
+  assert.equal(mixedWorkspace.calls[0]?.providerCandidates?.length, 2);
+}
+
+{
+  const mixedWorkspace = createMixedWorkspaceHarness();
+  const failedService = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search() {
+        throw new Error("provider exploded");
+      },
+    },
+  });
+
+  await assertMusicIntelligenceError(
+    () => failedService.query({
+      text: "Provider Failure",
+      pools: {
+        anyOf: [{
+          kind: "provider_search",
+          providerId: "netease",
+        }],
+      },
+    }),
+    "music_intelligence.provider_search_failed",
+  );
+  assert.equal(mixedWorkspace.calls.length, 0);
+
+  const unavailableService = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search() {
+        throw new MusicIntelligenceError({
+          code: "music_intelligence.provider_search_unavailable",
+          message: "Provider search unavailable.",
+        });
+      },
+    },
+  });
+  await assertMusicIntelligenceError(
+    () => unavailableService.query({
+      text: "Provider Failure",
+      pools: {
+        anyOf: [{
+          kind: "provider_search",
+          providerId: "netease",
+        }],
+      },
+    }),
+    "music_intelligence.provider_search_unavailable",
+  );
+
+  const invalidResultService = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search(input) {
+        return {
+          providerId: "wrong_provider",
+          query: input.query,
+          candidates: [],
+        };
+      },
+    },
+  });
+  await assertMusicIntelligenceError(
+    () => invalidResultService.query({
+      text: "Provider Failure",
+      pools: {
+        anyOf: [{
+          kind: "provider_search",
+          providerId: "netease",
+        }],
+      },
+    }),
+    "music_intelligence.provider_search_result_invalid",
+  );
+
+  const invalidTargetKindService = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search(input) {
+        return {
+          providerId: input.providerId,
+          query: input.query,
+          candidates: [
+            providerCandidate(sourceTrackEntity("wrong_kind", "wrong target kind")),
+          ],
+        };
+      },
+    },
+  });
+  await assertMusicIntelligenceError(
+    () => invalidTargetKindService.query({
+      text: "Provider Failure",
+      materialKind: "album",
+      pools: {
+        anyOf: [{
+          kind: "provider_search",
+          providerId: "netease",
+        }],
+      },
+    }),
+    "music_intelligence.provider_search_result_invalid",
+  );
+
+  const invalidOptionalSourceFieldService = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search(input) {
+        return {
+          providerId: input.providerId,
+          query: input.query,
+          candidates: [
+            providerCandidate({
+              ...sourceTrackEntity("bad_optional_field", "bad optional field"),
+              albumLabel: 123,
+            } as unknown as SourceEntity),
+          ],
+        };
+      },
+    },
+  });
+  await assertMusicIntelligenceError(
+    () => invalidOptionalSourceFieldService.query({
+      text: "Provider Failure",
+      pools: {
+        anyOf: [{
+          kind: "provider_search",
+          providerId: "netease",
+        }],
+      },
+    }),
+    "music_intelligence.provider_search_result_invalid",
+  );
+  assert.equal(mixedWorkspace.calls.length, 0);
+}
+
+// Provider-search contract: MI must NOT require sourceRef.id === providerEntityId.
+// Providers may encode the stable source identity (sourceRef.id) differently from the
+// raw provider entity id (prefixes, hashes, composite ids, id migrations). Such a
+// candidate must be accepted by MI validation and reach the mixed workspace; the
+// fixture helpers set them equal, so this case is the one that guards real providers.
+{
+  const mixedWorkspace = createMixedWorkspaceHarness();
+  const service = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: mixedWorkspace.workspace,
+    providerSearch: {
+      async search(input) {
+        return {
+          providerId: input.providerId,
+          query: input.query,
+          candidates: [
+            providerCandidate({
+              kind: "track",
+              sourceRef: sourceRefForProvider("netease", "track", "ncm_12345"),
+              providerId: "netease",
+              providerEntityId: "12345",
+              label: "divergent id alpha",
+              title: "divergent id alpha",
+            }),
+          ],
+        };
+      },
+    },
+  });
+
+  const result = await service.query({
+    text: "divergent id",
+    pools: { anyOf: [{ kind: "provider_search", providerId: "netease" }] },
+    limit: 1,
+  });
+
+  assert.equal(mixedWorkspace.calls.length, 1);
+  const accepted = mixedWorkspace.calls[0]?.providerCandidates?.[0];
+  if (accepted === undefined) {
+    throw new Error("Expected the divergent-id candidate to reach the mixed workspace.");
+  }
+  assert.equal(accepted.sourceEntity.providerEntityId, "12345");
+  assert.equal(
+    refKey(accepted.sourceEntity.sourceRef),
+    refKey(sourceRefForProvider("netease", "track", "ncm_12345")),
+  );
+  assert.deepEqual(result.basis, {
+    ownerCatalogVisibilityApplied: false,
+    blockedMaterialsExcluded: true,
+  });
+}
+
+for (const [status, code] of [
+  ["result_set_expired", "music_intelligence.retrieval_result_set_expired"],
+  ["material_candidate_expired", "music_intelligence.material_candidate_expired"],
+] as const) {
+  const statusService = createRetrievalQueryService({
+    readPort: throwingReadPort(),
+    mixedRetrievalWorkspace: {
+      searchMixedResultSet() {
+        return { status };
+      },
+    } satisfies MusicDataPlatformRetrievalWorkspace,
+    providerSearch: {
+      async search(input) {
+        return {
+          providerId: input.providerId,
+          query: input.query,
+          candidates: [],
+        };
+      },
+    },
+  });
+
+  await assertMusicIntelligenceError(
+    () => statusService.query({
+      text: "fixture alpha",
+      pools: {
+        anyOf: [{
+          kind: "provider_search",
+          providerId: "netease",
+        }],
+      },
+      limit: 1,
+    }),
+    code,
+  );
+}
 
 const firstCursorPosition = {
   order: "stable",
@@ -546,7 +1105,7 @@ const cursorHarness = createReadPortHarness([
     })],
   },
 ]);
-const firstCursorResult = cursorHarness.service.query({
+const firstCursorResult = await cursorHarness.service.query({
   order: "stable",
   limit: 1,
 });
@@ -555,7 +1114,7 @@ const nextCursor = firstCursorResult.page.nextCursor;
 if (nextCursor === undefined) {
   throw new Error("Expected opaque cursor to be present.");
 }
-const secondCursorResult = cursorHarness.service.query({
+const secondCursorResult = await cursorHarness.service.query({
   order: "stable",
   limit: 50,
   cursor: nextCursor,
@@ -567,11 +1126,11 @@ assert.deepEqual(cursorHarness.searchInputs[1], {
   cursorPosition: firstCursorPosition,
 });
 assert.deepEqual(
-  secondCursorResult.hits.map((hit) => refKey(hit.materialRef)),
+  materialHitRefKeys(secondCursorResult.hits),
   [refKey(materialRef("recording", "m_page_2"))],
 );
 
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     materialKind: "album",
@@ -579,14 +1138,14 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_cursor_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "recently_added",
     cursor: nextCursor,
   }),
   "music_intelligence.retrieval_cursor_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     text: "plainsong",
@@ -594,7 +1153,7 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_cursor_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     pools: {
@@ -604,14 +1163,14 @@ assertMusicIntelligenceError(
   }),
   "music_intelligence.retrieval_cursor_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     cursor: Buffer.from("not json", "utf8").toString("base64url"),
   }),
   "music_intelligence.retrieval_cursor_invalid",
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     cursor: Buffer.from(JSON.stringify({
@@ -624,7 +1183,7 @@ assertMusicIntelligenceError(
 );
 // Cursor position shape must match its declared order: a text_relevance position missing
 // its rank-evidence fields is rejected during decode, before any fingerprint comparison.
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     cursor: Buffer.from(JSON.stringify({
@@ -636,7 +1195,7 @@ assertMusicIntelligenceError(
   "music_intelligence.retrieval_cursor_invalid",
 );
 // A present resultSetId must be non-empty.
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     cursor: Buffer.from(JSON.stringify({
@@ -680,7 +1239,7 @@ const hitHarness = createReadPortHarness([{
     dirtyTargetCount: 1,
   },
 }]);
-const hitResult = hitHarness.service.query({
+const hitResult = await hitHarness.service.query({
   text: "plainsong live",
   pools: {
     allOf: [sourceLibraryPool(libraryPoolA)],
@@ -691,6 +1250,7 @@ assert.deepEqual(hitResult.freshness, {
   dirtyTargetCount: 1,
 });
 assert.deepEqual(hitResult.hits, [{
+  kind: "material",
   materialRef: textHitRow.materialRef,
   materialKind: "recording",
   display: {
@@ -739,7 +1299,7 @@ const recentTextHarness = createReadPortHarness([{
     matchedTokenCount: 1,
   })],
 }]);
-const recentTextResult = recentTextHarness.service.query({
+const recentTextResult = await recentTextHarness.service.query({
   text: "recent",
   order: "recently_added",
 });
@@ -774,11 +1334,11 @@ const stableRankHarness = createReadPortHarness([{
     }),
   ],
 }]);
-const stableRankResult = stableRankHarness.service.query({
+const stableRankResult = await stableRankHarness.service.query({
   order: "stable",
 });
 assert.deepEqual(
-  stableRankResult.hits.map((hit) => refKey(hit.materialRef)),
+  materialHitRefKeys(stableRankResult.hits),
   [
     refKey(materialRef("recording", "m_low_score_first")),
     refKey(materialRef("recording", "m_high_score_second")),
@@ -792,7 +1352,7 @@ const noPoolBasisHarness = createReadPortHarness([{
     materialRef: materialRef("recording", "m_no_pool"),
   })],
 }]);
-assert.deepEqual(noPoolBasisHarness.service.query({}).hits[0]?.basis, {
+assert.deepEqual((await noPoolBasisHarness.service.query({})).hits[0]?.basis, {
   textMatched: false,
   poolFilterApplied: false,
   positivePoolMatched: false,
@@ -803,11 +1363,11 @@ const noneOfBasisHarness = createReadPortHarness([{
     materialRef: materialRef("recording", "m_noneof_pool"),
   })],
 }]);
-assert.deepEqual(noneOfBasisHarness.service.query({
+assert.deepEqual((await noneOfBasisHarness.service.query({
   pools: {
     noneOf: [ownerRelationPool(favoritePool)],
   },
-}).hits[0]?.basis, {
+})).hits[0]?.basis, {
   textMatched: false,
   poolFilterApplied: true,
   positivePoolMatched: false,
@@ -827,7 +1387,7 @@ const invalidRankHarness = createReadPortHarness([{
     matchedTokenCount: 1,
   })],
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => invalidRankHarness.service.query({
     text: "plain",
   }),
@@ -848,7 +1408,7 @@ const missingTextFieldsHarness = createReadPortHarness([{
     },
   })],
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => missingTextFieldsHarness.service.query({
     text: "plain",
   }),
@@ -866,7 +1426,7 @@ const missingTextTokensHarness = createReadPortHarness([{
     },
   })],
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => missingTextTokensHarness.service.query({
     text: "plain",
   }),
@@ -887,7 +1447,7 @@ const missingTextTokenCountHarness = createReadPortHarness([{
     },
   })],
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => missingTextTokenCountHarness.service.query({
     text: "plain",
   }),
@@ -909,7 +1469,7 @@ const zeroTextTokenCountHarness = createReadPortHarness([{
     },
   })],
 }]);
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => zeroTextTokenCountHarness.service.query({
     text: "plain",
   }),
@@ -983,7 +1543,7 @@ const integrationService = createRetrievalQueryService({
   }),
 });
 
-const integrationAccentResult = integrationService.query({
+const integrationAccentResult = await integrationService.query({
   text: "cafe",
   limit: 10,
 });
@@ -993,7 +1553,7 @@ assert.deepEqual(integrationAccentResult.query, {
   order: "text_relevance",
 });
 assert.deepEqual(
-  integrationAccentResult.hits.map((hit) => refKey(hit.materialRef)),
+  materialHitRefKeys(integrationAccentResult.hits),
   [refKey(integrationAccentMaterialRef)],
 );
 assert.equal(integrationAccentResult.hits[0]?.rankScore?.kind, "fts_bm25");
@@ -1006,7 +1566,7 @@ assert.deepEqual(integrationAccentResult.hits[0]?.matchedText, {
   summary: "title matched cafe",
 });
 
-const integrationTextPageOne = integrationService.query({
+const integrationTextPageOne = await integrationService.query({
   text: "lilt",
   limit: 1,
 });
@@ -1015,7 +1575,7 @@ const integrationNextCursor = integrationTextPageOne.page.nextCursor;
 if (integrationNextCursor === undefined) {
   throw new Error("Expected integration text query to expose a continuation cursor.");
 }
-const integrationTextPageTwo = integrationService.query({
+const integrationTextPageTwo = await integrationService.query({
   text: "lilt",
   limit: 1,
   cursor: integrationNextCursor,
@@ -1023,13 +1583,13 @@ const integrationTextPageTwo = integrationService.query({
 assert.equal(integrationTextPageOne.hits.length, 1);
 assert.equal(integrationTextPageTwo.hits.length, 1);
 assert.notEqual(
-  refKey(integrationTextPageOne.hits[0]?.materialRef ?? materialRef("recording", "missing")),
-  refKey(integrationTextPageTwo.hits[0]?.materialRef ?? materialRef("recording", "missing")),
+  refKey(materialHitRef(integrationTextPageOne.hits[0])),
+  refKey(materialHitRef(integrationTextPageTwo.hits[0])),
 );
 assert.deepEqual(
   [
-    refKey(integrationTextPageOne.hits[0]?.materialRef ?? materialRef("recording", "missing")),
-    refKey(integrationTextPageTwo.hits[0]?.materialRef ?? materialRef("recording", "missing")),
+    refKey(materialHitRef(integrationTextPageOne.hits[0])),
+    refKey(materialHitRef(integrationTextPageTwo.hits[0])),
   ].sort(),
   [
     refKey(integrationLiltMaterialRefOne),
@@ -1037,7 +1597,7 @@ assert.deepEqual(
   ].sort(),
 );
 
-const integrationDroppedTextResult = integrationService.query({
+const integrationDroppedTextResult = await integrationService.query({
   text: "--- !!!",
   limit: 2,
 });
@@ -1046,13 +1606,13 @@ assert.deepEqual(integrationDroppedTextResult.query, {
   order: "recently_added",
 });
 assert.deepEqual(
-  integrationDroppedTextResult.hits.map((hit) => refKey(hit.materialRef)),
+  materialHitRefKeys(integrationDroppedTextResult.hits),
   [
     refKey(integrationLiltMaterialRefTwo),
     refKey(integrationLiltMaterialRefOne),
   ],
 );
-assertMusicIntelligenceError(
+await assertMusicIntelligenceError(
   () => integrationService.query({
     text: "--- !!!",
     order: "text_relevance",
@@ -1105,6 +1665,27 @@ function createReadPortHarness(pages: readonly (MusicDataPlatformRetrievalSearch
   };
 }
 
+function createMixedWorkspaceHarness(): {
+  workspace: MusicDataPlatformRetrievalWorkspace;
+  calls: Parameters<MusicDataPlatformRetrievalWorkspace["searchMixedResultSet"]>[0][];
+} {
+  const calls: Parameters<MusicDataPlatformRetrievalWorkspace["searchMixedResultSet"]>[0][] = [];
+
+  return {
+    calls,
+    workspace: {
+      searchMixedResultSet(input) {
+        calls.push(input);
+        return {
+          status: "ok",
+          resultSetId: `rs_fake_${calls.length}`,
+          rows: [],
+        };
+      },
+    },
+  };
+}
+
 function materialRow(input: {
   materialRef: Ref;
   materialKind?: MaterialEntityKind;
@@ -1139,16 +1720,49 @@ function materialRow(input: {
   };
 }
 
-function assertMusicIntelligenceError(
-  run: () => void,
+async function assertMusicIntelligenceError(
+  run: () => unknown | Promise<unknown>,
   code: MusicIntelligenceError["code"],
-): void {
-  assert.throws(
-    run,
-    (error: unknown) =>
-      isMusicIntelligenceError(error) &&
-      error.code === code,
+): Promise<void> {
+  let thrown: unknown;
+
+  try {
+    await run();
+  } catch (error) {
+    thrown = error;
+  }
+
+  assert.equal(
+    isMusicIntelligenceError(thrown) && thrown.code === code,
+    true,
   );
+}
+
+function materialHitRefKeys(hits: readonly RetrievalQueryHit[]): readonly string[] {
+  return hits.map((hit) => refKey(materialHitRef(hit)));
+}
+
+function materialHitRef(hit: RetrievalQueryHit | undefined): Ref {
+  if (hit?.kind !== "material") {
+    throw new Error("Expected Retrieval hit to be a material hit.");
+  }
+
+  return hit.materialRef;
+}
+
+function providerCandidate(sourceEntity: SourceEntity): ProviderMaterialCandidate {
+  return { sourceEntity };
+}
+
+function throwingReadPort(): MusicDataPlatformRetrievalReadPort {
+  return {
+    searchOwnerCatalogMaterials() {
+      throw new Error("Mixed fixture retrieval must not call the local retrieval read port.");
+    },
+    getRetrievalFreshness() {
+      throw new Error("Mixed fixture retrieval must not call local retrieval freshness.");
+    },
+  };
 }
 
 function createIdentityTestCommands(
@@ -1219,6 +1833,7 @@ function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
       musicDataPlatformOwnerCatalogViewSchema,
       musicDataPlatformMaterialTextProjectionSchema,
       musicDataPlatformProjectionMaintenanceSchema,
+      musicDataPlatformRetrievalResultSetSchema,
     ],
   });
   return database;
@@ -1275,10 +1890,14 @@ function upsertActualLibraryItem(
 }
 
 function sourceTrackEntity(id: string, title: string): SourceTrack {
+  return sourceTrackEntityForProvider("netease", id, title);
+}
+
+function sourceTrackEntityForProvider(providerId: string, id: string, title: string): SourceTrack {
   return {
     kind: "track",
-    sourceRef: sourceRef("track", id),
-    providerId: "netease",
+    sourceRef: sourceRefForProvider(providerId, "track", id),
+    providerId,
     providerEntityId: id,
     label: title,
     title,
@@ -1286,11 +1905,20 @@ function sourceTrackEntity(id: string, title: string): SourceTrack {
 }
 
 function sourceRef(kind: "track" | "album" | "artist", id: string): Ref {
+  return sourceRefForProvider("netease", kind, id);
+}
+
+function sourceRefForProvider(providerId: string, kind: "track" | "album" | "artist", id: string): Ref {
   return {
-    namespace: "source_netease",
+    namespace: `source_${providerId}`,
     kind,
     id,
   };
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 function mdpSourceLibraryRef(
