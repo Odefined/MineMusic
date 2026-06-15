@@ -163,6 +163,11 @@ Missing material text projections are tolerated for no-text reads and simply
 cannot be recalled by text. The port does not rebuild projections or perform
 any writes.
 
+Phase 15A keeps this read port local and durable-only. Music Intelligence may
+accept typed Retrieval pools, but it must translate only durable local pools
+into this read port's ref-based `poolFilter`. This read port must not accept
+the provider-aware `RetrievalPool` union or `provider_search` pools.
+
 ## Library Import Service
 
 `createSourceLibraryImportService(...)` is an internal Music Data Platform

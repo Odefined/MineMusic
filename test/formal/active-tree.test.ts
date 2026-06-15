@@ -664,6 +664,21 @@ assert.equal(
   "Retrieval query service must preserve Music Data Platform row order instead of sorting hits",
 );
 
+const retrievalReadModelText = await readFile(
+  join(repositoryRoot, "src/music_data_platform/retrieval_read_model.ts"),
+  "utf8",
+);
+assert.equal(
+  retrievalReadModelText.includes("provider_search"),
+  false,
+  "Music Data Platform local retrieval read model must not accept provider_search typed pools in Phase 15A",
+);
+assert.equal(
+  retrievalReadModelText.includes("RetrievalPool"),
+  false,
+  "Music Data Platform local retrieval read model must not depend on Music Intelligence typed pool objects",
+);
+
 const musicDataPlatformRawRefAssertFailures: string[] = [];
 const rawRefPrimitiveAllowedFiles = new Set([
   "src/music_data_platform/ref_validation.ts",

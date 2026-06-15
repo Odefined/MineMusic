@@ -97,6 +97,14 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-14-source-library-update-reconciliation-implementation-plan.md`:
   implemented Phase 14 execution plan for command-owned source-library update
   reconciliation, guards, docs, and verification.
+- `docs/formal-rebuild/phase-15-provider-search-pool-retrieval.md`:
+  Phase 15 spec for internal provider-search pool retrieval, mixed result
+  sets, material candidate cache, SQL ranking, and Source Provider Slot wiring;
+  PR15A typed pool migration is implemented.
+- `docs/formal-rebuild/phase-15-provider-search-pool-retrieval-implementation-plan.md`:
+  Phase 15 execution plan split into PR 15A typed pools, PR 15B runtime
+  result-set foundation, PR 15C fixture mixed query, and PR 15D provider slot
+  wiring; PR15A is implemented.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

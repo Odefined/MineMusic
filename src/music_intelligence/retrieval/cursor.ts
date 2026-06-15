@@ -4,9 +4,10 @@ import type {
 import { MusicIntelligenceError } from "../errors.js";
 
 export type RetrievalCursorPayload = {
-  version: 1;
+  version: 2;
   queryFingerprint: string;
   position: RetrievalReadCursorPosition;
+  resultSetId?: string;
 };
 
 export function encodeRetrievalCursor(input: {
@@ -14,7 +15,7 @@ export function encodeRetrievalCursor(input: {
   position: RetrievalReadCursorPosition;
 }): string {
   const payload = {
-    version: 1,
+    version: 2,
     queryFingerprint: input.queryFingerprint,
     position: input.position,
   } satisfies RetrievalCursorPayload;
@@ -30,7 +31,7 @@ export function decodeRetrievalCursor(input: {
 
   if (payload.queryFingerprint !== input.expectedQueryFingerprint) {
     throw new MusicIntelligenceError({
-      code: "music_intelligence.cursor_mismatch",
+      code: "music_intelligence.retrieval_cursor_invalid",
       message: "Retrieval cursor does not belong to the effective query.",
     });
   }
@@ -57,7 +58,7 @@ function decodePayload(cursor: string): RetrievalCursorPayload {
     throw invalidCursor("Retrieval cursor payload must be an object.");
   }
 
-  if (parsed.version !== 1) {
+  if (parsed.version !== 2) {
     throw invalidCursor("Retrieval cursor version is not supported.");
   }
 
@@ -69,10 +70,18 @@ function decodePayload(cursor: string): RetrievalCursorPayload {
     throw invalidCursor("Retrieval cursor position is invalid.");
   }
 
+  if (
+    parsed.resultSetId !== undefined &&
+    (typeof parsed.resultSetId !== "string" || parsed.resultSetId.length === 0)
+  ) {
+    throw invalidCursor("Retrieval cursor result set id is invalid.");
+  }
+
   return {
-    version: 1,
+    version: 2,
     queryFingerprint: parsed.queryFingerprint,
     position: parsed.position,
+    ...(parsed.resultSetId === undefined ? {} : { resultSetId: parsed.resultSetId }),
   };
 }
 
@@ -106,7 +115,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function invalidCursor(message: string, cause?: unknown): MusicIntelligenceError {
   return new MusicIntelligenceError({
-    code: "music_intelligence.cursor_invalid",
+    code: "music_intelligence.retrieval_cursor_invalid",
     message,
     ...(cause === undefined ? {} : { cause }),
   });

@@ -741,6 +741,27 @@ Phase 14 completes the first real source-library update removal behavior:
   command-owned reconciliation, library-scope dirty invalidation, and the
   suppression cases.
 
+## 2026-06-15: Phase 15A Provider Search Pool Retrieval Typed Pools
+
+Phase 15A implements the typed pool input migration slice for internal
+Retrieval:
+
+- `RetrievalQueryInput` now uses typed `pools` instead of the removed
+  `poolFilter` input;
+- supported typed durable pools are `local_catalog`, `source_library(ref)`,
+  and `owner_relation(ref)`;
+- `provider_search(providerId, limit?)` pool vocabulary is recognized and
+  validated, but provider-search execution remains rejected until Phase 15D;
+- old bare `Ref[]` pool groups and old `poolFilter` inputs are rejected;
+- local durable typed pools are translated to the existing Music Data Platform
+  read port's ref-based pool filter, so the local read port remains pure local
+  and does not accept provider-aware pools;
+- Retrieval cursor payloads now use version 2 and include the future optional
+  `resultSetId` field while local-only cursors continue to omit it;
+- active-tree guards now verify that the Music Data Platform local retrieval
+  read model does not accept `provider_search` or depend on Music Intelligence
+  `RetrievalPool` objects.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

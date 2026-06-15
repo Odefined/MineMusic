@@ -24,17 +24,23 @@ export const RETRIEVAL_TEXT_MATCHING_STRATEGY = "prefix_or_v1";
 export const DEFAULT_RETRIEVAL_LIMIT = 20;
 export const MAX_RETRIEVAL_LIMIT = 100;
 
+export type RetrievalPool =
+  | { kind: "local_catalog" }
+  | { kind: "source_library"; ref: Ref }
+  | { kind: "owner_relation"; ref: Ref }
+  | { kind: "provider_search"; providerId: string; limit?: number };
+
 export type RetrievalPoolFilter = {
-  allOf?: readonly Ref[];
-  anyOf?: readonly Ref[];
-  noneOf?: readonly Ref[];
+  allOf?: readonly RetrievalPool[];
+  anyOf?: readonly RetrievalPool[];
+  noneOf?: readonly RetrievalPool[];
 };
 
 export type RetrievalQueryInput = {
   ownerScope?: string;
   text?: string;
   materialKind?: MaterialEntityKind;
-  poolFilter?: RetrievalPoolFilter;
+  pools?: RetrievalPoolFilter;
   order?: RetrievalOrder;
   limit?: number;
   cursor?: string;
@@ -44,7 +50,7 @@ export type RetrievalEffectiveQuery = {
   ownerScope: string;
   text?: string;
   materialKind?: MaterialEntityKind;
-  poolFilter?: RetrievalPoolFilter;
+  pools?: RetrievalPoolFilter;
   order: RetrievalOrder;
 };
 

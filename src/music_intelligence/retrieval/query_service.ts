@@ -1,4 +1,7 @@
 import type {
+  Ref,
+} from "../../contracts/index.js";
+import type {
   MusicDataPlatformRetrievalMaterialRow,
   MusicDataPlatformRetrievalSearchInput,
   RetrievalMatchedTextTokenEvidence,
@@ -7,6 +10,7 @@ import { MusicIntelligenceError } from "../errors.js";
 import {
   type CreateRetrievalQueryServiceInput,
   type RetrievalEffectiveQuery,
+  type RetrievalPool,
   type RetrievalPoolFilter,
   type RetrievalQueryHit,
   type RetrievalQueryResult,
@@ -73,11 +77,13 @@ function readSearchInput(input: {
   limit: number;
   cursorPosition: MusicDataPlatformRetrievalSearchInput["cursorPosition"];
 }): MusicDataPlatformRetrievalSearchInput {
+  const poolFilter = localReadPoolFilter(input.query.pools);
+
   return {
     ownerScope: input.query.ownerScope,
     ...(input.query.text === undefined ? {} : { text: input.query.text }),
     ...(input.query.materialKind === undefined ? {} : { materialKind: input.query.materialKind }),
-    ...(input.query.poolFilter === undefined ? {} : { poolFilter: input.query.poolFilter }),
+    ...(poolFilter === undefined ? {} : { poolFilter }),
     order: input.query.order,
     limit: input.limit,
     ...(input.cursorPosition === undefined ? {} : { cursorPosition: input.cursorPosition }),
@@ -102,7 +108,7 @@ function hitFromRow(input: {
     },
     basis: {
       textMatched: matchedText !== undefined,
-      poolFilterApplied: poolFilterApplied(input.query.poolFilter),
+      poolFilterApplied: poolFilterApplied(input.query.pools),
       positivePoolMatched: input.row.matchedPoolRefs.length > 0,
     },
   };
@@ -172,8 +178,67 @@ function matchedTextSummary(
     .join("; ");
 }
 
-function poolFilterApplied(poolFilter: RetrievalPoolFilter | undefined): boolean {
-  return (poolFilter?.allOf?.length ?? 0) > 0 ||
-    (poolFilter?.anyOf?.length ?? 0) > 0 ||
-    (poolFilter?.noneOf?.length ?? 0) > 0;
+function localReadPoolFilter(
+  pools: RetrievalPoolFilter | undefined,
+): MusicDataPlatformRetrievalSearchInput["poolFilter"] {
+  if (pools === undefined) {
+    return undefined;
+  }
+
+  const allOf = localReadRefs(pools.allOf, "allOf");
+  const anyOf = containsLocalCatalog(pools.anyOf)
+    ? []
+    : localReadRefs(pools.anyOf, "anyOf");
+  const noneOf = localReadRefs(pools.noneOf, "noneOf");
+  const result: {
+    allOf?: readonly Ref[];
+    anyOf?: readonly Ref[];
+    noneOf?: readonly Ref[];
+  } = {};
+
+  if (allOf.length > 0) {
+    result.allOf = allOf;
+  }
+
+  if (anyOf.length > 0) {
+    result.anyOf = anyOf;
+  }
+
+  if (noneOf.length > 0) {
+    result.noneOf = noneOf;
+  }
+
+  return Object.keys(result).length === 0 ? undefined : result;
+}
+
+function localReadRefs(
+  pools: readonly RetrievalPool[] | undefined,
+  groupName: "allOf" | "anyOf" | "noneOf",
+): readonly Ref[] {
+  return (pools ?? [])
+    .flatMap((pool): Ref[] => {
+      if (pool.kind === "local_catalog") {
+        if (groupName === "noneOf") {
+          throw new Error("local_catalog noneOf should be rejected during query normalization.");
+        }
+
+        return [];
+      }
+
+      if (pool.kind === "provider_search") {
+        throw new Error("provider_search should be rejected before local read input mapping.");
+      }
+
+      return [pool.ref];
+    });
+}
+
+function containsLocalCatalog(pools: readonly RetrievalPool[] | undefined): boolean {
+  return (pools ?? []).some((pool) => pool.kind === "local_catalog");
+}
+
+function poolFilterApplied(pools: RetrievalPoolFilter | undefined): boolean {
+  return (pools?.allOf?.length ?? 0) > 0 ||
+    (pools?.anyOf?.length ?? 0) > 0 ||
+    (pools?.noneOf?.length ?? 0) > 0;
 }

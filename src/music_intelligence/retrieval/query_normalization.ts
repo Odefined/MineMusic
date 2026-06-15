@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import {
   hasPrefixOrV1Token,
+  isRefComponentSafe,
   refKey,
   type MaterialEntityKind,
   type Ref,
@@ -14,6 +15,7 @@ import {
   RETRIEVAL_TEXT_MATCHING_STRATEGY,
   type RetrievalEffectiveQuery,
   type RetrievalOrder,
+  type RetrievalPool,
   type RetrievalPoolFilter,
   type RetrievalQueryInput,
 } from "./contracts.js";
@@ -42,17 +44,19 @@ const retrievalOrders = new Set<string>([
 export function normalizeRetrievalQueryInput(
   input: RetrievalQueryInput,
 ): NormalizedRetrievalQuery {
+  rejectRemovedPoolFilter(input);
+
   const ownerScope = normalizeOwnerScope(input.ownerScope);
   const text = normalizeRetrievalQueryText(input.text);
   const materialKind = normalizeMaterialKind(input.materialKind);
-  const poolFilter = normalizePoolFilter(input.poolFilter);
+  const pools = normalizePoolFilter(input.pools);
   const order = normalizeOrder(input.order, text !== undefined);
   const limit = normalizeLimit(input.limit);
   const query = effectiveQuery({
     ownerScope,
     text,
     materialKind,
-    poolFilter,
+    pools,
     order,
   });
   const cursor = normalizeCursorInput(input.cursor);
@@ -81,11 +85,11 @@ export function normalizeRetrievalQueryText(value: string | undefined): string |
 
 export function fingerprintForRetrievalQuery(query: RetrievalEffectiveQuery): string {
   const payload = {
-    version: 1,
+    version: 2,
     ownerScope: query.ownerScope,
     text: query.text ?? null,
     materialKind: query.materialKind ?? null,
-    poolFilter: refKeyPoolFilter(query.poolFilter),
+    pools: keyedPoolFilter(query.pools),
     order: query.order,
     textMatchingStrategy: RETRIEVAL_TEXT_MATCHING_STRATEGY,
   };
@@ -167,17 +171,42 @@ function normalizePoolFilter(
     return undefined;
   }
 
-  const allOf = normalizePoolGroup(input.allOf);
-  const anyOf = normalizePoolGroup(input.anyOf);
-  const noneOf = normalizePoolGroup(input.noneOf);
+  const allOf = normalizePoolGroup(input.allOf, "allOf");
+  const anyOf = normalizePoolGroup(input.anyOf, "anyOf");
+  const noneOf = normalizePoolGroup(input.noneOf, "noneOf");
+  const providerPools = [
+    ...allOf.filter(isProviderSearchPool),
+    ...anyOf.filter(isProviderSearchPool),
+    ...noneOf.filter(isProviderSearchPool),
+  ];
+
+  if (providerPools.length > 0 && (allOf.length > 0 || noneOf.length > 0)) {
+    throw providerSearchPoolInvalid(
+      "provider_search pools are supported only in anyOf and cannot be combined with allOf or noneOf in Phase 15A.",
+    );
+  }
+
+  const providerIds = new Set<string>();
+  for (const providerPool of anyOf.filter(isProviderSearchPool)) {
+    if (providerIds.has(providerPool.providerId)) {
+      throw providerSearchPoolInvalid("provider_search pools must have unique providerId values.");
+    }
+
+    providerIds.add(providerPool.providerId);
+  }
+
+  if (providerPools.length > 0) {
+    throw providerSearchPoolInvalid("provider_search pools are not wired until Phase 15D.");
+  }
+
   const positiveKeys = new Set([
-    ...allOf.map((ref) => safeRefKey(ref)),
-    ...anyOf.map((ref) => safeRefKey(ref)),
+    ...allOf.map((pool) => poolKey(pool)),
+    ...anyOf.map((pool) => poolKey(pool)),
   ]);
 
   for (const excludedRef of noneOf) {
-    if (positiveKeys.has(safeRefKey(excludedRef))) {
-      throw invalidQuery("Pool filter cannot include the same ref in positive and noneOf groups.");
+    if (positiveKeys.has(poolKey(excludedRef))) {
+      throw invalidQuery("Retrieval pools cannot include the same pool in positive and noneOf groups.");
     }
   }
 
@@ -188,16 +217,28 @@ function normalizePoolFilter(
   });
 }
 
-function normalizePoolGroup(refs: readonly Ref[] | undefined): readonly Ref[] {
-  if (refs === undefined || refs.length === 0) {
+function normalizePoolGroup(
+  pools: readonly RetrievalPool[] | undefined,
+  groupName: "allOf" | "anyOf" | "noneOf",
+): readonly RetrievalPool[] {
+  if (pools === undefined || pools.length === 0) {
     return [];
   }
 
-  const byKey = new Map<string, Ref>();
+  const byKey = new Map<string, RetrievalPool>();
+  const providerIds = new Set<string>();
 
-  for (const ref of refs) {
-    validateSupportedPoolRef(ref);
-    byKey.set(safeRefKey(ref), refWithoutLabel(ref));
+  for (const pool of pools) {
+    const normalizedPool = normalizePool(pool, groupName);
+    if (isProviderSearchPool(normalizedPool)) {
+      if (providerIds.has(normalizedPool.providerId)) {
+        throw providerSearchPoolInvalid("provider_search pools must have unique providerId values.");
+      }
+
+      providerIds.add(normalizedPool.providerId);
+    }
+
+    byKey.set(poolKey(normalizedPool), normalizedPool);
   }
 
   return Array.from(byKey.entries())
@@ -206,14 +247,14 @@ function normalizePoolGroup(refs: readonly Ref[] | undefined): readonly Ref[] {
 }
 
 function poolFilterFromGroups(input: {
-  allOf: readonly Ref[];
-  anyOf: readonly Ref[];
-  noneOf: readonly Ref[];
+  allOf: readonly RetrievalPool[];
+  anyOf: readonly RetrievalPool[];
+  noneOf: readonly RetrievalPool[];
 }): RetrievalPoolFilter | undefined {
   const result: {
-    allOf?: readonly Ref[];
-    anyOf?: readonly Ref[];
-    noneOf?: readonly Ref[];
+    allOf?: readonly RetrievalPool[];
+    anyOf?: readonly RetrievalPool[];
+    noneOf?: readonly RetrievalPool[];
   } = {};
 
   if (input.allOf.length > 0) {
@@ -235,76 +276,213 @@ function effectiveQuery(input: {
   ownerScope: string;
   text: string | undefined;
   materialKind: MaterialEntityKind | undefined;
-  poolFilter: RetrievalPoolFilter | undefined;
+  pools: RetrievalPoolFilter | undefined;
   order: RetrievalOrder;
 }): RetrievalEffectiveQuery {
   return {
     ownerScope: input.ownerScope,
     ...(input.text === undefined ? {} : { text: input.text }),
     ...(input.materialKind === undefined ? {} : { materialKind: input.materialKind }),
-    ...(input.poolFilter === undefined ? {} : { poolFilter: input.poolFilter }),
+    ...(input.pools === undefined ? {} : { pools: input.pools }),
     order: input.order,
   };
 }
 
-function refKeyPoolFilter(poolFilter: RetrievalPoolFilter | undefined): {
+function keyedPoolFilter(pools: RetrievalPoolFilter | undefined): {
   allOf: readonly string[];
   anyOf: readonly string[];
   noneOf: readonly string[];
 } {
   return {
-    allOf: sortedRefKeys(poolFilter?.allOf),
-    anyOf: sortedRefKeys(poolFilter?.anyOf),
-    noneOf: sortedRefKeys(poolFilter?.noneOf),
+    allOf: sortedPoolKeys(pools?.allOf),
+    anyOf: sortedPoolKeys(pools?.anyOf),
+    noneOf: sortedPoolKeys(pools?.noneOf),
   };
 }
 
-function sortedRefKeys(refs: readonly Ref[] | undefined): readonly string[] {
-  return (refs ?? [])
-    .map((ref) => safeRefKey(ref))
+function sortedPoolKeys(pools: readonly RetrievalPool[] | undefined): readonly string[] {
+  return (pools ?? [])
+    .map((pool) => poolKey(pool))
     .sort(compareStrings);
 }
 
-function validateSupportedPoolRef(ref: Ref): void {
-  safeRefKey(ref);
-
-  if (ref.namespace === "source_library") {
-    if (
-      ref.kind !== "saved_source_track" &&
-      ref.kind !== "saved_source_album" &&
-      ref.kind !== "followed_source_artist"
-    ) {
-      throw invalidQuery("source_library pool kind is not supported by Retrieval.");
-    }
-
-    if (!ref.id.startsWith("l_")) {
-      throw invalidQuery("source_library pool id is not valid for Retrieval.");
-    }
-
-    return;
+function normalizePool(
+  value: RetrievalPool,
+  groupName: "allOf" | "anyOf" | "noneOf",
+): RetrievalPool {
+  if (!isRecord(value)) {
+    throw invalidQuery("Retrieval pools must be typed pool objects.");
   }
 
-  if (ref.namespace === "owner_material_relation_pool") {
-    if (ref.kind !== "saved" && ref.kind !== "favorite") {
-      throw invalidQuery("owner_material_relation_pool kind is not supported by Retrieval.");
-    }
-
-    if (!ref.id.startsWith("rp_")) {
-      throw invalidQuery("owner_material_relation_pool id is not valid for Retrieval.");
-    }
-
-    return;
+  if (looksLikeBareRef(value)) {
+    throw invalidQuery("Retrieval pools no longer accept bare Ref values.");
   }
 
-  throw invalidQuery("Retrieval pool filters accept only source_library and owner_material_relation_pool refs.");
+  if (typeof value.kind !== "string") {
+    throw invalidQuery("Retrieval pool kind must be a string.");
+  }
+
+  if (value.kind === "local_catalog") {
+    if (groupName === "noneOf") {
+      throw invalidQuery("local_catalog cannot be used in noneOf pools in Phase 15A.");
+    }
+
+    return {
+      kind: "local_catalog",
+    };
+  }
+
+  if (value.kind === "source_library") {
+    const ref = normalizePoolRef(value.ref);
+    validateSupportedSourceLibraryPoolRef(ref);
+    return {
+      kind: "source_library",
+      ref,
+    };
+  }
+
+  if (value.kind === "owner_relation") {
+    const ref = normalizePoolRef(value.ref);
+    validateSupportedOwnerRelationPoolRef(ref);
+    return {
+      kind: "owner_relation",
+      ref,
+    };
+  }
+
+  if (value.kind === "provider_search") {
+    return normalizeProviderSearchPool(value, groupName);
+  }
+
+  throw invalidQuery("Retrieval pool kind is not supported.");
 }
 
-function refWithoutLabel(ref: Ref): Ref {
+function normalizeProviderSearchPool(
+  value: Record<string, unknown>,
+  groupName: "allOf" | "anyOf" | "noneOf",
+): RetrievalPool {
+  if (groupName !== "anyOf") {
+    throw providerSearchPoolInvalid("provider_search pools are supported only in anyOf.");
+  }
+
+  if ("text" in value) {
+    throw providerSearchPoolInvalid("provider_search pools must use top-level query text.");
+  }
+
+  if (!isRefComponentSafe(value.providerId)) {
+    throw providerSearchPoolInvalid("provider_search.providerId must be a ref-safe string.");
+  }
+
+  const { limit } = value;
+  if (limit !== undefined) {
+    if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 50) {
+      throw providerSearchPoolInvalid("provider_search.limit must be an integer from 1 through 50.");
+    }
+
+    return {
+      kind: "provider_search",
+      providerId: value.providerId,
+      limit,
+    };
+  }
+
   return {
-    namespace: ref.namespace,
-    kind: ref.kind,
-    id: ref.id,
+    kind: "provider_search",
+    providerId: value.providerId,
   };
+}
+
+function normalizePoolRef(value: unknown): Ref {
+  if (!isRecord(value)) {
+    throw invalidQuery("Retrieval durable pool ref must be a Ref object.");
+  }
+
+  if (
+    typeof value.namespace !== "string" ||
+    typeof value.kind !== "string" ||
+    typeof value.id !== "string"
+  ) {
+    throw invalidQuery("Retrieval durable pool ref must include namespace, kind, and id.");
+  }
+
+  const ref = {
+    namespace: value.namespace,
+    kind: value.kind,
+    id: value.id,
+  };
+
+  safeRefKey(ref);
+  return ref;
+}
+
+function validateSupportedSourceLibraryPoolRef(ref: Ref): void {
+  safeRefKey(ref);
+
+  if (ref.namespace !== "source_library") {
+    throw invalidQuery("source_library pools must wrap a source_library ref.");
+  }
+
+  if (
+    ref.kind !== "saved_source_track" &&
+    ref.kind !== "saved_source_album" &&
+    ref.kind !== "followed_source_artist"
+  ) {
+    throw invalidQuery("source_library pool kind is not supported by Retrieval.");
+  }
+
+  if (!ref.id.startsWith("l_")) {
+    throw invalidQuery("source_library pool id is not valid for Retrieval.");
+  }
+}
+
+function validateSupportedOwnerRelationPoolRef(ref: Ref): void {
+  safeRefKey(ref);
+
+  if (ref.namespace !== "owner_material_relation_pool") {
+    throw invalidQuery("owner_relation pools must wrap an owner_material_relation_pool ref.");
+  }
+
+  if (ref.kind !== "saved" && ref.kind !== "favorite") {
+    throw invalidQuery("owner_material_relation_pool kind is not supported by Retrieval.");
+  }
+
+  if (!ref.id.startsWith("rp_")) {
+    throw invalidQuery("owner_material_relation_pool id is not valid for Retrieval.");
+  }
+}
+
+function poolKey(pool: RetrievalPool): string {
+  if (pool.kind === "local_catalog") {
+    return "local_catalog";
+  }
+
+  if (pool.kind === "provider_search") {
+    return pool.limit === undefined
+      ? `provider_search:${pool.providerId}`
+      : `provider_search:${pool.providerId}:${pool.limit}`;
+  }
+
+  return `${pool.kind}:${safeRefKey(pool.ref)}`;
+}
+
+function isProviderSearchPool(pool: RetrievalPool): pool is Extract<RetrievalPool, {
+  kind: "provider_search";
+}> {
+  return pool.kind === "provider_search";
+}
+
+function rejectRemovedPoolFilter(input: RetrievalQueryInput): void {
+  if ("poolFilter" in (input as Record<string, unknown>)) {
+    throw invalidQuery("RetrievalQueryInput.poolFilter was removed; use pools instead.");
+  }
+}
+
+function looksLikeBareRef(value: Record<string, unknown>): boolean {
+  return typeof value.namespace === "string" &&
+    typeof value.kind === "string" &&
+    typeof value.id === "string" &&
+    !("ref" in value) &&
+    !("providerId" in value);
 }
 
 function safeRefKey(ref: Ref): string {
@@ -333,4 +511,16 @@ function invalidQuery(message: string, cause?: unknown): MusicIntelligenceError 
     message,
     ...(cause === undefined ? {} : { cause }),
   });
+}
+
+function providerSearchPoolInvalid(message: string, cause?: unknown): MusicIntelligenceError {
+  return new MusicIntelligenceError({
+    code: "music_intelligence.provider_search_pool_invalid",
+    message,
+    ...(cause === undefined ? {} : { cause }),
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

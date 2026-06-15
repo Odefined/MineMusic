@@ -16,6 +16,7 @@ import {
   isMusicIntelligenceError,
   type CreateRetrievalQueryServiceInput,
   type RetrievalEffectiveQuery,
+  type RetrievalPool,
   type RetrievalPoolFilter,
   type RetrievalQueryHit,
   type RetrievalQueryInput,
@@ -68,14 +69,14 @@ export type _retrievalQueryServiceShape = Expect<
 export type _retrievalQueryInputShape = Expect<
   Equal<
     keyof RetrievalQueryInput,
-    "ownerScope" | "text" | "materialKind" | "poolFilter" | "order" | "limit" | "cursor"
+    "ownerScope" | "text" | "materialKind" | "pools" | "order" | "limit" | "cursor"
   >
 >;
 
 export type _retrievalEffectiveQueryShape = Expect<
   Equal<
     keyof RetrievalEffectiveQuery,
-    "ownerScope" | "text" | "materialKind" | "poolFilter" | "order"
+    "ownerScope" | "text" | "materialKind" | "pools" | "order"
   >
 >;
 
@@ -92,6 +93,16 @@ export type _retrievalQueryHitShape = Expect<
 
 export type _retrievalPoolFilterShape = Expect<
   Equal<keyof RetrievalPoolFilter, "allOf" | "anyOf" | "noneOf">
+>;
+
+export type _retrievalPoolShape = Expect<
+  Equal<
+    RetrievalPool,
+    | { kind: "local_catalog" }
+    | { kind: "source_library"; ref: Ref }
+    | { kind: "owner_relation"; ref: Ref }
+    | { kind: "provider_search"; providerId: string; limit?: number }
+  >
 >;
 
 const defaultHarness = createReadPortHarness([
@@ -234,10 +245,14 @@ const poolHarness = createReadPortHarness([{
   rows: [],
 }]);
 const poolResult = poolHarness.service.query({
-  poolFilter: {
-    allOf: [libraryPoolB, libraryPoolA, libraryPoolA],
+  pools: {
+    allOf: [
+      sourceLibraryPool(libraryPoolB),
+      sourceLibraryPool(libraryPoolA),
+      sourceLibraryPool(libraryPoolA),
+    ],
     anyOf: [],
-    noneOf: [favoritePool],
+    noneOf: [ownerRelationPool(favoritePool)],
   },
   limit: 7,
 });
@@ -253,25 +268,25 @@ assert.deepEqual(poolHarness.searchInputs, [{
   order: "recently_added",
   limit: 7,
 }]);
-assert.deepEqual(poolResult.query.poolFilter, {
+assert.deepEqual(poolResult.query.pools, {
   allOf: [
-    refWithoutLabel(libraryPoolA),
-    refWithoutLabel(libraryPoolB),
+    sourceLibraryPool(refWithoutLabel(libraryPoolA)),
+    sourceLibraryPool(refWithoutLabel(libraryPoolB)),
   ],
-  noneOf: [favoritePool],
+  noneOf: [ownerRelationPool(favoritePool)],
 });
 
 const emptyPoolHarness = createReadPortHarness([{
   rows: [],
 }]);
 const emptyPoolResult = emptyPoolHarness.service.query({
-  poolFilter: {
+  pools: {
     allOf: [],
     anyOf: [],
     noneOf: [],
   },
 });
-assert.equal(emptyPoolResult.query.poolFilter, undefined);
+assert.equal(emptyPoolResult.query.pools, undefined);
 assert.deepEqual(emptyPoolHarness.searchInputs, [{
   ownerScope: "local",
   order: "recently_added",
@@ -281,26 +296,168 @@ assertMusicIntelligenceError(
   () => poolHarness.service.query({
     poolFilter: {
       allOf: [libraryPoolA],
-      noneOf: [libraryPoolA],
+    },
+  } as unknown as RetrievalQueryInput),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      allOf: [libraryPoolA as unknown as RetrievalPool],
     },
   }),
   "music_intelligence.retrieval_query_invalid",
 );
 assertMusicIntelligenceError(
   () => poolHarness.service.query({
-    poolFilter: {
-      anyOf: [materialRef("recording", "m_not_a_pool")],
+    pools: {
+      allOf: [sourceLibraryPool(libraryPoolA)],
+      noneOf: [sourceLibraryPool(libraryPoolA)],
     },
   }),
   "music_intelligence.retrieval_query_invalid",
 );
 assertMusicIntelligenceError(
   () => poolHarness.service.query({
-    poolFilter: {
-      anyOf: [ownerRelationPoolRef("blocked", "blocked")],
+    pools: {
+      anyOf: [sourceLibraryPool(materialRef("recording", "m_not_a_pool"))],
     },
   }),
   "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      anyOf: [ownerRelationPool(ownerRelationPoolRef("blocked", "blocked"))],
+    },
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+const localCatalogAnyOfHarness = createReadPortHarness([{
+  rows: [],
+}]);
+const localCatalogAnyOfResult = localCatalogAnyOfHarness.service.query({
+  pools: {
+    anyOf: [
+      { kind: "local_catalog" },
+      sourceLibraryPool(libraryPoolA),
+    ],
+  },
+});
+assert.deepEqual(localCatalogAnyOfHarness.searchInputs, [{
+  ownerScope: "local",
+  order: "recently_added",
+  limit: DEFAULT_RETRIEVAL_LIMIT,
+}]);
+assert.deepEqual(localCatalogAnyOfResult.query.pools, {
+  anyOf: [
+    { kind: "local_catalog" },
+    sourceLibraryPool(refWithoutLabel(libraryPoolA)),
+  ],
+});
+const localCatalogAllOfHarness = createReadPortHarness([{
+  rows: [],
+}]);
+localCatalogAllOfHarness.service.query({
+  pools: {
+    allOf: [
+      { kind: "local_catalog" },
+      sourceLibraryPool(libraryPoolA),
+    ],
+  },
+});
+assert.deepEqual(localCatalogAllOfHarness.searchInputs, [{
+  ownerScope: "local",
+  poolFilter: {
+    allOf: [refWithoutLabel(libraryPoolA)],
+  },
+  order: "recently_added",
+  limit: DEFAULT_RETRIEVAL_LIMIT,
+}]);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      noneOf: [{ kind: "local_catalog" }],
+    },
+  }),
+  "music_intelligence.retrieval_query_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      anyOf: [{
+        kind: "provider_search",
+        providerId: "netease",
+        limit: 20,
+      }],
+    },
+    text: "plainsong",
+  }),
+  "music_intelligence.provider_search_pool_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      allOf: [{
+        kind: "provider_search",
+        providerId: "netease",
+      }],
+    },
+    text: "plainsong",
+  }),
+  "music_intelligence.provider_search_pool_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      anyOf: [
+        {
+          kind: "provider_search",
+          providerId: "netease",
+        },
+        {
+          kind: "provider_search",
+          providerId: "netease",
+          limit: 20,
+        },
+      ],
+    },
+    text: "plainsong",
+  }),
+  "music_intelligence.provider_search_pool_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      anyOf: [
+        {
+          kind: "provider_search",
+          providerId: "spotify",
+          limit: 10,
+        },
+        {
+          kind: "provider_search",
+          providerId: "spotify",
+          limit: 10,
+        },
+      ],
+    },
+    text: "plainsong",
+  }),
+  "music_intelligence.provider_search_pool_invalid",
+);
+assertMusicIntelligenceError(
+  () => poolHarness.service.query({
+    pools: {
+      anyOf: [{
+        kind: "provider_search",
+        providerId: "netease",
+        text: "pool level text",
+      } as unknown as RetrievalPool],
+    },
+    text: "plainsong",
+  }),
+  "music_intelligence.provider_search_pool_invalid",
 );
 
 const firstCursorPosition = {
@@ -351,14 +508,14 @@ assertMusicIntelligenceError(
     materialKind: "album",
     cursor: nextCursor,
   }),
-  "music_intelligence.cursor_mismatch",
+  "music_intelligence.retrieval_cursor_invalid",
 );
 assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "recently_added",
     cursor: nextCursor,
   }),
-  "music_intelligence.cursor_mismatch",
+  "music_intelligence.retrieval_cursor_invalid",
 );
 assertMusicIntelligenceError(
   () => cursorHarness.service.query({
@@ -366,35 +523,35 @@ assertMusicIntelligenceError(
     text: "plainsong",
     cursor: nextCursor,
   }),
-  "music_intelligence.cursor_mismatch",
+  "music_intelligence.retrieval_cursor_invalid",
 );
 assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
-    poolFilter: {
-      anyOf: [libraryPoolA],
+    pools: {
+      anyOf: [sourceLibraryPool(libraryPoolA)],
     },
     cursor: nextCursor,
   }),
-  "music_intelligence.cursor_mismatch",
+  "music_intelligence.retrieval_cursor_invalid",
 );
 assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     cursor: Buffer.from("not json", "utf8").toString("base64url"),
   }),
-  "music_intelligence.cursor_invalid",
+  "music_intelligence.retrieval_cursor_invalid",
 );
 assertMusicIntelligenceError(
   () => cursorHarness.service.query({
     order: "stable",
     cursor: Buffer.from(JSON.stringify({
-      version: 2,
+      version: 1,
       queryFingerprint: "rqf_old",
       position: firstCursorPosition,
     }), "utf8").toString("base64url"),
   }),
-  "music_intelligence.cursor_invalid",
+  "music_intelligence.retrieval_cursor_invalid",
 );
 
 const textHitRow = materialRow({
@@ -430,8 +587,8 @@ const hitHarness = createReadPortHarness([{
 }]);
 const hitResult = hitHarness.service.query({
   text: "plainsong live",
-  poolFilter: {
-    allOf: [libraryPoolA],
+  pools: {
+    allOf: [sourceLibraryPool(libraryPoolA)],
   },
 });
 assert.deepEqual(hitResult.freshness, {
@@ -552,8 +709,8 @@ const noneOfBasisHarness = createReadPortHarness([{
   })],
 }]);
 assert.deepEqual(noneOfBasisHarness.service.query({
-  poolFilter: {
-    noneOf: [favoritePool],
+  pools: {
+    noneOf: [ownerRelationPool(favoritePool)],
   },
 }).hits[0]?.basis, {
   textMatched: false,
@@ -931,6 +1088,20 @@ function ownerRelationPoolRef(kind: string, id: string): Ref {
     namespace: "owner_material_relation_pool",
     kind,
     id: `rp_${id}`,
+  };
+}
+
+function sourceLibraryPool(ref: Ref): RetrievalPool {
+  return {
+    kind: "source_library",
+    ref,
+  };
+}
+
+function ownerRelationPool(ref: Ref): RetrievalPool {
+  return {
+    kind: "owner_relation",
+    ref,
   };
 }
 

@@ -39,6 +39,8 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-13-projection-maintenance-runtime-orchestration-implementation-plan.md` | Implemented Phase 13 execution plan split into PR 13A scheduler helper, PR 13B runtime module integration, and PR 13C freshness closure integration. |
 | `phase-14-source-library-update-reconciliation.md` | Implemented Phase 14 spec for reconciling source-library current membership after complete provider scans. |
 | `phase-14-source-library-update-reconciliation-implementation-plan.md` | Implemented Phase 14 execution plan for command-owned source-library update reconciliation, guards, docs, and verification. |
+| `phase-15-provider-search-pool-retrieval.md` | Phase 15 spec for internal provider-search pool retrieval, mixed result sets, material candidate cache, SQL ranking, and Source Provider Slot wiring; PR15A typed pool migration is implemented. |
+| `phase-15-provider-search-pool-retrieval-implementation-plan.md` | Phase 15 execution plan split into PR 15A typed pools, PR 15B runtime result-set foundation, PR 15C fixture mixed query, and PR 15D provider slot wiring; PR15A is implemented. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit
