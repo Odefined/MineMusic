@@ -1,26 +1,29 @@
 # Music Intelligence Progress
 
-> Status: Implemented through Phase 12C Retrieval query service
+> Status: Implemented through Phase 15A Retrieval typed pool input migration
 > Scope: Implementation state and verification for Music Intelligence
 
 ## Implemented
 
 - `src/music_intelligence/errors.ts` defines `MusicIntelligenceError` with
-  retrieval query, cursor, cursor mismatch, and retrieval result invariant
-  codes.
+  retrieval query, provider-search pool validation, retrieval cursor, legacy
+  cursor, and retrieval result invariant codes.
 - `src/music_intelligence/retrieval/contracts.ts` defines internal Retrieval
-  query input/result/hit contracts, pool filters, defaults, and service shape.
+  query input/result/hit contracts, typed pools, defaults, and service shape.
 - `src/music_intelligence/retrieval/query_normalization.ts` defaults the local
   owner scope, normalizes query text for echo/fingerprints, validates order and
-  limit, normalizes pool filters, dedupes pool refs, rejects unsupported pool
-  refs, rejects positive-vs-`noneOf` pool conflicts, and uses the shared
+  limit, normalizes typed pools, dedupes durable pools, rejects unsupported
+  pool refs, rejects old `poolFilter` input, rejects bare `Ref[]` pool groups,
+  rejects positive-vs-`noneOf` pool conflicts, recognizes provider-search pool
+  vocabulary while rejecting execution until Phase 15D, and uses the shared
   Contracts `prefix_or_v1` token helper so tokenless punctuation-only text is
   treated as absent text before defaulting order.
-- `src/music_intelligence/retrieval/cursor.ts` owns versioned opaque cursor
+- `src/music_intelligence/retrieval/cursor.ts` owns version 2 opaque cursor
   encode/decode and query-fingerprint mismatch detection.
 - `src/music_intelligence/retrieval/query_service.ts` creates
   `createRetrievalQueryService({ readPort })`, calls only
-  `MusicDataPlatformRetrievalReadPort`, wraps typed next cursor positions into
+  `MusicDataPlatformRetrievalReadPort`, maps typed durable pools to the local
+  read port's durable `poolFilter` refs, wraps typed next cursor positions into
   opaque cursors, reads coarse freshness, and shapes query hits.
 - Retrieval hit shaping preserves Music Data Platform row order, uses projected
   text fields for display, exposes rank evidence only for effective
@@ -51,8 +54,10 @@ Formal tests cover:
   explicit `text_relevance` before Music Data Platform is called;
 - explicit `text_relevance` without effective text rejection;
 - limit, owner scope, material kind, and pool ref validation;
-- pool filter dedupe, empty arrays, sorted ref-key normalization, and
-  positive-vs-`noneOf` conflict rejection;
+- typed durable pool dedupe, empty arrays, sorted ref-key normalization,
+  `local_catalog` local-read semantics, old `poolFilter` rejection, bare ref
+  rejection, provider-search pool validation, and positive-vs-`noneOf`
+  conflict rejection;
 - opaque cursor encode/decode, query fingerprint mismatch, and `limit`
   exclusion from fingerprints;
 - query service decoded-cursor pass-through to Music Data Platform;
@@ -68,7 +73,7 @@ Out of the current Music Intelligence implementation:
 
 - public Stage Interface query tools;
 - query-to-present and `MaterialCard` output;
-- provider search and provider candidate materialization;
+- provider search execution and provider candidate commit commands;
 - Knowledge capabilities;
 - semantic expansion, LLM reranking, typo fuzzy search, taste scoring, Memory
   scoring, and Music Experience scoring;

@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 14 of a same-repo formal rebuild. The active
+MineMusic has completed Phase 15A of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -39,6 +39,11 @@ runtime-module lifecycle wiring, and end-to-end freshness closure from
 source-of-truth writes through retrieval reads. Phase 14 adds
 provider-exhausted source-library current-membership reconciliation through the
 source-library command boundary and library-scope owner catalog invalidation.
+Phase 15A starts provider-search pool retrieval by migrating internal
+Retrieval input from removed `poolFilter` bare refs to typed `pools`, replacing
+the active cursor payload with version 2, and keeping provider-search pools
+validated but rejected until Source Provider Slot wiring lands later in Phase
+15.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 

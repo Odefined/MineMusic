@@ -1,14 +1,14 @@
 # Music Intelligence Ports
 
-> Status: Current boundary authority for Phase 12C Retrieval
+> Status: Current boundary authority through Phase 15A Retrieval typed pools
 > Scope: Internal Retrieval query service and its consumed read capabilities
 
 ## Provides
 
 | Port | Provided to | Capabilities | Code |
 | --- | --- | --- | --- |
-| `createRetrievalQueryService` | Internal callers and later Stage Interface composition | Validate and normalize retrieval query input, own opaque cursors, call the Music Data Platform retrieval read port, and shape compact query evidence hits. | `src/music_intelligence/retrieval/query_service.ts` |
-| `MusicIntelligenceError` | Internal callers/tests | Area-owned errors for invalid retrieval input, invalid cursors, cursor mismatch, and result-shape invariants. | `src/music_intelligence/errors.ts` |
+| `createRetrievalQueryService` | Internal callers and later Stage Interface composition | Validate and normalize retrieval query input, own opaque cursors, map typed durable pools to the Music Data Platform local retrieval read port, and shape compact query evidence hits. | `src/music_intelligence/retrieval/query_service.ts` |
+| `MusicIntelligenceError` | Internal callers/tests | Area-owned errors for invalid retrieval input, provider-search pool validation before provider wiring, invalid retrieval cursors, and result-shape invariants. | `src/music_intelligence/errors.ts` |
 
 ## Consumes
 
@@ -30,8 +30,23 @@ type RetrievalQueryService = {
 ```
 
 The service is synchronous in Phase 12C because it reads synchronous local
-database ports through Music Data Platform. It does not call providers, remote
-services, LLMs, or network APIs.
+database ports through Music Data Platform. Phase 15A keeps the service
+synchronous. It does not call providers, remote services, LLMs, or network
+APIs.
+
+`RetrievalQueryInput` uses typed `pools`, not the removed `poolFilter` field.
+The query service maps only durable local pools to the Music Data Platform
+read port:
+
+```text
+local_catalog -> local owner catalog base / no-op in the local read-port input
+source_library(ref) -> source_library ref in local read-port poolFilter
+owner_relation(ref) -> owner_material_relation_pool ref in local read-port poolFilter
+provider_search(providerId, limit?) -> rejected until Phase 15D wiring
+```
+
+The Music Data Platform local retrieval read port must not accept the full
+provider-aware `RetrievalPool` union.
 
 ## Dependency Rules
 
@@ -69,4 +84,6 @@ Current active-tree guards:
   projection-record, projection-maintenance, or source-of-truth write symbols;
 - reject SQL tokens in Music Intelligence source files;
 - verify the query service does not sort hits after Music Data Platform returns
-  rows.
+  rows;
+- verify the Music Data Platform local retrieval read model does not accept
+  `provider_search` or depend on Music Intelligence `RetrievalPool` objects.

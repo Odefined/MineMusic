@@ -10,6 +10,7 @@ export {
 export type {
   CreateRetrievalQueryServiceInput,
   RetrievalEffectiveQuery,
+  RetrievalPool,
   RetrievalPoolFilter,
   RetrievalQueryHit,
   RetrievalQueryInput,

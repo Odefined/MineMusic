@@ -1,18 +1,19 @@
 # Music Intelligence Design
 
-> Status: Current design authority for Phase 12C Retrieval
+> Status: Current design authority through Phase 15A Retrieval typed pools
 > Scope: Internal Retrieval query service over the Music Data Platform retrieval
 > read port
 > Not status ledger: Current implementation state lives in `progress.md`.
 
-Music Intelligence contains Retrieval and Knowledge. Phase 12C introduces only
-the Retrieval query service. Retrieval turns local Music Data Platform
-query-ready rows into compact internal query evidence for later agent-facing
-tools.
+Music Intelligence contains Retrieval and Knowledge. The current implemented
+Retrieval service turns Music Data Platform query-ready rows into compact
+internal query evidence for later agent-facing tools.
 
 Retrieval is not a Stage Interface tool and does not return `MaterialCard`.
-It does not call source providers, refresh projections, write facts, score user
-taste, or make final recommendation judgements.
+Phase 15A recognizes provider-search pool vocabulary but does not execute
+provider search yet. Retrieval still does not call source providers, refresh
+projections, write facts, score user taste, or make final recommendation
+judgements.
 
 ## Retrieval Query Service
 
@@ -30,9 +31,24 @@ The effective query supports:
 - optional `ownerScope`, currently defaulting to the local owner scope;
 - optional free-text query;
 - optional single `materialKind`;
-- optional shallow pool filter with `allOf`, `anyOf`, and `noneOf`;
+- optional typed `pools` expression with `allOf`, `anyOf`, and `noneOf`;
 - `text_relevance`, `recently_added`, or `stable` ordering;
 - keyset pagination through opaque cursors.
+
+Typed pools currently include:
+
+```text
+local_catalog
+source_library(ref)
+owner_relation(ref)
+provider_search(providerId, limit?)
+```
+
+`local_catalog`, `source_library`, and `owner_relation` map to the existing
+local Music Data Platform retrieval read port. `provider_search` is validated
+as a Phase 15 pool kind but rejected until Source Provider Slot wiring lands in
+Phase 15D. The removed `poolFilter` input and bare `Ref[]` pool groups are not
+accepted.
 
 Retrieval normalizes text for query echo and cursor fingerprinting with
 `NFKC`, trim, lowercase, whitespace collapse, and the shared
@@ -73,15 +89,18 @@ Retrieval cursors are internal base64url JSON payloads:
 
 ```text
 {
-  version: 1,
+  version: 2,
   queryFingerprint,
-  position
+  position,
+  resultSetId?
 }
 ```
 
 The fingerprint includes owner scope, normalized text, material kind,
-normalized pool refs, effective order, and the text matching strategy
-`prefix_or_v1`. It excludes `limit` and the cursor value.
+normalized typed pools, effective order, and the text matching strategy
+`prefix_or_v1`. It excludes `limit` and the cursor value. Local-only cursors
+omit `resultSetId`; mixed provider-search cursors will use it after the mixed
+result-set workspace is implemented.
 
 Retrieval validates cursor decoding, version, JSON shape, and fingerprint
 match. Music Data Platform validates the decoded typed cursor position against
@@ -92,7 +111,7 @@ its SQL ordering contract.
 Retrieval does not implement:
 
 - public Stage Interface query tools;
-- provider search or provider candidate materialization;
+- provider search execution or provider candidate commit commands;
 - SQL joins, pool algebra, FTS ranking, or raw projection-row scanning;
 - query caches or new projection tables;
 - projection maintenance, dirty marking, rebuilds, or writes;
