@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 15A of a same-repo formal rebuild. The active
+MineMusic has completed Phase 15B of a same-repo formal rebuild. The active
 TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
@@ -43,7 +43,13 @@ Phase 15A starts provider-search pool retrieval by migrating internal
 Retrieval input from removed `poolFilter` bare refs to typed `pools`, replacing
 the active cursor payload with version 2, and keeping provider-search pools
 validated but rejected until Source Provider Slot wiring lands later in Phase
-15.
+15. Phase 15B adds the Music Data Platform-owned runtime result-set and
+material-candidate cache foundation: `retrieval_result_sets`,
+`retrieval_result_rows`, result-set-scoped `retrieval_result_text_fts`,
+`material_candidate_cache`, deterministic `material_candidate` refs, TTL
+cleanup helpers, and active-tree guards preventing Music Intelligence from
+writing runtime result-set/cache tables directly. Mixed retrieval SQL and
+provider slot wiring remain later Phase 15 work.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -374,6 +380,22 @@ Phase 14 source-library update reconciliation vocabulary includes:
 - command-owned reconciliation only on
   `provider_exhausted + resolved libraryRef + failedCount = 0`.
 
+Phase 15 provider-search pool retrieval vocabulary includes:
+
+- typed Retrieval `pools` with local durable pools and validated
+  `provider_search(providerId, limit?)` requests;
+- cursor payload version 2, with optional `resultSetId` reserved for mixed
+  result-set pagination;
+- `material_candidate:<provider_candidate>:<opaque>` refs derived only from
+  `digest(refKey(sourceEntity.sourceRef))`;
+- `retrieval_result_sets`, `retrieval_result_rows`, and
+  `retrieval_result_text_fts` as TTL-backed runtime result-set state for later
+  mixed SQL ranking and pagination;
+- `material_candidate_cache` as the runtime cache for validated provider
+  material candidates keyed by `material_candidate_ref_key`;
+- runtime result-set/cache writes belong to the Music Data Platform
+  retrieval-result-set boundary, not Music Intelligence or Stage Interface.
+
 ## Deleted Formal v1 Surfaces
 
 Formal v1 deletes these MVP concepts and does not preserve them with
@@ -609,6 +631,11 @@ restored as compatibility layers.
   records the implemented Phase 14 source-library update reconciliation spec.
 - `docs/formal-rebuild/phase-14-source-library-update-reconciliation-implementation-plan.md`
   records the implemented Phase 14 execution plan.
+- `docs/formal-rebuild/phase-15-provider-search-pool-retrieval.md` remains the
+  active Phase 15 spec; PR15A and PR15B are implemented.
+- `docs/formal-rebuild/phase-15-provider-search-pool-retrieval-implementation-plan.md`
+  remains the active Phase 15 execution plan; PR15A and PR15B are implemented,
+  while PR15C and PR15D are planned.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under

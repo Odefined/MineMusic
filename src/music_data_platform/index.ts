@@ -30,6 +30,11 @@ export {
   createOwnerRelationPoolRef,
   assertOwnerRelationPoolRef,
 } from "./owner_material_relation_ref.js";
+export {
+  createProviderMaterialCandidateRef,
+  assertProviderMaterialCandidateRef,
+  providerMaterialCandidateRefKey,
+} from "./material_candidate_ref.js";
 export type {
   CreateOwnerMaterialRelationRefInput,
   CreateOwnerRelationPoolRefInput,
@@ -38,6 +43,10 @@ export type {
   OwnerMaterialRelationStatus,
   OwnerRelationEntryKind,
 } from "./owner_material_relation_ref.js";
+export type {
+  CreateProviderMaterialCandidateRefInput,
+  MaterialCandidateKind,
+} from "./material_candidate_ref.js";
 export type {
   SourceToMaterialBindingRecord,
 } from "./identity_records.js";
@@ -97,6 +106,9 @@ export {
 export {
   musicDataPlatformMaterialTextProjectionSchema,
 } from "./material_text_projection_schema.js";
+export {
+  musicDataPlatformRetrievalResultSetSchema,
+} from "./retrieval_result_set_schema.js";
 export {
   musicDataPlatformProjectionMaintenanceSchema,
 } from "./projection_maintenance_schema.js";

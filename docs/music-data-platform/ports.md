@@ -1,7 +1,7 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 14 source-library update reconciliation
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, and the retrieval read port
+> Status: Current boundary authority through implemented Phase 15B
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, and runtime retrieval result-set/cache foundation
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
@@ -9,8 +9,9 @@ Library Import service, source-library and owner relation ref helpers, owner
 relation commands/read port, owner catalog
 projection commands/read port, material text projection commands/read port,
 projection maintenance commands/reads/runner, the retrieval read port, schema
-contributions, a material ref factory, a top-level source-of-truth write
-facade, and error types. It consumes generic Storage database ports and a
+contributions, runtime retrieval result-set records/cache helpers, a material
+ref factory, a top-level source-of-truth write facade, and error types. It
+consumes generic Storage database ports and a
 narrow provider-library read port, but does not know SQLite primitives or
 provider plugin implementations.
 
@@ -25,6 +26,7 @@ provider plugin implementations.
 | `musicDataPlatformOwnerCatalogViewSchema` | Storage initialization callers | Creates the final `owner_material_catalog_view`. | `src/music_data_platform/owner_catalog_schema.ts` |
 | `musicDataPlatformMaterialTextProjectionSchema` | Storage initialization callers | Creates `material_text_documents` and `material_text_fts`. | `src/music_data_platform/material_text_projection_schema.ts` |
 | `musicDataPlatformProjectionMaintenanceSchema` | Storage initialization callers | Creates `projection_maintenance_targets` and its pending-order index. | `src/music_data_platform/projection_maintenance_schema.ts` |
+| `musicDataPlatformRetrievalResultSetSchema` | Storage initialization callers | Creates runtime `retrieval_result_sets`, `retrieval_result_rows`, `retrieval_result_text_fts`, and `material_candidate_cache`. | `src/music_data_platform/retrieval_result_set_schema.ts` |
 | `createIdentityRepositories` | Internal command/read/projection implementations and low-level tests | Low-level source/material/canonical/binding persistence. | `src/music_data_platform/identity_records.ts` |
 | `createIdentityReadPort` | Internal Music Data Platform callers/tests | Narrow identity reads needed by workflows without exposing repository write methods. | `src/music_data_platform/identity_read_model.ts` |
 | `createIdentityWriteCommands` | Internal Music Data Platform callers/tests | Invariant-preserving identity writes. | `src/music_data_platform/identity_write_model.ts` |
@@ -32,6 +34,7 @@ provider plugin implementations.
 | `createSourceLibraryRef` / `assertSourceLibraryRef` | Internal callers/tests | Create and validate formal source-library refs. | `src/music_data_platform/source_library_ref.ts` |
 | `createOwnerMaterialRelationRef` / `assertOwnerMaterialRelationRef` | Internal callers/tests | Create and validate deterministic owner material relation refs. | `src/music_data_platform/owner_material_relation_ref.ts` |
 | `createOwnerRelationPoolRef` / `assertOwnerRelationPoolRef` | Internal callers/tests | Create and validate deterministic positive owner-relation pool refs. | `src/music_data_platform/owner_material_relation_ref.ts` |
+| `createProviderMaterialCandidateRef` / `assertProviderMaterialCandidateRef` | Internal callers/tests | Create and validate runtime material-candidate refs from provider source refs. | `src/music_data_platform/material_candidate_ref.ts` |
 | `createSourceLibraryRepositories` | Internal command/read implementations and low-level tests | Low-level source library, source library item, batch, and item outcome persistence. | `src/music_data_platform/source_library_records.ts` |
 | `createSourceLibraryCommands` | Internal Music Data Platform callers/tests | Command-owned source-library import batch, library scope, item, and item-outcome writes. | `src/music_data_platform/source_library_commands.ts` |
 | `createSourceLibraryReadPort` | Internal Music Data Platform callers/tests | Narrow source-library import-batch reads without exposing repository write methods. | `src/music_data_platform/source_library_read_model.ts` |
@@ -45,6 +48,7 @@ provider plugin implementations.
 | `createMaterialTextProjectionCommands` | Internal commands/tests/later query phases | Rebuild current material text documents and replacement FTS rows by explicit material ref. | `src/music_data_platform/material_text_projection_commands.ts` |
 | `createMaterialTextProjectionRecords` | Internal tests/later query phases | Read projected material text documents and run owner-neutral strict FTS probes. | `src/music_data_platform/material_text_projection_records.ts` |
 | `createMusicDataPlatformRetrievalReadPort` | Internal Music Intelligence retrieval/tests | Run owner-visible catalog query SQL with pool/text filtering, field-aware evidence/ranking, cursor validation, and coarse projection freshness. | `src/music_data_platform/retrieval_read_model.ts` |
+| `createRetrievalResultSetRecords` | Internal mixed retrieval workspace/tests | Low-level runtime result-set rows, result-set FTS rows, material-candidate cache upserts, cache reads, and TTL cleanup helpers. | `src/music_data_platform/retrieval_result_set_records.ts` |
 | `createProjectionMaintenanceCommands` | Internal commands/tests | Plan invalidation from typed write scopes, and mark typed projection targets dirty, clean, or failed by generation. | `src/music_data_platform/projection_maintenance_commands.ts` |
 | `createProjectionMaintenanceRecords` | Internal runner/tests | Read one target or list pending dirty/failed projection work. | `src/music_data_platform/projection_maintenance_records.ts` |
 | `createProjectionMaintenanceRunner` | Server Host scheduler helper/tests | Rebuild pending targets through owning projection commands and generation-aware completion. | `src/music_data_platform/projection_maintenance_runner.ts` |
@@ -58,7 +62,7 @@ provider plugin implementations.
 | `MusicDatabase` | Storage / composition root | Root transactions for Library Import command calls and read-port access. | `context`. | `transaction`. |
 | `MusicDatabaseTransactionContext` | Storage | Transaction-scoped SQL execution for identity, source-library, relation, and projection commands. | `get`, `all`. | `run`. |
 | `Ref` / `refKey(ref)` | Contracts | Identity key validation and persisted `ref_key` derivation. | Ref fields. | None. |
-| Source/material/canonical/source-library contracts | Contracts | Record, command, provider candidate, and import status shapes. | Entity/record fields. | None. |
+| Source/material/canonical/source-library/provider-candidate contracts | Contracts | Record, command, provider candidate, import status, and runtime candidate cache shapes. | Entity/record/candidate fields. | None. |
 | `PlatformLibraryReadPort` | Server Host composition, usually backed by Extension Runtime | Read provider account-library pages for one provider/kind/cursor. | `readPlatformLibraryProvider`. | None. |
 
 ## Repository Ports
@@ -75,6 +79,10 @@ Repositories are created with `db: MusicDatabaseContext`.
 | `SourceLibraryItemRepository` | `get`, `upsert` | Current membership only. Keyed by `libraryRef + sourceRefKey`; stores local `addedAt`, optional provider-side `providerAddedAt`, and import bookkeeping timestamps. |
 | `SourceLibraryImportBatchRepository` | `get`, `insert`, `upsert` | `insert` creates a new batch; `upsert` updates existing batch state and counters. |
 | `SourceLibraryImportItemOutcomeRepository` | `insert`, `listForBatch` | Per-candidate outcome rows; compact error fields only. |
+| `RetrievalResultSetRepository` | `get`, `insert` | Runtime result-set header persistence only. |
+| `RetrievalResultRowRepository` | `insertMany`, `listForResultSet` | Runtime mixed row persistence/readback for later SQL retrieval tests. |
+| `RetrievalResultTextFtsRepository` | `insertMany` | Result-set-scoped FTS corpus writes only. |
+| `MaterialCandidateCacheRepository` | `getByRefKey`, `upsert` | Runtime validated provider candidate cache keyed by `material_candidate_ref_key`. |
 
 Repositories do not start transactions, generate timestamps, return
 `Result<T>`, call providers, or update Stage Interface outputs. Production
