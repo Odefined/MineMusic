@@ -4,10 +4,15 @@
 
 Accepted
 
+Amended by ADR-0014.
+Amended by ADR-0015.
+Amended by ADR-0016.
+Amended by ADR-0020 and the Stage Interface Tool Frame (`docs/formal-rebuild/stage-interface-tool-frame.md`); see the amendment note in Decision.
+
 ## Context
 
 MineMusic's agent-facing surface is Stage Interface, which already carries a
-minimal `StageInterfaceContract` (`src/contracts/index.ts`): instruments, tools,
+minimal `StageInterfaceContract` (`src/contracts/stage_interface.ts`): instruments, tools,
 `outputPolicy: "compact_public"`, module contribution, registration validation
 (uniqueness, every tool belongs to an instrument), and dispatch. The formal
 rebuild will add many tools across domains (music discovery, library, playback,
@@ -42,12 +47,33 @@ sideEffect: { durableUserStateWrite, runtimeStateWrite, externalCall },
 inputSchema, outputSchema, handler
 ```
 
+ADR-0016 amends this mandatory core: `handler` is not part of the public Tool
+Declaration. The Tool Declaration is the serializable descriptor; runtime
+registration pairs that descriptor with a handler.
+
+The Stage Interface Tool Frame further amends this mandatory core:
+`outputPolicy` is RETIRED (compact-public output becomes a Public Agent Protocol
+invariant asserted by an outputSchema-shape architecture test, not a per-tool
+field on `ToolDescriptor`); `invocationPolicy` (ADR-0015) and a declared
+`errors` vocabulary (ADR-0020) become mandatory; and `runtimePolicy` /
+`contractVersion` move out of the declared optional dimensions to
+anticipated-future status (added only when their consumer ships). The resulting
+mandatory core is `name, instrumentId, label, ownerArea, description, usage,
+examples, sideEffect, invocationPolicy, inputSchema, outputSchema, errors`, with
+`allowedActions` and `requiresProvider` optional.
+
 plus optional extensible dimensions:
 
 ```text
 description, examples, allowedActions, requiresProvider,
 runtimePolicy, contractVersion
 ```
+
+ADR-0014 amends this optional list: for Public Agent Protocol / model-visible
+tools, `description`, `usage`, and positive/negative `examples` are mandatory
+guidance contract fields, not optional extensible dimensions. The optional
+extension rule remains for `allowedActions`, `requiresProvider`, `runtimePolicy`,
+and `contractVersion`.
 
 Each dimension is OWNED by its bounded context:
 
@@ -78,10 +104,15 @@ ownership plus architecture guards.
 
 - `StageInterfaceContract` / `ToolDescriptor` gains mandatory `sideEffect`,
   `inputSchema`, and `outputSchema` fields plus optional extensible fields.
+  ADR-0016 keeps runtime `handler` registration separate from the public
+  descriptor.
 - New architecture tests enforce namespace, schema-required, the public-handle
   veil, and handler-import discipline at registration.
-- The framework can grow new dimensions without breaking existing tools (optional
-  fields plus `contractVersion`).
+- The framework can grow new optional dimensions without breaking existing tools
+  (optional fields plus `contractVersion`); ADR-0014 narrows this for public
+  guidance fields that model-visible tools must provide.
+- Descriptor-only workflows such as Handbook generation and catalog validation
+  can run without importing runtime handler dependencies (ADR-0016).
 - The one contract type the framework evolves is `StageError`, which gains an
   optional `suggestedFix?: string` (a model-actionable next step) for the public
   error mapping; the rest of the `Result<T>` / `StageError` / `StageWarning` /
@@ -89,5 +120,6 @@ ownership plus architecture guards.
   envelope.
 - Music Discovery is the first instance; future domains instantiate the same
   skeleton.
-- See ADR-0010 (side-effect), ADR-0011 (candidate commit), and ADR-0012 (Music
-  Discovery seam).
+- See ADR-0010 (side-effect), ADR-0011 (candidate commit), ADR-0012 (Music
+  Discovery seam), ADR-0014 (mandatory public guidance), and ADR-0016
+  (descriptor/handler split).

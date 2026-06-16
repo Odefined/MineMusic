@@ -478,12 +478,43 @@ assert.notEqual(
   mixedRowKey(mergePageTwo.rows[0]),
 );
 
+const providerDisplayDatabase = initializedDatabase();
+const providerDisplayWorkspace = createMusicDataPlatformRetrievalWorkspace({
+  database: providerDisplayDatabase,
+});
+const providerDisplayPage = providerDisplayWorkspace.searchMixedResultSet({
+  ownerScope: DEFAULT_OWNER_SCOPE,
+  text: "mili",
+  includeLocalCatalog: false,
+  order: "text_relevance",
+  limit: 1,
+  queryFingerprint: "fp_provider_display",
+  providerCandidates: [
+    providerCandidate({
+      ...sourceTrack("provider_display", "SAIKAI"),
+      label: "SAIKAI - Mili",
+      artistLabels: ["Mili"],
+      albumLabel: "SAIKAI",
+    }),
+  ],
+  now: "2026-06-15T14:30:00.000Z",
+});
+assert.equal(providerDisplayPage.status, "ok");
+if (providerDisplayPage.status !== "ok" || providerDisplayPage.rows[0] === undefined) {
+  throw new Error("Expected provider display page to be OK with a row.");
+}
+assert.equal(providerDisplayPage.rows[0].kind, "material_candidate");
+assert.equal(providerDisplayPage.rows[0].titleText, "saikai");
+assert.equal(providerDisplayPage.rows[0].artistText, "mili");
+assert.equal(providerDisplayPage.rows[0].albumText, "saikai");
+
 mixedDatabase.close();
 missingTextDatabase.close();
 blockedDatabase.close();
 expiryDatabase.close();
 candidateExpiryDatabase.close();
 mergeDatabase.close();
+providerDisplayDatabase.close();
 
 function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
   const database = SqliteMusicDatabase.open({ filename: ":memory:" });

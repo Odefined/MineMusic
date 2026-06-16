@@ -74,7 +74,13 @@ npm run typecheck
 npm run server:minemusic
 npm run smoke:ncm
 npm run smoke:ncm:library
+npm run smoke:ncm:retrieval
+npm run smoke:ncm:matrix
+npm run smoke:ncm:perf
 ```
+
+Live NCM smoke commands skip unless their matching `MINEMUSIC_LIVE_NCM_*`
+environment flag is set.
 
 ## Current Runtime Non-Goals
 

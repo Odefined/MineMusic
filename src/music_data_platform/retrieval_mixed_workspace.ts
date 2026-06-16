@@ -1345,7 +1345,6 @@ function searchableFieldsFromSourceEntity(sourceEntity: SourceEntity): Retrieval
   switch (sourceEntity.kind) {
     case "track":
       pushContribution(titleContributions, "title", sourceEntity.title);
-      pushContribution(titleContributions, "title", sourceEntity.label);
       for (const artistLabel of sourceEntity.artistLabels ?? []) {
         pushContribution(artistContributions, "artist", artistLabel);
       }
@@ -1355,14 +1354,12 @@ function searchableFieldsFromSourceEntity(sourceEntity: SourceEntity): Retrieval
       break;
     case "album":
       pushContribution(titleContributions, "title", sourceEntity.title);
-      pushContribution(titleContributions, "title", sourceEntity.label);
       for (const artistLabel of sourceEntity.artistLabels ?? []) {
         pushContribution(artistContributions, "artist", artistLabel);
       }
       break;
     case "artist":
-      pushContribution(titleContributions, "title", sourceEntity.name);
-      pushContribution(titleContributions, "title", sourceEntity.label);
+      pushContribution(artistContributions, "artist", sourceEntity.name);
       for (const alias of sourceEntity.aliases ?? []) {
         pushContribution(aliasContributions, "alias", alias);
       }

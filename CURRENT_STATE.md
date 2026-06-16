@@ -74,7 +74,8 @@ inventory; they are preserved by git history and archive docs only.
   Memory, and Effect Boundary.
 - Stage is a product metaphor and naming root, not a top-level bounded context.
 - Stage Interface owns agent-facing instruments, tools, schemas, Handbook,
-  validation, compact public outputs, dispatch, and session-aware availability.
+  validation, compact public outputs, Tool Call Router, and session-aware
+  availability.
 - Instrument and Tool are agent-facing workbench structure. They are not
   bounded contexts, domain services, or capability slots.
 - Extension owns Plugin System, Capability Slots, provider/plugin manifests,
@@ -96,8 +97,8 @@ inventory; they are preserved by git history and archive docs only.
 Formal target vocabulary lives in `docs/formal-project-glossary.md`.
 The implemented formal TypeScript vocabulary lives in the per-area contract
 files under `src/contracts/` (`kernel.ts`, `music_data_platform.ts`,
-`storage.ts`, `stage_interface.ts`, `stage_core.ts`), re-exported by the
-`src/contracts/index.ts` shim; see ADR-0013 for the split.
+`storage.ts`, `stage_interface.ts`, `stage_core.ts`), imported directly from
+each per-area file (the barrel was deleted in Phase 2); see ADR-0013.
 
 Accepted vocabulary includes:
 
@@ -116,6 +117,14 @@ Accepted vocabulary includes:
 - `owner_material_relations` as owner-scoped factual relation source-of-truth;
 - query hits/results as agent decision evidence;
 - `MaterialCard` as final Stage Interface presentation output only.
+- Tool Side-Effect Declaration as static public capability truth, distinct from
+  Tool Invocation Policy as the model-visible default invocation and data-egress
+  posture interpreted by Effect Boundary.
+- Tool Definition as the public Stage Interface descriptor for a callable tool,
+  distinct from runtime handler registration and business implementation.
+- Tool Call Router as the Stage Interface path that receives a tool call, finds
+  the matching Tool Definition and runtime handler, invokes the handler, and
+  wraps the public result; current code name is `StageInterface.dispatch(...)`.
 
 Phase 2 runtime vocabulary includes:
 
@@ -424,11 +433,11 @@ compatibility aliases:
 
 The active TypeScript tree is now a formal skeleton:
 
-- `src/contracts/` contracts are split into per-area files behind a shared leaf
-  kernel (`kernel.ts`, `music_data_platform.ts`, `storage.ts`,
-  `stage_interface.ts`, `stage_core.ts`), re-exported by the `index.ts` shim;
-  ADR-0013 records the split and the machine-checked DAG / kernel-export /
-  barrel-integrity guards;
+- `src/contracts/` contracts live in per-area files behind a shared leaf kernel
+  (`kernel.ts`, `music_data_platform.ts`, `storage.ts`, `stage_interface.ts`,
+  `stage_core.ts`) and are imported directly by consumers (no barrel since
+  Phase 2); ADR-0013 records the split and the machine-checked DAG /
+  kernel-export / ref-origin guards;
 - `src/extension/capability_slot.ts` owns plain-object capability slot
   declarations;
 - `src/extension/capability_registry.ts` owns typed-slot registration, list,
@@ -601,8 +610,27 @@ restored as compatibility layers.
 - `docs/adr/0012-music-discovery-retrieval-seam.md` records Music Discovery as a
   Public Agent Protocol seam over Music Intelligence Retrieval.
 - `docs/adr/0013-contracts-per-area-split.md` records the contracts barrel split
-  into per-area files behind a shared leaf kernel, with a transitional re-export
-  shim and machine-checked DAG/kernel-export/barrel guards.
+  into per-area files behind a shared leaf kernel, the barrel's deletion in
+  Phase 2, and the machine-checked DAG/kernel-export/ref-origin guards.
+- `docs/adr/0014-model-visible-tool-guidance-is-mandatory.md` records that
+  Public Agent Protocol / model-visible tools must declare description, usage
+  semantics, and positive/negative examples as mandatory guidance.
+- `docs/adr/0015-side-effect-and-invocation-policy-are-separate.md` records
+  that static tool side-effect truth stays separate from Effect Boundary-owned
+  invocation policy, default call posture, and data-egress posture.
+- `docs/adr/0016-tool-descriptor-and-handler-registration-are-separate.md`
+  records that public tool descriptors stay separate from runtime handler
+  registration.
+- `docs/adr/0017-tool-call-router-owns-tool-call-output-name.md` records that
+  Tool Call Router owns `ToolCallOutput.toolName` and handlers return payloads
+  only.
+- `docs/adr/0019-veil-ownership-split-and-handle-scheme.md` records the Public
+  Handle Veil split into a Stage Interface–owned `HandleMintingPort` (cross-cutting
+  identity veil) plus per-tool label synthesis, and the registry-minted short
+  opaque library handle id scheme.
+- `docs/adr/0020-declared-error-vocabulary-and-fail-whole-recovery.md` records
+  the declared per-tool public error vocabulary and fail-whole multi-scope
+  recovery with named-scope recoverable errors.
 - `docs/extension/README.md`, `docs/extension/design.md`,
   `docs/extension/ports.md`, and `docs/extension/progress.md` are the current
   Extension area docs introduced by Phase 3.
@@ -671,11 +699,15 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-15-provider-search-pool-retrieval-implementation-plan.md`
   remains the active Phase 15 execution plan; PR15A, PR15B, PR15C, and PR15D
   are implemented.
-- `docs/formal-rebuild/stage-interface-tool-frame.md` is the pre-phase-sanction
-  design authority for the agent-facing Tool Framework skeleton (mandatory core
-  plus owned extensible dimensions) with Music Discovery as the first concrete
-  instance; it is design-stage and not yet paired with an implementation plan or
-  a phase number, and pairs with ADR-0009 through ADR-0012.
+- `docs/formal-rebuild/stage-interface-tool-frame.md` is the Phase 16 design
+  authority for the agent-facing Tool Framework skeleton (mandatory core plus
+  owned extensible dimensions) with Music Discovery as the first concrete
+  instance; it pairs with ADR-0009 through ADR-0012, ADR-0014 through ADR-0017,
+  ADR-0019, and ADR-0020.
+- `docs/formal-rebuild/phase-16-stage-interface-tool-frame-implementation-plan.md`
+  records the Phase 16 execution plan split into PR 16A framework contract layer,
+  PR 16B Public Handle Veil + HandleMintingPort registry + execution gate stub +
+  global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A–16D planned.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -686,11 +718,12 @@ restored as compatibility layers.
 
 `CONTEXT.md` was not edited in Phase 0. It has since been refreshed by explicit
 user request during the pre-phase Tool Framework design work to add stable
-glossary terms only (Music Discovery, Music Discovery Handle, Music Scope
-Handle, Material Candidate, Music Intelligence Retrieval, Candidate Commit) and
-to remove the deleted Material Resolve / ephemeral-material vocabulary; it
-carries no migration status or temporary implementation explanation. It remains
-a working glossary; formal target vocabulary authority lives in
+glossary terms only (Music Discovery, Music Discovery Handle, Music Library
+Scope Handle, Music Discovery Scope, Material Candidate, Music Intelligence
+Retrieval, Candidate Commit) and to remove the deleted Material Resolve /
+ephemeral-material vocabulary; it carries no migration status or temporary
+implementation explanation. It remains a working glossary; formal target
+vocabulary authority lives in
 `docs/formal-project-glossary.md`.
 
 ## Not Yet Migrated

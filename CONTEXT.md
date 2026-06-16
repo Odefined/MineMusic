@@ -72,7 +72,7 @@ Stage Interface owns:
 - LLM-visible instruments and tools.
 - the current tool catalog and tool metadata.
 - Handbook lookup and generation source data.
-- governed tool dispatch.
+- governed tool-call routing.
 - the stable callable surface used by Host Adapters.
 - MineMusic-owned ordering for common flows such as material resolution before
   presentation.
@@ -82,12 +82,40 @@ tests. Host Adapters should call Stage Interface rather than core capability
 modules directly.
 
 Current code mapping: `src/stage_interface/**`, `src/handbook/index.ts`,
-and the dispatch-facing part of `src/stage_core/index.ts`.
+`StageInterface.dispatch(...)`, and the tool-call-routing part of
+`src/stage_core/index.ts`.
 
 ### Stage Interface Tool Definition
 
 A Stage Interface-owned description of one callable MineMusic tool as presented,
-validated, routed, and summarized for Host Clients.
+validated, routed, and summarized for Host Clients. It is the public descriptor,
+not the runtime handler or business implementation.
+_Avoid_: runtime handler registration, business service, bounded context owner.
+
+### Tool Call Router
+
+The Stage Interface-owned path that receives a tool call, finds the matching
+Tool Definition and runtime handler, invokes the handler, and wraps the public
+tool result. Current code name: `StageInterface.dispatch(...)`.
+_Avoid_: business service, runtime handler, Effect Boundary policy engine.
+
+### Stage Interface Tool Side-Effect Declaration
+
+A Public Agent Protocol declaration of the kinds of state or external surfaces a
+Stage Interface Tool can touch. It is static capability truth, distinct from
+approval policy or what a single invocation actually did.
+_Avoid_: invocation policy, runtime policy, provider availability, per-call
+effect audit.
+
+### Stage Interface Tool Invocation Policy
+
+A Public Agent Protocol declaration of how a model-visible Stage Interface Tool
+may be invoked by default and what data-egress posture it carries. It is
+interpreted by Effect Boundary and is distinct from side-effect truth: side
+effect says what the tool can touch, invocation policy says how the agent may
+call it.
+_Avoid_: side-effect declaration, runtime policy, provider availability,
+permission enforcement implementation.
 
 ### Stage Interface Tool Group
 
@@ -111,8 +139,8 @@ _Avoid_: source ref, playable-link record, provider provenance.
 ### Music Discovery
 
 The Public Agent Protocol term for the agent-facing workbench area of finding,
-identifying, comparing, and choosing candidate music items from an uncertain
-natural-language query, without writing user state.
+identifying, comparing, and choosing candidate music items from music lookup
+text, without writing user state.
 
 Music Discovery is the agent-facing seam over Music Intelligence Retrieval, not
 the internal Retrieval contract. It hides durable material, material candidate,
@@ -122,51 +150,170 @@ candidate recall; later retrieval backends may extend it without breaking the
 public contract.
 
 Music Discovery is exposed as the Stage Interface instrument `music.discovery`,
-with tools such as `music.discovery.search` and `music.discovery.list_scopes`.
+with tools such as `music.discovery.lookup` and `music.discovery.list_scopes`.
 Music-domain agent instruments and tools use the `music.` namespace, distinct from
 the `stage.` namespace used for runtime and system tools. A Music Discovery result
-distinguishes a known catalog item from an unconfirmed provider candidate through
-public result semantics, never through internal refs. Music Discovery does not
-save, play, favorite, block, import, commit a candidate to a durable record, or
-expose a final recommendation.
+distinguishes a known MineMusic library item from an unconfirmed provider
+candidate through public result semantics, never through internal refs. Music
+Discovery does not save, play, favorite, block, import, commit a candidate to a
+durable record, or expose a final recommendation.
 _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
 Tool Frame): internal Retrieval hit, material candidate ref, materialRef,
 sourceRef, canonicalRef, sourceLibraryRef, ownerRelationPoolRef, pool filter,
 result set id, provider raw id.
 
-### Music Discovery Handle
+### Music Item Handle
 
-A Public Agent Protocol handle that lets an agent reference one Music Discovery
-result item across later turns or tools. It is kind-discriminated and carries its
-own lifetime in the public contract:
+A Public Agent Protocol handle that lets an agent reference one music item
+across tools and turns. It is not lookup-specific: lookup, future list/detail,
+and future commit-style tools reuse the same handle family for the same
+agent-visible object. Any public tool that returns a music item emits the same
+pattern: a Music Item Handle beside a tool-specific Public Handle Description.
+The agent passes back only the Music Item Handle.
 
-- `catalog`: a known, durable catalog item. Stable indefinitely.
+- `library`: a known, durable MineMusic library item. Stable indefinitely.
 - `candidate`: an unconfirmed provider candidate. Stable only while its
   underlying unconfirmed candidate is still held in runtime cache; an expired
-  candidate handle fails explicitly and must not silently re-resolve.
+  candidate handle fails explicitly and must not silently re-resolve. Its
+  validity is independent of the lookup cursor or result window that first
+  exposed it.
 
-A Music Discovery Handle is never a raw durable material ref, material candidate
-ref, source ref, or canonical ref; those internal anchors are resolved only
-inside MineMusic. A `candidate` handle that has expired must fail explicitly
-rather than silently resolve to a different item.
+Provider origin does not make an item a `candidate`: if MineMusic can currently
+resolve the provider item to a durable library item, the public handle kind is
+`library`. `candidate` is only for an unresolved provider item not yet admitted
+to the library.
+
+A Music Item Handle carries an opaque public `id` scoped by handle kind. It is
+never a raw durable material ref, material candidate ref, source ref, canonical
+ref, provider entity id, provider item id, or database key; those internal
+anchors are resolved only inside MineMusic. The durable item kind is named
+`library`, not `material`, because the agent-visible object is a MineMusic
+library item rather than the internal material model. The unconfirmed item kind
+is named `candidate`, not `provider` or `temporary`, because it describes an
+item not yet admitted to the library and must not be confused with Music
+Provider Scope Handle. A `candidate` handle that has expired must fail
+explicitly rather than silently resolve to a different item.
 _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
 Tool Frame): materialRef, materialCandidateRef, sourceRef, canonicalRef,
 sourceLibraryRef, ownerRelationPoolRef, resultSetId, provider entity id, raw
 database or provider key.
 
-### Music Scope Handle
+### Public Handle Description
+
+A Public Agent Protocol description payload emitted beside a public handle in a
+tool output. Every public output object that emits a reusable public handle must
+include a Public Handle Description in the same object. It explains the adjacent
+handle for that tool's current response and may have a tool-specific shape.
+Every Public Handle Description has a required public `label` produced from
+public description facts, not from internal refs, handle ids, database keys, or
+raw provider labels. If no public description facts are available, the label may
+fall back to a kind-aware, non-identifying generic public label. For Music
+Discovery lookup, this is the item description containing label, title, artists
+text, album, and version text for agent reply and disambiguation.
+
+A Public Handle Description is not the handle identity, not a descriptor object
+the agent passes back, and not provenance. It may change across tools, contexts,
+or time as public presentation facts change. The internal descriptor or rule
+that produces it stays inside MineMusic. The agent passes back the handle, not
+the description. A Public Handle Description must not participate in cursor
+identity, duplicate detection, permission checks, or handle resolution.
+_Avoid_: public `descriptor` field, description-as-identity, matched scope provenance,
+rank evidence, internal refs.
+
+### Music Library Scope Handle
 
 A Public Agent Protocol handle that lets an agent reference one durable
-owner-scoped recall set for use as a Music Search scope: a source library or a
-positive owner relation set (such as saved or favorite materials).
+owner-scoped library subscope for use as a Music Scope: a source library, a
+positive owner relation set such as saved or favorite materials, or a future
+Collection scope.
 
-A Music Scope Handle is kind-discriminated (`library` | `relation`) and durable.
-It is never a raw source library ref or owner relation pool ref; those internal
-anchors are resolved only inside MineMusic. A Music Scope Handle is obtained
-from the `music.discovery.list_scopes` tool, not constructed by the agent.
+A Music Library Scope Handle is kind-discriminated (`source_library` |
+`relation` in v1, extensible to future library scope kinds such as
+`collection`) and durable; `collection` is not part of the v1 listed-scope
+schema. It is never a raw source library ref, owner relation pool ref, or
+collection row id; those internal anchors are resolved only inside MineMusic. A
+Music Library Scope Handle carries an opaque public `id` whose string value
+has no agent-visible structure and must not be derived from, equal to, or parsed
+as an internal ref key. MineMusic owns the private mapping from that public
+`id` to the current internal source-library, relation, or future collection
+anchor.
+A Music Library Scope Handle is obtained from a scope-listing tool such as
+`music.discovery.list_scopes`, not constructed by the agent. The agent may pass
+this handle directly as a `MusicScope` item without wrapping it in another
+object.
 _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
-Tool Frame): sourceLibraryRef, ownerRelationPoolRef, provider id, raw owner or
-library key, Collection (out of v1 scope).
+Tool Frame): sourceLibraryRef, ownerRelationPoolRef, public `providerId`, raw
+owner or library key, Collection row id.
+
+### Music Abstract Scope Handle
+
+A Public Agent Protocol handle for an aggregate or built-in music scope, such as
+`all` or the owner-visible `library` baseline. `all` and `library` are reusable
+abstract scope handles, but each scoped tool declares whether it accepts them.
+A Music Abstract Scope Handle is not a durable library subscope and not a
+provider search scope; durable source-library, relation, and future collection
+scopes use Music Library Scope Handle, while connected provider scopes use Music
+Provider Scope Handle.
+_Avoid_: sourceLibraryRef, ownerRelationPoolRef, collection row id, public
+`providerId`, provider entity id, provider account id, raw provider key.
+
+### Music Provider Scope Handle
+
+A Public Agent Protocol handle for a connected searchable provider as a scoped
+music operation target. It carries a public `providerId` from MineMusic's
+provider registry/scope metadata and is neither an abstract scope nor a durable
+library subscope. The same public `providerId` is reused across agent-facing
+provider scopes and future provider-aware tools; it is not tool-local and must
+not be renamed to a generic scope `id`.
+_Avoid_: provider entity id, provider account id, raw provider key, sourceRef,
+provider library item, Music Library Scope Handle.
+
+### Music Scope
+
+A Public Agent Protocol input item used by scoped music tools to say where the
+agent wants to retrieve, list, or otherwise operate over music. A Music Scope is
+either a Music Abstract Scope Handle, a concrete Music Library Scope Handle, or
+a Music Provider Scope Handle.
+
+Music scopes are agent-facing intent, not internal Retrieval pool algebra.
+The agent may actively choose `library` for the owner-visible MineMusic library
+baseline, a source-library/saved/favorite handle for a durable library subscope,
+a connected provider, or `all`. For a tool that accepts it, the `all` variant
+names that tool's whole currently available Music Scope surface, including
+connected searchable providers when the tool supports provider scopes.
+Provider scopes use Music Provider Scope Handles exposed by MineMusic's current
+scope metadata; the agent must not invent public `providerId` values from
+natural language.
+Unknown, forged, or currently unavailable `source_library` / `relation` handles,
+and unknown or currently unavailable public `providerId` values, are recoverable
+query errors in lookup input, not empty results or silently ignored scopes.
+`music.discovery.list_scopes` lists the explicit selectable scopes, including
+the `library` baseline and currently connected searchable provider scopes, but
+does not list unavailable providers or the aggregate `all` shortcut. Although
+the v1 listing tool lives
+under the `music.discovery` instrument, it returns reusable Music Scope values,
+not discovery-specific handles. Its optional `kind` input filters the flat
+response to one listed scope kind (`library`, `source_library`, `relation`, or
+`provider`); it filters `ListedMusicScope.kind`, not a separate scope family.
+Omitted `kind` returns all explicit selectable scopes, and a valid kind with no
+currently selectable scopes returns an empty list without a warning or error.
+Listed scopes carry required Public Handle Descriptions that help the agent
+choose and explain scopes. For listed scopes, `description.label` is the short
+selectable name and `description.detailText` is an optional one-line
+explanation. Provider listed scopes must carry non-empty target kinds to help
+the agent avoid incompatible provider calls; a provider with no currently
+supported music lookup target is not a selectable provider scope.
+Neither scope description nor target-kind metadata is scope identity, and a
+listed scope may be passed back to a scoped tool without making those fields
+part of the handle. Description metadata can become stale without changing the
+identity of the underlying Music Scope.
+The same Music Scope values are reused across lookup, future list-item, and
+future detail tools;
+tools must not mint tool-specific scope handles for the same underlying library
+or provider scope. Users should not need to name internal pools or decide query
+execution details.
+_Avoid_: Retrieval `pools`, `anyOf` / `allOf` / `noneOf`, provider entity id,
+raw provider key, sourceLibraryRef, ownerRelationPoolRef, resultSetId.
 
 ### Stage Modules
 
@@ -249,15 +396,15 @@ should use Material Projection instead of reimplementing
 ### Material Candidate
 
 An unconfirmed provider-origin music object held in runtime cache, not a durable
-record. It is the runtime-side backing of a Music Discovery Handle of kind
+record. It is the runtime-side backing of a Music Item Handle of kind
 `candidate`, and becomes durable identity only through Candidate Commit.
 _Avoid_: durable material, Canonical Record, Collection Item, source-backed fact.
 
 ### Music Intelligence Retrieval
 
-The Music Intelligence Core Capability that turns an uncertain natural-language
-query into ranked candidate music items via local catalog recall and provider
-candidate search, with result-set and candidate caching and cursor paging. It
+The Music Intelligence Core Capability that turns music lookup text into ranked
+candidate music items via local catalog recall and provider candidate search,
+with result-set and candidate caching and cursor paging. It
 owns query and recall; its result-set and candidate cache are held by Music Data
 Platform; it does not own durable identity writes. Music Discovery is the public
 Stage Interface seam over Retrieval (ADR-0012), and Retrieval internals
@@ -271,8 +418,10 @@ unconfirmed candidate into a durable material through the existing
 source/material/binding write commands and triggers projection invalidation. It
 is the only place an unconfirmed candidate becomes durable identity, and the
 formal successor to the deleted ephemeral-material presentation rule. Its input
-is a Music Discovery Handle (kind `candidate`), resolved to the internal
-candidate cache inside MineMusic at commit time.
+is a Music Item Handle (kind `candidate`), resolved to the internal
+candidate cache inside MineMusic at commit time. On success it returns a Music
+Item Handle of kind `library` for the newly durable item; the input candidate
+handle does not become a durable alias.
 _Avoid_: Stage Interface presentation boundary, inline per-action materialization,
 reviving Material Resolve (Deleted Formal v1 Surface).
 

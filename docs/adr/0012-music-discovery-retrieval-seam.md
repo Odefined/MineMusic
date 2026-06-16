@@ -23,18 +23,47 @@ contexts for those backends exist yet.
 Music Discovery is a Public Agent Protocol term and a deliberate seam over Music
 Intelligence Retrieval. It hides durable material, material candidate, source,
 canonical, pool-algebra, and result-set internals behind public handles (Music
-Discovery Handle, Music Scope Handle) and public result semantics. It
-distinguishes a known catalog item from an unconfirmed provider candidate
-through public result semantics, never through internal refs.
+Item Handle, Music Scope, and Music Library Scope Handle) and public result
+semantics. It distinguishes a known MineMusic library item from an unconfirmed
+provider candidate through public result semantics, never through internal refs.
+Music Item Handle carries an opaque kind-scoped public `id`; library handles do
+not expose `materialRef`, and candidate handles do not expose
+`materialCandidateRef`, provider entity ids, provider item ids, or raw provider
+keys. Candidate handles are bound to the candidate cache lifetime, not to the
+lookup cursor or result window that first exposed them.
 
 Today Music Discovery maps 1:1 to Retrieval local plus provider candidate
 recall. It is a subset / intentional seam, not a forward abstraction over
 unbuilt backends.
 
 Music Discovery is exposed as the Stage Interface instrument `music.discovery`
-with tools `music.discovery.search` and `music.discovery.list_scopes`.
+with tools `music.discovery.lookup` and `music.discovery.list_scopes`.
+`lookup` is the public tool action because the first concrete tool is driven by
+music lookup text such as title, artist, album, or known alias; it is not a
+semantic mood search, recommendation prompt, or scope-browsing tool.
 Music-domain agent tools use the `music.` namespace; runtime and system tools use
 `stage.`. Material Resolve stays deleted.
+
+`music.discovery.lookup` uses public `MusicScope` values, not internal Retrieval
+`pools`. Scopes are the reusable agent-facing retrieval-source vocabulary:
+abstract scope handles (`all`, `library`), concrete Music Library Scope Handle
+values (`source_library` | `relation` in v1, extensible to future library scope
+kinds such as Collection), and Music Provider Scope Handles for connected
+searchable providers. Provider search is therefore a public provider scope, but
+it is not an abstract scope and not a Music Library Scope Handle; it does not
+expose provider entity ids, raw provider keys, or Retrieval pool algebra. Future
+scoped tools must reuse these scope handles instead of minting tool-specific
+aliases for the same underlying library/provider scope.
+Music Library Scope Handle ids are opaque public ids privately mapped by
+MineMusic; they are not source library refs, owner relation pool refs,
+Collection row ids, or parseable internal ref keys.
+`MusicProviderScopeHandle.providerId` is the public provider registry id reused
+across agent-facing provider-aware tools; it is not a tool-local id, provider
+entity id, provider account id, raw provider key, or generic scope `id`.
+`music.discovery.list_scopes` lists explicit selectable scopes, including
+provider scopes, and excludes the aggregate `all` shortcut. The v1 listing tool
+lives under `music.discovery`, but its output type is reusable Music Scope
+metadata, not a discovery-specific handle family.
 
 ## Rejected Alternatives
 
@@ -51,10 +80,15 @@ Music-domain agent tools use the `music.` namespace; runtime and system tools us
 
 ## Consequences
 
-- `CONTEXT.md` adds Music Discovery, Music Discovery Handle, and Music Scope
-  Handle under the Public Agent Protocol family.
-- Public outputs never carry internal refs; a handle-veil architecture guard
-  enforces this over each tool's `outputSchema`.
+- `CONTEXT.md` adds Music Discovery, Music Item Handle, Music Abstract Scope
+  Handle, Music Library Scope Handle, Music Provider Scope Handle, and Music
+  Scope under the Public Agent Protocol family.
+- Public outputs never carry internal refs; handle-veil guards enforce this over
+  each tool's `outputSchema` property names and sample output fixture
+  keys/values. Handle factory and signed opaque cursor guards are required when
+  those implementations ship.
 - The seam lets Retrieval internals change without breaking the public contract.
 - Music Discovery is the first instance of the Tool Framework (ADR-0009); future
   agent-facing capabilities follow the same public-seam discipline.
+- `music.discovery.lookup.scopes` maps to internal Retrieval pools inside the
+  handler; agents and users see only public Music Scopes.

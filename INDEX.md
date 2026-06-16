@@ -107,10 +107,16 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Phase 15 execution plan split into PR 15A typed pools, PR 15B runtime
   result-set foundation, PR 15C fixture mixed query, and PR 15D provider slot
   wiring; PR15A, PR15B, PR15C, and PR15D are implemented.
-- `docs/formal-rebuild/stage-interface-tool-frame.md`: pre-phase-sanction design
+- `docs/formal-rebuild/phase-16-stage-interface-tool-frame-implementation-plan.md`:
+  Phase 16 execution plan for the agent-facing Tool Framework, split into PR 16A
+  framework contract layer, PR 16B Public Handle Veil + HandleMintingPort
+  registry + execution gate stub + global timeout, PR 16C `list_scopes`, and PR
+  16D `lookup`; PR16A–16D planned.
+- `docs/formal-rebuild/stage-interface-tool-frame.md`: Phase 16 design
   authority for the agent-facing Tool Framework skeleton (mandatory core plus
   owned extensible dimensions), with Music Discovery as the first concrete
-  instance; pairs with ADR-0009 through ADR-0012.
+  instance; pairs with ADR-0009 through ADR-0012, ADR-0014 through ADR-0017,
+  ADR-0019, and ADR-0020.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -175,6 +181,21 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/adr/0013-contracts-per-area-split.md`: contracts barrel split into
   per-area contract files behind a shared leaf kernel, with a transitional
   re-export shim and machine-checked DAG/kernel-export/barrel guards.
+- `docs/adr/0014-model-visible-tool-guidance-is-mandatory.md`: Public Agent
+  Protocol / model-visible tools must declare description, usage semantics, and
+  positive/negative examples as mandatory guidance.
+- `docs/adr/0015-side-effect-and-invocation-policy-are-separate.md`: static
+  tool side-effect truth remains separate from Effect Boundary-owned invocation
+  policy, default call posture, and data-egress posture.
+- `docs/adr/0016-tool-descriptor-and-handler-registration-are-separate.md`:
+  public tool descriptors are separate from runtime handler registration.
+- `docs/adr/0017-tool-call-router-owns-tool-call-output-name.md`: Tool Call
+  Router owns `ToolCallOutput.toolName`; handlers return payloads only.
+- `docs/adr/0019-veil-ownership-split-and-handle-scheme.md`: Public Handle Veil
+  split into Stage Interface–owned `HandleMintingPort` plus per-tool label
+  synthesis; library handle registry scheme.
+- `docs/adr/0020-declared-error-vocabulary-and-fail-whole-recovery.md`: declared
+  per-tool public error vocabulary and fail-whole multi-scope recovery.
 
 ## Pre-Formal ADR Evidence
 
@@ -222,15 +243,22 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   contracts; imports only the kernel.
 - `src/contracts/stage_core.ts`: runtime lifecycle and snapshot contracts;
   imports the kernel and stage_interface.
-- `src/contracts/index.ts`: transitional re-export shim over the per-area
-  contract files (ADR-0013), including Phase 1 entity/source vocabulary and
-  Phase 2 runtime snapshot vocabulary; Phase 2 repoints importers to the narrow
-  paths and deletes this shim.
+- `src/contracts/`: no `index.ts` barrel (deleted in Phase 2); importers read the
+  per-area files above directly (ADR-0013). Phase 1 entity/source vocabulary and
+  Phase 2 runtime snapshot vocabulary live in the area files listed above.
 - `src/stage_interface/index.ts`: minimal Stage Interface skeleton.
-- `src/extension/source_provider_slot.ts`: Source Provider Slot registration
-  and search validation seam.
-- `src/extension/platform_library_provider_slot.ts`: Platform Library
-  Provider Slot registration and read validation seam.
+- `src/extension/capability_slot.ts`: capability slot definition with typed
+  registration validation (`validateRegistration`) and write policy.
+- `src/extension/capability_registry.ts`: registration-only capability registry
+  (register/list/get + cardinality/write-policy/key validation).
+- `src/extension/capability_dispatch.ts`: generic capability dispatch skeleton
+  (find → capability-check → invoke → validate) shared by provider slots.
+- `src/extension/type_guards.ts`: shared extension type guards
+  (`isRecord`/`isResultLike`/`isStageErrorLike`/`isSourceEntityKind`).
+- `src/extension/source_provider_slot.ts`: source-provider slot, search dispatch,
+  and registration/output validation.
+- `src/extension/platform_library_provider_slot.ts`: platform-library-provider
+  slot, read dispatch, and registration/output validation.
 - `src/extension/plugins/ncm.ts`: NCM source-provider and
   platform-library-provider plugin.
 - `src/extension/plugins/index.ts`: Extension plugin exports.

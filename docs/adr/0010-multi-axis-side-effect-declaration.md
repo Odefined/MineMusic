@@ -4,6 +4,8 @@
 
 Accepted
 
+Amended by ADR-0015.
+
 ## Context
 
 External guidance often models tool side-effect as a single-axis enum
@@ -35,8 +37,13 @@ depends on input, but the declared axis is static because a registration guard
 cannot evaluate input.
 
 Stage Interface DECLARES these axes as tool metadata. Effect Boundary OWNS
-enforcement (auto-invocation gating, approval, audit). Auto-invocation gates
-only on `durableUserStateWrite: false`.
+enforcement (auto-invocation gating, approval, audit). On the side-effect axis,
+`durableUserStateWrite: false` is the hard safety requirement for
+auto-invocation.
+
+ADR-0015 adds the second half of the rule: the default invocation posture is
+carried by a separate mandatory `invocationPolicy` interpreted by Effect
+Boundary.
 
 Declaration is mandatory at registration in the first version. Enforcement is
 deferred until the Effect Boundary is implemented, and the gap is documented; the
@@ -44,8 +51,9 @@ registration guard only verifies that a declaration is present.
 
 A read-only provider-candidate search declares
 `durableUserStateWrite: false`, `runtimeStateWrite: true`, `externalCall: true`
-and remains auto-invocable because no durable user state changes and no
-irreversible external effect occurs.
+and remains auto-eligible because no durable user state changes and no
+irreversible external effect occurs; ADR-0015 records the separate
+`invocationPolicy` default that makes it auto-invocable.
 
 ## Rejected Alternatives
 
@@ -66,6 +74,7 @@ irreversible external effect occurs.
   auto-invocation and approval; Stage Interface carries metadata only.
 - An architecture guard requires every Tool Declaration to declare `sideEffect`.
 - Provider-candidate tools stay auto-invocable because their
-  `durableUserStateWrite` is `false`.
+  `durableUserStateWrite` is `false` and ADR-0015 gives them an explicit
+  `invocationPolicy.defaultDecision`.
 - Data egress consent for provider calls is obtained at provider-connection
   time, not per search.
