@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGenerator } from "ts-json-schema-generator";
@@ -8,6 +8,7 @@ const outputPath = resolve(
   repositoryRoot,
   "src/contracts/generated/stage_interface_schemas.ts",
 );
+const checkMode = process.argv.includes("--check");
 
 const schemaTargets = [
   {
@@ -82,9 +83,27 @@ for (const target of generatedSchemas) {
   );
 }
 
-await mkdir(dirname(outputPath), { recursive: true });
-await writeFile(outputPath, `${lines.join("\n")}\n`);
+const output = `${lines.join("\n")}\n`;
+const outputLabel = relative(repositoryRoot, outputPath);
 
-console.log(
-  `Generated ${generatedSchemas.length} Stage Interface schemas at ${relative(repositoryRoot, outputPath)}.`,
-);
+if (checkMode) {
+  let current = "";
+  try {
+    current = await readFile(outputPath, "utf8");
+  } catch (cause) {
+    if (cause && cause.code === "ENOENT") {
+      console.error(`Stage Interface schemas missing at ${outputLabel}; run \`npm run generate:stage-interface-schemas\`.`);
+      process.exit(1);
+    }
+    throw cause;
+  }
+  if (current !== output) {
+    console.error(`Stage Interface schemas are out of date at ${outputLabel}; run \`npm run generate:stage-interface-schemas\` and commit the result.`);
+    process.exit(1);
+  }
+  console.log(`Stage Interface schemas are up to date at ${outputLabel}.`);
+} else {
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, output);
+  console.log(`Generated ${generatedSchemas.length} Stage Interface schemas at ${outputLabel}.`);
+}

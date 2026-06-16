@@ -6,6 +6,7 @@ import type {
   JsonSchema,
   StageInterfaceContract,
   StageToolContext,
+  StageToolExecutionGatePreflightResult,
   StageToolRegistration,
   ToolCallInput,
   ToolCallOutput,
@@ -73,13 +74,24 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
         );
       }
 
-      const gateDecision = await ctx.executionGate.preflight({
-        descriptor: registration.descriptor,
-        ownerScope: ctx.ownerScope,
-        sessionId: ctx.sessionId,
-        requestId: ctx.requestId,
-        arguments: call.payload,
-      });
+      let gateDecision: StageToolExecutionGatePreflightResult;
+
+      try {
+        gateDecision = await ctx.executionGate.preflight({
+          descriptor: registration.descriptor,
+          ownerScope: ctx.ownerScope,
+          sessionId: ctx.sessionId,
+          requestId: ctx.requestId,
+          arguments: call.payload,
+        });
+      } catch {
+        // The execution gate is a cross-context seam; a throw must not escape dispatch.
+        return fail(
+          "stage_interface.execution_gate_failed",
+          `Tool '${call.toolName}' could not be authorized by the execution gate.`,
+          false,
+        );
+      }
 
       if (gateDecision.decision !== "allow") {
         return fail(
@@ -114,7 +126,19 @@ export function createStageInterface(input: CreateStageInterfaceInput): StageInt
           );
         }
 
-        return handled;
+        // `cause` is internal detail; strip it before a declared handler error
+        // crosses the veil. PR 16B normalizes the full payload (retryable/area)
+        // against the declaration.
+        return {
+          ok: false,
+          error: {
+            code: handled.error.code,
+            message: handled.error.message,
+            area: handled.error.area,
+            retryable: handled.error.retryable,
+            ...(handled.error.suggestedFix === undefined ? {} : { suggestedFix: handled.error.suggestedFix }),
+          },
+        };
       }
 
       if (!validation.output(handled.value)) {

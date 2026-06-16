@@ -256,6 +256,88 @@ if (!denyResult.ok) {
   assert.equal(denyResult.error.code, "stage_interface.denied_by_policy");
 }
 
+let gateThrowHandlerCalled = false;
+const gateThrowInterface = createStageInterface({
+  instruments: [instrument],
+  registrations: [
+    {
+      descriptor,
+      handler: async () => {
+        gateThrowHandlerCalled = true;
+        return {
+          ok: true as const,
+          value: {
+            ok: true,
+          },
+        };
+      },
+    },
+  ],
+});
+const gateThrowResult = await gateThrowInterface.dispatch(
+  {
+    ...testStageToolContext(),
+    executionGate: {
+      async preflight() {
+        throw new Error("gate internal meltdown referencing sourceRef xyz");
+      },
+    },
+  },
+  {
+    toolName: descriptor.name,
+    payload: {},
+  },
+);
+
+assert.equal(gateThrowResult.ok, false);
+assert.equal(gateThrowHandlerCalled, false);
+
+if (!gateThrowResult.ok) {
+  assert.equal(gateThrowResult.error.code, "stage_interface.execution_gate_failed");
+  assert.equal(
+    JSON.stringify(gateThrowResult.error).includes("sourceRef xyz"),
+    false,
+  );
+}
+
+const declaredCauseInterface = createStageInterface({
+  instruments: [instrument],
+  registrations: [
+    {
+      descriptor,
+      handler: async (): Promise<Result<unknown>> => ({
+        ok: false,
+        error: {
+          code: "invalid_input",
+          message: "handler domain error",
+          area: "stage_core",
+          retryable: false,
+          cause: {
+            sourceRef: "internal-anchor",
+            dbRow: 42,
+          },
+        },
+      }),
+    },
+  ],
+});
+const declaredCauseResult = await declaredCauseInterface.dispatch(testStageToolContext(), {
+  toolName: descriptor.name,
+  payload: {},
+});
+
+assert.equal(declaredCauseResult.ok, false);
+
+if (!declaredCauseResult.ok) {
+  // `invalid_input` is declared, so the error is forwarded — but `cause` is stripped.
+  assert.equal(declaredCauseResult.error.code, "invalid_input");
+  assert.equal(declaredCauseResult.error.cause, undefined);
+  assert.equal(
+    JSON.stringify(declaredCauseResult.error).includes("internal-anchor"),
+    false,
+  );
+}
+
 function compiled(schema: JsonSchema) {
   return ajv.compile(schema as AnySchema);
 }
