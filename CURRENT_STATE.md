@@ -94,8 +94,10 @@ inventory; they are preserved by git history and archive docs only.
 ## Formal Vocabulary State
 
 Formal target vocabulary lives in `docs/formal-project-glossary.md`.
-The implemented formal TypeScript vocabulary lives in `src/contracts/index.ts`
-and area-specific public exports.
+The implemented formal TypeScript vocabulary lives in the per-area contract
+files under `src/contracts/` (`kernel.ts`, `music_data_platform.ts`,
+`storage.ts`, `stage_interface.ts`, `stage_core.ts`), re-exported by the
+`src/contracts/index.ts` shim; see ADR-0013 for the split.
 
 Accepted vocabulary includes:
 
@@ -422,8 +424,11 @@ compatibility aliases:
 
 The active TypeScript tree is now a formal skeleton:
 
-- `src/contracts/index.ts` owns Phase 1 contracts and Phase 2 runtime snapshot
-  contracts;
+- `src/contracts/` contracts are split into per-area files behind a shared leaf
+  kernel (`kernel.ts`, `music_data_platform.ts`, `storage.ts`,
+  `stage_interface.ts`, `stage_core.ts`), re-exported by the `index.ts` shim;
+  ADR-0013 records the split and the machine-checked DAG / kernel-export /
+  barrel-integrity guards;
 - `src/extension/capability_slot.ts` owns plain-object capability slot
   declarations;
 - `src/extension/capability_registry.ts` owns typed-slot registration, list,
@@ -585,6 +590,19 @@ restored as compatibility layers.
 - `docs/adr/0008-command-owned-write-boundaries.md` records that all MineMusic
   state mutation must go through the owning command/materializer/projection
   maintenance boundary.
+- `docs/adr/0009-tool-framework-mandatory-core-owned-dimensions.md` records the
+  agent-facing Tool Framework as a mandatory core plus owned extensible
+  dimensions, evolving only `StageError` with an optional `suggestedFix`.
+- `docs/adr/0010-multi-axis-side-effect-declaration.md` records the three-axis
+  tool side-effect declaration with deferred Effect Boundary enforcement.
+- `docs/adr/0011-candidate-commit-boundary.md` records the Candidate Commit
+  boundary as the Music Data Platform-owned candidate-to-durable
+  materialization successor to the deleted ephemeral-material presentation rule.
+- `docs/adr/0012-music-discovery-retrieval-seam.md` records Music Discovery as a
+  Public Agent Protocol seam over Music Intelligence Retrieval.
+- `docs/adr/0013-contracts-per-area-split.md` records the contracts barrel split
+  into per-area files behind a shared leaf kernel, with a transitional re-export
+  shim and machine-checked DAG/kernel-export/barrel guards.
 - `docs/extension/README.md`, `docs/extension/design.md`,
   `docs/extension/ports.md`, and `docs/extension/progress.md` are the current
   Extension area docs introduced by Phase 3.
@@ -653,6 +671,11 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-15-provider-search-pool-retrieval-implementation-plan.md`
   remains the active Phase 15 execution plan; PR15A, PR15B, PR15C, and PR15D
   are implemented.
+- `docs/formal-rebuild/stage-interface-tool-frame.md` is the pre-phase-sanction
+  design authority for the agent-facing Tool Framework skeleton (mandatory core
+  plus owned extensible dimensions) with Music Discovery as the first concrete
+  instance; it is design-stage and not yet paired with an implementation plan or
+  a phase number, and pairs with ADR-0009 through ADR-0012.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -661,9 +684,14 @@ restored as compatibility layers.
   docs were removed from active `docs/`. Evidence remains in `docs/archive/`
   and git history only.
 
-`CONTEXT.md` was not edited in Phase 0. If it is updated later by explicit user
-request, it should be stable glossary only, not migration status or temporary
-implementation explanation.
+`CONTEXT.md` was not edited in Phase 0. It has since been refreshed by explicit
+user request during the pre-phase Tool Framework design work to add stable
+glossary terms only (Music Discovery, Music Discovery Handle, Music Scope
+Handle, Material Candidate, Music Intelligence Retrieval, Candidate Commit) and
+to remove the deleted Material Resolve / ephemeral-material vocabulary; it
+carries no migration status or temporary implementation explanation. It remains
+a working glossary; formal target vocabulary authority lives in
+`docs/formal-project-glossary.md`.
 
 ## Not Yet Migrated
 

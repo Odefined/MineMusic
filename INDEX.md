@@ -107,6 +107,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Phase 15 execution plan split into PR 15A typed pools, PR 15B runtime
   result-set foundation, PR 15C fixture mixed query, and PR 15D provider slot
   wiring; PR15A, PR15B, PR15C, and PR15D are implemented.
+- `docs/formal-rebuild/stage-interface-tool-frame.md`: pre-phase-sanction design
+  authority for the agent-facing Tool Framework skeleton (mandatory core plus
+  owned extensible dimensions), with Music Discovery as the first concrete
+  instance; pairs with ADR-0009 through ADR-0012.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -159,6 +163,18 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   relation source-of-truth split.
 - `docs/adr/0008-command-owned-write-boundaries.md`: command-owned write
   boundaries for all MineMusic state mutation.
+- `docs/adr/0009-tool-framework-mandatory-core-owned-dimensions.md`:
+  agent-facing Tool Framework as a mandatory core plus owned extensible
+  dimensions.
+- `docs/adr/0010-multi-axis-side-effect-declaration.md`: three-axis tool
+  side-effect declaration with deferred Effect Boundary enforcement.
+- `docs/adr/0011-candidate-commit-boundary.md`: Candidate Commit as the Music
+  Data Platform-owned candidate-to-durable materialization boundary.
+- `docs/adr/0012-music-discovery-retrieval-seam.md`: Music Discovery as a Public
+  Agent Protocol seam over Music Intelligence Retrieval.
+- `docs/adr/0013-contracts-per-area-split.md`: contracts barrel split into
+  per-area contract files behind a shared leaf kernel, with a transitional
+  re-export shim and machine-checked DAG/kernel-export/barrel guards.
 
 ## Pre-Formal ADR Evidence
 
@@ -194,8 +210,22 @@ contracts when their owning phase starts.
 
 The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 
-- `src/contracts/index.ts`: formal contracts, including Phase 1 entity/source
-  vocabulary and Phase 2 runtime snapshot vocabulary.
+- `src/contracts/kernel.ts`: shared leaf contract kernel (cross-cutting `Ref`,
+  `Result`, `StageError`/`StageWarning`, `FormalArea`, and ref helpers); a strict
+  leaf that imports no other contract file (ADR-0013).
+- `src/contracts/music_data_platform.ts`: source/material/canonical, provider,
+  platform-library, source-library import, and material-text tokenization
+  contracts; imports only the kernel.
+- `src/contracts/storage.ts`: source/material/canonical record contracts; imports
+  the kernel and music_data_platform.
+- `src/contracts/stage_interface.ts`: instrument/tool and Stage Interface
+  contracts; imports only the kernel.
+- `src/contracts/stage_core.ts`: runtime lifecycle and snapshot contracts;
+  imports the kernel and stage_interface.
+- `src/contracts/index.ts`: transitional re-export shim over the per-area
+  contract files (ADR-0013), including Phase 1 entity/source vocabulary and
+  Phase 2 runtime snapshot vocabulary; Phase 2 repoints importers to the narrow
+  paths and deletes this shim.
 - `src/stage_interface/index.ts`: minimal Stage Interface skeleton.
 - `src/extension/source_provider_slot.ts`: Source Provider Slot registration
   and search validation seam.

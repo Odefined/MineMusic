@@ -1034,6 +1034,151 @@ assert.deepEqual(
   "schema initialization must not hide destructive table resets",
 );
 
+// ADR-0013: contracts DAG, kernel-leak, and barrel-integrity guards.
+// The contracts barrel is split into per-area files behind a shared leaf
+// kernel. These guards machine-check the one-directional DAG so the split
+// cannot silently regress into a cycle or a god-type barrel.
+
+// Three import forms, in order: `from "spec"` clauses (covers type, value,
+// and namespace imports), dynamic `import("spec")` calls, and bare side-effect
+// `import "spec"` statements. All three are relative-edge vectors the DAG
+// guard must see; the side-effect form has no `from` keyword and would slip a
+// forbidden edge past a `from`-only regex.
+const contractsImportSpecifierPattern =
+  /\bfrom\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)|\bimport\s+["']([^"']+)["']/gu;
+
+const contractsDagAllowlist: Readonly<Record<string, readonly string[]>> = {
+  "src/contracts/kernel.ts": [],
+  "src/contracts/music_data_platform.ts": ["./kernel.js"],
+  "src/contracts/storage.ts": ["./kernel.js", "./music_data_platform.js"],
+  "src/contracts/stage_interface.ts": ["./kernel.js"],
+  "src/contracts/stage_core.ts": ["./kernel.js", "./stage_interface.js"],
+};
+
+const contractsDagFailures: string[] = [];
+for (const [contractFile, allowed] of Object.entries(contractsDagAllowlist)) {
+  const text = await readFile(join(repositoryRoot, contractFile), "utf8");
+  const relativeSpecifiers: string[] = [];
+
+  for (const match of text.matchAll(contractsImportSpecifierPattern)) {
+    const specifier = match[1] ?? match[2] ?? match[3];
+    if (typeof specifier === "string" && specifier.startsWith(".")) {
+      relativeSpecifiers.push(specifier);
+    }
+  }
+
+  for (const specifier of relativeSpecifiers) {
+    if (!allowed.includes(specifier)) {
+      contractsDagFailures.push(
+        `${contractFile} imports forbidden contract specifier '${specifier}'`,
+      );
+    }
+  }
+}
+assert.deepEqual(
+  contractsDagFailures,
+  [],
+  "contracts files must follow the one-directional DAG (kernel leaf; storage/stage_core read downward; no reverse edges)",
+);
+
+// G2 (kernel-export allow-list): rather than scan for an ever-incomplete
+// deny-list of area-specific identifiers, assert kernel.ts exports ONLY the
+// cross-cutting primitives. This is additive-safe — any future area type placed
+// in the kernel is flagged immediately, without the author having to extend a
+// deny-list. The set below is the kernel surface named in ADR-0013.
+const kernelLeakFailures: string[] = [];
+const kernelLeakText = await readFile(
+  join(repositoryRoot, "src/contracts/kernel.ts"),
+  "utf8",
+);
+const kernelExportPattern =
+  /\bexport\s+(?:type|interface|function|const|class|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gu;
+const kernelExports = new Set(
+  [...kernelLeakText.matchAll(kernelExportPattern)]
+    .map((match) => match[1])
+    .filter((name): name is string => typeof name === "string"),
+);
+const kernelAllowedExports = new Set([
+  "Result",
+  "StageError",
+  "StageWarning",
+  "FormalArea",
+  "Ref",
+  "isRefComponentSafe",
+  "assertRefSafe",
+  "refKey",
+]);
+for (const exportedName of kernelExports) {
+  if (!kernelAllowedExports.has(exportedName)) {
+    kernelLeakFailures.push(
+      `src/contracts/kernel.ts exports non-kernel identifier '${exportedName}' (kernel must hold only cross-cutting primitives)`,
+    );
+  }
+}
+for (const expectedKernelExport of kernelAllowedExports) {
+  if (!kernelExports.has(expectedKernelExport)) {
+    kernelLeakFailures.push(
+      `src/contracts/kernel.ts is missing expected kernel export '${expectedKernelExport}'`,
+    );
+  }
+}
+assert.deepEqual(
+  kernelLeakFailures,
+  [],
+  "src/contracts/kernel.ts must export only the cross-cutting kernel primitives: Result, StageError, StageWarning, FormalArea, Ref, isRefComponentSafe, assertRefSafe, refKey",
+);
+
+const contractsBarrelText = await readFile(
+  join(repositoryRoot, "src/contracts/index.ts"),
+  "utf8",
+);
+const contractsBarrelFailures: string[] = [];
+const contractsBarrelReExports = [
+  ...contractsBarrelText.matchAll(/export\s+\*\s+from\s+["']\.\/(\w+)\.js["']/gu),
+].map((match) => match[1]);
+
+for (const expectedContractReExport of [
+  "kernel",
+  "music_data_platform",
+  "storage",
+  "stage_interface",
+  "stage_core",
+]) {
+  if (!contractsBarrelReExports.includes(expectedContractReExport)) {
+    contractsBarrelFailures.push(
+      `contracts barrel does not re-export '${expectedContractReExport}'`,
+    );
+  }
+}
+
+for (const line of contractsBarrelText.split("\n")) {
+  const trimmedLine = line.trim();
+  // Skip blanks and ordinary `//` line comments, but NOT triple-slash `///`
+  // compiler directives (which can pull in types and are not re-exports). Also
+  // skip single-line `/* ... */` block comments so a stray eslint/disable line
+  // is not falsely flagged as a non-re-export.
+  const isOrdinaryLineComment =
+    trimmedLine.startsWith("//") && !trimmedLine.startsWith("///");
+  const isSingleLineBlockComment = /^\/\*.*\*\/$/u.test(trimmedLine);
+  if (
+    trimmedLine === "" ||
+    isOrdinaryLineComment ||
+    isSingleLineBlockComment
+  ) {
+    continue;
+  }
+  if (!/^export\s+\*\s+from\s+["']\.\/\w+\.js["'];?$/u.test(trimmedLine)) {
+    contractsBarrelFailures.push(
+      `contracts barrel defines a non-re-export line: ${trimmedLine}`,
+    );
+  }
+}
+assert.deepEqual(
+  contractsBarrelFailures,
+  [],
+  "src/contracts/index.ts must be a pure re-export shim over the per-area contract files",
+);
+
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);

@@ -129,8 +129,10 @@ distinguishes a known catalog item from an unconfirmed provider candidate throug
 public result semantics, never through internal refs. Music Discovery does not
 save, play, favorite, block, import, commit a candidate to a durable record, or
 expose a final recommendation.
-_Avoid_: internal Retrieval hit, material candidate ref, materialRef, sourceRef,
-canonicalRef, pool filter, result set id, provider raw id, Material Resolve.
+_Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
+Tool Frame): internal Retrieval hit, material candidate ref, materialRef,
+sourceRef, canonicalRef, sourceLibraryRef, ownerRelationPoolRef, pool filter,
+result set id, provider raw id.
 
 ### Music Discovery Handle
 
@@ -139,15 +141,18 @@ result item across later turns or tools. It is kind-discriminated and carries it
 own lifetime in the public contract:
 
 - `catalog`: a known, durable catalog item. Stable indefinitely.
-- `candidate`: an unconfirmed provider candidate. Stable only within an active
-  discovery session window and may expire.
+- `candidate`: an unconfirmed provider candidate. Stable only while its
+  underlying unconfirmed candidate is still held in runtime cache; an expired
+  candidate handle fails explicitly and must not silently re-resolve.
 
 A Music Discovery Handle is never a raw durable material ref, material candidate
 ref, source ref, or canonical ref; those internal anchors are resolved only
 inside MineMusic. A `candidate` handle that has expired must fail explicitly
 rather than silently resolve to a different item.
-_Avoid_: materialRef, materialCandidateRef, sourceRef, canonicalRef, provider
-entity id, raw database or provider key.
+_Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
+Tool Frame): materialRef, materialCandidateRef, sourceRef, canonicalRef,
+sourceLibraryRef, ownerRelationPoolRef, resultSetId, provider entity id, raw
+database or provider key.
 
 ### Music Scope Handle
 
@@ -159,7 +164,8 @@ A Music Scope Handle is kind-discriminated (`library` | `relation`) and durable.
 It is never a raw source library ref or owner relation pool ref; those internal
 anchors are resolved only inside MineMusic. A Music Scope Handle is obtained
 from the `music.discovery.list_scopes` tool, not constructed by the agent.
-_Avoid_: sourceLibraryRef, ownerRelationPoolRef, provider id, raw owner or
+_Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
+Tool Frame): sourceLibraryRef, ownerRelationPoolRef, provider id, raw owner or
 library key, Collection (out of v1 scope).
 
 ### Stage Modules
@@ -184,7 +190,6 @@ Core Capabilities:
 
 - Material Store.
 - Collection Service.
-- Material Resolve.
 - Source Grounding.
 - Music Knowledge.
 - Event Service.
@@ -241,13 +246,43 @@ Material Policy, Material Materialization, Stage Interface, and app entrypoints
 should use Material Projection instead of reimplementing
 `MaterialRecord`-to-`MusicMaterial` rules.
 
+### Material Candidate
+
+An unconfirmed provider-origin music object held in runtime cache, not a durable
+record. It is the runtime-side backing of a Music Discovery Handle of kind
+`candidate`, and becomes durable identity only through Candidate Commit.
+_Avoid_: durable material, Canonical Record, Collection Item, source-backed fact.
+
+### Music Intelligence Retrieval
+
+The Music Intelligence Core Capability that turns an uncertain natural-language
+query into ranked candidate music items via local catalog recall and provider
+candidate search, with result-set and candidate caching and cursor paging. It
+owns query and recall; its result-set and candidate cache are held by Music Data
+Platform; it does not own durable identity writes. Music Discovery is the public
+Stage Interface seam over Retrieval (ADR-0012), and Retrieval internals
+(`materialCandidateRef`, `resultSetId`, pool algebra) never cross that seam.
+_Avoid_: Stage Interface presentation, durable materialization, public handle.
+
+### Candidate Commit
+
+The owning-command materialization boundary in Music Data Platform that turns an
+unconfirmed candidate into a durable material through the existing
+source/material/binding write commands and triggers projection invalidation. It
+is the only place an unconfirmed candidate becomes durable identity, and the
+formal successor to the deleted ephemeral-material presentation rule. Its input
+is a Music Discovery Handle (kind `candidate`), resolved to the internal
+candidate cache inside MineMusic at commit time.
+_Avoid_: Stage Interface presentation boundary, inline per-action materialization,
+reviving Material Resolve (Deleted Formal v1 Surface).
+
 ### Collection Service
 
 The Core Capability for a user's explicit long-lived music assets, such as kept
 recordings, works, release groups, releases, and artists.
 
 Collection Service is distinct from Memory Service, Event Service, Material
-Store, Material Resolve, Source Grounding, and Session Context. A Collection is
+Store, Source Grounding, and Session Context. A Collection is
 an owner-scoped group of long-lived relationships to material objects; a
 Collection Item is a member of that Collection whose product-level target is
 `materialRef`. Canonical identity, source refs, and Source Library are external
@@ -359,32 +394,6 @@ _Avoid_: Import Scope, Source Library item kind, Collection kind.
 
 Provider-reported recent plays or listening activity that can inform context and
 memory evidence without becoming a Collection item.
-
-### Material Resolve
-
-The text-query grounding path that turns uncertain music descriptions into
-`MusicMaterial` results for recommendation or presentation.
-
-Material Resolve starts from uncertain text queries. A `materialId` is already a
-MineMusic material handle, and `sourceRef` / `canonicalRef` are source or
-identity anchors handled by projection or materialization boundaries rather than
-Resolve's text-query path.
-
-Material Resolve is where text, local durable material search, provider/source
-evidence, playable material state, and material-resolution policy come together
-before materials are returned to Stage Interface.
-
-Source Library constrained retrieval belongs to Material Query and Material
-Search, not Material Resolve. Material Resolve does not choose the final
-recommendation, write Collection state, create durable `MaterialRecord`
-identity, or create canonical identity.
-
-Provider-backed results that do not already match a durable `MaterialRecord`
-may be returned as `MusicMaterial` values whose `materialRef.kind` is
-`"ephemeral_material"`. These refs are backed by process-local ephemeral state,
-not durable material records. Only the final recommendation presentation
-boundary may consume a selected `ephemeral_material` and turn it into a durable
-material record.
 
 ### Music Knowledge
 

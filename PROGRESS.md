@@ -826,6 +826,31 @@ Phase 15C/15D still do not add Stage Interface tools, public retrieval output,
 candidate-to-material commit commands, save/present flows, or recommendation
 judgement.
 
+## 2026-06-16: Contracts Per-Area Split
+
+The contracts barrel is split into per-area contract files behind a shared leaf
+kernel (ADR-0013):
+
+- `src/contracts/index.ts` was a single 61-export barrel imported across every
+  formal area; it is now a transitional re-export shim over five definition
+  files;
+- `kernel.ts` is a strict leaf (`Result`, `StageError`/`StageWarning`,
+  `FormalArea`, `Ref`, `isRefComponentSafe`, `assertRefSafe`, `refKey`);
+- `music_data_platform.ts` imports the kernel; `storage.ts` imports the kernel
+  and music_data_platform; `stage_interface.ts` imports the kernel;
+  `stage_core.ts` imports the kernel and stage_interface;
+- there is no `music_intelligence` contract; retrieval reads downward into
+  music_data_platform, and material-text tokenization lives in
+  music_data_platform to avoid a reverse edge;
+- `PublicRefKey` and `PublicHandle` are dropped as zero-/single-consumer
+  orphans; `refKey` returns `string`;
+- `test/formal/active-tree.test.ts` adds three machine-checked guards: a
+  contracts DAG per-file allow-list (covering `from`, dynamic `import()`, and
+  bare side-effect imports), a kernel-export allow-list, and a barrel-integrity
+  check;
+- Phase 1 changes no importer; Phase 2 repoints importers to the narrow contract
+  paths and deletes the shim.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
