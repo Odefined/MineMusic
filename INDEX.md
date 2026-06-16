@@ -111,7 +111,7 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Phase 16 execution plan for the agent-facing Tool Framework, split into PR 16A
   framework contract layer, PR 16B Public Handle Veil + HandleMintingPort
   registry + execution gate stub + global timeout, PR 16C `list_scopes`, and PR
-  16D `lookup`; PR16A–16D planned.
+  16D `lookup`; PR16A is implemented, PR16B–16D planned.
 - `docs/formal-rebuild/stage-interface-tool-frame.md`: Phase 16 design
   authority for the agent-facing Tool Framework skeleton (mandatory core plus
   owned extensible dimensions), with Music Discovery as the first concrete
@@ -240,13 +240,23 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/contracts/storage.ts`: source/material/canonical record contracts; imports
   the kernel and music_data_platform.
 - `src/contracts/stage_interface.ts`: instrument/tool and Stage Interface
-  contracts; imports only the kernel.
+  contracts, including the Phase 16A Tool Declaration mandatory core,
+  `StageToolRegistration`, cross-cutting Stage Tool context ports, declared
+  error vocabulary, and public Music Scope / Music Item Handle DTOs; imports
+  only the kernel.
+- `src/contracts/generated/stage_interface_schemas.ts`: generated JSON Schema
+  artifacts derived from TypeScript source for Stage Interface tool inputs and
+  outputs; refreshed by `npm run generate:stage-interface-schemas`.
+- `src/contracts/public_music_description.ts`: pure public music description
+  and fallback-label helpers for Stage Interface stage adapters.
 - `src/contracts/stage_core.ts`: runtime lifecycle and snapshot contracts;
   imports the kernel and stage_interface.
 - `src/contracts/`: no `index.ts` barrel (deleted in Phase 2); importers read the
   per-area files above directly (ADR-0013). Phase 1 entity/source vocabulary and
   Phase 2 runtime snapshot vocabulary live in the area files listed above.
-- `src/stage_interface/index.ts`: minimal Stage Interface skeleton.
+- `src/stage_interface/index.ts`: Stage Interface Tool Call Router, descriptor
+  validation, generated-schema input/output validation, gate preflight call, and
+  router-owned `ToolCallOutput.toolName` wrapping.
 - `src/extension/capability_slot.ts`: capability slot definition with typed
   registration validation (`validateRegistration`) and write policy.
 - `src/extension/capability_registry.ts`: registration-only capability registry
@@ -265,8 +275,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/stage_core/index.ts`: Stage Core public exports.
 - `src/stage_core/runtime.ts`: Stage Runtime lifecycle baseline.
 - `src/stage_core/runtime_module.ts`: Stage Core runtime module contribution
-  boundary.
-- `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module.
+  boundary using `StageToolRegistration` entries.
+- `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module
+  migrated to the Phase 16A static descriptor + payload handler shape.
 - `src/server/host.ts`: thin Server Host lifecycle owner and internal source
   library import seam accessor.
 - `src/server/config.ts`: Server Host default runtime composition config.
@@ -340,15 +351,18 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   pagination, and coarse freshness.
 - `src/music_data_platform/retrieval_mixed_workspace.ts`: internal mixed
   local/provider result-set workspace and material-candidate cache boundary.
-- `src/music_intelligence/retrieval/query_service.ts`: internal Retrieval
+- `src/music_intelligence/core/retrieval/query_service.ts`: internal Retrieval
   query service over Music Data Platform retrieval ports and provider-search
   port wiring.
-- `src/music_intelligence/retrieval/query_normalization.ts`: Retrieval-owned
-  input normalization and cursor fingerprint input construction.
-- `src/music_intelligence/retrieval/cursor.ts`: Retrieval-owned opaque cursor
+- `src/music_intelligence/core/retrieval/query_normalization.ts`:
+  Retrieval-owned input normalization and cursor fingerprint input construction.
+- `src/music_intelligence/core/retrieval/cursor.ts`: Retrieval-owned opaque cursor
   encoding/decoding.
-- `src/music_intelligence/retrieval/contracts.ts`: Retrieval query input,
+- `src/music_intelligence/core/retrieval/contracts.ts`: Retrieval query input,
   result, hit, pool filter, and service contracts.
+- `src/music_intelligence/stage_adapter/index.ts`: Phase 16A Stage Adapter
+  boundary placeholder; future Music Discovery tool handlers live under this
+  subtree and may import Stage Interface contracts.
 - `src/music_intelligence/errors.ts`: Music Intelligence area errors.
 - `src/music_data_platform/projection_maintenance_schema.ts`: projection
   maintenance target schema contribution.

@@ -1,6 +1,6 @@
-import type { ProviderMaterialCandidate, SourceEntity, SourceEntityKind, SourceQuery } from "../../contracts/music_data_platform.js";
-import type { Ref } from "../../contracts/kernel.js";
-import { isRefComponentSafe, refKey } from "../../contracts/kernel.js";
+import type { ProviderMaterialCandidate, SourceEntity, SourceEntityKind, SourceQuery } from "../../../contracts/music_data_platform.js";
+import type { Ref } from "../../../contracts/kernel.js";
+import { isRefComponentSafe, refKey } from "../../../contracts/kernel.js";
 import type {
   MixedRetrievalCursorPosition,
   MusicDataPlatformMixedRetrievalPage,
@@ -8,8 +8,8 @@ import type {
   MusicDataPlatformRetrievalMaterialRow,
   MusicDataPlatformRetrievalSearchInput,
   RetrievalMatchedTextTokenEvidence,
-} from "../../music_data_platform/index.js";
-import { MusicIntelligenceError } from "../errors.js";
+} from "../../../music_data_platform/index.js";
+import { MusicIntelligenceError } from "../../errors.js";
 import {
   type CreateRetrievalQueryServiceInput,
   type RetrievalEffectiveQuery,

@@ -6,4 +6,4 @@ export type {
   CreateMusicIntelligenceErrorInput,
   MusicIntelligenceErrorCode,
 } from "./errors.js";
-export * from "./retrieval/index.js";
+export * from "./core/retrieval/index.js";

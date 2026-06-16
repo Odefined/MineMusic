@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 
 import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEntityKind, MaterialIdentityStatus, MaterialLifecycleStatus, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, PlayableLink, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntity, SourceEntityKind, SourceLibraryImportBatchStatus, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../src/contracts/music_data_platform.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
-import type { Ref, Result } from "../../src/contracts/kernel.js";
+import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { StageInterfaceContract } from "../../src/contracts/stage_interface.js";
+import type { StageInterfaceContract, ToolDeclaration } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
 
@@ -174,6 +174,31 @@ export type _sourceLibraryImportControlShapes = Expect<
 
 export type _stageInterfaceContractShape = Expect<
   Equal<keyof StageInterfaceContract, "instruments" | "tools">
+>;
+
+export type _stageToolDeclarationShape = Expect<
+  Equal<
+    keyof ToolDeclaration,
+    | "name"
+    | "instrumentId"
+    | "label"
+    | "ownerArea"
+    | "description"
+    | "usage"
+    | "examples"
+    | "sideEffect"
+    | "invocationPolicy"
+    | "inputSchema"
+    | "outputSchema"
+    | "errors"
+    | "allowedActions"
+    | "requiresProvider"
+  > &
+    Equal<ForbiddenKeys<ToolDeclaration, "outputPolicy" | "runtimePolicy" | "contractVersion">, never>
+>;
+
+export type _stageErrorShape = Expect<
+  Equal<keyof StageError, "code" | "message" | "area" | "retryable" | "suggestedFix" | "cause">
 >;
 
 export type _stageRuntimeStatusShape = Expect<

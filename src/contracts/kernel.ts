@@ -12,6 +12,7 @@ export type StageError = {
   message: string;
   area: FormalArea;
   retryable: boolean;
+  suggestedFix?: string;
   cause?: unknown;
 };
 

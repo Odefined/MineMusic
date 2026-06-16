@@ -473,9 +473,14 @@ provider-connection time, not per search.
     sessionId, requestId, arguments })`. The router PASSES the declarations; it
     does not interpret them.
   - **gate -> router**: the gate returns `{ decision: "allow" | "ask" | "deny",
-    auditLevel }`. `allow` proceeds; `ask` returns a declared `ask_required`
-    placeholder to the agent; `deny` returns a declared `denied_by_policy`
-    error. Both are part of the tool's declared `errors`.
+    auditLevel }`. `allow` proceeds; `ask` returns the router-global
+    `stage_interface.ask_required` placeholder to the agent; `deny` returns
+    the router-global `stage_interface.denied_by_policy` error. These are
+    framework-level (router-global) codes owned by Stage Interface, NOT
+    per-tool-declared — see "Declared Error Vocabulary" for the two-tier
+    model. A gate `preflight` throw is caught by the Tool Call Router and
+    mapped to `stage_interface.execution_gate_failed`; dispatch never
+    propagates a gate exception.
   - **Audit**: the gate writes audit (level per `auditLevel`) to the
     `StageToolAuditPort`; the router and handler do not audit.
   - **v1 stub rule** (fail-closed): the stub returns `allow` only when
@@ -609,6 +614,26 @@ error entry is:
 - `suggestedFixTemplate` is the model-actionable recovery step; the handler fills
   in specifics at runtime (for example the named failed scope for
   `provider_scope_failed`, or the re-search guidance for `candidate_expired`).
+
+The error vocabulary is **two-tier**, and the tiers are distinguishable by code prefix:
+
+- **Router-global (framework) errors** are owned by Stage Interface, carry the
+  `stage_interface.` prefix, and apply to every tool uniformly; they are NOT
+  redeclared per tool. The complete set: `stage_interface.tool_not_found`,
+  `stage_interface.invalid_input`, `stage_interface.invalid_output`,
+  `stage_interface.ask_required`, `stage_interface.denied_by_policy`,
+  `stage_interface.execution_gate_failed`,
+  `stage_interface.tool_handler_failed`, and
+  `stage_interface.undeclared_tool_error`. The Tool Call Router emits these
+  directly; they never pass through the per-tool declared-error gate.
+- **Per-tool declared errors** (the descriptor `errors` array) are tool-scoped
+  flat codes (no `stage_interface.` prefix) covering only the handler's own
+  recoverable domain codes (for example `unknown_scope`,
+  `provider_scope_failed`, `result_window_expired`). The declared-error gate
+  checks that a handler emits only codes from this list.
+
+The Handbook therefore lists, per tool: the common router-global failures
+uniformly, plus the tool's own declared recovery codes.
 
 Error mapping is a three-way ownership split:
 - **Stage Interface** owns the public `StageError` shape, declared-vocabulary

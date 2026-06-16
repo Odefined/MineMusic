@@ -678,16 +678,16 @@ Phase 12C adds the first internal Music Intelligence boundary without adding a
 public Stage Interface query tool:
 
 - `src/music_intelligence/errors.ts` defines `MusicIntelligenceError`;
-- `src/music_intelligence/retrieval/contracts.ts` defines Retrieval query
+- `src/music_intelligence/core/retrieval/contracts.ts` defines Retrieval query
   input/result/hit contracts, pool filters, and the
   `createRetrievalQueryService({ readPort })` service shape;
-- `src/music_intelligence/retrieval/query_normalization.ts` defaults the local
-  owner scope, normalizes text for query echo/fingerprints, validates order and
-  limit, normalizes pool filters, dedupes pool refs, and rejects unsupported
+- `src/music_intelligence/core/retrieval/query_normalization.ts` defaults the
+  local owner scope, normalizes text for query echo/fingerprints, validates order
+  and limit, normalizes pool filters, dedupes pool refs, and rejects unsupported
   pool refs plus positive-vs-`noneOf` conflicts;
-- `src/music_intelligence/retrieval/cursor.ts` owns versioned opaque cursor
+- `src/music_intelligence/core/retrieval/cursor.ts` owns versioned opaque cursor
   encode/decode and query-fingerprint mismatch detection;
-- `src/music_intelligence/retrieval/query_service.ts` calls only the narrow
+- `src/music_intelligence/core/retrieval/query_service.ts` calls only the narrow
   Music Data Platform retrieval read port, wraps typed next cursor positions,
   reads coarse freshness, and shapes compact Retrieval hits;
 - Retrieval preserves Music Data Platform row order and does not own SQL,
@@ -899,6 +899,35 @@ ADR-0018):
 - Provider errors without `area` are now rejected as malformed (previously
   silently passed through).
 
+## 2026-06-17: Phase 16A Stage Interface Tool Frame Contract Layer
+
+Phase 16A implements the enforced Stage Interface Tool Frame skeleton before
+shipping concrete Music Discovery tools:
+
+- `ToolDeclaration` now carries the mandatory core from the Phase 16 frame:
+  description, usage, positive/negative examples, side-effect declaration,
+  invocation policy, generated input/output schemas, and declared public errors;
+  the old per-tool `outputPolicy` field is retired.
+- Runtime module contributions now carry `StageToolRegistration` entries
+  (`{ descriptor, handler }`) instead of separate descriptor and handler maps.
+- The Tool Call Router validates generated JSON Schemas with `ajv`, calls the
+  execution-gate preflight port supplied in `StageToolContext`, invokes handlers
+  that return payloads only, rejects undeclared handler error codes, and wraps
+  `ToolCallOutput.toolName` from the descriptor.
+- `stage.runtime.status` is migrated to the static descriptor + payload-handler
+  shape with identical public output.
+- `scripts/generate-stage-interface-schemas.mjs` derives schema artifacts from
+  TypeScript source; tests compile and validate schemas for `MusicScope`,
+  `MusicItemHandle`, and `MusicDiscoveryLookupInput`.
+- Music Intelligence Retrieval moved under `src/music_intelligence/core/`;
+  `src/music_intelligence/stage_adapter/` is established as the future handler
+  boundary, and active-tree guards forbid core imports of Stage Interface
+  contracts or public description helpers.
+
+Phase 16A still does not implement the Public Handle Veil registry, execution
+gate stub ownership, global timeout, `music.discovery.list_scopes`, or
+`music.discovery.lookup`; those remain PR16B–16D.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -906,7 +935,11 @@ ADR-0018):
 Later phases should rewrite area docs and code only when the owning boundary is
 in scope. Known later areas include:
 
-- Stage Interface instruments, tools, Handbook, and output policy;
+- Phase 16B Public Handle Veil registry, execution-gate stub, and global
+  timeout;
+- Phase 16C/16D Music Discovery `list_scopes` and `lookup` tools;
+- Stage Interface Handbook and transport mapping after the first concrete
+  tools ship;
 - provider account/config/runtime behavior beyond the Phase 6 search-only NCM
   plugin;
 - Server Host transports and richer Stage Core runtime composition after area

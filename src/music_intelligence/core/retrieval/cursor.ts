@@ -1,8 +1,8 @@
 import type {
   MixedRetrievalCursorPosition,
   RetrievalReadCursorPosition,
-} from "../../music_data_platform/index.js";
-import { MusicIntelligenceError } from "../errors.js";
+} from "../../../music_data_platform/index.js";
+import { MusicIntelligenceError } from "../../errors.js";
 
 export type RetrievalCursorPayload = {
   version: 2;

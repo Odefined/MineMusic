@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import type { Result, StageError } from "../../src/contracts/kernel.js";
+import type { JsonSchema, StageToolContext, ToolDeclaration } from "../../src/contracts/stage_interface.js";
 import {
   createExtensionRuntimeModule,
   createStageRuntime,
@@ -18,8 +19,26 @@ type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
 type Expect<Check extends true> = Check;
 
 export type _runtimeModuleContributionShape = Expect<
-  Equal<keyof RuntimeModuleContribution, "instruments" | "tools" | "handlers">
+  Equal<keyof RuntimeModuleContribution, "instruments" | "tools">
 >;
+
+const dispatchContext = testStageToolContext();
+
+const emptyObjectSchema = {
+  type: "object",
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+
+const testStatusOutputSchema = {
+  type: "object",
+  properties: {
+    id: {
+      type: "string",
+    },
+  },
+  required: ["id"],
+  additionalProperties: false,
+} as const satisfies JsonSchema;
 
 assert.equal(isRuntimeModuleIdSafe("runtime-status"), true);
 assert.equal(isRuntimeModuleIdSafe("music-data-platform"), true);
@@ -41,7 +60,7 @@ assert.equal(runtime.snapshot().status, "ready");
 assert.equal(runtime.snapshot().modules[0]?.status, "initialized");
 assert.equal(runtime.snapshot().interfaceContract.tools[0]?.name, "stage.runtime.status");
 
-const statusDispatch = await runtime.interface.dispatch({
+const statusDispatch = await runtime.interface.dispatch(dispatchContext, {
   toolName: "stage.runtime.status",
   payload: {},
 });
@@ -75,7 +94,20 @@ if (statusDispatch.ok) {
   });
 }
 
-const missingTool = await runtime.interface.dispatch({
+const invalidStatusInput = await runtime.interface.dispatch(dispatchContext, {
+  toolName: "stage.runtime.status",
+  payload: {
+    unexpected: true,
+  },
+});
+
+assert.equal(invalidStatusInput.ok, false);
+
+if (!invalidStatusInput.ok) {
+  assert.equal(invalidStatusInput.error.code, "stage_interface.invalid_input");
+}
+
+const missingTool = await runtime.interface.dispatch(dispatchContext, {
   toolName: "missing.tool",
   payload: {},
 });
@@ -114,7 +146,7 @@ assert.equal(extensionRuntime.snapshot().modules[0]?.ownerArea, "extension");
 assert.equal(extensionRuntime.snapshot().modules[0]?.status, "initialized");
 assert.equal(extensionRuntime.snapshot().interfaceContract.tools.length, 1);
 
-const extensionStatusDispatch = await extensionRuntime.interface.dispatch({
+const extensionStatusDispatch = await extensionRuntime.interface.dispatch(dispatchContext, {
   toolName: "stage.runtime.status",
   payload: {},
 });
@@ -254,13 +286,20 @@ const duplicateToolRuntime = createStageRuntime({
   modules: [
     testModule("duplicate-tool-a", [], {
       contribution: contributionFor("duplicate-tool-a", {
-        toolName: "duplicate.status",
+        instrumentId: "stage.duplicate_tool",
+        toolName: "stage.duplicate_tool.status",
       }),
     }),
     testModule("duplicate-tool-b", [], {
-      contribution: contributionFor("duplicate-tool-b", {
-        toolName: "duplicate.status",
-      }),
+      contribution: {
+        tools: [
+          registrationFor({
+            id: "duplicate-tool-b",
+            instrumentId: "stage.duplicate_tool",
+            toolName: "stage.duplicate_tool.status",
+          }),
+        ],
+      },
     }),
   ],
 });
@@ -268,96 +307,17 @@ const duplicateToolRuntime = createStageRuntime({
 assert.equal((await duplicateToolRuntime.initialize()).ok, false);
 assert.equal(duplicateToolRuntime.snapshot().error?.code, "stage_core.duplicate_tool");
 
-const duplicateHandlerRuntime = createStageRuntime({
-  modules: [
-    testModule("duplicate-handler-a", [], {
-      contribution: {
-        handlers: {
-          "duplicate-handler.status": async (input) => ({
-            ok: true,
-            value: {
-              toolName: input.toolName,
-              result: {},
-            },
-          }),
-        },
-      },
-    }),
-    testModule("duplicate-handler-b", [], {
-      contribution: {
-        handlers: {
-          "duplicate-handler.status": async (input) => ({
-            ok: true,
-            value: {
-              toolName: input.toolName,
-              result: {},
-            },
-          }),
-        },
-      },
-    }),
-  ],
-});
-
-assert.equal((await duplicateHandlerRuntime.initialize()).ok, false);
-assert.equal(duplicateHandlerRuntime.snapshot().error?.code, "stage_core.duplicate_tool_handler");
-
-const missingHandlerRuntime = createStageRuntime({
-  modules: [
-    testModule("missing-handler", [], {
-      contribution: contributionFor("missing-handler", {
-        includeHandler: false,
-      }),
-    }),
-  ],
-});
-
-assert.equal((await missingHandlerRuntime.initialize()).ok, false);
-assert.equal(missingHandlerRuntime.snapshot().error?.code, "stage_core.missing_tool_handler");
-
-const orphanHandlerRuntime = createStageRuntime({
-  modules: [
-    testModule("orphan-handler", [], {
-      contribution: {
-        handlers: {
-          "orphan-handler.status": async (input) => ({
-            ok: true,
-            value: {
-              toolName: input.toolName,
-              result: {},
-            },
-          }),
-        },
-      },
-    }),
-  ],
-});
-
-assert.equal((await orphanHandlerRuntime.initialize()).ok, false);
-assert.equal(orphanHandlerRuntime.snapshot().error?.code, "stage_core.orphan_tool_handler");
-
 const missingInstrumentRuntime = createStageRuntime({
   modules: [
     testModule("missing-instrument", [], {
       contribution: {
         tools: [
-          {
-            name: "missing-instrument.status",
+          registrationFor({
+            id: "missing-instrument",
             instrumentId: "missing",
-            label: "Missing Instrument",
-            ownerArea: "stage_core",
-            outputPolicy: "compact_public",
-          },
-        ],
-        handlers: {
-          "missing-instrument.status": async (input) => ({
-            ok: true,
-            value: {
-              toolName: input.toolName,
-              result: {},
-            },
+            toolName: "missing-instrument.status",
           }),
-        },
+        ],
       },
     }),
   ],
@@ -404,12 +364,10 @@ function contributionFor(
   options: {
     instrumentId?: string;
     toolName?: string;
-    includeHandler?: boolean;
   } = {},
 ): RuntimeModuleContribution {
-  const instrumentId = options.instrumentId ?? id;
-  const toolName = options.toolName ?? `${id}.status`;
-  const includeHandler = options.includeHandler ?? true;
+  const instrumentId = options.instrumentId ?? `stage.${id.replaceAll("-", "_")}`;
+  const toolName = options.toolName ?? `${instrumentId}.status`;
 
   return {
     instruments: [
@@ -420,29 +378,97 @@ function contributionFor(
       },
     ],
     tools: [
+      registrationFor({ id, instrumentId, toolName }),
+    ],
+  };
+}
+
+function registrationFor(input: {
+  id: string;
+  instrumentId: string;
+  toolName: string;
+}): NonNullable<RuntimeModuleContribution["tools"]>[number] {
+  const descriptor: ToolDeclaration = {
+    name: input.toolName,
+    instrumentId: input.instrumentId,
+    label: `${input.id} Status`,
+    ownerArea: "stage_core",
+    description: `Read ${input.id} test status.`,
+    usage: {
+      useWhen: "Use in formal Stage Runtime tests.",
+      doNotUseWhen: "Do not use in production runtime flows.",
+      outputSemantics: "Returns a compact test id payload.",
+    },
+    examples: [
       {
-        name: toolName,
-        instrumentId,
-        label: `${id} Status`,
-        ownerArea: "stage_core",
-        outputPolicy: "compact_public",
+        prompt: `read ${input.id} status`,
+        expects: "call",
+      },
+      {
+        prompt: "search music",
+        expects: "avoid",
       },
     ],
-    ...(includeHandler
-      ? {
-          handlers: {
-            [toolName]: async (input) => ({
-              ok: true,
-              value: {
-                toolName: input.toolName,
-                result: {
-                  id,
-                },
-              },
-            }),
-          },
-        }
-      : {}),
+    sideEffect: {
+      durableUserStateWrite: false,
+      runtimeStateWrite: false,
+      externalCall: false,
+    },
+    invocationPolicy: {
+      defaultDecision: "auto",
+      dataEgress: "none",
+      readOnlyHint: true,
+      destructiveHint: false,
+    },
+    inputSchema: emptyObjectSchema,
+    outputSchema: testStatusOutputSchema,
+    errors: [
+      {
+        code: "invalid_input",
+        retryable: false,
+        suggestedFixTemplate: "Call this test tool with an empty object.",
+      },
+    ],
+  };
+
+  return {
+    descriptor,
+    handler: async () => ({
+      ok: true,
+      value: {
+        id: input.id,
+      },
+    }),
+  };
+}
+
+function testStageToolContext(): StageToolContext {
+  return {
+    ownerScope: "local",
+    sessionId: "stage-runtime-test-session",
+    requestId: "stage-runtime-test-request",
+    clock: () => "2026-06-17T00:00:00.000Z",
+    handleMinting: {
+      async mint() {
+        return "test-handle";
+      },
+      async resolve() {
+        return undefined;
+      },
+    },
+    providerAvailability: {
+      async isProviderAvailable() {
+        return false;
+      },
+    },
+    executionGate: {
+      async preflight() {
+        return {
+          decision: "allow",
+          auditLevel: "none",
+        };
+      },
+    },
   };
 }
 

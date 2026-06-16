@@ -457,12 +457,17 @@ The active TypeScript tree is now a formal skeleton:
   provider error mapping;
 - `src/extension/plugins/index.ts` owns Extension plugin exports;
 - `src/extension/index.ts` owns Extension public exports;
-- `src/stage_interface/index.ts` owns the minimal Stage Interface skeleton;
+- `src/stage_interface/index.ts` owns the Phase 16A Stage Interface Tool Call
+  Router skeleton: descriptor validation, generated-schema input/output
+  validation, execution-gate preflight call, and router-owned
+  `ToolCallOutput.toolName` wrapping;
 - `src/stage_core/runtime_module.ts` owns the Stage Core-only
-  `RuntimeModule` contribution boundary;
+  `RuntimeModule` contribution boundary, now using `StageToolRegistration`
+  entries instead of separate descriptor/handler maps;
 - `src/stage_core/runtime.ts` owns the Stage Runtime lifecycle baseline;
 - `src/stage_core/runtime_status.ts` owns the internal
-  `stage.runtime.status` module;
+  `stage.runtime.status` module, migrated to the static descriptor + payload
+  handler shape;
 - `src/stage_core/extension_runtime_module.ts` adapts Extension into runtime
   module `extension`;
 - `src/stage_core/index.ts` owns Stage Core public exports;
@@ -544,15 +549,17 @@ The active TypeScript tree is now a formal skeleton:
   material-candidate cache writes;
 - `src/music_data_platform/index.ts` owns Music Data Platform public exports;
 - `src/music_intelligence/errors.ts` owns Music Intelligence area errors;
-- `src/music_intelligence/retrieval/contracts.ts` owns Retrieval query
+- `src/music_intelligence/core/retrieval/contracts.ts` owns Retrieval query
   contracts;
-- `src/music_intelligence/retrieval/query_normalization.ts` owns effective
-  query normalization and fingerprint inputs;
-- `src/music_intelligence/retrieval/cursor.ts` owns opaque cursor
+- `src/music_intelligence/core/retrieval/query_normalization.ts` owns
+  effective query normalization and fingerprint inputs;
+- `src/music_intelligence/core/retrieval/cursor.ts` owns opaque cursor
   encode/decode;
-- `src/music_intelligence/retrieval/query_service.ts` owns the internal
+- `src/music_intelligence/core/retrieval/query_service.ts` owns the internal
   async Retrieval query service over Music Data Platform retrieval ports and
   provider-search port wiring;
+- `src/music_intelligence/stage_adapter/index.ts` owns the Phase 16A
+  stage-adapter subtree boundary for future Music Discovery handlers;
 - `src/music_intelligence/index.ts` owns Music Intelligence public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
@@ -707,7 +714,8 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-16-stage-interface-tool-frame-implementation-plan.md`
   records the Phase 16 execution plan split into PR 16A framework contract layer,
   PR 16B Public Handle Veil + HandleMintingPort registry + execution gate stub +
-  global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A–16D planned.
+  global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A is
+  implemented, PR16B–16D planned.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
