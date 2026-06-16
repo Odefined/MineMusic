@@ -928,6 +928,31 @@ Phase 16A still does not implement the Public Handle Veil registry, execution
 gate stub ownership, global timeout, `music.discovery.list_scopes`, or
 `music.discovery.lookup`; those remain PR16B–16D.
 
+## 2026-06-17: Phase 16C Music Discovery Scope Listing
+
+Phase 16C ships the first concrete read-only Stage Interface music tool on top
+of the Phase 16A router skeleton, without depending on the unmerged PR16B
+veil/gate/registry APIs:
+
+- `music.discovery.list_scopes` is contributed by Music Intelligence through
+  `src/music_intelligence/stage_adapter/` as a static descriptor plus handler
+  registration.
+- The handler reads a narrow `MusicScopeAvailabilityPort` for the current
+  owner scope, applies the optional listed-scope `kind` filter, and returns
+  public `ListedMusicScope` values with synthesized descriptions.
+- Scope labels are synthesized by pure helpers in
+  `src/contracts/public_music_description.ts`; generated Stage Interface
+  schemas now include `MusicListScopesInput` and `MusicListScopesOutput`.
+- Music Data Platform read ports expose owner-scope source-library lists and
+  owner relation scope summaries; Server Host composes those reads with
+  Extension Runtime provider descriptors into the scope-availability adapter.
+- Tests guard public output shape, kind filtering, empty provider-scope success,
+  declared handler `invalid_input`, no provider-availability/API call, active
+  tree structure, and the new MDP read-port keys.
+
+Phase 16C still does not implement PR16B's registry-backed handle veil,
+execution-gate implementation, global timeout, or `music.discovery.lookup`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases
@@ -937,7 +962,7 @@ in scope. Known later areas include:
 
 - Phase 16B Public Handle Veil registry, execution-gate stub, and global
   timeout;
-- Phase 16C/16D Music Discovery `list_scopes` and `lookup` tools;
+- Phase 16D Music Discovery `lookup` tool;
 - Stage Interface Handbook and transport mapping after the first concrete
   tools ship;
 - provider account/config/runtime behavior beyond the Phase 6 search-only NCM

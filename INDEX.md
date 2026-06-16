@@ -111,7 +111,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Phase 16 execution plan for the agent-facing Tool Framework, split into PR 16A
   framework contract layer, PR 16B Public Handle Veil + HandleMintingPort
   registry + execution gate stub + global timeout, PR 16C `list_scopes`, and PR
-  16D `lookup`; PR16A is implemented, PR16B–16D planned.
+  16D `lookup`; PR16A and PR16C are implemented in the current tree, while
+  PR16B and PR16D are not implemented here.
 - `docs/formal-rebuild/stage-interface-tool-frame.md`: Phase 16 design
   authority for the agent-facing Tool Framework skeleton (mandatory core plus
   owned extensible dimensions), with Music Discovery as the first concrete
@@ -248,7 +249,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   artifacts derived from TypeScript source for Stage Interface tool inputs and
   outputs; refreshed by `npm run generate:stage-interface-schemas`.
 - `src/contracts/public_music_description.ts`: pure public music description
-  and fallback-label helpers for Stage Interface stage adapters.
+  and fallback-label helpers for Stage Interface stage adapters, including
+  Music Discovery item and scope descriptions.
 - `src/contracts/stage_core.ts`: runtime lifecycle and snapshot contracts;
   imports the kernel and stage_interface.
 - `src/contracts/`: no `index.ts` barrel (deleted in Phase 2); importers read the
@@ -283,7 +285,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Storage, Music Data Platform schemas, and internal Library Import
-  service wiring.
+  service wiring, Retrieval query wiring, and Music Scope availability adapter.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
@@ -316,7 +318,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/source_library_commands.ts`: source-library import
   batch, library scope, item, and item-outcome write commands.
 - `src/music_data_platform/source_library_read_model.ts`: narrow
-  source-library import-batch read port.
+  source-library import-batch and owner-scope source-library list read port.
 - `src/music_data_platform/material_ref_factory.ts`: opaque material ref
   factory.
 - `src/music_data_platform/ref_digest.ts`: internal deterministic ref digest
@@ -326,7 +328,7 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/owner_material_relation_schema.ts`: owner material
   relation fact schema contribution.
 - `src/music_data_platform/owner_material_relation_records.ts`: internal owner
-  material relation read port.
+  material relation read port and owner relation scope summaries.
 - `src/music_data_platform/owner_material_relation_commands.ts`: owner
   material relation write commands.
 - `src/music_data_platform/owner_catalog_schema.ts`: owner catalog entries
@@ -360,9 +362,14 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   encoding/decoding.
 - `src/music_intelligence/core/retrieval/contracts.ts`: Retrieval query input,
   result, hit, pool filter, and service contracts.
-- `src/music_intelligence/stage_adapter/index.ts`: Phase 16A Stage Adapter
-  boundary placeholder; future Music Discovery tool handlers live under this
-  subtree and may import Stage Interface contracts.
+- `src/music_intelligence/stage_adapter/discovery_list_scopes.ts`: Phase 16C
+  `music.discovery.list_scopes` descriptor/handler factory.
+- `src/music_intelligence/stage_adapter/scope_availability.ts`: narrow
+  Music Scope availability port and in-memory test adapter for Stage Adapter
+  handlers.
+- `src/music_intelligence/stage_adapter/index.ts`: Stage Adapter boundary and
+  `music.discovery` RuntimeModule contribution; this subtree may import Stage
+  Interface contracts.
 - `src/music_intelligence/errors.ts`: Music Intelligence area errors.
 - `src/music_data_platform/projection_maintenance_schema.ts`: projection
   maintenance target schema contribution.

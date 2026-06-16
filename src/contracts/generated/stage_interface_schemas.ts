@@ -576,6 +576,181 @@ export const musicDiscoveryLookupInputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const musicListScopesInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/MusicListScopesInput",
+  "definitions": {
+    "MusicListScopesInput": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ListedMusicScopeKind"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ListedMusicScopeKind": {
+      "type": "string",
+      "enum": [
+        "library",
+        "source_library",
+        "relation",
+        "provider"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const musicListScopesOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/MusicListScopesOutput",
+  "definitions": {
+    "MusicListScopesOutput": {
+      "type": "object",
+      "properties": {
+        "scopes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ListedMusicScope"
+          }
+        }
+      },
+      "required": [
+        "scopes"
+      ],
+      "additionalProperties": false
+    },
+    "ListedMusicScope": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            }
+          },
+          "required": [
+            "kind",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source_library"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "kind": {
+              "type": "string",
+              "const": "relation"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "description",
+            "id",
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "$ref": "#/definitions/MusicScopeDescription"
+            },
+            "targetKinds": {
+              "$ref": "#/definitions/NonEmptyMusicTargetKinds"
+            },
+            "kind": {
+              "type": "string",
+              "const": "provider"
+            },
+            "providerId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "description",
+            "kind",
+            "providerId",
+            "targetKinds"
+          ]
+        }
+      ]
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "NonEmptyMusicTargetKinds": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/MusicTargetKind"
+      },
+      "minItems": 1
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicDiscoveryLookupOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$ref": "#/definitions/MusicDiscoveryLookupOutput",

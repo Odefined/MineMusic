@@ -154,7 +154,7 @@ export type _sourceLibraryCommandKeys = Expect<
 export type _sourceLibraryReadPortKeys = Expect<
   Equal<
     keyof SourceLibraryReadPort,
-    "getImportBatch"
+    "getImportBatch" | "listSourceLibraries"
   >
 >;
 
@@ -210,6 +210,10 @@ repositoryDatabase.transaction((db) => {
   });
 
   assert.equal(refKey(library.libraryRef), refKey(libraryRef));
+  assert.deepEqual(
+    repositories.libraries.listByOwnerScope({ ownerScope: DEFAULT_OWNER_SCOPE }),
+    [library],
+  );
   assert.equal(item.addedAt, "2026-06-08T00:00:00.000Z");
   assert.equal(item.providerAddedAt, "2026-06-07T00:00:00.000Z");
   assert.equal(refKey(item.libraryRef), refKey(libraryRef));

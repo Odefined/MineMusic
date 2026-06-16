@@ -13,6 +13,10 @@ import {
 } from "./music_data_platform_runtime_module.js";
 import type { SourceLibraryImportService } from "../music_data_platform/index.js";
 import type { RetrievalQueryService } from "../music_intelligence/index.js";
+import {
+  createMusicDiscoveryRuntimeModule,
+  emptyMusicScopeAvailabilitySnapshot,
+} from "../music_intelligence/stage_adapter/index.js";
 
 export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
@@ -37,12 +41,28 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           ...(input.config === undefined ? {} : { config: input.config }),
         })
       : undefined;
+  const musicDiscoveryModule: RuntimeModule | undefined =
+    musicDataPlatformModule === undefined
+      ? undefined
+      : createMusicDiscoveryRuntimeModule({
+          scopeAvailability: {
+            listAvailableMusicScopes(readInput) {
+              const port = musicDataPlatformModule.musicScopeAvailability();
+
+              return port?.listAvailableMusicScopes(readInput) ?? {
+                ok: true,
+                value: emptyMusicScopeAvailabilitySnapshot(),
+              };
+            },
+          },
+        });
   const runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
       ...(musicDataPlatformModule === undefined ? [] : [musicDataPlatformModule]),
       createExtensionRuntimeModule({
         runtime: extensionRuntime,
       }),
+      ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
     ],
   });
 

@@ -209,7 +209,11 @@ export type ListedMusicScope =
   });
 
 export type MusicListScopesInput = {
-  kind?: ListedMusicScopeKind;
+  kind?: ListedMusicScopeKind | (string & {});
+};
+
+export type MusicListScopesOutput = {
+  scopes: readonly ListedMusicScope[];
 };
 
 export type MusicDiscoveryLookupInput =

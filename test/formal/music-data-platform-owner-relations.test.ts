@@ -21,6 +21,7 @@ import {
   type ListOwnerMaterialRelationsInput,
   type OwnerMaterialRelationRecord,
   type OwnerRelationEntryProjectionSummary,
+  type OwnerRelationScopeSummaryRecord,
   type RecordOwnerMaterialRelationInput,
   type RemoveOwnerMaterialRelationInput,
 } from "../../src/music_data_platform/index.js";
@@ -125,6 +126,13 @@ export type _ownerRelationEntryProjectionSummaryShape = Expect<
     | "relationFactCount"
     | "projectedEntryCount"
     | "obsoleteEntryDeleteCount"
+  >
+>;
+
+export type _ownerRelationScopeSummaryRecordShape = Expect<
+  Equal<
+    keyof OwnerRelationScopeSummaryRecord,
+    "ownerScope" | "relationKind" | "materialKind"
   >
 >;
 
@@ -354,6 +362,25 @@ const favoriteWithNote = recordDatabase.transaction((db) =>
     origin: "user_explicit",
     note: "keep this note",
   }));
+assert.deepEqual(
+  createOwnerMaterialRelationRecords({
+    db: recordDatabase.context(),
+  }).listOwnerRelationScopeSummaries({
+    ownerScope: DEFAULT_OWNER_SCOPE,
+  }),
+  [
+    {
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      relationKind: "favorite",
+      materialKind: "recording",
+    },
+    {
+      ownerScope: DEFAULT_OWNER_SCOPE,
+      relationKind: "saved",
+      materialKind: "recording",
+    },
+  ],
+);
 const removedFavorite = recordDatabase.transaction((db) =>
   createOwnerRelationTestCommands(db, "2026-06-13T00:07:00.000Z").removeOwnerMaterialRelation({
     ownerScope: DEFAULT_OWNER_SCOPE,

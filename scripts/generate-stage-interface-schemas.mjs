@@ -37,6 +37,16 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "musicListScopesInputSchema",
+    typeName: "MusicListScopesInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "musicListScopesOutputSchema",
+    typeName: "MusicListScopesOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupOutputSchema",
     typeName: "MusicDiscoveryLookupOutput",
     sourcePath: "src/contracts/stage_interface.ts",

@@ -33,7 +33,9 @@ assert.deepEqual(
   [
     "music-data-platform",
     "extension",
+    "music-discovery",
     "runtime-status",
   ],
 );
-assert.equal(snapshot.interfaceContract?.tools?.[0]?.name, "stage.runtime.status");
+assert.equal(snapshot.interfaceContract?.tools?.[0]?.name, "music.discovery.list_scopes");
+assert.equal(snapshot.interfaceContract?.tools?.[1]?.name, "stage.runtime.status");
