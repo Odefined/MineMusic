@@ -85,6 +85,7 @@ export type StageToolContext = {
   sessionId: string;
   requestId: string;
   clock: () => string;
+  abortSignal?: AbortSignal;
   handleMinting: HandleMintingPort;
   providerAvailability: ProviderAvailabilityPort;
   executionGate: StageToolExecutionGate;
@@ -124,7 +125,8 @@ export type StageToolExecutionGatePreflightInput = {
 export type StageToolExecutionGatePreflightResult = {
   decision: "allow" | "ask" | "deny";
   auditLevel: StageToolAuditLevel;
-  reason?: string;
+  publicReason?: string;
+  internalReason?: string;
 };
 
 export type StageToolExecutionGate = {
@@ -139,7 +141,8 @@ export type StageToolAuditPort = {
     requestId: string;
     auditLevel: StageToolAuditLevel;
     decision: StageToolExecutionGatePreflightResult["decision"];
-    reason?: string;
+    publicReason?: string;
+    internalReason?: string;
   }): Promise<Result<void>>;
 };
 

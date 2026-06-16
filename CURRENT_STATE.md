@@ -466,14 +466,23 @@ The active TypeScript tree is now a formal skeleton:
   provider error mapping;
 - `src/extension/plugins/index.ts` owns Extension plugin exports;
 - `src/extension/index.ts` owns Extension public exports;
-- `src/stage_interface/index.ts` owns the Phase 16A Stage Interface Tool Call
-  Router skeleton: descriptor validation, generated-schema input/output
-  validation, execution-gate preflight call, and router-owned
-  `ToolCallOutput.toolName` wrapping;
+- `src/stage_interface/index.ts` owns the Phase 16 Stage Interface Tool Call
+  Router: descriptor validation, generated-schema input/output validation,
+  output veil guard, execution-gate preflight call, global timeout wrapping,
+  declared-error normalization, and router-owned `ToolCallOutput.toolName`
+  wrapping;
+- `src/stage_interface/context.ts`, `src/stage_interface/handle_minting.ts`,
+  `src/stage_interface/handle_registry_records.ts`,
+  `src/stage_interface/handle_registry_schema.ts`, and
+  `src/stage_interface/veil_guard.ts` own the Phase 16B public handle veil,
+  owner-bound handle registry, context factory, and leak guards;
+- `src/effect_boundary/stage_tool_execution_gate.ts` owns the Phase 16B
+  conservative `StageToolExecutionGate` stub and audit recording seam;
 - `src/stage_core/runtime_module.ts` owns the Stage Core-only
   `RuntimeModule` contribution boundary, now using `StageToolRegistration`
   entries instead of separate descriptor/handler maps;
-- `src/stage_core/runtime.ts` owns the Stage Runtime lifecycle baseline;
+- `src/stage_core/runtime.ts` owns the Stage Runtime lifecycle baseline and
+  Stage Core default tool timeout configuration;
 - `src/stage_core/runtime_status.ts` owns the internal
   `stage.runtime.status` module, migrated to the static descriptor + payload
   handler shape;
@@ -731,8 +740,8 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-16-stage-interface-tool-frame-implementation-plan.md`
   records the Phase 16 execution plan split into PR 16A framework contract layer,
   PR 16B Public Handle Veil + HandleMintingPort registry + execution gate stub +
-  global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A and PR16C
-  are implemented in this tree, while PR16B and PR16D are not implemented here.
+  global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A, PR16B, and
+  PR16C are implemented in this tree, while PR16D is not implemented here.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under

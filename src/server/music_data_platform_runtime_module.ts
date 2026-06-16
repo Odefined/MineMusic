@@ -32,6 +32,7 @@ import type {
   MusicScopeAvailabilityPort,
   MusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
+import { stageInterfaceHandleRegistrySchema } from "../stage_interface/handle_registry_schema.js";
 import {
   SqliteMusicDatabase,
   type MusicDatabase,
@@ -93,6 +94,7 @@ export function createMusicDataPlatformRuntimeModule(
             musicDataPlatformMaterialTextProjectionSchema,
             musicDataPlatformProjectionMaintenanceSchema,
             musicDataPlatformRetrievalResultSetSchema,
+            stageInterfaceHandleRegistrySchema,
           ],
         });
         sourceLibraryImportService = createSourceLibraryImportService({

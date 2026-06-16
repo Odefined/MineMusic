@@ -473,14 +473,17 @@ provider-connection time, not per search.
     sessionId, requestId, arguments })`. The router PASSES the declarations; it
     does not interpret them.
   - **gate -> router**: the gate returns `{ decision: "allow" | "ask" | "deny",
-    auditLevel }`. `allow` proceeds; `ask` returns the router-global
+    auditLevel, publicReason?, internalReason? }`. `allow` proceeds; `ask`
+    returns the router-global
     `stage_interface.ask_required` placeholder to the agent; `deny` returns
     the router-global `stage_interface.denied_by_policy` error. These are
     framework-level (router-global) codes owned by Stage Interface, NOT
     per-tool-declared — see "Declared Error Vocabulary" for the two-tier
     model. A gate `preflight` throw is caught by the Tool Call Router and
     mapped to `stage_interface.execution_gate_failed`; dispatch never
-    propagates a gate exception.
+    propagates a gate exception. Only `publicReason` may surface to the agent;
+    `internalReason` is audit-only and must not cross the Public Agent Protocol
+    veil.
   - **Audit**: the gate writes audit (level per `auditLevel`) to the
     `StageToolAuditPort`; the router and handler do not audit.
   - **v1 stub rule** (fail-closed): the stub returns `allow` only when
@@ -623,7 +626,7 @@ The error vocabulary is **two-tier**, and the tiers are distinguishable by code 
   `stage_interface.invalid_input`, `stage_interface.invalid_output`,
   `stage_interface.ask_required`, `stage_interface.denied_by_policy`,
   `stage_interface.execution_gate_failed`,
-  `stage_interface.tool_handler_failed`, and
+  `stage_interface.tool_handler_failed`, `stage_interface.tool_timeout`, and
   `stage_interface.undeclared_tool_error`. The Tool Call Router emits these
   directly; they never pass through the per-tool declared-error gate.
 - **Per-tool declared errors** (the descriptor `errors` array) are tool-scoped

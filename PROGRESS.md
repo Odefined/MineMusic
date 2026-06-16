@@ -924,9 +924,34 @@ shipping concrete Music Discovery tools:
   boundary, and active-tree guards forbid core imports of Stage Interface
   contracts or public description helpers.
 
-Phase 16A still does not implement the Public Handle Veil registry, execution
-gate stub ownership, global timeout, `music.discovery.list_scopes`, or
-`music.discovery.lookup`; those remain PR16B–16D.
+At the Phase 16A boundary, the Public Handle Veil registry, execution gate stub
+ownership, global timeout, `music.discovery.list_scopes`, and
+`music.discovery.lookup` were still deferred to PR16B–16D.
+
+## 2026-06-17: Phase 16B Public Handle Veil, Gate Stub, And Timeout
+
+Phase 16B implements the safety layer on top of the Phase 16A Tool Frame:
+
+- Stage Interface now has an owner-bound public handle registry schema and
+  repository over Storage plus a `HandleMintingPort` implementation for durable
+  `library` handles. `candidate` handles delegate to the runtime candidate-cache
+  adapter and do not get a new durable store.
+- Stage Interface leak guards reject output schemas and sample outputs that
+  expose internal anchors such as `materialRef`, `materialCandidateRef`,
+  `sourceRef`, `canonicalRef`, `resultSetId`, provider entity ids, provider
+  account ids, or raw provider keys. Public provider registry ids such as
+  `netease` remain legal.
+- Effect Boundary now owns the conservative `StageToolExecutionGate` stub:
+  auto only means `defaultDecision = "auto"` and no durable user-state write;
+  otherwise the gate asks or denies, and writes audit metadata.
+- Stage Core now supplies a default tool timeout, and the Tool Call Router wraps
+  handler execution with timeout/cancellation via `ctx.abortSignal`.
+- Gate reasons are split into `publicReason` and `internalReason`; only
+  `publicReason` may surface to the agent. Declared handler errors are
+  normalized against the tool declaration before crossing the veil.
+
+Phase 16B still does not ship `music.discovery.list_scopes` or
+`music.discovery.lookup`; those remain PR16C and PR16D.
 
 ## 2026-06-17: Phase 16C Music Discovery Scope Listing
 
@@ -960,8 +985,6 @@ execution-gate implementation, global timeout, or `music.discovery.lookup`.
 Later phases should rewrite area docs and code only when the owning boundary is
 in scope. Known later areas include:
 
-- Phase 16B Public Handle Veil registry, execution-gate stub, and global
-  timeout;
 - Phase 16D Music Discovery `lookup` tool;
 - Stage Interface Handbook and transport mapping after the first concrete
   tools ship;
