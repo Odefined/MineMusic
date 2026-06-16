@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import type { Result, StageError } from "../../src/contracts/kernel.js";
 import type { JsonSchema, StageToolContext, ToolDeclaration } from "../../src/contracts/stage_interface.js";
+import { createStageToolContext } from "../../src/stage_interface/index.js";
 import {
   createExtensionRuntimeModule,
   createStageRuntime,
@@ -326,6 +327,70 @@ const missingInstrumentRuntime = createStageRuntime({
 assert.equal((await missingInstrumentRuntime.initialize()).ok, false);
 assert.equal(missingInstrumentRuntime.snapshot().error?.code, "stage_core.missing_tool_instrument");
 
+let timeoutAbortObserved = false;
+const slowToolRegistration = registrationFor({
+  id: "slow-tool",
+  instrumentId: "stage.slow_tool",
+  toolName: "stage.slow_tool.status",
+});
+const timeoutRuntime = createStageRuntime({
+  defaultToolTimeoutMs: 5,
+  modules: [
+    testModule("slow-tool", [], {
+      contribution: {
+        instruments: [
+          {
+            id: "stage.slow_tool",
+            label: "Slow Tool",
+            ownerArea: "stage_core",
+          },
+        ],
+        tools: [
+          {
+            ...slowToolRegistration,
+            handler: async (ctx): Promise<Result<unknown>> => new Promise((resolve) => {
+              const finishHandle = setTimeout(() => {
+                resolve({
+                  ok: true,
+                  value: {
+                    id: "slow-tool",
+                  },
+                });
+              }, 1_000);
+
+              ctx.abortSignal?.addEventListener("abort", () => {
+                timeoutAbortObserved = true;
+                clearTimeout(finishHandle);
+                resolve({
+                  ok: true,
+                  value: {
+                    id: "cancelled",
+                  },
+                });
+              }, { once: true });
+            }),
+          },
+        ],
+      },
+    }),
+  ],
+});
+
+assert.equal((await timeoutRuntime.initialize()).ok, true);
+
+const timeoutDispatch = await timeoutRuntime.interface.dispatch(testStageToolContext(), {
+  toolName: "stage.slow_tool.status",
+  payload: {},
+});
+
+assert.equal(timeoutDispatch.ok, false);
+assert.equal(timeoutAbortObserved, true);
+
+if (!timeoutDispatch.ok) {
+  assert.equal(timeoutDispatch.error.code, "stage_interface.tool_timeout");
+  assert.equal(timeoutDispatch.error.retryable, true);
+}
+
 function testModule(
   id: string,
   events: string[],
@@ -443,24 +508,11 @@ function registrationFor(input: {
 }
 
 function testStageToolContext(): StageToolContext {
-  return {
+  return createStageToolContext({
     ownerScope: "local",
     sessionId: "stage-runtime-test-session",
     requestId: "stage-runtime-test-request",
     clock: () => "2026-06-17T00:00:00.000Z",
-    handleMinting: {
-      async mint() {
-        return "test-handle";
-      },
-      async resolve() {
-        return undefined;
-      },
-    },
-    providerAvailability: {
-      async isProviderAvailable() {
-        return false;
-      },
-    },
     executionGate: {
       async preflight() {
         return {
@@ -469,7 +521,7 @@ function testStageToolContext(): StageToolContext {
         };
       },
     },
-  };
+  });
 }
 
 function fail(code: string, message: string): Result<never> {

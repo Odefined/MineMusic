@@ -109,6 +109,16 @@ The Tool Call Router validates generated schemas, calls the execution-gate
 preflight port, invokes handlers that return payloads only, and wraps
 `ToolCallOutput.toolName` from the descriptor.
 
+The Phase 16B safety layer keeps the public-agent veil enforceable before the
+first Music Discovery tool ships. Stage Interface owns the output-schema and
+sample-output leak guards, the owner-bound public handle registry, the
+`HandleMintingPort` implementation for durable `library` handles, and declared
+handler-error normalization. Candidate handles delegate to the runtime
+candidate-cache adapter rather than gaining a new durable store. Effect Boundary
+owns the conservative `StageToolExecutionGate` stub and audit seam. Stage Core
+owns the global default tool timeout and cancellation signal passed through
+`StageToolContext`.
+
 Instrument is an agent-facing workbench section inside Stage Interface. It
 groups tools and visible provider/capability descriptors for the agent. It is
 not a bounded context, domain service, or capability slot, and it does not map

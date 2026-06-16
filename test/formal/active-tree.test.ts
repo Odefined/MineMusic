@@ -123,6 +123,11 @@ assert.equal(
   true,
   "formal Music Intelligence root must exist in active source after Phase 12C",
 );
+assert.equal(
+  await pathExists(join(repositoryRoot, "src/effect_boundary")),
+  true,
+  "formal Effect Boundary root must exist once StageToolExecutionGate implementation lands",
+);
 
 assert.deepEqual(
   (await sourceFilesUnder(join(repositoryRoot, "src/storage")))
@@ -150,6 +155,17 @@ assert.deepEqual(
     "src/server/retrieval_provider_search_adapter.ts",
   ],
   "formal Server Host root must stay inside the Phase 13 runtime-orchestration boundary",
+);
+
+assert.deepEqual(
+  (await sourceFilesUnder(join(repositoryRoot, "src/effect_boundary")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(),
+  [
+    "src/effect_boundary/index.ts",
+    "src/effect_boundary/stage_tool_execution_gate.ts",
+  ],
+  "formal Effect Boundary root must stay focused on StageToolExecutionGate policy/audit seams",
 );
 
 assert.deepEqual(
@@ -516,6 +532,35 @@ assert.equal(
   extensionBarrelText.includes("searchSourceProvider"),
   false,
   "Extension public barrel must expose source-provider search through ExtensionRuntime only",
+);
+
+const effectBoundaryImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/effect_boundary"))) {
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of [
+    "../stage_interface/",
+    "../stage_core/",
+    "../server/",
+    "../storage/",
+    "../music_data_platform/",
+    "../music_intelligence/",
+    "../extension/",
+  ]) {
+    if (
+      text.includes(`from "${forbiddenImport}`) ||
+      text.includes(`from '${forbiddenImport}`)
+    ) {
+      effectBoundaryImportFailures.push(
+        `${relative(repositoryRoot, file)} imports forbidden Effect Boundary dependency '${forbiddenImport}'`,
+      );
+    }
+  }
+}
+assert.deepEqual(
+  effectBoundaryImportFailures,
+  [],
+  "Effect Boundary gate implementation must depend only on contracts and local policy helpers",
 );
 
 const stageInterfaceImportFailures: string[] = [];
@@ -1024,6 +1069,8 @@ const directWriteAllowedFiles = new Set([
   "src/music_data_platform/source_library_commands.ts",
   "src/music_data_platform/source_library_records.ts",
   "src/music_data_platform/source_library_schema.ts",
+  "src/stage_interface/handle_registry_records.ts",
+  "src/stage_interface/handle_registry_schema.ts",
   "src/storage/sqlite/database.ts",
   "src/storage/sqlite/schema.ts",
 ]);

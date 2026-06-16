@@ -111,7 +111,7 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Phase 16 execution plan for the agent-facing Tool Framework, split into PR 16A
   framework contract layer, PR 16B Public Handle Veil + HandleMintingPort
   registry + execution gate stub + global timeout, PR 16C `list_scopes`, and PR
-  16D `lookup`; PR16A is implemented, PR16B–16D planned.
+  16D `lookup`; PR16A and PR16B are implemented, PR16C–16D planned.
 - `docs/formal-rebuild/stage-interface-tool-frame.md`: Phase 16 design
   authority for the agent-facing Tool Framework skeleton (mandatory core plus
   owned extensible dimensions), with Music Discovery as the first concrete
@@ -255,8 +255,23 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   per-area files above directly (ADR-0013). Phase 1 entity/source vocabulary and
   Phase 2 runtime snapshot vocabulary live in the area files listed above.
 - `src/stage_interface/index.ts`: Stage Interface Tool Call Router, descriptor
-  validation, generated-schema input/output validation, gate preflight call, and
-  router-owned `ToolCallOutput.toolName` wrapping.
+  validation, generated-schema input/output validation, output veil guard,
+  gate preflight call, global timeout wrapping, declared-error normalization,
+  and router-owned `ToolCallOutput.toolName` wrapping.
+- `src/stage_interface/context.ts`: canonical `StageToolContext` factory wiring
+  the conservative execution gate, audit port, provider availability default,
+  and handle-minting port dependency.
+- `src/stage_interface/handle_registry_schema.ts`: Stage Interface-owned
+  owner-bound public handle registry schema over Storage.
+- `src/stage_interface/handle_registry_records.ts`: Stage Interface handle
+  registry repository for public id / owner / internal-anchor bindings.
+- `src/stage_interface/handle_minting.ts`: `HandleMintingPort`
+  implementation for durable `library` handles plus candidate-cache delegation.
+- `src/stage_interface/veil_guard.ts`: output-schema and sample-output internal
+  anchor leak guards for the Public Agent Protocol veil.
+- `src/effect_boundary/index.ts` and
+  `src/effect_boundary/stage_tool_execution_gate.ts`: Effect Boundary
+  conservative `StageToolExecutionGate` stub and in-memory audit port.
 - `src/extension/capability_slot.ts`: capability slot definition with typed
   registration validation (`validateRegistration`) and write policy.
 - `src/extension/capability_registry.ts`: registration-only capability registry
@@ -273,7 +288,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   platform-library-provider plugin.
 - `src/extension/plugins/index.ts`: Extension plugin exports.
 - `src/stage_core/index.ts`: Stage Core public exports.
-- `src/stage_core/runtime.ts`: Stage Runtime lifecycle baseline.
+- `src/stage_core/runtime.ts`: Stage Runtime lifecycle baseline and Stage Core
+  default tool timeout configuration.
 - `src/stage_core/runtime_module.ts`: Stage Core runtime module contribution
   boundary using `StageToolRegistration` entries.
 - `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module
@@ -282,8 +298,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   library import seam accessor.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
-  module for Storage, Music Data Platform schemas, and internal Library Import
-  service wiring.
+  module for Storage, Music Data Platform schemas, the Stage Interface handle
+  registry schema, and internal Library Import service wiring.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
