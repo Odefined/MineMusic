@@ -111,8 +111,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Phase 16 execution plan for the agent-facing Tool Framework, split into PR 16A
   framework contract layer, PR 16B Public Handle Veil + HandleMintingPort
   registry + execution gate stub + global timeout, PR 16C `list_scopes`, and PR
-  16D `lookup`; PR16A, PR16B, and PR16C are implemented in the current tree,
-  while PR16D is not implemented here.
+  16D `lookup`; PR16A, PR16B, PR16C, and PR16D are implemented in the current
+  tree.
 - `docs/formal-rebuild/stage-interface-tool-frame.md`: Phase 16 design
   authority for the agent-facing Tool Framework skeleton (mandatory core plus
   owned extensible dimensions), with Music Discovery as the first concrete
@@ -381,6 +381,10 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   result, hit, pool filter, and service contracts.
 - `src/music_intelligence/stage_adapter/discovery_list_scopes.ts`: Phase 16C
   `music.discovery.list_scopes` descriptor/handler factory.
+- `src/music_intelligence/stage_adapter/discovery_lookup.ts`: Phase 16D
+  `music.discovery.lookup` descriptor/handler factory, scope normalization,
+  public handle/description mapping, declared error mapping, and AEAD cursor
+  wrapping over internal Retrieval cursors.
 - `src/music_intelligence/stage_adapter/scope_availability.ts`: narrow
   Music Scope availability port and in-memory test adapter for Stage Adapter
   handlers.

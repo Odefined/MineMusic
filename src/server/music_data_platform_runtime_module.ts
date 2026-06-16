@@ -8,6 +8,7 @@ import {
   createMusicDataPlatformRetrievalReadPort,
   createMusicDataPlatformRetrievalWorkspace,
   createOwnerMaterialRelationRecords,
+  createOwnerRelationPoolRef,
   createSourceLibraryImportService,
   createSourceLibraryReadPort,
   musicDataPlatformIdentitySchema,
@@ -224,12 +225,16 @@ function createMusicScopeAvailabilityPort(input: {
           .map((summary) => ({
             id: relationScopeId({
               ownerScope: summary.ownerScope,
-              relationKind: summary.relationKind,
-              materialKind: summary.materialKind,
-            }),
-            relationName: relationNameForOwnerRelation(summary.relationKind),
-            targetKind: summary.materialKind,
-          })),
+            relationKind: summary.relationKind,
+            materialKind: summary.materialKind,
+          }),
+          ref: createOwnerRelationPoolRef({
+            ownerScope: summary.ownerScope,
+            relationKind: summary.relationKind,
+          }),
+          relationName: relationNameForOwnerRelation(summary.relationKind),
+          targetKind: summary.materialKind,
+        })),
         providers: input.extensionRuntime
           .listSourceProviders()
           .filter((registration) =>
@@ -259,6 +264,7 @@ function sourceLibraryScopeAvailability(
 
   return {
     id: scopeId("source_library", refKey(record.libraryRef)),
+    ref: record.libraryRef,
     ...(providerNames.get(record.providerId) === undefined
       ? {}
       : { providerName: providerNames.get(record.providerId)! }),

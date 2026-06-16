@@ -232,6 +232,7 @@ assert.deepEqual(
     "src/music_intelligence/errors.ts",
     "src/music_intelligence/index.ts",
     "src/music_intelligence/stage_adapter/discovery_list_scopes.ts",
+    "src/music_intelligence/stage_adapter/discovery_lookup.ts",
     "src/music_intelligence/stage_adapter/index.ts",
     "src/music_intelligence/stage_adapter/scope_availability.ts",
   ],

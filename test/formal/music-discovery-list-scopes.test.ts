@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import type { Ref } from "../../src/contracts/kernel.js";
 import {
   createStageInterface,
 } from "../../src/stage_interface/index.js";
@@ -18,6 +19,7 @@ const scopeAvailability = createInMemoryMusicScopeAvailabilityPort({
   sourceLibraries: [
     {
       id: "scope_saved_recording",
+      ref: ref("source_library", "saved_source_track", "l_saved_recording"),
       providerName: "NetEase Cloud Music",
       relationName: "saved",
       targetKind: "recording",
@@ -26,6 +28,7 @@ const scopeAvailability = createInMemoryMusicScopeAvailabilityPort({
   relations: [
     {
       id: "scope_favorite_recording",
+      ref: ref("owner_material_relation_pool", "favorite", "rp_favorite_recording"),
       relationName: "favorite",
       targetKind: "recording",
     },
@@ -221,4 +224,12 @@ function assertNoInternalScopeLeak(value: unknown): void {
       `list_scopes output leaked internal token '${forbidden}'`,
     );
   }
+}
+
+function ref(namespace: string, kind: string, id: string): Ref {
+  return {
+    namespace,
+    kind,
+    id,
+  };
 }

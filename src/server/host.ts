@@ -17,6 +17,9 @@ import {
   createMusicDiscoveryRuntimeModule,
   emptyMusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
+import {
+  createExtensionRuntimeRetrievalProviderSearchPort,
+} from "./retrieval_provider_search_adapter.js";
 
 export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
@@ -55,6 +58,20 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
               };
             },
           },
+          retrievalQuery: {
+            query(queryInput) {
+              const port = musicDataPlatformModule.retrievalQuery();
+
+              if (port === undefined) {
+                throw new Error("Retrieval query service is not initialized.");
+              }
+
+              return port.query(queryInput);
+            },
+          },
+          providerSearch: createExtensionRuntimeRetrievalProviderSearchPort({
+            extensionRuntime,
+          }),
         });
   const runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [

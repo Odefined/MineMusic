@@ -1,4 +1,5 @@
 import type { Result } from "../../contracts/kernel.js";
+import type { Ref } from "../../contracts/kernel.js";
 import type {
   MusicTargetKind,
   NonEmptyMusicTargetKinds,
@@ -6,6 +7,7 @@ import type {
 
 export type MusicSourceLibraryScopeAvailability = {
   id: string;
+  ref: Ref;
   providerName?: string;
   relationName: string;
   targetKind: MusicTargetKind;
@@ -14,6 +16,7 @@ export type MusicSourceLibraryScopeAvailability = {
 
 export type MusicRelationScopeAvailability = {
   id: string;
+  ref: Ref;
   relationName: string;
   targetKind: MusicTargetKind;
   detailText?: string;
@@ -65,8 +68,14 @@ export function emptyMusicScopeAvailabilitySnapshot(): MusicScopeAvailabilitySna
 
 function copySnapshot(snapshot: MusicScopeAvailabilitySnapshot): MusicScopeAvailabilitySnapshot {
   return {
-    sourceLibraries: snapshot.sourceLibraries.map((scope) => ({ ...scope })),
-    relations: snapshot.relations.map((scope) => ({ ...scope })),
+    sourceLibraries: snapshot.sourceLibraries.map((scope) => ({
+      ...scope,
+      ref: { ...scope.ref },
+    })),
+    relations: snapshot.relations.map((scope) => ({
+      ...scope,
+      ref: { ...scope.ref },
+    })),
     providers: snapshot.providers.map((scope) => ({
       ...scope,
       targetKinds: copyNonEmptyTargetKinds(scope.targetKinds),

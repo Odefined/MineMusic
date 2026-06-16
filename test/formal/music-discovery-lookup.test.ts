@@ -1,0 +1,543 @@
+import assert from "node:assert/strict";
+
+import type { Ref } from "../../src/contracts/kernel.js";
+import type {
+  MusicDiscoveryLookupOutput,
+  StageToolContext,
+} from "../../src/contracts/stage_interface.js";
+import {
+  MusicIntelligenceError,
+  type RetrievalQueryHit,
+  type RetrievalQueryInput,
+  type RetrievalQueryResult,
+  type RetrievalQueryService,
+} from "../../src/music_intelligence/index.js";
+import {
+  createInMemoryMusicScopeAvailabilityPort,
+  createMusicDiscoveryLookupRegistration,
+  musicDiscoveryInstrument,
+  musicDiscoveryLookupDescriptor,
+} from "../../src/music_intelligence/stage_adapter/index.js";
+import {
+  createStageInterface,
+} from "../../src/stage_interface/index.js";
+
+const cursorKey = Buffer.alloc(32, 17);
+const libraryMaterialRef = ref("material", "recording", "m_library_whoo");
+const candidateRef = ref("material_candidate", "provider_candidate", "mc_provider_whoo");
+const sourceLibraryRef = ref("source_library", "saved_source_track", "l_saved_tracks");
+const relationPoolRef = ref("owner_material_relation_pool", "favorite", "rp_favorite");
+
+const scopeAvailability = createInMemoryMusicScopeAvailabilityPort({
+  sourceLibraries: [
+    {
+      id: "scope_saved_recording",
+      ref: sourceLibraryRef,
+      providerName: "NetEase Cloud Music",
+      relationName: "saved",
+      targetKind: "recording",
+    },
+  ],
+  relations: [
+    {
+      id: "scope_favorite_recording",
+      ref: relationPoolRef,
+      relationName: "favorite",
+      targetKind: "recording",
+    },
+  ],
+  providers: [
+    {
+      providerId: "netease",
+      providerName: "NetEase Cloud Music",
+      targetKinds: ["recording", "album"],
+    },
+    {
+      providerId: "spotify",
+      providerName: "Spotify",
+      targetKinds: ["recording"],
+    },
+  ],
+});
+
+const queryCalls: RetrievalQueryInput[] = [];
+const mintedAnchors: unknown[] = [];
+const retrievalQuery: RetrievalQueryService = {
+  async query(input) {
+    queryCalls.push(input);
+
+    if (input.cursor !== undefined) {
+      assert.equal(input.cursor, "internal_cursor_page_2");
+      return retrievalResult({
+        input,
+        hits: [],
+      });
+    }
+
+    return retrievalResult({
+      input,
+      hits: [
+        materialHit({
+          materialRef: libraryMaterialRef,
+          title: "whoo",
+          artistsText: "Nemophila",
+          album: "Seize the Fate",
+          versionText: "live",
+        }),
+        candidateHit({
+          materialCandidateRef: candidateRef,
+          title: "Provider whoo",
+          artistsText: "Provider Artist",
+        }),
+      ],
+      nextCursor: "internal_cursor_page_2",
+    });
+  },
+};
+
+const lookupRegistration = createMusicDiscoveryLookupRegistration({
+  retrievalQuery,
+  scopeAvailability,
+  cursorKey,
+});
+const stageInterface = createStageInterface({
+  instruments: [musicDiscoveryInstrument],
+  registrations: [lookupRegistration],
+});
+
+assert.deepEqual(
+  musicDiscoveryLookupDescriptor.errors.map((error) => error.code),
+  [
+    "invalid_input",
+    "invalid_cursor",
+    "unknown_scope",
+    "unknown_provider_scope",
+    "unsupported_provider_target",
+    "provider_scope_failed",
+    "scope_budget_exceeded",
+    "result_window_expired",
+  ],
+);
+assert.equal(musicDiscoveryLookupDescriptor.sideEffect.durableUserStateWrite, false);
+assert.equal(musicDiscoveryLookupDescriptor.sideEffect.runtimeStateWrite, true);
+assert.equal(musicDiscoveryLookupDescriptor.sideEffect.externalCall, true);
+assert.equal(
+  musicDiscoveryLookupDescriptor.examples.some((example) =>
+    example.expects === "avoid" && example.prompt.includes("quiet walking")
+  ),
+  true,
+);
+assert.equal(
+  musicDiscoveryLookupDescriptor.examples.some((example) =>
+    example.expects === "avoid" && example.prompt.includes("browse")
+  ),
+  true,
+);
+assert.equal(
+  (musicDiscoveryLookupDescriptor.allowedActions ?? []).some((action) =>
+    action.action === "save" || action.action === "play" || action.action === "commit"
+  ),
+  false,
+);
+
+const lookupResult = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors,
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [
+      { kind: "library" },
+      {
+        kind: "provider",
+        providerId: "netease",
+        description: { label: "stale label ignored" },
+        targetKinds: ["recording"],
+      },
+    ],
+    limit: 2,
+  },
+});
+
+assert.equal(lookupResult.ok, true);
+assert.equal(queryCalls.length, 1);
+assert.deepEqual(queryCalls[0], {
+  ownerScope: "local",
+  text: "whoo",
+  materialKind: "recording",
+  pools: {
+    anyOf: [
+      { kind: "local_catalog" },
+      { kind: "provider_search", providerId: "netease" },
+    ],
+  },
+  order: "text_relevance",
+  limit: 2,
+  sessionId: "music-discovery-lookup-test-session",
+});
+assert.equal(mintedAnchors.length, 2);
+
+if (lookupResult.ok) {
+  assert.equal(lookupResult.value.toolName, "music.discovery.lookup");
+  const output = lookupResult.value.result as MusicDiscoveryLookupOutput;
+
+  assert.equal(output.items.length, 2);
+  assert.deepEqual(output.items[0], {
+    handle: {
+      kind: "library",
+      id: "public_library_1",
+    },
+    description: {
+      label: "whoo - Nemophila",
+      title: "whoo",
+      artistsText: "Nemophila",
+      album: "Seize the Fate",
+      versionText: "live",
+    },
+  });
+  assert.deepEqual(output.items[1], {
+    handle: {
+      kind: "candidate",
+      id: "public_candidate_2",
+    },
+    description: {
+      label: "Provider whoo - Provider Artist",
+      title: "Provider whoo",
+      artistsText: "Provider Artist",
+    },
+  });
+  assert.equal(typeof output.nextCursor, "string");
+  assert.equal(output.nextCursor?.startsWith("mlc1."), true);
+  assertPublicLookupOutputIsVeiled(output);
+
+  const cursorPage = await stageInterface.dispatch(testStageToolContext({
+    mintedAnchors,
+  }), {
+    toolName: "music.discovery.lookup",
+    payload: {
+      cursor: output.nextCursor,
+      limit: 1,
+    },
+  });
+
+  assert.equal(cursorPage.ok, true);
+  assert.equal(queryCalls.length, 2);
+  assert.deepEqual(queryCalls[1], {
+    ownerScope: "local",
+    text: "whoo",
+    materialKind: "recording",
+    pools: {
+      anyOf: [
+        { kind: "local_catalog" },
+        { kind: "provider_search", providerId: "netease" },
+      ],
+    },
+    order: "text_relevance",
+    cursor: "internal_cursor_page_2",
+    limit: 1,
+    sessionId: "music-discovery-lookup-test-session",
+  });
+
+  if (cursorPage.ok) {
+    assert.deepEqual(cursorPage.value.result, {
+      items: [],
+    });
+  }
+}
+
+const forgedCursor = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    cursor: "mlc1.forged.cursor.token",
+  },
+});
+
+assert.equal(forgedCursor.ok, false);
+if (!forgedCursor.ok) {
+  assert.equal(forgedCursor.error.code, "invalid_cursor");
+}
+
+const expiringInterface = createStageInterface({
+  instruments: [musicDiscoveryInstrument],
+  registrations: [
+    createMusicDiscoveryLookupRegistration({
+      retrievalQuery,
+      scopeAvailability,
+      cursorKey,
+      cursorTtlMs: 1,
+    }),
+  ],
+});
+const expiringFirstPage = await expiringInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+  clock: () => "2026-06-17T00:00:00.000Z",
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "library" }],
+  },
+});
+
+assert.equal(expiringFirstPage.ok, true);
+if (expiringFirstPage.ok) {
+  const expiredCursor = (expiringFirstPage.value.result as MusicDiscoveryLookupOutput).nextCursor;
+  assert.equal(typeof expiredCursor, "string");
+
+  const expiredCursorPage = await expiringInterface.dispatch(testStageToolContext({
+    mintedAnchors: [],
+    clock: () => "2026-06-17T00:00:00.001Z",
+  }), {
+    toolName: "music.discovery.lookup",
+    payload: {
+      cursor: expiredCursor,
+    },
+  });
+
+  assert.equal(expiredCursorPage.ok, false);
+  if (!expiredCursorPage.ok) {
+    assert.equal(expiredCursorPage.error.code, "result_window_expired");
+  }
+}
+
+const failingProviderInterface = createStageInterface({
+  instruments: [musicDiscoveryInstrument],
+  registrations: [
+    createMusicDiscoveryLookupRegistration({
+      retrievalQuery: {
+        async query() {
+          throw new MusicIntelligenceError({
+            code: "music_intelligence.provider_search_failed",
+            message: "Provider search failed for spotify.",
+          });
+        },
+      },
+      scopeAvailability,
+      cursorKey,
+    }),
+  ],
+});
+const failingProviderResult = await failingProviderInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [
+      { kind: "library" },
+      { kind: "provider", providerId: "netease" },
+      { kind: "provider", providerId: "spotify" },
+    ],
+  },
+});
+
+assert.equal(failingProviderResult.ok, false);
+if (!failingProviderResult.ok) {
+  assert.equal(failingProviderResult.error.code, "provider_scope_failed");
+  assert.equal(failingProviderResult.error.message.includes("spotify"), true);
+  assert.equal(failingProviderResult.error.suggestedFix?.includes("spotify"), true);
+}
+
+let budgetRetrievalCalls = 0;
+const budgetInterface = createStageInterface({
+  instruments: [musicDiscoveryInstrument],
+  registrations: [
+    createMusicDiscoveryLookupRegistration({
+      retrievalQuery: {
+        async query(input) {
+          budgetRetrievalCalls += 1;
+          return retrievalResult({ input, hits: [] });
+        },
+      },
+      scopeAvailability: createInMemoryMusicScopeAvailabilityPort({
+        sourceLibraries: [],
+        relations: [],
+        providers: [
+          providerScope("provider_1"),
+          providerScope("provider_2"),
+          providerScope("provider_3"),
+          providerScope("provider_4"),
+          providerScope("provider_5"),
+        ],
+      }),
+      cursorKey,
+    }),
+  ],
+});
+const budgetResult = await budgetInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "all" }],
+  },
+});
+
+assert.equal(budgetResult.ok, false);
+assert.equal(budgetRetrievalCalls, 0);
+if (!budgetResult.ok) {
+  assert.equal(budgetResult.error.code, "scope_budget_exceeded");
+  assert.equal(budgetResult.error.message.includes("provider_5"), true);
+}
+
+function retrievalResult(input: {
+  input: RetrievalQueryInput;
+  hits: readonly RetrievalQueryHit[];
+  nextCursor?: string;
+}): RetrievalQueryResult {
+  return {
+    query: {
+      ownerScope: input.input.ownerScope ?? "local",
+      ...(input.input.text === undefined ? {} : { text: input.input.text }),
+      ...(input.input.materialKind === undefined ? {} : { materialKind: input.input.materialKind }),
+      ...(input.input.pools === undefined ? {} : { pools: input.input.pools }),
+      order: "text_relevance",
+    },
+    basis: {
+      ownerCatalogVisibilityApplied: !JSON.stringify(input.input.pools ?? {}).includes("provider_search"),
+      blockedMaterialsExcluded: true,
+    },
+    hits: input.hits,
+    page: {
+      limit: input.input.limit ?? 20,
+      ...(input.nextCursor === undefined ? {} : { nextCursor: input.nextCursor }),
+    },
+  };
+}
+
+function materialHit(input: {
+  materialRef: Ref;
+  title?: string;
+  artistsText?: string;
+  album?: string;
+  versionText?: string;
+}): RetrievalQueryHit {
+  return {
+    kind: "material",
+    materialRef: input.materialRef,
+    materialKind: "recording",
+    display: display(input),
+    pools: {
+      matched: [],
+    },
+    basis: {
+      textMatched: true,
+      poolFilterApplied: true,
+      positivePoolMatched: true,
+    },
+  };
+}
+
+function candidateHit(input: {
+  materialCandidateRef: Ref;
+  title?: string;
+  artistsText?: string;
+  album?: string;
+  versionText?: string;
+}): RetrievalQueryHit {
+  return {
+    kind: "material_candidate",
+    materialCandidateRef: input.materialCandidateRef,
+    display: display(input),
+    pools: {
+      matched: [],
+    },
+    basis: {
+      textMatched: true,
+      poolFilterApplied: true,
+      positivePoolMatched: true,
+    },
+  };
+}
+
+function display(input: {
+  title?: string;
+  artistsText?: string;
+  album?: string;
+  versionText?: string;
+}): RetrievalQueryHit["display"] {
+  return {
+    ...(input.title === undefined ? {} : { title: input.title }),
+    ...(input.artistsText === undefined ? {} : { artistsText: input.artistsText }),
+    ...(input.album === undefined ? {} : { album: input.album }),
+    ...(input.versionText === undefined ? {} : { versionText: input.versionText }),
+  };
+}
+
+function providerScope(providerId: string): {
+  providerId: string;
+  providerName: string;
+  targetKinds: ["recording"];
+} {
+  return {
+    providerId,
+    providerName: providerId,
+    targetKinds: ["recording"],
+  };
+}
+
+function testStageToolContext(input: {
+  mintedAnchors: unknown[];
+  clock?: () => string;
+}): StageToolContext {
+  return {
+    ownerScope: "local",
+    sessionId: "music-discovery-lookup-test-session",
+    requestId: "music-discovery-lookup-test-request",
+    clock: input.clock ?? (() => "2026-06-17T00:00:00.000Z"),
+    handleMinting: {
+      async mint(mintInput) {
+        input.mintedAnchors.push(mintInput.internalAnchor);
+        return `public_${mintInput.handleKind}_${input.mintedAnchors.length}`;
+      },
+      async resolve() {
+        return undefined;
+      },
+    },
+    providerAvailability: {
+      async isProviderAvailable() {
+        return true;
+      },
+    },
+    executionGate: {
+      async preflight() {
+        return {
+          decision: "allow",
+          auditLevel: "none",
+        };
+      },
+    },
+  };
+}
+
+function ref(namespace: string, kind: string, id: string): Ref {
+  return {
+    namespace,
+    kind,
+    id,
+  };
+}
+
+function assertPublicLookupOutputIsVeiled(output: MusicDiscoveryLookupOutput): void {
+  const text = JSON.stringify(output);
+
+  for (const forbidden of [
+    "m_library_whoo",
+    "mc_provider_whoo",
+    "internal_cursor_page_2",
+    "source_library",
+    "owner_material_relation_pool",
+    "providerEntityId",
+    "materialRef",
+    "materialCandidateRef",
+  ]) {
+    assert.equal(
+      text.includes(forbidden),
+      false,
+      `lookup output leaked internal token '${forbidden}'`,
+    );
+  }
+}

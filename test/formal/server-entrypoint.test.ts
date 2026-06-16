@@ -37,5 +37,11 @@ assert.deepEqual(
     "runtime-status",
   ],
 );
-assert.equal(snapshot.interfaceContract?.tools?.[0]?.name, "music.discovery.list_scopes");
-assert.equal(snapshot.interfaceContract?.tools?.[1]?.name, "stage.runtime.status");
+assert.deepEqual(
+  snapshot.interfaceContract?.tools?.map((tool) => tool.name),
+  [
+    "music.discovery.list_scopes",
+    "music.discovery.lookup",
+    "stage.runtime.status",
+  ],
+);

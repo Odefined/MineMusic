@@ -66,9 +66,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     status: "initialized",
   },
 ]);
-assert.equal(host.snapshot().interfaceContract.tools[0]?.name, "music.discovery.list_scopes");
-assert.equal(host.snapshot().interfaceContract.tools[1]?.name, "stage.runtime.status");
-assert.equal(host.snapshot().interfaceContract.tools.length, 2);
+assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name), [
+  "music.discovery.list_scopes",
+  "music.discovery.lookup",
+  "stage.runtime.status",
+]);
 
 const stopped = await host.stop();
 

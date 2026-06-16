@@ -956,8 +956,7 @@ Phase 16B still does not ship `music.discovery.list_scopes` or
 ## 2026-06-17: Phase 16C Music Discovery Scope Listing
 
 Phase 16C ships the first concrete read-only Stage Interface music tool on top
-of the Phase 16A router skeleton, without depending on the unmerged PR16B
-veil/gate/registry APIs:
+of the Phase 16A router skeleton and Phase 16B veil/gate/registry APIs:
 
 - `music.discovery.list_scopes` is contributed by Music Intelligence through
   `src/music_intelligence/stage_adapter/` as a static descriptor plus handler
@@ -975,8 +974,34 @@ veil/gate/registry APIs:
   declared handler `invalid_input`, no provider-availability/API call, active
   tree structure, and the new MDP read-port keys.
 
-Phase 16C still does not implement PR16B's registry-backed handle veil,
-execution-gate implementation, global timeout, or `music.discovery.lookup`.
+Phase 16C still does not implement `music.discovery.lookup`; that lands in
+Phase 16D.
+
+## 2026-06-17: Phase 16D Music Discovery Lookup
+
+Phase 16D ships the full text-driven Music Discovery lookup tool:
+
+- `music.discovery.lookup` is contributed by Music Intelligence through
+  `src/music_intelligence/stage_adapter/discovery_lookup.ts` as a static
+  descriptor plus handler registration.
+- The handler normalizes public `MusicScope` / `ListedMusicScope` inputs,
+  strips display metadata, deduplicates by identity key, enforces the aggregate
+  no-mix rule, expands `all` into library plus provider scopes, and fails
+  over-budget `all` fan-out with `scope_budget_exceeded`.
+- Lookup maps public scopes to internal Retrieval typed pools and calls only the
+  narrow Retrieval query service port; provider search stays behind Retrieval's
+  existing provider-search wiring.
+- Retrieval hits are returned as public `MusicItemHandle` values through
+  `ctx.handleMinting`, paired with lookup descriptions from pure public
+  description helpers. Internal material refs, candidate refs, provider entity
+  ids, result-set ids, and internal cursors do not cross the output veil.
+- Public lookup pagination uses an AES-256-GCM AEAD cursor that encrypts the
+  internal Retrieval cursor, owner scope, expiry, and private query replay
+  state needed for cursor pages.
+- Tests guard library and candidate output veil behavior, cursor-page replay,
+  forged and expired cursors, fail-whole provider-scope recovery,
+  `all` fan-out budget failure, descriptor routing negatives, read-only
+  candidate posture, active-tree structure, and default Server Host wiring.
 
 ## Next Formal Milestones
 
@@ -985,7 +1010,6 @@ execution-gate implementation, global timeout, or `music.discovery.lookup`.
 Later phases should rewrite area docs and code only when the owning boundary is
 in scope. Known later areas include:
 
-- Phase 16D Music Discovery `lookup` tool;
 - Stage Interface Handbook and transport mapping after the first concrete
   tools ship;
 - provider account/config/runtime behavior beyond the Phase 6 search-only NCM

@@ -132,7 +132,11 @@ Music Discovery tools are contributed by Music Intelligence through its
 `stage_adapter` boundary. Read-only scope listing reads a narrow
 scope-availability port over already-known Music Data Platform and Extension
 metadata; it returns public Music Scope handles plus descriptions and must not
-call provider APIs or refresh provider account state.
+call provider APIs or refresh provider account state. Lookup normalizes public
+Music Scopes into Retrieval typed pools, calls the internal Retrieval query
+service through a narrow port, mints public `library` / `candidate` item handles
+through `StageToolContext.handleMinting`, and wraps internal Retrieval cursors
+with an AEAD public cursor.
 
 ## Extension And Providers
 

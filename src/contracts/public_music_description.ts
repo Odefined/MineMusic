@@ -93,6 +93,8 @@ export function musicLookupItemLabel(input: {
   handle: Pick<MusicItemHandle, "kind">;
   title?: string;
   artistsText?: string;
+  album?: string;
+  versionText?: string;
 }): string {
   if (input.title !== undefined && input.title.length > 0) {
     if (input.artistsText !== undefined && input.artistsText.length > 0) {
@@ -100,6 +102,16 @@ export function musicLookupItemLabel(input: {
     }
 
     return input.title;
+  }
+
+  const secondaryParts = [
+    input.artistsText,
+    input.album,
+    input.versionText,
+  ].filter((part): part is string => part !== undefined && part.length > 0);
+
+  if (secondaryParts.length > 0) {
+    return secondaryParts.join(" - ");
   }
 
   return fallbackMusicItemLabel(input.handle);

@@ -3,6 +3,13 @@ import {
   createMusicDiscoveryListScopesRegistration,
   musicDiscoveryInstrument,
 } from "./discovery_list_scopes.js";
+import {
+  createMusicDiscoveryLookupRegistration,
+} from "./discovery_lookup.js";
+import type {
+  RetrievalProviderSearchPort,
+  RetrievalQueryService,
+} from "../core/retrieval/index.js";
 import type { MusicScopeAvailabilityPort } from "./scope_availability.js";
 
 export {
@@ -24,9 +31,20 @@ export {
 export type {
   CreateMusicDiscoveryListScopesRegistrationInput,
 } from "./discovery_list_scopes.js";
+export {
+  createMusicDiscoveryLookupRegistration,
+  musicDiscoveryLookupDescriptor,
+} from "./discovery_lookup.js";
+export type {
+  CreateMusicDiscoveryLookupRegistrationInput,
+} from "./discovery_lookup.js";
 
 export function createMusicDiscoveryRuntimeModule(input: {
   scopeAvailability: MusicScopeAvailabilityPort;
+  retrievalQuery?: RetrievalQueryService;
+  providerSearch?: RetrievalProviderSearchPort;
+  cursorKey?: Uint8Array;
+  cursorTtlMs?: number;
 }): RuntimeModule {
   return {
     descriptor: {
@@ -43,6 +61,17 @@ export function createMusicDiscoveryRuntimeModule(input: {
             createMusicDiscoveryListScopesRegistration({
               scopeAvailability: input.scopeAvailability,
             }),
+            ...(input.retrievalQuery === undefined
+              ? []
+              : [
+                  createMusicDiscoveryLookupRegistration({
+                    retrievalQuery: input.retrievalQuery,
+                    scopeAvailability: input.scopeAvailability,
+                    ...(input.providerSearch === undefined ? {} : { providerSearch: input.providerSearch }),
+                    ...(input.cursorKey === undefined ? {} : { cursorKey: input.cursorKey }),
+                    ...(input.cursorTtlMs === undefined ? {} : { cursorTtlMs: input.cursorTtlMs }),
+                  }),
+                ]),
           ],
         },
       };
