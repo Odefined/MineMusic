@@ -23,18 +23,21 @@ import {
   musicDataPlatformRefKey,
 } from "./ref_validation.js";
 import { assertSourceLibraryRef, createSourceLibraryRef } from "./source_library_ref.js";
+import {
+  type RetrievalTextField,
+  sqlStringLiteral,
+  retrievalTextFieldConfigs,
+  matchedTokenCountSqlExpression,
+  bestFieldPrioritySqlExpression,
+  fieldScopedPrefixQuery,
+} from "./material_text_ranking.js";
 
 export type RetrievalOrder =
   | "text_relevance"
   | "recently_added"
   | "stable";
 
-export type RetrievalTextField =
-  | "title"
-  | "artist"
-  | "album"
-  | "version"
-  | "alias";
+export type { RetrievalTextField } from "./material_text_ranking.js";
 
 export type RetrievalReadPoolFilter = {
   allOf?: readonly Ref[];
@@ -189,17 +192,6 @@ type RetrievalRowTextEvidence = {
   bestFieldPriority: number;
 };
 
-const retrievalTextFieldConfigs = [
-  { field: "title", column: "title_text", priority: 1 },
-  { field: "artist", column: "artist_text", priority: 2 },
-  { field: "album", column: "album_text", priority: 2 },
-  { field: "version", column: "version_text", priority: 3 },
-  { field: "alias", column: "alias_text", priority: 4 },
-] as const satisfies readonly {
-  field: RetrievalTextField;
-  column: string;
-  priority: number;
-}[];
 
 export function createMusicDataPlatformRetrievalReadPort(
   input: CreateMusicDataPlatformRetrievalReadPortInput,
@@ -773,8 +765,8 @@ function searchSqlForText(
   textQuery: RetrievalEffectiveTextQuery,
 ): string {
   const whereClauses = catalogBaseWhereClauses(poolFilter, materialKind);
-  const matchedTokenCountSql = matchedTokenCountSqlExpression(textQuery.tokens);
-  const bestFieldPrioritySql = bestFieldPrioritySqlExpression(textQuery.tokens);
+  const matchedTokenCountSql = matchedTokenCountSqlExpression(textQuery.tokens, "material_text_fts");
+  const bestFieldPrioritySql = bestFieldPrioritySqlExpression(textQuery.tokens, "material_text_fts");
   const cursorClause = textCursorClause(order, cursorPosition);
 
   return `
@@ -871,66 +863,12 @@ function searchParamsForText(input: {
   return params;
 }
 
-function matchedTokenCountSqlExpression(tokens: readonly string[]): string {
-  return tokens.map((token) => `
-      CASE
-        WHEN ${anyFieldMatchSqlExpression(token)}
-        THEN 1
-        ELSE 0
-      END
-    `).join(" + ");
-}
 
-function bestFieldPrioritySqlExpression(tokens: readonly string[]): string {
-  return `
-    CASE
-      WHEN ${fieldMatchesAnyTokenSqlExpression("title_text", tokens)}
-      THEN 1
-      WHEN ${fieldMatchesAnyTokenSqlExpression("artist_text", tokens)}
-        OR ${fieldMatchesAnyTokenSqlExpression("album_text", tokens)}
-      THEN 2
-      WHEN ${fieldMatchesAnyTokenSqlExpression("version_text", tokens)}
-      THEN 3
-      WHEN ${fieldMatchesAnyTokenSqlExpression("alias_text", tokens)}
-      THEN 4
-      ELSE 5
-    END
-  `;
-}
 
-function anyFieldMatchSqlExpression(token: string): string {
-  return `(${retrievalTextFieldConfigs
-    .map((field) => fieldMatchSqlExpression(field.column, token))
-    .join(" OR ")})`;
-}
 
-function fieldMatchesAnyTokenSqlExpression(
-  fieldColumn: string,
-  tokens: readonly string[],
-): string {
-  return `(${tokens
-    .map((token) => fieldMatchSqlExpression(fieldColumn, token))
-    .join(" OR ")})`;
-}
 
-function fieldMatchSqlExpression(fieldColumn: string, token: string): string {
-  return `
-    EXISTS (
-      SELECT 1
-      FROM material_text_fts mf
-      WHERE mf.rowid = material_text_fts.rowid
-        AND material_text_fts MATCH ${sqlStringLiteral(fieldScopedPrefixQuery(fieldColumn, token))}
-    )
-  `.trim();
-}
 
-function fieldScopedPrefixQuery(fieldColumn: string, token: string): string {
-  return `${fieldColumn} : ${quotedPrefixQueryToken(token)}`;
-}
 
-function quotedPrefixQueryToken(token: string): string {
-  return `"${token.replaceAll('"', '""')}"*`;
-}
 
 function textCursorClause(
   order: RetrievalOrder,
@@ -1375,9 +1313,6 @@ function sqlValueTuples(count: number): string {
   return Array.from({ length: count }, () => "(?)").join(", ");
 }
 
-function sqlStringLiteral(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
-}
 
 function compareStrings(left: string, right: string): number {
   if (left < right) {

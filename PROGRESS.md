@@ -854,6 +854,22 @@ kernel (ADR-0013):
   ref primitives imported only from `kernel.js`), and repointed `src/index.ts` to
   re-export the five area files directly. The contracts barrel no longer exists.
 
+## 2026-06-16: Retrieval Text Ranking Dedup
+
+The duplicated FTS5 text-ranking SQL engine is consolidated into one shared
+module (architecture deepening candidate #2):
+
+- `src/music_data_platform/material_text_ranking.ts` owns the field config,
+  token-count, and field-priority SQL expressions, parameterised by the FTS table
+  name (`material_text_fts` | `retrieval_result_text_fts`);
+- `retrieval_read_model.ts` and `retrieval_mixed_workspace.ts` import these
+  instead of maintaining byte-identical copies (~400 duplicated lines removed);
+- the text cursor clause and matched-text evidence SQL stay per-file — they
+  diverge materially (order switch vs single text-relevance tie-break;
+  `material_ref_key` vs result-row keying) and are not shareable;
+- no public-surface change; `RetrievalTextField` moved to the ranking module and
+  is re-exported from `retrieval_read_model.ts` for backward compatibility.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

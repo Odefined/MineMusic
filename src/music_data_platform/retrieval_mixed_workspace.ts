@@ -36,6 +36,13 @@ import type {
   RetrievalTextField,
 } from "./retrieval_read_model.js";
 import {
+  sqlStringLiteral,
+  retrievalTextFieldConfigs,
+  matchedTokenCountSqlExpression,
+  bestFieldPrioritySqlExpression,
+  fieldScopedPrefixQuery,
+} from "./material_text_ranking.js";
+import {
   createRetrievalResultSetRecords,
   expiresAtFromResultSetCreatedAt,
   type RetrievalResultRowKind,
@@ -211,17 +218,6 @@ type SourceLibraryRow = {
 
 const LOCAL_RESULT_WINDOW_MULTIPLIER = 10;
 
-const retrievalTextFieldConfigs = [
-  { field: "title", column: "title_text", priority: 1 },
-  { field: "artist", column: "artist_text", priority: 2 },
-  { field: "album", column: "album_text", priority: 2 },
-  { field: "version", column: "version_text", priority: 3 },
-  { field: "alias", column: "alias_text", priority: 4 },
-] as const satisfies readonly {
-  field: RetrievalTextField;
-  column: string;
-  priority: number;
-}[];
 
 export function createMusicDataPlatformRetrievalWorkspace(
   input: CreateMusicDataPlatformRetrievalWorkspaceInput,
@@ -1479,80 +1475,12 @@ function effectiveTextQuery(text: string): EffectiveTextQuery {
   };
 }
 
-function matchedTokenCountSqlExpression(
-  tokens: readonly string[],
-  ftsTableName: "material_text_fts" | "retrieval_result_text_fts",
-): string {
-  return tokens.map((token) => `
-      CASE
-        WHEN ${anyFieldMatchSqlExpression(token, ftsTableName)}
-        THEN 1
-        ELSE 0
-      END
-    `).join(" + ");
-}
 
-function bestFieldPrioritySqlExpression(
-  tokens: readonly string[],
-  ftsTableName: "material_text_fts" | "retrieval_result_text_fts",
-): string {
-  return `
-    CASE
-      WHEN ${fieldMatchesAnyTokenSqlExpression("title_text", tokens, ftsTableName)}
-      THEN 1
-      WHEN ${fieldMatchesAnyTokenSqlExpression("artist_text", tokens, ftsTableName)}
-        OR ${fieldMatchesAnyTokenSqlExpression("album_text", tokens, ftsTableName)}
-      THEN 2
-      WHEN ${fieldMatchesAnyTokenSqlExpression("version_text", tokens, ftsTableName)}
-      THEN 3
-      WHEN ${fieldMatchesAnyTokenSqlExpression("alias_text", tokens, ftsTableName)}
-      THEN 4
-      ELSE 5
-    END
-  `;
-}
 
-function anyFieldMatchSqlExpression(
-  token: string,
-  ftsTableName: "material_text_fts" | "retrieval_result_text_fts",
-): string {
-  return `(${retrievalTextFieldConfigs
-    .map((field) => fieldMatchSqlExpression(field.column, token, ftsTableName))
-    .join(" OR ")})`;
-}
 
-function fieldMatchesAnyTokenSqlExpression(
-  fieldColumn: string,
-  tokens: readonly string[],
-  ftsTableName: "material_text_fts" | "retrieval_result_text_fts",
-): string {
-  return `(${tokens
-    .map((token) => fieldMatchSqlExpression(fieldColumn, token, ftsTableName))
-    .join(" OR ")})`;
-}
 
-function fieldMatchSqlExpression(
-  fieldColumn: string,
-  token: string,
-  ftsTableName: "material_text_fts" | "retrieval_result_text_fts",
-): string {
-  return `
-    EXISTS (
-      SELECT 1
-      FROM ${ftsTableName} f
-      WHERE f.rowid = ${ftsTableName}.rowid
-        AND ${ftsTableName} MATCH ${sqlStringLiteral(fieldScopedPrefixQuery(fieldColumn, token))}
-    )
-  `.trim();
-}
 
-function fieldScopedPrefixQuery(fieldColumn: string, token: string): string {
-  return `${fieldColumn} : ${quotedPrefixQueryToken(token)}`;
-}
 
-function quotedPrefixQueryToken(token: string): string {
-  return `"${token.replaceAll('"', '""')}"*`;
-}
 
 function materialRefFromEntityJson(
   entityJson: string,
@@ -1761,9 +1689,6 @@ function sqlValueTuples(rowCount: number, columnCount: number): string {
   ).join(", ");
 }
 
-function sqlStringLiteral(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
-}
 
 function invalidMixedWorkspace(message: string, cause?: unknown): MusicDataPlatformError {
   return new MusicDataPlatformError({

@@ -170,6 +170,7 @@ assert.deepEqual(
     "src/music_data_platform/material_text_projection_commands.ts",
     "src/music_data_platform/material_text_projection_records.ts",
     "src/music_data_platform/material_text_projection_schema.ts",
+    "src/music_data_platform/material_text_ranking.ts",
     "src/music_data_platform/owner_catalog_projection.ts",
     "src/music_data_platform/owner_catalog_records.ts",
     "src/music_data_platform/owner_catalog_schema.ts",
