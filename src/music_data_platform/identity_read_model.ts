@@ -1,4 +1,4 @@
-import type { Ref } from "../contracts/index.js";
+import type { Ref } from "../contracts/kernel.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import {
   createIdentityRepositories,

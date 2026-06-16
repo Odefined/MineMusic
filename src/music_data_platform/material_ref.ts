@@ -1,4 +1,5 @@
-import { type MaterialEntityKind, type Ref } from "../contracts/index.js";
+import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
+import type { Ref } from "../contracts/kernel.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMusicDataPlatformRefComponentSafe } from "./ref_validation.js";
 

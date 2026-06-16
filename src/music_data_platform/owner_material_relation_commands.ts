@@ -1,8 +1,5 @@
-import {
-  refKey,
-  type MaterialEntityKind,
-  type Ref,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
+import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef } from "./material_ref.js";

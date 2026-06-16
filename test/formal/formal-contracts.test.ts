@@ -1,51 +1,12 @@
 import assert from "node:assert/strict";
 
-import type {
-  CanonicalEntity,
-  CanonicalRecord,
-  CanonicalRecordStatus,
-  MaterialAvailability,
-  MaterialEntity,
-  MaterialEntityKind,
-  MaterialIdentityStatus,
-  MaterialLifecycleStatus,
-  MaterialRecord,
-  PlatformLibraryCandidate,
-  PlatformLibraryKind,
-  PlatformLibraryProvider,
-  PlatformLibraryReadInput,
-  PlatformLibraryReadResult,
-  PlayableLink,
-  ProviderMaterialCandidate,
-  Ref,
-  Result,
-  RuntimeErrorSummary,
-  RuntimeModuleOwnerArea,
-  RuntimeModuleSnapshot,
-  RuntimeModuleStatus,
-  SourceAlbum,
-  SourceArtist,
-  SourceEntity,
-  SourceEntityKind,
-  SourceLibraryImportBatchStatus,
-  SourceLibraryImportCompletionReason,
-  SourceLibraryImportItemOutcome,
-  SourceProvider,
-  SourceRecord,
-  SourceTrack,
-  SourceTrackPosition,
-  StageInterfaceContract,
-  StageRuntimeSnapshot,
-  StageRuntimeStatus,
-  VersionInfo,
-  VersionTag,
-} from "../../src/contracts/index.js";
-import {
-  assertRefSafe,
-  hasPrefixOrV1Token,
-  refKey,
-  tokenizePrefixOrV1Text,
-} from "../../src/contracts/index.js";
+import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEntityKind, MaterialIdentityStatus, MaterialLifecycleStatus, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, PlayableLink, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntity, SourceEntityKind, SourceLibraryImportBatchStatus, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../src/contracts/music_data_platform.js";
+import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
+import type { Ref, Result } from "../../src/contracts/kernel.js";
+import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
+import type { StageInterfaceContract } from "../../src/contracts/stage_interface.js";
+import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
+import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,

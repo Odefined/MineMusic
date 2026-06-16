@@ -1,10 +1,6 @@
-import type {
-  InstrumentDescriptor,
-  Result,
-  RuntimeModuleOwnerArea,
-  ToolDescriptor,
-  ToolHandler,
-} from "../contracts/index.js";
+import type { InstrumentDescriptor, ToolDescriptor, ToolHandler } from "../contracts/stage_interface.js";
+import type { Result } from "../contracts/kernel.js";
+import type { RuntimeModuleOwnerArea } from "../contracts/stage_core.js";
 
 export type RuntimeModuleDescriptor = {
   id: string;

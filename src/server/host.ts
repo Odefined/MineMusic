@@ -1,4 +1,5 @@
-import type { Result, StageRuntimeSnapshot } from "../contracts/index.js";
+import type { Result } from "../contracts/kernel.js";
+import type { StageRuntimeSnapshot } from "../contracts/stage_core.js";
 import {
   createExtensionRuntimeModule,
   createStageRuntime,

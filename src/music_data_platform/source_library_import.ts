@@ -1,20 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import {
-  isRefComponentSafe,
-  refKey,
-  type MaterialEntityKind,
-  type PlatformLibraryCandidate,
-  type PlatformLibraryKind,
-  type PlatformLibraryReadInput,
-  type PlatformLibraryReadResult,
-  type Ref,
-  type Result,
-  type SourceEntity,
-  type SourceLibraryImportCompletionReason,
-  type SourceRecord,
-  type StageError,
-} from "../contracts/index.js";
+import { isRefComponentSafe, refKey, type Ref, type Result, type StageError } from "../contracts/kernel.js";
+import type { MaterialEntityKind, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntity, SourceLibraryImportCompletionReason } from "../contracts/music_data_platform.js";
+import type { SourceRecord } from "../contracts/storage.js";
 import type { MusicDatabase } from "../storage/database.js";
 import { isMusicDataPlatformError } from "./errors.js";
 import {

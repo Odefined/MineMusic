@@ -1,12 +1,8 @@
 import assert from "node:assert/strict";
 
-import {
-  refKey,
-  type CanonicalEntity,
-  type MaterialRecord,
-  type Ref,
-  type SourceEntity,
-} from "../../src/contracts/index.js";
+import { refKey, type Ref } from "../../src/contracts/kernel.js";
+import type { CanonicalEntity, SourceEntity } from "../../src/contracts/music_data_platform.js";
+import type { MaterialRecord } from "../../src/contracts/storage.js";
 import type { MusicDatabaseContext } from "../../src/storage/index.js";
 import {
   isMusicDataPlatformError,

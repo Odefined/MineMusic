@@ -1,4 +1,4 @@
-import { tokenizePrefixOrV1Text } from "../contracts/index.js";
+import { tokenizePrefixOrV1Text } from "../contracts/music_data_platform.js";
 
 export type MaterialTextContributionSource =
   | "material"

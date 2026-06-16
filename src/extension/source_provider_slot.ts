@@ -1,13 +1,5 @@
-import {
-  assertRefSafe,
-  isRefComponentSafe,
-  type ProviderMaterialCandidate,
-  type Result,
-  type SourceEntityKind,
-  type SourceQuery,
-  type SourceProvider,
-  type SourceProviderCapability,
-} from "../contracts/index.js";
+import { assertRefSafe, isRefComponentSafe, type Result } from "../contracts/kernel.js";
+import type { ProviderMaterialCandidate, SourceEntityKind, SourceQuery, SourceProvider, SourceProviderCapability } from "../contracts/music_data_platform.js";
 import type { CapabilityRegistry } from "./capability_registry.js";
 import { defineCapabilitySlot } from "./capability_slot.js";
 import { failExtension, ok } from "./errors.js";

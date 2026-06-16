@@ -1,4 +1,4 @@
-import { isRefComponentSafe, type Result } from "../contracts/index.js";
+import { isRefComponentSafe, type Result } from "../contracts/kernel.js";
 import type { CapabilitySlot } from "./capability_slot.js";
 import { failExtension, ok } from "./errors.js";
 

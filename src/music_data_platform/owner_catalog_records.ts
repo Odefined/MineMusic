@@ -1,4 +1,4 @@
-import { refKey, type Ref } from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import { assertOwnerScope } from "./owner_scope.js";
 

@@ -848,8 +848,11 @@ kernel (ADR-0013):
   contracts DAG per-file allow-list (covering `from`, dynamic `import()`, and
   bare side-effect imports), a kernel-export allow-list, and a barrel-integrity
   check;
-- Phase 1 changes no importer; Phase 2 repoints importers to the narrow contract
-  paths and deletes the shim.
+- Phase 1 changed no importer; Phase 2 (same date) repointed every importer to
+  the narrow per-area paths via a symbol-to-area codemod, deleted the `index.ts`
+  shim, replaced the Phase 1 barrel-integrity guard with a ref-origin guard (G3:
+  ref primitives imported only from `kernel.js`), and repointed `src/index.ts` to
+  re-export the five area files directly. The contracts barrel no longer exists.
 
 ## Next Formal Milestones
 

@@ -1,8 +1,4 @@
-import {
-  isRefComponentSafe,
-  refKey,
-  type Ref,
-} from "../contracts/index.js";
+import { isRefComponentSafe, refKey, type Ref } from "../contracts/kernel.js";
 import {
   MusicDataPlatformError,
   type MusicDataPlatformErrorCode,

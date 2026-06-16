@@ -1,14 +1,7 @@
 import assert from "node:assert/strict";
 
-import {
-  refKey,
-  type PlatformLibraryCandidate,
-  type PlatformLibraryReadInput,
-  type PlatformLibraryReadResult,
-  type Ref,
-  type Result,
-  type SourceEntity,
-} from "../../src/contracts/index.js";
+import { refKey, type Ref, type Result } from "../../src/contracts/kernel.js";
+import type { PlatformLibraryCandidate, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntity } from "../../src/contracts/music_data_platform.js";
 import {
   DEFAULT_OWNER_SCOPE,
   createMaterialTextProjectionRecords,

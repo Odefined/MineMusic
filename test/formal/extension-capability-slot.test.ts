@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 
-import type {
-  PlatformLibraryCandidate,
-  PlatformLibraryProvider,
-  ProviderMaterialCandidate,
-  Result,
-  SourceProvider,
-  StageError,
-} from "../../src/contracts/index.js";
+import type { PlatformLibraryCandidate, PlatformLibraryProvider, ProviderMaterialCandidate, SourceProvider } from "../../src/contracts/music_data_platform.js";
+import type { Result, StageError } from "../../src/contracts/kernel.js";
 import {
   createCapabilityRegistry,
   createExtensionRuntime,

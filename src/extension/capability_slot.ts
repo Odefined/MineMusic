@@ -1,4 +1,4 @@
-import { isRefComponentSafe } from "../contracts/index.js";
+import { isRefComponentSafe } from "../contracts/kernel.js";
 
 export type CapabilityCardinality = "single" | "many" | "many-by-id";
 

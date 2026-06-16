@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import type { StageError } from "../../src/contracts/index.js";
+import type { StageError } from "../../src/contracts/kernel.js";
 import type {
   ExtensionRuntime,
   ExtensionRuntimeSnapshot,

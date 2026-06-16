@@ -1,9 +1,5 @@
-import {
-  refKey,
-  type MaterialEntityKind,
-  type PlatformLibraryKind,
-  type Ref,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
+import type { MaterialEntityKind, PlatformLibraryKind } from "../contracts/music_data_platform.js";
 import type {
   MusicDatabaseContext,
   MusicDatabaseParameter,

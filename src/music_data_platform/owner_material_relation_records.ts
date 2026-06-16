@@ -1,7 +1,4 @@
-import {
-  refKey,
-  type Ref,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef } from "./material_ref.js";

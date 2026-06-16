@@ -1,15 +1,6 @@
-import {
-  refKey,
-  type CanonicalEntity,
-  type CanonicalRecord,
-  type CanonicalRecordStatus,
-  type MaterialEntity,
-  type MaterialRecord,
-  type Ref,
-  type SourceEntity,
-  type SourceEntityKind,
-  type SourceRecord,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
+import type { CanonicalEntity, MaterialEntity, SourceEntity, SourceEntityKind } from "../contracts/music_data_platform.js";
+import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../contracts/storage.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 
 export type SourceToMaterialBindingRecord = {

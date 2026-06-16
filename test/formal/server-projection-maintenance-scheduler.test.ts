@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import type { Ref } from "../../src/contracts/index.js";
+import type { Ref } from "../../src/contracts/kernel.js";
 import {
   createProjectionMaintenanceCommands,
   createProjectionMaintenanceRecords,

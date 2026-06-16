@@ -43,9 +43,10 @@ The shared kernel (`kernel.ts`) holds only genuinely cross-cutting primitives:
 `Result`, `StageError`, `StageWarning`, `FormalArea`, `Ref`, `isRefComponentSafe`,
 `assertRefSafe`, `refKey`. It is a strict leaf.
 
-`contracts/index.ts` becomes a transitional pure re-export shim
-(`export * from "./<area>.js"`) so the 59 existing importers are unchanged in
-Phase 1. Phase 2 repoints importers to the narrow paths and deletes the shim.
+`contracts/index.ts` was a transitional pure re-export shim
+(`export * from "./<area>.js"`) keeping the existing importers unchanged in
+Phase 1. Phase 2 repointed every importer to the narrow per-area path and
+deleted the shim; `contracts/index.ts` no longer exists.
 
 ### music_intelligence owns no contract surface
 
@@ -94,17 +95,21 @@ types defined by their owning contexts, not this orphan.
   slips through), a kernel-export allow-list (kernel must export only the eight
   cross-cutting primitives named above — additive, so any new area type placed
   in the kernel is flagged without a hand-maintained deny-list), and a
-  barrel-integrity check (the shim is re-export-only and re-exports all area
-  files). These guards are the source of truth for the DAG; prose alone is not.
+  ref-origin check (the ref primitives `isRefComponentSafe`, `assertRefSafe`,
+  and `refKey` are imported only from `kernel.js`). These guards are the source
+  of truth for the DAG; prose alone is not. (Phase 2 replaced the Phase 1
+  barrel-integrity guard with this ref-origin guard once the barrel was deleted.)
 - `refKey` returns `string`; `PublicRefKey` is gone. Callers are unaffected
   (`PublicRefKey` was `string` and never imported as a named type).
 - ADR-0009's Tool Framework dimensions (`sideEffect`, `inputSchema`,
   `outputSchema`) remain a future addition to `contracts/stage_interface.ts`;
   this split does not implement them but gives them a home that does not touch
   material or runtime contracts.
-- Phase 2 (optional, separate PR) repoints importers to narrow contract paths
-  and deletes the barrel shim; the G3 ref-origin tightening (assert ref
-  primitives are imported from `kernel.js`) lands with Phase 2.
+- Phase 2 repointed all importers to the narrow per-area contract paths,
+  deleted the `contracts/index.ts` shim, and added the ref-origin guard (G3)
+  described above. The barrel no longer exists; each importer now pulls only the
+  area files it uses, so a change to one area's contract no longer re-parses
+  unrelated importers.
 
 ## References
 

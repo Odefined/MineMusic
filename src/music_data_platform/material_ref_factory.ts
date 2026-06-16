@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import {
-  type MaterialEntityKind,
-  type Ref,
-} from "../contracts/index.js";
+import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
+import type { Ref } from "../contracts/kernel.js";
 import { assertMaterialRef } from "./material_ref.js";
 
 export type MaterialRefFactory = {

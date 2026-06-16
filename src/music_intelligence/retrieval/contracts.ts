@@ -1,9 +1,5 @@
-import type {
-  MaterialEntityKind,
-  ProviderMaterialCandidate,
-  Ref,
-  SourceQuery,
-} from "../../contracts/index.js";
+import type { MaterialEntityKind, ProviderMaterialCandidate, SourceQuery } from "../../contracts/music_data_platform.js";
+import type { Ref } from "../../contracts/kernel.js";
 import type {
   MixedRetrievalCursorPosition,
   MusicDataPlatformMixedRetrievalRow,

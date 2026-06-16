@@ -1,12 +1,5 @@
-import type {
-  Result,
-  RuntimeErrorSummary,
-  RuntimeModuleSnapshot,
-  RuntimeModuleStatus,
-  StageError,
-  StageRuntimeSnapshot,
-  StageRuntimeStatus,
-} from "../contracts/index.js";
+import type { Result, StageError } from "../contracts/kernel.js";
+import type { RuntimeErrorSummary, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../contracts/stage_core.js";
 import { createStageInterface, type StageInterface } from "../stage_interface/index.js";
 import {
   mergeRuntimeModuleContributions,

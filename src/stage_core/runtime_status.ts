@@ -1,9 +1,4 @@
-import type {
-  RuntimeErrorSummary,
-  RuntimeModuleSnapshot,
-  StageRuntimeSnapshot,
-  StageRuntimeStatus,
-} from "../contracts/index.js";
+import type { RuntimeErrorSummary, RuntimeModuleSnapshot, StageRuntimeSnapshot, StageRuntimeStatus } from "../contracts/stage_core.js";
 import type { RuntimeModule } from "./runtime_module.js";
 
 export type RuntimeStatusReader = () => StageRuntimeSnapshot;

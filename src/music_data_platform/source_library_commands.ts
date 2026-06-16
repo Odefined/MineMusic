@@ -1,10 +1,5 @@
-import {
-  refKey,
-  type PlatformLibraryKind,
-  type Ref,
-  type SourceLibraryImportCompletionReason,
-  type SourceLibraryImportItemOutcome,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
+import type { PlatformLibraryKind, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseTransactionContext } from "../storage/database.js";
 import { createIdentityReadPort } from "./identity_read_model.js";
 import { MusicDataPlatformError } from "./errors.js";

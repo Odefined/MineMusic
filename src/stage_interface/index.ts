@@ -1,11 +1,5 @@
-import type {
-  Result,
-  StageInterfaceContract,
-  ToolCallInput,
-  ToolCallOutput,
-  ToolDescriptor,
-  ToolHandler,
-} from "../contracts/index.js";
+import type { Result } from "../contracts/kernel.js";
+import type { StageInterfaceContract, ToolCallInput, ToolCallOutput, ToolDescriptor, ToolHandler } from "../contracts/stage_interface.js";
 
 export type StageInterface = StageInterfaceContract & {
   dispatch(input: ToolCallInput): Promise<Result<ToolCallOutput>>;

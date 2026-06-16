@@ -1,23 +1,5 @@
-import {
-  isRefComponentSafe,
-  type PlayableLink,
-  type PlatformLibraryCandidate,
-  type PlatformLibraryKind,
-  type PlatformLibraryProvider,
-  type PlatformLibraryReadInput,
-  type PlatformLibraryReadResult,
-  type ProviderMaterialCandidate,
-  type Ref,
-  type Result,
-  type SourceAlbum,
-  type SourceArtist,
-  type SourceEntityKind,
-  type SourceProvider,
-  type SourceTrack,
-  type SourceTrackPosition,
-  type VersionInfo,
-  type VersionTag,
-} from "../../contracts/index.js";
+import { isRefComponentSafe, type Ref, type Result } from "../../contracts/kernel.js";
+import type { PlayableLink, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntityKind, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../contracts/music_data_platform.js";
 import { failExtension, ok } from "../errors.js";
 import type { MineMusicPlugin } from "../plugin_runtime.js";
 import { platformLibraryProviderSlot } from "../platform_library_provider_slot.js";

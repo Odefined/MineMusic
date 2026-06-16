@@ -1,19 +1,9 @@
 import assert from "node:assert/strict";
 
-import {
-  refKey,
-  tokenizePrefixOrV1Text,
-} from "../../src/contracts/index.js";
-import type {
-  CanonicalEntity,
-  MaterialEntityKind,
-  Ref,
-  SourceAlbum,
-  SourceArtist,
-  SourceEntity,
-  SourceTrack,
-  VersionInfo,
-} from "../../src/contracts/index.js";
+import { refKey } from "../../src/contracts/kernel.js";
+import { tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
+import type { CanonicalEntity, MaterialEntityKind, SourceAlbum, SourceArtist, SourceEntity, SourceTrack, VersionInfo } from "../../src/contracts/music_data_platform.js";
+import type { Ref } from "../../src/contracts/kernel.js";
 import {
   DEFAULT_OWNER_SCOPE,
   createMaterialTextProjectionCommands,

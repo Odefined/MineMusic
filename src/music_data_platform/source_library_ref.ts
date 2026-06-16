@@ -1,7 +1,5 @@
-import {
-  type PlatformLibraryKind,
-  type Ref,
-} from "../contracts/index.js";
+import type { PlatformLibraryKind } from "../contracts/music_data_platform.js";
+import type { Ref } from "../contracts/kernel.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";
 import { createDeterministicRefDigest } from "./ref_digest.js";

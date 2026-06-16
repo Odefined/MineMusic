@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 
-import type {
-  PlatformLibraryProvider,
-  Result,
-  SourceProvider,
-} from "../../src/contracts/index.js";
+import type { PlatformLibraryProvider, SourceProvider } from "../../src/contracts/music_data_platform.js";
+import type { Result } from "../../src/contracts/kernel.js";
 import {
   createExtensionRuntime,
   platformLibraryProviderSlot,

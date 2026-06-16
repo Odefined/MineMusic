@@ -1,4 +1,4 @@
-import type { SourceEntityKind } from "../contracts/index.js";
+import type { SourceEntityKind } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseContext, MusicDatabaseParameter } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import type { MaterialCandidateKind } from "./material_candidate_ref.js";

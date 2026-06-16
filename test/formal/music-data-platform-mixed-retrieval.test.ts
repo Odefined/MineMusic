@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 
-import {
-  refKey,
-  type MaterialEntityKind,
-  type ProviderMaterialCandidate,
-  type Ref,
-  type SourceEntity,
-  type SourceTrack,
-} from "../../src/contracts/index.js";
+import { refKey, type Ref } from "../../src/contracts/kernel.js";
+import type { MaterialEntityKind, ProviderMaterialCandidate, SourceEntity, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import {
   DEFAULT_OWNER_SCOPE,
   createMaterialTextProjectionCommands,

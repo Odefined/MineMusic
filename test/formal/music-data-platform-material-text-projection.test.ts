@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 
-import {
-  refKey,
-  type Ref,
-} from "../../src/contracts/index.js";
+import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import * as musicDataPlatform from "../../src/music_data_platform/index.js";
 import {
   createMaterialTextProjectionCommands,

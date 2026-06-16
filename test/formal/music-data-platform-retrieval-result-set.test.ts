@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 
-import {
-  refKey,
-  type ProviderMaterialCandidate,
-  type SourceTrack,
-} from "../../src/contracts/index.js";
+import { refKey } from "../../src/contracts/kernel.js";
+import type { ProviderMaterialCandidate, SourceTrack } from "../../src/contracts/music_data_platform.js";
 import {
   assertProviderMaterialCandidateRef,
   createProviderMaterialCandidateRef,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import type { Result, StageError } from "../../src/contracts/index.js";
+import type { Result, StageError } from "../../src/contracts/kernel.js";
 import {
   createExtensionRuntimeModule,
   createStageRuntime,

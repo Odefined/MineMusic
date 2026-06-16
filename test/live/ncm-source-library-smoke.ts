@@ -1,6 +1,4 @@
-import {
-  type PlatformLibraryKind,
-} from "../../src/contracts/index.js";
+import type { PlatformLibraryKind } from "../../src/contracts/music_data_platform.js";
 import { createServerHost } from "../../src/server/index.js";
 
 declare const process: {

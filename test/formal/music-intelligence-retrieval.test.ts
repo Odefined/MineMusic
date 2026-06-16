@@ -1,16 +1,8 @@
 import assert from "node:assert/strict";
 
-import {
-  refKey,
-} from "../../src/contracts/index.js";
-import type {
-  MaterialEntityKind,
-  ProviderMaterialCandidate,
-  Ref,
-  SourceEntity,
-  SourceQuery,
-  SourceTrack,
-} from "../../src/contracts/index.js";
+import { refKey } from "../../src/contracts/kernel.js";
+import type { MaterialEntityKind, ProviderMaterialCandidate, SourceEntity, SourceQuery, SourceTrack } from "../../src/contracts/music_data_platform.js";
+import type { Ref } from "../../src/contracts/kernel.js";
 import {
   DEFAULT_RETRIEVAL_LIMIT,
   MAX_RETRIEVAL_POOL_GROUP_SIZE,

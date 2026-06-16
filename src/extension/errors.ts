@@ -1,4 +1,4 @@
-import type { Result, StageError } from "../contracts/index.js";
+import type { Result, StageError } from "../contracts/kernel.js";
 
 export function extensionError(
   code: string,

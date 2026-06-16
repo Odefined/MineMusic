@@ -1,4 +1,4 @@
-import type { Result } from "../contracts/index.js";
+import type { Result } from "../contracts/kernel.js";
 import { failExtension, ok } from "./errors.js";
 
 export type MineMusicPluginManifest = {

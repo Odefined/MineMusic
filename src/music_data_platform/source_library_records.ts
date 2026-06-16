@@ -1,11 +1,5 @@
-import {
-  refKey,
-  type PlatformLibraryKind,
-  type Ref,
-  type SourceLibraryImportBatchStatus,
-  type SourceLibraryImportCompletionReason,
-  type SourceLibraryImportItemOutcome,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
+import type { PlatformLibraryKind, SourceLibraryImportBatchStatus, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertOwnerScope } from "./owner_scope.js";

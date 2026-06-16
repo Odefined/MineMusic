@@ -1,14 +1,5 @@
-import {
-  assertRefSafe,
-  isRefComponentSafe,
-  type PlatformLibraryCandidate,
-  type PlatformLibraryKind,
-  type PlatformLibraryProvider,
-  type PlatformLibraryReadInput,
-  type PlatformLibraryReadResult,
-  type Result,
-  type SourceEntityKind,
-} from "../contracts/index.js";
+import { assertRefSafe, isRefComponentSafe, type Result } from "../contracts/kernel.js";
+import type { PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntityKind } from "../contracts/music_data_platform.js";
 import type { CapabilityRegistry } from "./capability_registry.js";
 import { defineCapabilitySlot } from "./capability_slot.js";
 import { failExtension, ok } from "./errors.js";

@@ -1,15 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import {
-  refKey,
-  type MaterialEntityKind,
-  type PlatformLibraryKind,
-  type ProviderMaterialCandidate,
-  type Ref,
-  type SourceEntity,
-  type SourceEntityKind,
-  type VersionInfo,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
+import type { MaterialEntityKind, PlatformLibraryKind, ProviderMaterialCandidate, SourceEntity, SourceEntityKind, VersionInfo } from "../contracts/music_data_platform.js";
 import type {
   MusicDatabase,
   MusicDatabaseContext,

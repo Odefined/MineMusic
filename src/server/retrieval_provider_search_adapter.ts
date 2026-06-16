@@ -1,4 +1,4 @@
-import type { StageError } from "../contracts/index.js";
+import type { StageError } from "../contracts/kernel.js";
 import type { ExtensionRuntime } from "../extension/index.js";
 import {
   MusicIntelligenceError,

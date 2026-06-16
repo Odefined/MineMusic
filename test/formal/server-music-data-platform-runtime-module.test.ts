@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import type { Ref } from "../../src/contracts/index.js";
+import type { Ref } from "../../src/contracts/kernel.js";
 import {
   DEFAULT_OWNER_SCOPE,
   createProjectionMaintenanceCommands,
@@ -9,7 +9,7 @@ import {
   createMusicDataPlatformSourceOfTruthWriteCommands,
   type ProjectionMaintenanceTargetRecord,
 } from "../../src/music_data_platform/index.js";
-import type { SourceEntity } from "../../src/contracts/index.js";
+import type { SourceEntity } from "../../src/contracts/music_data_platform.js";
 import {
   createMineMusicExtensionRuntime,
   createMusicDataPlatformRuntimeModule,

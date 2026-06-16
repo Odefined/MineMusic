@@ -1,7 +1,4 @@
-import {
-  refKey,
-  type Ref,
-} from "../contracts/index.js";
+import { refKey, type Ref } from "../contracts/kernel.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { createDeterministicRefDigest } from "./ref_digest.js";
 import {

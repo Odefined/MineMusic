@@ -1,14 +1,6 @@
-import type {
-  ProviderMaterialCandidate,
-  Ref,
-  SourceEntity,
-  SourceEntityKind,
-  SourceQuery,
-} from "../../contracts/index.js";
-import {
-  isRefComponentSafe,
-  refKey,
-} from "../../contracts/index.js";
+import type { ProviderMaterialCandidate, SourceEntity, SourceEntityKind, SourceQuery } from "../../contracts/music_data_platform.js";
+import type { Ref } from "../../contracts/kernel.js";
+import { isRefComponentSafe, refKey } from "../../contracts/kernel.js";
 import type {
   MixedRetrievalCursorPosition,
   MusicDataPlatformMixedRetrievalPage,
