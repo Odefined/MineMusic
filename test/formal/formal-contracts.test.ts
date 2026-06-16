@@ -4,7 +4,7 @@ import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEnt
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { StageInterfaceContract, ToolDeclaration } from "../../src/contracts/stage_interface.js";
+import type { StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
 
@@ -195,6 +195,29 @@ export type _stageToolDeclarationShape = Expect<
     | "requiresProvider"
   > &
     Equal<ForbiddenKeys<ToolDeclaration, "outputPolicy" | "runtimePolicy" | "contractVersion">, never>
+>;
+
+export type _stageToolContextShape = Expect<
+  Equal<
+    keyof StageToolContext,
+    | "ownerScope"
+    | "sessionId"
+    | "requestId"
+    | "clock"
+    | "abortSignal"
+    | "handleMinting"
+    | "providerAvailability"
+    | "executionGate"
+    | "audit"
+  >
+>;
+
+export type _stageToolExecutionGatePreflightResultShape = Expect<
+  Equal<
+    keyof StageToolExecutionGatePreflightResult,
+    "decision" | "auditLevel" | "publicReason" | "internalReason"
+  > &
+    Equal<ForbiddenKeys<StageToolExecutionGatePreflightResult, "reason">, never>
 >;
 
 export type _stageErrorShape = Expect<

@@ -15,8 +15,20 @@ import type {
   StageToolRegistration,
   ToolDeclaration,
 } from "../../src/contracts/stage_interface.js";
-import { createStageInterface } from "../../src/stage_interface/index.js";
+import {
+  createConservativeStageToolExecutionGate,
+  createMemoryStageToolAuditPort,
+} from "../../src/effect_boundary/index.js";
+import {
+  assertSampleOutputHasNoInternalAnchors,
+  createStageInterface,
+  createStageInterfaceHandleMintingPort,
+  createStageInterfaceHandleRegistryRecords,
+  createStageToolContext,
+  stageInterfaceHandleRegistrySchema,
+} from "../../src/stage_interface/index.js";
 import { stageRuntimeStatusDescriptor } from "../../src/stage_core/runtime_status.js";
+import { SqliteMusicDatabase } from "../../src/storage/index.js";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 
@@ -76,6 +88,80 @@ assert.equal(validateLookupInput({
 assert.equal(validateLookupInput({ cursor: "cursor_1", limit: 5 }), true);
 assert.equal(validateLookupInput({ lookupText: "whoo", cursor: "cursor_1" }), false);
 
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "material-ref-key",
+  output: {
+    items: [
+      {
+        materialRef: "material:recording:m_internal",
+      },
+    ],
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "candidate-ref-value",
+  output: {
+    handle: {
+      kind: "candidate",
+      id: "material_candidate:provider_candidate:c_internal",
+    },
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "source-ref-value",
+  output: {
+    debug: "source_netease:track:1901371647",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "result-set-key",
+  output: {
+    resultSetId: "rs_internal",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "provider-entity-id",
+  output: {
+    providerEntityId: "1901371647",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "raw-provider-key",
+  output: {
+    cursor: "raw_provider_key:secret",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "source-library-ref-key",
+  output: {
+    sourceLibraryRef: "opaque-source-library-id",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "owner-relation-pool-ref-key",
+  output: {
+    ownerRelationPoolRef: "opaque-relation-pool-id",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "source-ref-key-field",
+  output: {
+    sourceRefKey: "opaque-source-key",
+  },
+}));
+assert.doesNotThrow(() => assertSampleOutputHasNoInternalAnchors({
+  label: "public-provider-registry-id",
+  output: {
+    scope: {
+      kind: "provider",
+      providerId: "netease",
+      description: {
+        label: "NetEase",
+      },
+    },
+  },
+}));
+
 const instrument: InstrumentDescriptor = {
   id: "stage.test",
   label: "Stage Test",
@@ -133,6 +219,162 @@ const registration: StageToolRegistration = {
     },
   }),
 };
+
+assert.throws(() => createStageInterface({
+  instruments: [instrument],
+  registrations: [
+    {
+      descriptor: {
+        ...descriptor,
+        outputSchema: {
+          type: "object",
+          properties: {
+            materialRef: {
+              type: "string",
+            },
+          },
+          required: ["materialRef"],
+          additionalProperties: false,
+        },
+      },
+      handler: async () => ({
+        ok: true,
+        value: {
+          materialRef: "material:recording:m_internal",
+        },
+      }),
+    },
+  ],
+}));
+
+const handleRegistryDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+handleRegistryDatabase.initialize({
+  schemas: [stageInterfaceHandleRegistrySchema],
+});
+const handleMinting = createStageInterfaceHandleMintingPort({
+  db: handleRegistryDatabase.context(),
+  clock: () => "2026-06-17T00:00:00.000Z",
+  publicIdFactory: () => "mh_owner_bound_1",
+});
+const internalLibraryAnchor = {
+  materialRef: "material:recording:m_internal",
+};
+const publicLibraryHandleId = await handleMinting.mint({
+  ownerScope: "owner-a",
+  handleKind: "library",
+  internalAnchor: internalLibraryAnchor,
+});
+
+assert.equal(publicLibraryHandleId, "mh_owner_bound_1");
+assert.notEqual(publicLibraryHandleId, internalLibraryAnchor.materialRef);
+assert.deepEqual(
+  await handleMinting.resolve({
+    ownerScope: "owner-a",
+    handleKind: "library",
+    publicId: publicLibraryHandleId,
+  }),
+  internalLibraryAnchor,
+);
+assert.equal(
+  await handleMinting.resolve({
+    ownerScope: "owner-b",
+    handleKind: "library",
+    publicId: publicLibraryHandleId,
+  }),
+  undefined,
+);
+handleRegistryDatabase.close();
+
+const candidateRegistryDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+candidateRegistryDatabase.initialize({
+  schemas: [stageInterfaceHandleRegistrySchema],
+});
+const candidateHandleMinting = createStageInterfaceHandleMintingPort({
+  db: candidateRegistryDatabase.context(),
+  clock: () => "2026-06-17T00:00:00.000Z",
+  candidateHandles: {
+    async mint(candidateInput) {
+      assert.equal(candidateInput.ownerScope, "owner-a");
+      assert.deepEqual(candidateInput.internalAnchor, {
+        materialCandidateRef: "material_candidate:provider_candidate:c_internal",
+      });
+      return "cand_runtime_cache_1";
+    },
+    async resolve(candidateInput) {
+      assert.equal(candidateInput.ownerScope, "owner-a");
+      assert.equal(candidateInput.publicId, "cand_runtime_cache_1");
+      return {
+        materialCandidateRef: "material_candidate:provider_candidate:c_internal",
+      };
+    },
+  },
+});
+const candidateHandleId = await candidateHandleMinting.mint({
+  ownerScope: "owner-a",
+  handleKind: "candidate",
+  internalAnchor: {
+    materialCandidateRef: "material_candidate:provider_candidate:c_internal",
+  },
+});
+
+assert.equal(candidateHandleId, "cand_runtime_cache_1");
+assert.deepEqual(
+  await candidateHandleMinting.resolve({
+    ownerScope: "owner-a",
+    handleKind: "candidate",
+    publicId: candidateHandleId,
+  }),
+  {
+    materialCandidateRef: "material_candidate:provider_candidate:c_internal",
+  },
+);
+candidateRegistryDatabase.close();
+
+const auditRecords: Parameters<ReturnType<typeof createMemoryStageToolAuditPort>["record"]>[0][] = [];
+const audit = createMemoryStageToolAuditPort(auditRecords);
+const conservativeGate = createConservativeStageToolExecutionGate({ audit });
+const gateBaseInput = {
+  descriptor,
+  ownerScope: "local",
+  sessionId: "stage-interface-test-session",
+  requestId: "stage-interface-test-request",
+  arguments: {},
+};
+
+assert.equal((await conservativeGate.preflight(gateBaseInput)).decision, "allow");
+assert.equal((await conservativeGate.preflight({
+  ...gateBaseInput,
+  descriptor: {
+    ...descriptor,
+    invocationPolicy: {
+      ...descriptor.invocationPolicy,
+      defaultDecision: "ask",
+    },
+  },
+})).decision, "ask");
+assert.equal((await conservativeGate.preflight({
+  ...gateBaseInput,
+  descriptor: {
+    ...descriptor,
+    invocationPolicy: {
+      ...descriptor.invocationPolicy,
+      defaultDecision: "deny",
+    },
+  },
+})).decision, "deny");
+assert.equal((await conservativeGate.preflight({
+  ...gateBaseInput,
+  descriptor: {
+    ...descriptor,
+    sideEffect: {
+      ...descriptor.sideEffect,
+      durableUserStateWrite: true,
+    },
+  },
+})).decision, "ask");
+assert.equal(auditRecords.length, 4);
+assert.equal(auditRecords.every((record) => record.auditLevel === "metadata"), true);
+
 const stageInterface = createStageInterface({
   instruments: [instrument],
   registrations: [registration],
@@ -245,6 +487,38 @@ if (!askResult.ok) {
   assert.equal(askResult.error.code, "stage_interface.ask_required");
 }
 
+const internalGateReasonResult = await stageInterface.dispatch(
+  createStageToolContext({
+    ownerScope: "local",
+    sessionId: "stage-interface-test-session",
+    requestId: "stage-interface-test-request",
+    clock: () => "2026-06-17T00:00:00.000Z",
+    executionGate: {
+      async preflight() {
+        return {
+          decision: "ask",
+          auditLevel: "metadata",
+          internalReason: "internal sourceRef source_netease:track:1901371647",
+        };
+      },
+    },
+  }),
+  {
+    toolName: descriptor.name,
+    payload: {},
+  },
+);
+
+assert.equal(internalGateReasonResult.ok, false);
+
+if (!internalGateReasonResult.ok) {
+  assert.equal(internalGateReasonResult.error.code, "stage_interface.ask_required");
+  assert.equal(
+    JSON.stringify(internalGateReasonResult.error).includes("source_netease:track:1901371647"),
+    false,
+  );
+}
+
 const denyResult = await stageInterface.dispatch(testStageToolContext("deny"), {
   toolName: descriptor.name,
   payload: {},
@@ -338,6 +612,220 @@ if (!declaredCauseResult.ok) {
   );
 }
 
+const declaredNormalizationInterface = createStageInterface({
+  instruments: [instrument],
+  registrations: [
+    {
+      descriptor,
+      handler: async (): Promise<Result<unknown>> => ({
+        ok: false,
+        error: {
+          code: "invalid_input",
+          message: "safe handler message",
+          area: "music_intelligence",
+          retryable: true,
+          suggestedFix: "safe handler fix",
+        },
+      }),
+    },
+  ],
+});
+const declaredNormalizationResult = await declaredNormalizationInterface.dispatch(testStageToolContext(), {
+  toolName: descriptor.name,
+  payload: {},
+});
+
+assert.equal(declaredNormalizationResult.ok, false);
+
+if (!declaredNormalizationResult.ok) {
+  assert.equal(declaredNormalizationResult.error.code, "invalid_input");
+  assert.equal(declaredNormalizationResult.error.message, "safe handler message");
+  assert.equal(declaredNormalizationResult.error.area, descriptor.ownerArea);
+  assert.equal(declaredNormalizationResult.error.retryable, false);
+  assert.equal(declaredNormalizationResult.error.suggestedFix, "safe handler fix");
+}
+
+const declaredLeakScrubInterface = createStageInterface({
+  instruments: [instrument],
+  registrations: [
+    {
+      descriptor,
+      handler: async (): Promise<Result<unknown>> => ({
+        ok: false,
+        error: {
+          code: "invalid_input",
+          message: "leaked materialRef material:recording:m_internal",
+          area: "stage_core",
+          retryable: false,
+          suggestedFix: "retry without sourceRef source_netease:track:1901371647",
+        },
+      }),
+    },
+  ],
+});
+const declaredLeakScrubResult = await declaredLeakScrubInterface.dispatch(testStageToolContext(), {
+  toolName: descriptor.name,
+  payload: {},
+});
+
+assert.equal(declaredLeakScrubResult.ok, false);
+
+if (!declaredLeakScrubResult.ok) {
+  assert.equal(declaredLeakScrubResult.error.code, "invalid_input");
+  assert.equal(
+    declaredLeakScrubResult.error.message,
+    "Tool 'stage.test.ping' returned declared error 'invalid_input'.",
+  );
+  assert.equal(
+    declaredLeakScrubResult.error.suggestedFix,
+    "Call this test tool with an empty object.",
+  );
+  assert.equal(JSON.stringify(declaredLeakScrubResult.error).includes("materialRef"), false);
+  assert.equal(JSON.stringify(declaredLeakScrubResult.error).includes("sourceRef"), false);
+  assert.equal(JSON.stringify(declaredLeakScrubResult.error).includes("source_netease"), false);
+}
+
+// F1: a success-path output whose VALUE carries an internal anchor is rejected by the runtime veil
+// (the schema-shape check alone cannot inspect string contents).
+const leakableOutputSchema = {
+  type: "object",
+  properties: {
+    label: {
+      type: "string",
+    },
+  },
+  required: ["label"],
+  additionalProperties: false,
+} as const satisfies JsonSchema;
+const leakableDescriptor: ToolDeclaration = {
+  ...descriptor,
+  name: "stage.test.leakable",
+  outputSchema: leakableOutputSchema,
+};
+const outputLeakInterface = createStageInterface({
+  instruments: [instrument],
+  registrations: [
+    {
+      descriptor: leakableDescriptor,
+      handler: async () => ({
+        ok: true as const,
+        value: {
+          label: "resolved materialRef material:recording:m_internal",
+        },
+      }),
+    },
+  ],
+});
+const outputLeakResult = await outputLeakInterface.dispatch(testStageToolContext(), {
+  toolName: leakableDescriptor.name,
+  payload: {},
+});
+
+assert.equal(outputLeakResult.ok, false);
+
+if (!outputLeakResult.ok) {
+  assert.equal(outputLeakResult.error.code, "stage_interface.invalid_output");
+  assert.equal(JSON.stringify(outputLeakResult.error).includes("material:recording:m_internal"), false);
+}
+
+// F2: the warnings channel is part of the runtime veil; an anchor in a warning message is rejected.
+const warningLeakInterface = createStageInterface({
+  instruments: [instrument],
+  registrations: [
+    {
+      descriptor,
+      handler: async () => ({
+        ok: true as const,
+        value: {
+          ok: true,
+        },
+        warnings: [
+          {
+            code: "degraded",
+            area: "stage_core",
+            message: "partial result, see sourceRef source_netease:track:1901371647",
+          },
+        ],
+      }),
+    },
+  ],
+});
+const warningLeakResult = await warningLeakInterface.dispatch(testStageToolContext(), {
+  toolName: descriptor.name,
+  payload: {},
+});
+
+assert.equal(warningLeakResult.ok, false);
+
+if (!warningLeakResult.ok) {
+  assert.equal(warningLeakResult.error.code, "stage_interface.invalid_output");
+  assert.equal(JSON.stringify(warningLeakResult.error).includes("source_netease"), false);
+}
+
+// F3: a gate publicReason carrying an internal anchor is scrubbed to the fixed public message.
+const leakingPublicReasonContext = createStageToolContext({
+  ownerScope: "local",
+  sessionId: "stage-interface-test-session",
+  requestId: "stage-interface-test-request",
+  clock: () => "2026-06-17T00:00:00.000Z",
+  executionGate: {
+    async preflight() {
+      return {
+        decision: "ask" as const,
+        auditLevel: "none" as const,
+        publicReason: "blocked because sourceRef source_netease:track:1901371647",
+      };
+    },
+  },
+});
+const publicReasonLeakResult = await stageInterface.dispatch(leakingPublicReasonContext, {
+  toolName: descriptor.name,
+  payload: {},
+});
+
+assert.equal(publicReasonLeakResult.ok, false);
+
+if (!publicReasonLeakResult.ok) {
+  assert.equal(publicReasonLeakResult.error.code, "stage_interface.ask_required");
+  assert.equal(JSON.stringify(publicReasonLeakResult.error).includes("source_netease"), false);
+  assert.equal(JSON.stringify(publicReasonLeakResult.error).includes("sourceRef"), false);
+}
+
+// F4: re-creating a binding for the same owner+kind+anchor upserts (no UNIQUE violation),
+// so re-minting after a binding is replaced updates the public id instead of throwing.
+const upsertDatabase = SqliteMusicDatabase.open({ filename: ":memory:" });
+upsertDatabase.initialize({
+  schemas: [stageInterfaceHandleRegistrySchema],
+});
+const upsertRecords = createStageInterfaceHandleRegistryRecords({ db: upsertDatabase.context() });
+const upsertAnchorJson = JSON.stringify({ track: 1 });
+const firstUpsert = upsertRecords.bindings.createBinding({
+  publicId: "mh_upsert_1",
+  ownerScope: "owner-a",
+  handleKind: "library",
+  internalAnchorJson: upsertAnchorJson,
+  issuedAt: "2026-06-17T00:00:00.000Z",
+});
+const secondUpsert = upsertRecords.bindings.createBinding({
+  publicId: "mh_upsert_2",
+  ownerScope: "owner-a",
+  handleKind: "library",
+  internalAnchorJson: upsertAnchorJson,
+  issuedAt: "2026-06-17T01:00:00.000Z",
+});
+assert.equal(firstUpsert.publicId, "mh_upsert_1");
+assert.equal(secondUpsert.publicId, "mh_upsert_2");
+assert.equal(upsertRecords.bindings.getByPublicId({ publicId: "mh_upsert_1" }), undefined);
+assert.equal(
+  upsertRecords.bindings.getByOwnerPublicId({
+    publicId: "mh_upsert_2",
+    ownerScope: "owner-a",
+    handleKind: "library",
+  })?.publicId,
+  "mh_upsert_2",
+);
+upsertDatabase.close();
+
 function compiled(schema: JsonSchema) {
   return ajv.compile(schema as AnySchema);
 }
@@ -345,24 +833,11 @@ function compiled(schema: JsonSchema) {
 function testStageToolContext(
   decision: "allow" | "ask" | "deny" = "allow",
 ): StageToolContext {
-  return {
+  return createStageToolContext({
     ownerScope: "local",
     sessionId: "stage-interface-test-session",
     requestId: "stage-interface-test-request",
     clock: () => "2026-06-17T00:00:00.000Z",
-    handleMinting: {
-      async mint() {
-        return "test-handle";
-      },
-      async resolve() {
-        return undefined;
-      },
-    },
-    providerAvailability: {
-      async isProviderAvailable() {
-        return false;
-      },
-    },
     executionGate: {
       async preflight() {
         return {
@@ -371,5 +846,5 @@ function testStageToolContext(
         };
       },
     },
-  };
+  });
 }

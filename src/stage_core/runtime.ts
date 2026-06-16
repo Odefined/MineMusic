@@ -16,8 +16,11 @@ export type StageRuntime = {
   stop(): Promise<Result<StageRuntimeSnapshot>>;
 };
 
+export const DEFAULT_STAGE_TOOL_TIMEOUT_MS = 30_000;
+
 export type CreateStageRuntimeInput = {
   modules?: readonly RuntimeModule[];
+  defaultToolTimeoutMs?: number;
 };
 
 type RuntimeModuleState = {
@@ -30,9 +33,11 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
   let runtimeStatus: StageRuntimeStatus = "created";
   let runtimeError: RuntimeErrorSummary | undefined;
   let cleanupErrors: RuntimeErrorSummary[] = [];
+  const defaultToolTimeoutMs = input.defaultToolTimeoutMs ?? DEFAULT_STAGE_TOOL_TIMEOUT_MS;
   let stageInterface = createStageInterface({
     instruments: [],
     registrations: [],
+    defaultToolTimeoutMs,
   });
 
   const readSnapshot = () => snapshot();
@@ -116,6 +121,7 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
       stageInterface = createStageInterface({
         instruments: merged.value.instruments,
         registrations: merged.value.registrations,
+        defaultToolTimeoutMs,
       });
     } catch (cause) {
       return failInitialization({

@@ -36,6 +36,10 @@ degraded-but-warned success on the `warnings` channel.
    `StageError.code` not present in its tool's declared `errors` set — the
    error-side counterpart of the Public Handle Veil. Declared codes feed the
    Handbook and eval fixtures the way `examples` feed selection guidance.
+   Router-global `stage_interface.*` framework errors remain outside per-tool
+   declarations; the Stage Core default timeout maps to
+   `stage_interface.tool_timeout` and does not pass through the declared-error
+   gate.
 
 2. **Fail-whole for multi-scope / `all` lookup.** A provider-scope failure fails
    the WHOLE query with a recoverable error; results are never degraded to

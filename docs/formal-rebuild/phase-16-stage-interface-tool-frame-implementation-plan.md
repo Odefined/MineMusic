@@ -1,6 +1,6 @@
 # Phase 16 Stage Interface Tool Frame Implementation Plan
 
-> Status: Phase 16 sanctioned; PR 16A implemented in #96 (in review); PR 16B–16D planned.
+> Status: Phase 16 sanctioned; PR 16A implemented in #96; PR 16B implemented; PR 16C–16D planned.
 > Spec: `docs/formal-rebuild/stage-interface-tool-frame.md` (now paired with
 > Phase 16), with ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0014, ADR-0015,
 > ADR-0016, ADR-0017, ADR-0019, ADR-0020
@@ -19,7 +19,7 @@ concrete tools as vertical slices that prove the skeleton carries them cleanly.
 
 ```text
 PR 16A: framework contract layer (types + router + validation + codegen + adapter split)
-PR 16B: Public Handle Veil + HandleMintingPort registry + execution gate stub + global timeout
+PR 16B: Public Handle Veil + HandleMintingPort registry + execution gate stub + global timeout (implemented)
 PR 16C: music.discovery.list_scopes (first read-only tool)
 PR 16D: music.discovery.lookup (full retrieval tool)
 ```
@@ -119,7 +119,7 @@ the `core/` + `stage_adapter/` directory split with its guard.
     cross-cutting ports `handleMinting, providerAvailability, executionGate,
     audit?`.
   - Port interfaces: `HandleMintingPort`, `ProviderAvailabilityPort`,
-    `StageToolExecutionGate`, `StageToolAuditPort` (interfaces only;
+    `StageToolExecutionGate`, `StageToolAuditPort` (interfaces only at PR 16A;
     implementations land in PR 16B).
   - Declared-error shape: `errors: readonly { code, retryable,
     suggestedFixTemplate }[]`.
@@ -177,6 +177,7 @@ git diff --check
 > Shippable standalone: yes — veil and registry tests green, owner-isolation
   tests pass, gate stub and timeout wired into the dispatch path; still no
   Music Discovery tool.
+> Status: implemented in the local 16B working tree.
 
 ### Goal
 
