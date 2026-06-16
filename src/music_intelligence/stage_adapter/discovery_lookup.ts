@@ -1027,7 +1027,7 @@ function mapRetrievalError(error: unknown, providerScopeLabels: readonly string[
   }
 
   if (providerScopeLabels.length > 0) {
-    return providerScopeFailed(providerScopeLabels);
+    return providerScopeFailed([]);
   }
 
   return invalidInput("music.discovery.lookup could not run the requested retrieval query.");
@@ -1038,9 +1038,11 @@ function failedProviderScopeLabels(
   providerScopeLabels: readonly string[],
 ): readonly string[] {
   const text = collectErrorText(error).toLowerCase();
-  const matched = providerScopeLabels.filter((label) => text.includes(label.toLowerCase()));
 
-  return matched.length === 0 ? providerScopeLabels : matched;
+  // Name only the provider(s) whose id appears in the error text. When no specific provider can
+  // be identified, return no labels so providerScopeFailed emits a generic message instead of
+  // blaming every provider scope. (A structured providerId error channel is a follow-up.)
+  return providerScopeLabels.filter((label) => text.includes(label.toLowerCase()));
 }
 
 function collectErrorText(error: unknown): string {
