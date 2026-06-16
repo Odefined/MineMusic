@@ -1,3 +1,4 @@
+import { isRecord } from "../type_guards.js";
 import { isRefComponentSafe, type Ref, type Result } from "../../contracts/kernel.js";
 import type { PlayableLink, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntityKind, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../contracts/music_data_platform.js";
 import { failExtension, ok } from "../errors.js";
@@ -85,20 +86,18 @@ export function createNcmPlugin(config: NcmPluginConfig = {}): MineMusicPlugin {
       capabilities: [sourceProviderSlot.id, platformLibraryProviderSlot.id],
     },
     activate(ctx) {
-      const sourceRegistration = ctx.registerSourceProvider({
-        pluginId: ctx.pluginId,
-        providerId: ncmProviderId,
-        provider: sourceProvider,
+      const sourceRegistration = ctx.register(sourceProviderSlot, {
+        key: ncmProviderId,
+        value: sourceProvider,
       });
 
       if (!sourceRegistration.ok) {
         return sourceRegistration;
       }
 
-      return ctx.registerPlatformLibraryProvider({
-        pluginId: ctx.pluginId,
-        providerId: ncmProviderId,
-        provider: platformLibraryProvider,
+      return ctx.register(platformLibraryProviderSlot, {
+        key: ncmProviderId,
+        value: platformLibraryProvider,
       });
     },
   };
@@ -1400,9 +1399,6 @@ function normalizedBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isDefined<T>(value: T | undefined): value is T {
   return value !== undefined;

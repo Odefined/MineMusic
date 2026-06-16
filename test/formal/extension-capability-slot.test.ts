@@ -6,11 +6,9 @@ import {
   createCapabilityRegistry,
   createExtensionRuntime,
   defineCapabilitySlot,
-  getSourceProvider,
+  type CapabilityRegistry,
   isPluginIdSafe,
   platformLibraryProviderSlot,
-  registerSourceProvider,
-  registerPlatformLibraryProvider,
   sourceProviderSlot,
   validatePluginManifest,
   validatePlatformLibraryProviderRegistration,
@@ -24,6 +22,40 @@ import {
   type SourceProviderRegistration,
 } from "../../src/extension/index.js";
 
+// Test-local helpers that mirror the removed per-slot register/list/get wrappers
+// (collapsed in ADR-0018). They keep the registry-direct assertions below terse.
+function registerSourceProvider(
+  registry: CapabilityRegistry,
+  registration: SourceProviderRegistration,
+): Result<void> {
+  return registry.register(sourceProviderSlot, {
+    pluginId: registration.pluginId,
+    key: registration.providerId,
+    value: registration.provider,
+  });
+}
+
+function getSourceProvider(
+  registry: CapabilityRegistry,
+  providerId: string,
+): SourceProviderRegistration | undefined {
+  const registration = registry.get(sourceProviderSlot, providerId);
+  return registration === undefined
+    ? undefined
+    : { pluginId: registration.pluginId, providerId: registration.key, provider: registration.value };
+}
+
+function registerPlatformLibraryProvider(
+  registry: CapabilityRegistry,
+  registration: PlatformLibraryProviderRegistration,
+): Result<void> {
+  return registry.register(platformLibraryProviderSlot, {
+    pluginId: registration.pluginId,
+    key: registration.providerId,
+    value: registration.provider,
+  });
+}
+
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
   Value,
 >() => Value extends Right ? 1 : 2
@@ -33,7 +65,14 @@ type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <
 type Expect<Check extends true> = Check;
 
 export type _capabilitySlotShape = Expect<
-  Equal<keyof CapabilitySlot<SourceProvider>, "id" | "cardinality" | "writePolicy">
+  Equal<keyof CapabilitySlot<SourceProvider>, "id" | "cardinality" | "writePolicy" | "validateRegistration">
+>;
+
+// Open/closed invariant (ADR-0018): the activation context must expose only
+// pluginId + the generic register. Adding a per-slot registration method here
+// would re-introduce the edit-per-new-slot coupling this test fails on.
+export type _activationContextShape = Expect<
+  Equal<keyof PluginActivationContext, "pluginId" | "register">
 >;
 
 assert.equal(sourceProviderSlot.id, "source-provider");
@@ -368,7 +407,10 @@ const lateRegistrationRuntime = createExtensionRuntime({
       },
       activate(ctx) {
         capturedContext = ctx;
-        return ctx.registerSourceProvider(registrationFor("late-registration", "internal.late-registration"));
+        return ctx.register(sourceProviderSlot, {
+          key: "late-registration",
+          value: registrationFor("late-registration", "internal.late-registration").provider,
+        });
       },
     },
   ],
@@ -376,7 +418,10 @@ const lateRegistrationRuntime = createExtensionRuntime({
 assert.equal((await lateRegistrationRuntime.initialize()).ok, true);
 assert.equal(lateRegistrationRuntime.listSourceProviders().length, 1);
 assertErrorCode(
-  capturedContext?.registerSourceProvider(registrationFor("too-late", "internal.late-registration")) ??
+  capturedContext?.register(sourceProviderSlot, {
+    key: "too-late",
+    value: registrationFor("too-late", "internal.late-registration").provider,
+  }) ??
     fail("missing_context", "missing context"),
   "extension.activation_context_closed",
 );
@@ -456,21 +501,10 @@ await assertExtensionRuntimeError(
   }),
   "extension.duplicate_capability_registration",
 );
-await assertExtensionRuntimeError(
-  createExtensionRuntime({
-    plugins: [
-      plugin("owner-mismatch", {
-        registrations: [
-          {
-            ...registrationFor("owner-mismatch"),
-            pluginId: "internal.other-plugin",
-          },
-        ],
-      }),
-    ],
-  }),
-  "extension.plugin_registration_owner_mismatch",
-);
+// The owner-mismatch scenario is obsolete under the generic ctx.register
+// (ADR-0018): pluginId is injected from ctx.pluginId by construction, so a
+// registration can never be attributed to another plugin. The property is now
+// enforced structurally rather than by a runtime check.
 await assertExtensionRuntimeError(
   createExtensionRuntime({
     plugins: [
@@ -984,12 +1018,18 @@ const platformRuntime = createExtensionRuntime({
         capabilities: [sourceProviderSlot.id, platformLibraryProviderSlot.id],
       },
       activate(ctx) {
-        const sourceRegistration = ctx.registerSourceProvider(registrationFor("platform", "internal.platform"));
+        const sourceRegistration = ctx.register(sourceProviderSlot, {
+          key: "platform",
+          value: registrationFor("platform", "internal.platform").provider,
+        });
         if (!sourceRegistration.ok) {
           return sourceRegistration;
         }
 
-        return ctx.registerPlatformLibraryProvider(platformRegistrationFor("platform", "internal.platform"));
+        return ctx.register(platformLibraryProviderSlot, {
+          key: "platform",
+          value: platformRegistrationFor("platform", "internal.platform").provider,
+        });
       },
     },
   ],
@@ -1216,7 +1256,10 @@ function plugin(
       }
 
       for (const registration of registrations) {
-        ctx.registerSourceProvider(registration);
+        ctx.register(sourceProviderSlot, {
+          key: registration.providerId,
+          value: registration.provider,
+        });
       }
 
       return options.activateResult ?? { ok: true, value: undefined };
@@ -1359,10 +1402,13 @@ function platformOnlyPlugin(
       capabilities: [platformLibraryProviderSlot.id],
     },
     activate(ctx) {
-      return ctx.registerPlatformLibraryProvider(platformRegistrationFor(providerId, `internal.${providerId}`, {
-        ...(readResult === undefined ? {} : { readResult }),
-        ...(failedResult === undefined ? {} : { failedResult }),
-      }));
+      return ctx.register(platformLibraryProviderSlot, {
+        key: providerId,
+        value: platformRegistrationFor(providerId, `internal.${providerId}`, {
+          ...(readResult === undefined ? {} : { readResult }),
+          ...(failedResult === undefined ? {} : { failedResult }),
+        }).provider,
+      });
     },
   };
 }

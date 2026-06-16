@@ -1,28 +1,24 @@
+import { isRecord, isResultLike } from "./type_guards.js";
 import type { Result } from "../contracts/kernel.js";
 import type { RuntimeErrorSummary } from "../contracts/stage_core.js";
 import {
   createCapabilityRegistry,
   type CapabilityRegistry,
 } from "./capability_registry.js";
+import type { CapabilitySlot } from "./capability_slot.js";
 import { extensionError, failExtension, ok } from "./errors.js";
 import {
   type MineMusicPluginManifest,
   validatePluginManifest,
 } from "./plugin_manifest.js";
 import {
-  getPlatformLibraryProvider,
-  listPlatformLibraryProviders,
   platformLibraryProviderSlot,
   readPlatformLibraryProvider,
-  registerPlatformLibraryProvider,
   type PlatformLibraryProviderReadInput,
   type PlatformLibraryProviderReadResult,
   type PlatformLibraryProviderRegistration,
 } from "./platform_library_provider_slot.js";
 import {
-  getSourceProvider,
-  listSourceProviders,
-  registerSourceProvider,
   searchSourceProvider,
   sourceProviderSlot,
   type SourceProviderSearchInput,
@@ -32,8 +28,15 @@ import {
 
 export type PluginActivationContext = {
   pluginId: string;
-  registerSourceProvider(registration: SourceProviderRegistration): Result<void>;
-  registerPlatformLibraryProvider(registration: PlatformLibraryProviderRegistration): Result<void>;
+  /**
+   * Generic, typed capability registration. A new slot needs no change here —
+   * it declares its `validateRegistration` with the slot and plugins register
+   * through this single method (ADR-0018, open/closed).
+   */
+  register<T>(
+    slot: CapabilitySlot<T>,
+    registration: { key: string; value: T },
+  ): Result<void>;
 };
 
 export type MineMusicPlugin = {
@@ -72,16 +75,16 @@ export type CreateExtensionRuntimeInput = {
   plugins?: readonly MineMusicPlugin[];
 };
 
-const knownCapabilityIds = new Set<string>([
-  sourceProviderSlot.id,
-  platformLibraryProviderSlot.id,
-]);
+const ALL_SLOTS = [
+  sourceProviderSlot,
+  platformLibraryProviderSlot,
+] as const;
+
+const knownCapabilityIds = new Set<string>(ALL_SLOTS.map((slot) => slot.id));
 
 export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}): ExtensionRuntime {
   const plugins = input.plugins ?? [];
-  let registry = createCapabilityRegistry({
-    slots: [sourceProviderSlot, platformLibraryProviderSlot],
-  });
+  let registry = createCapabilityRegistry({ slots: ALL_SLOTS });
   const pluginIds = safePluginIds(plugins);
   let status: ExtensionRuntimeStatus = "created";
   let runtimeError: RuntimeErrorSummary | undefined;
@@ -91,10 +94,21 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
     stop,
     snapshot,
     listSourceProviders() {
-      return listSourceProviders(registry);
+      return registry.list(sourceProviderSlot).map((registration) => ({
+        pluginId: registration.pluginId,
+        providerId: registration.key,
+        provider: registration.value,
+      }));
     },
     getSourceProvider(providerId) {
-      return getSourceProvider(registry, providerId);
+      const registration = registry.get(sourceProviderSlot, providerId);
+      return registration === undefined
+        ? undefined
+        : {
+            pluginId: registration.pluginId,
+            providerId: registration.key,
+            provider: registration.value,
+          };
     },
     searchSourceProvider(input) {
       if (status === "failed") {
@@ -121,10 +135,21 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
       return searchSourceProvider(registry, input);
     },
     listPlatformLibraryProviders() {
-      return listPlatformLibraryProviders(registry);
+      return registry.list(platformLibraryProviderSlot).map((registration) => ({
+        pluginId: registration.pluginId,
+        providerId: registration.key,
+        provider: registration.value,
+      }));
     },
     getPlatformLibraryProvider(providerId) {
-      return getPlatformLibraryProvider(registry, providerId);
+      const registration = registry.get(platformLibraryProviderSlot, providerId);
+      return registration === undefined
+        ? undefined
+        : {
+            pluginId: registration.pluginId,
+            providerId: registration.key,
+            provider: registration.value,
+          };
     },
     readPlatformLibraryProvider(input) {
       if (status === "failed") {
@@ -180,9 +205,7 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
       return failRuntime(manifestValidation.error);
     }
 
-    const workingRegistry = createCapabilityRegistry({
-      slots: [sourceProviderSlot, platformLibraryProviderSlot],
-    });
+    const workingRegistry = createCapabilityRegistry({ slots: ALL_SLOTS });
 
     for (const plugin of plugins) {
       const activation = await activatePlugin(plugin, workingRegistry);
@@ -206,8 +229,8 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
     return {
       status,
       pluginIds: pluginIds.slice(),
-      sourceProviderCount: listSourceProviders(registry).length,
-      platformLibraryProviderCount: listPlatformLibraryProviders(registry).length,
+      sourceProviderCount: registry.list(sourceProviderSlot).length,
+      platformLibraryProviderCount: registry.list(platformLibraryProviderSlot).length,
       ...(runtimeError === undefined ? {} : { error: runtimeError }),
     };
   }
@@ -266,88 +289,50 @@ async function activatePlugin(
 
   const context: PluginActivationContext = {
     pluginId: plugin.manifest.id,
-    registerSourceProvider(registration) {
+    register<T>(
+      slot: CapabilitySlot<T>,
+      registration: { key: string; value: T },
+    ): Result<void> {
       if (!activationOpen) {
         return failExtension(
           "extension.activation_context_closed",
-          `Plugin '${plugin.manifest.id}' cannot register source providers after activation returns.`,
+          `Plugin '${plugin.manifest.id}' cannot register capabilities after activation returns.`,
         );
       }
 
-      if (!isRecord(registration) || typeof registration.pluginId !== "string") {
-        registrationFailure = failExtension(
-          "extension.invalid_source_provider_registration",
-          `Plugin '${plugin.manifest.id}' source-provider registration must include pluginId.`,
-        );
-        return registrationFailure;
-      }
-
-      if (registration.pluginId !== plugin.manifest.id) {
-        registrationFailure = failExtension(
-          "extension.plugin_registration_owner_mismatch",
-          `Plugin '${plugin.manifest.id}' cannot register provider for plugin '${registration.pluginId}'.`,
-        );
-        return registrationFailure;
-      }
-
-      if (!plugin.manifest.capabilities.includes(sourceProviderSlot.id)) {
+      if (!plugin.manifest.capabilities.includes(slot.id)) {
         registrationFailure = failExtension(
           "extension.undeclared_capability_registration",
-          `Plugin '${plugin.manifest.id}' did not declare capability '${sourceProviderSlot.id}'.`,
+          `Plugin '${plugin.manifest.id}' did not declare capability '${slot.id}'.`,
         );
         return registrationFailure;
       }
 
-      const registered = registerSourceProvider(registry, registration);
+      if (slot.validateRegistration !== undefined) {
+        const validation = slot.validateRegistration({
+          pluginId: plugin.manifest.id,
+          key: registration.key,
+          value: registration.value,
+        });
+
+        if (!validation.ok) {
+          registrationFailure = validation;
+          return validation;
+        }
+      }
+
+      const registered = registry.register(slot, {
+        pluginId: plugin.manifest.id,
+        key: registration.key,
+        value: registration.value,
+      });
 
       if (!registered.ok) {
         registrationFailure = registered;
         return registered;
       }
 
-      registeredCapabilities.add(sourceProviderSlot.id);
-      return registered;
-    },
-    registerPlatformLibraryProvider(registration) {
-      if (!activationOpen) {
-        return failExtension(
-          "extension.activation_context_closed",
-          `Plugin '${plugin.manifest.id}' cannot register platform library providers after activation returns.`,
-        );
-      }
-
-      if (!isRecord(registration) || typeof registration.pluginId !== "string") {
-        registrationFailure = failExtension(
-          "extension.invalid_platform_library_provider_registration",
-          `Plugin '${plugin.manifest.id}' platform-library-provider registration must include pluginId.`,
-        );
-        return registrationFailure;
-      }
-
-      if (registration.pluginId !== plugin.manifest.id) {
-        registrationFailure = failExtension(
-          "extension.plugin_registration_owner_mismatch",
-          `Plugin '${plugin.manifest.id}' cannot register platform library provider for plugin '${registration.pluginId}'.`,
-        );
-        return registrationFailure;
-      }
-
-      if (!plugin.manifest.capabilities.includes(platformLibraryProviderSlot.id)) {
-        registrationFailure = failExtension(
-          "extension.undeclared_capability_registration",
-          `Plugin '${plugin.manifest.id}' did not declare capability '${platformLibraryProviderSlot.id}'.`,
-        );
-        return registrationFailure;
-      }
-
-      const registered = registerPlatformLibraryProvider(registry, registration);
-
-      if (!registered.ok) {
-        registrationFailure = registered;
-        return registered;
-      }
-
-      registeredCapabilities.add(platformLibraryProviderSlot.id);
+      registeredCapabilities.add(slot.id);
       return registered;
     },
   };
@@ -399,10 +384,6 @@ async function activatePlugin(
   return ok(undefined);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function safePluginIds(plugins: readonly MineMusicPlugin[]): string[] {
   const pluginIds: string[] = [];
 
@@ -415,24 +396,4 @@ function safePluginIds(plugins: readonly MineMusicPlugin[]): string[] {
   }
 
   return pluginIds;
-}
-
-function isResultLike(value: unknown): value is Result<unknown> {
-  if (!isRecord(value) || typeof value.ok !== "boolean") {
-    return false;
-  }
-
-  if (value.ok) {
-    return "value" in value;
-  }
-
-  return isStageErrorLike(value.error);
-}
-
-function isStageErrorLike(value: unknown): value is { code: string; message: string; area: string; retryable: boolean } {
-  return isRecord(value) &&
-    typeof value.code === "string" &&
-    typeof value.message === "string" &&
-    typeof value.area === "string" &&
-    typeof value.retryable === "boolean";
 }

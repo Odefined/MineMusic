@@ -4,6 +4,7 @@ export {
 } from "./capability_slot.js";
 export type {
   CapabilityCardinality,
+  CapabilityRegistrationValidationInput,
   CapabilitySlot,
   CapabilityWritePolicy,
   DefineCapabilitySlotInput,
@@ -11,6 +12,12 @@ export type {
 export {
   createCapabilityRegistry,
 } from "./capability_registry.js";
+export {
+  invokeCapability,
+} from "./capability_dispatch.js";
+export type {
+  CapabilityDispatchDescriptor,
+} from "./capability_dispatch.js";
 export type {
   CapabilityRegistration,
   CapabilityRegistry,
@@ -36,9 +43,6 @@ export type {
   PluginActivationContext,
 } from "./plugin_runtime.js";
 export {
-  getSourceProvider,
-  listSourceProviders,
-  registerSourceProvider,
   sourceProviderSlot,
   validateSourceProviderRegistration,
 } from "./source_provider_slot.js";
@@ -48,10 +52,7 @@ export type {
   SourceProviderRegistration,
 } from "./source_provider_slot.js";
 export {
-  getPlatformLibraryProvider,
-  listPlatformLibraryProviders,
   platformLibraryProviderSlot,
-  registerPlatformLibraryProvider,
   validatePlatformLibraryProviderRegistration,
 } from "./platform_library_provider_slot.js";
 export type {

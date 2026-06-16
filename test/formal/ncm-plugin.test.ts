@@ -911,15 +911,11 @@ async function sourceProviderFor(config: NcmPluginConfig): Promise<SourceProvide
   let provider: SourceProvider | undefined;
   const context: PluginActivationContext = {
     pluginId: ncmPluginId,
-    registerSourceProvider(registration) {
-      assert.equal(registration.pluginId, ncmPluginId);
-      assert.equal(registration.providerId, ncmProviderId);
-      provider = registration.provider;
-      return { ok: true, value: undefined };
-    },
-    registerPlatformLibraryProvider(registration) {
-      assert.equal(registration.pluginId, ncmPluginId);
-      assert.equal(registration.providerId, ncmProviderId);
+    register(slot, registration) {
+      assert.equal(registration.key, ncmProviderId);
+      if (slot.id === sourceProviderSlot.id) {
+        provider = registration.value as SourceProvider;
+      }
       return { ok: true, value: undefined };
     },
   };
@@ -941,15 +937,11 @@ async function platformLibraryProviderFor(config: NcmPluginConfig): Promise<Plat
   let provider: PlatformLibraryProvider | undefined;
   const context: PluginActivationContext = {
     pluginId: ncmPluginId,
-    registerSourceProvider(registration) {
-      assert.equal(registration.pluginId, ncmPluginId);
-      assert.equal(registration.providerId, ncmProviderId);
-      return { ok: true, value: undefined };
-    },
-    registerPlatformLibraryProvider(registration) {
-      assert.equal(registration.pluginId, ncmPluginId);
-      assert.equal(registration.providerId, ncmProviderId);
-      provider = registration.provider;
+    register(slot, registration) {
+      assert.equal(registration.key, ncmProviderId);
+      if (slot.id === platformLibraryProviderSlot.id) {
+        provider = registration.value as PlatformLibraryProvider;
+      }
       return { ok: true, value: undefined };
     },
   };

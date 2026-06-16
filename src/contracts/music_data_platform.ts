@@ -165,7 +165,6 @@ export type SourceQuery = {
 
 export type SourceProviderCapability =
   | "search"
-  | "lookup"
   | "playable_links";
 
 export type SourceProviderDescriptor = {

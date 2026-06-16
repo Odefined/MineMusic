@@ -1,5 +1,5 @@
 import { isRefComponentSafe, type Result } from "../contracts/kernel.js";
-import type { CapabilitySlot } from "./capability_slot.js";
+import type { CapabilitySlot, CapabilitySlotIdentity } from "./capability_slot.js";
 import { failExtension, ok } from "./errors.js";
 
 export type CapabilityRegistration<T> = {
@@ -15,11 +15,11 @@ export type CapabilityRegistry = {
 };
 
 export type CreateCapabilityRegistryInput = {
-  slots: readonly CapabilitySlot<unknown>[];
+  slots: readonly CapabilitySlotIdentity[];
 };
 
 type SlotState = {
-  slot: CapabilitySlot<unknown>;
+  slot: CapabilitySlotIdentity;
   registrations: CapabilityRegistration<unknown>[];
 };
 

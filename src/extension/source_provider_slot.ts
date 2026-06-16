@@ -1,13 +1,17 @@
+import { isRecord, isStageErrorLike, isSourceEntityKind } from "./type_guards.js";
 import { assertRefSafe, isRefComponentSafe, type Result } from "../contracts/kernel.js";
 import type { ProviderMaterialCandidate, SourceEntityKind, SourceQuery, SourceProvider, SourceProviderCapability } from "../contracts/music_data_platform.js";
 import type { CapabilityRegistry } from "./capability_registry.js";
 import { defineCapabilitySlot } from "./capability_slot.js";
+import { invokeCapability } from "./capability_dispatch.js";
 import { failExtension, ok } from "./errors.js";
 
 export const sourceProviderSlot = defineCapabilitySlot<SourceProvider>({
   id: "source-provider",
   cardinality: "many-by-id",
   writePolicy: "none",
+  validateRegistration: ({ pluginId, key, value }) =>
+    validateSourceProviderRegistration({ pluginId, providerId: key, provider: value }),
 });
 
 export type SourceProviderRegistration = {
@@ -28,48 +32,6 @@ export type SourceProviderSearchResult = {
   candidates: readonly ProviderMaterialCandidate[];
 };
 
-export function registerSourceProvider(
-  registry: CapabilityRegistry,
-  registration: SourceProviderRegistration,
-): Result<void> {
-  const validation = validateSourceProviderRegistration(registration);
-
-  if (!validation.ok) {
-    return validation;
-  }
-
-  return registry.register(sourceProviderSlot, {
-    pluginId: registration.pluginId,
-    key: registration.providerId,
-    value: registration.provider,
-  });
-}
-
-export function listSourceProviders(registry: CapabilityRegistry): readonly SourceProviderRegistration[] {
-  return registry.list(sourceProviderSlot).map((registration) => ({
-    pluginId: registration.pluginId,
-    providerId: registration.key,
-    provider: registration.value,
-  }));
-}
-
-export function getSourceProvider(
-  registry: CapabilityRegistry,
-  providerId: string,
-): SourceProviderRegistration | undefined {
-  const registration = registry.get(sourceProviderSlot, providerId);
-
-  if (registration === undefined) {
-    return undefined;
-  }
-
-  return {
-    pluginId: registration.pluginId,
-    providerId: registration.key,
-    provider: registration.value,
-  };
-}
-
 export async function searchSourceProvider(
   registry: CapabilityRegistry,
   input: SourceProviderSearchInput,
@@ -81,68 +43,46 @@ export async function searchSourceProvider(
   }
 
   const querySnapshot = copySourceQuery(input.query);
-  const registration = getSourceProvider(registry, input.providerId);
 
-  if (registration === undefined) {
-    return failExtension(
-      "extension.source_provider_not_found",
-      `Source provider '${input.providerId}' is not registered.`,
-    );
-  }
-
-  if (
-    !registration.provider.descriptor.capabilities.includes("search") ||
-    registration.provider.search === undefined
-  ) {
-    return failExtension(
-      "extension.source_provider_search_unsupported",
-      `Source provider '${input.providerId}' does not support search.`,
-    );
-  }
-
-  let searched: unknown;
-
-  try {
-    searched = await registration.provider.search({
-      query: copySourceQuery(querySnapshot),
-      ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-    });
-  } catch (error) {
-    return failExtension(
-      "extension.source_provider_search_failed",
-      `Source provider '${input.providerId}' search threw.`,
-      error,
-    );
-  }
-
-  if (!isProviderSearchResult(searched)) {
-    return failExtension(
-      "extension.source_provider_search_failed",
-      `Source provider '${input.providerId}' returned a malformed search result.`,
-    );
-  }
-
-  if (!searched.ok) {
-    return failExtension(
-      "extension.source_provider_search_failed",
-      `Source provider '${input.providerId}' search failed: ${searched.error.code} ${searched.error.message}`,
-      searched.error,
-      searched.error.retryable,
-    );
-  }
-
-  const result: SourceProviderSearchResult = {
-    providerId: input.providerId,
-    query: querySnapshot,
-    candidates: searched.value,
-  };
-  const outputValidation = validateSourceProviderSearchResult(result);
-
-  if (!outputValidation.ok) {
-    return outputValidation;
-  }
-
-  return ok(result);
+  return invokeCapability<SourceProvider, SourceProviderSearchResult>(
+    registry,
+    sourceProviderSlot,
+    input.providerId,
+    {
+      label: "Source provider",
+      notFoundCode: "extension.source_provider_not_found",
+      failedCode: "extension.source_provider_search_failed",
+      capabilityCheck: (registration) => {
+        const provider = registration.value;
+        if (
+          !provider.descriptor.capabilities.includes("search") ||
+          provider.search === undefined
+        ) {
+          return failExtension(
+            "extension.source_provider_search_unsupported",
+            `Source provider '${input.providerId}' does not support search.`,
+          );
+        }
+        return ok(undefined);
+      },
+      invoke: (registration) =>
+        registration.value.search!({
+          query: copySourceQuery(querySnapshot),
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        }),
+      validateOutput: (value) =>
+        validateSourceProviderSearchResult({
+          providerId: input.providerId,
+          query: querySnapshot,
+          candidates: value as readonly ProviderMaterialCandidate[],
+        }),
+      shapeResult: (value) => ({
+        providerId: input.providerId,
+        query: querySnapshot,
+        candidates: value as readonly ProviderMaterialCandidate[],
+      }),
+    },
+  );
 }
 
 export function validateSourceProviderRegistration(
@@ -462,35 +402,11 @@ function invalidSourceProviderDescriptor(message: string): Result<never> {
   return failExtension("extension.invalid_source_provider_descriptor", message);
 }
 
-function isSourceEntityKind(kind: unknown): kind is SourceEntityKind {
-  return kind === "track" || kind === "album" || kind === "artist";
-}
 
 function isSourceProviderCapability(capability: unknown): capability is SourceProviderCapability {
   return capability === "search" ||
-    capability === "lookup" ||
     capability === "playable_links";
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
-function isProviderSearchResult(value: unknown): value is Result<readonly ProviderMaterialCandidate[]> {
-  if (!isRecord(value) || typeof value.ok !== "boolean") {
-    return false;
-  }
 
-  if (value.ok) {
-    return "value" in value;
-  }
-
-  return isStageErrorLike(value.error);
-}
-
-function isStageErrorLike(value: unknown): value is { code: string; message: string; retryable: boolean } {
-  return isRecord(value) &&
-    typeof value.code === "string" &&
-    typeof value.message === "string" &&
-    typeof value.retryable === "boolean";
-}

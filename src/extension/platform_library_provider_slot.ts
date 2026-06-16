@@ -1,13 +1,17 @@
+import { isRecord, isStageErrorLike, isSourceEntityKind } from "./type_guards.js";
 import { assertRefSafe, isRefComponentSafe, type Result } from "../contracts/kernel.js";
 import type { PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntityKind } from "../contracts/music_data_platform.js";
 import type { CapabilityRegistry } from "./capability_registry.js";
 import { defineCapabilitySlot } from "./capability_slot.js";
+import { invokeCapability } from "./capability_dispatch.js";
 import { failExtension, ok } from "./errors.js";
 
 export const platformLibraryProviderSlot = defineCapabilitySlot<PlatformLibraryProvider>({
   id: "platform-library-provider",
   cardinality: "many-by-id",
   writePolicy: "none",
+  validateRegistration: ({ pluginId, key, value }) =>
+    validatePlatformLibraryProviderRegistration({ pluginId, providerId: key, provider: value }),
 });
 
 export type PlatformLibraryProviderRegistration = {
@@ -23,50 +27,6 @@ export type PlatformLibraryProviderReadInput = {
 
 export type PlatformLibraryProviderReadResult = PlatformLibraryReadResult;
 
-export function registerPlatformLibraryProvider(
-  registry: CapabilityRegistry,
-  registration: PlatformLibraryProviderRegistration,
-): Result<void> {
-  const validation = validatePlatformLibraryProviderRegistration(registration);
-
-  if (!validation.ok) {
-    return validation;
-  }
-
-  return registry.register(platformLibraryProviderSlot, {
-    pluginId: registration.pluginId,
-    key: registration.providerId,
-    value: registration.provider,
-  });
-}
-
-export function listPlatformLibraryProviders(
-  registry: CapabilityRegistry,
-): readonly PlatformLibraryProviderRegistration[] {
-  return registry.list(platformLibraryProviderSlot).map((registration) => ({
-    pluginId: registration.pluginId,
-    providerId: registration.key,
-    provider: registration.value,
-  }));
-}
-
-export function getPlatformLibraryProvider(
-  registry: CapabilityRegistry,
-  providerId: string,
-): PlatformLibraryProviderRegistration | undefined {
-  const registration = registry.get(platformLibraryProviderSlot, providerId);
-
-  if (registration === undefined) {
-    return undefined;
-  }
-
-  return {
-    pluginId: registration.pluginId,
-    providerId: registration.key,
-    provider: registration.value,
-  };
-}
-
 export async function readPlatformLibraryProvider(
   registry: CapabilityRegistry,
   input: PlatformLibraryProviderReadInput,
@@ -78,63 +38,35 @@ export async function readPlatformLibraryProvider(
   }
 
   const requestSnapshot = copyPlatformLibraryReadInput(input.request);
-  const registration = getPlatformLibraryProvider(registry, input.providerId);
 
-  if (registration === undefined) {
-    return failExtension(
-      "extension.platform_library_provider_not_found",
-      `Platform library provider '${input.providerId}' is not registered.`,
-    );
-  }
-
-  if (!registration.provider.descriptor.libraryKinds.includes(requestSnapshot.kind)) {
-    return failExtension(
-      "extension.platform_library_provider_kind_unsupported",
-      `Platform library provider '${input.providerId}' does not support library kind '${requestSnapshot.kind}'.`,
-    );
-  }
-
-  let read: unknown;
-
-  try {
-    read = await registration.provider.read(copyPlatformLibraryReadInput(requestSnapshot));
-  } catch (error) {
-    return failExtension(
-      "extension.platform_library_provider_read_failed",
-      `Platform library provider '${input.providerId}' read threw.`,
-      error,
-    );
-  }
-
-  if (!isProviderReadResult(read)) {
-    return failExtension(
-      "extension.platform_library_provider_read_failed",
-      `Platform library provider '${input.providerId}' returned a malformed read result.`,
-      read,
-    );
-  }
-
-  if (!read.ok) {
-    return failExtension(
-      "extension.platform_library_provider_read_failed",
-      `Platform library provider '${input.providerId}' read failed: ${read.error.code} ${read.error.message}`,
-      read.error,
-      read.error.retryable,
-    );
-  }
-
-  const result = read.value;
-  const outputValidation = validatePlatformLibraryProviderReadResult(
+  return invokeCapability<PlatformLibraryProvider, PlatformLibraryProviderReadResult>(
+    registry,
+    platformLibraryProviderSlot,
     input.providerId,
-    requestSnapshot,
-    result,
+    {
+      label: "Platform library provider",
+      notFoundCode: "extension.platform_library_provider_not_found",
+      failedCode: "extension.platform_library_provider_read_failed",
+      capabilityCheck: (registration) => {
+        if (!registration.value.descriptor.libraryKinds.includes(requestSnapshot.kind)) {
+          return failExtension(
+            "extension.platform_library_provider_kind_unsupported",
+            `Platform library provider '${input.providerId}' does not support library kind '${requestSnapshot.kind}'.`,
+          );
+        }
+        return ok(undefined);
+      },
+      invoke: (registration) =>
+        registration.value.read(copyPlatformLibraryReadInput(requestSnapshot)),
+      validateOutput: (value) =>
+        validatePlatformLibraryProviderReadResult(
+          input.providerId,
+          requestSnapshot,
+          value as PlatformLibraryReadResult,
+        ),
+      shapeResult: (value) => value as PlatformLibraryProviderReadResult,
+    },
   );
-
-  if (!outputValidation.ok) {
-    return outputValidation;
-  }
-
-  return ok(result);
 }
 
 export function validatePlatformLibraryProviderRegistration(
@@ -577,9 +509,6 @@ function isPlatformLibraryKind(kind: unknown): kind is PlatformLibraryKind {
     kind === "followed_source_artist";
 }
 
-function isSourceEntityKind(kind: unknown): kind is SourceEntityKind {
-  return kind === "track" || kind === "album" || kind === "artist";
-}
 
 function isProviderAccountIdSafe(value: unknown): value is string {
   return typeof value === "string" &&
@@ -587,25 +516,5 @@ function isProviderAccountIdSafe(value: unknown): value is string {
     isRefComponentSafe(value);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
-function isProviderReadResult(value: unknown): value is Result<PlatformLibraryReadResult> {
-  if (!isRecord(value) || typeof value.ok !== "boolean") {
-    return false;
-  }
 
-  if (value.ok) {
-    return "value" in value;
-  }
-
-  return isStageErrorLike(value.error);
-}
-
-function isStageErrorLike(value: unknown): value is { code: string; message: string; retryable: boolean } {
-  return isRecord(value) &&
-    typeof value.code === "string" &&
-    typeof value.message === "string" &&
-    typeof value.retryable === "boolean";
-}

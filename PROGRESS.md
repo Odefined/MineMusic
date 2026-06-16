@@ -870,6 +870,35 @@ module (architecture deepening candidate #2):
 - no public-surface change; `RetrievalTextField` moved to the ranking module and
   is re-exported from `retrieval_read_model.ts` for backward compatibility.
 
+## 2026-06-16: Capability Slot Registration and Dispatch Deepening
+
+The Extension capability-slot layer is deepened so a new slot needs no
+activation-context or runtime change (architecture deepening candidate #3,
+ADR-0018):
+
+- `capability_registry.ts` stays registration-only; the duplicated 8-step
+  dispatch skeleton (find → capability-check → invoke → result-check → error
+  passthrough → output validation) moves to a new `capability_dispatch.ts`
+  generic `invokeCapability(registry, slot, providerId, descriptor)`. Each
+  provider slot supplies a `{ capabilityCheck, invoke, validateOutput,
+  shapeResult }` descriptor.
+- Registration is open/closed: `PluginActivationContext` exposes a single
+  generic `ctx.register(slot, { key, value })`; `CapabilitySlot` gains a
+  `validateRegistration` callback. The per-slot `register`/`list`/`get` wrappers,
+  the activation-context per-slot methods, and the `createExtensionRuntime` ctx
+  closures are collapsed. A new slot declares its slot + validator + dispatch
+  descriptor with no `PluginActivationContext` edit (pinned by an
+  `_activationContextShape` type test).
+- Shared type guards (`isRecord`, `isResultLike`, `isStageErrorLike`,
+  `isSourceEntityKind`) consolidated into `type_guards.ts`; `isStageErrorLike`
+  reconciled to the strict shape (requires `area`, matching the `StageError`
+  contract). The redundant `isProviderSearchResult`/`isProviderReadResult` (which
+  were `isResultLike` copies) are removed.
+- `"lookup"` removed from `SourceProviderCapability` (a declared capability with
+  no method, seam, or validation).
+- Provider errors without `area` are now rejected as malformed (previously
+  silently passed through).
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

@@ -1,3 +1,4 @@
+import { isRecord } from "./type_guards.js";
 import type { Result } from "../contracts/kernel.js";
 import { failExtension, ok } from "./errors.js";
 
@@ -114,9 +115,6 @@ export function isPluginIdSafe(pluginId: unknown): pluginId is string {
     /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*$/.test(pluginId);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isCapabilityIdSet(value: unknown): value is ReadonlySet<string> {
   return isRecord(value) && typeof value.has === "function";
