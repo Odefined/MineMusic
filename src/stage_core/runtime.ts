@@ -32,7 +32,7 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
   let cleanupErrors: RuntimeErrorSummary[] = [];
   let stageInterface = createStageInterface({
     instruments: [],
-    tools: [],
+    registrations: [],
   });
 
   const readSnapshot = () => snapshot();
@@ -115,8 +115,7 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
     try {
       stageInterface = createStageInterface({
         instruments: merged.value.instruments,
-        tools: merged.value.tools,
-        handlers: merged.value.handlers,
+        registrations: merged.value.registrations,
       });
     } catch (cause) {
       return failInitialization({

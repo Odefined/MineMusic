@@ -101,6 +101,14 @@ Stage Interface is the only formal agent-facing callable boundary. It owns
 Instrument Catalog, Tool Registry, Handbook, schemas, validation, compact
 outputs, dispatch, and session-aware availability.
 
+The Phase 16A Tool Framework skeleton makes a tool declaration a static public
+descriptor plus a runtime handler registration. The descriptor carries the
+mandatory core (`description`, `usage`, examples, side-effect declaration,
+invocation policy, generated input/output schemas, and declared public errors).
+The Tool Call Router validates generated schemas, calls the execution-gate
+preflight port, invokes handlers that return payloads only, and wraps
+`ToolCallOutput.toolName` from the descriptor.
+
 Instrument is an agent-facing workbench section inside Stage Interface. It
 groups tools and visible provider/capability descriptors for the agent. It is
 not a bounded context, domain service, or capability slot, and it does not map
@@ -230,6 +238,11 @@ rows, SQL ranking, and pagination needed to mix provider candidates with local
 materials. Retrieval owns query normalization, cursor/fingerprint validation,
 provider-search error mapping, and compact hit shaping; it does not import
 provider plugins or write runtime cache tables directly.
+
+Music Intelligence keeps Retrieval domain code under `core/retrieval`; Stage
+Interface tool handlers live under `stage_adapter` and are the only Music
+Intelligence subtree allowed to import Stage Interface contracts or public
+description helpers.
 
 Query output is query result/hit information for the agent's next decision.
 `MaterialCard` is final Stage Interface presentation output. It is not a

@@ -1,5 +1,5 @@
-import type { MaterialEntityKind, ProviderMaterialCandidate, SourceQuery } from "../../contracts/music_data_platform.js";
-import type { Ref } from "../../contracts/kernel.js";
+import type { MaterialEntityKind, ProviderMaterialCandidate, SourceQuery } from "../../../contracts/music_data_platform.js";
+import type { Ref } from "../../../contracts/kernel.js";
 import type {
   MixedRetrievalCursorPosition,
   MusicDataPlatformMixedRetrievalRow,
@@ -9,7 +9,7 @@ import type {
   RetrievalMatchedTextTokenEvidence,
   RetrievalOrder,
   RetrievalTextField,
-} from "../../music_data_platform/index.js";
+} from "../../../music_data_platform/index.js";
 
 export type {
   MixedRetrievalCursorPosition,

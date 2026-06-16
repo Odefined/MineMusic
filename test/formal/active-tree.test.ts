@@ -206,21 +206,22 @@ assert.deepEqual(
     .map((file) => relative(repositoryRoot, file))
     .sort(),
   [
+    "src/music_intelligence/core/retrieval/contracts.ts",
+    "src/music_intelligence/core/retrieval/cursor.ts",
+    "src/music_intelligence/core/retrieval/index.ts",
+    "src/music_intelligence/core/retrieval/query_normalization.ts",
+    "src/music_intelligence/core/retrieval/query_service.ts",
     "src/music_intelligence/errors.ts",
     "src/music_intelligence/index.ts",
-    "src/music_intelligence/retrieval/contracts.ts",
-    "src/music_intelligence/retrieval/cursor.ts",
-    "src/music_intelligence/retrieval/index.ts",
-    "src/music_intelligence/retrieval/query_normalization.ts",
-    "src/music_intelligence/retrieval/query_service.ts",
+    "src/music_intelligence/stage_adapter/index.ts",
   ],
-  "formal Music Intelligence root must stay inside the Phase 12C Retrieval boundary",
+  "formal Music Intelligence root must keep Retrieval core separate from Stage Interface adapters",
 );
 
 const musicIntelligencePublicBarrelExportFailures: string[] = [];
 for (const publicBarrel of [
   "src/music_intelligence/index.ts",
-  "src/music_intelligence/retrieval/index.ts",
+  "src/music_intelligence/core/retrieval/index.ts",
 ]) {
   const text = await readFile(join(repositoryRoot, publicBarrel), "utf8");
 
@@ -597,32 +598,46 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
   for (const forbiddenImport of [
     "../stage_interface/",
     "../../stage_interface/",
+    "../../../stage_interface/",
     "../stage_core/",
     "../../stage_core/",
+    "../../../stage_core/",
     "../server/",
     "../../server/",
+    "../../../server/",
     "../extension/",
     "../../extension/",
+    "../../../extension/",
     "../storage/",
     "../../storage/",
+    "../../../storage/",
     "../storage/sqlite/",
     "../../storage/sqlite/",
+    "../../../storage/sqlite/",
     "../providers/",
     "../../providers/",
+    "../../../providers/",
     "../material/",
     "../../material/",
+    "../../../material/",
     "../collection/",
     "../../collection/",
+    "../../../collection/",
     "../memory/",
     "../../memory/",
+    "../../../memory/",
     "../effects/",
     "../../effects/",
+    "../../../effects/",
     "../music_experience/",
     "../../music_experience/",
+    "../../../music_experience/",
     "../query/",
     "../../query/",
+    "../../../query/",
     "../presentation/",
     "../../presentation/",
+    "../../../presentation/",
   ]) {
     if (
       text.includes(`from "${forbiddenImport}`) ||
@@ -637,6 +652,7 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
   for (const mdpImport of [
     "../music_data_platform/",
     "../../music_data_platform/",
+    "../../../music_data_platform/",
   ]) {
     if (
       (text.includes(`from "${mdpImport}`) || text.includes(`from '${mdpImport}`)) &&
@@ -701,6 +717,28 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
 }
 assert.deepEqual(musicIntelligenceImportFailures, []);
 
+const musicIntelligenceCoreStageImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intelligence/core"))) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of [
+    "contracts/stage_interface",
+    "contracts/public_music_description",
+  ]) {
+    if (text.includes(forbiddenImport)) {
+      musicIntelligenceCoreStageImportFailures.push(
+        `${relativeFile} imports forbidden Stage Interface contract surface '${forbiddenImport}'`,
+      );
+    }
+  }
+}
+assert.deepEqual(
+  musicIntelligenceCoreStageImportFailures,
+  [],
+  "Music Intelligence core must not import Stage Interface contracts or public description helpers; stage_adapter owns that boundary",
+);
+
 const musicIntelligenceRuntimeResultSetFailures: string[] = [];
 for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intelligence"))) {
   const relativeFile = relative(repositoryRoot, file);
@@ -727,7 +765,7 @@ assert.deepEqual(
 );
 
 const retrievalServiceText = await readFile(
-  join(repositoryRoot, "src/music_intelligence/retrieval/query_service.ts"),
+  join(repositoryRoot, "src/music_intelligence/core/retrieval/query_service.ts"),
   "utf8",
 );
 assert.equal(
@@ -1053,8 +1091,10 @@ const contractsDagAllowlist: Readonly<Record<string, readonly string[]>> = {
   "src/contracts/kernel.ts": [],
   "src/contracts/music_data_platform.ts": ["./kernel.js"],
   "src/contracts/storage.ts": ["./kernel.js", "./music_data_platform.js"],
+  "src/contracts/public_music_description.ts": ["./stage_interface.js"],
   "src/contracts/stage_interface.ts": ["./kernel.js"],
   "src/contracts/stage_core.ts": ["./kernel.js", "./stage_interface.js"],
+  "src/contracts/generated/stage_interface_schemas.ts": ["../stage_interface.js"],
 };
 
 const contractsDagFailures: string[] = [];
@@ -1259,7 +1299,7 @@ function relativeImportRoot(specifier: string): string | undefined {
 function musicDataPlatformIndexImportNames(text: string): string[] {
   const names: string[] = [];
   const importPattern =
-    /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["'](?:\.\.\/){1,2}music_data_platform\/index\.js["'];/g;
+    /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["'](?:\.\.\/){1,3}music_data_platform\/index\.js["'];/g;
 
   for (const match of text.matchAll(importPattern)) {
     const importBody = match[1];
@@ -1281,7 +1321,7 @@ function musicDataPlatformIndexImportNames(text: string): string[] {
 }
 
 function hasMusicDataPlatformIndexNamespaceImport(text: string): boolean {
-  return /import\s+(?:type\s+)?\*\s+as\s+\w+\s+from\s+["'](?:\.\.\/){1,2}music_data_platform\/index\.js["'];/u
+  return /import\s+(?:type\s+)?\*\s+as\s+\w+\s+from\s+["'](?:\.\.\/){1,3}music_data_platform\/index\.js["'];/u
     .test(text);
 }
 

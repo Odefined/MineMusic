@@ -1,4 +1,4 @@
-import type { InstrumentDescriptor, ToolDescriptor, ToolHandler } from "../contracts/stage_interface.js";
+import type { InstrumentDescriptor, StageToolRegistration, ToolDeclaration } from "../contracts/stage_interface.js";
 import type { Result } from "../contracts/kernel.js";
 import type { RuntimeModuleOwnerArea } from "../contracts/stage_core.js";
 
@@ -12,8 +12,7 @@ export type RuntimeModuleInitializeInput = Record<string, never>;
 
 export type RuntimeModuleContribution = {
   instruments?: readonly InstrumentDescriptor[];
-  tools?: readonly ToolDescriptor[];
-  handlers?: Readonly<Record<string, ToolHandler>>;
+  tools?: readonly StageToolRegistration[];
 };
 
 export type RuntimeModule = {
@@ -29,8 +28,8 @@ export type RuntimeModuleContributionEntry = {
 
 export type MergedRuntimeModuleContribution = {
   instruments: readonly InstrumentDescriptor[];
-  tools: readonly ToolDescriptor[];
-  handlers: ReadonlyMap<string, ToolHandler>;
+  tools: readonly ToolDeclaration[];
+  registrations: readonly StageToolRegistration[];
 };
 
 const runtimeModuleIdPattern = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -78,8 +77,8 @@ export function mergeRuntimeModuleContributions(
   entries: readonly RuntimeModuleContributionEntry[],
 ): Result<MergedRuntimeModuleContribution> {
   const instruments: InstrumentDescriptor[] = [];
-  const tools: ToolDescriptor[] = [];
-  const handlers = new Map<string, ToolHandler>();
+  const tools: ToolDeclaration[] = [];
+  const registrations: StageToolRegistration[] = [];
   const instrumentIds = new Set<string>();
   const toolNames = new Set<string>();
 
@@ -96,27 +95,19 @@ export function mergeRuntimeModuleContributions(
       instruments.push(instrument);
     }
 
-    for (const tool of entry.contribution.tools ?? []) {
-      if (toolNames.has(tool.name)) {
+    for (const registration of entry.contribution.tools ?? []) {
+      const { descriptor } = registration;
+
+      if (toolNames.has(descriptor.name)) {
         return fail(
           "stage_core.duplicate_tool",
-          `Duplicate tool name '${tool.name}' from runtime module '${entry.moduleId}'.`,
+          `Duplicate tool name '${descriptor.name}' from runtime module '${entry.moduleId}'.`,
         );
       }
 
-      toolNames.add(tool.name);
-      tools.push(tool);
-    }
-
-    for (const [toolName, handler] of Object.entries(entry.contribution.handlers ?? {})) {
-      if (handlers.has(toolName)) {
-        return fail(
-          "stage_core.duplicate_tool_handler",
-          `Duplicate handler for tool '${toolName}' from runtime module '${entry.moduleId}'.`,
-        );
-      }
-
-      handlers.set(toolName, handler);
+      toolNames.add(descriptor.name);
+      tools.push(descriptor);
+      registrations.push(registration);
     }
   }
 
@@ -127,28 +118,12 @@ export function mergeRuntimeModuleContributions(
         `Tool '${tool.name}' references missing instrument '${tool.instrumentId}'.`,
       );
     }
-
-    if (!handlers.has(tool.name)) {
-      return fail(
-        "stage_core.missing_tool_handler",
-        `Tool '${tool.name}' does not have a registered handler.`,
-      );
-    }
-  }
-
-  for (const handlerName of handlers.keys()) {
-    if (!toolNames.has(handlerName)) {
-      return fail(
-        "stage_core.orphan_tool_handler",
-        `Handler '${handlerName}' does not have a matching tool descriptor.`,
-      );
-    }
   }
 
   return ok({
     instruments,
     tools,
-    handlers,
+    registrations,
   });
 }
 

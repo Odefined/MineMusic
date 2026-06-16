@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
-import { hasPrefixOrV1Token, type MaterialEntityKind } from "../../contracts/music_data_platform.js";
-import { isRefComponentSafe, refKey, type Ref } from "../../contracts/kernel.js";
-import { MusicIntelligenceError } from "../errors.js";
+import { hasPrefixOrV1Token, type MaterialEntityKind } from "../../../contracts/music_data_platform.js";
+import { isRefComponentSafe, refKey, type Ref } from "../../../contracts/kernel.js";
+import { MusicIntelligenceError } from "../../errors.js";
 import {
   DEFAULT_RETRIEVAL_LIMIT,
   DEFAULT_RETRIEVAL_OWNER_SCOPE,
