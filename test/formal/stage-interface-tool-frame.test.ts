@@ -131,6 +131,24 @@ assert.throws(() => assertSampleOutputHasNoInternalAnchors({
     cursor: "raw_provider_key:secret",
   },
 }));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "source-library-ref-key",
+  output: {
+    sourceLibraryRef: "opaque-source-library-id",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "owner-relation-pool-ref-key",
+  output: {
+    ownerRelationPoolRef: "opaque-relation-pool-id",
+  },
+}));
+assert.throws(() => assertSampleOutputHasNoInternalAnchors({
+  label: "source-ref-key-field",
+  output: {
+    sourceRefKey: "opaque-source-key",
+  },
+}));
 assert.doesNotThrow(() => assertSampleOutputHasNoInternalAnchors({
   label: "public-provider-registry-id",
   output: {

@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+import { INTERNAL_ANCHOR_PROPERTY_NAMES } from "../../src/stage_interface/index.js";
+
 const repositoryRoot = process.cwd();
 
 const removedRuntimeRoots = [
@@ -276,6 +278,42 @@ for (const file of activeFiles) {
 }
 
 assert.deepEqual(failures, []);
+
+// Self-maintaining Public Handle Veil denylist: every internal-anchor field declared in
+// active source (camelCase ending in Ref/Refs/RefKey/RefKeys/RefId/RefIds) MUST be in the
+// Stage Interface veil denylist. A new internal anchor added to the contracts without being
+// banned fails here, so the denylist cannot silently drift out of sync with the contract surface.
+const internalAnchorSuffix = /(?:Refs|RefKeys|RefIds|RefKey|RefId|Ref)$/u;
+const fieldDeclaration = /([a-z][a-zA-Z0-9_]*)\s*\??\s*:/gu;
+const veilDenylistNames = new Set<string>(INTERNAL_ANCHOR_PROPERTY_NAMES);
+const veilDenylistDriftFailures: string[] = [];
+
+for (const file of activeFiles) {
+  const text = await readFile(file, "utf8");
+  const declared = new Set<string>();
+
+  for (const match of text.matchAll(fieldDeclaration)) {
+    const name = match[1];
+
+    if (name !== undefined && internalAnchorSuffix.test(name)) {
+      declared.add(name);
+    }
+  }
+
+  for (const name of declared) {
+    if (!veilDenylistNames.has(name)) {
+      veilDenylistDriftFailures.push(
+        `${relative(repositoryRoot, file)} declares internal-anchor field '${name}' that is not in INTERNAL_ANCHOR_PROPERTY_NAMES`,
+      );
+    }
+  }
+}
+
+assert.deepEqual(
+  veilDenylistDriftFailures,
+  [],
+  "every internal-anchor (Ref/RefKey/RefId) field in active source must be listed in the Stage Interface veil denylist",
+);
 
 const forbiddenRuntimeImports = [
   "../material/",
