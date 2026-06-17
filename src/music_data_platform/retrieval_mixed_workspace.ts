@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 
 import { refKey, type Ref } from "../contracts/kernel.js";
-import type { MaterialEntityKind, PlatformLibraryKind, ProviderMaterialCandidate, SourceEntity, SourceEntityKind, VersionInfo } from "../contracts/music_data_platform.js";
+import type { MaterialEntityKind, PlatformLibraryKind, ProviderMaterialCandidate, SourceEntity, VersionInfo } from "../contracts/music_data_platform.js";
 import type {
   MusicDatabase,
   MusicDatabaseContext,
   MusicDatabaseParameter,
 } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
-import { assertMaterialRef } from "./material_ref.js";
+import { assertMaterialRef, materialKindForSourceKind } from "./material_ref.js";
 import {
   buildMaterialTextFieldState,
   buildMaterialTextPrefixOrQuery,
@@ -1400,17 +1400,6 @@ function pushContribution(
   });
 }
 
-function materialKindForSourceKind(sourceKind: SourceEntityKind): MaterialEntityKind {
-  switch (sourceKind) {
-    case "track":
-      return "recording";
-    case "album":
-      return "album";
-    case "artist":
-      return "artist";
-  }
-}
-
 function validatedProviderCandidate(candidate: ProviderMaterialCandidate): SourceEntity {
   if (typeof candidate !== "object" || candidate === null) {
     throw invalidMixedWorkspace("Provider material candidate must be an object.");
@@ -1471,13 +1460,6 @@ function effectiveTextQuery(text: string): EffectiveTextQuery {
     matchQuery: buildMaterialTextPrefixOrQuery(normalizedText),
   };
 }
-
-
-
-
-
-
-
 
 function materialRefFromEntityJson(
   entityJson: string,

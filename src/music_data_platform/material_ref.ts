@@ -1,4 +1,7 @@
-import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
+import type {
+  MaterialEntityKind,
+  SourceEntityKind,
+} from "../contracts/music_data_platform.js";
 import type { Ref } from "../contracts/kernel.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMusicDataPlatformRefComponentSafe } from "./ref_validation.js";
@@ -40,4 +43,21 @@ function invalidMaterialRef(message: string): MusicDataPlatformError {
     code: "music_data.material_ref_invalid",
     message,
   });
+}
+
+/**
+ * Maps a source entity kind to its owning material entity kind. Exhaustive over
+ * `SourceEntityKind`; callers holding an open `string` (e.g. a `Ref.kind`) must
+ * narrow first and treat unknown kinds as a domain/invariant case rather than
+ * calling this function.
+ */
+export function materialKindForSourceKind(sourceKind: SourceEntityKind): MaterialEntityKind {
+  switch (sourceKind) {
+    case "track":
+      return "recording";
+    case "album":
+      return "album";
+    case "artist":
+      return "artist";
+  }
 }

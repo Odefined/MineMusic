@@ -8,6 +8,7 @@ import { isMusicDataPlatformError } from "./errors.js";
 import {
   createIdentityReadPort,
 } from "./identity_read_model.js";
+import { materialKindForSourceKind } from "./material_ref.js";
 import type { MaterialRefFactory } from "./material_ref_factory.js";
 import { DEFAULT_OWNER_SCOPE } from "./owner_scope.js";
 import {
@@ -337,12 +338,12 @@ export function createSourceLibraryImportService(
         sourceRef: candidate.sourceEntity.sourceRef,
       });
       const materialRef = existingBinding?.materialRef ??
-        input.materialRefFactory.createMaterialRef(materialKindForSource(candidate.sourceEntity));
+        input.materialRefFactory.createMaterialRef(materialKindForSourceKind(candidate.sourceEntity.kind));
 
       if (existingBinding === undefined) {
         identityCommands.upsertMaterialRecord({
           materialRef,
-          kind: materialKindForSource(candidate.sourceEntity),
+          kind: materialKindForSourceKind(candidate.sourceEntity.kind),
           ...(candidate.sourceEntity.versionInfo === undefined ? {} : { versionInfo: candidate.sourceEntity.versionInfo }),
         });
       }
@@ -788,17 +789,6 @@ function assertProviderSourceEntityPostExtensionContract(
 
 function hasReachedMaxNewItems(batch: SourceLibraryImportBatchRecord): boolean {
   return batch.maxNewItems !== undefined && batch.importedCount >= batch.maxNewItems;
-}
-
-function materialKindForSource(sourceEntity: SourceEntity): MaterialEntityKind {
-  switch (sourceEntity.kind) {
-    case "track":
-      return "recording";
-    case "album":
-      return "album";
-    case "artist":
-      return "artist";
-  }
 }
 
 function sourceKindForLibraryKind(kind: PlatformLibraryKind): SourceEntity["kind"] {

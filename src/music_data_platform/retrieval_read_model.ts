@@ -863,13 +863,6 @@ function searchParamsForText(input: {
   return params;
 }
 
-
-
-
-
-
-
-
 function textCursorClause(
   order: RetrievalOrder,
   cursorPosition: RetrievalReadCursorPosition | undefined,
