@@ -4,7 +4,7 @@ import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEnt
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration } from "../../src/contracts/stage_interface.js";
+import type { StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
 
@@ -239,6 +239,18 @@ export type _stageToolDeclarationShape = Expect<
     | "requiresProvider"
   > &
     Equal<ForbiddenKeys<ToolDeclaration, "outputPolicy" | "runtimePolicy" | "contractVersion">, never>
+>;
+
+export type _toolInvocationPolicyShape = Expect<
+  Equal<
+    keyof ToolInvocationPolicy,
+    | "defaultDecision"
+    | "dataEgress"
+    | "readOnlyHint"
+    | "destructiveHint"
+    | "admissionDrivenByPresentation"
+    | "maxCallsPerTurn"
+  >
 >;
 
 export type _stageToolContextShape = Expect<
