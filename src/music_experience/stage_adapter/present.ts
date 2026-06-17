@@ -191,11 +191,16 @@ async function presentMaterial(
     return materialNotFound("Music material is not available for presentation.");
   }
 
+  // Mint the library handle from the projected (survivor) materialRef, not the
+  // input ref: when the input material was merged, Material Projection followed
+  // mergedIntoMaterialRef and returned the surviving MusicMaterial. Minting the
+  // input ref would anchor the public handle on the loser and leak a stale
+  // anchor to later play/favorite/save tools.
   const publicId = await ctx.handleMinting.mint({
     ownerScope: ctx.ownerScope,
     handleKind: "library",
     internalAnchor: {
-      materialRef: refKey(materialRef),
+      materialRef: refKey(material.materialRef),
     },
   });
 

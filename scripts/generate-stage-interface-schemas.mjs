@@ -172,6 +172,32 @@ function tightenNonEmptyStringProperties(def) {
   }
 }
 
+// The present output item is a library MusicItemHandle inlined under
+// properties.item (not a $ref to the MusicItemHandle definition), so the
+// scope-handle overlay above does not reach it. An empty-string item.id would
+// pass the AJV gate while the handle registry would reject it, leaving the
+// public output contract looser than the handle contract. Tighten it here so
+// the structural layer enforces non-empty parity with the input handle.
+function applyPresentOutputHandleNonEmptyOverlay(schema) {
+  const def = schema?.definitions?.MusicExperiencePresentOutput;
+  if (def === null || typeof def !== "object" || def.properties === undefined) {
+    return;
+  }
+  const item = def.properties.item;
+  if (item === null || typeof item !== "object" || item.properties === undefined) {
+    return;
+  }
+  const id = item.properties.id;
+  if (
+    id !== null &&
+    typeof id === "object" &&
+    id.type === "string" &&
+    id.minLength === undefined
+  ) {
+    item.properties.id = { ...NON_EMPTY_STRING_CONSTRAINT };
+  }
+}
+
 const generatedSchemas = schemaTargets.map((target) => {
   const schema = generatorFor(target.sourcePath).createSchema(target.typeName);
   if (target.exportName === "musicDiscoveryLookupInputSchema") {
@@ -180,6 +206,9 @@ const generatedSchemas = schemaTargets.map((target) => {
   // Scope-handle definitions are inlined under multiple exports, so apply the
   // non-empty overlay to every target.
   applyScopeHandleNonEmptyOverlay(schema);
+  if (target.exportName === "musicExperiencePresentOutputSchema") {
+    applyPresentOutputHandleNonEmptyOverlay(schema);
+  }
   return { ...target, schema };
 });
 
