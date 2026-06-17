@@ -174,6 +174,7 @@ assert.deepEqual(
     .map((file) => relative(repositoryRoot, file))
     .sort(),
   [
+    "src/music_data_platform/candidate_commit_command.ts",
     "src/music_data_platform/errors.ts",
     "src/music_data_platform/identity_read_model.ts",
     "src/music_data_platform/identity_records.ts",

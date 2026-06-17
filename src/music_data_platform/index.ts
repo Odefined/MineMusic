@@ -35,6 +35,9 @@ export {
   assertProviderMaterialCandidateRef,
   providerMaterialCandidateRefKey,
 } from "./material_candidate_ref.js";
+export {
+  createCandidateCommitCommand,
+} from "./candidate_commit_command.js";
 export type {
   CreateOwnerMaterialRelationRefInput,
   CreateOwnerRelationPoolRefInput,
@@ -47,6 +50,12 @@ export type {
   CreateProviderMaterialCandidateRefInput,
   MaterialCandidateKind,
 } from "./material_candidate_ref.js";
+export type {
+  CandidateCommitCommand,
+  CandidateCommitInput,
+  CandidateCommitResult,
+  CreateCandidateCommitCommandInput,
+} from "./candidate_commit_command.js";
 export type {
   SourceToMaterialBindingRecord,
 } from "./identity_records.js";
