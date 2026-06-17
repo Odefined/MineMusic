@@ -44,6 +44,7 @@ audit. It is a planning area, not a replacement for `ARCHITECTURE.md`,
 | `phase-16-stage-interface-tool-frame-implementation-plan.md` | Phase 16 execution plan for the agent-facing Tool Framework, split into PR 16A contract layer, PR 16B Public Handle Veil + execution gate stub + timeout, PR 16C `list_scopes`, and PR 16D `lookup`; implemented. |
 | `stage-interface-tool-frame.md` | Phase 16 design authority for the agent-facing Tool Framework skeleton (mandatory core plus owned extensible dimensions); pairs with ADR-0009 through ADR-0012, ADR-0014 through ADR-0017, ADR-0019, and ADR-0020. |
 | `phase-17-candidate-commit-and-present-implementation-plan.md` | Phase 17 execution plan for the first durable-write phase: Candidate Commit command (ADR-0011), Material Projection first landing, Effect Boundary auto-pass widening (ADR-0021), and the `music.experience.present` consumption tool; split into PR 17A/17B/17D/17C; implemented. |
+| `phase-18-library-import-tools-implementation-plan.md` | Phase 18 execution plan for agent-facing library intake: the `library.import.*` tools (`list_sources` / `start` / `continue` / `status`) over the existing internal source-library import service, the `library.` top-level Public Agent Protocol namespace (not a new formal area), and the Effect Boundary intake auto-pass widening (ADR-0022); split into PR 18A/18B/18C/18D/18E; not yet implemented. |
 | `../formal-project-glossary.md` | Formal target vocabulary and MVP-to-formal term mapping. |
 
 The root audit

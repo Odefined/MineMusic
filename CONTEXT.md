@@ -130,6 +130,14 @@ use directly.
 _Avoid_: internal domain contract, provider audit shape, persisted event
 payload, source ref handle, canonical ref handle.
 
+### Public Agent Protocol Namespace
+
+A top-level tool-name prefix that signals the agent-facing work surface:
+`music.` for music assistant workflows, `library.` for owner library
+management, and `stage.` for runtime and system tools.
+A namespace is not a top-level architecture area, bounded context, capability
+slot, or durable-state owner.
+
 ### Public Display Link
 
 A link shape in the Public Agent Protocol that contains only user-displayable
@@ -151,9 +159,10 @@ public contract.
 
 Music Discovery is exposed as the Stage Interface instrument `music.discovery`,
 with tools such as `music.discovery.lookup` and `music.discovery.list_scopes`.
-Music-domain agent instruments and tools use the `music.` namespace, distinct from
-the `stage.` namespace used for runtime and system tools. A Music Discovery result
-distinguishes a known MineMusic library item from an unconfirmed provider
+Music assistant workflows use the `music.` namespace, library-management
+workflows use the `library.` namespace, and runtime/system tools use the
+`stage.` namespace. A Music Discovery result distinguishes a known MineMusic
+library item from an unconfirmed provider
 candidate through public result semantics, never through internal refs. Music
 Discovery does not save, play, favorite, block, import, commit a candidate to a
 durable record, or expose a final recommendation.
@@ -249,10 +258,11 @@ has no agent-visible structure and must not be derived from, equal to, or parsed
 as an internal ref key. MineMusic owns the private mapping from that public
 `id` to the current internal source-library, relation, or future collection
 anchor.
-A Music Library Scope Handle is obtained from a scope-listing tool such as
-`music.discovery.list_scopes`, not constructed by the agent. The agent may pass
-this handle directly as a `MusicScope` item without wrapping it in another
-object.
+A Music Library Scope Handle is returned by MineMusic tools that list or produce
+an owner-scoped library subscope, such as `music.discovery.list_scopes` and
+library intake tools after they resolve a source-library scope. It is not
+constructed by the agent. The agent may pass this handle directly as a
+`MusicScope` item without wrapping it in another object.
 _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
 Tool Frame): sourceLibraryRef, ownerRelationPoolRef, public `providerId`, raw
 owner or library key, Collection row id.
