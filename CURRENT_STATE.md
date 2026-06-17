@@ -68,7 +68,10 @@ Public Agent Protocol namespace, keeps Library Import owned by Music Data
 Platform rather than a new top-level area, adds an empty MDP-owned
 `library-import` RuntimeModule under `src/music_data_platform/stage_adapter/`,
 and mounts its Server Host composition skeleton without contributing
-`library.import.*` tools yet.
+`library.import.*` tools yet. Phase 18B adds the Effect Boundary
+`intakeDrivenByUserRequest` invocation-policy qualifier (ADR-0022), allowing
+future owner-scoped `library.import.start` / `.continue` calls to auto-pass with
+metadata audit while unqualified durable writes still route to `ask`.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -488,8 +491,10 @@ The active TypeScript tree is now a formal skeleton:
   `src/stage_interface/handle_registry_schema.ts`, and
   `src/stage_interface/veil_guard.ts` own the Phase 16B public handle veil,
   owner-bound handle registry, context factory, and leak guards;
-- `src/effect_boundary/stage_tool_execution_gate.ts` owns the Phase 16B
-  conservative `StageToolExecutionGate` stub and audit recording seam;
+- `src/effect_boundary/stage_tool_execution_gate.ts` owns the
+  `StageToolExecutionGate` stub, audit recording seam, presentation-driven
+  admission auto-pass qualifier, and owner-scoped library-intake auto-pass
+  qualifier;
 - `src/stage_core/runtime_module.ts` owns the Stage Core-only
   `RuntimeModule` contribution boundary, now using `StageToolRegistration`
   entries instead of separate descriptor/handler maps;

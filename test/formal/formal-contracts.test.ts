@@ -249,6 +249,7 @@ export type _toolInvocationPolicyShape = Expect<
     | "readOnlyHint"
     | "destructiveHint"
     | "admissionDrivenByPresentation"
+    | "intakeDrivenByUserRequest"
     | "maxCallsPerTurn"
   >
 >;

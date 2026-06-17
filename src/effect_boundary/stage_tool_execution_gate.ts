@@ -102,6 +102,18 @@ function decide(
     };
   }
 
+  if (
+    descriptor.invocationPolicy.defaultDecision === "auto" &&
+    descriptor.sideEffect.durableUserStateWrite === true &&
+    descriptor.invocationPolicy.intakeDrivenByUserRequest === true
+  ) {
+    return {
+      decision: "allow",
+      auditLevel: "metadata",
+      internalReason: "auto owner-scoped library intake",
+    };
+  }
+
   return {
     decision: "ask",
     auditLevel: "metadata",

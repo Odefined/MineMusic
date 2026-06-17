@@ -509,6 +509,35 @@ assert.equal(
   qualifiedPresentResult.internalReason,
   "auto presentation-driven admission",
 );
+
+// ADR-0022: owner-scoped, user-requested Library Import intake may auto-pass
+// the Effect Boundary gate while ordinary durable writes still route to ask.
+const qualifiedIntakeDescriptor: ToolDeclaration = {
+  ...descriptor,
+  name: "library.import.start",
+  ownerArea: "music_data_platform",
+  sideEffect: {
+    ...descriptor.sideEffect,
+    durableUserStateWrite: true,
+    externalCall: true,
+  },
+  invocationPolicy: {
+    ...descriptor.invocationPolicy,
+    defaultDecision: "auto",
+    dataEgress: "provider_account",
+    intakeDrivenByUserRequest: true,
+  },
+};
+const qualifiedIntakeResult = await conservativeGate.preflight({
+  ...gateBaseInput,
+  descriptor: qualifiedIntakeDescriptor,
+});
+
+assert.equal(qualifiedIntakeResult.decision, "allow");
+assert.equal(
+  qualifiedIntakeResult.internalReason,
+  "auto owner-scoped library intake",
+);
 assert.equal((await conservativeGate.preflight({
   ...gateBaseInput,
   descriptor: {
@@ -519,13 +548,21 @@ assert.equal((await conservativeGate.preflight({
     },
   },
 })).decision, "deny");
-assert.equal(auditRecords.length, 6);
+assert.equal(auditRecords.length, 7);
 assert.equal(auditRecords.every((record) => record.auditLevel === "metadata"), true);
 assert.equal(
   auditRecords.some((record) => (
     record.toolName === "music.experience.present" &&
     record.decision === "allow" &&
     record.internalReason === "auto presentation-driven admission"
+  )),
+  true,
+);
+assert.equal(
+  auditRecords.some((record) => (
+    record.toolName === "library.import.start" &&
+    record.decision === "allow" &&
+    record.internalReason === "auto owner-scoped library intake"
   )),
   true,
 );

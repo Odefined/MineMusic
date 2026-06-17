@@ -50,9 +50,9 @@ with no shared guarantees.
   Platform; see ADR-0011). This frame only forbids tools from materializing.
 - No full Effect Boundary enforcement machinery itself (owned by Effect
   Boundary; see ADR-0010). This frame mandates the declaration and defines a v1
-  conservative `StageToolExecutionGate` stub seam (see Permission, Visibility,
-  and Auto-Invocation) so declarations have a runtime home; full enforcement is
-  deferred.
+  `StageToolExecutionGate` stub seam with the ADR-0021 / ADR-0022 auto-pass
+  qualifiers (see Permission, Visibility, and Auto-Invocation) so declarations
+  have a runtime home; full enforcement is deferred.
 - No per-tool runtime-policy enforcement itself (owned by Stage Core). This frame
   requires a Stage Core global default timeout (see Runtime Policy) but defers
   per-tool `runtimePolicy`.
@@ -421,6 +421,8 @@ invocationPolicy = {
   dataEgress: "none" | "provider_account" | "open_world",
   readOnlyHint: boolean,
   destructiveHint: boolean,
+  admissionDrivenByPresentation?: boolean,
+  intakeDrivenByUserRequest?: boolean,
   maxCallsPerTurn?: number
 }
 ```
@@ -443,9 +445,12 @@ provider-connection time, not per search.
 ## Permission, Visibility, and Auto-Invocation
 
 - Auto-invocation is derived from `sideEffect.durableUserStateWrite` and
-  `invocationPolicy.defaultDecision`. The rule is owned by Effect Boundary. A
-  tool that writes durable user state cannot be auto-invoked even if a mistaken
-  declaration says `defaultDecision: "auto"`.
+  `invocationPolicy.defaultDecision`, plus narrow Effect Boundary-owned
+  durable-write qualifiers recorded by ADR-0021 and ADR-0022. The rule is owned
+  by Effect Boundary. A tool that writes durable user state cannot be
+  auto-invoked merely because it says `defaultDecision: "auto"`; it must either
+  be read-only on durable user state or satisfy one of those explicit
+  qualifiers.
 - Provider/account availability that affects a tool's scopes is owned by
   Extension. Stage Interface reads it through a narrow
   `ProviderAvailabilityPort`; a composition root adapts the Extension runtime
@@ -467,7 +472,8 @@ provider-connection time, not per search.
   Effect Boundary-owned `StageToolExecutionGate`, NOT the Tool Call Router
   interpreting policy. The boundary is crisp:
   - **Owner**: Effect Boundary owns `StageToolExecutionGate` (interface declared
-    at the contract layer; v1 ships a conservative stub implementation).
+    at the contract layer; v1 ships the conservative stub plus the ADR-0021 and
+    ADR-0022 auto-pass qualifiers).
   - **Router -> gate**: before invoking the handler, the Tool Call Router calls
     `gate.preflight({ descriptor, sideEffect, invocationPolicy, ownerScope,
     sessionId, requestId, arguments })`. The router PASSES the declarations; it
@@ -486,9 +492,11 @@ provider-connection time, not per search.
     veil.
   - **Audit**: the gate writes audit (level per `auditLevel`) to the
     `StageToolAuditPort`; the router and handler do not audit.
-  - **v1 stub rule** (fail-closed): the stub returns `allow` only when
-    `invocationPolicy.defaultDecision = "auto"` AND
-    `sideEffect.durableUserStateWrite = false`; otherwise it returns `ask` /
+  - **v1 stub rule** (fail-closed with named durable-write exceptions): the stub
+    returns `allow` when `invocationPolicy.defaultDecision = "auto"` and
+    either `sideEffect.durableUserStateWrite = false`,
+    `admissionDrivenByPresentation = true` (ADR-0021), or
+    `intakeDrivenByUserRequest = true` (ADR-0022). Otherwise it returns `ask` /
     `deny` per `defaultDecision`. This is the runtime half of the interim
     fail-closed posture (the static half is the side-effect honesty import
     guard), so `sideEffect` / `invocationPolicy` are never inert metadata before

@@ -37,6 +37,7 @@ export type ToolInvocationPolicy = {
   readOnlyHint: boolean;
   destructiveHint: boolean;
   admissionDrivenByPresentation?: boolean;
+  intakeDrivenByUserRequest?: boolean;
   maxCallsPerTurn?: number;
 };
 

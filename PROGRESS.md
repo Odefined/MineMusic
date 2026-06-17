@@ -942,8 +942,9 @@ Phase 16B implements the safety layer on top of the Phase 16A Tool Frame:
   account ids, or raw provider keys. Public provider registry ids such as
   `netease` remain legal.
 - Effect Boundary now owns the conservative `StageToolExecutionGate` stub:
-  auto only means `defaultDecision = "auto"` and no durable user-state write;
-  otherwise the gate asks or denies, and writes audit metadata.
+  ordinary auto only means `defaultDecision = "auto"` and no durable user-state
+  write; later ADR-0021 and ADR-0022 add named durable-write auto-pass
+  qualifiers. Otherwise the gate asks or denies, and writes audit metadata.
 - Stage Core now supplies a default tool timeout, and the Tool Call Router wraps
   handler execution with timeout/cancellation via `ctx.abortSignal`.
 - Gate reasons are split into `publicReason` and `internalReason`; only
@@ -1042,6 +1043,22 @@ Phase 18A starts agent-facing library intake without adding import tools yet:
   and `stage.runtime.status`.
 - Tests and active-tree guards now include the `library-import` runtime module
   and MDP stage-adapter skeleton.
+
+## 2026-06-18: Phase 18B Library Intake Auto-Pass Qualifier
+
+Phase 18B widens the Effect Boundary gate for owner-scoped, user-requested
+library intake:
+
+- `ToolInvocationPolicy` now includes `intakeDrivenByUserRequest?: boolean`.
+- `createConservativeStageToolExecutionGate` allows durable-write tools only
+  when `defaultDecision = "auto"` plus either the existing
+  `admissionDrivenByPresentation` qualifier or the new
+  `intakeDrivenByUserRequest` qualifier applies; unqualified durable writes
+  still route to `ask`, and `deny` still denies.
+- The intake allow path records metadata audit with internal reason
+  `auto owner-scoped library intake`.
+- Tests cover the new intake qualifier while preserving read-only auto,
+  presentation-driven admission, durable-write ask fallback, and deny behavior.
 
 ## Next Formal Milestones
 

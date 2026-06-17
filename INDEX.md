@@ -218,6 +218,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/adr/0021-effect-boundary-auto-pass-for-presentation-admission.md`:
   Effect Boundary auto-pass widened for presentation-driven Candidate Commit
   admission writes (the Phase 17 `music.experience.present` durable write).
+- `docs/adr/0022-effect-boundary-auto-pass-for-library-intake.md`: Effect
+  Boundary auto-pass widened for owner-scoped, user-requested Library Import
+  intake writes.
 
 ## Pre-Formal ADR Evidence
 
