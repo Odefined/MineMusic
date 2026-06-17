@@ -130,6 +130,47 @@ export type MaterialAvailability =
   | "unavailable"
   | "unknown";
 
+export type MusicRecording = {
+  kind: "recording";
+  materialRef: Ref;
+  primarySourceRef: Ref;
+  title: string;
+  artistLabels: readonly string[];
+  albumLabel?: string;
+  trackPosition?: SourceTrackPosition;
+  durationMs?: number;
+  playableLinks: readonly PlayableLink[];
+  availability: MaterialAvailability;
+  versionInfo?: VersionInfo;
+};
+
+export type MusicAlbum = {
+  kind: "album";
+  materialRef: Ref;
+  primarySourceRef: Ref;
+  title: string;
+  artistLabels?: readonly string[];
+  releaseDate?: string;
+  playableLinks: readonly PlayableLink[];
+  availability: MaterialAvailability;
+  versionInfo?: VersionInfo;
+};
+
+export type MusicArtist = {
+  kind: "artist";
+  materialRef: Ref;
+  primarySourceRef: Ref;
+  name: string;
+  aliases?: readonly string[];
+  playableLinks: readonly PlayableLink[];
+  availability: MaterialAvailability;
+};
+
+export type MusicMaterial =
+  | MusicRecording
+  | MusicAlbum
+  | MusicArtist;
+
 export type MaterialEntity = {
   materialRef: Ref;
   kind: MaterialEntityKind;

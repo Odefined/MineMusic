@@ -69,7 +69,6 @@ const removedRuntimeRoots = [
 ];
 
 const deletedVocabulary = [
-  "Music" + "Material",
   "Source" + "Material",
   "Material" + "Resolve",
   "Public" + "Material" + "Resolve",
@@ -182,6 +181,7 @@ assert.deepEqual(
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/index.ts",
     "src/music_data_platform/material_candidate_ref.ts",
+    "src/music_data_platform/material_projection.ts",
     "src/music_data_platform/material_ref.ts",
     "src/music_data_platform/material_ref_factory.ts",
     "src/music_data_platform/material_text_normalization.ts",
@@ -660,6 +660,12 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_data_p
       `${relative(repositoryRoot, file)} mentions raw SQLite primitives`,
     );
   }
+
+  if (text.includes("MusicCard")) {
+    musicDataPlatformImportFailures.push(
+      `${relative(repositoryRoot, file)} mentions forbidden Stage Interface output type 'MusicCard'`,
+    );
+  }
 }
 assert.deepEqual(musicDataPlatformImportFailures, []);
 
@@ -957,6 +963,7 @@ const repositoryFactoryUsageAllowedFiles = new Set([
   "src/music_data_platform/identity_read_model.ts",
   "src/music_data_platform/identity_records.ts",
   "src/music_data_platform/identity_write_model.ts",
+  "src/music_data_platform/material_projection.ts",
   "src/music_data_platform/material_text_projection_commands.ts",
   "src/music_data_platform/source_library_commands.ts",
   "src/music_data_platform/source_library_read_model.ts",

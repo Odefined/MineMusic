@@ -57,6 +57,14 @@ export type {
   CreateIdentityReadPortInput,
   IdentityReadPort,
 } from "./identity_read_model.js";
+export {
+  createMaterialProjection,
+} from "./material_projection.js";
+export type {
+  CreateMaterialProjectionInput,
+  MaterialProjection,
+  ProjectMusicMaterialInput,
+} from "./material_projection.js";
 export type {
   BindMaterialToCanonicalInput,
   BindSourceToMaterialInput,
