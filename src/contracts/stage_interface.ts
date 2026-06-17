@@ -168,7 +168,28 @@ export type PublicHandleDescription = {
   label: string;
 };
 
+export type PublicDisplayLink = {
+  url: string;
+  label?: string;
+};
+
 export type MusicTargetKind = "recording" | "album" | "artist";
+
+export type MusicAvailability =
+  | "playable"
+  | "restricted"
+  | "unavailable"
+  | "unknown";
+
+export type MusicCard = {
+  kind: MusicTargetKind;
+  label: string;
+  artistsText?: string;
+  albumLabel?: string;
+  displayLinks: readonly PublicDisplayLink[];
+  availability: MusicAvailability;
+  versionLabel?: string;
+};
 
 export type NonEmptyMusicTargetKinds = readonly [
   MusicTargetKind,
@@ -235,6 +256,15 @@ export type MusicDiscoveryLookupInput =
 export type MusicItemHandle =
   | { kind: "library"; id: string }
   | { kind: "candidate"; id: string };
+
+export type MusicExperiencePresentInput = {
+  item: MusicItemHandle;
+};
+
+export type MusicExperiencePresentOutput = {
+  item: Extract<MusicItemHandle, { kind: "library" }>;
+  card: MusicCard;
+};
 
 export type MusicDiscoveryLookupItemDescription = PublicHandleDescription & {
   title?: string;

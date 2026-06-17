@@ -11,6 +11,9 @@ import {
   createMusicDataPlatformRuntimeModule,
   type MusicDataPlatformRuntimeModule,
 } from "./music_data_platform_runtime_module.js";
+import {
+  createMusicExperienceServerRuntimeModule,
+} from "./music_experience_runtime_module.js";
 import type { SourceLibraryImportService } from "../music_data_platform/index.js";
 import type { RetrievalQueryService } from "../music_intelligence/index.js";
 import {
@@ -69,6 +72,12 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           },
           ...(lookupCursorKey === undefined ? {} : { cursorKey: lookupCursorKey }),
         });
+  const musicExperienceModule: RuntimeModule | undefined =
+    musicDataPlatformModule === undefined
+      ? undefined
+      : createMusicExperienceServerRuntimeModule({
+          musicDataPlatformModule,
+        });
   const runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
       ...(musicDataPlatformModule === undefined ? [] : [musicDataPlatformModule]),
@@ -76,6 +85,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
         runtime: extensionRuntime,
       }),
       ...(musicDiscoveryModule === undefined ? [] : [musicDiscoveryModule]),
+      ...(musicExperienceModule === undefined ? [] : [musicExperienceModule]),
     ],
   });
 

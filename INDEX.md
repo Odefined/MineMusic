@@ -133,7 +133,7 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Phase 17 execution plan for the first durable-write phase: Candidate Commit
   command (ADR-0011), Material Projection first landing, Effect Boundary
   auto-pass widening (ADR-0021), and the `music.experience.present` consumption
-  tool; split into PR 17A/17B/17D/17C; pre-implementation.
+  tool; split into PR 17A/17B/17D/17C; implemented in the current tree.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

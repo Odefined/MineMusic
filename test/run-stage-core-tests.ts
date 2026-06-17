@@ -1,6 +1,7 @@
 const testModules = [
   "./formal/formal-contracts.test.js",
   "./formal/stage-interface-tool-frame.test.js",
+  "./formal/music-experience-present.test.js",
   "./formal/music-discovery-list-scopes.test.js",
   "./formal/music-discovery-lookup.test.js",
   "./formal/active-tree.test.js",

@@ -272,7 +272,8 @@ export const musicItemHandleSchema = {
               "const": "library"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -289,7 +290,8 @@ export const musicItemHandleSchema = {
               "const": "candidate"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -298,6 +300,245 @@ export const musicItemHandleSchema = {
           ],
           "additionalProperties": false
         }
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const musicCardSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/MusicCard",
+  "definitions": {
+    "MusicCard": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "artistsText": {
+          "type": "string"
+        },
+        "albumLabel": {
+          "type": "string"
+        },
+        "displayLinks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PublicDisplayLink"
+          }
+        },
+        "availability": {
+          "$ref": "#/definitions/MusicAvailability"
+        },
+        "versionLabel": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label",
+        "displayLinks",
+        "availability"
+      ],
+      "additionalProperties": false
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "PublicDisplayLink": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "MusicAvailability": {
+      "type": "string",
+      "enum": [
+        "playable",
+        "restricted",
+        "unavailable",
+        "unknown"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const musicExperiencePresentInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/MusicExperiencePresentInput",
+  "definitions": {
+    "MusicExperiencePresentInput": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "$ref": "#/definitions/MusicItemHandle"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "additionalProperties": false
+    },
+    "MusicItemHandle": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "candidate"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const musicExperiencePresentOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/MusicExperiencePresentOutput",
+  "definitions": {
+    "MusicExperiencePresentOutput": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "card": {
+          "$ref": "#/definitions/MusicCard"
+        }
+      },
+      "required": [
+        "item",
+        "card"
+      ],
+      "additionalProperties": false
+    },
+    "MusicCard": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "artistsText": {
+          "type": "string"
+        },
+        "albumLabel": {
+          "type": "string"
+        },
+        "displayLinks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PublicDisplayLink"
+          }
+        },
+        "availability": {
+          "$ref": "#/definitions/MusicAvailability"
+        },
+        "versionLabel": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label",
+        "displayLinks",
+        "availability"
+      ],
+      "additionalProperties": false
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "PublicDisplayLink": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "MusicAvailability": {
+      "type": "string",
+      "enum": [
+        "playable",
+        "restricted",
+        "unavailable",
+        "unknown"
       ]
     }
   }
@@ -808,7 +1049,8 @@ export const musicDiscoveryLookupOutputSchema = {
               "const": "library"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -825,7 +1067,8 @@ export const musicDiscoveryLookupOutputSchema = {
               "const": "candidate"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [

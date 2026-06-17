@@ -4,7 +4,7 @@ import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEnt
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
+import type { MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
 
@@ -278,6 +278,32 @@ export type _stageToolExecutionGatePreflightResultShape = Expect<
 
 export type _stageErrorShape = Expect<
   Equal<keyof StageError, "code" | "message" | "area" | "retryable" | "suggestedFix" | "cause">
+>;
+
+export type _publicDisplayLinkShape = Expect<
+  Equal<keyof PublicDisplayLink, "url" | "label"> &
+    Equal<ForbiddenKeys<PublicDisplayLink, "requiresAccount" | "sourceRef" | "providerEntityId">, never>
+>;
+
+export type _musicCardShape = Expect<
+  Equal<PublicMusicAvailability, "playable" | "restricted" | "unavailable" | "unknown"> &
+    Equal<
+      keyof MusicCard,
+      | "kind"
+      | "label"
+      | "artistsText"
+      | "albumLabel"
+      | "displayLinks"
+      | "availability"
+      | "versionLabel"
+    > &
+    Equal<ForbiddenKeys<MusicCard, "materialRef" | "primarySourceRef" | "trackPosition" | "durationMs">, never>
+>;
+
+export type _musicExperiencePresentShapes = Expect<
+  Equal<keyof MusicExperiencePresentInput, "item"> &
+    Equal<keyof MusicExperiencePresentOutput, "item" | "card"> &
+    Equal<MusicExperiencePresentOutput["item"]["kind"], "library">
 >;
 
 export type _stageRuntimeStatusShape = Expect<

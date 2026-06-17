@@ -3,7 +3,10 @@ import { Ajv, type AnySchema } from "ajv";
 
 import type { Result } from "../../src/contracts/kernel.js";
 import {
+  musicCardSchema,
   musicDiscoveryLookupInputSchema,
+  musicExperiencePresentInputSchema,
+  musicExperiencePresentOutputSchema,
   musicItemHandleSchema,
   musicScopeSchema,
   stageRuntimeStatusInputSchema,
@@ -72,7 +75,84 @@ assert.equal(validateScope({ kind: "provider", id: "netease" }), false);
 const validateItemHandle = compiled(musicItemHandleSchema);
 assert.equal(validateItemHandle({ kind: "library", id: "pub_1" }), true);
 assert.equal(validateItemHandle({ kind: "candidate", id: "cand_1" }), true);
+assert.equal(validateItemHandle({ kind: "candidate", id: "" }), false);
 assert.equal(validateItemHandle({ kind: "material", id: "mat_1" }), false);
+
+const validateMusicCard = compiled(musicCardSchema);
+assert.equal(validateMusicCard({
+  kind: "recording",
+  label: "whoo",
+  artistsText: "Nemophila",
+  albumLabel: "Revive",
+  displayLinks: [{
+    url: "https://music.example/whoo",
+    label: "Open",
+  }],
+  availability: "playable",
+  versionLabel: "single",
+}), true);
+assert.equal(validateMusicCard({
+  kind: "recording",
+  label: "whoo",
+  displayLinks: [{
+    url: "https://music.example/whoo",
+    requiresAccount: true,
+  }],
+  availability: "playable",
+}), false);
+assert.equal(validateMusicCard({
+  kind: "recording",
+  label: "whoo",
+  materialRef: "material:recording:m_internal",
+  displayLinks: [],
+  availability: "playable",
+}), false);
+
+const validatePresentInput = compiled(musicExperiencePresentInputSchema);
+assert.equal(validatePresentInput({
+  item: {
+    kind: "candidate",
+    id: "cand_1",
+  },
+}), true);
+assert.equal(validatePresentInput({
+  item: {
+    kind: "library",
+    id: "mh_1",
+  },
+}), true);
+assert.equal(validatePresentInput({
+  item: {
+    kind: "candidate",
+    id: "",
+  },
+}), false);
+
+const validatePresentOutput = compiled(musicExperiencePresentOutputSchema);
+assert.equal(validatePresentOutput({
+  item: {
+    kind: "library",
+    id: "mh_1",
+  },
+  card: {
+    kind: "artist",
+    label: "Artist",
+    displayLinks: [],
+    availability: "unknown",
+  },
+}), true);
+assert.equal(validatePresentOutput({
+  item: {
+    kind: "candidate",
+    id: "cand_1",
+  },
+  card: {
+    kind: "artist",
+    label: "Artist",
+    displayLinks: [],
+    availability: "unknown",
+  },
+}), false);
 
 const validateLookupInput = compiled(musicDiscoveryLookupInputSchema);
 assert.equal(validateLookupInput({ lookupText: "whoo" }), true);
@@ -158,6 +238,25 @@ assert.doesNotThrow(() => assertSampleOutputHasNoInternalAnchors({
       description: {
         label: "NetEase",
       },
+    },
+  },
+}));
+assert.doesNotThrow(() => assertSampleOutputHasNoInternalAnchors({
+  label: "music-card",
+  output: {
+    item: {
+      kind: "library",
+      id: "mh_public",
+    },
+    card: {
+      kind: "recording",
+      label: "whoo",
+      artistsText: "Nemophila",
+      displayLinks: [{
+        url: "https://music.example/whoo",
+        label: "Open",
+      }],
+      availability: "playable",
     },
   },
 }));
