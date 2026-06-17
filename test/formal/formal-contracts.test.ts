@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEntityKind, MaterialIdentityStatus, MaterialLifecycleStatus, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, PlayableLink, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntity, SourceEntityKind, SourceLibraryImportBatchStatus, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../src/contracts/music_data_platform.js";
+import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEntityKind, MaterialIdentityStatus, MaterialLifecycleStatus, MusicAlbum, MusicArtist, MusicMaterial, MusicRecording, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, PlayableLink, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntity, SourceEntityKind, SourceLibraryImportBatchStatus, SourceLibraryImportCompletionReason, SourceLibraryImportItemOutcome, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../src/contracts/music_data_platform.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
@@ -106,6 +106,50 @@ export type _materialEntityForbiddenKeys = Expect<
     >,
     never
   >
+>;
+
+export type _musicMaterialShape = Expect<
+  Equal<MusicMaterial, MusicRecording | MusicAlbum | MusicArtist> &
+    Equal<
+      keyof MusicRecording,
+      | "kind"
+      | "materialRef"
+      | "primarySourceRef"
+      | "title"
+      | "artistLabels"
+      | "albumLabel"
+      | "trackPosition"
+      | "durationMs"
+      | "playableLinks"
+      | "availability"
+      | "versionInfo"
+    > &
+    Equal<
+      keyof MusicAlbum,
+      | "kind"
+      | "materialRef"
+      | "primarySourceRef"
+      | "title"
+      | "artistLabels"
+      | "releaseDate"
+      | "playableLinks"
+      | "availability"
+      | "versionInfo"
+    > &
+    Equal<
+      keyof MusicArtist,
+      | "kind"
+      | "materialRef"
+      | "primarySourceRef"
+      | "name"
+      | "aliases"
+      | "playableLinks"
+      | "availability"
+    > &
+    Equal<MusicRecording["kind"], "recording"> &
+    Equal<MusicAlbum["kind"], "album"> &
+    Equal<MusicArtist["kind"], "artist"> &
+    Equal<ForbiddenKeys<MusicMaterial, "label" | "displayLinks" | "sourceRefs" | "canonicalRef">, never>
 >;
 
 export type _canonicalEntityShape = Expect<
