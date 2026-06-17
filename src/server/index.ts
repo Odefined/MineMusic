@@ -19,6 +19,12 @@ export type {
   MusicDataPlatformRuntimeModule,
 } from "./music_data_platform_runtime_module.js";
 export {
+  createMusicExperienceServerRuntimeModule,
+} from "./music_experience_runtime_module.js";
+export type {
+  CreateMusicExperienceServerRuntimeModuleInput,
+} from "./music_experience_runtime_module.js";
+export {
   createExtensionRuntimeRetrievalProviderSearchPort,
 } from "./retrieval_provider_search_adapter.js";
 export type {

@@ -29,6 +29,7 @@ assert.deepEqual(host.snapshot().modules.map((module) => module.id), [
   "music-data-platform",
   "extension",
   "music-discovery",
+  "music-experience",
   "runtime-status",
 ]);
 assert.equal(host.sourceLibraryImport(), undefined);
@@ -61,6 +62,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
     status: "initialized",
   },
   {
+    id: "music-experience",
+    ownerArea: "music_experience",
+    status: "initialized",
+  },
+  {
     id: "runtime-status",
     ownerArea: "stage_core",
     status: "initialized",
@@ -69,6 +75,7 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
 assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name), [
   "music.discovery.list_scopes",
   "music.discovery.lookup",
+  "music.experience.present",
   "stage.runtime.status",
 ]);
 
@@ -95,6 +102,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
   {
     id: "music-discovery",
     ownerArea: "music_intelligence",
+    status: "stopped",
+  },
+  {
+    id: "music-experience",
+    ownerArea: "music_experience",
     status: "stopped",
   },
   {

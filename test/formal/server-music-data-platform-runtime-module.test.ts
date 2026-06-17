@@ -36,6 +36,8 @@ import {
   assert.equal(initialized.ok, true);
   assert.equal(module.sourceLibraryImport() === undefined, false);
   assert.equal(module.retrievalQuery() === undefined, false);
+  assert.equal(module.candidateCommit() === undefined, false);
+  assert.equal(module.materialProjection() === undefined, false);
   assert.deepEqual(timers.activeDelays(), [0]);
   assert.equal(listPendingProjectionTargets(database).length, 1);
 
@@ -52,6 +54,8 @@ import {
 
   assert.equal(stopped.ok, true);
   assert.equal(module.retrievalQuery(), undefined);
+  assert.equal(module.candidateCommit(), undefined);
+  assert.equal(module.materialProjection(), undefined);
   database.close();
 }
 
@@ -76,6 +80,8 @@ import {
   assert.equal(initialized.ok, true);
   assert.equal(module.sourceLibraryImport() === undefined, false);
   assert.equal(module.retrievalQuery() === undefined, false);
+  assert.equal(module.candidateCommit() === undefined, false);
+  assert.equal(module.materialProjection() === undefined, false);
   assert.equal(timers.activeCount(), 0);
   assert.equal(listPendingProjectionTargets(database).length, 1);
 
@@ -83,6 +89,8 @@ import {
 
   assert.equal(stopped.ok, true);
   assert.equal(module.retrievalQuery(), undefined);
+  assert.equal(module.candidateCommit(), undefined);
+  assert.equal(module.materialProjection(), undefined);
   database.close();
 }
 
@@ -108,6 +116,8 @@ import {
   assert.equal(initialized.error.code, "server_host.music_data_platform_initialization_failed");
   assert.equal(module.sourceLibraryImport(), undefined);
   assert.equal(module.retrievalQuery(), undefined);
+  assert.equal(module.candidateCommit(), undefined);
+  assert.equal(module.materialProjection(), undefined);
   assert.equal(database.closeCount(), 1);
 }
 

@@ -1,14 +1,22 @@
 import type {
+  MusicMaterial,
+  PlayableLink,
+} from "./music_data_platform.js";
+import type {
+  MusicCard,
   MusicDiscoveryLookupItemDescription,
   MusicItemHandle,
+  PublicDisplayLink,
   MusicScopeDescription,
   MusicTargetKind,
   PublicHandleDescription,
 } from "./stage_interface.js";
 
 export type {
+  MusicCard,
   MusicDiscoveryLookupItemDescription,
   MusicScopeDescription,
+  PublicDisplayLink,
   PublicHandleDescription,
 };
 
@@ -117,6 +125,47 @@ export function musicLookupItemLabel(input: {
   return fallbackMusicItemLabel(input.handle);
 }
 
+export function musicCardFromMusicMaterial(material: MusicMaterial): MusicCard {
+  switch (material.kind) {
+    case "recording": {
+      const artistsText = artistsTextForLabels(material.artistLabels);
+
+      return {
+        kind: material.kind,
+        label: material.title,
+        ...(artistsText === undefined ? {} : { artistsText }),
+        ...(material.albumLabel === undefined ? {} : { albumLabel: material.albumLabel }),
+        displayLinks: displayLinksFromPlayableLinks(material.playableLinks),
+        availability: material.availability,
+        ...(material.versionInfo?.label === undefined
+          ? {}
+          : { versionLabel: material.versionInfo.label }),
+      };
+    }
+    case "album": {
+      const artistsText = artistsTextForLabels(material.artistLabels);
+
+      return {
+        kind: material.kind,
+        label: material.title,
+        ...(artistsText === undefined ? {} : { artistsText }),
+        displayLinks: displayLinksFromPlayableLinks(material.playableLinks),
+        availability: material.availability,
+        ...(material.versionInfo?.label === undefined
+          ? {}
+          : { versionLabel: material.versionInfo.label }),
+      };
+    }
+    case "artist":
+      return {
+        kind: material.kind,
+        label: material.name,
+        displayLinks: displayLinksFromPlayableLinks(material.playableLinks),
+        availability: material.availability,
+      };
+  }
+}
+
 function cleanLabelPart(value: string | undefined): string | undefined {
   const cleaned = value?.trim();
 
@@ -135,4 +184,21 @@ function scopeDescription(input: {
     ...(input.targetKind === undefined ? {} : { targetKind: input.targetKind }),
     ...(input.detailText === undefined ? {} : { detailText: input.detailText }),
   };
+}
+
+function artistsTextForLabels(labels: readonly string[] | undefined): string | undefined {
+  return cleanLabelPart(labels?.join(", "));
+}
+
+function displayLinksFromPlayableLinks(
+  links: readonly PlayableLink[],
+): readonly PublicDisplayLink[] {
+  return links.map((link) => {
+    const label = cleanLabelPart(link.label);
+
+    return {
+      url: link.url,
+      ...(label === undefined ? {} : { label }),
+    };
+  });
 }

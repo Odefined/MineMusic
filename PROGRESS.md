@@ -1003,6 +1003,27 @@ Phase 16D ships the full text-driven Music Discovery lookup tool:
   `all` fan-out budget failure, descriptor routing negatives, read-only
   candidate posture, active-tree structure, and default Server Host wiring.
 
+## 2026-06-18: Phase 17 Candidate Commit And Present
+
+Phase 17 ships the first durable-write consumption path:
+
+- Material Projection maps durable material refs to discriminated
+  `MusicMaterial` read models from primary source facts.
+- Candidate Commit is owned by Music Data Platform and admits provider
+  candidates from runtime candidate cache into durable material/source identity,
+  idempotently reusing existing source-material bindings.
+- Effect Boundary auto-pass now admits presentation-driven durable writes only
+  when the tool declares `defaultDecision = "auto"` and
+  `admissionDrivenByPresentation = true`.
+- `music.experience.present` is contributed by Music Experience through
+  `src/music_experience/stage_adapter/`: candidate handles resolve to material
+  candidates, pass through Candidate Commit, mint stable library handles, project
+  durable material, and return a leak-free `MusicCard`.
+- Generated Stage Interface schemas now include `MusicCard`,
+  `MusicExperiencePresentInput`, and `MusicExperiencePresentOutput`; tests guard
+  candidate/library paths, idempotency, declared errors, output veil behavior,
+  active-tree imports, and default Server Host wiring.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

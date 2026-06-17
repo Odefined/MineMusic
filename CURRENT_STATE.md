@@ -121,7 +121,7 @@ Accepted vocabulary includes:
 - `Collection` as a user-named organizing container;
 - `owner_material_relations` as owner-scoped factual relation source-of-truth;
 - query hits/results as agent decision evidence;
-- `MaterialCard` as final Stage Interface presentation output only.
+- `MusicCard` as final Stage Interface presentation output only.
 - Tool Side-Effect Declaration as static public capability truth, distinct from
   Tool Invocation Policy as the model-visible default invocation and data-egress
   posture interpreted by Effect Boundary.
@@ -771,16 +771,14 @@ vocabulary authority lives in
 
 Current formal state does not implement:
 
-- public Stage Interface import, save, play, favorite, or candidate-commit
-  tools;
+- public Stage Interface import, save, play, favorite, or standalone
+  candidate-commit tools;
 - generic provider platform/runtime;
 - provider account instances, login, cookies, OAuth, secrets, or reauth;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
 - MCP/HTTP transport;
-- public query hit output shape;
-- query-to-present flow;
-- final `MaterialCard` key set;
+- presentation history beyond the immediate `music.experience.present` output;
 - update baselines, collection, additional owner catalog producers,
   wrong-version, not-playable, bad-match, feedback/correction facts, signals,
   or recording-to-work relation workflows;
@@ -788,7 +786,8 @@ Current formal state does not implement:
   synchronous import-path projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;
 - handbook tools or music-domain tools beyond `music.discovery.list_scopes`,
-  `music.discovery.lookup`, and the internal runtime status tool.
+  `music.discovery.lookup`, `music.experience.present`, and the internal
+  runtime status tool.
 
 Later phases rebuild those areas directly from formal architecture and
 contracts.

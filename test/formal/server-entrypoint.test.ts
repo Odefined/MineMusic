@@ -34,6 +34,7 @@ assert.deepEqual(
     "music-data-platform",
     "extension",
     "music-discovery",
+    "music-experience",
     "runtime-status",
   ],
 );
@@ -42,6 +43,7 @@ assert.deepEqual(
   [
     "music.discovery.list_scopes",
     "music.discovery.lookup",
+    "music.experience.present",
     "stage.runtime.status",
   ],
 );

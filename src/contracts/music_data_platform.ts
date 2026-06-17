@@ -42,11 +42,6 @@ export type PlayableLink = {
   requiresAccount?: boolean;
 };
 
-export type PublicDisplayLink = {
-  url: string;
-  label?: string;
-};
-
 export type SourceEntityKind =
   | "track"
   | "album"

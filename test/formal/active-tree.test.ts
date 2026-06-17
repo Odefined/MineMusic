@@ -125,6 +125,11 @@ assert.equal(
   "formal Music Intelligence root must exist in active source after Phase 12C",
 );
 assert.equal(
+  await pathExists(join(repositoryRoot, "src/music_experience")),
+  true,
+  "formal Music Experience root must exist once music.experience.present lands",
+);
+assert.equal(
   await pathExists(join(repositoryRoot, "src/effect_boundary")),
   true,
   "formal Effect Boundary root must exist once StageToolExecutionGate implementation lands",
@@ -152,6 +157,7 @@ assert.deepEqual(
     "src/server/host.ts",
     "src/server/index.ts",
     "src/server/music_data_platform_runtime_module.ts",
+    "src/server/music_experience_runtime_module.ts",
     "src/server/projection_maintenance_scheduler.ts",
     "src/server/retrieval_provider_search_adapter.ts",
   ],
@@ -239,6 +245,17 @@ assert.deepEqual(
     "src/music_intelligence/stage_adapter/scope_availability.ts",
   ],
   "formal Music Intelligence root must keep Retrieval core separate from Stage Interface adapters",
+);
+
+assert.deepEqual(
+  (await sourceFilesUnder(join(repositoryRoot, "src/music_experience")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(),
+  [
+    "src/music_experience/stage_adapter/index.ts",
+    "src/music_experience/stage_adapter/present.ts",
+  ],
+  "formal Music Experience root must stay inside the Phase 17C presentation adapter boundary",
 );
 
 const musicIntelligencePublicBarrelExportFailures: string[] = [];
@@ -844,6 +861,129 @@ assert.deepEqual(
   "Music Intelligence core must not import Stage Interface contracts or public description helpers; stage_adapter owns that boundary",
 );
 
+const musicExperienceImportFailures: string[] = [];
+const musicExperienceAllowedMdpImports = new Set([
+  "CandidateCommitCommand",
+  "MaterialProjection",
+]);
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_experience"))) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const forbiddenImport of [
+    "../music_intelligence/",
+    "../../music_intelligence/",
+    "../../../music_intelligence/",
+    "../extension/",
+    "../../extension/",
+    "../../../extension/",
+    "../storage/",
+    "../../storage/",
+    "../../../storage/",
+    "../server/",
+    "../../server/",
+    "../../../server/",
+    "../stage_interface/",
+    "../../stage_interface/",
+    "../../../stage_interface/",
+    "../providers/",
+    "../../providers/",
+    "../../../providers/",
+    "../material/",
+    "../../material/",
+    "../../../material/",
+    "../collection/",
+    "../../collection/",
+    "../../../collection/",
+    "../memory/",
+    "../../memory/",
+    "../../../memory/",
+    "../effects/",
+    "../../effects/",
+    "../../../effects/",
+    "../query/",
+    "../../query/",
+    "../../../query/",
+    "../presentation/",
+    "../../presentation/",
+    "../../../presentation/",
+  ]) {
+    if (
+      text.includes(`from "${forbiddenImport}`) ||
+      text.includes(`from '${forbiddenImport}`)
+    ) {
+      musicExperienceImportFailures.push(
+        `${relativeFile} imports forbidden Music Experience dependency '${forbiddenImport}'`,
+      );
+    }
+  }
+
+  for (const mdpImport of [
+    "../music_data_platform/",
+    "../../music_data_platform/",
+    "../../../music_data_platform/",
+  ]) {
+    if (
+      (text.includes(`from "${mdpImport}`) || text.includes(`from '${mdpImport}`)) &&
+      !(text.includes(`from "${mdpImport}index.js"`) || text.includes(`from '${mdpImport}index.js'`))
+    ) {
+      musicExperienceImportFailures.push(
+        `${relativeFile} imports Music Data Platform internals instead of narrow public ports`,
+      );
+    }
+  }
+
+  for (const importedName of musicDataPlatformIndexImportNames(text)) {
+    if (!musicExperienceAllowedMdpImports.has(importedName)) {
+      musicExperienceImportFailures.push(
+        `${relativeFile} imports disallowed Music Data Platform index symbol '${importedName}'`,
+      );
+    }
+  }
+
+  if (hasMusicDataPlatformIndexNamespaceImport(text)) {
+    musicExperienceImportFailures.push(
+      `${relativeFile} imports Music Data Platform index through a namespace import`,
+    );
+  }
+
+  for (const forbiddenMdpSymbol of [
+    "createCandidateCommitCommand",
+    "createMaterialProjection",
+    "createIdentity",
+    "createSourceLibrary",
+    "createOwnerCatalog",
+    "createOwnerMaterialRelation",
+    "createMaterialText",
+    "createProjectionMaintenance",
+    "createRetrievalResultSetRecords",
+    "createMusicDataPlatformSourceOfTruthWriteCommands",
+  ]) {
+    if (text.includes(forbiddenMdpSymbol)) {
+      musicExperienceImportFailures.push(
+        `${relativeFile} mentions forbidden Music Data Platform symbol '${forbiddenMdpSymbol}'`,
+      );
+    }
+  }
+
+  if (
+    relativeFile !== "src/music_experience/stage_adapter/index.ts" &&
+    (
+      text.includes('from "../../stage_core/') ||
+      text.includes("from '../../stage_core/")
+    )
+  ) {
+    musicExperienceImportFailures.push(
+      `${relativeFile} imports Stage Core outside the runtime-module contribution boundary`,
+    );
+  }
+}
+assert.deepEqual(
+  musicExperienceImportFailures,
+  [],
+  "Music Experience stage adapter must consume only Stage Interface contracts, HandleMinting context, and Music Data Platform commit/projection ports",
+);
+
 const musicIntelligenceRuntimeResultSetFailures: string[] = [];
 for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intelligence"))) {
   const relativeFile = relative(repositoryRoot, file);
@@ -1199,7 +1339,7 @@ const contractsDagAllowlist: Readonly<Record<string, readonly string[]>> = {
   "src/contracts/kernel.ts": [],
   "src/contracts/music_data_platform.ts": ["./kernel.js"],
   "src/contracts/storage.ts": ["./kernel.js", "./music_data_platform.js"],
-  "src/contracts/public_music_description.ts": ["./stage_interface.js"],
+  "src/contracts/public_music_description.ts": ["./music_data_platform.js", "./stage_interface.js"],
   "src/contracts/stage_interface.ts": ["./kernel.js"],
   "src/contracts/stage_core.ts": ["./kernel.js", "./stage_interface.js"],
   "src/contracts/generated/stage_interface_schemas.ts": ["../stage_interface.js"],

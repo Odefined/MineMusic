@@ -4,7 +4,9 @@ import { refKey } from "../contracts/kernel.js";
 import type { PlatformLibraryKind } from "../contracts/music_data_platform.js";
 import type { ExtensionRuntime } from "../extension/index.js";
 import {
+  createCandidateCommitCommand,
   createMaterialRefFactory,
+  createMaterialProjection,
   createMusicDataPlatformRetrievalReadPort,
   createMusicDataPlatformRetrievalWorkspace,
   createOwnerMaterialRelationRecords,
@@ -19,7 +21,9 @@ import {
   musicDataPlatformProjectionMaintenanceSchema,
   musicDataPlatformRetrievalResultSetSchema,
   musicDataPlatformSourceLibrarySchema,
+  type CandidateCommitCommand,
   type MaterialRefFactory,
+  type MaterialProjection,
   type OwnerRelationEntryKind,
   type OwnerRelationScopeMaterialKind,
   type SourceLibraryRecord,
@@ -53,6 +57,8 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
   musicScopeAvailability(): MusicScopeAvailabilityPort | undefined;
+  candidateCommit(): CandidateCommitCommand | undefined;
+  materialProjection(): MaterialProjection | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -71,6 +77,8 @@ export function createMusicDataPlatformRuntimeModule(
   let sourceLibraryImportService: SourceLibraryImportService | undefined;
   let retrievalQueryService: RetrievalQueryService | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
+  let candidateCommitCommand: CandidateCommitCommand | undefined;
+  let materialProjection: MaterialProjection | undefined;
   let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
   const ownsDatabase = input.database === undefined;
 
@@ -98,16 +106,24 @@ export function createMusicDataPlatformRuntimeModule(
             stageInterfaceHandleRegistrySchema,
           ],
         });
+        const materialRefFactory = input.materialRefFactory ?? createMaterialRefFactory();
         sourceLibraryImportService = createSourceLibraryImportService({
           database,
           platformLibraryProvider: {
             readPlatformLibraryProvider: (readInput) =>
               input.extensionRuntime.readPlatformLibraryProvider(readInput),
           },
-          materialRefFactory: input.materialRefFactory ?? createMaterialRefFactory(),
+          materialRefFactory,
           ...(input.config?.sourceLibraryImport?.defaultLimit === undefined
             ? {}
             : { defaultLimit: input.config.sourceLibraryImport.defaultLimit }),
+        });
+        candidateCommitCommand = createCandidateCommitCommand({
+          database,
+          materialRefFactory,
+        });
+        materialProjection = createMaterialProjection({
+          db: database.context(),
         });
         retrievalQueryService = createRetrievalQueryService({
           readPort: createMusicDataPlatformRetrievalReadPort({
@@ -142,6 +158,8 @@ export function createMusicDataPlatformRuntimeModule(
       } catch (cause) {
         projectionMaintenanceScheduler = undefined;
         musicScopeAvailabilityPort = undefined;
+        materialProjection = undefined;
+        candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         retrievalQueryService = undefined;
         closeOwnedDatabase();
@@ -164,6 +182,8 @@ export function createMusicDataPlatformRuntimeModule(
         await scheduler?.stop();
         closeOwnedDatabase();
         musicScopeAvailabilityPort = undefined;
+        materialProjection = undefined;
+        candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         retrievalQueryService = undefined;
 
@@ -192,6 +212,12 @@ export function createMusicDataPlatformRuntimeModule(
     },
     musicScopeAvailability() {
       return musicScopeAvailabilityPort;
+    },
+    candidateCommit() {
+      return candidateCommitCommand;
+    },
+    materialProjection() {
+      return materialProjection;
     },
   };
 

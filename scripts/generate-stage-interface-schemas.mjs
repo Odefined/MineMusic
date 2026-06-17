@@ -32,6 +32,21 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "musicCardSchema",
+    typeName: "MusicCard",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "musicExperiencePresentInputSchema",
+    typeName: "MusicExperiencePresentInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "musicExperiencePresentOutputSchema",
+    typeName: "MusicExperiencePresentOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupInputSchema",
     typeName: "MusicDiscoveryLookupInput",
     sourcePath: "src/contracts/stage_interface.ts",
@@ -104,6 +119,7 @@ function applyLookupLimitOverlay(schema) {
 const NON_EMPTY_SCOPE_DEFINITIONS = new Set([
   "MusicLibraryScopeHandle",
   "MusicProviderScopeHandle",
+  "MusicItemHandle",
   "ListedMusicScope",
 ]);
 const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
