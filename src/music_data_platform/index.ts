@@ -132,6 +132,8 @@ export type {
   ListOwnerMaterialRelationsInput,
   OwnerMaterialRelationReadPort,
   OwnerMaterialRelationRecord,
+  OwnerRelationScopeMaterialKind,
+  OwnerRelationScopeSummaryRecord,
 } from "./owner_material_relation_records.js";
 export {
   createOwnerCatalogProjectionCommands,

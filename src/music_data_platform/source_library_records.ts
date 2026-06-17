@@ -73,6 +73,7 @@ export type SourceLibraryRepositories = {
 
 export type SourceLibraryRepository = {
   get(input: { libraryRef: Ref }): SourceLibraryRecord | undefined;
+  listByOwnerScope(input: { ownerScope: string }): readonly SourceLibraryRecord[];
   findByOwnerProviderIdentity(input: {
     ownerScope: string;
     providerId: string;
@@ -176,6 +177,18 @@ export function createSourceLibraryRepositories(
       );
 
       return row === undefined ? undefined : sourceLibraryFromRow(row);
+    },
+    listByOwnerScope(input) {
+      assertOwnerScope(input.ownerScope);
+
+      return db.all<SourceLibraryRow>(
+        `
+          SELECT * FROM source_libraries
+          WHERE owner_scope = ?
+          ORDER BY provider_id ASC, provider_account_id ASC, library_kind ASC
+        `,
+        [input.ownerScope],
+      ).map(sourceLibraryFromRow);
     },
     findByOwnerProviderIdentity(input) {
       const row = db.get<SourceLibraryRow>(

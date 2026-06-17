@@ -231,7 +231,10 @@ assert.deepEqual(
     "src/music_intelligence/core/retrieval/query_service.ts",
     "src/music_intelligence/errors.ts",
     "src/music_intelligence/index.ts",
+    "src/music_intelligence/stage_adapter/discovery_list_scopes.ts",
+    "src/music_intelligence/stage_adapter/discovery_lookup.ts",
     "src/music_intelligence/stage_adapter/index.ts",
+    "src/music_intelligence/stage_adapter/scope_availability.ts",
   ],
   "formal Music Intelligence root must keep Retrieval core separate from Stage Interface adapters",
 );
@@ -726,6 +729,17 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
       text.includes(`from "${forbiddenImport}`) ||
       text.includes(`from '${forbiddenImport}`)
     ) {
+      if (
+        relativeFile === "src/music_intelligence/stage_adapter/index.ts" &&
+        forbiddenImport === "../../stage_core/" &&
+        (
+          text.includes('from "../../stage_core/runtime_module.js"') ||
+          text.includes("from '../../stage_core/runtime_module.js'")
+        )
+      ) {
+        continue;
+      }
+
       musicIntelligenceImportFailures.push(
         `${relativeFile} imports forbidden Music Intelligence dependency '${forbiddenImport}'`,
       );

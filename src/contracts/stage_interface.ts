@@ -215,6 +215,10 @@ export type MusicListScopesInput = {
   kind?: ListedMusicScopeKind;
 };
 
+export type MusicListScopesOutput = {
+  scopes: readonly ListedMusicScope[];
+};
+
 export type MusicDiscoveryLookupInput =
   | {
     lookupText: string;

@@ -4,8 +4,9 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 15D of a same-repo formal rebuild. The active
-TypeScript tree is a formal runtime skeleton with Phase 1 contract vocabulary,
+MineMusic has completed Phase 16D of a same-repo formal rebuild. The active
+TypeScript tree is a formal
+runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
 foundation, a Phase 5 Music Data Platform identity write model, and a Phase 6
@@ -53,8 +54,12 @@ ranking and pagination. Phase 15D wires Music Intelligence Retrieval to
 Source Provider Slot search through a narrow async provider-search port,
 Server Host adapter, provider-result validation, provider-search error mapping,
 cursor result-set reuse, and opt-in NCM mixed-retrieval smoke coverage.
-Stage Interface tools and candidate-to-material commit commands remain later
-work.
+Phase 16A adds the Stage Interface Tool Frame contract/router skeleton,
+Phase 16B adds the Public Handle Veil, handle minting, execution-gate stub, and
+tool timeout layer, Phase 16C adds `music.discovery.list_scopes`, and
+Phase 16D adds the full `music.discovery.lookup` retrieval tool with public
+handles, descriptions, fail-whole provider errors, and AEAD cursor wrapping.
+Candidate-to-material commit commands remain later work in this tree.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -125,6 +130,9 @@ Accepted vocabulary includes:
 - Tool Call Router as the Stage Interface path that receives a tool call, finds
   the matching Tool Definition and runtime handler, invokes the handler, and
   wraps the public result; current code name is `StageInterface.dispatch(...)`.
+- `MusicScope`, `ListedMusicScope`, and `MusicScopeDescription` as the public
+  scoped-music vocabulary used by `music.discovery.list_scopes` and future
+  scoped music tools; descriptions are display metadata and not identity.
 
 Phase 2 runtime vocabulary includes:
 
@@ -438,6 +446,8 @@ The active TypeScript tree is now a formal skeleton:
   `stage_core.ts`) and are imported directly by consumers (no barrel since
   Phase 2); ADR-0013 records the split and the machine-checked DAG /
   kernel-export / ref-origin guards;
+- `src/contracts/public_music_description.ts` owns pure public description
+  helpers for Stage Interface music item and scope labels;
 - `src/extension/capability_slot.ts` owns plain-object capability slot
   declarations;
 - `src/extension/capability_registry.ts` owns typed-slot registration, list,
@@ -480,14 +490,15 @@ The active TypeScript tree is now a formal skeleton:
 - `src/stage_core/extension_runtime_module.ts` adapts Extension into runtime
   module `extension`;
 - `src/stage_core/index.ts` owns Stage Core public exports;
-- `src/server/host.ts` owns the thin Server Host lifecycle wrapper and exposes
-  the internal source-library import service seam after startup;
+- `src/server/host.ts` owns the thin Server Host lifecycle wrapper, exposes the
+  internal source-library import service seam after startup, and composes the
+  default `music-discovery` runtime module;
 - `src/server/config.ts` owns default runtime composition config, including
   overall database/import config and plugin-id keyed NCM config;
 - `src/server/music_data_platform_runtime_module.ts` owns Server Host
   composition wiring for Storage, Music Data Platform schemas, the internal
-  Library Import service, and Projection Maintenance scheduler lifecycle
-  ownership;
+  Library Import service, Retrieval query service, Music Scope availability
+  adapter, and Projection Maintenance scheduler lifecycle ownership;
 - `src/server/projection_maintenance_scheduler.ts` owns the internal Server
   Host scheduler helper for automatic Projection Maintenance ticks;
 - `src/server/index.ts` owns the minimal Server Host entrypoint.
@@ -526,9 +537,9 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_data_platform/source_library_commands.ts` owns command-level
   source-library import batch, library scope, item, and item outcome writes;
 - `src/music_data_platform/source_library_read_model.ts` owns the narrow
-  source-library import-batch read port;
+  source-library import-batch and owner-scope source-library list read port;
 - `src/music_data_platform/owner_material_relation_records.ts` owns the
-  internal owner relation read port;
+  internal owner relation read port and owner relation scope summaries;
 - `src/music_data_platform/owner_material_relation_commands.ts` owns
   current-state owner relation write commands;
 - `src/music_data_platform/material_ref_factory.ts` owns opaque material ref
@@ -567,17 +578,27 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_intelligence/core/retrieval/query_service.ts` owns the internal
   async Retrieval query service over Music Data Platform retrieval ports and
   provider-search port wiring;
-- `src/music_intelligence/stage_adapter/index.ts` owns the Phase 16A
-  stage-adapter subtree boundary for future Music Discovery handlers;
+- `src/music_intelligence/stage_adapter/scope_availability.ts` owns the narrow
+  Music Scope availability port and in-memory test adapter used by Stage
+  Adapter handlers;
+- `src/music_intelligence/stage_adapter/discovery_list_scopes.ts` owns the
+  Phase 16C `music.discovery.list_scopes` descriptor and handler factory;
+- `src/music_intelligence/stage_adapter/discovery_lookup.ts` owns the
+  Phase 16D `music.discovery.lookup` descriptor and handler factory, public
+  scope normalization, Retrieval query dispatch, public handle/description
+  mapping, declared error mapping, and AEAD public cursor wrapping;
+- `src/music_intelligence/stage_adapter/index.ts` owns the Stage Adapter
+  subtree boundary and `music.discovery` RuntimeModule contribution;
 - `src/music_intelligence/index.ts` owns Music Intelligence public exports.
 
 The current runtime starts in `created`, initializes required runtime modules
 through Server Host, mounts a configured Extension runtime module by default,
 builds Stage Interface from module contributions, exposes
+`music.discovery.list_scopes`, `music.discovery.lookup`, and
 `stage.runtime.status`, and supports compact lifecycle snapshots. All runtime
-modules are required. The runtime does not support optional modules, dependency
-resolution, dynamic plugin loading, plugin dependencies, retry, reload, or
-restart.
+modules are required. The runtime does not
+support optional modules, dependency resolution, dynamic plugin loading, plugin
+dependencies, retry, reload, or restart.
 
 The Extension runtime validates static plugin manifests, registers validated
 source-provider and platform-library-provider slot implementations, exposes
@@ -590,8 +611,11 @@ The default Server Host composition now wires Storage and Music Data Platform
 schemas through the `music-data-platform` runtime module. It initializes an
 internal Library Import service backed by the configured Extension runtime and
 an internal Retrieval query service backed by Music Data Platform read/mixed
-retrieval ports plus Extension Runtime source-provider search. It does not
-expose public Stage Interface import or retrieval tools.
+retrieval ports plus Extension Runtime source-provider search. It also exposes
+the read-only `music.discovery.list_scopes` Stage Interface tool over local
+Music Scope availability metadata and the text-driven
+`music.discovery.lookup` Stage Interface retrieval tool. It does not expose
+public Stage Interface import, save, play, or candidate-commit tools.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -723,8 +747,8 @@ restored as compatibility layers.
 - `docs/formal-rebuild/phase-16-stage-interface-tool-frame-implementation-plan.md`
   records the Phase 16 execution plan split into PR 16A framework contract layer,
   PR 16B Public Handle Veil + HandleMintingPort registry + execution gate stub +
-  global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A is
-  implemented, PR16B is implemented, and PR16C–16D remain planned.
+  global timeout, PR 16C `list_scopes`, and PR 16D `lookup`; PR16A, PR16B,
+  PR16C, and PR16D are implemented in this tree.
 - `docs/extension/plugins/ncm.md` records NCM plugin-specific config, mapping,
   source ref, platform library, error, and smoke behavior.
 - Old root architecture/state/progress snapshots are archived under
@@ -747,7 +771,8 @@ vocabulary authority lives in
 
 Current formal state does not implement:
 
-- public Stage Interface provider/search tools;
+- public Stage Interface import, save, play, favorite, or candidate-commit
+  tools;
 - generic provider platform/runtime;
 - provider account instances, login, cookies, OAuth, secrets, or reauth;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
@@ -762,8 +787,8 @@ Current formal state does not implement:
 - advanced scheduler wake/backoff policy, multi-worker coordination, or
   synchronous import-path projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;
-- handbook tools or music-domain tools beyond the internal runtime status
-  tool.
+- handbook tools or music-domain tools beyond `music.discovery.list_scopes`,
+  `music.discovery.lookup`, and the internal runtime status tool.
 
 Later phases rebuild those areas directly from formal architecture and
 contracts.

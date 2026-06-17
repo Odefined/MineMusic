@@ -128,6 +128,16 @@ Tool is a callable operation exposed through Stage Interface. A tool delegates
 to the owning area through narrow ports and does not own business
 responsibility.
 
+Music Discovery tools are contributed by Music Intelligence through its
+`stage_adapter` boundary. Read-only scope listing reads a narrow
+scope-availability port over already-known Music Data Platform and Extension
+metadata; it returns public Music Scope handles plus descriptions and must not
+call provider APIs or refresh provider account state. Lookup normalizes public
+Music Scopes into Retrieval typed pools, calls the internal Retrieval query
+service through a narrow port, mints public `library` / `candidate` item handles
+through `StageToolContext.handleMinting`, and wraps internal Retrieval cursors
+with an AEAD public cursor.
+
 ## Extension And Providers
 
 Extension owns Plugin System and Capability Slots.
@@ -252,7 +262,9 @@ provider plugins or write runtime cache tables directly.
 Music Intelligence keeps Retrieval domain code under `core/retrieval`; Stage
 Interface tool handlers live under `stage_adapter` and are the only Music
 Intelligence subtree allowed to import Stage Interface contracts or public
-description helpers.
+description helpers. Stage adapters may contribute RuntimeModule tool
+registrations for Music Intelligence-owned instruments without pulling Stage
+Interface DTOs into `core/retrieval`.
 
 Query output is query result/hit information for the agent's next decision.
 `MaterialCard` is final Stage Interface presentation output. It is not a

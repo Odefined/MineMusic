@@ -1,4 +1,5 @@
 import { refKey, type Ref } from "../contracts/kernel.js";
+import type { MaterialEntityKind } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import { MusicDataPlatformError } from "./errors.js";
 import { assertMaterialRef } from "./material_ref.js";
@@ -7,8 +8,10 @@ import {
   assertOwnerMaterialRelationOrigin,
   assertOwnerMaterialRelationRef,
   assertOwnerMaterialRelationStatus,
+  assertOwnerRelationEntryKind,
   type OwnerMaterialRelationKind,
   type OwnerMaterialRelationOrigin,
+  type OwnerRelationEntryKind,
   type OwnerMaterialRelationStatus,
 } from "./owner_material_relation_ref.js";
 import { assertOwnerScope } from "./owner_scope.js";
@@ -41,6 +44,17 @@ export type ListOwnerMaterialRelationsInput = {
   status?: OwnerMaterialRelationStatus;
 };
 
+export type OwnerRelationScopeMaterialKind = Extract<
+  MaterialEntityKind,
+  "recording" | "album" | "artist"
+>;
+
+export type OwnerRelationScopeSummaryRecord = {
+  ownerScope: string;
+  relationKind: OwnerRelationEntryKind;
+  materialKind: OwnerRelationScopeMaterialKind;
+};
+
 export type CreateOwnerMaterialRelationRecordsInput = {
   db: MusicDatabaseContext;
 };
@@ -52,6 +66,9 @@ export type OwnerMaterialRelationReadPort = {
   listOwnerMaterialRelations(
     input: ListOwnerMaterialRelationsInput,
   ): readonly OwnerMaterialRelationRecord[];
+  listOwnerRelationScopeSummaries(input: {
+    ownerScope: string;
+  }): readonly OwnerRelationScopeSummaryRecord[];
 };
 
 type OwnerMaterialRelationRow = {
@@ -66,6 +83,12 @@ type OwnerMaterialRelationRow = {
   note: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type OwnerRelationScopeSummaryRow = {
+  owner_scope: string;
+  relation_kind: OwnerRelationEntryKind;
+  material_kind: OwnerRelationScopeMaterialKind;
 };
 
 export function createOwnerMaterialRelationRecords(
@@ -144,6 +167,29 @@ export function createOwnerMaterialRelationRecords(
         params,
       ).map(ownerMaterialRelationFromRow);
     },
+    listOwnerRelationScopeSummaries(readInput) {
+      assertOwnerScope(readInput.ownerScope);
+
+      return db.all<OwnerRelationScopeSummaryRow>(
+        `
+          SELECT
+            r.owner_scope,
+            r.relation_kind,
+            m.kind AS material_kind
+          FROM owner_material_relations r
+          JOIN material_records m
+            ON m.ref_key = r.material_ref_key
+          WHERE r.owner_scope = ?
+            AND r.status = 'active'
+            AND r.relation_kind IN ('saved', 'favorite')
+            AND m.lifecycle_status = 'active'
+            AND m.kind IN ('recording', 'album', 'artist')
+          GROUP BY r.owner_scope, r.relation_kind, m.kind
+          ORDER BY r.relation_kind ASC, m.kind ASC
+        `,
+        [readInput.ownerScope],
+      ).map(ownerRelationScopeSummaryFromRow);
+    },
   };
 }
 
@@ -173,6 +219,17 @@ function ownerMaterialRelationFromRow(row: OwnerMaterialRelationRow): OwnerMater
   };
 }
 
+function ownerRelationScopeSummaryFromRow(row: OwnerRelationScopeSummaryRow): OwnerRelationScopeSummaryRecord {
+  assertOwnerRelationEntryKind(row.relation_kind);
+  assertOwnerRelationScopeMaterialKind(row.material_kind);
+
+  return {
+    ownerScope: row.owner_scope,
+    relationKind: row.relation_kind,
+    materialKind: row.material_kind,
+  };
+}
+
 function parseStoredRef(json: string, storedRefKey: string): Ref {
   const parsed = JSON.parse(json) as Ref;
   const parsedRefKey = musicDataPlatformRefKey({
@@ -189,6 +246,16 @@ function parseStoredRef(json: string, storedRefKey: string): Ref {
   }
 
   return parsed;
+}
+
+function assertOwnerRelationScopeMaterialKind(
+  value: string,
+): asserts value is OwnerRelationScopeMaterialKind {
+  if (value !== "recording" && value !== "album" && value !== "artist") {
+    throw invalidOwnerMaterialRelationRead(
+      "Owner relation scope material kind must be recording, album, or artist.",
+    );
+  }
 }
 
 function invalidOwnerMaterialRelationRead(message: string): MusicDataPlatformError {
