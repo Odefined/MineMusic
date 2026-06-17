@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 
-import { refKey } from "../contracts/kernel.js";
-import type { PlatformLibraryKind } from "../contracts/music_data_platform.js";
 import type { ExtensionRuntime } from "../extension/index.js";
+import {
+  sourceLibraryKindScopeMetadata,
+  sourceLibraryScopeId,
+} from "../music_data_platform/stage_adapter/source_library_scope.js";
 import {
   createCandidateCommitCommand,
   createMaterialRefFactory,
@@ -28,6 +30,7 @@ import {
   type OwnerRelationScopeMaterialKind,
   type SourceLibraryRecord,
   type SourceLibraryImportService,
+  type SourceLibraryReadPort,
 } from "../music_data_platform/index.js";
 import {
   createRetrievalQueryService,
@@ -55,6 +58,7 @@ import { createExtensionRuntimeRetrievalProviderSearchPort } from "./retrieval_p
 
 export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
+  sourceLibraryRead(): SourceLibraryReadPort | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
   musicScopeAvailability(): MusicScopeAvailabilityPort | undefined;
   candidateCommit(): CandidateCommitCommand | undefined;
@@ -75,6 +79,7 @@ export function createMusicDataPlatformRuntimeModule(
 ): MusicDataPlatformRuntimeModule {
   let database: MusicDatabase | undefined;
   let sourceLibraryImportService: SourceLibraryImportService | undefined;
+  let sourceLibraryReadPort: SourceLibraryReadPort | undefined;
   let retrievalQueryService: RetrievalQueryService | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
   let candidateCommitCommand: CandidateCommitCommand | undefined;
@@ -107,6 +112,9 @@ export function createMusicDataPlatformRuntimeModule(
           ],
         });
         const materialRefFactory = input.materialRefFactory ?? createMaterialRefFactory();
+        sourceLibraryReadPort = createSourceLibraryReadPort({
+          db: database.context(),
+        });
         sourceLibraryImportService = createSourceLibraryImportService({
           database,
           platformLibraryProvider: {
@@ -161,6 +169,7 @@ export function createMusicDataPlatformRuntimeModule(
         materialProjection = undefined;
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
+        sourceLibraryReadPort = undefined;
         retrievalQueryService = undefined;
         closeOwnedDatabase();
         return {
@@ -185,6 +194,7 @@ export function createMusicDataPlatformRuntimeModule(
         materialProjection = undefined;
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
+        sourceLibraryReadPort = undefined;
         retrievalQueryService = undefined;
 
         return {
@@ -206,6 +216,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     sourceLibraryImport() {
       return sourceLibraryImportService;
+    },
+    sourceLibraryRead() {
+      return sourceLibraryReadPort;
     },
     retrievalQuery() {
       return retrievalQueryService;
@@ -251,16 +264,16 @@ function createMusicScopeAvailabilityPort(input: {
           .map((summary) => ({
             id: relationScopeId({
               ownerScope: summary.ownerScope,
-            relationKind: summary.relationKind,
-            materialKind: summary.materialKind,
-          }),
-          ref: createOwnerRelationPoolRef({
-            ownerScope: summary.ownerScope,
-            relationKind: summary.relationKind,
-          }),
-          relationName: relationNameForOwnerRelation(summary.relationKind),
-          targetKind: summary.materialKind,
-        })),
+              relationKind: summary.relationKind,
+              materialKind: summary.materialKind,
+            }),
+            ref: createOwnerRelationPoolRef({
+              ownerScope: summary.ownerScope,
+              relationKind: summary.relationKind,
+            }),
+            relationName: relationNameForOwnerRelation(summary.relationKind),
+            targetKind: summary.materialKind,
+          })),
         providers: input.extensionRuntime
           .listSourceProviders()
           .filter((registration) =>
@@ -286,16 +299,16 @@ function sourceLibraryScopeAvailability(
   record: SourceLibraryRecord,
   providerNames: ReadonlyMap<string, string>,
 ): MusicScopeAvailabilitySnapshot["sourceLibraries"][number] {
-  const kind = sourceLibraryKindScopeMetadata(record.libraryKind);
+  const metadata = sourceLibraryKindScopeMetadata(record.libraryKind);
 
   return {
-    id: scopeId("source_library", refKey(record.libraryRef)),
+    id: sourceLibraryScopeId(record.libraryRef),
     ref: record.libraryRef,
     ...(providerNames.get(record.providerId) === undefined
       ? {}
       : { providerName: providerNames.get(record.providerId)! }),
-    relationName: kind.relationName,
-    targetKind: kind.targetKind,
+    relationName: metadata.relationName,
+    targetKind: metadata.targetKind,
   };
 }
 
@@ -313,29 +326,6 @@ function providerDisplayNames(extensionRuntime: ExtensionRuntime): ReadonlyMap<s
   return names;
 }
 
-function sourceLibraryKindScopeMetadata(kind: PlatformLibraryKind): {
-  relationName: string;
-  targetKind: "recording" | "album" | "artist";
-} {
-  switch (kind) {
-    case "saved_source_track":
-      return {
-        relationName: "saved",
-        targetKind: "recording",
-      };
-    case "saved_source_album":
-      return {
-        relationName: "saved",
-        targetKind: "album",
-      };
-    case "followed_source_artist":
-      return {
-        relationName: "followed",
-        targetKind: "artist",
-      };
-  }
-}
-
 function relationNameForOwnerRelation(kind: OwnerRelationEntryKind): string {
   switch (kind) {
     case "saved":
@@ -350,13 +340,13 @@ function relationScopeId(input: {
   relationKind: OwnerRelationEntryKind;
   materialKind: OwnerRelationScopeMaterialKind;
 }): string {
-  return scopeId(
+  return opaqueScopeId(
     "relation",
     `${input.ownerScope}:${input.relationKind}:${input.materialKind}`,
   );
 }
 
-function scopeId(prefix: "source_library" | "relation", anchor: string): string {
+function opaqueScopeId(prefix: "relation", anchor: string): string {
   // PR16C runs without the PR16B handle registry; keep these ids opaque until
   // registry-backed scope mint/resolve replaces this composition seam.
   return `${prefix}_${createHash("sha256").update(anchor).digest("base64url").slice(0, 22)}`;

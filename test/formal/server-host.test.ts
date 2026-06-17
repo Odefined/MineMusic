@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import type { StageError } from "../../src/contracts/kernel.js";
+import type { StageToolContext } from "../../src/contracts/stage_interface.js";
 import type {
   ExtensionRuntime,
   ExtensionRuntimeSnapshot,
@@ -80,11 +81,24 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
 ]);
 assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name), [
   "library.import.list_sources",
+  "library.import.start",
+  "library.import.continue",
+  "library.import.status",
   "music.discovery.list_scopes",
   "music.discovery.lookup",
   "music.experience.present",
   "stage.runtime.status",
 ]);
+const listedImportSources = await host.dispatch(testStageToolContext(), {
+  toolName: "library.import.list_sources",
+  payload: {},
+});
+
+assert.equal(listedImportSources.ok, true);
+
+if (listedImportSources.ok) {
+  assert.equal(listedImportSources.value.toolName, "library.import.list_sources");
+}
 
 const stopped = await host.stop();
 
@@ -241,4 +255,34 @@ async function assertMusicIntelligenceProviderSearchError(
   }
 
   assert.equal(isMusicIntelligenceError(thrown) && thrown.code === code, true);
+}
+
+function testStageToolContext(): StageToolContext {
+  return {
+    ownerScope: "local",
+    sessionId: "server-host-test-session",
+    requestId: "server-host-test-request",
+    clock: () => "2026-06-18T00:00:00.000Z",
+    handleMinting: {
+      async mint() {
+        return "unused-handle";
+      },
+      async resolve() {
+        return undefined;
+      },
+    },
+    providerAvailability: {
+      async isProviderAvailable() {
+        return true;
+      },
+    },
+    executionGate: {
+      async preflight() {
+        return {
+          decision: "allow",
+          auditLevel: "metadata",
+        };
+      },
+    },
+  };
 }

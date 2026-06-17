@@ -19,10 +19,10 @@ reads. Phase 15B adds the runtime retrieval result-set and material-candidate
 cache foundation. Phase 15C/15D use that foundation through a Music Data
 Platform mixed retrieval workspace that owns SQL ranking, pagination, resolved
 source candidate collapse, runtime result-set rows, and material-candidate
-cache writes. Phase 18C adds the first Music Data Platform `stage_adapter`
-tool, read-only `library.import.list_sources`, over Extension
-platform-library-provider descriptor metadata. Write-capable import driving
-tools remain later Phase 18 slices.
+cache writes. Phase 18 adds the Music Data Platform `stage_adapter` tool
+surface for `library.import.list_sources`, `.start`, `.continue`, and
+`.status` over Extension platform-library-provider descriptors, the existing
+import service, and the source-library batch read port.
 
 ## Core Concepts
 
@@ -51,7 +51,7 @@ tools remain later Phase 18 slices.
 | `retrieval_result_text_fts` | Result-set-scoped FTS corpus. | Uses durable `material_text_documents` fields for material rows and provider candidate text only for unresolved material-candidate rows. |
 | `material_candidate_cache` | Runtime cache for validated provider material candidates. | Keyed by `material_candidate_ref_key`; cleanup never deletes a candidate still referenced by a non-expired result set. |
 | Mixed retrieval workspace | Music Data Platform boundary for mixed local/provider retrieval. | Builds first-page result sets from local result windows plus provider candidates, reuses result sets on cursor pages, and owns runtime result-set/cache writes. |
-| Library Import stage adapter | MDP-owned Stage Adapter boundary for the `library.import.*` public tool surface. | Phase 18C contributes the `library.import` instrument and read-only `library.import.list_sources` descriptor/handler over provider descriptor metadata; `start`, `continue`, and `status` remain later slices. |
+| Library Import stage adapter | MDP-owned Stage Adapter boundary for the `library.import.*` public tool surface. | Phase 18 contributes the `library.import` instrument plus `list_sources`, `start`, `continue`, and `status`; write-capable tools delegate to the existing import service and expose only compact public summaries. |
 | `projection_maintenance_targets` | Current projection maintenance worklist. | One row per `projection_kind + target_key`; `status` is `dirty` or `failed` and `dirty_generation` is monotonic. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
@@ -755,8 +755,6 @@ collections, rewrite projections, or touch presentation history.
 ## Out Of Scope
 
 - Collection membership;
-- write-capable public Stage Interface import tool registrations
-  (`library.import.start`, `.continue`, and `.status`);
 - update baseline tables;
 - public owner-scoped query surfaces and query result shaping beyond the
   internal retrieval read port;

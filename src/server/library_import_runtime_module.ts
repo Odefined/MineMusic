@@ -1,12 +1,17 @@
 import {
+  publicSourceLibraryScope,
   createLibraryImportRuntimeModule,
 } from "../music_data_platform/stage_adapter/index.js";
 import type { ExtensionRuntime } from "../extension/index.js";
-import type { PlatformLibrarySourceDescriptor } from "../music_data_platform/stage_adapter/index.js";
+import type {
+  PlatformLibrarySourceDescriptor,
+} from "../music_data_platform/stage_adapter/index.js";
 import type { RuntimeModule } from "../stage_core/index.js";
+import type { MusicDataPlatformRuntimeModule } from "./music_data_platform_runtime_module.js";
 
 export type CreateLibraryImportServerRuntimeModuleInput = {
   extensionRuntime: Pick<ExtensionRuntime, "listPlatformLibraryProviders">;
+  musicDataPlatformModule: MusicDataPlatformRuntimeModule;
 };
 
 export function createLibraryImportServerRuntimeModule(
@@ -23,5 +28,60 @@ export function createLibraryImportServerRuntimeModule(
         }));
       },
     },
+    control: {
+      startImport(startInput) {
+        return sourceLibraryImportService().startImport(startInput);
+      },
+      continueImport(continueInput) {
+        return sourceLibraryImportService().continueImport(continueInput);
+      },
+      getStatus(statusInput) {
+        return sourceLibraryReadPort().getImportBatch(statusInput);
+      },
+      sourceLibraryScopeForBatch({ batch }) {
+        if (batch.libraryRef === undefined) {
+          return undefined;
+        }
+
+        return publicSourceLibraryScope({
+          libraryRef: batch.libraryRef,
+          providerId: batch.providerId,
+          libraryKind: batch.libraryKind,
+          providerNames: platformLibraryProviderNames(input.extensionRuntime),
+        });
+      },
+    },
   });
+
+  function sourceLibraryImportService() {
+    const service = input.musicDataPlatformModule.sourceLibraryImport();
+
+    if (service === undefined) {
+      throw new Error("Source library import service is not initialized.");
+    }
+
+    return service;
+  }
+
+  function sourceLibraryReadPort() {
+    const readPort = input.musicDataPlatformModule.sourceLibraryRead();
+
+    if (readPort === undefined) {
+      throw new Error("Source library read port is not initialized.");
+    }
+
+    return readPort;
+  }
+}
+
+function platformLibraryProviderNames(
+  extensionRuntime: Pick<ExtensionRuntime, "listPlatformLibraryProviders">,
+): ReadonlyMap<string, string> {
+  const names = new Map<string, string>();
+
+  for (const registration of extensionRuntime.listPlatformLibraryProviders()) {
+    names.set(registration.providerId, registration.provider.descriptor.label);
+  }
+
+  return names;
 }

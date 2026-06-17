@@ -72,6 +72,31 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "libraryImportStartInputSchema",
+    typeName: "LibraryImportStartInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryImportContinueInputSchema",
+    typeName: "LibraryImportContinueInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryImportStatusInputSchema",
+    typeName: "LibraryImportStatusInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryImportDriveOutputSchema",
+    typeName: "LibraryImportDriveOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryImportStatusOutputSchema",
+    typeName: "LibraryImportStatusOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupOutputSchema",
     typeName: "MusicDiscoveryLookupOutput",
     sourcePath: "src/contracts/stage_interface.ts",
@@ -98,18 +123,18 @@ function generatorFor(sourcePath) {
   return generator;
 }
 
-const LOOKUP_LIMIT_CONSTRAINT = { type: "integer", minimum: 1, maximum: 100 };
+const TOOL_LIMIT_CONSTRAINT = { type: "integer", minimum: 1, maximum: 100 };
 
 // The TS source declares `limit?: number`, which the generator faithfully transcribes as
-// { type: "number" }. The lookup handler enforces integer 1..100, so surface that bound in the
-// agent-facing schema by overlaying every `limit` property under the lookup input schema.
-function applyLookupLimitOverlay(schema) {
+// { type: "number" }. Lookup and library-import handlers enforce integer 1..100, so
+// surface that bound in the agent-facing schemas by overlaying every relevant `limit`.
+function applyToolLimitOverlay(schema) {
   if (schema === null || typeof schema !== "object") {
     return;
   }
   if (Array.isArray(schema)) {
     for (const node of schema) {
-      applyLookupLimitOverlay(node);
+      applyToolLimitOverlay(node);
     }
     return;
   }
@@ -119,10 +144,10 @@ function applyLookupLimitOverlay(schema) {
     schema.properties.limit !== null &&
     schema.properties.limit.type === "number"
   ) {
-    schema.properties.limit = { ...LOOKUP_LIMIT_CONSTRAINT };
+    schema.properties.limit = { ...TOOL_LIMIT_CONSTRAINT };
   }
   for (const child of Object.values(schema)) {
-    applyLookupLimitOverlay(child);
+    applyToolLimitOverlay(child);
   }
 }
 
@@ -210,8 +235,12 @@ function applyPresentOutputHandleNonEmptyOverlay(schema) {
 
 const generatedSchemas = schemaTargets.map((target) => {
   const schema = generatorFor(target.sourcePath).createSchema(target.typeName);
-  if (target.exportName === "musicDiscoveryLookupInputSchema") {
-    applyLookupLimitOverlay(schema);
+  if (
+    target.exportName === "musicDiscoveryLookupInputSchema" ||
+    target.exportName === "libraryImportStartInputSchema" ||
+    target.exportName === "libraryImportContinueInputSchema"
+  ) {
+    applyToolLimitOverlay(schema);
   }
   // Scope-handle definitions are inlined under multiple exports, so apply the
   // non-empty overlay to every target.

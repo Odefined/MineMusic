@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 18C Library Import source listing
+> Status: Implemented through Phase 18D/E Library Import drive tools and Server Host wiring
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -64,12 +64,20 @@
   `continueImport`.
 - `src/music_data_platform/stage_adapter/index.ts` contributes the
   `library-import` RuntimeModule, the `library.import` instrument, and the
-  read-only `library.import.list_sources` tool registration.
+  `library.import.list_sources`, `.start`, `.continue`, and `.status` tool
+  registrations.
 - `src/music_data_platform/stage_adapter/list_sources.ts` implements
   metadata-only Library Import source listing over a narrow
   `PlatformLibrarySourceListingPort`; it maps provider descriptors to
   provider id/label/account requirement plus provider-neutral library-kind
   descriptions and does not read provider account-library pages.
+- `src/music_data_platform/stage_adapter/import_control.ts` implements the
+  agent-facing start/continue/status import controls over a narrow
+  `LibraryImportControlPort`; it compacts internal import results into public
+  summaries and never writes repositories directly.
+- `src/music_data_platform/stage_adapter/source_library_scope.ts` owns the
+  public source-library scope id/description mapping shared by import summaries
+  and music-scope availability.
 - Library Import consumes a narrow `PlatformLibraryReadPort`; it does not
   import Extension plugin implementations or concrete provider code.
 - Library Import calls source-library commands and identity commands to upsert
@@ -229,8 +237,8 @@
   then headers; material-candidate cleanup deletes only expired cache rows that
   are not referenced by any non-expired result-set row.
 - Mixed retrieval SQL is enabled through the internal workspace, while
-  provider-search execution remains outside Music Data Platform and Stage
-  Interface tools/candidate commit commands remain later work.
+  provider-search execution remains outside Music Data Platform. Public
+  Stage Interface tools stay behind their owning stage-adapter boundaries.
 - Projection maintenance keeps one current row per typed projection target and
   uses monotonic `dirty_generation` so repeated dirty marks never duplicate
   pending work.
@@ -310,6 +318,7 @@ npm run build:test    # passed
 npm run test:stage-core # passed
 npm test              # passed
 npm run smoke:ncm:library # skipped unless MINEMUSIC_LIVE_NCM_LIBRARY=1
+npm run smoke:library:import # skipped unless MINEMUSIC_LIVE_NCM_LIBRARY_IMPORT=1
 git diff --check      # passed
 git diff --name-only  # run for state-sync gate
 ```
@@ -326,8 +335,6 @@ Out of the current Music Data Platform implementation:
   and public maintenance controls;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction
   fact families;
-- write-capable public Stage Interface import tool registrations
-  (`library.import.start`, `.continue`, and `.status`);
 - direct source-canonical evidence model;
 - canonical review/merge/split workflow;
 - command audit;

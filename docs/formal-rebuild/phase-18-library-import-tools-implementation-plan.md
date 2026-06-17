@@ -1,6 +1,6 @@
 # Phase 18 Library Import Tools Implementation Plan
 
-> Status: Phase 18 spec and execution plan; PR 18A-C implemented, PR 18D-E pending.
+> Status: Phase 18 spec and execution plan; PR 18A-E implemented.
 > Spec authority: this document plus CONTEXT.md (Public Agent Protocol namespace rule and
 > Music Library Scope Handle source rule),
 > ADR-0005 (unchanged nine-area taxonomy; instruments/tools are not bounded contexts),
@@ -470,8 +470,9 @@ are aggregated by category; re-import is idempotent.
   `npm run smoke:library:import`, gated on a `MINEMUSIC_LIVE_...=1` env flag like the
   existing `smoke:ncm:library`) that drives `list_sources` -> `start` -> `continue` to
   exhaustion -> verifies imported materials are retrievable via `music.discovery.lookup`
-  over the returned `sourceLibraryScope`. Do not require live NCM account data to
-  demonstrate departed-item reconciliation.
+  over the returned `sourceLibraryScope` when
+  `MINEMUSIC_NCM_LIBRARY_IMPORT_LOOKUP_TEXT` is provided. Do not require live NCM
+  account data to demonstrate departed-item reconciliation.
 - Deterministic reconciliation coverage: seed a local stale `source_library_item` fixture,
   run a full provider-exhausted import through the agent-path wiring or a scenario-matrix
   style harness, and verify Phase 14 removes the departed item. This keeps reconciliation

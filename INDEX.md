@@ -320,8 +320,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   boundary using `StageToolRegistration` entries.
 - `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module
   migrated to the Phase 16A static descriptor + payload handler shape.
-- `src/server/host.ts`: thin Server Host lifecycle owner and internal source
-  library import seam accessor.
+- `src/server/host.ts`: thin Server Host lifecycle owner, Stage Interface
+  dispatch entrypoint, and internal source library import seam accessor.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Storage, Music Data Platform schemas, the Stage Interface handle
@@ -329,7 +329,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   wiring, and Music Scope availability adapter.
 - `src/server/library_import_runtime_module.ts`: Server Host shim for the
   MDP-owned Library Import Stage Adapter RuntimeModule, adapting Extension
-  platform-library-provider descriptor metadata into the source-listing port.
+  platform-library-provider descriptor metadata, source-library import service,
+  and source-library status reads into narrow Library Import ports.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
@@ -432,9 +433,15 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/music_data_platform/stage_adapter/list_sources.ts`: MDP Library Import
   Stage Adapter descriptor/handler for read-only `library.import.list_sources`
   source metadata listing.
+- `src/music_data_platform/stage_adapter/import_control.ts`: MDP Library Import
+  Stage Adapter descriptors/handlers for `library.import.start`,
+  `.continue`, and `.status` compact public import summaries.
+- `src/music_data_platform/stage_adapter/source_library_scope.ts`: public
+  source-library scope id/description helper shared by import summaries and
+  scope availability.
 - `src/music_data_platform/stage_adapter/index.ts`: MDP Library Import
   Stage Adapter boundary and `library-import` RuntimeModule contribution for
-  the `library.import` instrument and source-listing tool.
+  the `library.import` instrument and all four import tools.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.
 
 The previous MVP runtime source and tests were removed from active tree and are

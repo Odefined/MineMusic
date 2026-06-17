@@ -43,6 +43,9 @@ assert.deepEqual(
   snapshot.interfaceContract?.tools?.map((tool) => tool.name),
   [
     "library.import.list_sources",
+    "library.import.start",
+    "library.import.continue",
+    "library.import.status",
     "music.discovery.list_scopes",
     "music.discovery.lookup",
     "music.experience.present",

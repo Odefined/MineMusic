@@ -266,6 +266,67 @@ export type LibraryImportListSourcesOutput = {
   sources: readonly LibraryImportSource[];
 };
 
+export type LibraryImportStartInput = {
+  providerId: string;
+  libraryKind: LibraryImportLibraryKind;
+  limit?: number;
+};
+
+export type LibraryImportContinueInput = {
+  batchId: string;
+  limit?: number;
+};
+
+export type LibraryImportStatusInput = {
+  batchId: string;
+};
+
+export type LibraryImportBatchStatus = "running" | "completed" | "failed";
+
+export type LibraryImportFailureCategory =
+  | "provider_unavailable"
+  | "provider_response_invalid"
+  | "account_unavailable"
+  | "write_failed"
+  | "unknown";
+
+export type LibraryImportCounts = {
+  imported: number;
+  alreadyPresent: number;
+  failed: number;
+};
+
+export type LibraryImportFailureCategoryCount = {
+  category: LibraryImportFailureCategory;
+  count: number;
+};
+
+export type LibraryImportSourceLibraryScope = {
+  kind: "source_library";
+  id: string;
+  description: MusicScopeDescription;
+};
+
+export type LibraryImportDriveOutput = {
+  batchId: string;
+  status: LibraryImportBatchStatus;
+  sourceLibraryScope?: LibraryImportSourceLibraryScope;
+  totals: LibraryImportCounts;
+  page?: LibraryImportCounts;
+  providerTotalCountHint?: number;
+  hasMore: boolean;
+  failureCategories?: readonly LibraryImportFailureCategoryCount[];
+};
+
+export type LibraryImportStatusOutput = {
+  batchId: string;
+  status: LibraryImportBatchStatus;
+  sourceLibraryScope?: LibraryImportSourceLibraryScope;
+  totals: LibraryImportCounts;
+  hasMore: boolean;
+  failureCategories?: readonly LibraryImportFailureCategoryCount[];
+};
+
 export type MusicDiscoveryLookupInput =
   | {
     lookupText: string;

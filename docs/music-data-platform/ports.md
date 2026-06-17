@@ -43,8 +43,10 @@ provider plugin implementations.
 | `createMaterialRefFactory` | Library Import service/composition/tests | Opaque MineMusic material ref generation for new material anchors. | `src/music_data_platform/material_ref_factory.ts` |
 | `createMusicDataPlatformSourceOfTruthWriteCommands` | Workflow-facing Music Data Platform callers/tests | Top-level source-of-truth write facade that wires identity/source-library/owner-relation writes through projection invalidation; owner-scoped workflow writes currently accept only `DEFAULT_OWNER_SCOPE`, and source-library batch-record methods re-read the persisted batch by `batchId` before delegating. | `src/music_data_platform/source_of_truth_write_commands.ts` |
 | `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port and owning commands. | `src/music_data_platform/source_library_import.ts` |
-| `createLibraryImportRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule for `library.import.*`; contributes the `library.import` instrument and read-only `library.import.list_sources` tool over a metadata-only source-listing port. | `src/music_data_platform/stage_adapter/index.ts` |
+| `createLibraryImportRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule for `library.import.*`; contributes the `library.import` instrument plus list/start/continue/status tool registrations. | `src/music_data_platform/stage_adapter/index.ts` |
 | `createLibraryImportListSourcesRegistration` | Server Host composition / Stage Core | Stage Interface registration for read-only import source listing. Returns provider id/label/account requirement and provider-neutral importable library-kind descriptions without reading provider account pages. | `src/music_data_platform/stage_adapter/list_sources.ts` |
+| `createLibraryImportStartRegistration` / `createLibraryImportContinueRegistration` / `createLibraryImportStatusRegistration` | Server Host composition / Stage Core | Stage Interface registrations for compact agent-facing import drive/status tools over a narrow control port. | `src/music_data_platform/stage_adapter/import_control.ts` |
+| `publicSourceLibraryScope` / `sourceLibraryScopeId` | Server Host composition / MDP stage adapter | Build the reusable public source-library scope id/description for import summaries and scope availability without exposing internal refs. | `src/music_data_platform/stage_adapter/source_library_scope.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild library-scope source-library projection plus material-scope source-library and owner-relation catalog entries through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
@@ -70,6 +72,7 @@ provider plugin implementations.
 | Source/material/canonical/source-library/provider-candidate contracts | Contracts | Record, command, provider candidate, import status, and runtime candidate cache shapes. | Entity/record/candidate fields. | None. |
 | `PlatformLibraryReadPort` | Server Host composition, usually backed by Extension Runtime | Read provider account-library pages for one provider/kind/cursor. | `readPlatformLibraryProvider`. | None. |
 | `PlatformLibrarySourceListingPort` | Server Host composition, backed by Extension Runtime provider descriptors | Enumerate registered platform-library-provider descriptor metadata for `library.import.list_sources`. | `listPlatformLibrarySources`. | None. |
+| `LibraryImportControlPort` | Server Host composition, backed by `SourceLibraryImportService` and `SourceLibraryReadPort` | Start/continue import pages and read compact batch status for `library.import.*` tools. | `startImport`, `continueImport`, `getStatus`, `sourceLibraryScopeForBatch`. | None; durable writes stay inside `SourceLibraryImportService`. |
 | `RuntimeModule` | Stage Core | Contribute the `library-import` runtime module and its Stage Interface registrations from the Music Data Platform stage-adapter boundary. | Descriptor/initialize contract. | None. |
 
 ## Repository Ports
@@ -320,8 +323,6 @@ Current guards:
 
 - source-canonical binding tables;
 - command audit;
-- write-capable public import tools (`library.import.start`, `.continue`, and
-  `.status`);
 - update baselines, local pool algebra,
   owner-scoped/public query surfaces, text-query integration, and
   presentation;

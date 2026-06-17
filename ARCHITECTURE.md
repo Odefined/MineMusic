@@ -220,7 +220,11 @@ contracts and translate internal import results into compact public outputs; MDP
 core services remain Stage Interface-free and expose only narrow internal ports.
 The read-only `library.import.list_sources` tool is provider descriptor metadata
 listing only; it must not read provider account-library pages or probe provider
-availability.
+availability. The write-capable `library.import.start` and `.continue` tools
+drive one provider page per call through the existing import service and expose
+only compact counts, batch status, public failure categories, and the public
+`sourceLibraryScope`; `library.import.status` reads the durable batch without
+advancing provider pages.
 
 All MineMusic writes are command-owned. A write is any mutation of durable or
 runtime state, including source facts, import batches, item outcomes,

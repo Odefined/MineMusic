@@ -10,6 +10,7 @@
     "server:minemusic": "npm run build:test && node ./.tmp-test/src/server/index.js",
     "smoke:ncm": "npm run build:test && node ./.tmp-test/test/live/ncm-source-smoke.js",
     "smoke:ncm:library": "npm run build:test && node ./.tmp-test/test/live/ncm-source-library-smoke.js",
+    "smoke:library:import": "npm run build:test && node ./.tmp-test/test/live/ncm-library-import-agent-smoke.js",
     "smoke:ncm:retrieval": "npm run build:test && node ./.tmp-test/test/live/ncm-mixed-retrieval-smoke.js",
     "smoke:ncm:matrix": "npm run build:test && node ./.tmp-test/test/live/ncm-real-scenario-matrix.js",
     "smoke:ncm:perf": "npm run build:test && node ./.tmp-test/test/live/ncm-performance-smoke.js",

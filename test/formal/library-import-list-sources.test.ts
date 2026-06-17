@@ -18,6 +18,7 @@ import {
 import {
   createLibraryImportServerRuntimeModule,
   createMineMusicExtensionRuntime,
+  type MusicDataPlatformRuntimeModule,
 } from "../../src/server/index.js";
 
 let listCalls = 0;
@@ -146,6 +147,7 @@ assert.equal(initializedExtension.ok, true);
 
 const serverModule = createLibraryImportServerRuntimeModule({
   extensionRuntime,
+  musicDataPlatformModule: importlessMusicDataPlatformModule(),
 });
 const initializedServerModule = await serverModule.initialize({});
 
@@ -200,6 +202,7 @@ assert.equal(initializedNoProviderRuntime.ok, true);
 
 const noProviderModule = createLibraryImportServerRuntimeModule({
   extensionRuntime: noProviderRuntime,
+  musicDataPlatformModule: importlessMusicDataPlatformModule(),
 });
 const initializedNoProviderModule = await noProviderModule.initialize({});
 
@@ -250,6 +253,39 @@ function testStageToolContext(): StageToolContext {
           auditLevel: "metadata",
         };
       },
+    },
+  };
+}
+
+function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
+  return {
+    descriptor: {
+      id: "music-data-platform",
+      ownerArea: "music_data_platform",
+    },
+    async initialize() {
+      return {
+        ok: true,
+        value: {},
+      };
+    },
+    sourceLibraryImport() {
+      throw new Error("list_sources must not touch source library import service");
+    },
+    sourceLibraryRead() {
+      throw new Error("list_sources must not touch source library read port");
+    },
+    retrievalQuery() {
+      return undefined;
+    },
+    musicScopeAvailability() {
+      return undefined;
+    },
+    candidateCommit() {
+      return undefined;
+    },
+    materialProjection() {
+      return undefined;
     },
   };
 }

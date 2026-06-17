@@ -1,5 +1,10 @@
 import type { Result } from "../contracts/kernel.js";
 import type { StageRuntimeSnapshot } from "../contracts/stage_core.js";
+import type {
+  StageToolContext,
+  ToolCallInput,
+  ToolCallOutput,
+} from "../contracts/stage_interface.js";
 import {
   createExtensionRuntimeModule,
   createStageRuntime,
@@ -28,6 +33,7 @@ export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
   stop(): Promise<Result<StageRuntimeSnapshot>>;
   snapshot(): StageRuntimeSnapshot;
+  dispatch(ctx: StageToolContext, input: ToolCallInput): Promise<Result<ToolCallOutput>>;
   sourceLibraryImport(): SourceLibraryImportService | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
 };
@@ -86,6 +92,7 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       ? undefined
       : createLibraryImportServerRuntimeModule({
           extensionRuntime,
+          musicDataPlatformModule,
         });
   const runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
@@ -108,6 +115,9 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     },
     snapshot() {
       return runtime.snapshot();
+    },
+    dispatch(ctx, call) {
+      return runtime.interface.dispatch(ctx, call);
     },
     sourceLibraryImport() {
       return musicDataPlatformModule?.sourceLibraryImport();

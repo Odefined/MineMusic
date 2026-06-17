@@ -1078,6 +1078,33 @@ writes:
   metadata-only behavior with provider reads guarded, generated schemas,
   active-tree file shape, and default Host tool wiring.
 
+## 2026-06-18: Phase 18D/E Library Import Drive Tools And Server Wiring
+
+Phase 18D/E exposes the existing internal source-library import workflow through
+agent-facing tools and wires them into the default Server Host:
+
+- `library.import.start`, `.continue`, and `.status` are contributed by Music
+  Data Platform through `src/music_data_platform/stage_adapter/import_control.ts`.
+- `start` and `continue` delegate to the existing `SourceLibraryImportService`
+  and return compact page/totals summaries; `status` reads the source-library
+  import batch without advancing provider pages.
+- Public import summaries expose `batchId`, status, compact counts,
+  `hasMore`, public failure categories, optional provider total hint, and the
+  reusable public `sourceLibraryScope`; provider cursors, account ids, refs,
+  provider entity ids, raw error codes/messages, and storage rows stay behind
+  the veil.
+- `src/server/library_import_runtime_module.ts` wires Extension provider
+  descriptors, the initialized import service, and the source-library read port
+  into the Library Import RuntimeModule.
+- `src/server/host.ts` now exposes `dispatch(...)` and the default Host tool
+  list includes all four `library.import.*` tools.
+- `npm run smoke:library:import` adds an opt-in NCM agent-path smoke gated by
+  `MINEMUSIC_LIVE_NCM_LIBRARY_IMPORT=1`; lookup verification uses
+  `MINEMUSIC_NCM_LIBRARY_IMPORT_LOOKUP_TEXT` when provided.
+- Tests cover declared errors, schema limits, output veil behavior, status
+  read-only behavior, Host/server wiring, and deterministic provider-exhausted
+  reconciliation through the agent-facing import path.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

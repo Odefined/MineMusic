@@ -1092,6 +1092,373 @@ export const libraryImportListSourcesOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const libraryImportStartInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryImportStartInput",
+  "definitions": {
+    "LibraryImportStartInput": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "libraryKind": {
+          "$ref": "#/definitions/LibraryImportLibraryKind"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "providerId",
+        "libraryKind"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportLibraryKind": {
+      "type": "string",
+      "enum": [
+        "saved_source_track",
+        "saved_source_album",
+        "followed_source_artist"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryImportContinueInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryImportContinueInput",
+  "definitions": {
+    "LibraryImportContinueInput": {
+      "type": "object",
+      "properties": {
+        "batchId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "batchId"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryImportStatusInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryImportStatusInput",
+  "definitions": {
+    "LibraryImportStatusInput": {
+      "type": "object",
+      "properties": {
+        "batchId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "batchId"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryImportDriveOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryImportDriveOutput",
+  "definitions": {
+    "LibraryImportDriveOutput": {
+      "type": "object",
+      "properties": {
+        "batchId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/LibraryImportBatchStatus"
+        },
+        "sourceLibraryScope": {
+          "$ref": "#/definitions/LibraryImportSourceLibraryScope"
+        },
+        "totals": {
+          "$ref": "#/definitions/LibraryImportCounts"
+        },
+        "page": {
+          "$ref": "#/definitions/LibraryImportCounts"
+        },
+        "providerTotalCountHint": {
+          "type": "number"
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "failureCategories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryImportFailureCategoryCount"
+          }
+        }
+      },
+      "required": [
+        "batchId",
+        "status",
+        "totals",
+        "hasMore"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportBatchStatus": {
+      "type": "string",
+      "enum": [
+        "running",
+        "completed",
+        "failed"
+      ]
+    },
+    "LibraryImportSourceLibraryScope": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "source_library"
+        },
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "$ref": "#/definitions/MusicScopeDescription"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "LibraryImportCounts": {
+      "type": "object",
+      "properties": {
+        "imported": {
+          "type": "number"
+        },
+        "alreadyPresent": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "imported",
+        "alreadyPresent",
+        "failed"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportFailureCategoryCount": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/LibraryImportFailureCategory"
+        },
+        "count": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "category",
+        "count"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportFailureCategory": {
+      "type": "string",
+      "enum": [
+        "provider_unavailable",
+        "provider_response_invalid",
+        "account_unavailable",
+        "write_failed",
+        "unknown"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryImportStatusOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryImportStatusOutput",
+  "definitions": {
+    "LibraryImportStatusOutput": {
+      "type": "object",
+      "properties": {
+        "batchId": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/LibraryImportBatchStatus"
+        },
+        "sourceLibraryScope": {
+          "$ref": "#/definitions/LibraryImportSourceLibraryScope"
+        },
+        "totals": {
+          "$ref": "#/definitions/LibraryImportCounts"
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "failureCategories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryImportFailureCategoryCount"
+          }
+        }
+      },
+      "required": [
+        "batchId",
+        "status",
+        "totals",
+        "hasMore"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportBatchStatus": {
+      "type": "string",
+      "enum": [
+        "running",
+        "completed",
+        "failed"
+      ]
+    },
+    "LibraryImportSourceLibraryScope": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "source_library"
+        },
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "$ref": "#/definitions/MusicScopeDescription"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "MusicScopeDescription": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetKind": {
+          "$ref": "#/definitions/MusicTargetKind"
+        },
+        "detailText": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "MusicTargetKind": {
+      "type": "string",
+      "enum": [
+        "recording",
+        "album",
+        "artist"
+      ]
+    },
+    "LibraryImportCounts": {
+      "type": "object",
+      "properties": {
+        "imported": {
+          "type": "number"
+        },
+        "alreadyPresent": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "imported",
+        "alreadyPresent",
+        "failed"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportFailureCategoryCount": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/LibraryImportFailureCategory"
+        },
+        "count": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "category",
+        "count"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportFailureCategory": {
+      "type": "string",
+      "enum": [
+        "provider_unavailable",
+        "provider_response_invalid",
+        "account_unavailable",
+        "write_failed",
+        "unknown"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicDiscoveryLookupOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$ref": "#/definitions/MusicDiscoveryLookupOutput",
