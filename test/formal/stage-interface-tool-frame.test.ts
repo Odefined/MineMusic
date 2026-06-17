@@ -372,8 +372,50 @@ assert.equal((await conservativeGate.preflight({
     },
   },
 })).decision, "ask");
-assert.equal(auditRecords.length, 4);
+const qualifiedPresentDescriptor: ToolDeclaration = {
+  ...descriptor,
+  name: "music.experience.present",
+  ownerArea: "music_experience",
+  sideEffect: {
+    ...descriptor.sideEffect,
+    durableUserStateWrite: true,
+  },
+  invocationPolicy: {
+    ...descriptor.invocationPolicy,
+    defaultDecision: "auto",
+    admissionDrivenByPresentation: true,
+  },
+};
+const qualifiedPresentResult = await conservativeGate.preflight({
+  ...gateBaseInput,
+  descriptor: qualifiedPresentDescriptor,
+});
+
+assert.equal(qualifiedPresentResult.decision, "allow");
+assert.equal(
+  qualifiedPresentResult.internalReason,
+  "auto presentation-driven admission",
+);
+assert.equal((await conservativeGate.preflight({
+  ...gateBaseInput,
+  descriptor: {
+    ...qualifiedPresentDescriptor,
+    invocationPolicy: {
+      ...qualifiedPresentDescriptor.invocationPolicy,
+      defaultDecision: "deny",
+    },
+  },
+})).decision, "deny");
+assert.equal(auditRecords.length, 6);
 assert.equal(auditRecords.every((record) => record.auditLevel === "metadata"), true);
+assert.equal(
+  auditRecords.some((record) => (
+    record.toolName === "music.experience.present" &&
+    record.decision === "allow" &&
+    record.internalReason === "auto presentation-driven admission"
+  )),
+  true,
+);
 
 const stageInterface = createStageInterface({
   instruments: [instrument],

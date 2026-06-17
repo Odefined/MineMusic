@@ -71,6 +71,14 @@ function decide(
 ): StageToolExecutionGatePreflightResult {
   const { descriptor } = input;
 
+  if (descriptor.invocationPolicy.defaultDecision === "deny") {
+    return {
+      decision: "deny",
+      auditLevel: "metadata",
+      internalReason: policySummary(input),
+    };
+  }
+
   if (
     descriptor.invocationPolicy.defaultDecision === "auto" &&
     descriptor.sideEffect.durableUserStateWrite === false
@@ -82,11 +90,15 @@ function decide(
     };
   }
 
-  if (descriptor.invocationPolicy.defaultDecision === "deny") {
+  if (
+    descriptor.invocationPolicy.defaultDecision === "auto" &&
+    descriptor.sideEffect.durableUserStateWrite === true &&
+    descriptor.invocationPolicy.admissionDrivenByPresentation === true
+  ) {
     return {
-      decision: "deny",
+      decision: "allow",
       auditLevel: "metadata",
-      internalReason: policySummary(input),
+      internalReason: "auto presentation-driven admission",
     };
   }
 

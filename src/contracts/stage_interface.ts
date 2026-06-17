@@ -36,6 +36,7 @@ export type ToolInvocationPolicy = {
   dataEgress: "none" | "provider_account" | "open_world";
   readOnlyHint: boolean;
   destructiveHint: boolean;
+  admissionDrivenByPresentation?: boolean;
   maxCallsPerTurn?: number;
 };
 
