@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type StatementSync } from "node:sqlite";
 
 import {
   MusicDatabaseError,
@@ -15,6 +15,16 @@ export type OpenSqliteMusicDatabaseInput = {
   filename: string;
 };
 
+/**
+ * Upper bound on the number of cached prepared statements. The overwhelming
+ * majority of SQL is static templates, but a few call sites build SQL whose
+ * placeholder count scales with input size (IN-clauses, batched inserts),
+ * which would otherwise let the cache grow without limit. `prepare` is cheap,
+ * so on overflow the cache is dropped wholesale and refilled with hot
+ * statements.
+ */
+const MAX_CACHED_STATEMENTS = 256;
+
 type SqliteDatabaseState =
   | "opened"
   | "initializing"
@@ -27,6 +37,7 @@ type SqliteParameter = MusicDatabaseParameter;
 export class SqliteMusicDatabase implements MusicDatabase {
   private state: SqliteDatabaseState = "opened";
   private transactionActive = false;
+  private readonly statements = new Map<string, StatementSync>();
 
   private readonly initializedContext: MusicDatabaseContext = {
     run: (sql, params) => {
@@ -173,20 +184,35 @@ export class SqliteMusicDatabase implements MusicDatabase {
       });
     }
 
+    this.statements.clear();
     this.db.close();
     this.state = "closed";
   }
 
   private runSql(sql: string, params?: readonly MusicDatabaseParameter[]): void {
-    this.db.prepare(sql).run(...toSqliteParameters(params));
+    this.prepareCached(sql).run(...toSqliteParameters(params));
   }
 
   private allSql<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): readonly Row[] {
-    return this.db.prepare(sql).all(...toSqliteParameters(params)) as Row[];
+    return this.prepareCached(sql).all(...toSqliteParameters(params)) as Row[];
   }
 
   private getSql<Row>(sql: string, params?: readonly MusicDatabaseParameter[]): Row | undefined {
-    return this.db.prepare(sql).get(...toSqliteParameters(params)) as Row | undefined;
+    return this.prepareCached(sql).get(...toSqliteParameters(params)) as Row | undefined;
+  }
+
+  private prepareCached(sql: string): StatementSync {
+    const cached = this.statements.get(sql);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const statement = this.db.prepare(sql);
+    if (this.statements.size >= MAX_CACHED_STATEMENTS) {
+      this.statements.clear();
+    }
+    this.statements.set(sql, statement);
+    return statement;
   }
 
   private ensureCanInitialize(): void {
