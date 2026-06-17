@@ -28,6 +28,7 @@ assert.equal(host.snapshot().interfaceContract.tools.length, 0);
 assert.deepEqual(host.snapshot().modules.map((module) => module.id), [
   "music-data-platform",
   "extension",
+  "library-import",
   "music-discovery",
   "music-experience",
   "runtime-status",
@@ -54,6 +55,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
   {
     id: "extension",
     ownerArea: "extension",
+    status: "initialized",
+  },
+  {
+    id: "library-import",
+    ownerArea: "music_data_platform",
     status: "initialized",
   },
   {
@@ -97,6 +103,11 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
   {
     id: "extension",
     ownerArea: "extension",
+    status: "stopped",
+  },
+  {
+    id: "library-import",
+    ownerArea: "music_data_platform",
     status: "stopped",
   },
   {

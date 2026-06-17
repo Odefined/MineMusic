@@ -4,9 +4,9 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 17 of a same-repo formal rebuild. The active
-TypeScript tree is a formal
-runtime skeleton with Phase 1 contract vocabulary,
+MineMusic has completed Phase 17 and PR 18A of Phase 18 in a same-repo formal
+rebuild. The active TypeScript tree is a formal runtime skeleton with Phase 1
+contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
 capability-registration baseline, plus a Phase 4 generic Music Database
 foundation, a Phase 5 Music Data Platform identity write model, and a Phase 6
@@ -63,7 +63,12 @@ Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
 the `music.experience.present` consumption tool that returns a stable library
-handle and a leak-free `MusicCard`.
+handle and a leak-free `MusicCard`. Phase 18A introduces the `library.`
+Public Agent Protocol namespace, keeps Library Import owned by Music Data
+Platform rather than a new top-level area, adds an empty MDP-owned
+`library-import` RuntimeModule under `src/music_data_platform/stage_adapter/`,
+and mounts its Server Host composition skeleton without contributing
+`library.import.*` tools yet.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -81,6 +86,8 @@ inventory; they are preserved by git history and archive docs only.
 - Formal top-level architecture areas are Server Host, Stage Interface, Stage
   Core, Extension, Music Data Platform, Music Intelligence, Music Experience,
   Memory, and Effect Boundary.
+- Public Agent Protocol top-level namespaces are `music.`, `library.`, and
+  `stage.`; namespace prefixes are not top-level architecture areas.
 - Stage is a product metaphor and naming root, not a top-level bounded context.
 - Stage Interface owns agent-facing instruments, tools, schemas, Handbook,
   validation, compact public outputs, Tool Call Router, and session-aware
@@ -594,12 +601,19 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_intelligence/stage_adapter/index.ts` owns the Stage Adapter
   subtree boundary and `music.discovery` RuntimeModule contribution;
 - `src/music_intelligence/index.ts` owns Music Intelligence public exports.
+- `src/music_data_platform/stage_adapter/index.ts` owns the MDP Library Import
+  Stage Adapter subtree and currently contributes the empty `library-import`
+  RuntimeModule for future `library.import.*` tools.
+- `src/server/library_import_runtime_module.ts` owns the Server Host shim that
+  mounts the MDP Library Import RuntimeModule skeleton.
 
 The current runtime starts in `created`, initializes required runtime modules
 through Server Host, mounts a configured Extension runtime module by default,
 builds Stage Interface from module contributions, exposes
-`music.discovery.list_scopes`, `music.discovery.lookup`, and
-`stage.runtime.status`, and supports compact lifecycle snapshots. All runtime
+`music.discovery.list_scopes`, `music.discovery.lookup`,
+`music.experience.present`, and `stage.runtime.status`, and supports compact
+lifecycle snapshots. The default module graph also includes the empty
+`library-import` RuntimeModule; it contributes no public tools yet. All runtime
 modules are required. The runtime does not
 support optional modules, dependency resolution, dynamic plugin loading, plugin
 dependencies, retry, reload, or restart.
@@ -619,7 +633,7 @@ retrieval ports plus Extension Runtime source-provider search. It also exposes
 the read-only `music.discovery.list_scopes` Stage Interface tool over local
 Music Scope availability metadata and the text-driven
 `music.discovery.lookup` Stage Interface retrieval tool. It does not expose
-public Stage Interface import, save, play, or candidate-commit tools.
+concrete public Stage Interface import, save, play, or candidate-commit tools.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -775,7 +789,7 @@ vocabulary authority lives in
 
 Current formal state does not implement:
 
-- public Stage Interface import, save, play, favorite, or standalone
+- concrete public Stage Interface import, save, play, favorite, or standalone
   candidate-commit tools;
 - generic provider platform/runtime;
 - provider account instances, login, cookies, OAuth, secrets, or reauth;

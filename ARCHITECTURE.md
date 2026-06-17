@@ -69,6 +69,7 @@ not become a catch-all bounded context.
 These names are not top-level formal areas:
 
 - `Stage` as a generic bounded context;
+- `Music Library` or `Library` as a top-level area;
 - `Owner Context`;
 - `Source Provider Platform`;
 - `Provider Slot`;
@@ -100,6 +101,13 @@ semantics.
 Stage Interface is the only formal agent-facing callable boundary. It owns
 Instrument Catalog, Tool Registry, Handbook, schemas, validation, compact
 outputs, dispatch, and session-aware availability.
+
+The top-level Public Agent Protocol namespaces are `music.` for music assistant
+workflows, `library.` for owner library-management workflows, and `stage.` for
+runtime/system tools. A namespace prefix is agent-facing language, not a
+top-level formal area or durable-state owner. The `library.import.*` surface is
+therefore a Stage Interface public surface owned by Music Data Platform through
+its `stage_adapter` boundary, not evidence for a tenth architecture area.
 
 The Phase 16A Tool Framework skeleton makes a tool declaration a static public
 descriptor plus a runtime handler registration. The descriptor carries the
@@ -203,6 +211,11 @@ item outcomes, source records, current source library items, material anchors,
 and source-material bindings. Import workflow code must not construct
 repository writes directly. Provider plugins must not write these records
 directly.
+
+Agent-facing Library Import tools, when exposed, live under the Music Data
+Platform `stage_adapter` boundary. The adapter may import Stage Interface
+contracts and translate internal import results into compact public outputs; MDP
+core services remain Stage Interface-free and expose only narrow internal ports.
 
 All MineMusic writes are command-owned. A write is any mutation of durable or
 runtime state, including source facts, import batches, item outcomes,

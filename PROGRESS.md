@@ -1024,6 +1024,25 @@ Phase 17 ships the first durable-write consumption path:
   candidate/library paths, idempotency, declared errors, output veil behavior,
   active-tree imports, and default Server Host wiring.
 
+## 2026-06-18: Phase 18A Library Namespace And Import Adapter Skeleton
+
+Phase 18A starts agent-facing library intake without adding import tools yet:
+
+- `library.` is documented as a top-level Public Agent Protocol namespace for
+  owner library-management workflows; it is not a new formal architecture area.
+- `CONTEXT.md`, `ARCHITECTURE.md`, and Music Data Platform area docs now agree
+  that Library Import remains Music Data Platform-owned and future
+  `library.import.*` tools live behind the MDP `stage_adapter` boundary.
+- `src/music_data_platform/stage_adapter/index.ts` contributes the empty
+  `library-import` RuntimeModule home for later `list_sources`, `start`,
+  `continue`, and `status` registrations.
+- `src/server/library_import_runtime_module.ts` mounts that skeleton into the
+  default Server Host graph. The module contributes no instruments or tools, so
+  default public tools remain `music.discovery.*`, `music.experience.present`,
+  and `stage.runtime.status`.
+- Tests and active-tree guards now include the `library-import` runtime module
+  and MDP stage-adapter skeleton.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

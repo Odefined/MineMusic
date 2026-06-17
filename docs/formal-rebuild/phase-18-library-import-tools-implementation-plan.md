@@ -1,6 +1,6 @@
 # Phase 18 Library Import Tools Implementation Plan
 
-> Status: Phase 18 spec and execution plan; not yet implemented.
+> Status: Phase 18 spec and execution plan; PR 18A implemented, PR 18B-E pending.
 > Spec authority: this document plus CONTEXT.md (Public Agent Protocol namespace rule and
 > Music Library Scope Handle source rule),
 > ADR-0005 (unchanged nine-area taxonomy; instruments/tools are not bounded contexts),
@@ -182,6 +182,8 @@ skeleton and documentation alignment so PR 18B–18E have a home.
   (contributes no tools yet).
 - `src/server/library_import_runtime_module.ts`: Server Host composition skeleton (mounts the
   MDP library-import runtime module; wires nothing yet).
+- `src/server/host.ts`: include the empty `library-import` module in the default module
+  graph; it contributes no instruments or tools in PR 18A.
 - Update `CURRENT_STATE.md` / `INDEX.md` / `PROGRESS.md`: note Phase 18 begun and the
   `library.` namespace introduced without changing the formal area list.
 
@@ -454,12 +456,13 @@ are aggregated by category; re-import is idempotent.
 
 ### What lands
 
-- `src/server/library_import_runtime_module.ts`: compose the MDP library-import runtime
-  module — wire `LibraryImportPort` over the existing internal `SourceLibraryImportService`
-  + the source-library status read port, wire the Extension descriptor listing seam, and
-  register the four `library.import.*` tool contributions.
-- `src/server/host.ts` / `src/server/config.ts`: mount the MDP library-import runtime module
-  by default in the Server Host composition.
+- `src/server/library_import_runtime_module.ts`: complete the already-mounted MDP
+  library-import server module — wire `LibraryImportPort` over the existing internal
+  `SourceLibraryImportService` + the source-library status read port, wire the Extension
+  descriptor listing seam, and register the four `library.import.*` tool contributions.
+- `src/server/host.ts` / `src/server/config.ts`: pass the MDP and Extension seams into the
+  already-mounted Library Import server module, adding config only if the smoke path needs
+  it.
 - Default Server Host now exposes `library.import.list_sources`, `.start`, `.continue`,
   `.status` alongside the existing `music.discovery.*`, `music.experience.present`, and
   `stage.runtime.status` tools.

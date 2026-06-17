@@ -33,6 +33,7 @@ assert.deepEqual(
   [
     "music-data-platform",
     "extension",
+    "library-import",
     "music-discovery",
     "music-experience",
     "runtime-status",

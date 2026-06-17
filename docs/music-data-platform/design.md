@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority through implemented Phase 15D
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, retrieval read port, and mixed retrieval result-set/cache workspace
+> Status: Current design authority through implemented Phase 18A
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import stage-adapter skeleton
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current
@@ -19,7 +19,9 @@ reads. Phase 15B adds the runtime retrieval result-set and material-candidate
 cache foundation. Phase 15C/15D use that foundation through a Music Data
 Platform mixed retrieval workspace that owns SQL ranking, pagination, resolved
 source candidate collapse, runtime result-set rows, and material-candidate
-cache writes.
+cache writes. Phase 18A adds the Music Data Platform `stage_adapter` home for
+agent-facing Library Import runtime contributions; it contributes no
+`library.import.*` tools until the later Phase 18 slices.
 
 ## Core Concepts
 
@@ -48,6 +50,7 @@ cache writes.
 | `retrieval_result_text_fts` | Result-set-scoped FTS corpus. | Uses durable `material_text_documents` fields for material rows and provider candidate text only for unresolved material-candidate rows. |
 | `material_candidate_cache` | Runtime cache for validated provider material candidates. | Keyed by `material_candidate_ref_key`; cleanup never deletes a candidate still referenced by a non-expired result set. |
 | Mixed retrieval workspace | Music Data Platform boundary for mixed local/provider retrieval. | Builds first-page result sets from local result windows plus provider candidates, reuses result sets on cursor pages, and owns runtime result-set/cache writes. |
+| Library Import stage adapter | MDP-owned Stage Adapter boundary for the future `library.import.*` public tool surface. | Phase 18A contributes an empty `library-import` RuntimeModule only; tool descriptors and handlers land in later Phase 18 slices. |
 | `projection_maintenance_targets` | Current projection maintenance worklist. | One row per `projection_kind + target_key`; `status` is `dirty` or `failed` and `dirty_generation` is monotonic. |
 | Material ref factory | Shared factory for new MineMusic material refs. | Produces opaque `material:<kind>:m_<opaque>` refs; import code must not derive ids from source/provider/canonical text. |
 | Material-canonical binding | Current material-to-canonical confirmation. | Stored on `MaterialEntity.canonicalRef`; written only by `bindMaterialToCanonical` or unambiguous material merge inheritance. |
@@ -751,7 +754,7 @@ collections, rewrite projections, or touch presentation history.
 ## Out Of Scope
 
 - Collection membership;
-- public Stage Interface import tools;
+- concrete public Stage Interface import tool registrations;
 - update baseline tables;
 - public owner-scoped query surfaces and query result shaping beyond the
   internal retrieval read port;

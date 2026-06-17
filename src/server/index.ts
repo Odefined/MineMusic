@@ -25,6 +25,9 @@ export type {
   CreateMusicExperienceServerRuntimeModuleInput,
 } from "./music_experience_runtime_module.js";
 export {
+  createLibraryImportServerRuntimeModule,
+} from "./library_import_runtime_module.js";
+export {
   createExtensionRuntimeRetrievalProviderSearchPort,
 } from "./retrieval_provider_search_adapter.js";
 export type {

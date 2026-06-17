@@ -159,10 +159,12 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   documentation entrypoint.
 - `docs/music-data-platform/design.md`: Music Data Platform identity,
   source-library, owner relation, owner catalog, material text projection,
-  and retrieval read-port design authority.
+  retrieval read-port, mixed retrieval workspace, and Library Import
+  stage-adapter design authority.
 - `docs/music-data-platform/ports.md`: Music Data Platform identity,
   source-library, owner relation, owner catalog, material text projection,
-  retrieval read-port ports, forbidden dependencies, composition, and guards.
+  retrieval read-port, mixed retrieval workspace, Library Import stage-adapter
+  ports, forbidden dependencies, composition, and guards.
 - `docs/music-data-platform/progress.md`: Music Data Platform implementation
   state, verification evidence, and remaining gaps.
 - `docs/music-intelligence/README.md`: Music Intelligence area documentation
@@ -322,6 +324,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   module for Storage, Music Data Platform schemas, the Stage Interface handle
   registry schema, internal Library Import service wiring, Retrieval query
   wiring, and Music Scope availability adapter.
+- `src/server/library_import_runtime_module.ts`: Server Host shim for the
+  MDP-owned Library Import Stage Adapter RuntimeModule skeleton.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
@@ -421,6 +425,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   projection maintenance rebuild runner.
 - `src/music_data_platform/source_library_import.ts`: internal Library Import
   application service that calls source-library and identity commands.
+- `src/music_data_platform/stage_adapter/index.ts`: MDP Library Import
+  Stage Adapter boundary and empty `library-import` RuntimeModule contribution
+  for future `library.import.*` tools.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.
 
 The previous MVP runtime source and tests were removed from active tree and are
