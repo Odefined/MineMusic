@@ -79,5 +79,10 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
       CREATE INDEX IF NOT EXISTS source_library_import_item_outcomes_batch_id_idx
       ON source_library_import_item_outcomes(batch_id)
     `);
+
+    context.run(`
+      CREATE INDEX IF NOT EXISTS source_library_import_item_outcomes_batch_source_outcome_idx
+      ON source_library_import_item_outcomes(batch_id, source_ref_key, outcome)
+    `);
   },
 };

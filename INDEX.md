@@ -129,6 +129,11 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   owned extensible dimensions), with Music Discovery as the first concrete
   instance; pairs with ADR-0009 through ADR-0012, ADR-0014 through ADR-0017,
   ADR-0019, and ADR-0020.
+- `docs/formal-rebuild/phase-17-candidate-commit-and-present-implementation-plan.md`:
+  Phase 17 execution plan for the first durable-write phase: Candidate Commit
+  command (ADR-0011), Material Projection first landing, Effect Boundary
+  auto-pass widening (ADR-0021), and the `music.experience.present` consumption
+  tool; split into PR 17A/17B/17D/17C; pre-implementation.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -208,6 +213,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   synthesis; library handle registry scheme.
 - `docs/adr/0020-declared-error-vocabulary-and-fail-whole-recovery.md`: declared
   per-tool public error vocabulary and fail-whole multi-scope recovery.
+- `docs/adr/0021-effect-boundary-auto-pass-for-presentation-admission.md`:
+  Effect Boundary auto-pass widened for presentation-driven Candidate Commit
+  admission writes (the Phase 17 `music.experience.present` durable write).
 
 ## Pre-Formal ADR Evidence
 

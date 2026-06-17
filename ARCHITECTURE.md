@@ -121,8 +121,11 @@ owns the global default tool timeout and cancellation signal passed through
 
 Instrument is an agent-facing workbench section inside Stage Interface. It
 groups tools and visible provider/capability descriptors for the agent. It is
-not a bounded context, domain service, or capability slot, and it does not map
-one-to-one to internal architecture areas.
+not a bounded context, domain service, or capability slot. As a default it
+does not map one-to-one to internal architecture areas; an instrument may
+align with a single area by name when the agent-visible workbench section and
+the owning area describe the same surface, as `music.experience` does for the
+Music Experience area.
 
 Tool is a callable operation exposed through Stage Interface. A tool delegates
 to the owning area through narrow ports and does not own business
@@ -172,7 +175,7 @@ external-native functionality that has no MineMusic internal integration yet or
 is intentionally provider-native. They must be clearly marked
 provider/plugin-owned, must not write MineMusic state directly, must not bypass
 MineMusic core ownership, and must not pretend their output is `MaterialEntity`,
-Memory, owner facts, or final `MaterialCard`.
+Memory, owner facts, or final `MusicCard`.
 
 Extension-native outputs may enter MineMusic state only through explicit
 import, commit, materialize, bind, memory-adoption, or effect-result
@@ -267,12 +270,16 @@ registrations for Music Intelligence-owned instruments without pulling Stage
 Interface DTOs into `core/retrieval`.
 
 Query output is query result/hit information for the agent's next decision.
-`MaterialCard` is final Stage Interface presentation output. It is not a
-provider candidate, not a query-engine internal result, and not
-`MaterialEntity`.
+`MusicCard` is final Stage Interface presentation output, rendered by a
+consumption tool such as `music.experience.present` from durable material
+facts after any implicit Candidate Commit. It is not a provider candidate,
+not a query-engine internal result, not `MaterialEntity`, and not the domain
+`MusicMaterial`. It is renamed from `MaterialCard`: the agent-visible
+presentation object follows the `music` naming used for library item handles,
+keeping `material` for internal anchors.
 
-Phase 0 does not decide the exact public query hit shape, exact
-query-to-present flow, or final `MaterialCard` key set.
+Phase 0 does not decide the exact public query hit shape; the `MusicCard` key
+set is defined by the Phase 17 `music.experience.present` tool.
 
 Ordinary query paths must not receive writer capability unless the query
 responsibility explicitly includes a named materialization/write boundary.
@@ -309,7 +316,12 @@ canonical identity, owner facts, Memory, or presentation output.
 
 Music Experience owns behavior and state for the active music experience:
 radio mode, queue/now-playing intent, presented recommendations, play/open/skip
-events, feedback binding, pacing, dedupe, and external action intent.
+events, feedback binding, pacing, dedupe, and external action intent. The
+Phase 17 `music.experience.present` consumption tool renders a `MusicCard` and,
+for a candidate handle, implicitly invokes the Music Data Platform Candidate
+Commit owning command (ADR-0011) to admit the item to the library before
+presentation; presented recommendation history remains a later Music Experience
+concern.
 
 Radio Mode has two state levels. Live queue/candidate/pacing state belongs in
 Session Context. Consequential listening session history, presented

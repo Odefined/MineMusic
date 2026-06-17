@@ -220,6 +220,18 @@ identity, duplicate detection, permission checks, or handle resolution.
 _Avoid_: public `descriptor` field, description-as-identity, matched scope provenance,
 rank evidence, internal refs.
 
+### MusicCard
+
+A Public Agent Protocol presentation output that renders one durable music
+item for agent reply and user-facing display. It is produced by a consumption
+tool such as `music.experience.present` from durable material facts, after any
+implicit Candidate Commit when the input is a candidate handle. It is the
+agent-facing presentation object, distinct from the domain `MusicMaterial`
+produced by Material Projection and from the internal `MaterialEntity` /
+`MaterialRecord` identity anchors.
+_Avoid_: MaterialCard, provider candidate card, query hit, internal material
+record, raw provider payload, Public Handle Description.
+
 ### Music Library Scope Handle
 
 A Public Agent Protocol handle that lets an agent reference one durable
@@ -413,17 +425,28 @@ _Avoid_: Stage Interface presentation, durable materialization, public handle.
 
 ### Candidate Commit
 
-The owning-command materialization boundary in Music Data Platform that turns an
-unconfirmed candidate into a durable material through the existing
-source/material/binding write commands and triggers projection invalidation. It
-is the only place an unconfirmed candidate becomes durable identity, and the
-formal successor to the deleted ephemeral-material presentation rule. Its input
-is a Music Item Handle (kind `candidate`), resolved to the internal
-candidate cache inside MineMusic at commit time. On success it returns a Music
-Item Handle of kind `library` for the newly durable item; the input candidate
-handle does not become a durable alias.
-_Avoid_: Stage Interface presentation boundary, inline per-action materialization,
-reviving Material Resolve (Deleted Formal v1 Surface).
+The owning-command materialization boundary in Music Data Platform that turns
+an unconfirmed Material Candidate into a durable material through the existing
+source/material/binding write commands and triggers projection invalidation.
+It is the only place an unconfirmed candidate becomes durable identity, and the
+formal successor to the deleted ephemeral-material presentation rule.
+
+Candidate Commit is an internal owning command, not an agent-facing tool. The
+agent never calls commit directly; a consumption action such as
+`music.experience.present` resolves a Music Item Handle of kind `candidate`
+back to the internal material candidate ref, invokes the commit command, and
+mints a Music Item Handle of kind `library` for the newly durable item. The
+commit command itself receives and returns internal refs
+(`materialCandidateRef` -> `materialRef`); public handle conversion stays on
+the consumption-action side, and the input candidate handle does not become a
+durable alias.
+
+The materialization path is source record, material record, and
+source-to-material binding, with projection invalidation; it does not create a
+Canonical Record, leaving canonical identity to later Canonical Maintenance.
+_Avoid_: Stage Interface presentation boundary, inline per-action
+materialization, agent-direct commit tool, reviving Material Resolve (Deleted
+Formal v1 Surface).
 
 ### Collection Service
 

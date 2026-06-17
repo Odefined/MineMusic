@@ -46,6 +46,12 @@ type ProviderReadRequest = {
   providerId: string;
   request: PlatformLibraryReadInput;
 };
+type SqliteIndexInfoRow = {
+  name: string;
+};
+type SqliteQueryPlanRow = {
+  detail: string;
+};
 
 function createIdentityTestCommands(
   db: Parameters<typeof createIdentityWriteCommands>[0]["db"],
@@ -165,6 +171,36 @@ repositoryDatabase.initialize({
     musicDataPlatformSourceLibrarySchema,
   ],
 });
+
+const outcomeReconciliationIndexName =
+  "source_library_import_item_outcomes_batch_source_outcome_idx";
+assert.deepEqual(
+  repositoryDatabase.context().all<SqliteIndexInfoRow>(
+    `PRAGMA index_info('${outcomeReconciliationIndexName}')`,
+  ).map((row) => row.name),
+  ["batch_id", "source_ref_key", "outcome"],
+);
+assert.ok(
+  repositoryDatabase.context().all<SqliteQueryPlanRow>(
+    `
+      EXPLAIN QUERY PLAN
+      SELECT COUNT(*) AS count
+      FROM source_library_items AS current_items
+      WHERE current_items.library_ref_key = ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM source_library_import_item_outcomes AS observed
+          WHERE observed.batch_id = ?
+            AND observed.outcome IN ('imported', 'already_present')
+            AND observed.source_ref_key = current_items.source_ref_key
+        )
+    `,
+    [
+      "source_library:saved_source_track:l_query_plan_guard",
+      "source_library_import_query_plan_guard",
+    ],
+  ).some((row) => row.detail.includes(outcomeReconciliationIndexName)),
+);
 
 repositoryDatabase.transaction((db) => {
   const commands = createIdentityTestCommands(db, "2026-06-08T00:00:00.000Z");
