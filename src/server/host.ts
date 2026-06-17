@@ -17,9 +17,6 @@ import {
   createMusicDiscoveryRuntimeModule,
   emptyMusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
-import {
-  createExtensionRuntimeRetrievalProviderSearchPort,
-} from "./retrieval_provider_search_adapter.js";
 
 export type ServerHost = {
   start(): Promise<Result<StageRuntimeSnapshot>>;
@@ -70,9 +67,6 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
               return port.query(queryInput);
             },
           },
-          providerSearch: createExtensionRuntimeRetrievalProviderSearchPort({
-            extensionRuntime,
-          }),
           ...(lookupCursorKey === undefined ? {} : { cursorKey: lookupCursorKey }),
         });
   const runtime = input.runtime ?? createStageRuntime({

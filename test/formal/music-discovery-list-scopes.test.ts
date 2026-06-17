@@ -158,8 +158,9 @@ const invalidKind = await stageInterface.dispatch(testStageToolContext(), {
 assert.equal(invalidKind.ok, false);
 
 if (!invalidKind.ok) {
-  assert.equal(invalidKind.error.code, "invalid_input");
-  assert.equal(invalidKind.error.area, "music_intelligence");
+  // An unrecognized kind is rejected by the router input-schema enum (router-global code).
+  assert.equal(invalidKind.error.code, "stage_interface.invalid_input");
+  assert.equal(invalidKind.error.area, "stage_interface");
 }
 
 const runtimeModule = createMusicDiscoveryRuntimeModule({

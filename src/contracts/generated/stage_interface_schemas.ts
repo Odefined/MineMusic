@@ -584,14 +584,7 @@ export const musicListScopesInputSchema = {
       "type": "object",
       "properties": {
         "kind": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ListedMusicScopeKind"
-            },
-            {
-              "type": "string"
-            }
-          ]
+          "$ref": "#/definitions/ListedMusicScopeKind"
         }
       },
       "additionalProperties": false

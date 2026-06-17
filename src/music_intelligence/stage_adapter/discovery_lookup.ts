@@ -28,7 +28,6 @@ import type {
 import {
   isMusicIntelligenceError,
   type RetrievalPool,
-  type RetrievalProviderSearchPort,
   type RetrievalQueryHit,
   type RetrievalQueryInput,
   type RetrievalQueryResult,
@@ -46,7 +45,6 @@ import type {
 export type CreateMusicDiscoveryLookupRegistrationInput = {
   retrievalQuery: RetrievalQueryService;
   scopeAvailability: MusicScopeAvailabilityPort;
-  providerSearch?: RetrievalProviderSearchPort;
   cursorKey?: Uint8Array;
   cursorTtlMs?: number;
 };

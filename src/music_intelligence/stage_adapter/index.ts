@@ -7,7 +7,6 @@ import {
   createMusicDiscoveryLookupRegistration,
 } from "./discovery_lookup.js";
 import type {
-  RetrievalProviderSearchPort,
   RetrievalQueryService,
 } from "../core/retrieval/index.js";
 import type { MusicScopeAvailabilityPort } from "./scope_availability.js";
@@ -42,7 +41,6 @@ export type {
 export function createMusicDiscoveryRuntimeModule(input: {
   scopeAvailability: MusicScopeAvailabilityPort;
   retrievalQuery?: RetrievalQueryService;
-  providerSearch?: RetrievalProviderSearchPort;
   cursorKey?: Uint8Array;
   cursorTtlMs?: number;
 }): RuntimeModule {
@@ -67,7 +65,6 @@ export function createMusicDiscoveryRuntimeModule(input: {
                   createMusicDiscoveryLookupRegistration({
                     retrievalQuery: input.retrievalQuery,
                     scopeAvailability: input.scopeAvailability,
-                    ...(input.providerSearch === undefined ? {} : { providerSearch: input.providerSearch }),
                     ...(input.cursorKey === undefined ? {} : { cursorKey: input.cursorKey }),
                     ...(input.cursorTtlMs === undefined ? {} : { cursorTtlMs: input.cursorTtlMs }),
                   }),
