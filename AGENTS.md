@@ -95,6 +95,10 @@ default.
 - A function should have one failure channel: `Result<T>` for expected failure,
   `throw` for broken invariants or unadapted boundary failures, or plain `T`
   when satisfied preconditions mean success.
+- For internal typed inputs and operations after their owning boundary contract
+  has been satisfied, let broken contracts fail loudly with a throw/assertion.
+  Do not convert internal misuse into fallback values or public expected-failure
+  `Result`s.
 - Catch exceptions only at explicit boundaries: transport, Tool Call Router,
   runtime lifecycle, external provider adapters, database/filesystem/network
   adapters.
@@ -112,6 +116,14 @@ default.
   validation owned by the current layer.
 - Prefer discriminated unions and `assertNever` over impossible-state fallback
   branches.
+- When reviewing code, do not ask whether there is "enough fallback"; ask
+  whether each catch or fallback belongs to the current boundary owner. Boundary
+  translation, explicit recovery, and audit are allowed. Broad handler/domain
+  catch-all logic, schema/type/DB duplicate validation, unknown-case ignore, and
+  empty-result recovery for system failure are findings.
+- Empty arrays or defaults are product semantics only when they mean "truly no
+  domain result"; they must not stand in for provider, DB, permission, schema,
+  or runtime failure.
 
 ## Working Sequence
 
