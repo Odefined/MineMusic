@@ -84,7 +84,9 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
   const libraryImportModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
       ? undefined
-      : createLibraryImportServerRuntimeModule();
+      : createLibraryImportServerRuntimeModule({
+          extensionRuntime,
+        });
   const runtime = input.runtime ?? createStageRuntime({
     modules: input.modules ?? [
       ...(musicDataPlatformModule === undefined ? [] : [musicDataPlatformModule]),

@@ -263,7 +263,7 @@ function assertToolInstruments(
 
 function assertToolDeclarations(tools: readonly ToolDeclaration[]): void {
   for (const tool of tools) {
-    if (!/^(music|stage)\.[a-z][a-z0-9_]*$/u.test(tool.instrumentId)) {
+    if (!/^(music|library|stage)\.[a-z][a-z0-9_]*$/u.test(tool.instrumentId)) {
       throw new Error(`Tool '${tool.name}' uses invalid instrument namespace '${tool.instrumentId}'.`);
     }
 

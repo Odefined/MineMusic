@@ -519,11 +519,12 @@ remains the anticipated future `runtimePolicy` dimension.
 
 ## Naming and Namespaces
 
-- Instrument id: `<namespace>.<area>` (`music.discovery`, `stage.runtime`).
+- Instrument id: `<namespace>.<area>` (`music.discovery`, `library.import`,
+  `stage.runtime`).
 - Tool name: `<instrumentId>.<action>` (`music.discovery.lookup`,
-  `stage.runtime.status`).
-- Rule: one namespace per agent-facing domain. `music.` and `stage.` are the
-  first two; others are added when their domains ship tools.
+  `library.import.list_sources`, `stage.runtime.status`).
+- Rule: one namespace per agent-facing domain. `music.`, `library.`, and
+  `stage.` are the current top-level Public Agent Protocol namespaces.
 - Names are stable, snake/dot-safe, and carry no provider or internal-implementation
   names.
 
@@ -543,7 +544,7 @@ distinguishes existing asserts from new architecture tests:
 2. tool name uniqueness — existing `createStageInterface` assert;
 3. every tool references an existing instrument — existing `assertToolInstruments`;
 4. compact-public output invariant — every model-visible tool's `outputSchema` is compact and uses public handles only (architecture test on schema shape; there is no per-tool `outputPolicy` field in v1);
-5. namespace rule (`^(music|stage)\.` and `name = instrumentId + "." + action`) — NEW;
+5. namespace rule (`^(music|library|stage)\.` and `name = instrumentId + "." + action`) — NEW;
 6. `sideEffect` is declared — NEW;
 7. `invocationPolicy` is declared — NEW;
 8. `description`, `usage`, and positive/negative `examples` are present for every model-visible tool — NEW;

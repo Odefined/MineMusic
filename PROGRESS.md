@@ -1060,6 +1060,24 @@ library intake:
 - Tests cover the new intake qualifier while preserving read-only auto,
   presentation-driven admission, durable-write ask fallback, and deny behavior.
 
+## 2026-06-18: Phase 18C Library Import Source Listing
+
+Phase 18C adds the first public `library.import.*` tool without starting import
+writes:
+
+- `library.import.list_sources` is contributed by Music Data Platform through
+  `src/music_data_platform/stage_adapter/`.
+- The tool enumerates Extension platform-library-provider descriptor metadata
+  only; it returns provider id, label, optional `accountRequired`, and
+  provider-neutral descriptions for importable library kinds.
+- The default Server Host exposes the tool alongside `music.discovery.*`,
+  `music.experience.present`, and `stage.runtime.status`.
+- The Server Host adapter maps Extension Runtime provider registrations into a
+  narrow source-listing port and does not call provider account-library reads.
+- Tests cover NCM source metadata, empty provider lists, invalid input,
+  metadata-only behavior with provider reads guarded, generated schemas,
+  active-tree file shape, and default Host tool wiring.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

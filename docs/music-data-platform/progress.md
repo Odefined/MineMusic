@@ -1,6 +1,6 @@
 # Music Data Platform Progress
 
-> Status: Implemented through Phase 18A Library Import stage-adapter skeleton
+> Status: Implemented through Phase 18C Library Import source listing
 > Scope: Implementation state and verification for Music Data Platform
 
 ## Implemented
@@ -62,9 +62,14 @@
 - `src/music_data_platform/source_library_import.ts` implements the internal
   Library Import application service with `startImport` and
   `continueImport`.
-- `src/music_data_platform/stage_adapter/index.ts` contributes the empty
-  `library-import` RuntimeModule home for future `library.import.*` tools.
-  Phase 18A adds no public import tool descriptors or handlers.
+- `src/music_data_platform/stage_adapter/index.ts` contributes the
+  `library-import` RuntimeModule, the `library.import` instrument, and the
+  read-only `library.import.list_sources` tool registration.
+- `src/music_data_platform/stage_adapter/list_sources.ts` implements
+  metadata-only Library Import source listing over a narrow
+  `PlatformLibrarySourceListingPort`; it maps provider descriptors to
+  provider id/label/account requirement plus provider-neutral library-kind
+  descriptions and does not read provider account-library pages.
 - Library Import consumes a narrow `PlatformLibraryReadPort`; it does not
   import Extension plugin implementations or concrete provider code.
 - Library Import calls source-library commands and identity commands to upsert
@@ -321,7 +326,8 @@ Out of the current Music Data Platform implementation:
   and public maintenance controls;
 - signals, wrong-version, not-playable, bad-match, feedback, or correction
   fact families;
-- concrete public Stage Interface import tool registrations;
+- write-capable public Stage Interface import tool registrations
+  (`library.import.start`, `.continue`, and `.status`);
 - direct source-canonical evidence model;
 - canonical review/merge/split workflow;
 - command audit;

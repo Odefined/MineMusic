@@ -328,7 +328,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   registry schema, internal Library Import service wiring, Retrieval query
   wiring, and Music Scope availability adapter.
 - `src/server/library_import_runtime_module.ts`: Server Host shim for the
-  MDP-owned Library Import Stage Adapter RuntimeModule skeleton.
+  MDP-owned Library Import Stage Adapter RuntimeModule, adapting Extension
+  platform-library-provider descriptor metadata into the source-listing port.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
@@ -428,9 +429,12 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   projection maintenance rebuild runner.
 - `src/music_data_platform/source_library_import.ts`: internal Library Import
   application service that calls source-library and identity commands.
+- `src/music_data_platform/stage_adapter/list_sources.ts`: MDP Library Import
+  Stage Adapter descriptor/handler for read-only `library.import.list_sources`
+  source metadata listing.
 - `src/music_data_platform/stage_adapter/index.ts`: MDP Library Import
-  Stage Adapter boundary and empty `library-import` RuntimeModule contribution
-  for future `library.import.*` tools.
+  Stage Adapter boundary and `library-import` RuntimeModule contribution for
+  the `library.import` instrument and source-listing tool.
 - `src/music_data_platform/index.ts`: Music Data Platform public exports.
 
 The previous MVP runtime source and tests were removed from active tree and are

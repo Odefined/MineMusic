@@ -79,6 +79,7 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
   },
 ]);
 assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name), [
+  "library.import.list_sources",
   "music.discovery.list_scopes",
   "music.discovery.lookup",
   "music.experience.present",

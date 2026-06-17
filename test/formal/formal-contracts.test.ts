@@ -4,7 +4,7 @@ import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEnt
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
+import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
 
@@ -218,6 +218,20 @@ export type _sourceLibraryImportControlShapes = Expect<
 
 export type _stageInterfaceContractShape = Expect<
   Equal<keyof StageInterfaceContract, "instruments" | "tools">
+>;
+
+export type _libraryImportListSourcesPublicShape = Expect<
+  Equal<LibraryImportLibraryKind, PlatformLibraryKind> &
+    Equal<keyof LibraryImportListSourcesInput, string> &
+    Equal<keyof LibraryImportListSourcesOutput, "sources"> &
+    Equal<
+      keyof LibraryImportListSourcesOutput["sources"][number],
+      "providerId" | "label" | "accountRequired" | "libraryKinds"
+    > &
+    Equal<
+      keyof LibraryImportListSourcesOutput["sources"][number]["libraryKinds"][number],
+      "kind" | "label" | "description"
+    >
 >;
 
 export type _stageToolDeclarationShape = Expect<

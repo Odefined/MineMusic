@@ -1002,6 +1002,96 @@ export const musicListScopesOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const libraryImportListSourcesInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryImportListSourcesInput",
+  "definitions": {
+    "LibraryImportListSourcesInput": {
+      "type": "object",
+      "additionalProperties": {
+        "not": {}
+      }
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryImportListSourcesOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryImportListSourcesOutput",
+  "definitions": {
+    "LibraryImportListSourcesOutput": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryImportSource"
+          }
+        }
+      },
+      "required": [
+        "sources"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportSource": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "accountRequired": {
+          "type": "boolean",
+          "const": true
+        },
+        "libraryKinds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LibraryImportLibraryKindDescription"
+          }
+        }
+      },
+      "required": [
+        "providerId",
+        "label",
+        "libraryKinds"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportLibraryKindDescription": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/LibraryImportLibraryKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryImportLibraryKind": {
+      "type": "string",
+      "enum": [
+        "saved_source_track",
+        "saved_source_album",
+        "followed_source_artist"
+      ]
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicDiscoveryLookupOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$ref": "#/definitions/MusicDiscoveryLookupOutput",

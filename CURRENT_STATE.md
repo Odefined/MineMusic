@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 17 and PR 18A of Phase 18 in a same-repo formal
+MineMusic has completed Phase 17 and PR 18A-C of Phase 18 in a same-repo formal
 rebuild. The active TypeScript tree is a formal runtime skeleton with Phase 1
 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
@@ -65,13 +65,16 @@ Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
 the `music.experience.present` consumption tool that returns a stable library
 handle and a leak-free `MusicCard`. Phase 18A introduces the `library.`
 Public Agent Protocol namespace, keeps Library Import owned by Music Data
-Platform rather than a new top-level area, adds an empty MDP-owned
-`library-import` RuntimeModule under `src/music_data_platform/stage_adapter/`,
-and mounts its Server Host composition skeleton without contributing
-`library.import.*` tools yet. Phase 18B adds the Effect Boundary
+Platform rather than a new top-level area, and adds the initially empty
+MDP-owned `library-import` RuntimeModule under
+`src/music_data_platform/stage_adapter/`. Phase 18B adds the Effect Boundary
 `intakeDrivenByUserRequest` invocation-policy qualifier (ADR-0022), allowing
 future owner-scoped `library.import.start` / `.continue` calls to auto-pass with
 metadata audit while unqualified durable writes still route to `ask`.
+Phase 18C adds read-only `library.import.list_sources`, backed by Extension
+platform-library-provider descriptor metadata only; it exposes NCM's three
+importable library kinds with provider-neutral descriptions and no provider or
+account-library probes.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 
@@ -508,7 +511,7 @@ The active TypeScript tree is now a formal skeleton:
 - `src/stage_core/index.ts` owns Stage Core public exports;
 - `src/server/host.ts` owns the thin Server Host lifecycle wrapper, exposes the
   internal source-library import service seam after startup, and composes the
-  default `music-discovery` runtime module;
+  default runtime module graph;
 - `src/server/config.ts` owns default runtime composition config, including
   overall database/import config and plugin-id keyed NCM config;
 - `src/server/music_data_platform_runtime_module.ts` owns Server Host
@@ -606,19 +609,23 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_intelligence/stage_adapter/index.ts` owns the Stage Adapter
   subtree boundary and `music.discovery` RuntimeModule contribution;
 - `src/music_intelligence/index.ts` owns Music Intelligence public exports.
+- `src/music_data_platform/stage_adapter/list_sources.ts` owns the
+  `library.import.list_sources` descriptor and handler factory for read-only
+  provider descriptor metadata listing;
 - `src/music_data_platform/stage_adapter/index.ts` owns the MDP Library Import
-  Stage Adapter subtree and currently contributes the empty `library-import`
-  RuntimeModule for future `library.import.*` tools.
+  Stage Adapter subtree and contributes the `library-import` RuntimeModule,
+  the `library.import` instrument, and the read-only source-listing tool.
 - `src/server/library_import_runtime_module.ts` owns the Server Host shim that
-  mounts the MDP Library Import RuntimeModule skeleton.
+  mounts the MDP Library Import RuntimeModule and adapts Extension
+  platform-library-provider descriptor metadata into the source-listing port.
 
 The current runtime starts in `created`, initializes required runtime modules
 through Server Host, mounts a configured Extension runtime module by default,
 builds Stage Interface from module contributions, exposes
-`music.discovery.list_scopes`, `music.discovery.lookup`,
-`music.experience.present`, and `stage.runtime.status`, and supports compact
-lifecycle snapshots. The default module graph also includes the empty
-`library-import` RuntimeModule; it contributes no public tools yet. All runtime
+`library.import.list_sources`, `music.discovery.list_scopes`,
+`music.discovery.lookup`, `music.experience.present`, and
+`stage.runtime.status`, and supports compact lifecycle snapshots. The default
+module graph includes the required `library-import` RuntimeModule. All runtime
 modules are required. The runtime does not
 support optional modules, dependency resolution, dynamic plugin loading, plugin
 dependencies, retry, reload, or restart.
@@ -635,10 +642,13 @@ schemas through the `music-data-platform` runtime module. It initializes an
 internal Library Import service backed by the configured Extension runtime and
 an internal Retrieval query service backed by Music Data Platform read/mixed
 retrieval ports plus Extension Runtime source-provider search. It also exposes
-the read-only `music.discovery.list_scopes` Stage Interface tool over local
-Music Scope availability metadata and the text-driven
-`music.discovery.lookup` Stage Interface retrieval tool. It does not expose
-concrete public Stage Interface import, save, play, or candidate-commit tools.
+the read-only `library.import.list_sources` Stage Interface tool over
+platform-library-provider descriptor metadata, the read-only
+`music.discovery.list_scopes` Stage Interface tool over local Music Scope
+availability metadata, and the text-driven `music.discovery.lookup` Stage
+Interface retrieval tool. It does not expose write-capable
+`library.import.start`, `.continue`, or `.status`, save, play, or standalone
+candidate-commit tools.
 
 The old MVP runtime roots, provider integrations, storage adapters, material
 flow, source grounding, collection service, library import runtime, Codex skill
@@ -794,8 +804,8 @@ vocabulary authority lives in
 
 Current formal state does not implement:
 
-- concrete public Stage Interface import, save, play, favorite, or standalone
-  candidate-commit tools;
+- write-capable `library.import.start`, `.continue`, `.status`, save, play,
+  favorite, or standalone candidate-commit tools;
 - generic provider platform/runtime;
 - provider account instances, login, cookies, OAuth, secrets, or reauth;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
@@ -808,9 +818,9 @@ Current formal state does not implement:
 - advanced scheduler wake/backoff policy, multi-worker coordination, or
   synchronous import-path projection refresh;
 - recommendation, radio, memory, or effect runtime behavior;
-- handbook tools or music-domain tools beyond `music.discovery.list_scopes`,
-  `music.discovery.lookup`, `music.experience.present`, and the internal
-  runtime status tool.
+- handbook tools or music-domain tools beyond `library.import.list_sources`,
+  `music.discovery.list_scopes`, `music.discovery.lookup`,
+  `music.experience.present`, and the internal runtime status tool.
 
 Later phases rebuild those areas directly from formal architecture and
 contracts.

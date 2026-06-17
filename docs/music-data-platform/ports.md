@@ -1,7 +1,7 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 18A
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import stage-adapter skeleton
+> Status: Current boundary authority through implemented Phase 18C
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import source-listing stage adapter
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
@@ -10,8 +10,8 @@ relation commands/read port, owner catalog
 projection commands/read port, material text projection commands/read port,
 projection maintenance commands/reads/runner, the retrieval read port, mixed
 retrieval workspace, schema contributions, runtime retrieval result-set
-records/cache helpers, the Library Import stage-adapter RuntimeModule skeleton,
-a material
+records/cache helpers, the Library Import stage-adapter RuntimeModule and
+metadata-only source-listing tool, a material
 ref factory, a top-level source-of-truth write facade, and error types. It
 consumes generic Storage database ports and a
 narrow provider-library read port, but does not know SQLite primitives or
@@ -43,7 +43,8 @@ provider plugin implementations.
 | `createMaterialRefFactory` | Library Import service/composition/tests | Opaque MineMusic material ref generation for new material anchors. | `src/music_data_platform/material_ref_factory.ts` |
 | `createMusicDataPlatformSourceOfTruthWriteCommands` | Workflow-facing Music Data Platform callers/tests | Top-level source-of-truth write facade that wires identity/source-library/owner-relation writes through projection invalidation; owner-scoped workflow writes currently accept only `DEFAULT_OWNER_SCOPE`, and source-library batch-record methods re-read the persisted batch by `batchId` before delegating. | `src/music_data_platform/source_of_truth_write_commands.ts` |
 | `createSourceLibraryImportService` | Server Host composition/tests/smoke | Start/continue account-library import batches through a narrow provider read port and owning commands. | `src/music_data_platform/source_library_import.ts` |
-| `createLibraryImportRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule home for the future `library.import.*` public tool surface; Phase 18A contributes no instruments or tools. | `src/music_data_platform/stage_adapter/index.ts` |
+| `createLibraryImportRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule for `library.import.*`; contributes the `library.import` instrument and read-only `library.import.list_sources` tool over a metadata-only source-listing port. | `src/music_data_platform/stage_adapter/index.ts` |
+| `createLibraryImportListSourcesRegistration` | Server Host composition / Stage Core | Stage Interface registration for read-only import source listing. Returns provider id/label/account requirement and provider-neutral importable library-kind descriptions without reading provider account pages. | `src/music_data_platform/stage_adapter/list_sources.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild library-scope source-library projection plus material-scope source-library and owner-relation catalog entries through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
@@ -68,7 +69,8 @@ provider plugin implementations.
 | `Ref` / `refKey(ref)` | Contracts | Identity key validation and persisted `ref_key` derivation. | Ref fields. | None. |
 | Source/material/canonical/source-library/provider-candidate contracts | Contracts | Record, command, provider candidate, import status, and runtime candidate cache shapes. | Entity/record/candidate fields. | None. |
 | `PlatformLibraryReadPort` | Server Host composition, usually backed by Extension Runtime | Read provider account-library pages for one provider/kind/cursor. | `readPlatformLibraryProvider`. | None. |
-| `RuntimeModule` | Stage Core | Contribute the empty `library-import` runtime module in Phase 18A; later slices add Stage Interface registrations from the same adapter boundary. | Descriptor/initialize contract. | None. |
+| `PlatformLibrarySourceListingPort` | Server Host composition, backed by Extension Runtime provider descriptors | Enumerate registered platform-library-provider descriptor metadata for `library.import.list_sources`. | `listPlatformLibrarySources`. | None. |
+| `RuntimeModule` | Stage Core | Contribute the `library-import` runtime module and its Stage Interface registrations from the Music Data Platform stage-adapter boundary. | Descriptor/initialize contract. | None. |
 
 ## Repository Ports
 
@@ -318,7 +320,8 @@ Current guards:
 
 - source-canonical binding tables;
 - command audit;
-- public import tools;
+- write-capable public import tools (`library.import.start`, `.continue`, and
+  `.status`);
 - update baselines, local pool algebra,
   owner-scoped/public query surfaces, text-query integration, and
   presentation;

@@ -224,6 +224,7 @@ assert.deepEqual(
     "src/music_data_platform/source_library_schema.ts",
     "src/music_data_platform/source_of_truth_write_commands.ts",
     "src/music_data_platform/stage_adapter/index.ts",
+    "src/music_data_platform/stage_adapter/list_sources.ts",
     "src/music_data_platform/timestamp_validation.ts",
   ],
   "formal Music Data Platform root must not grow unrelated implementations",

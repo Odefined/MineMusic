@@ -242,6 +242,30 @@ export type MusicListScopesOutput = {
   scopes: readonly ListedMusicScope[];
 };
 
+export type LibraryImportListSourcesInput = Record<string, never>;
+
+export type LibraryImportLibraryKind =
+  | "saved_source_track"
+  | "saved_source_album"
+  | "followed_source_artist";
+
+export type LibraryImportLibraryKindDescription = {
+  kind: LibraryImportLibraryKind;
+  label: string;
+  description: string;
+};
+
+export type LibraryImportSource = {
+  providerId: string;
+  label: string;
+  accountRequired?: true;
+  libraryKinds: readonly LibraryImportLibraryKindDescription[];
+};
+
+export type LibraryImportListSourcesOutput = {
+  sources: readonly LibraryImportSource[];
+};
+
 export type MusicDiscoveryLookupInput =
   | {
     lookupText: string;

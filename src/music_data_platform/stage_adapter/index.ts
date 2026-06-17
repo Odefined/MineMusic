@@ -1,6 +1,30 @@
 import type { RuntimeModule } from "../../stage_core/runtime_module.js";
+import {
+  createLibraryImportListSourcesRegistration,
+  libraryImportInstrument,
+} from "./list_sources.js";
+import type {
+  PlatformLibrarySourceListingPort,
+} from "./list_sources.js";
 
-export function createLibraryImportRuntimeModule(): RuntimeModule {
+export {
+  createLibraryImportListSourcesRegistration,
+  libraryImportInstrument,
+  libraryImportListSourcesDescriptor,
+} from "./list_sources.js";
+export type {
+  CreateLibraryImportListSourcesRegistrationInput,
+  PlatformLibrarySourceDescriptor,
+  PlatformLibrarySourceListingPort,
+} from "./list_sources.js";
+
+export type CreateLibraryImportRuntimeModuleInput = {
+  sourceListing: PlatformLibrarySourceListingPort;
+};
+
+export function createLibraryImportRuntimeModule(
+  input: CreateLibraryImportRuntimeModuleInput,
+): RuntimeModule {
   return {
     descriptor: {
       id: "library-import",
@@ -10,7 +34,14 @@ export function createLibraryImportRuntimeModule(): RuntimeModule {
     async initialize() {
       return {
         ok: true,
-        value: {},
+        value: {
+          instruments: [libraryImportInstrument],
+          tools: [
+            createLibraryImportListSourcesRegistration({
+              sourceListing: input.sourceListing,
+            }),
+          ],
+        },
       };
     },
   };

@@ -1,5 +1,6 @@
 import type {
   MusicMaterial,
+  PlatformLibraryKind,
   PlayableLink,
 } from "./music_data_platform.js";
 import type {
@@ -95,6 +96,29 @@ export function providerMusicScopeDescription(input: {
     label: cleanLabelPart(input.providerName) ?? "Provider",
     ...(input.detailText === undefined ? {} : { detailText: input.detailText }),
   });
+}
+
+export function libraryImportLibraryKindDescription(kind: PlatformLibraryKind): {
+  label: string;
+  description: string;
+} {
+  switch (kind) {
+    case "saved_source_track":
+      return {
+        label: "Saved recordings",
+        description: "Recordings saved in the connected source library.",
+      };
+    case "saved_source_album":
+      return {
+        label: "Saved albums",
+        description: "Albums saved in the connected source library.",
+      };
+    case "followed_source_artist":
+      return {
+        label: "Followed artists",
+        description: "Artists followed in the connected source library.",
+      };
+  }
 }
 
 export function musicLookupItemLabel(input: {

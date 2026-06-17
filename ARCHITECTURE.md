@@ -218,6 +218,9 @@ Agent-facing Library Import tools, when exposed, live under the Music Data
 Platform `stage_adapter` boundary. The adapter may import Stage Interface
 contracts and translate internal import results into compact public outputs; MDP
 core services remain Stage Interface-free and expose only narrow internal ports.
+The read-only `library.import.list_sources` tool is provider descriptor metadata
+listing only; it must not read provider account-library pages or probe provider
+availability.
 
 All MineMusic writes are command-owned. A write is any mutation of durable or
 runtime state, including source facts, import batches, item outcomes,

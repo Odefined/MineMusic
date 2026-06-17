@@ -1,6 +1,6 @@
 # Phase 18 Library Import Tools Implementation Plan
 
-> Status: Phase 18 spec and execution plan; PR 18A-B implemented, PR 18C-E pending.
+> Status: Phase 18 spec and execution plan; PR 18A-C implemented, PR 18D-E pending.
 > Spec authority: this document plus CONTEXT.md (Public Agent Protocol namespace rule and
 > Music Library Scope Handle source rule),
 > ADR-0005 (unchanged nine-area taxonomy; instruments/tools are not bounded contexts),
