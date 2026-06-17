@@ -13,6 +13,17 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `CONTEXT.md`: pre-formal vocabulary file; not formal rebuild authority unless
   explicitly refreshed later.
 
+## Agent Operating Docs
+
+- `docs/agents/task-classes.md`: task classification and execution-intensity
+  rules for planning, guards, verification, and state sync. It is not
+  architecture, vocabulary, or documentation-structure authority.
+- `docs/agents/domain.md`: engineering-skill guidance for consuming domain
+  docs and ADRs.
+- `docs/agents/issue-tracker.md`: GitHub issue tracker conventions.
+- `docs/agents/triage-labels.md`: mapping from canonical triage roles to this
+  repo's GitHub labels.
+
 ## Formal Rebuild
 
 - `docs/formal-project-glossary.md`: formal target vocabulary and

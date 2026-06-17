@@ -1,358 +1,165 @@
 # AGENTS.md
 
-This file defines how coding agents should work in this repository.
-
-## Purpose
-
-This project expects coding agents to make minimal, verifiable, architecture-aligned changes.
-Agents should optimize for correctness, traceability, and preserving existing project patterns.
-
-## Operating Principles
-
-1. Reuse before creating new abstractions, files, or layers.
-2. Prefer small diffs over broad rewrites.
-3. Preserve existing architecture, naming, and directory conventions unless the task explicitly requires change.
-4. Do not silently broaden scope. Record adjacent issues as findings unless they block the requested work.
-5. Back claims with repository evidence. Cite concrete files, commands, tests, or diffs when relevant.
-6. Treat architecture boundaries as first-class deliverables, not optional cleanup after implementation.
-7. Prefer fewer features with clean ownership over more features with mixed responsibilities.
-
-## Project-Wide Architecture Discipline
-
-These constraints apply to all future non-trivial MineMusic work, not only to the module currently being edited.
-Do not bypass them for convenience, MVP speed, or because an existing broad dependency already happens to work.
-If a task appears to require violating one of these constraints, explicitly call out the conflict and either narrow the design or record the violation as a deliberate architectural exception.
-
-Before proposing, planning, or implementing a non-trivial change, identify:
-
-1. the bounded context that owns the behavior;
-2. the exact read capabilities required;
-3. the exact write capabilities required;
-4. the public port or interface that should expose those capabilities;
-5. the modules this change is allowed to import;
-6. the modules this change must not import;
-7. the architecture test or type-level guard that prevents boundary regression.
-
-A design or PR plan is incomplete until these items are answered.
-
-### Ownership and module boundaries
-
-- A module should own one coherent responsibility. Do not place projection, query orchestration, materialization, persistence writes, presentation shaping, and provider integration in one module merely because they are related to the same entity.
-- Do not import a module just to reuse a helper when that helper belongs to a different responsibility. Extract the helper to the owning bounded context first.
-- Stage Interface code owns agent-facing tool schemas, validation, compact presentation, and dispatch glue. Domain modules must not depend on Stage Interface output DTOs or presentation helpers.
-- Domain modules must not import presentation-layer, tool-definition, or agent-output modules.
-- Composition roots may wire broad concrete implementations into narrow consumers, but ordinary domain services must receive narrow capability ports.
-
-### Port and capability rules
-
-- Full aggregate ports are high-risk dependencies. A module may receive a full aggregate port only when it is a composition root, a store implementation, an explicit writer-heavy service boundary, or a test/harness that intentionally exercises the aggregate.
-- Ordinary domain modules must depend on narrow ports that expose only the methods they actually use.
-- Read-like services must not directly receive write capabilities unless the write is explicitly part of the service responsibility and the port name says so.
-- Methods with side effects or persistence semantics, including `getOrCreate*`, `put*`, `upsert*`, `merge*`, `attach*`, `promote*`, `record*`, and `delete*`, must not hide behind vague query/read/support ports.
-- If a query path needs materialization, persistence, or mutation, introduce an explicitly named writer/materializer boundary rather than passing a broad store into the query module.
-- When introducing a new narrow port, prefer exact capability names and add a type-level or architecture test guard when practical.
-
-### Command-owned write rules
-
-All writes must go through the owning command/materializer/projection-maintenance
-boundary. This rule applies to any durable or runtime state mutation, not only
-to source-of-truth fact writes.
-
-Write means any operation that creates, updates, deletes, merges, marks,
-enqueues, advances, completes, fails, rebuilds, or persists state. Examples
-include SQL `run(...)`, repository `insert`/`upsert`/`delete` calls, import
-batch/outcome updates, projection rebuilds, dirty-target marking, cache writes,
-event writes, and snapshot writes.
-
-Allowed direct write locations are narrow:
-
-- repository implementations that own mechanical table persistence;
-- owning command/materializer/projection command modules that express business
-  write intent and coordinate repositories;
-- schema/migration/storage infrastructure that owns DDL or adapter internals;
-- tests and fixtures that intentionally exercise low-level persistence.
-
-Orchestration/workflow modules, including import services, query services,
-Stage Interface handlers, provider/plugin adapters, presentation code, and
-ordinary domain services, must not construct repositories or call repository
-write methods directly. They must call an owning command or introduce one
-before adding the write.
-
-`create*Repositories(...)` factories create low-level persistence accessors.
-They are not business write APIs. Seeing a repository factory in production
-workflow code is an architecture violation unless that file is itself the
-owning command/read/projection implementation.
-
-Every PR that adds or moves a write must name the owning command boundary and
-add or update an architecture guard that would fail if the write were placed in
-an orchestration layer.
-
-### Import direction rules
-
-- Dependencies should point from orchestration to owned capabilities, not from lower-level domain modules back into Stage Interface, presentation, or runtime assembly.
-- A boundary module may depend on a lower-level capability port, but the lower-level capability must not depend on the boundary module that calls it.
-- Avoid circular conceptual dependencies even if TypeScript permits the import graph.
-- If two modules need each other's helpers, the helpers probably belong in a third, narrower module.
-
-### Architecture tests are required for new boundaries
-
-A boundary rule is not considered complete if it exists only in prose.
-Whenever a change introduces or clarifies an architectural boundary, add or update a project-native guard when feasible, such as:
-
-- a forbidden-import architecture test;
-- an exact port key-set assertion;
-- a test that verifies a tool/output boundary does not leak internal records;
-- a test that verifies a writer capability is available only through the intended port.
-
-If an architecture test is not feasible in the same PR, the PR must state why and list the missing guard as follow-up work.
-
-### Scope and PR planning rules
-
-Every non-trivial PR plan must include:
-
-- goal;
-- non-goals;
-- owned bounded context;
-- allowed read capabilities;
-- allowed write capabilities;
-- files expected to change;
-- files or subsystems explicitly out of scope;
-- architecture tests or guards to add/update;
-- behavior tests to run;
-- acceptance criteria for each phase.
-
-Do not merge unrelated cleanup into a feature PR. If an adjacent boundary problem is discovered, either include it as a clearly separated phase with its own tests or record it as follow-up.
-
-### Review rules
-
-When reviewing a PR, check architecture before style:
-
-1. Does the change preserve bounded-context ownership?
-2. Does any module receive a broader port than it needs?
-3. Are writer capabilities hidden behind read/query/support names?
-4. Did any domain module import Stage Interface, presentation, runtime assembly, or unrelated bounded contexts?
-5. Are helpers placed in the module that owns their responsibility?
-6. Are architecture guards present for new or clarified boundaries?
-7. Is the PR scope limited to its stated goal and non-goals?
-8. Are behavior, schemas, event payloads, and storage formats unchanged unless explicitly in scope?
-
-A PR that compiles but violates these rules is not architecturally complete.
-
-## Session Startup
-
-Before making non-trivial changes, inspect only the context needed to work safely:
-
-- `AGENTS.md`
-- `INDEX.md`
-- `README.md`
-- `ARCHITECTURE.md`
-- `CURRENT_STATE.md`
-- `PROGRESS.md`
-- relevant package manifests, build scripts, and test config
-
-If a more local `AGENTS.md` exists in a subdirectory, it overrides the root file for that subtree.
-
-## Working Mode
-
-Use this default sequence for non-trivial work:
-
-1. Understand the request and define scope.
-2. Identify the owning bounded context and architecture boundary.
-3. Inspect the relevant code paths and current behavior.
-4. Identify allowed reads, allowed writes, required ports, and forbidden imports.
-5. State a short working plan:
-   - goal
-   - owned bounded context
-   - files to inspect
-   - expected edits
-   - allowed read/write capabilities
-   - architecture guard or test plan
-   - verification method
-   - stopping condition
-6. Implement the smallest change that satisfies the task without weakening boundaries.
-7. Verify with tests, lint, typecheck, architecture guards, or other project-native checks.
-8. Run the state-sync gate described below.
-9. Report what changed, what was verified, and what remains uncertain.
-
-For risky or architecture-affecting changes, use an explicit approval gate before large edits.
-
-## Scope Control
-
-- Do not rewrite working systems just to improve style.
-- Do not rename, move, or reformat unrelated files.
-- Do not replace local patterns with personal preferences unless requested.
-- Do not modify generated files unless the repo treats them as source of truth.
-- If you discover a separate bug, note it separately unless it must be fixed to complete the task.
-
-## Project State Constraints
-
-- Treat existing local imported library, canonical, collection, and provider
-  runtime data as development/test data unless the user explicitly says
-  otherwise.
-- Do not preserve old import or provisional-canonical behavior solely for
-  backward compatibility with current local test data.
-- Do not add migrations, repair tools, or compatibility layers for test-era
-  MineMusic state unless the task explicitly asks for them.
-
-## Code Change Rules
-
-- Follow existing code style before introducing new style choices.
-- Match local naming and module boundaries.
-- Prefer extending existing modules over creating parallel implementations.
-- Add comments only where the logic is not self-evident.
-- Avoid speculative abstractions.
-- Keep public API changes explicit and documented.
-- Do not treat broad existing dependencies as precedent for new broad dependencies.
-- When a helper does not belong to the module that currently contains it, extract it to the owning bounded context before expanding its usage.
-
-## Agent-Facing Output Rules
-
-- Every output returned to an agent-facing tool or instrument must include only
-  information needed for the caller's next decision or user-visible answer.
-- Prefer compact summaries, aggregate counts, progress, opaque ids, and
-  explicit follow-up/detail tools over dumping full records, raw provider
-  payloads, unchanged rows, repeated metadata, or debug-only fields.
-- Do not expose internal storage shape, provider implementation details,
-  canonical/collection internals, or redundant fields just because they are
-  available in the owning module.
-- For import/update/list flows, unchanged existing items are internal state and
-  must not be returned as per-item agent output unless the caller explicitly
-  requested a detail/audit view.
-
-## File and Architecture Rules
-
-- Confirm the owning module before editing shared utilities or cross-cutting code.
-- Check importers, tests, docs, and configuration when changing a public interface.
-- When adding a file, justify why an existing file cannot own the change.
-- When moving code, preserve behavior first and refactor second.
-- Do not consider a boundary migration complete until both type-level dependencies and module import direction are clean.
-- Architecture documentation and architecture tests must be updated when a PR establishes, narrows, or moves a boundary.
-
-## Search and Inspection
-
-- Prefer `rg` and `rg --files` for search.
-- Read representative files first, not every file in a directory.
-- Trace the happy path before exploring edge integrations.
-- Stop exploring once inputs, outputs, and component boundaries are clear.
-
-## Testing and Verification
-
-- Use project-native verification commands whenever possible.
-- For code changes, run the narrowest meaningful check first, then broader checks if needed.
-- When changing behavior, add or update tests unless the repo has a clear reason not to.
-- When changing architecture boundaries, add or update architecture tests unless infeasible and documented.
-- If verification could not be completed, say exactly what was not run and why.
-- Do not mark work as verified unless the verification target, method, and outcome are clear.
-
-## Git and Safety
-
-- Never use destructive commands such as `git reset --hard` or `git checkout --` unless explicitly requested.
-- Do not overwrite user changes you did not author.
-- Avoid force-push unless the user explicitly asks for it.
-- Use feature branches for non-trivial work when the repo workflow expects them.
-
-## Review and PR Work
-
-When implementing review feedback:
-
-1. Group comments by theme or file.
-2. Distinguish required fixes from optional suggestions.
-3. Apply behavior-preserving fixes first.
-4. Re-run relevant verification after each logical group of changes.
-5. Summarize which comments were addressed and which remain open.
-
-## Documentation Updates
-
-Update documentation when code changes affect:
-
-- setup steps
-- developer workflow
-- public APIs
-- configuration
-- architecture decisions
-- deployment behavior
-
-Prefer updating existing docs over creating new top-level docs unless a new document is clearly warranted.
-
-For documentation-structure work, documentation/code alignment, archival, or
-current-authority cleanup, follow
-`docs/maintenance/documentation-architecture.md`. That document defines root
-document roles, area document roles, `ports.md` requirements, archive rules,
-and the docs-guard scope for the alignment sweep.
-
-Design documents are sources of truth for intended behavior and constraints.
-They must not carry mutable implementation status such as "not implemented",
-"partially implemented", or task completion state.
-
-Implementation plans describe task breakdown and sequencing. They should not be
-used as the live implementation-status ledger.
-
-Each area with implementation progress must keep its current implementation
-state in an area-local progress/status document, such as
-`docs/<area>/progress.md`. Global files such as `CURRENT_STATE.md` and
-`PROGRESS.md` may summarize and link to area progress, but must not duplicate
-fine-grained area task status.
-
-## State Sync Gate
-
-For non-trivial changes, run:
+This is the repository operating entrypoint for coding agents. Keep it short:
+hard rules live here; detailed authority lives in the linked documents.
+
+## Authority Map
+
+- Task class and execution intensity: `docs/agents/task-classes.md`.
+- Global architecture, ownership, import direction, and public-surface
+  principles: `ARCHITECTURE.md`.
+- Formal vocabulary: `docs/formal-project-glossary.md`.
+- Documentation structure and current-authority placement:
+  `docs/maintenance/documentation-architecture.md`.
+- Domain-document consumption: `docs/agents/domain.md`.
+- Issue tracker and triage labels: `docs/agents/issue-tracker.md` and
+  `docs/agents/triage-labels.md`.
+
+Do not create parallel architecture, glossary, documentation-structure, issue,
+or triage rules. Update or cite the owning document instead.
+
+## Task Classification
+
+Classify the task first with `docs/agents/task-classes.md`.
+
+`trivial` and ordinary `small behavior fix` tasks should stay light. The full
+non-trivial workflow applies to `boundary-affecting`,
+`contract/workflow/runtime`, `architecture migration`, and
+`documentation authority change` tasks.
+
+## Hard Rules
+
+- Prefer small, verifiable diffs. Do not silently broaden scope.
+- Preserve user changes. Do not revert unrelated work.
+- Back claims with repository evidence: files, diffs, commands, or tests.
+- Reuse existing modules, ports, helpers, and docs before creating new ones.
+- Treat existing broad dependencies as evidence, not precedent. If live code
+  already violates a boundary, do not expand the violation; keep the change
+  local, introduce a narrow boundary, or record a follow-up migration finding.
+- Do not preserve old import, provisional-canonical, or compatibility behavior
+  just to support current local test-era data unless the task asks for it.
+
+## Architecture Boundaries
+
+For non-trivial work, identify the owning bounded context, required read and
+write capabilities, public port/interface, allowed imports, forbidden imports,
+and guard strategy before editing.
+
+- Ordinary domain modules receive narrow capability ports, not full aggregate
+  stores.
+- Domain modules must not import Stage Interface, presentation, runtime
+  assembly, tool-definition, or agent-output modules.
+- Stage Interface owns agent-facing tool schemas, validation, compact public
+  outputs, dispatch glue, and session-aware availability. It does not own music
+  facts, provider internals, storage semantics, or final music judgement.
+- Composition roots may wire broad concrete implementations into narrow
+  consumers; ordinary services must not rely on broad concrete dependencies.
+- A new or clarified boundary needs a project-native guard when feasible:
+  forbidden-import test, exact port key-set assertion, output leak test, or
+  writer-capability guard.
+
+## Write Boundaries
+
+All durable or runtime state mutation goes through the owning
+command/materializer/projection-maintenance boundary.
+
+Direct writes are allowed only in repository implementations, owning
+command/materializer/projection command modules, schema/migration/storage
+infrastructure, and tests or fixtures that intentionally exercise persistence.
+
+Orchestration, query services, Stage Interface handlers, provider/plugin
+adapters, presentation code, and ordinary domain services must not construct
+repositories or call repository write methods directly. Any PR that adds or
+moves a write must name the owning command boundary and add/update a guard when
+feasible.
+
+## Agent-Facing Output
+
+Agent-facing tools and instruments should return only what the caller needs for
+the next decision or user-visible answer. Prefer compact summaries, counts,
+progress, opaque ids, and explicit detail tools.
+
+Do not expose raw provider payloads, internal storage shape, canonical or
+collection internals, unchanged rows, or redundant debug fields just because
+they are available.
+
+## Errors And Fallbacks
+
+Good code does not defend everywhere; it defends at the right boundary and
+trusts contracts inside that boundary. Do not add defensive fallback logic by
+default.
+
+- Expected failures should be represented as `Result<T>`.
+- Throws are for programmer errors, broken invariants, or unadapted external
+  boundary failures.
+- A function should have one failure channel: `Result<T>` for expected failure,
+  `throw` for broken invariants or unadapted boundary failures, or plain `T`
+  when satisfied preconditions mean success.
+- Catch exceptions only at explicit boundaries: transport, Tool Call Router,
+  runtime lifecycle, external provider adapters, database/filesystem/network
+  adapters.
+- Stage Interface handlers and the Tool Call Router may normalize declared
+  `Result` failures into public agent-facing errors at their owned boundary.
+  They must not catch programmer errors or system failures to fabricate empty
+  success.
+- Every catch, fallback, default empty result, or system-error-to-success
+  conversion must name its boundary owner. If no owner can be named, it is
+  forbidden.
+- Do not return empty arrays, default objects, or fallback values for system
+  failures.
+- Do not duplicate validation already guaranteed by TypeScript types, JSON
+  Schema, database constraints, or upstream routers. Add only semantic
+  validation owned by the current layer.
+- Prefer discriminated unions and `assertNever` over impossible-state fallback
+  branches.
+
+## Working Sequence
+
+1. Read only the nearest relevant `AGENTS.md` and the authority docs needed for
+   the classified task.
+2. For non-trivial work, state a compact plan: goal, owner, files, allowed
+   reads/writes, guard or test plan, verification method, and stopping
+   condition.
+3. Implement the smallest change that satisfies the request without weakening
+   boundaries.
+4. Verify with the narrowest meaningful project-native check first; broaden
+   only when risk justifies it.
+5. Run state sync only for task classes that require it.
+6. Report what changed, what was checked, and what remains uncertain.
+
+Use `rg` / `rg --files` for search. Read representative files first and stop
+exploring once inputs, outputs, and boundaries are clear.
+
+## State Sync
+
+For task classes that require state sync, run:
 
 ```bash
 git diff --name-only
 ```
 
+Then report whether each root state document was updated or not needed:
 
-Do not mark the task complete until the answer is recorded in the final report:
+- `INDEX.md`
+- `CURRENT_STATE.md`
+- `ARCHITECTURE.md`
+- `PROGRESS.md`
 
-- `INDEX.md`: updated, or not needed with a concrete reason.
-- `CURRENT_STATE.md`: updated, or not needed with a concrete reason.
-- `ARCHITECTURE.md`: updated, or not needed with a concrete reason.
-- `PROGRESS.md`: updated, or not needed with a concrete reason.
+Trivial edits, pure tests, and isolated small behavior fixes do not require the
+root-document checklist unless `docs/agents/task-classes.md` escalates them.
 
-For contract/workflow/runtime changes, lack of this state-sync check is an
-incomplete task even when tests pass.
+## Git And Safety
 
-## Communication
+- Never use destructive commands such as `git reset --hard` or
+  `git checkout --` unless explicitly requested.
+- Avoid force-push unless explicitly requested.
+- Use feature branches for non-trivial work when the repo workflow expects
+  them.
 
-- Be concise and specific.
-- Separate facts, repository evidence, and inference.
-- Use exact file paths, commands, and verification results.
-- If blocked, state the blocker and the next required decision.
+## Agent Skill References
 
-## Completion Format
-
-For non-trivial tasks, report:
-
-1. what was established
-2. what changed
-3. what remains unclear
-4. what verification was performed
-5. what still needs verification
-
-## Optional Project Overrides
-
-Projects may add sections such as:
-
-- stack-specific commands
-- directory ownership
-- release workflow
-- migration rules
-- security constraints
-- generated code policy
-- test matrix
-
-Keep overrides concrete. Prefer exact commands and file paths over generic advice.
-
-## Agent skills
-
-### Issue tracker
-
-Issues and PRDs live as GitHub issues in this repo (via `gh`). See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Five canonical triage roles mapped to GitHub labels with default names. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context — one `CONTEXT.md` at the repo root, plus `docs/adr/`. See `docs/agents/domain.md`.
+- Task classes: `docs/agents/task-classes.md`.
+- Issue tracker: GitHub issues via `gh`; see `docs/agents/issue-tracker.md`.
+- Triage labels: see `docs/agents/triage-labels.md`.
+- Domain docs: single-context repo with root `CONTEXT.md` plus `docs/adr/`;
+  see `docs/agents/domain.md`.
