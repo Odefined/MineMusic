@@ -454,7 +454,8 @@ export const musicExperiencePresentOutputSchema = {
               "const": "library"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [

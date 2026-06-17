@@ -141,6 +141,20 @@ assert.equal(validatePresentOutput({
     availability: "unknown",
   },
 }), true);
+// P2 #2: empty output library id must be rejected — the present output item is a
+// library MusicItemHandle and must keep non-empty parity with the input handle.
+assert.equal(validatePresentOutput({
+  item: {
+    kind: "library",
+    id: "",
+  },
+  card: {
+    kind: "artist",
+    label: "Artist",
+    displayLinks: [],
+    availability: "unknown",
+  },
+}), false);
 assert.equal(validatePresentOutput({
   item: {
     kind: "candidate",

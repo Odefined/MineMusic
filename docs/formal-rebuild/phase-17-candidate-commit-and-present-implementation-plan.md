@@ -1,6 +1,6 @@
 # Phase 17 Candidate Commit and First Consumption Tool Implementation Plan
 
-> Status: Phase 17 spec and execution plan, pre-implementation.
+> Status: Phase 17 spec and execution plan; implemented (PR 17A/17B/17D/17C merged).
 > Spec authority: this document plus ADR-0011 (Candidate Commit boundary), ADR-0021
 > (Effect Boundary auto-pass for presentation-driven admission), ADR-0008
 > (command-owned write boundaries), ADR-0012 (Music Discovery seam), ADR-0015

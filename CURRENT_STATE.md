@@ -4,7 +4,7 @@
 > Scope: Project-level state during the same-repo formal rebuild
 > Not target design: Global target architecture lives in `ARCHITECTURE.md`.
 
-MineMusic has completed Phase 16D of a same-repo formal rebuild. The active
+MineMusic has completed Phase 17 of a same-repo formal rebuild. The active
 TypeScript tree is a formal
 runtime skeleton with Phase 1 contract vocabulary,
 a Phase 2 Stage Core runtime lifecycle baseline, and a Phase 3 Extension
@@ -59,7 +59,11 @@ Phase 16B adds the Public Handle Veil, handle minting, execution-gate stub, and
 tool timeout layer, Phase 16C adds `music.discovery.list_scopes`, and
 Phase 16D adds the full `music.discovery.lookup` retrieval tool with public
 handles, descriptions, fail-whole provider errors, and AEAD cursor wrapping.
-Candidate-to-material commit commands remain later work in this tree.
+Phase 17 adds the internal Music Data Platform Candidate Commit owning command
+(ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
+Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
+the `music.experience.present` consumption tool that returns a stable library
+handle and a leak-free `MusicCard`.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 

@@ -278,6 +278,118 @@ assert.deepEqual(
 }
 
 {
+  // P2 #1 regression: presenting a library handle anchored on a merged (loser)
+  // material must mint the output handle from the surviving (winner)
+  // materialRef. Material Projection follows mergedIntoMaterialRef, so the
+  // returned library handle must resolve to the WINNER anchor, not the loser —
+  // otherwise later play/favorite/save tools would receive a stale loser anchor.
+  const database = initializedPresentDatabase();
+  const winnerRef = materialRefFor("recording", "merge-winner");
+  const loserRef = materialRefFor("recording", "merge-loser");
+  const winnerSource = sourceTrack("merge-winner", "Winner Song", {
+    artistLabels: ["Winner Artist"],
+    albumLabel: "Winner Album",
+    links: [{
+      url: "https://music.example/winner",
+      requiresAccount: true,
+    }],
+    availabilityHint: "playable",
+  });
+  const loserSource = sourceTrack("merge-loser", "Loser Song", {
+    artistLabels: ["Loser Artist"],
+    links: [{
+      url: "https://music.example/loser",
+      requiresAccount: true,
+    }],
+    availabilityHint: "playable",
+  });
+
+  database.transaction((db) => {
+    const commands = createIdentityWriteCommands({
+      db,
+      now,
+      projectionInvalidationCommands: createRecordingProjectionInvalidationCommands(),
+    });
+    commands.upsertSourceRecord({ entity: winnerSource });
+    commands.upsertMaterialRecord({ materialRef: winnerRef, kind: "recording" });
+    commands.bindSourceToMaterial({
+      sourceRef: winnerSource.sourceRef,
+      materialRef: winnerRef,
+      makePrimary: true,
+    });
+    commands.upsertSourceRecord({ entity: loserSource });
+    commands.upsertMaterialRecord({ materialRef: loserRef, kind: "recording" });
+    commands.bindSourceToMaterial({
+      sourceRef: loserSource.sourceRef,
+      materialRef: loserRef,
+      makePrimary: true,
+    });
+    commands.mergeMaterialRecord({
+      loserMaterialRef: loserRef,
+      winnerMaterialRef: winnerRef,
+    });
+  });
+
+  let mergedMintCount = 0;
+  const handleMinting = createStageInterfaceHandleMintingPort({
+    db: database.context(),
+    clock: () => now,
+    publicIdFactory: () => `mh_merged_${mergedMintCount++}`,
+  });
+  // Agent holds a handle anchored on the LOSER ref (e.g. minted before the merge).
+  const loserHandle = await handleMinting.mint({
+    ownerScope: "owner-a",
+    handleKind: "library",
+    internalAnchor: {
+      materialRef: refKey(loserRef),
+    },
+  });
+
+  const stageInterface = createStageInterface({
+    instruments: [musicExperienceInstrument],
+    registrations: [
+      createMusicExperiencePresentRegistration({
+        candidateCommit: {
+          commitCandidate() {
+            throw new Error("library path must not call Candidate Commit");
+          },
+        },
+        materialProjection: createMaterialProjection({
+          db: database.context(),
+        }),
+      }),
+    ],
+  });
+  const result = await stageInterface.dispatch(createPresentContext({
+    requestId: "present-merged",
+    handleMinting,
+  }), {
+    toolName: musicExperiencePresentDescriptor.name,
+    payload: {
+      item: {
+        kind: "library",
+        id: loserHandle,
+      },
+    },
+  });
+  const output = expectPresentOutput(result);
+
+  // The output library handle must resolve to the WINNER materialRef (survivor),
+  // proving present minted from the projected survivor, not the input loser ref.
+  const resolved = await handleMinting.resolve({
+    ownerScope: "owner-a",
+    handleKind: "library",
+    publicId: output.item.id,
+  }) as { materialRef: string };
+  assert.equal(resolved.materialRef, refKey(winnerRef));
+  // The card reflects the WINNER facts (Material Projection followed the merge).
+  assert.equal(output.card.label, "Winner Song");
+  assert.equal(output.card.albumLabel, "Winner Album");
+
+  database.close();
+}
+
+{
   const result = await dispatchWithPorts({
     item: {
       kind: "candidate",
