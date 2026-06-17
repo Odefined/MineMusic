@@ -30,12 +30,13 @@ import {
   DEFAULT_OWNER_SCOPE,
 } from "./owner_scope.js";
 import { assertMusicDataPlatformPublicRefKey } from "./ref_validation.js";
-import type {
-  RetrievalMatchedTextTokenEvidence,
-  RetrievalReadPoolFilter,
-  RetrievalTextField,
-} from "./retrieval_read_model.js";
 import {
+  sqlPlaceholders,
+  type RetrievalMatchedTextTokenEvidence,
+  type RetrievalReadPoolFilter,
+} from "./retrieval_shared.js";
+import {
+  type RetrievalTextField,
   sqlStringLiteral,
   retrievalTextFieldConfigs,
   matchedTokenCountSqlExpression,
@@ -1655,10 +1656,6 @@ function resultRowKey(rowKind: RetrievalResultRowKind, stableRefKey: string): st
 
 function rowKindSort(rowKind: RetrievalResultRowKind): number {
   return rowKind === "material" ? 0 : 1;
-}
-
-function sqlPlaceholders(count: number): string {
-  return Array.from({ length: count }, () => "?").join(", ");
 }
 
 function sqlValueTuples(rowCount: number, columnCount: number): string {

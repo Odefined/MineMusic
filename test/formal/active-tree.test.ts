@@ -207,6 +207,7 @@ assert.deepEqual(
     "src/music_data_platform/retrieval_read_model.ts",
     "src/music_data_platform/retrieval_result_set_records.ts",
     "src/music_data_platform/retrieval_result_set_schema.ts",
+    "src/music_data_platform/retrieval_shared.ts",
     "src/music_data_platform/source_library_commands.ts",
     "src/music_data_platform/source_library_import.ts",
     "src/music_data_platform/source_library_read_model.ts",

@@ -31,6 +31,11 @@ import {
   bestFieldPrioritySqlExpression,
   fieldScopedPrefixQuery,
 } from "./material_text_ranking.js";
+import {
+  sqlPlaceholders,
+  type RetrievalMatchedTextTokenEvidence,
+  type RetrievalReadPoolFilter,
+} from "./retrieval_shared.js";
 
 export type RetrievalOrder =
   | "text_relevance"
@@ -38,17 +43,10 @@ export type RetrievalOrder =
   | "stable";
 
 export type { RetrievalTextField } from "./material_text_ranking.js";
-
-export type RetrievalReadPoolFilter = {
-  allOf?: readonly Ref[];
-  anyOf?: readonly Ref[];
-  noneOf?: readonly Ref[];
-};
-
-export type RetrievalMatchedTextTokenEvidence = {
-  field: RetrievalTextField;
-  tokens: readonly string[];
-};
+export type {
+  RetrievalMatchedTextTokenEvidence,
+  RetrievalReadPoolFilter,
+} from "./retrieval_shared.js";
 
 export type RetrievalReadCursorPosition =
   | {
@@ -1296,10 +1294,6 @@ function materialRefFromEntityJson(
   }
 
   return parsedRef;
-}
-
-function sqlPlaceholders(count: number): string {
-  return Array.from({ length: count }, () => "?").join(", ");
 }
 
 function sqlValueTuples(count: number): string {
