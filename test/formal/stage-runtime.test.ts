@@ -256,6 +256,41 @@ assert.equal(stopFailure.ok, false);
 assert.equal(stopFailureRuntime.snapshot().status, "failed");
 assert.equal(stopFailureRuntime.snapshot().error?.code, "stage_core.test_stop_failed");
 
+const throwingEvents: string[] = [];
+const throwingRuntime = createStageRuntime({
+  modules: [
+    testModule("before-throw", throwingEvents),
+    testModule("throws", throwingEvents, {
+      initializeThrows: new Error("module body exploded"),
+    }),
+  ],
+});
+const throwingInitialize = await throwingRuntime.initialize();
+
+assert.equal(throwingInitialize.ok, false);
+assert.equal(throwingRuntime.snapshot().status, "failed");
+assert.equal(throwingRuntime.snapshot().error?.code, "stage_core.runtime_module_initialize_failed");
+assert.equal(throwingRuntime.snapshot().modules.find((module) => module.id === "throws")?.status, "failed");
+assert.equal(throwingRuntime.snapshot().modules.find((module) => module.id === "before-throw")?.status, "stopped");
+assert.deepEqual(throwingEvents, [
+  "initialize:before-throw",
+  "initialize:throws",
+  "stop:before-throw",
+]);
+
+const stopThrowingRuntime = createStageRuntime({
+  modules: [testModule("stop-throws", [], {
+    stopThrows: new Error("stop body exploded"),
+  })],
+});
+await stopThrowingRuntime.initialize();
+const stopThrowingStop = await stopThrowingRuntime.stop();
+
+assert.equal(stopThrowingStop.ok, false);
+assert.equal(stopThrowingRuntime.snapshot().status, "failed");
+assert.equal(stopThrowingRuntime.snapshot().error?.code, "stage_core.runtime_module_stop_failed");
+assert.equal(stopThrowingRuntime.snapshot().modules.find((module) => module.id === "stop-throws")?.status, "failed");
+
 const duplicateRuntime = createStageRuntime({
   modules: [testModule("runtime-status", [])],
 });
@@ -397,7 +432,9 @@ function testModule(
   options: {
     contribution?: RuntimeModuleContribution;
     initializeResult?: Result<RuntimeModuleContribution>;
+    initializeThrows?: unknown;
     stopResult?: Result<void>;
+    stopThrows?: unknown;
   } = {},
 ): RuntimeModule {
   return {
@@ -407,6 +444,10 @@ function testModule(
     },
     async initialize() {
       events.push(`initialize:${id}`);
+
+      if (options.initializeThrows !== undefined) {
+        throw options.initializeThrows;
+      }
 
       if (options.initializeResult !== undefined) {
         return options.initializeResult;
@@ -419,6 +460,11 @@ function testModule(
     },
     async stop() {
       events.push(`stop:${id}`);
+
+      if (options.stopThrows !== undefined) {
+        throw options.stopThrows;
+      }
+
       return options.stopResult ?? { ok: true, value: undefined };
     },
   };

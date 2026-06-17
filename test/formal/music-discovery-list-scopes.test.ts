@@ -163,6 +163,37 @@ if (!invalidKind.ok) {
   assert.equal(invalidKind.error.area, "stage_interface");
 }
 
+const failingAvailabilityInterface = createStageInterface({
+  instruments: [musicDiscoveryInstrument],
+  registrations: [
+    createMusicDiscoveryListScopesRegistration({
+      scopeAvailability: {
+        listAvailableMusicScopes() {
+          return {
+            ok: false,
+            error: {
+              code: "music_data_platform.scope_read_failed",
+              message: "scope read failed",
+              area: "music_data_platform",
+              retryable: true,
+            },
+          };
+        },
+      },
+    }),
+  ],
+});
+const failingAvailabilityResult = await failingAvailabilityInterface.dispatch(testStageToolContext(), {
+  toolName: "music.discovery.list_scopes",
+  payload: {},
+});
+
+assert.equal(failingAvailabilityResult.ok, false);
+if (!failingAvailabilityResult.ok) {
+  assert.equal(failingAvailabilityResult.error.code, "scope_availability_failed");
+  assert.equal(failingAvailabilityResult.error.retryable, true);
+}
+
 const runtimeModule = createMusicDiscoveryRuntimeModule({
   scopeAvailability,
 });

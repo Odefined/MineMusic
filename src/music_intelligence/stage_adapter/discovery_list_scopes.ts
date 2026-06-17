@@ -25,6 +25,7 @@ import type {
   MusicScopeAvailabilityPort,
   MusicSourceLibraryScopeAvailability,
 } from "./scope_availability.js";
+import { scopeAvailabilityFailed } from "./scope_availability.js";
 
 export type CreateMusicDiscoveryListScopesRegistrationInput = {
   scopeAvailability: MusicScopeAvailabilityPort;
@@ -86,6 +87,11 @@ export const musicDiscoveryListScopesDescriptor: ToolDeclaration = {
       retryable: false,
       suggestedFixTemplate: "Call music.discovery.list_scopes with an optional kind of library, source_library, relation, or provider.",
     },
+    {
+      code: "scope_availability_failed",
+      retryable: true,
+      suggestedFixTemplate: "Retry music.discovery.list_scopes later to inspect available scopes.",
+    },
   ],
 };
 
@@ -114,7 +120,7 @@ async function handleMusicDiscoveryListScopes(
   });
 
   if (!availability.ok) {
-    return availability;
+    return scopeAvailabilityFailed();
   }
 
   const { kind } = parsed.value;

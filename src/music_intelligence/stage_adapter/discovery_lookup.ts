@@ -41,6 +41,7 @@ import type {
   MusicScopeAvailabilityPort,
   MusicScopeAvailabilitySnapshot,
 } from "./scope_availability.js";
+import { scopeAvailabilityFailed } from "./scope_availability.js";
 
 export type CreateMusicDiscoveryLookupRegistrationInput = {
   retrievalQuery: RetrievalQueryService;
@@ -178,9 +179,9 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Call music.discovery.list_scopes with kind provider before retrying lookup.",
     },
     {
-      code: "unsupported_provider_target",
+      code: "unsupported_scope_target",
       retryable: true,
-      suggestedFixTemplate: "Retry with a provider scope whose targetKinds include the requested targetKind.",
+      suggestedFixTemplate: "Retry with a scope whose targetKind matches the requested targetKind, or call music.discovery.list_scopes to inspect each scope's targetKind.",
     },
     {
       code: "provider_scope_failed",
@@ -196,6 +197,11 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
       code: "result_window_expired",
       retryable: true,
       suggestedFixTemplate: "Start a fresh first-page music.discovery.lookup call.",
+    },
+    {
+      code: "scope_availability_failed",
+      retryable: true,
+      suggestedFixTemplate: "Retry music.discovery.lookup later, or call music.discovery.list_scopes to inspect available scopes.",
     },
   ],
 };
@@ -266,7 +272,7 @@ async function handleFirstPage(
   });
 
   if (!available.ok) {
-    return invalidInput("Music scope availability could not be read for lookup.");
+    return scopeAvailabilityFailed();
   }
 
   const resolved = resolveLookupScopes({
@@ -542,6 +548,15 @@ function resolveConcreteLookupScope(input: {
         return unknownScope(scope.id);
       }
 
+      if (available.targetKind !== input.targetKind) {
+        return unsupportedScopeTarget({
+          scopeKind: "source_library",
+          scopeLabel: scope.id,
+          targetKind: input.targetKind,
+          supportedTargetKinds: [available.targetKind],
+        });
+      }
+
       return {
         ok: true,
         value: {
@@ -557,6 +572,15 @@ function resolveConcreteLookupScope(input: {
 
       if (available === undefined) {
         return unknownScope(scope.id);
+      }
+
+      if (available.targetKind !== input.targetKind) {
+        return unsupportedScopeTarget({
+          scopeKind: "relation",
+          scopeLabel: scope.id,
+          targetKind: input.targetKind,
+          supportedTargetKinds: [available.targetKind],
+        });
       }
 
       return {
@@ -591,9 +615,11 @@ function resolveProviderScope(input: {
   targetKind: MusicTargetKind;
 }): Result<ResolvedLookupScope> {
   if (!input.provider.targetKinds.includes(input.targetKind)) {
-    return unsupportedProviderTarget({
-      providerId: input.provider.providerId,
+    return unsupportedScopeTarget({
+      scopeKind: "provider",
+      scopeLabel: input.provider.providerId,
       targetKind: input.targetKind,
+      supportedTargetKinds: input.provider.targetKinds,
     });
   }
 
@@ -864,7 +890,10 @@ function createLookupCursorCodec(input: {
         return invalidCursor("music.discovery.lookup cursor does not belong to this owner.");
       }
 
-      if (payload.value.expiresAt <= decodeInput.ctx.clock()) {
+      const clockNow = decodeInput.ctx.clock();
+      assertComparableLookupClock(clockNow);
+
+      if (payload.value.expiresAt <= clockNow) {
         return resultWindowExpired("music.discovery.lookup result window expired.");
       }
 
@@ -980,6 +1009,18 @@ function isRef(value: unknown): value is Ref {
     typeof value.id === "string";
 }
 
+// The cursor expiry comparison relies on lexicographic ordering of fixed-width UTC ISO timestamps
+// (YYYY-MM-DDTHH:mm:ss.sssZ). This mirrors the comparable-timestamp invariant enforced by
+// src/stage_interface/handle_registry_records.ts and src/music_data_platform/timestamp_validation.ts;
+// extracting a shared validator is tracked as follow-up cleanup.
+const LOOKUP_COMPARABLE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+
+function assertComparableLookupClock(now: string): void {
+  if (!LOOKUP_COMPARABLE_TIMESTAMP_PATTERN.test(now) || Number.isNaN(Date.parse(now))) {
+    throw new Error("music.discovery.lookup ctx.clock must return a fixed-width UTC ISO timestamp (YYYY-MM-DDTHH:mm:ss.sssZ).");
+  }
+}
+
 function normalizeCursorKey(key: Uint8Array): Buffer {
   const buffer = Buffer.from(key);
 
@@ -994,13 +1035,9 @@ function expiresAtFromClock(input: {
   now: string;
   ttlMs: number;
 }): string {
-  const parsed = Date.parse(input.now);
+  assertComparableLookupClock(input.now);
 
-  if (!Number.isFinite(parsed)) {
-    throw new Error("music.discovery.lookup ctx.clock must return a parseable timestamp.");
-  }
-
-  return new Date(parsed + input.ttlMs).toISOString();
+  return new Date(Date.parse(input.now) + input.ttlMs).toISOString();
 }
 
 function mapRetrievalError(error: unknown, providerScopeLabels: readonly string[]): Result<never> {
@@ -1119,15 +1156,17 @@ function unknownProviderScope(providerId: string): Result<never> {
   });
 }
 
-function unsupportedProviderTarget(input: {
-  providerId: string;
+function unsupportedScopeTarget(input: {
+  scopeKind: "source_library" | "relation" | "provider";
+  scopeLabel: string;
   targetKind: MusicTargetKind;
+  supportedTargetKinds: readonly MusicTargetKind[];
 }): Result<never> {
   return fail({
-    code: "unsupported_provider_target",
-    message: `Provider scope '${input.providerId}' does not support ${input.targetKind} lookup.`,
+    code: "unsupported_scope_target",
+    message: `${input.scopeKind} scope '${input.scopeLabel}' does not support ${input.targetKind} lookup (supports: ${input.supportedTargetKinds.join(", ")}).`,
     retryable: true,
-    suggestedFix: `Retry without provider scope '${input.providerId}', or choose a targetKind supported by that provider.`,
+    suggestedFix: `Retry without this scope, or choose a targetKind it supports (${input.supportedTargetKinds.join(", ")}).`,
   });
 }
 

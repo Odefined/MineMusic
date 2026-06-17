@@ -1,4 +1,4 @@
-import type { Result } from "../../contracts/kernel.js";
+import type { Result, StageError } from "../../contracts/kernel.js";
 import type { Ref } from "../../contracts/kernel.js";
 import type {
   MusicTargetKind,
@@ -63,6 +63,24 @@ export function emptyMusicScopeAvailabilitySnapshot(): MusicScopeAvailabilitySna
     sourceLibraries: [],
     relations: [],
     providers: [],
+  };
+}
+
+// Shared by music.discovery.lookup and music.discovery.list_scopes: a scope-availability read
+// failure is a retryable runtime condition, not a user-input error, so both tools surface the same
+// declared code instead of re-encoding to invalid_input or passing the raw port result through.
+export function scopeAvailabilityFailed(): Result<never> {
+  const error: StageError = {
+    code: "scope_availability_failed",
+    message: "Music scope availability could not be read.",
+    area: "music_intelligence",
+    retryable: true,
+    suggestedFix: "Retry later, or call music.discovery.list_scopes to inspect available scopes.",
+  };
+
+  return {
+    ok: false,
+    error,
   };
 }
 
