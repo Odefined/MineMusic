@@ -31,6 +31,9 @@ import {
 } from "./owner_scope.js";
 import { assertMusicDataPlatformPublicRefKey } from "./ref_validation.js";
 import {
+  requiredFieldPriority,
+  requiredFiniteNumber,
+  requiredPositiveInteger,
   sqlPlaceholders,
   type RetrievalMatchedTextTokenEvidence,
   type RetrievalReadPoolFilter,
@@ -1043,7 +1046,7 @@ function mixedRetrievalRowFromSqlRow(
     matchedTokenCount: evidence.matchedTokenCount,
     rankScore: {
       kind: "fts_bm25" as const,
-      value: -requiredFiniteNumber(row.rank_sort_value, "rank_sort_value"),
+      value: -requiredFiniteNumber(row.rank_sort_value, "rank_sort_value", invalidMixedWorkspace),
     },
   };
 
@@ -1096,9 +1099,9 @@ function candidateCacheExpired(row: MixedPageSqlRow, now: string): boolean {
 function cursorPositionFromSqlRow(row: MixedPageSqlRow): MixedRetrievalCursorPosition {
   return {
     order: "text_relevance",
-    matchedTokenCount: requiredPositiveInteger(row.matched_token_count, "matched_token_count"),
-    bestFieldPriority: requiredFieldPriority(row.best_field_priority, "best_field_priority"),
-    rankSortValue: requiredFiniteNumber(row.rank_sort_value, "rank_sort_value"),
+    matchedTokenCount: requiredPositiveInteger(row.matched_token_count, "matched_token_count", invalidMixedWorkspace),
+    bestFieldPriority: requiredFieldPriority(row.best_field_priority, "best_field_priority", invalidMixedWorkspace),
+    rankSortValue: requiredFiniteNumber(row.rank_sort_value, "rank_sort_value", invalidMixedWorkspace),
     rowKind: row.row_kind,
     stableRefKey: row.stable_ref_key,
   };
@@ -1609,9 +1612,9 @@ function validatedMixedCursorPosition(position: MixedRetrievalCursorPosition): v
     throw invalidMixedWorkspace("Mixed retrieval cursor order must be text_relevance.");
   }
 
-  requiredPositiveInteger(position.matchedTokenCount, "cursorPosition.matchedTokenCount");
-  requiredFieldPriority(position.bestFieldPriority, "cursorPosition.bestFieldPriority");
-  requiredFiniteNumber(position.rankSortValue, "cursorPosition.rankSortValue");
+  requiredPositiveInteger(position.matchedTokenCount, "cursorPosition.matchedTokenCount", invalidMixedWorkspace);
+  requiredFieldPriority(position.bestFieldPriority, "cursorPosition.bestFieldPriority", invalidMixedWorkspace);
+  requiredFiniteNumber(position.rankSortValue, "cursorPosition.rankSortValue", invalidMixedWorkspace);
 
   if (position.rowKind !== "material" && position.rowKind !== "material_candidate") {
     throw invalidMixedWorkspace("Mixed retrieval cursor rowKind is invalid.");
@@ -1620,30 +1623,6 @@ function validatedMixedCursorPosition(position: MixedRetrievalCursorPosition): v
   if (typeof position.stableRefKey !== "string" || position.stableRefKey.length === 0) {
     throw invalidMixedWorkspace("Mixed retrieval cursor stableRefKey must be non-empty.");
   }
-}
-
-function requiredPositiveInteger(value: number, fieldName: string): number {
-  if (!Number.isInteger(value) || value < 1) {
-    throw invalidMixedWorkspace(`${fieldName} must be a positive integer.`);
-  }
-
-  return value;
-}
-
-function requiredFieldPriority(value: number, fieldName: string): number {
-  if (!Number.isInteger(value) || value < 1 || value > 4) {
-    throw invalidMixedWorkspace(`${fieldName} must be an integer from 1 through 4.`);
-  }
-
-  return value;
-}
-
-function requiredFiniteNumber(value: number, fieldName: string): number {
-  if (!Number.isFinite(value)) {
-    throw invalidMixedWorkspace(`${fieldName} must be a finite number.`);
-  }
-
-  return value;
 }
 
 function descriptorKey(descriptor: ResultSetDescriptor): string {

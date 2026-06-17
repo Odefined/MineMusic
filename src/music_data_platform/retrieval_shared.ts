@@ -16,6 +16,7 @@
 // vocabulary. Those factory-parameterized helpers land in a later change.
 
 import type { Ref } from "../contracts/kernel.js";
+import type { MusicDataPlatformError } from "./errors.js";
 import type { RetrievalTextField } from "./material_text_ranking.js";
 
 export type RetrievalReadPoolFilter = {
@@ -31,4 +32,40 @@ export type RetrievalMatchedTextTokenEvidence = {
 
 export function sqlPlaceholders(count: number): string {
   return Array.from({ length: count }, () => "?").join(", ");
+}
+
+export function requiredPositiveInteger(
+  value: number | undefined,
+  fieldName: string,
+  invalid: (message: string) => MusicDataPlatformError,
+): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    throw invalid(`${fieldName} must be a positive integer.`);
+  }
+
+  return value;
+}
+
+export function requiredFieldPriority(
+  value: number | undefined,
+  fieldName: string,
+  invalid: (message: string) => MusicDataPlatformError,
+): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 4) {
+    throw invalid(`${fieldName} must be an integer from 1 through 4.`);
+  }
+
+  return value;
+}
+
+export function requiredFiniteNumber(
+  value: number | undefined,
+  fieldName: string,
+  invalid: (message: string) => MusicDataPlatformError,
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw invalid(`${fieldName} must be a finite number.`);
+  }
+
+  return value;
 }

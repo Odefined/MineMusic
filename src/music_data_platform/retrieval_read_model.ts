@@ -32,6 +32,9 @@ import {
   fieldScopedPrefixQuery,
 } from "./material_text_ranking.js";
 import {
+  requiredFieldPriority,
+  requiredFiniteNumber,
+  requiredPositiveInteger,
   sqlPlaceholders,
   type RetrievalMatchedTextTokenEvidence,
   type RetrievalReadPoolFilter,
@@ -1113,10 +1116,12 @@ function searchResultRowFromCatalogRow(
   const matchedTokenCount = requiredPositiveInteger(
     row.matched_token_count,
     "matched_token_count",
+    invalidRetrievalRead,
   );
   const bestFieldPriority = requiredFieldPriority(
     row.best_field_priority,
     "best_field_priority",
+    invalidRetrievalRead,
   );
 
   if (textEvidence === undefined) {
@@ -1157,6 +1162,7 @@ function searchResultRowFromCatalogRow(
             value: normalizedFtsRankScore(requiredFiniteNumber(
               row.rank_sort_value,
               "rank_sort_value",
+              invalidRetrievalRead,
             )),
           },
         }
@@ -1183,36 +1189,12 @@ function cursorPositionFromCatalogRow(
     case "text_relevance":
       return {
         order,
-        matchedTokenCount: requiredPositiveInteger(row.matched_token_count, "matched_token_count"),
-        bestFieldPriority: requiredFieldPriority(row.best_field_priority, "best_field_priority"),
-        rankSortValue: requiredFiniteNumber(row.rank_sort_value, "rank_sort_value"),
+        matchedTokenCount: requiredPositiveInteger(row.matched_token_count, "matched_token_count", invalidRetrievalRead),
+        bestFieldPriority: requiredFieldPriority(row.best_field_priority, "best_field_priority", invalidRetrievalRead),
+        rankSortValue: requiredFiniteNumber(row.rank_sort_value, "rank_sort_value", invalidRetrievalRead),
         materialRefKey: row.material_ref_key,
       };
   }
-}
-
-function requiredPositiveInteger(value: number | undefined, fieldName: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-    throw invalidRetrievalRead(`${fieldName} must be a positive integer.`);
-  }
-
-  return value;
-}
-
-function requiredFieldPriority(value: number | undefined, fieldName: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 4) {
-    throw invalidRetrievalRead(`${fieldName} must be an integer from 1 through 4.`);
-  }
-
-  return value;
-}
-
-function requiredFiniteNumber(value: number | undefined, fieldName: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw invalidRetrievalRead(`${fieldName} must be a finite number.`);
-  }
-
-  return value;
 }
 
 function normalizedFtsRankScore(rankSortValue: number): number {
