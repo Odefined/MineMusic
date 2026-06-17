@@ -341,6 +341,79 @@ if (!failingProviderResult.ok) {
   assert.equal(failingProviderResult.error.suggestedFix?.includes("spotify"), true);
 }
 
+const plainRetrievalThrowResult = await lookupInterfaceForThrownRetrievalError(
+  new Error("Retrieval query service is not initialized."),
+).dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "library" }],
+  },
+});
+assert.equal(plainRetrievalThrowResult.ok, false);
+if (!plainRetrievalThrowResult.ok) {
+  assert.equal(plainRetrievalThrowResult.error.code, "stage_interface.tool_handler_failed");
+}
+
+const retrievalResultInvalidResult = await lookupInterfaceForThrownRetrievalError(
+  new MusicIntelligenceError({
+    code: "music_intelligence.retrieval_result_invalid",
+    message: "Text query hits must include matched text evidence.",
+  }),
+).dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "library" }],
+  },
+});
+assert.equal(retrievalResultInvalidResult.ok, false);
+if (!retrievalResultInvalidResult.ok) {
+  assert.equal(retrievalResultInvalidResult.error.code, "stage_interface.tool_handler_failed");
+}
+
+const providerSearchPoolInvalidResult = await lookupInterfaceForThrownRetrievalError(
+  new MusicIntelligenceError({
+    code: "music_intelligence.provider_search_pool_invalid",
+    message: "provider_search pools require mixed retrieval and provider-search wiring.",
+  }),
+).dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "provider", providerId: "netease" }],
+  },
+});
+assert.equal(providerSearchPoolInvalidResult.ok, false);
+if (!providerSearchPoolInvalidResult.ok) {
+  assert.equal(providerSearchPoolInvalidResult.error.code, "stage_interface.tool_handler_failed");
+}
+
+const cursorMismatchResult = await lookupInterfaceForThrownRetrievalError(
+  new MusicIntelligenceError({
+    code: "music_intelligence.cursor_mismatch",
+    message: "Cursor does not belong to this query.",
+  }),
+).dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "library" }],
+  },
+});
+assert.equal(cursorMismatchResult.ok, false);
+if (!cursorMismatchResult.ok) {
+  assert.equal(cursorMismatchResult.error.code, "invalid_cursor");
+}
+
 let budgetRetrievalCalls = 0;
 const budgetInterface = createStageInterface({
   instruments: [musicDiscoveryInstrument],
@@ -520,6 +593,11 @@ assert.equal(lookupInputSchemaJson.includes('"type":"integer"'), true);
 assert.equal(lookupInputSchemaJson.includes('"minimum":1'), true);
 assert.equal(lookupInputSchemaJson.includes('"maximum":100'), true);
 assert.equal(lookupInputSchemaJson.includes('"limit":{"type":"number"'), false);
+// Empty-string scope identifiers are rejected at the structural (AJV) layer, not
+// in the handler: the generator overlay tightens scope-handle id/providerId to
+// minLength:1, so an empty id never reaches resolution as a bogus empty-key scope.
+assert.equal(lookupInputSchemaJson.includes('"id":{"type":"string","minLength":1}'), true);
+assert.equal(lookupInputSchemaJson.includes('"providerId":{"type":"string","minLength":1}'), true);
 
 function retrievalResult(input: {
   input: RetrievalQueryInput;
@@ -615,6 +693,23 @@ function providerScope(providerId: string): {
     providerName: providerId,
     targetKinds: ["recording"],
   };
+}
+
+function lookupInterfaceForThrownRetrievalError(error: unknown): ReturnType<typeof createStageInterface> {
+  return createStageInterface({
+    instruments: [musicDiscoveryInstrument],
+    registrations: [
+      createMusicDiscoveryLookupRegistration({
+        retrievalQuery: {
+          async query() {
+            throw error;
+          },
+        },
+        scopeAvailability,
+        cursorKey,
+      }),
+    ],
+  });
 }
 
 function testStageToolContext(input: {

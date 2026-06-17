@@ -1451,20 +1451,21 @@ const failedItemImport = createSourceLibraryImportService({
   now: fixedNow("2026-06-08T02:00:00.000Z"),
   newBatchId: () => "failed-item-batch",
 });
-const failedItemResult = await assertOk(failedItemImport.startImport({
-  providerId: "netease",
-  providerAccountId: "130950618",
-  libraryKind: "saved_source_track",
-  limit: 2,
-}));
-
-assert.equal(failedItemResult.batch.status, "completed");
-assert.equal(failedItemResult.batch.importedCount, 1);
-assert.equal(failedItemResult.batch.failedCount, 1);
-assert.deepEqual(failedItemResult.itemResults.map((item) => item.outcome.outcome), [
-  "imported",
-  "failed",
-]);
+await assert.rejects(
+  () => failedItemImport.startImport({
+    providerId: "netease",
+    providerAccountId: "130950618",
+    libraryKind: "saved_source_track",
+    limit: 2,
+  }),
+  /Material ref id must be a non-empty ref-safe string/u,
+);
+const failedItemBatch = createSourceLibraryRepositories({ db: failedItemDatabase.context() })
+  .batches.get({ batchId: "failed-item-batch" });
+assert.equal(failedItemBatch?.status, "failed");
+assert.equal(failedItemBatch?.importedCount, 1);
+assert.equal(failedItemBatch?.failedCount, 0);
+assert.equal(failedItemBatch?.failureCode, "music_data.material_ref_invalid");
 assert.equal(
   failedItemDatabase.context().get<{ count: number }>(
     "SELECT COUNT(*) AS count FROM source_records",
@@ -1527,18 +1528,23 @@ const invalidAccountImport = createSourceLibraryImportService({
   now: fixedNow("2026-06-08T03:30:00.000Z"),
   newBatchId: () => "invalid-account-batch",
 });
-assertErrorCode(
-  await invalidAccountImport.startImport({
+await assert.rejects(
+  () => invalidAccountImport.startImport({
     providerId: "netease",
     libraryKind: "saved_source_track",
     limit: 1,
   }),
-  "music_data.source_library_account_invalid",
+  /unsafe provider account id after Extension validation/u,
 );
 assert.equal(
   createSourceLibraryRepositories({ db: invalidAccountDatabase.context() })
     .batches.get({ batchId: "invalid-account-batch" })?.status,
   "failed",
+);
+assert.equal(
+  createSourceLibraryRepositories({ db: invalidAccountDatabase.context() })
+    .batches.get({ batchId: "invalid-account-batch" })?.failureCode,
+  "music_data.source_library_provider_read_contract_invalid",
 );
 invalidAccountDatabase.close();
 
@@ -1608,31 +1614,6 @@ for (const invalidPageCase of [
       ],
     }),
   },
-  {
-    batchId: "unsafe-candidate-account-batch",
-    read: okRead({
-      providerId: "netease",
-      providerAccountId: "130950618",
-      kind: "saved_source_track",
-      candidates: [
-        {
-          ...platformCandidate("saved_source_track", sourceTrack("1001", "Unsafe Candidate Account")),
-          providerAccountId: " 130950618 ",
-        },
-      ],
-    }),
-  },
-  {
-    batchId: "unsafe-source-ref-batch",
-    read: okRead({
-      providerId: "netease",
-      providerAccountId: "130950618",
-      kind: "saved_source_track",
-      candidates: [
-        platformCandidate("saved_source_track", sourceTrack(" bad-id ", "Unsafe Source Ref")),
-      ],
-    }),
-  },
 ] as const) {
   const invalidPageDatabase = initializedDatabase();
   const invalidPageReads = scriptedReadPort([invalidPageCase.read]);
@@ -1663,6 +1644,66 @@ for (const invalidPageCase of [
   assert.equal(countRows(invalidPageDatabase, "source_records"), 0);
   assert.equal(countRows(invalidPageDatabase, "source_library_items"), 0);
   invalidPageDatabase.close();
+}
+
+for (const invalidProviderContractCase of [
+  {
+    batchId: "unsafe-candidate-account-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [
+        {
+          ...platformCandidate("saved_source_track", sourceTrack("1001", "Unsafe Candidate Account")),
+          providerAccountId: " 130950618 ",
+        },
+      ],
+    }),
+  },
+  {
+    batchId: "unsafe-source-ref-batch",
+    read: okRead({
+      providerId: "netease",
+      providerAccountId: "130950618",
+      kind: "saved_source_track",
+      candidates: [
+        platformCandidate("saved_source_track", sourceTrack(" bad-id ", "Unsafe Source Ref")),
+      ],
+    }),
+  },
+] as const) {
+  const invalidProviderContractDatabase = initializedDatabase();
+  const invalidProviderContractReads = scriptedReadPort([invalidProviderContractCase.read]);
+  const invalidProviderContractImport = createSourceLibraryImportService({
+    database: invalidProviderContractDatabase,
+    platformLibraryProvider: invalidProviderContractReads.port,
+    materialRefFactory: createMaterialRefFactory({
+      nextOpaqueId: () => "unused",
+    }),
+    now: fixedNow("2026-06-08T03:45:00.000Z"),
+    newBatchId: () => invalidProviderContractCase.batchId,
+  });
+
+  await assert.rejects(
+    () => invalidProviderContractImport.startImport({
+      providerId: "netease",
+      libraryKind: "saved_source_track",
+      limit: 1,
+    }),
+    /after Extension validation/u,
+  );
+  assert.equal(invalidProviderContractReads.requests.length, 1);
+  const failedBatch = createSourceLibraryRepositories({ db: invalidProviderContractDatabase.context() })
+    .batches.get({ batchId: invalidProviderContractCase.batchId });
+  assert.equal(failedBatch?.status, "failed");
+  assert.equal(failedBatch?.failureCode, "music_data.source_library_provider_read_contract_invalid");
+  assert.equal(
+    countRows(invalidProviderContractDatabase, "source_records"),
+    0,
+  );
+  assert.equal(countRows(invalidProviderContractDatabase, "source_library_items"), 0);
+  invalidProviderContractDatabase.close();
 }
 
 const mismatchDatabase = initializedDatabase();

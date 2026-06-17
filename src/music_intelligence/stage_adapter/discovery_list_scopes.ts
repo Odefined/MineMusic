@@ -1,4 +1,4 @@
-import type { Result, StageError } from "../../contracts/kernel.js";
+import type { Result } from "../../contracts/kernel.js";
 import {
   libraryMusicScopeDescription,
   providerMusicScopeDescription,
@@ -12,7 +12,6 @@ import {
 import type {
   InstrumentDescriptor,
   ListedMusicScope,
-  ListedMusicScopeKind,
   MusicListScopesInput,
   MusicListScopesOutput,
   StageToolContext,
@@ -109,12 +108,7 @@ async function handleMusicDiscoveryListScopes(
   payload: unknown,
   scopeAvailability: MusicScopeAvailabilityPort,
 ): Promise<Result<MusicListScopesOutput>> {
-  const parsed = parseMusicListScopesInput(payload);
-
-  if (!parsed.ok) {
-    return parsed;
-  }
-
+  const input = payload as MusicListScopesInput;
   const availability = await scopeAvailability.listAvailableMusicScopes({
     ownerScope: ctx.ownerScope,
   });
@@ -123,7 +117,7 @@ async function handleMusicDiscoveryListScopes(
     return scopeAvailabilityFailed();
   }
 
-  const { kind } = parsed.value;
+  const { kind } = input;
   const scopes: ListedMusicScope[] = [];
 
   if (kind === undefined || kind === "library") {
@@ -187,61 +181,5 @@ function listProviderScope(scope: MusicProviderScopeAvailability): ListedMusicSc
       ...(scope.detailText === undefined ? {} : { detailText: scope.detailText }),
     }),
     targetKinds: scope.targetKinds,
-  };
-}
-
-function parseMusicListScopesInput(payload: unknown): Result<MusicListScopesInput> {
-  if (!isRecord(payload)) {
-    return invalidInput("music.discovery.list_scopes input must be an object.");
-  }
-
-  for (const key of Object.keys(payload)) {
-    if (key !== "kind") {
-      return invalidInput("music.discovery.list_scopes accepts only the optional kind filter.");
-    }
-  }
-
-  if (payload.kind === undefined) {
-    return {
-      ok: true,
-      value: {},
-    };
-  }
-
-  if (!isListedMusicScopeKind(payload.kind)) {
-    return invalidInput("music.discovery.list_scopes kind must be library, source_library, relation, or provider.");
-  }
-
-  return {
-    ok: true,
-    value: {
-      kind: payload.kind,
-    },
-  };
-}
-
-function isListedMusicScopeKind(value: unknown): value is ListedMusicScopeKind {
-  return value === "library" ||
-    value === "source_library" ||
-    value === "relation" ||
-    value === "provider";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function invalidInput(message: string): Result<never> {
-  const error: StageError = {
-    code: "invalid_input",
-    message,
-    area: "music_intelligence",
-    retryable: false,
-    suggestedFix: "Retry with no kind filter, or kind set to library, source_library, relation, or provider.",
-  };
-
-  return {
-    ok: false,
-    error,
   };
 }

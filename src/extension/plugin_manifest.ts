@@ -16,21 +16,7 @@ export type ValidatePluginManifestInput = {
 };
 
 export function validatePluginManifest(input: ValidatePluginManifestInput): Result<void> {
-  if (!isRecord(input)) {
-    return failExtension(
-      "extension.invalid_plugin_manifest",
-      "Plugin manifest validation input must be an object.",
-    );
-  }
-
   const { manifest, knownCapabilityIds } = input;
-
-  if (!isCapabilityIdSet(knownCapabilityIds)) {
-    return failExtension(
-      "extension.invalid_plugin_manifest",
-      "Plugin manifest validation input must include knownCapabilityIds.",
-    );
-  }
 
   if (!isRecord(manifest)) {
     return failExtension(
@@ -93,13 +79,7 @@ export function validatePluginManifest(input: ValidatePluginManifestInput): Resu
 
     seenCapabilities.add(capabilityId);
 
-    const isKnownCapability = hasKnownCapabilityId(knownCapabilityIds, capabilityId);
-
-    if (!isKnownCapability.ok) {
-      return isKnownCapability;
-    }
-
-    if (!isKnownCapability.value) {
+    if (!knownCapabilityIds.has(capabilityId)) {
       return failExtension(
         "extension.unknown_capability",
         `Plugin '${manifest.id}' declares unknown capability '${capabilityId}'.`,
@@ -113,24 +93,4 @@ export function validatePluginManifest(input: ValidatePluginManifestInput): Resu
 export function isPluginIdSafe(pluginId: unknown): pluginId is string {
   return typeof pluginId === "string" &&
     /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*$/.test(pluginId);
-}
-
-
-function isCapabilityIdSet(value: unknown): value is ReadonlySet<string> {
-  return isRecord(value) && typeof value.has === "function";
-}
-
-function hasKnownCapabilityId(
-  knownCapabilityIds: ReadonlySet<string>,
-  capabilityId: string,
-): Result<boolean> {
-  try {
-    return ok(knownCapabilityIds.has(capabilityId));
-  } catch (cause) {
-    return failExtension(
-      "extension.invalid_plugin_manifest",
-      "Plugin manifest validation input knownCapabilityIds failed.",
-      cause,
-    );
-  }
 }

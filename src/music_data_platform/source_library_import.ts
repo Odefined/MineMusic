@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { isRefComponentSafe, refKey, type Ref, type Result, type StageError } from "../contracts/kernel.js";
+import { assertRefSafe, isRefComponentSafe, type Ref, type Result, type StageError } from "../contracts/kernel.js";
 import type { MaterialEntityKind, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntity, SourceLibraryImportCompletionReason } from "../contracts/music_data_platform.js";
 import type { SourceRecord } from "../contracts/storage.js";
-import type { MusicDatabase } from "../storage/database.js";
+import { isMusicDatabaseError, type MusicDatabase } from "../storage/database.js";
 import { isMusicDataPlatformError } from "./errors.js";
 import {
   createIdentityReadPort,
@@ -221,20 +221,33 @@ export function createSourceLibraryImportService(
       return read;
     }
 
+    // Two distinct ownership layers run on overlapping fields (providerId, kind):
+    //   1. EXTENSION-POST-CONTRACT INVARIANT (throws): structural validity — is the
+    //      page an object, is providerId a safe id, is kind a valid
+    //      PlatformLibraryKind, are candidates an array within limit? Extension
+    //      already guarantees these in a validated port; a violation is a broken
+    //      internal contract, so it throws (one failure channel: throw = invariant).
+    //   2. BATCH-MEMBERSHIP SEMANTICS (Result): does the structurally-valid page
+    //      belong to THIS batch (providerId/kind/account match)? An expected,
+    //      retryable provider-page failure, so it returns Result.
+    // When tightening a kind rule, update structural validity in the assert layer
+    // and batch-membership equality in the validate layer independently.
+    try {
+      assertProviderReadPostExtensionContract(read.value, allowance.value);
+    } catch (error) {
+      markBatchFailed(
+        initialBatch.batchId,
+        systemProviderReadContractFailure(),
+        now(),
+      );
+      throw error;
+    }
+
     const pageValidation = validateProviderPageForBatch(initialBatch, read.value);
 
     if (!pageValidation.ok) {
       markBatchFailed(initialBatch.batchId, pageValidation.error, now());
       return pageValidation;
-    }
-
-    if (read.value.candidates.length > allowance.value) {
-      const error = musicDataError(
-        "music_data.source_library_provider_limit_exceeded",
-        "Platform library provider returned more candidates than requested.",
-      );
-      markBatchFailed(initialBatch.batchId, error, now());
-      return { ok: false, error };
     }
 
     const accountValidation = resolvedProviderAccountId(initialBatch, read.value);
@@ -271,7 +284,18 @@ export function createSourceLibraryImportService(
         break;
       }
 
-      const itemResult = processCandidate(latestBatch, candidate);
+      let itemResult: SourceLibraryImportItemResult;
+      try {
+        itemResult = processCandidate(latestBatch, candidate);
+      } catch (error) {
+        // TRANSLATE, never silence: classify the write failure so the durable
+        // batch record carries the real cause, then rethrow with the original as
+        // `cause` so logs/telemetry keep it too.
+        const failure = classifyCandidateWriteFailure(error);
+        markBatchFailed(latestBatch.batchId, failure, now());
+        throw new CandidateWriteFailureError(failure, error);
+      }
+
       itemResults.push(itemResult);
       batch = requireBatch(batch.batchId);
     }
@@ -297,87 +321,53 @@ export function createSourceLibraryImportService(
     batch: SourceLibraryImportBatchRecord,
     candidate: PlatformLibraryCandidate,
   ): SourceLibraryImportItemResult {
-    try {
-      return input.database.transaction((db) => {
-        const timestamp = now();
-        const identityRead = createIdentityReadPort({ db });
-        const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
-          db,
-          now: timestamp,
-        });
-        const identityCommands = writes.identity;
-        const sourceLibraryCommands = writes.sourceLibrary;
-        const sourceRecord = identityCommands.upsertSourceRecord({
-          entity: candidate.sourceEntity,
-        });
-        const existingBinding = identityRead.findMaterialForSource({
-          sourceRef: candidate.sourceEntity.sourceRef,
-        });
-        const materialRef = existingBinding?.materialRef ??
-          input.materialRefFactory.createMaterialRef(materialKindForSource(candidate.sourceEntity));
-
-        if (existingBinding === undefined) {
-          identityCommands.upsertMaterialRecord({
-            materialRef,
-            kind: materialKindForSource(candidate.sourceEntity),
-            ...(candidate.sourceEntity.versionInfo === undefined ? {} : { versionInfo: candidate.sourceEntity.versionInfo }),
-          });
-        }
-
-        identityCommands.bindSourceToMaterial({
-          sourceRef: candidate.sourceEntity.sourceRef,
-          materialRef,
-          makePrimary: existingBinding === undefined,
-        });
-
-        const itemWrite = sourceLibraryCommands.recordImportItem({
-          batch,
-          sourceRef: candidate.sourceEntity.sourceRef,
-          providerId: candidate.sourceEntity.providerId,
-          providerEntityId: candidate.sourceEntity.providerEntityId,
-          materialRef,
-          ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
-        });
-
-        return {
-          candidate,
-          outcome: itemWrite.outcome,
-          sourceRecord,
-          sourceLibraryItem: itemWrite.sourceLibraryItem,
-          materialRef,
-        };
-      });
-    } catch (error) {
-      return recordFailedCandidate(batch.batchId, candidate, error);
-    }
-  }
-
-  function recordFailedCandidate(
-    batchId: string,
-    candidate: PlatformLibraryCandidate,
-    error: unknown,
-  ): SourceLibraryImportItemResult {
     return input.database.transaction((db) => {
       const timestamp = now();
-      const commands = createMusicDataPlatformSourceOfTruthWriteCommands({
+      const identityRead = createIdentityReadPort({ db });
+      const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
         db,
         now: timestamp,
-      }).sourceLibrary;
-      const compactError = compactItemError(error);
-      const sourceRefKey = optionalSourceRefKey(candidate);
-      const write = commands.recordImportItemFailure({
-        batchId,
-        ...(sourceRefKey === undefined ? {} : { sourceRefKey }),
+      });
+      const identityCommands = writes.identity;
+      const sourceLibraryCommands = writes.sourceLibrary;
+      const sourceRecord = identityCommands.upsertSourceRecord({
+        entity: candidate.sourceEntity,
+      });
+      const existingBinding = identityRead.findMaterialForSource({
+        sourceRef: candidate.sourceEntity.sourceRef,
+      });
+      const materialRef = existingBinding?.materialRef ??
+        input.materialRefFactory.createMaterialRef(materialKindForSource(candidate.sourceEntity));
+
+      if (existingBinding === undefined) {
+        identityCommands.upsertMaterialRecord({
+          materialRef,
+          kind: materialKindForSource(candidate.sourceEntity),
+          ...(candidate.sourceEntity.versionInfo === undefined ? {} : { versionInfo: candidate.sourceEntity.versionInfo }),
+        });
+      }
+
+      identityCommands.bindSourceToMaterial({
+        sourceRef: candidate.sourceEntity.sourceRef,
+        materialRef,
+        makePrimary: existingBinding === undefined,
+      });
+
+      const itemWrite = sourceLibraryCommands.recordImportItem({
+        batch,
+        sourceRef: candidate.sourceEntity.sourceRef,
         providerId: candidate.sourceEntity.providerId,
         providerEntityId: candidate.sourceEntity.providerEntityId,
-        errorCode: compactError.code,
-        errorMessage: compactError.message,
+        materialRef,
+        ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
       });
 
       return {
         candidate,
-        outcome: write.outcome,
-        error: compactError,
+        outcome: itemWrite.outcome,
+        sourceRecord,
+        sourceLibraryItem: itemWrite.sourceLibraryItem,
+        materialRef,
       };
     });
   }
@@ -464,7 +454,7 @@ export function createSourceLibraryImportService(
 function validateStartInput(
   input: SourceLibraryImportStartInput,
 ): Result<void> {
-  if (!isSafeId(input.providerId)) {
+  if (!isRefComponentSafe(input.providerId)) {
     return failMusicData(
       "music_data.invalid_source_library_import_input",
       "Source library import providerId must be a non-empty safe id.",
@@ -473,7 +463,7 @@ function validateStartInput(
 
   if (
     input.providerAccountId !== undefined &&
-    !isSafeId(input.providerAccountId)
+    !isRefComponentSafe(input.providerAccountId)
   ) {
     return failMusicData(
       "music_data.invalid_source_library_import_input",
@@ -567,13 +557,9 @@ function resolvedProviderAccountId(
 ): Result<string> {
   const resolved = normalizeSafeId(page.providerAccountId);
 
-  if (page.providerAccountId !== undefined && resolved === undefined) {
-    return failMusicData(
-      "music_data.source_library_account_invalid",
-      "Platform library read returned an invalid provider account id.",
-      true,
-    );
-  }
+  // assertProviderReadPostExtensionContract already guarantees providerAccountId
+  // is undefined or a safe id, so `resolved === undefined` only when the field is
+  // absent — handled by the branches below. One failure channel: Result<string>.
 
   if (batch.providerAccountId === undefined) {
     if (resolved === undefined) {
@@ -602,38 +588,17 @@ function validateProviderPageForBatch(
   batch: SourceLibraryImportBatchRecord,
   page: PlatformLibraryReadResult,
 ): Result<void> {
-  if (!isRecord(page)) {
-    return invalidProviderPage("Platform library read returned a malformed page.");
-  }
-
-  if (!isSafeId(page.providerId) || page.providerId !== batch.providerId) {
+  // Batch-membership semantics (MDP-owned). A structurally-valid page that does
+  // not belong to this batch is an expected, retryable provider-page failure, not
+  // a broken contract — hence Result. Structural validity of the same fields
+  // (isRefComponentSafe providerId, isPlatformLibraryKind kind) is owned by
+  // assertProviderReadPostExtensionContract and MUST NOT be re-checked here.
+  if (page.providerId !== batch.providerId) {
     return invalidProviderPage("Platform library read returned a provider id outside the import batch.");
   }
 
   if (page.kind !== batch.libraryKind) {
     return invalidProviderPage("Platform library read returned a library kind outside the import batch.");
-  }
-
-  if (!Array.isArray(page.candidates)) {
-    return invalidProviderPage("Platform library read returned a non-array candidate list.");
-  }
-
-  if (
-    page.nextCursor !== undefined &&
-    (typeof page.nextCursor !== "string" || page.nextCursor.trim().length === 0)
-  ) {
-    return invalidProviderPage("Platform library read returned an invalid next cursor.");
-  }
-
-  if (
-    page.totalCountHint !== undefined &&
-    (
-      typeof page.totalCountHint !== "number" ||
-      !Number.isInteger(page.totalCountHint) ||
-      page.totalCountHint < 0
-    )
-  ) {
-    return invalidProviderPage("Platform library read returned an invalid total count hint.");
   }
 
   return ok(undefined);
@@ -645,23 +610,15 @@ function validateProviderCandidatesForBatch(
   providerAccountId: string,
 ): Result<void> {
   for (const candidate of page.candidates) {
-    if (!isRecord(candidate)) {
-      return invalidProviderPage("Platform library read returned a malformed candidate.");
-    }
-
     if (candidate.libraryKind !== batch.libraryKind) {
       return invalidProviderPage("Platform library read returned a candidate outside the import batch kind.");
     }
 
     if (
       candidate.providerAccountId !== undefined &&
-      (!isSafeId(candidate.providerAccountId) || candidate.providerAccountId !== providerAccountId)
+      candidate.providerAccountId !== providerAccountId
     ) {
       return invalidProviderPage("Platform library read returned a candidate outside the resolved provider account.");
-    }
-
-    if (!isRecord(candidate.sourceEntity)) {
-      return invalidProviderPage("Platform library read returned a candidate without source entity facts.");
     }
 
     const sourceValidation = validateProviderSourceEntityForBatch(batch, candidate.sourceEntity);
@@ -676,7 +633,7 @@ function validateProviderCandidatesForBatch(
 
 function validateProviderSourceEntityForBatch(
   batch: SourceLibraryImportBatchRecord,
-  sourceEntity: Record<string, unknown>,
+  sourceEntity: SourceEntity,
 ): Result<void> {
   const expectedKind = sourceKindForLibraryKind(batch.libraryKind);
 
@@ -684,16 +641,8 @@ function validateProviderSourceEntityForBatch(
     return invalidProviderPage("Platform library read returned source entity kind outside the import batch.");
   }
 
-  if (!isSafeId(sourceEntity.providerId) || sourceEntity.providerId !== batch.providerId) {
+  if (sourceEntity.providerId !== batch.providerId) {
     return invalidProviderPage("Platform library read returned source entity provider outside the import batch.");
-  }
-
-  if (!isSafeId(sourceEntity.providerEntityId)) {
-    return invalidProviderPage("Platform library read returned source entity with unsafe provider entity id.");
-  }
-
-  if (!isRecord(sourceEntity.sourceRef)) {
-    return invalidProviderPage("Platform library read returned source entity without source ref.");
   }
 
   const sourceRef = sourceEntity.sourceRef;
@@ -707,11 +656,134 @@ function validateProviderSourceEntityForBatch(
     return invalidProviderPage("Platform library read returned source ref kind outside the import batch.");
   }
 
-  if (!isSafeId(sourceRef.id)) {
-    return invalidProviderPage("Platform library read returned source ref with unsafe id.");
+  return ok(undefined);
+}
+
+/**
+ * Extension-post-contract invariant. Owns STRUCTURAL validity of the provider-read
+ * result (object shape, safe ids, valid PlatformLibraryKind enum, array candidates
+ * within limit, cursor/totalCountHint shape). Extension's platform-library read seam
+ * already validates this; reaching this assert means a post-Extension contract was
+ * broken, so it THROWS rather than returning a Result. Do NOT move these checks into
+ * the validate*ForBatch Result layer — that would conflate a broken invariant
+ * (throw) with an expected batch-membership failure (Result). The two layers check
+ * different invariants on overlapping fields (providerId, kind) and MUST stay on
+ * separate error channels (see the call site in processNextPage).
+ */
+function assertProviderReadPostExtensionContract(
+  page: PlatformLibraryReadResult,
+  requestedLimit: number,
+): void {
+  if (!isRecord(page)) {
+    postExtensionContractViolation("returned a malformed page.");
   }
 
-  return ok(undefined);
+  if (!isRefComponentSafe(page.providerId)) {
+    postExtensionContractViolation("returned an unsafe provider id.");
+  }
+
+  if (!isPlatformLibraryKind(page.kind)) {
+    postExtensionContractViolation("returned an unsupported library kind.");
+  }
+
+  if (
+    page.providerAccountId !== undefined &&
+    !isRefComponentSafe(page.providerAccountId)
+  ) {
+    postExtensionContractViolation("returned an unsafe provider account id.");
+  }
+
+  if (!Array.isArray(page.candidates)) {
+    postExtensionContractViolation("returned a non-array candidate list.");
+  }
+
+  if (page.candidates.length > requestedLimit) {
+    postExtensionContractViolation("returned more candidates than requested.");
+  }
+
+  if (
+    page.nextCursor !== undefined &&
+    (typeof page.nextCursor !== "string" || page.nextCursor.trim().length === 0)
+  ) {
+    postExtensionContractViolation("returned an invalid next cursor.");
+  }
+
+  if (
+    page.totalCountHint !== undefined &&
+    (
+      typeof page.totalCountHint !== "number" ||
+      !Number.isInteger(page.totalCountHint) ||
+      page.totalCountHint < 0
+    )
+  ) {
+    postExtensionContractViolation("returned an invalid total count hint.");
+  }
+
+  for (const candidate of page.candidates as readonly unknown[]) {
+    assertProviderCandidatePostExtensionContract(candidate);
+  }
+}
+
+function assertProviderCandidatePostExtensionContract(
+  candidate: unknown,
+): asserts candidate is PlatformLibraryCandidate {
+  if (!isRecord(candidate)) {
+    postExtensionContractViolation("returned a malformed candidate.");
+  }
+
+  if (!isPlatformLibraryKind(candidate.libraryKind)) {
+    postExtensionContractViolation("returned an unsupported candidate kind.");
+  }
+
+  if (
+    candidate.providerAccountId !== undefined &&
+    !isRefComponentSafe(candidate.providerAccountId)
+  ) {
+    postExtensionContractViolation("returned an unsafe candidate provider account id.");
+  }
+
+  if (!isRecord(candidate.sourceEntity)) {
+    postExtensionContractViolation("returned a candidate without source entity.");
+  }
+
+  assertProviderSourceEntityPostExtensionContract(candidate.sourceEntity);
+}
+
+function assertProviderSourceEntityPostExtensionContract(
+  sourceEntity: Record<string, unknown>,
+): asserts sourceEntity is SourceEntity {
+  if (!isSourceEntityKind(sourceEntity.kind)) {
+    postExtensionContractViolation("returned an unsupported source entity kind.");
+  }
+
+  if (!isRefComponentSafe(sourceEntity.providerId)) {
+    postExtensionContractViolation("returned an unsafe source entity provider id.");
+  }
+
+  if (!isRefComponentSafe(sourceEntity.providerEntityId)) {
+    postExtensionContractViolation("returned an unsafe provider entity id.");
+  }
+
+  if (!isRecord(sourceEntity.sourceRef)) {
+    postExtensionContractViolation("returned a source entity without source ref.");
+  }
+
+  const sourceRef = sourceEntity.sourceRef;
+
+  if (
+    typeof sourceRef.namespace !== "string" ||
+    typeof sourceRef.kind !== "string" ||
+    typeof sourceRef.id !== "string"
+  ) {
+    postExtensionContractViolation("returned a malformed source ref.");
+  }
+
+  // Validate ref-component safety without building (and discarding) a key string.
+  assertRefSafe({
+    namespace: sourceRef.namespace,
+    kind: sourceRef.kind,
+    id: sourceRef.id,
+  });
 }
 
 function hasReachedMaxNewItems(batch: SourceLibraryImportBatchRecord): boolean {
@@ -740,35 +812,6 @@ function sourceKindForLibraryKind(kind: PlatformLibraryKind): SourceEntity["kind
   }
 }
 
-function optionalSourceRefKey(candidate: PlatformLibraryCandidate): string | undefined {
-  try {
-    return refKey(candidate.sourceEntity.sourceRef);
-  } catch {
-    return undefined;
-  }
-}
-
-function compactItemError(error: unknown): { code: string; message: string } {
-  if (isRecord(error) && typeof error.code === "string" && typeof error.message === "string") {
-    return {
-      code: error.code,
-      message: error.message,
-    };
-  }
-
-  if (error instanceof Error) {
-    return {
-      code: "music_data.source_library_item_write_failed",
-      message: error.message,
-    };
-  }
-
-  return {
-    code: "music_data.source_library_item_write_failed",
-    message: "Source library item write failed.",
-  };
-}
-
 function isOptionalPositiveInteger(value: unknown): boolean {
   return value === undefined || (typeof value === "number" && Number.isInteger(value) && value > 0);
 }
@@ -790,19 +833,21 @@ function isPlatformLibraryKind(value: unknown): value is PlatformLibraryKind {
     value === "followed_source_artist";
 }
 
+function isSourceEntityKind(value: unknown): value is SourceEntity["kind"] {
+  return value === "track" || value === "album" || value === "artist";
+}
+
 function normalizeSafeId(value: unknown): string | undefined {
-  return isSafeId(value) ? value : undefined;
+  return isRefComponentSafe(value) ? value : undefined;
 }
 
 function defaultBatchId(): string {
   return `source_library_import_${randomUUID().replaceAll("-", "")}`;
 }
 
-function isSafeId(value: unknown): value is string {
-  return typeof value === "string" &&
-    value.trim() === value &&
-    isRefComponentSafe(value);
-}
+// Ref-component safety (non-empty, whitespace-trimmed, no ':') is owned by the
+// kernel contract `isRefComponentSafe`; do not re-express it locally.
+
 
 function ok<T>(value: T): Result<T> {
   return { ok: true, value };
@@ -837,6 +882,103 @@ function invalidProviderPage(message: string): Result<never> {
     message,
     true,
   );
+}
+
+const SQLITE_UNIQUE_ERRCODES = new Set([2067, 1555, 2579]);
+const SQLITE_TRANSIENT_ERRCODES = new Set([5, 6]); // SQLITE_BUSY, SQLITE_LOCKED
+
+// Classifies a processCandidate write failure into a durable StageError so the
+// batch record and the rethrown error describe the SAME cause. No branch
+// silences: unknown errors are still classified, recorded, and rethrown.
+function classifyCandidateWriteFailure(error: unknown): StageError {
+  if (isMusicDataPlatformError(error)) {
+    // Command-invariant failures (material ref, source-library command) carry
+    // their own typed code — record it verbatim.
+    return musicDataError(error.code, error.message, false);
+  }
+
+  const errcode = sqliteErrcode(error);
+
+  if (errcode !== undefined && SQLITE_UNIQUE_ERRCODES.has(errcode)) {
+    return musicDataError(
+      "music_data.source_library_import_constraint_conflict",
+      errorMessage(error, "Source library import item write violated a uniqueness constraint."),
+      false,
+    );
+  }
+
+  if (errcode !== undefined && SQLITE_TRANSIENT_ERRCODES.has(errcode)) {
+    return musicDataError(
+      "music_data.source_library_import_write_contention",
+      errorMessage(error, "Source library import item write failed due to database contention."),
+      true,
+    );
+  }
+
+  if (isMusicDatabaseError(error)) {
+    return musicDataError(
+      "music_data.source_library_import_write_failed",
+      errorMessage(error, "Source library import item write failed at the storage boundary."),
+      true,
+    );
+  }
+
+  return musicDataError(
+    "music_data.source_library_import_write_failed",
+    errorMessage(error, "Source library import item write failed."),
+    true,
+  );
+}
+
+function sqliteErrcode(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+  const candidate = (error as { code?: unknown }).code;
+  if (candidate !== "ERR_SQLITE_ERROR") {
+    return undefined;
+  }
+  const errcode = (error as { errcode?: unknown }).errcode;
+  return typeof errcode === "number" ? errcode : undefined;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.length > 0 ? error.message : fallback;
+}
+
+class CandidateWriteFailureError extends Error {
+  readonly failure: StageError;
+
+  constructor(failure: StageError, cause: unknown) {
+    super(`${failure.code}: ${failure.message}`);
+    this.name = "CandidateWriteFailureError";
+    this.failure = failure;
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
+  }
+}
+
+
+function systemProviderReadContractFailure(): StageError {
+  return musicDataError(
+    "music_data.source_library_provider_read_contract_invalid",
+    "Platform library read violated the post-Extension validation contract.",
+    true,
+  );
+}
+
+// Single owner of the post-Extension-contract-violation throw. The assert family
+// below runs AFTER Extension's platform-library read seam has already validated
+// provider output, so any structural violation reaching these asserts is a broken
+// internal contract — it must fail loudly (throw) so the workflow boundary
+// (markBatchFailed + rethrow) reports it, never as a fallback Result or empty page.
+// `detail` is a sentence fragment completing "PlatformLibraryReadPort ___ after
+// Extension validation." (e.g. "returned an unsafe provider id"); a trailing period
+// is stripped so the composed message reads as one sentence.
+function postExtensionContractViolation(detail: string): never {
+  const fragment = detail.endsWith(".") ? detail.slice(0, -1) : detail;
+  throw new Error(`PlatformLibraryReadPort ${fragment} after Extension validation.`);
 }
 
 function musicDataError(

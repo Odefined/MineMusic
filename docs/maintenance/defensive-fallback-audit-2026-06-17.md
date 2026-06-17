@@ -1,9 +1,12 @@
 # Defensive Fallback, Redundant Catch, and Redundant Guard Audit
 
 Review date: 2026-06-17
+Revision: 2026-06-17 post-review calibration against current `main`.
+Implementation status: addressed on branch `codex/fix-defensive-fallbacks`.
 Scope: production code under `src/**` plus
 `scripts/generate-stage-interface-schemas.mjs`.
-Non-scope: tests, generated `.tmp-test/**`, and archived docs.
+Tests and area docs were reviewed only for named coverage/contract checks.
+Non-scope: generated `.tmp-test/**` and archived docs.
 
 This report applies the `AGENTS.md` Errors And Fallbacks rule:
 defend at explicit boundaries, trust contracts inside the boundary, do not turn
@@ -22,20 +25,24 @@ runtime catches in Stage Interface, Stage Core, Extension, SQLite storage,
 cursor decoding, and projection maintenance are generally boundary translation
 or cleanup code, not arbitrary defensive programming.
 
-The audit found six actionable issues:
+The audit found six actionable issues. Post-review calibration keeps most
+findings intact, strengthens the lookup finding with runtime reachability
+evidence, and narrows two findings where current docs/tests already define part
+of the behavior.
 
 | Priority | Finding | Main files |
 | --- | --- | --- |
-| P1 | `music.discovery.lookup` maps unknown Retrieval throws to public invalid-input/provider-scope failures. | `src/music_intelligence/stage_adapter/discovery_lookup.ts` |
+| P1 | `music.discovery.lookup` maps unknown Retrieval throws to public invalid-input/provider-scope failures, and its known Retrieval error-code mapping needs explicit classification. | `src/music_intelligence/stage_adapter/discovery_lookup.ts` |
 | P1 | Source Library Import records any per-candidate transaction/system failure as an item failure. | `src/music_data_platform/source_library_import.ts` |
 | P2 | Music Discovery handlers re-run generated Tool Call Router schema validation inside handlers. | `src/music_intelligence/stage_adapter/discovery_lookup.ts`, `src/music_intelligence/stage_adapter/discovery_list_scopes.ts` |
-| P2 | Source Library Import repeats provider-read structural output validation already owned by Extension's platform-library provider slot. | `src/music_data_platform/source_library_import.ts`, `src/extension/platform_library_provider_slot.ts` |
-| P2 | NCM source search silently drops malformed provider result items, allowing malformed responses to look like empty search results. | `src/extension/plugins/ncm.ts` |
+| P2 | Source Library Import and Extension split ownership of provider-read structural validation; the boundary decision must be made explicit. | `src/music_data_platform/source_library_import.ts`, `src/extension/platform_library_provider_slot.ts` |
+| P2 | NCM source search silently drops non-object rows and rows missing required display facts; stable-id drops are documented product semantics and are not this finding. | `src/extension/plugins/ncm.ts`, `docs/extension/plugins/ncm.md`, `test/formal/ncm-plugin.test.ts` |
 | P3 | Plugin manifest validation defensively validates and catches core-owned validation input, masking programmer/composition errors as invalid plugin manifests. | `src/extension/plugin_manifest.ts` |
 
-No code was changed by this audit. The recommended next step is to fix P1 items
-first because they can mislead callers about whether the user input/provider
-scope failed or the system itself failed.
+The original audit was static analysis. The follow-up implementation branch
+addresses the findings by moving internal failures back to throws, narrowing
+handler validation to semantic checks, and updating the affected formal tests
+and area docs.
 
 ## Audit Method
 
@@ -50,6 +57,8 @@ rg -n "isRecord\(input\)|typeof input|must be an object|accepts only|requires|mu
 rg -n "additionalProperties|required|enum|type|minimum|maximum" src/contracts/generated/stage_interface_schemas.ts
 rg -n "CHECK|NOT NULL|UNIQUE|FOREIGN KEY" src/music_data_platform/*schema.ts src/stage_interface/*schema.ts
 rg -n "default:" src --glob '!**/*.d.ts'
+rg -n "Retrieval query service is not initialized|createMusicDiscoveryRuntimeModule|tool_handler_failed" src test
+rg -n "knownCapabilityIds|droppedProvider|source_library_item_write_failed|retrieval_result_invalid" src test docs
 ```
 
 Inventory summary:
@@ -63,6 +72,12 @@ Inventory summary:
 - Generated Stage Interface schemas already enforce object shape,
   `additionalProperties: false`, required fields, enum membership, and numeric
   limits for current Music Discovery tool inputs.
+- Default Server Host composition registers the Music Discovery runtime module
+  when the Music Data Platform module is created, so `music.discovery.lookup`
+  is runtime-reachable in the default host graph.
+- Existing formal tests covered several old behaviors at audit time:
+  provider-id row drops in NCM search, item failure on bad generated material
+  refs, and defensive plugin-manifest wrapper validation.
 
 The audit read every explicit catch site and representative fallback/default
 sites, then followed suspicious duplicate validation paths through generated
@@ -80,6 +95,26 @@ Internal-contract review rule:
   wrong when it represents internal misuse, impossible state, DB/runtime
   failure, or a violated post-boundary contract.
 
+Post-review calibration:
+
+- `music.discovery.lookup` is not dormant source. `createServerHost(...)`
+  creates `createMusicDiscoveryRuntimeModule(...)` in the default host path and
+  passes a `retrievalQuery` wrapper into it. The wrapper throws a plain
+  `Error("Retrieval query service is not initialized.")` if the underlying MDP
+  retrieval service is absent.
+- The Tool Call Router already owns input-schema rejection and handler-throw
+  normalization. Handler-internal recovery for schema-invalid payloads or plain
+  Retrieval throws is therefore the wrong boundary.
+- Provider-read structural validation is duplicated in code, but the severity
+  depends on `PlatformLibraryReadPort` ownership. If only Extension supplies a
+  post-validation port, MDP should treat structural violations as invariants. If
+  MDP intentionally accepts untrusted implementations, MDP must own the
+  structural boundary and Extension should not be described as the sole owner.
+- NCM search already documents and tests dropping raw rows without usable stable
+  provider ids. This report no longer treats that specific behavior as a
+  finding; the remaining concern is unreported dropping of non-object rows or
+  rows missing other required display/source facts.
+
 ## Findings
 
 ### P1: Lookup Stage Adapter Hides Unknown Retrieval Failures
@@ -91,8 +126,15 @@ Files:
 - `src/music_intelligence/stage_adapter/discovery_lookup.ts:1043`
 - `src/music_intelligence/stage_adapter/discovery_lookup.ts:1064`
 - `src/music_intelligence/stage_adapter/discovery_lookup.ts:1068`
+- `src/server/host.ts:45`
+- `src/server/host.ts:59`
+- `src/server/host.ts:63`
+- `src/music_intelligence/stage_adapter/index.ts:41`
+- `src/music_intelligence/stage_adapter/index.ts:62`
+- `src/stage_interface/index.ts:123`
+- `src/stage_interface/index.ts:163`
 
-Current behavior:
+Audited pre-fix behavior:
 
 ```ts
 try {
@@ -103,10 +145,20 @@ try {
 ```
 
 `mapRetrievalError(...)` handles known `MusicIntelligenceError` codes, which is
-valid boundary translation. The problem is the fallback path:
+valid only after each code has been classified into the lookup tool's public
+error vocabulary. The immediate problem is the fallback path:
 
 - unknown throw + provider scopes becomes `providerScopeFailed([])`;
 - unknown throw without provider scopes becomes `invalidInput(...)`.
+
+This path is runtime-reachable. Default `createServerHost(...)` creates the
+Music Data Platform runtime module, then creates `createMusicDiscoveryRuntimeModule(...)`
+with a `retrievalQuery` wrapper, and mounts the discovery module in the default
+runtime module list. If the underlying MDP retrieval service is absent, the
+wrapper throws a plain `Error("Retrieval query service is not initialized.")`.
+That error should cross to the Tool Call Router handler boundary and become
+`stage_interface.tool_handler_failed`, not a lookup-domain `invalid_input` or
+provider-scope failure.
 
 Why this violates the rule:
 
@@ -120,6 +172,17 @@ Why this violates the rule:
 - The Tool Call Router already owns handler throw normalization as
   `stage_interface.tool_handler_failed`.
 
+Known Retrieval error-code classification still needs to be made explicit:
+
+| Retrieval error code | Current mapping | Boundary classification needed |
+| --- | --- | --- |
+| `music_intelligence.retrieval_cursor_invalid` | `invalid_cursor` | Public cursor failure; likely correct. |
+| `music_intelligence.retrieval_result_set_expired`, `music_intelligence.material_candidate_expired` | `result_window_expired` | Public cursor/result-window failure; likely correct. |
+| `music_intelligence.provider_search_failed`, `music_intelligence.provider_search_pool_invalid`, `music_intelligence.provider_search_result_invalid`, `music_intelligence.provider_search_unavailable` | `provider_scope_failed` | Expected provider-scope failure only if the code came from the provider-search boundary; keep provider result-contract failures out of user-input vocabulary. |
+| `music_intelligence.retrieval_query_invalid` | `invalid_input` | Conditional. If caused by public lookup input or cursor contents, public invalid input may be right; if caused by handler-constructed impossible query shape, it is an invariant and should throw through the router. |
+| `music_intelligence.retrieval_result_invalid` | `invalid_input` | Likely wrong as public invalid input. Current Retrieval code uses this for missing rank/matched-text evidence in returned rows, which is read-model/result invariant failure, not user input. |
+| `music_intelligence.cursor_invalid`, `music_intelligence.cursor_mismatch` | `invalid_input` | Needs classification. Public lookup cursor problems should be `invalid_cursor`; internal cursor/query mismatch should fail loudly unless caused by an opaque public cursor. |
+
 Impact:
 
 - A database/system failure can be reported as a bad user query.
@@ -132,8 +195,10 @@ Recommendation:
 
 Only translate known `MusicIntelligenceError` codes in the stage adapter.
 Rethrow unknown errors and let the Tool Call Router produce the router-owned
-handler failure. If a new public error is needed, add it explicitly to the tool
-declaration and guard it with a test.
+handler failure. Also replace the broad known-code switch with a classification
+table that states whether each Retrieval code is public cursor/input,
+provider-scope, or internal invariant. If a new public error is needed, add it
+explicitly to the tool declaration and guard it with a test.
 
 Suggested guard:
 
@@ -143,6 +208,9 @@ Suggested guard:
   input or provider-scope failure.
 - A neighboring test where `retrievalQuery.query(...)` throws a known
   `MusicIntelligenceError` and remains translated to the declared public error.
+- Focused tests for `retrieval_result_invalid`, `cursor_mismatch`, and a
+  handler-constructed impossible query path so they do not regress into public
+  `invalid_input`.
 
 ### P1: Source Library Import Converts Any Candidate Write Failure Into Item Failure
 
@@ -155,8 +223,10 @@ Files:
 - `src/music_data_platform/source_library_import.ts:360`
 - `src/music_data_platform/source_library_import.ts:743`
 - `src/music_data_platform/source_library_import.ts:746`
+- `test/formal/music-data-platform-source-library.test.ts:1432`
+- `test/formal/music-data-platform-source-library.test.ts:1461`
 
-Current behavior:
+Audited pre-fix behavior:
 
 `processCandidate(...)` wraps the whole per-candidate write transaction in a
 broad catch:
@@ -179,6 +249,14 @@ try {
 `recordFailedCandidate(...)` then writes an item failure outcome. If
 `refKey(candidate.sourceEntity.sourceRef)` fails while building the failure
 record, `optionalSourceRefKey(...)` catches that and returns `undefined`.
+
+Existing formal coverage locked this behavior in for one system-like
+write failure: the test named around `failedItemImport` makes the material ref
+factory return `"bad:material"`, then asserts the batch completes with one
+imported item and one failed item. That test is useful evidence of current
+behavior, but its expected outcome needed to change once the failure was classified as
+an internal material-ref factory/command invariant rather than an item-scoped
+provider candidate failure.
 
 Why this violates the rule:
 
@@ -220,6 +298,9 @@ Suggested guard:
   candidate item failure as if the provider item were bad.
 - A separate test for a deliberately malformed provider candidate, if the
   intended product behavior is to record only that item as failed.
+- Update the existing bad generated-material-ref expectation so internal
+  material-ref factory failures do not remain documented as ordinary item
+  failures.
 
 ### P2: Music Discovery Handlers Re-Run Generated Schema Validation
 
@@ -251,7 +332,7 @@ Files:
 - `src/music_intelligence/stage_adapter/discovery_list_scopes.ts:198`
 - `src/music_intelligence/stage_adapter/discovery_list_scopes.ts:211`
 
-Current behavior:
+Audited pre-fix behavior:
 
 The Tool Call Router validates every call payload against the tool's generated
 input schema before invoking the handler. The current generated schemas already
@@ -326,7 +407,7 @@ Suggested guard:
   scopes, incompatible scope combinations, unknown scopes, unsupported target,
   expired/invalid encrypted cursor.
 
-### P2: Source Library Import Repeats Provider-Read Structural Validation
+### P2: Source Library Import And Extension Split Provider-Read Validation Ownership
 
 Files:
 
@@ -358,7 +439,7 @@ Files:
 - `docs/extension/ports.md:44`
 - `docs/music-data-platform/ports.md:222`
 
-Current behavior:
+Audited pre-fix behavior:
 
 Extension's platform-library provider slot validates provider output integrity
 before returning a successful `PlatformLibraryReadResult`: result object shape,
@@ -383,7 +464,7 @@ MDP also checks page provider id, account id, library kind, source provider id,
 source kind, and source ref namespace/kind against the current batch. Those
 batch-membership checks are valid MDP-owned semantic validation and should stay.
 
-Why this violates the rule:
+Why this is a conditional finding:
 
 - The Extension port documentation says provider reads return validated
   candidates.
@@ -392,6 +473,11 @@ Why this violates the rule:
   re-validating raw provider payload shape after Extension already adapted it.
 - The repeated shape checks make Source Library Import behave like it is still
   directly facing raw provider/plugin output.
+- However, this is only a violation if `PlatformLibraryReadPort` is defined as
+  a trusted post-Extension port. If MDP intentionally accepts arbitrary
+  untrusted `PlatformLibraryReadPort` implementations, then MDP owns a provider
+  read boundary too and the Extension docs should not claim sole validated-output
+  ownership.
 
 Impact:
 
@@ -405,7 +491,10 @@ Impact:
 
 Recommendation:
 
-Keep MDP's batch-scoped semantic checks:
+Make one boundary decision and encode it in docs/tests:
+
+Option A: Extension owns provider-output structural validation. In that case,
+keep only MDP's batch-scoped semantic checks:
 
 - page provider id belongs to the batch;
 - resolved account id matches the batch;
@@ -414,25 +503,29 @@ Keep MDP's batch-scoped semantic checks:
   batch.
 
 Remove the duplicate structural provider-output checks from Source Library
-Import, or convert impossible contract violations into thrown invariant errors
-rather than public provider-page-invalid `Result` failures. If MDP intentionally
-accepts untrusted provider-read implementations outside Extension, document
-that the `PlatformLibraryReadPort` is an untrusted boundary and move ownership
-of provider-output validation fully to MDP instead of splitting it across both
-layers.
+Import, or convert impossible post-Extension contract violations into thrown
+invariant errors rather than public provider-page-invalid `Result` failures.
+
+Option B: MDP owns an untrusted provider-read boundary. In that case, document
+`PlatformLibraryReadPort` as untrusted input to Source Library Import, keep the
+structural checks there, and adjust Extension docs/tests so validated-output
+ownership is not split ambiguously across both layers.
 
 Suggested guard:
 
 - Extension provider-slot tests should own malformed provider output cases.
 - Source Library Import tests should own batch mismatch cases.
-- Add one test proving a broken provider-read port implementation that violates
-  the post-Extension contract does not get reported as an ordinary provider page
-  semantic error unless that boundary ownership is explicitly documented.
+- Add one test for the selected decision: either a broken post-Extension port
+  violation throws as an invariant, or an intentionally untrusted MDP read port
+  returns `music_data.source_library_provider_page_invalid` by design.
 
-### P2: NCM Source Search Silently Drops Malformed Provider Items
+### P2: NCM Source Search Silently Drops Some Provider Rows Without Explicit Semantics
 
 Files:
 
+- `docs/extension/plugins/ncm.md:163`
+- `test/formal/ncm-plugin.test.ts:787`
+- `test/formal/ncm-plugin.test.ts:801`
 - `src/extension/plugins/ncm.ts:875`
 - `src/extension/plugins/ncm.ts:887`
 - `src/extension/plugins/ncm.ts:890`
@@ -445,7 +538,7 @@ Files:
   `src/extension/plugins/ncm.ts:650` and
   `src/extension/plugins/ncm.ts:683`.
 
-Current behavior:
+Audited pre-fix behavior:
 
 `mapPayloadArray(...)` accepts a provider array, filters non-object items, maps
 each object, and drops mapper failures:
@@ -460,12 +553,20 @@ The mappers return `undefined` when required source facts are absent:
 - album without usable id/title;
 - artist without usable id/name.
 
+This finding is narrower than the first audit draft. Current NCM documentation
+explicitly says "Search raw items without usable stable provider ids are
+dropped", and the formal test asserted that search rows with missing
+or zero track ids return `[]`. That provider-id drop is current product
+semantics and is not treated as a violation here.
+
 Why this violates the rule:
 
 - This is an external provider adapter boundary, so it is the right place to
   validate and translate malformed provider payloads.
-- However, silently dropping malformed items can turn a malformed provider
-  response into an apparently valid empty or partial search result.
+- However, the current helper also silently drops non-object rows and rows that
+  have usable ids but are missing other required display/source facts such as
+  title/name. Those drops are not spelled out with the same clarity as stable-id
+  drops.
 - The same file handles platform-library payloads more strictly: saved track,
   album, and followed artist conversion fails on missing usable source facts.
 
@@ -473,23 +574,27 @@ Impact:
 
 - Provider schema drift or bad payload rows may be invisible to callers.
 - Search recall can degrade with no public error, warning, or audit signal.
-- If every returned item is malformed, the result looks like "no matches."
+- If every returned item is non-object or missing required non-id facts, the
+  result can still look like "no matches."
 
 Recommendation:
 
-Make search mapping strict enough to preserve failure semantics:
+Make search mapping semantics explicit:
 
 - fail with `extension.ncm_malformed_response` when the result array contains a
-  non-object item;
-- fail when a result item lacks required id/title/name source facts; or
-- if partial tolerance is an intentional provider-search product decision,
-  return a structured warning/drop count through an explicit adapter-owned
-  result path rather than silently returning fewer candidates.
+  non-object item; and
+- either fail when a result item has a usable provider id but lacks required
+  title/name source facts, or document/test that those rows are intentionally
+  dropped like missing stable ids; and
+- if partial tolerance is the intended provider-search product decision, return
+  a structured warning/drop count through an explicit adapter-owned result path
+  rather than silently returning fewer candidates.
 
 Suggested guard:
 
-- NCM search test with a malformed `result.songs` item; assert the provider
-  returns `extension.ncm_malformed_response`, not `ok([])`.
+- Keep the existing stable-id-drop test if that remains product semantics.
+- Add separate NCM search tests for a non-object row and a usable-id row missing
+  title/name; assert the selected strict failure or documented tolerant behavior.
 
 ### P3: Plugin Manifest Validator Defensively Validates Core-Owned Inputs
 
@@ -503,7 +608,7 @@ Files:
 - `src/extension/plugin_manifest.ts:123`
 - `src/extension/plugin_manifest.ts:127`
 
-Current behavior:
+Audited pre-fix behavior:
 
 `ValidatePluginManifestInput` is typed internal/core-owned input:
 
@@ -633,6 +738,18 @@ or enforce an invariant not guaranteed by the immediate caller.
 
 ## Watchlist, Not Current Findings
 
+### Source Provider Lookup Capability Mismatch
+
+Files:
+
+- `src/contracts/music_data_platform.ts:166`
+- `src/contracts/music_data_platform.ts:173`
+
+The older Source Provider `"lookup"` capability mismatch is not a current
+finding in this audit. Current `SourceProviderCapability` is `"search" |
+"playable_links"`, and `SourceProvider` exposes `search?` and
+`getPlayableLinks?`; there is no current `"lookup"` literal to reconcile.
+
 ### Storage Async Callback Rejection Absorption
 
 Files:
@@ -695,24 +812,62 @@ arrays.
 
 ## Recommended Fix Order
 
-1. Fix `music.discovery.lookup` unknown Retrieval error mapping.
-2. Split Source Library Import per-candidate item failure from system/write
+1. Fix `music.discovery.lookup` unknown Retrieval error mapping so plain throws
+   reach the Tool Call Router as `stage_interface.tool_handler_failed`.
+2. Classify every known `mapRetrievalError(...)` code, especially
+   `retrieval_result_invalid`, `cursor_mismatch`, and
+   handler-constructed `retrieval_query_invalid` paths.
+3. Split Source Library Import per-candidate item failure from system/write
    failure.
-3. Remove duplicated Music Discovery handler schema parsing while preserving
+4. Remove duplicated Music Discovery handler schema parsing while preserving
    handler-owned semantic validation.
-4. Narrow Source Library Import provider-read validation to batch semantics, or
-   document the provider-read port as untrusted and move structural validation
-   ownership there.
-5. Make NCM source search malformed-row handling explicit.
-6. Remove or relocate the defensive core-owned input guards and
+5. Decide provider-read structural validation ownership: Extension post-validation
+   port, or MDP untrusted read boundary. Then narrow or document checks
+   accordingly.
+6. Make NCM source-search row-drop semantics explicit for non-object rows and
+   usable-id rows missing title/name facts, while preserving documented stable-id
+   drop behavior if still intended.
+7. Remove or relocate the defensive core-owned input guards and
    `knownCapabilityIds.has(...)` catch in plugin manifest validation.
 
 ## Verification For This Report
 
-The report is static analysis only. It did not run the test suite and did not
-change implementation code.
+The initial report was static analysis. The follow-up implementation was checked
+with typecheck, test build, and the targeted formal tests listed below.
 
-Useful follow-up verification after fixes:
+Pre-fix coverage checked:
+
+- `test/formal/music-discovery-lookup.test.ts` covered a host-injected bad clock
+  throwing through the Tool Call Router as `stage_interface.tool_handler_failed`
+  and known provider-search failure mapping to `provider_scope_failed`. It did
+  not cover `retrievalQuery.query(...)` throwing a plain `Error`.
+- `test/formal/music-data-platform-source-library.test.ts` expected a
+  bad generated material ref to record one item failure and complete the batch.
+  That test needed to change when the failure was reclassified as an internal
+  material-ref factory/command invariant.
+- `test/formal/ncm-plugin.test.ts` asserted NCM search drops rows
+  without usable stable provider ids. It covers malformed missing result arrays
+  as `extension.ncm_malformed_response`, but it did not separately classify
+  non-object rows or usable-id rows missing title/name facts.
+- `test/formal/extension-capability-slot.test.ts` asserted malformed
+  `knownCapabilityIds` wrapper inputs return
+  `extension.invalid_plugin_manifest`; that locked in the defensive behavior
+  this report recommended changing.
+
+Follow-up implementation coverage:
+
+- `test/formal/music-discovery-lookup.test.ts` now covers plain Retrieval
+  throws, `retrieval_result_invalid`, `provider_search_pool_invalid`, and cursor
+  mismatch classification.
+- `test/formal/music-data-platform-source-library.test.ts` now expects bad
+  generated material refs and malformed post-Extension provider-read structure
+  to throw while marking the batch failed.
+- `test/formal/ncm-plugin.test.ts` keeps the documented stable-id drop behavior
+  and adds non-object row / usable-id-missing-title malformed-response coverage.
+- `test/formal/extension-capability-slot.test.ts` now expects malformed
+  core-owned manifest-validator wrapper inputs to throw.
+
+Verification commands used for the follow-up implementation:
 
 ```bash
 npm run typecheck
@@ -720,6 +875,7 @@ npm run build:test
 node .tmp-test/test/formal/stage-interface-tool-frame.test.js
 node .tmp-test/test/formal/music-discovery-lookup.test.js
 node .tmp-test/test/formal/music-discovery-list-scopes.test.js
+node .tmp-test/test/formal/extension-capability-slot.test.js
 node .tmp-test/test/formal/music-data-platform-source-library.test.js
 node .tmp-test/test/formal/ncm-plugin.test.js
 ```

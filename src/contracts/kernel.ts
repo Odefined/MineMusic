@@ -41,7 +41,16 @@ export type Ref = {
 };
 
 export function isRefComponentSafe(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && !value.includes(":");
+  // Every ref component feeds ONE canonical `namespace:kind:id` key, whose
+  // round-trip integrity (refKey <-> split(":") into exactly 3 parts) depends
+  // on no component carrying leading/trailing whitespace: a padded id round-trips
+  // to 3 parts but is a DIFFERENT key than the trimmed value, silently breaking
+  // identity-equality dedup. This single shared invariant is owned here so every
+  // layer (Extension adapter, Music Data Platform, Music Intelligence) inherits it.
+  return typeof value === "string" &&
+    value.length > 0 &&
+    value.trim() === value &&
+    !value.includes(":");
 }
 
 export function assertRefSafe(ref: Pick<Ref, "namespace" | "kind" | "id">): void {
@@ -51,7 +60,7 @@ export function assertRefSafe(ref: Pick<Ref, "namespace" | "kind" | "id">): void
     ["id", ref.id],
   ] as const) {
     if (!isRefComponentSafe(value)) {
-      throw new Error(`Ref.${field} must be non-empty and must not contain ':'.`);
+      throw new Error(`Ref.${field} must be non-empty, whitespace-trimmed, and must not contain ':'.`);
     }
   }
 }

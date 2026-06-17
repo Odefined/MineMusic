@@ -207,7 +207,8 @@ export const musicScopeSchema = {
               "const": "source_library"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -224,7 +225,8 @@ export const musicScopeSchema = {
               "const": "relation"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -243,7 +245,8 @@ export const musicScopeSchema = {
           "const": "provider"
         },
         "providerId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -419,7 +422,8 @@ export const musicDiscoveryLookupInputSchema = {
               "const": "source_library"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -436,7 +440,8 @@ export const musicDiscoveryLookupInputSchema = {
               "const": "relation"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -455,7 +460,8 @@ export const musicDiscoveryLookupInputSchema = {
           "const": "provider"
         },
         "providerId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -495,7 +501,8 @@ export const musicDiscoveryLookupInputSchema = {
               "const": "source_library"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -516,7 +523,8 @@ export const musicDiscoveryLookupInputSchema = {
               "const": "relation"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -540,7 +548,8 @@ export const musicDiscoveryLookupInputSchema = {
               "const": "provider"
             },
             "providerId": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -655,7 +664,8 @@ export const musicListScopesOutputSchema = {
               "const": "source_library"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -676,7 +686,8 @@ export const musicListScopesOutputSchema = {
               "const": "relation"
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -700,7 +711,8 @@ export const musicListScopesOutputSchema = {
               "const": "provider"
             },
             "providerId": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [

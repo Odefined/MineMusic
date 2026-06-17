@@ -95,7 +95,6 @@ const LOOKUP_CURSOR_VERSION = "mlc1";
 const LOOKUP_CURSOR_AAD = Buffer.from("music.discovery.lookup.cursor.v1", "utf8");
 const DEFAULT_LOOKUP_CURSOR_TTL_MS = 30 * 60 * 1000;
 const LOOKUP_MAX_PROVIDER_CALLS_PER_TURN = 4;
-const LOOKUP_MAX_LIMIT = 100;
 
 export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
   name: "music.discovery.lookup",
@@ -233,17 +232,13 @@ async function handleMusicDiscoveryLookup(
     cursorCodec: LookupCursorCodec;
   },
 ): Promise<Result<MusicDiscoveryLookupOutput>> {
-  const parsed = parseMusicDiscoveryLookupInput(payload);
+  const input = payload as MusicDiscoveryLookupInput;
 
-  if (!parsed.ok) {
-    return parsed;
+  if (isCursorPageInput(input)) {
+    return handleCursorPage(ctx, input, ports);
   }
 
-  if (isCursorPageInput(parsed.value)) {
-    return handleCursorPage(ctx, parsed.value, ports);
-  }
-
-  return handleFirstPage(ctx, parsed.value, ports);
+  return handleFirstPage(ctx, input, ports);
 }
 
 async function handleFirstPage(
@@ -259,11 +254,6 @@ async function handleFirstPage(
 
   if (lookupText.length === 0) {
     return invalidInput("music.discovery.lookup requires non-empty lookupText on first-page calls.");
-  }
-
-  const limit = normalizeLookupLimit(input.limit);
-  if (!limit.ok) {
-    return limit;
   }
 
   const targetKind = input.targetKind ?? "recording";
@@ -300,7 +290,7 @@ async function handleFirstPage(
     retrievalQuery: ports.retrievalQuery,
     cursorCodec: ports.cursorCodec,
     queryInput,
-    limit: limit.value,
+    limit: input.limit,
     providerScopeLabels: resolved.value.providerScopeLabels,
   });
 }
@@ -313,11 +303,6 @@ async function handleCursorPage(
     cursorCodec: LookupCursorCodec;
   },
 ): Promise<Result<MusicDiscoveryLookupOutput>> {
-  const limit = normalizeLookupLimit(input.limit);
-  if (!limit.ok) {
-    return limit;
-  }
-
   const decoded = ports.cursorCodec.decode({
     ctx,
     cursor: input.cursor,
@@ -332,7 +317,7 @@ async function handleCursorPage(
     cursorCodec: ports.cursorCodec,
     queryInput: decoded.value.queryInput,
     internalCursor: decoded.value.internalCursor,
-    limit: limit.value,
+    limit: input.limit,
     providerScopeLabels: providerScopeLabelsForQuery(decoded.value.queryInput),
   });
 }
@@ -358,7 +343,13 @@ async function runLookupQuery(
       sessionId: ctx.sessionId,
     });
   } catch (error) {
-    return mapRetrievalError(error, input.providerScopeLabels);
+    const publicFailure = translateKnownRetrievalError(error, input.providerScopeLabels);
+    if (publicFailure === undefined) {
+      // Unknown / invariant / unadapted-boundary errors cross to the Tool Call
+      // Router, which normalizes them to stage_interface.tool_handler_failed.
+      throw error;
+    }
+    return publicFailure;
   }
 
   const items: MusicDiscoveryLookupItem[] = [];
@@ -687,10 +678,6 @@ function normalizeLookupScopes(
 }
 
 function normalizeLookupScope(value: MusicScope): Result<MusicScope> {
-  if (!isRecord(value) || typeof value.kind !== "string") {
-    return invalidInput("music.discovery.lookup scopes must be typed Music Scope objects.");
-  }
-
   switch (value.kind) {
     case "all":
     case "library":
@@ -702,10 +689,6 @@ function normalizeLookupScope(value: MusicScope): Result<MusicScope> {
       };
     case "source_library":
     case "relation":
-      if (typeof value.id !== "string" || value.id.length === 0) {
-        return invalidInput("music.discovery.lookup library scopes must carry a non-empty id.");
-      }
-
       return {
         ok: true,
         value: {
@@ -714,10 +697,6 @@ function normalizeLookupScope(value: MusicScope): Result<MusicScope> {
         },
       };
     case "provider":
-      if (typeof value.providerId !== "string" || value.providerId.length === 0) {
-        return invalidInput("music.discovery.lookup provider scopes must carry a non-empty providerId.");
-      }
-
       return {
         ok: true,
         value: {
@@ -726,7 +705,7 @@ function normalizeLookupScope(value: MusicScope): Result<MusicScope> {
         },
       };
     default:
-      return invalidInput("music.discovery.lookup scope kind is not supported.");
+      return assertNever(value);
   }
 }
 
@@ -741,91 +720,6 @@ function musicScopeIdentityKey(scope: MusicScope): string {
     case "provider":
       return `provider:${scope.providerId}`;
   }
-}
-
-function parseMusicDiscoveryLookupInput(
-  payload: unknown,
-): Result<MusicDiscoveryLookupInput> {
-  if (!isRecord(payload)) {
-    return invalidInput("music.discovery.lookup input must be an object.");
-  }
-
-  if ("cursor" in payload) {
-    for (const key of Object.keys(payload)) {
-      if (key !== "cursor" && key !== "limit") {
-        return invalidInput("music.discovery.lookup cursor-page input accepts only cursor and optional limit.");
-      }
-    }
-
-    if (typeof payload.cursor !== "string" || payload.cursor.length === 0) {
-      return invalidCursor("music.discovery.lookup cursor must be a non-empty opaque string.");
-    }
-
-    return {
-      ok: true,
-      value: {
-        cursor: payload.cursor,
-        ...(payload.limit === undefined ? {} : { limit: payload.limit as number }),
-      },
-    };
-  }
-
-  for (const key of Object.keys(payload)) {
-    if (key !== "lookupText" && key !== "targetKind" && key !== "scopes" && key !== "limit") {
-      return invalidInput("music.discovery.lookup first-page input accepts lookupText, targetKind, scopes, and limit.");
-    }
-  }
-
-  if (typeof payload.lookupText !== "string") {
-    return invalidInput("music.discovery.lookup first-page input requires lookupText.");
-  }
-
-  if (payload.targetKind !== undefined && !isMusicTargetKind(payload.targetKind)) {
-    return invalidInput("music.discovery.lookup targetKind must be recording, album, or artist.");
-  }
-
-  if (payload.scopes !== undefined && !Array.isArray(payload.scopes)) {
-    return invalidInput("music.discovery.lookup scopes must be an array when present.");
-  }
-
-  const value: LookupFirstPageInput = {
-    lookupText: payload.lookupText,
-  };
-
-  if (payload.targetKind !== undefined) {
-    value.targetKind = payload.targetKind;
-  }
-
-  if (payload.scopes !== undefined) {
-    value.scopes = payload.scopes as NonNullable<LookupFirstPageInput["scopes"]>;
-  }
-
-  if (payload.limit !== undefined) {
-    value.limit = payload.limit as number;
-  }
-
-  return {
-    ok: true,
-    value,
-  };
-}
-
-function normalizeLookupLimit(limit: number | undefined): Result<number | undefined> {
-  if (limit === undefined) {
-    return {
-      ok: true,
-      value: undefined,
-    };
-  }
-
-  if (!Number.isInteger(limit) || limit < 1 || limit > LOOKUP_MAX_LIMIT) {
-    return invalidInput(`music.discovery.lookup limit must be an integer from 1 through ${LOOKUP_MAX_LIMIT}.`);
-  }
-
-  return {
-    ok: true,
-    value: limit,
-  };
 }
 
 function isCursorPageInput(input: MusicDiscoveryLookupInput): input is LookupCursorPageInput {
@@ -1040,32 +934,51 @@ function expiresAtFromClock(input: {
   return new Date(Date.parse(input.now) + input.ttlMs).toISOString();
 }
 
-function mapRetrievalError(error: unknown, providerScopeLabels: readonly string[]): Result<never> {
-  if (isMusicIntelligenceError(error)) {
-    switch (error.code) {
-      case "music_intelligence.retrieval_cursor_invalid":
-        return invalidCursor("music.discovery.lookup cursor is invalid for this result window.");
-      case "music_intelligence.retrieval_result_set_expired":
-      case "music_intelligence.material_candidate_expired":
-        return resultWindowExpired("music.discovery.lookup result window expired.");
-      case "music_intelligence.provider_search_failed":
-      case "music_intelligence.provider_search_pool_invalid":
-      case "music_intelligence.provider_search_result_invalid":
-      case "music_intelligence.provider_search_unavailable":
-        return providerScopeFailed(failedProviderScopeLabels(error, providerScopeLabels));
-      case "music_intelligence.retrieval_query_invalid":
-      case "music_intelligence.retrieval_result_invalid":
-      case "music_intelligence.cursor_invalid":
-      case "music_intelligence.cursor_mismatch":
-        return invalidInput("music.discovery.lookup could not run the requested retrieval query.");
-    }
+// Translates a KNOWN, classified MusicIntelligenceError from Retrieval into the
+// lookup tool's declared public error vocabulary. Returns undefined for unknown
+// errors, non-MusicIntelligenceError throws, and the invariant / unadapted-boundary
+// codes below — those must NOT be fabricated as public lookup failures; the caller
+// (runLookupQuery) rethrows the ORIGINAL error so the Tool Call Router owns its
+// normalization as stage_interface.tool_handler_failed. One failure channel here:
+// it returns (Result, or undefined = "no public translation"); the caller owns the
+// throw. This keeps the function honest about its declared `Result<never> | undefined`.
+function translateKnownRetrievalError(
+  error: unknown,
+  providerScopeLabels: readonly string[],
+): Result<never> | undefined {
+  if (!isMusicIntelligenceError(error)) {
+    return undefined;
   }
 
-  if (providerScopeLabels.length > 0) {
-    return providerScopeFailed([]);
+  switch (error.code) {
+    case "music_intelligence.retrieval_cursor_invalid":
+    case "music_intelligence.cursor_invalid":
+    case "music_intelligence.cursor_mismatch":
+      return invalidCursor("music.discovery.lookup cursor is invalid for this result window.");
+    case "music_intelligence.retrieval_result_set_expired":
+    case "music_intelligence.material_candidate_expired":
+      return resultWindowExpired("music.discovery.lookup result window expired.");
+    case "music_intelligence.provider_search_failed":
+    case "music_intelligence.provider_search_result_invalid":
+    case "music_intelligence.provider_search_unavailable":
+      return providerScopeFailed(failedProviderScopeLabels(error, providerScopeLabels));
+    // Invariant / unadapted-boundary failures: no public translation — return
+    // undefined so the caller rethrows the original error (preserving code+cause).
+    case "music_intelligence.provider_search_pool_invalid":
+    case "music_intelligence.retrieval_query_invalid":
+    case "music_intelligence.retrieval_result_invalid":
+      return undefined;
+    default:
+      assertNeverMusicIntelligenceErrorCode(error.code);
   }
+}
 
-  return invalidInput("music.discovery.lookup could not run the requested retrieval query.");
+function assertNever(value: never): never {
+  throw new Error(`music.discovery.lookup received unsupported scope: ${JSON.stringify(value)}`);
+}
+
+function assertNeverMusicIntelligenceErrorCode(code: never): never {
+  throw new Error(`music.discovery.lookup received unsupported Retrieval error code: ${code}`);
 }
 
 function failedProviderScopeLabels(

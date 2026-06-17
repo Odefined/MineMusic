@@ -157,7 +157,7 @@ function validatePlatformLibraryProviderReadInput(
 
   if (
     request.providerAccountId !== undefined &&
-    !isProviderAccountIdSafe(request.providerAccountId)
+    !isRefComponentSafe(request.providerAccountId)
   ) {
     return failExtension(
       "extension.invalid_platform_library_provider_read_input",
@@ -283,7 +283,7 @@ function validatePlatformLibraryProviderReadResult(
 
   if (
     result.providerAccountId !== undefined &&
-    !isProviderAccountIdSafe(result.providerAccountId)
+    !isRefComponentSafe(result.providerAccountId)
   ) {
     return invalidPlatformLibraryReadOutput(
       `Platform library provider '${providerId}' returned an invalid providerAccountId.`,
@@ -363,7 +363,7 @@ function validatePlatformLibraryCandidate(
 
   if (
     candidate.providerAccountId !== undefined &&
-    !isProviderAccountIdSafe(candidate.providerAccountId)
+    !isRefComponentSafe(candidate.providerAccountId)
   ) {
     return invalidPlatformLibraryReadOutput(
       `Platform library provider '${providerId}' returned candidate with invalid providerAccountId.`,
@@ -507,13 +507,6 @@ function isPlatformLibraryKind(kind: unknown): kind is PlatformLibraryKind {
   return kind === "saved_source_track" ||
     kind === "saved_source_album" ||
     kind === "followed_source_artist";
-}
-
-
-function isProviderAccountIdSafe(value: unknown): value is string {
-  return typeof value === "string" &&
-    value.trim() === value &&
-    isRefComponentSafe(value);
 }
 
 

@@ -800,6 +800,76 @@ const droppedSearch = await assertOk(droppedProvider.search?.({
 }) ?? fail("missing_search", "missing search"));
 assert.deepEqual(droppedSearch, []);
 
+const nonObjectRowProvider = await sourceProviderFor({
+  fetch: fetchJson({
+    result: {
+      songs: [
+        "not an object",
+      ],
+    },
+    code: 200,
+  }).fetch,
+});
+assertErrorCode(
+  await nonObjectRowProvider.search?.({
+    query: { text: "malformed-row", targetKinds: ["track"] },
+  }) ?? fail("missing_search", "missing search"),
+  "extension.ncm_malformed_response",
+);
+
+const missingTitleProvider = await sourceProviderFor({
+  fetch: fetchJson({
+    result: {
+      songs: [
+        { id: 1001 },
+      ],
+    },
+    code: 200,
+  }).fetch,
+});
+assertErrorCode(
+  await missingTitleProvider.search?.({
+    query: { text: "missing-title", targetKinds: ["track"] },
+  }) ?? fail("missing_search", "missing search"),
+  "extension.ncm_malformed_response",
+);
+
+// Symmetric coverage: a usable provider id but a missing title/name must fail with
+// extension.ncm_malformed_response for album and artist kinds too, not only track.
+const missingAlbumTitleProvider = await sourceProviderFor({
+  fetch: fetchJson({
+    result: {
+      albums: [
+        { id: 3001 },
+      ],
+    },
+    code: 200,
+  }).fetch,
+});
+assertErrorCode(
+  await missingAlbumTitleProvider.search?.({
+    query: { text: "missing-album-title", targetKinds: ["album"] },
+  }) ?? fail("missing_search", "missing search"),
+  "extension.ncm_malformed_response",
+);
+
+const missingArtistNameProvider = await sourceProviderFor({
+  fetch: fetchJson({
+    result: {
+      artists: [
+        { id: 5001 },
+      ],
+    },
+    code: 200,
+  }).fetch,
+});
+assertErrorCode(
+  await missingArtistNameProvider.search?.({
+    query: { text: "missing-artist-name", targetKinds: ["artist"] },
+  }) ?? fail("missing_search", "missing search"),
+  "extension.ncm_malformed_response",
+);
+
 const malformedProvider = await sourceProviderFor({
   fetch: fetchJson({
     result: {},

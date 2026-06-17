@@ -127,29 +127,34 @@ assertErrorCode(
   }),
   "extension.unknown_capability",
 );
-for (const input of [
-  null,
-  {
+assert.throws(
+  () => validatePluginManifest(null as unknown as Parameters<typeof validatePluginManifest>[0]),
+  TypeError,
+);
+assert.throws(
+  () => validatePluginManifest({
     manifest: plugin("missing-known-capabilities").manifest,
-  },
-  {
+  } as unknown as Parameters<typeof validatePluginManifest>[0]),
+  TypeError,
+);
+assert.throws(
+  () => validatePluginManifest({
     manifest: plugin("bad-known-capabilities").manifest,
     knownCapabilityIds: [],
-  },
-  {
+  } as unknown as Parameters<typeof validatePluginManifest>[0]),
+  TypeError,
+);
+assert.throws(
+  () => validatePluginManifest({
     manifest: plugin("throwing-known-capabilities").manifest,
     knownCapabilityIds: {
       has() {
         throw new Error("known capability lookup failed");
       },
     },
-  },
-] as const) {
-  assertErrorCode(
-    validatePluginManifest(input as unknown as Parameters<typeof validatePluginManifest>[0]),
-    "extension.invalid_plugin_manifest",
-  );
-}
+  } as unknown as Parameters<typeof validatePluginManifest>[0]),
+  /known capability lookup failed/u,
+);
 for (const [manifest, code] of [
   [
     { id: "internal.missing-manifest-fields" },

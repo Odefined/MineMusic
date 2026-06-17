@@ -101,11 +101,69 @@ function applyLookupLimitOverlay(schema) {
   }
 }
 
+const NON_EMPTY_SCOPE_DEFINITIONS = new Set([
+  "MusicLibraryScopeHandle",
+  "MusicProviderScopeHandle",
+  "ListedMusicScope",
+]);
+const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
+
+// The TS source declares scope-handle `id`/`providerId` as bare `string`, which the
+// generator transcribes as { type: "string" } with no minLength. An empty-string scope
+// handle would pass the AJV gate and reach resolution as a bogus empty-key scope
+// ("source_library:" / "provider:"). Surface non-empty at the STRUCTURAL layer (the
+// owner of shape validity) by tightening the id/providerId of the scope-handle
+// definitions. Scoped to the named definitions so unrelated `id` props (e.g.
+// StageRuntimeStatusInput.modules[].id) are untouched.
+function applyScopeHandleNonEmptyOverlay(schema) {
+  const definitions = schema?.definitions;
+  if (definitions === null || typeof definitions !== "object") {
+    return;
+  }
+  for (const [name, def] of Object.entries(definitions)) {
+    if (NON_EMPTY_SCOPE_DEFINITIONS.has(name)) {
+      tightenNonEmptyStringProperties(def);
+    }
+  }
+}
+
+function tightenNonEmptyStringProperties(def) {
+  if (def === null || typeof def !== "object") {
+    return;
+  }
+  // Handle both anyOf-wrapped variants (MusicLibraryScopeHandle, ListedMusicScope)
+  // and flat object definitions (MusicProviderScopeHandle).
+  const variants = Array.isArray(def.anyOf) ? def.anyOf : [def];
+  for (const variant of variants) {
+    if (
+      variant === null ||
+      typeof variant !== "object" ||
+      variant.properties === undefined
+    ) {
+      continue;
+    }
+    for (const field of ["id", "providerId"]) {
+      const prop = variant.properties[field];
+      if (
+        prop !== null &&
+        typeof prop === "object" &&
+        prop.type === "string" &&
+        prop.minLength === undefined
+      ) {
+        variant.properties[field] = { ...NON_EMPTY_STRING_CONSTRAINT };
+      }
+    }
+  }
+}
+
 const generatedSchemas = schemaTargets.map((target) => {
   const schema = generatorFor(target.sourcePath).createSchema(target.typeName);
   if (target.exportName === "musicDiscoveryLookupInputSchema") {
     applyLookupLimitOverlay(schema);
   }
+  // Scope-handle definitions are inlined under multiple exports, so apply the
+  // non-empty overlay to every target.
+  applyScopeHandleNonEmptyOverlay(schema);
   return { ...target, schema };
 });
 

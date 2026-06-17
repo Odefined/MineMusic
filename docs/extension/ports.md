@@ -15,7 +15,7 @@ durable writes, or public Stage Interface tools.
 | Extension runtime factory | Stage Core adapter | Create static capability-registration runtime, initialize plugins, stop no-op, expose internal test snapshot. | `src/extension/plugin_runtime.ts` |
 | Capability slot factory | Extension source and tests | Define typed plain-object slots with id, cardinality, and write policy. | `src/extension/capability_slot.ts` |
 | Capability registry | Extension runtime and tests | Register/list/get typed slot registrations. | `src/extension/capability_registry.ts` |
-| Plugin manifest validation | Extension runtime and tests | Validate plugin id, required fields, non-empty known capabilities. | `src/extension/plugin_manifest.ts` |
+| Plugin manifest validation | Extension runtime and tests | Validate plugin manifest payload id, required fields, and declared capabilities against core-owned known capabilities. The typed wrapper and known-capability set are trusted composition inputs. | `src/extension/plugin_manifest.ts` |
 | Source-provider slot registration helper | Plugin activation context and tests | Register `SourceProvider` implementations with provider-id validation. | `src/extension/source_provider_slot.ts` |
 | Source-provider search seam | Extension runtime consumers | Search one registered source provider and return validated provider candidates. | `src/extension/plugin_runtime.ts`, `src/extension/source_provider_slot.ts` |
 | Platform-library-provider slot registration helper | Plugin activation context and tests | Register `PlatformLibraryProvider` implementations with provider-id validation. | `src/extension/platform_library_provider_slot.ts` |
@@ -113,7 +113,7 @@ Current guards live in formal tests:
 | Platform-library-provider slot uses `many-by-id` and `writePolicy = none`. | `test/formal/extension-capability-slot.test.ts` |
 | Platform-library-provider registration validates malformed registrations and provider descriptors. | `test/formal/extension-capability-slot.test.ts` |
 | Platform-library-provider read validates input and output integrity. | `test/formal/extension-capability-slot.test.ts` |
-| Manifest validation and activation failure codes use `area = extension`. | `test/formal/extension-capability-slot.test.ts` |
+| Manifest payload validation and activation failure codes use `area = extension`; malformed core-owned manifest-validator wrapper inputs fail loudly. | `test/formal/extension-capability-slot.test.ts` |
 | Default Server Host mounts configured Extension runtime without probing provider HTTP during startup. | `test/formal/server-host.test.ts` |
 | Runtime status includes module lifecycle but omits registry internals. | `test/formal/stage-runtime.test.ts` |
 

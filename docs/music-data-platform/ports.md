@@ -223,6 +223,11 @@ include raw provider payloads.
 item transaction: page provider id, page library kind, resolved account id, each
 candidate library kind, source provider id, source ref namespace, source ref
 kind, and source kind must match the batch.
+The structural provider-read contract is owned by Extension's
+platform-library-provider read seam. Source Library Import treats malformed
+post-Extension pages, unsafe ids, non-array candidates, invalid cursors, and
+over-limit pages as broken internal contracts: it marks the batch failed for
+durable workflow visibility and lets the invariant error throw.
 
 ## Forbidden Dependencies
 

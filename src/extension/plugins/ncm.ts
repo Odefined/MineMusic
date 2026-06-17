@@ -1,5 +1,5 @@
 import { isRecord } from "../type_guards.js";
-import { isRefComponentSafe, type Ref, type Result } from "../../contracts/kernel.js";
+import { isRefComponentSafe, type Ref, type Result, type StageError } from "../../contracts/kernel.js";
 import type { PlayableLink, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntityKind, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../contracts/music_data_platform.js";
 import { failExtension, ok } from "../errors.js";
 import type { MineMusicPlugin } from "../plugin_runtime.js";
@@ -128,6 +128,7 @@ function createNcmSourceProvider(config: unknown): SourceProvider {
 
       const limits = splitLimit(query.limit, targets.length);
       const candidates: ProviderMaterialCandidate[] = [];
+      let firstFailure: { ok: false; error: StageError } | undefined;
 
       for (const [index, target] of targets.entries()) {
         const limit = limits[index] ?? defaultNcmSearchLimit();
@@ -143,17 +144,32 @@ function createNcmSourceProvider(config: unknown): SourceProvider {
           type: target.type,
         });
 
+        // Each kind is an independent provider call. A failure in one kind must
+        // not discard candidates already fetched for the others, so record the
+        // failure and continue. We hard-fail only when nothing succeeded (below),
+        // never disguising a total failure as an empty success.
+        //
+        // TODO(tracked follow-up): the dropped kind is not yet observable here.
+        // Add an optional `partialFailures` field to the source-search result and
+        // translate it through the retrieval adapter so a partial multi-kind
+        // failure is surfaced instead of dropped.
         if (!searched.ok) {
-          return searched;
+          firstFailure ??= searched;
+          continue;
         }
 
         const mapped = mapSearchPayload(target.kind, searched.value);
 
         if (!mapped.ok) {
-          return mapped;
+          firstFailure ??= mapped;
+          continue;
         }
 
         candidates.push(...mapped.value);
+      }
+
+      if (candidates.length === 0 && firstFailure !== undefined) {
+        return firstFailure;
       }
 
       return ok(query.limit === undefined ? candidates : candidates.slice(0, query.limit));
@@ -500,7 +516,7 @@ async function resolveNcmProviderAccountId(
 ): Promise<Result<string>> {
   const explicit = providerAccountId;
 
-  if (explicit !== undefined && !isSafeId(explicit)) {
+  if (explicit !== undefined && !isRefComponentSafe(explicit)) {
     return failExtension(
       "extension.ncm_invalid_provider_account_id",
       "NCM providerAccountId must be a non-empty safe id when present.",
@@ -864,18 +880,18 @@ function mapSearchPayload(
 
   switch (kind) {
     case "track":
-      return mapPayloadArray(result.songs, "result.songs", toTrackCandidate);
+      return mapPayloadArray(result.songs, "result.songs", toTrackSearchCandidate);
     case "album":
-      return mapPayloadArray(result.albums, "result.albums", toAlbumCandidate);
+      return mapPayloadArray(result.albums, "result.albums", toAlbumSearchCandidate);
     case "artist":
-      return mapPayloadArray(result.artists, "result.artists", toArtistCandidate);
+      return mapPayloadArray(result.artists, "result.artists", toArtistSearchCandidate);
   }
 }
 
 function mapPayloadArray<T extends Record<string, unknown>>(
   value: unknown,
   path: string,
-  mapper: (value: T) => ProviderMaterialCandidate | undefined,
+  mapper: (value: T, path: string) => Result<ProviderMaterialCandidate | undefined>,
 ): Result<readonly ProviderMaterialCandidate[]> {
   if (!Array.isArray(value)) {
     return failExtension(
@@ -884,7 +900,90 @@ function mapPayloadArray<T extends Record<string, unknown>>(
     );
   }
 
-  return ok(value.filter(isRecord).map((item) => mapper(item as T)).filter(isDefined));
+  const candidates: ProviderMaterialCandidate[] = [];
+
+  for (const [index, item] of value.entries()) {
+    const itemPath = `${path}[${index}]`;
+
+    if (!isRecord(item)) {
+      return failExtension(
+        "extension.ncm_malformed_response",
+        `NCM provider response ${itemPath} was not an object.`,
+      );
+    }
+
+    const mapped = mapper(item as T, itemPath);
+
+    if (!mapped.ok) {
+      return mapped;
+    }
+
+    if (mapped.value !== undefined) {
+      candidates.push(mapped.value);
+    }
+  }
+
+  return ok(candidates);
+}
+
+function toTrackSearchCandidate(
+  song: NcmSong,
+  path: string,
+): Result<ProviderMaterialCandidate | undefined> {
+  const id = toUsableProviderId(song.id);
+
+  if (id === undefined) {
+    return ok(undefined);
+  }
+
+  if (toNonEmptyString(song.name) === undefined) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      `NCM provider response ${path} did not include a usable track title.`,
+    );
+  }
+
+  return ok(toTrackCandidate(song));
+}
+
+function toAlbumSearchCandidate(
+  album: NcmAlbum,
+  path: string,
+): Result<ProviderMaterialCandidate | undefined> {
+  const id = toUsableProviderId(album.id);
+
+  if (id === undefined) {
+    return ok(undefined);
+  }
+
+  if (toNonEmptyString(album.name) === undefined) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      `NCM provider response ${path} did not include a usable album title.`,
+    );
+  }
+
+  return ok(toAlbumCandidate(album));
+}
+
+function toArtistSearchCandidate(
+  artist: NcmArtist,
+  path: string,
+): Result<ProviderMaterialCandidate | undefined> {
+  const id = toUsableProviderId(artist.id);
+
+  if (id === undefined) {
+    return ok(undefined);
+  }
+
+  if (toNonEmptyString(artist.name) === undefined) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      `NCM provider response ${path} did not include a usable artist name.`,
+    );
+  }
+
+  return ok(toArtistCandidate(artist));
 }
 
 function toTrackCandidate(song: NcmSong): ProviderMaterialCandidate | undefined {
@@ -1324,17 +1423,11 @@ function labelWithArtists(title: string, artists: readonly string[]): string {
 function toUsableProviderId(value: unknown): string | undefined {
   const id = toOptionalString(value);
 
-  if (id === undefined || id === "0" || !isSafeId(id)) {
+  if (id === undefined || id === "0" || !isRefComponentSafe(id)) {
     return undefined;
   }
 
   return id;
-}
-
-function isSafeId(value: unknown): value is string {
-  return typeof value === "string" &&
-    value.trim() === value &&
-    isRefComponentSafe(value);
 }
 
 function toPositiveInteger(value: unknown): number | undefined {

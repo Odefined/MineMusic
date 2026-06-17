@@ -160,12 +160,14 @@ Artist mapping includes:
 - no default artist `versionInfo`;
 - no artist `links`.
 
-Search raw items without usable stable provider ids are dropped. Account-library
-reads are stricter: malformed saved/followed library items, non-object page
-items, missing selected song detail, or `hasMore` pages with no mapped items fail
-the provider read instead of silently shrinking the imported library. The plugin
-does not create unresolved candidates without source refs and does not synthesize
-`providerScore`.
+Search raw items without usable stable provider ids are dropped. Search rows
+that are not objects, or that have a usable stable provider id but lack required
+track title, album title, or artist name facts, fail as malformed provider
+responses. Account-library reads are stricter: malformed saved/followed library
+items, non-object page items, missing selected song detail, or `hasMore` pages
+with no mapped items fail the provider read instead of silently shrinking the
+imported library. The plugin does not create unresolved candidates without
+source refs and does not synthesize `providerScore`.
 
 ## Version Extraction
 
@@ -222,7 +224,8 @@ Error classes:
 - invalid or mismatched provider account id for account-library reads;
 - provider unavailable for network/HTTP failures;
 - malformed provider response for JSON parse failures, missing expected arrays,
-  or missing selected `/song/detail` facts;
+  non-object search rows, search rows with stable ids but missing required
+  display facts, or missing selected `/song/detail` facts;
 - provider response error for NCM payload codes other than `200`.
 
 Network and HTTP-unavailable errors are retryable. Invalid config, malformed
