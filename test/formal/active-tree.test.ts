@@ -1397,6 +1397,7 @@ const kernelAllowedExports = new Set([
   "isRefComponentSafe",
   "assertRefSafe",
   "refKey",
+  "parseRefKey",
 ]);
 for (const exportedName of kernelExports) {
   if (!kernelAllowedExports.has(exportedName)) {
@@ -1415,7 +1416,7 @@ for (const expectedKernelExport of kernelAllowedExports) {
 assert.deepEqual(
   kernelLeakFailures,
   [],
-  "src/contracts/kernel.ts must export only the cross-cutting kernel primitives: Result, StageError, StageWarning, FormalArea, Ref, isRefComponentSafe, assertRefSafe, refKey",
+  "src/contracts/kernel.ts must export only the cross-cutting kernel primitives: Result, StageError, StageWarning, FormalArea, Ref, isRefComponentSafe, assertRefSafe, refKey, parseRefKey",
 );
 
 // G3 (ref-origin, Phase 2): the contracts barrel is gone, so assert the ref

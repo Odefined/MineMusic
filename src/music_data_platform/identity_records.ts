@@ -1,4 +1,4 @@
-import { refKey, type Ref } from "../contracts/kernel.js";
+import { parseRefKey, refKey, type Ref } from "../contracts/kernel.js";
 import type { CanonicalEntity, MaterialEntity, SourceEntity, SourceEntityKind } from "../contracts/music_data_platform.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../contracts/storage.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
@@ -408,18 +408,11 @@ function optionalRefKey(ref: Ref | undefined): string | null {
 }
 
 function refFromKey(key: string): Ref {
-  const [namespace, kind, id, ...rest] = key.split(":");
-
-  if (
-    namespace === undefined ||
-    kind === undefined ||
-    id === undefined ||
-    rest.length > 0
-  ) {
+  const ref = parseRefKey(key);
+  if (ref === undefined) {
     throw new Error(`Invalid ref key stored in music data platform row: ${key}`);
   }
-
-  return { namespace, kind, id };
+  return ref;
 }
 
 function requireRecord<RecordValue>(

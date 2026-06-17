@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { refKey, type Ref } from "../contracts/kernel.js";
+import { parseRefKey, refKey, type Ref } from "../contracts/kernel.js";
 import type { MaterialEntityKind, PlatformLibraryKind, ProviderMaterialCandidate, SourceEntity, VersionInfo } from "../contracts/music_data_platform.js";
 import type {
   MusicDatabase,
@@ -1514,22 +1514,11 @@ function materialCandidateRefFromKey(materialCandidateRefKey: string): Ref {
     fieldName: "materialCandidateRefKey",
     code: "music_data.retrieval_result_set_invalid",
   });
-  const parts = materialCandidateRefKey.split(":");
-
-  if (parts.length !== 3) {
-    throw invalidMixedWorkspace("Material candidate ref key must have three components.");
+  const ref = parseRefKey(materialCandidateRefKey);
+  if (ref === undefined) {
+    throw invalidMixedWorkspace("Material candidate ref key must be a namespace:kind:id ref key.");
   }
-
-  const [namespace, kind, id] = parts;
-  if (namespace === undefined || kind === undefined || id === undefined) {
-    throw invalidMixedWorkspace("Material candidate ref key is incomplete.");
-  }
-
-  return {
-    namespace,
-    kind,
-    id,
-  };
+  return ref;
 }
 
 function createResultSetId(): string {

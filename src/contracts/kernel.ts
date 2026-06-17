@@ -69,3 +69,24 @@ export function refKey(ref: Pick<Ref, "namespace" | "kind" | "id">): string {
   assertRefSafe(ref);
   return `${ref.namespace}:${ref.kind}:${ref.id}`;
 }
+
+// Inverse of refKey: parse a `namespace:kind:id` key back into a Ref. Returns
+// undefined when the key is not exactly three safe components, so callers can
+// map that to their own failure channel (throw for invariant misuse, Result
+// for expected failure). Owned here so the round-trip invariant lives in one
+// place instead of being re-split at every read site.
+export function parseRefKey(key: string): Ref | undefined {
+  const parts = key.split(":");
+  if (parts.length !== 3) {
+    return undefined;
+  }
+  const [namespace, kind, id] = parts;
+  if (
+    !isRefComponentSafe(namespace) ||
+    !isRefComponentSafe(kind) ||
+    !isRefComponentSafe(id)
+  ) {
+    return undefined;
+  }
+  return { namespace, kind, id };
+}

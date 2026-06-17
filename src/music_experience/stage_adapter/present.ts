@@ -1,5 +1,5 @@
 import type { Ref, Result, StageError } from "../../contracts/kernel.js";
-import { isRefComponentSafe, refKey } from "../../contracts/kernel.js";
+import { isRefComponentSafe, parseRefKey, refKey } from "../../contracts/kernel.js";
 import {
   musicExperiencePresentInputSchema,
   musicExperiencePresentOutputSchema,
@@ -258,21 +258,7 @@ function refFromResolvedAnchor(
     return undefined;
   }
 
-  const parts = value.split(":");
-  if (parts.length !== 3) {
-    return undefined;
-  }
-
-  const [namespace, kind, id] = parts;
-  if (namespace === undefined || kind === undefined || id === undefined) {
-    return undefined;
-  }
-
-  return {
-    namespace,
-    kind,
-    id,
-  };
+  return parseRefKey(value);
 }
 
 function translateCandidateCommitFailure(error: StageError): Result<never> {
@@ -281,8 +267,6 @@ function translateCandidateCommitFailure(error: StageError): Result<never> {
       return candidateExpired("Candidate handle has expired.");
     case "music_data.material_candidate_not_found":
       return candidateNotFound("Candidate handle is unknown or no longer available.");
-    case "music_data.material_candidate_ref_invalid":
-      return invalidInput("Candidate handle did not resolve to a valid material candidate.");
     default:
       throw new Error(`music.experience.present received unsupported Candidate Commit error code: ${error.code}`);
   }
@@ -347,14 +331,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isMaterialRef(ref: Ref): boolean {
+  // Phase 17 Material Projection only resolves recording/album/artist. The
+  // work/release variants are deferred to the canonical layer; a library handle
+  // anchored on them cannot be projected today, so reject it up front as
+  // invalid_input rather than letting it surface as a misleading
+  // material_not_found after projection returns undefined.
   return isRefShape(ref) &&
     ref.namespace === "material" &&
     (
       ref.kind === "recording" ||
       ref.kind === "album" ||
-      ref.kind === "artist" ||
-      ref.kind === "work" ||
-      ref.kind === "release"
+      ref.kind === "artist"
     );
 }
 

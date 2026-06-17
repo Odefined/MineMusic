@@ -204,8 +204,10 @@ Material Candidate into a durable material, idempotent on source ref.
   - Miss path: `upsertSourceRecord(SourceEntity)` -> `createMaterialRef(kind)`
     (non-deterministic; dedupe is by query, not factory) ->
     `upsertMaterialRecord` -> `bindSourceToMaterial(makePrimary: true)` ->
-    projection invalidation (owner catalog + material text via
-    `markProjectionInvalidated`).
+    projection invalidation (owner catalog + material text), composed through
+    the source-of-truth write commands (`upsertSourceRecord` /
+    `upsertMaterialRecord` / `bindSourceToMaterial` each mark projection
+    invalidated) rather than a direct `markProjectionInvalidated` call.
   - No `upsertCanonicalRecord`; canonical identity is explicitly out of scope.
   - Single failure channel: `Result<T>` for expected failures (expired/missing
     candidate); throw only for broken invariants / unadapted boundary failures.
