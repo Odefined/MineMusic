@@ -329,7 +329,9 @@ export const musicDiscoveryLookupInputSchema = {
               }
             },
             "limit": {
-              "type": "number"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
             }
           },
           "required": [
@@ -344,7 +346,9 @@ export const musicDiscoveryLookupInputSchema = {
               "type": "string"
             },
             "limit": {
-              "type": "number"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
             }
           },
           "required": [

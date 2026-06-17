@@ -112,10 +112,11 @@ assert.deepEqual(
     "invalid_cursor",
     "unknown_scope",
     "unknown_provider_scope",
-    "unsupported_provider_target",
+    "unsupported_scope_target",
     "provider_scope_failed",
     "scope_budget_exceeded",
     "result_window_expired",
+    "scope_availability_failed",
   ],
 );
 assert.equal(musicDiscoveryLookupDescriptor.sideEffect.durableUserStateWrite, false);
@@ -382,6 +383,143 @@ if (!budgetResult.ok) {
   assert.equal(budgetResult.error.code, "scope_budget_exceeded");
   assert.equal(budgetResult.error.message.includes("provider_5"), true);
 }
+
+const scopeAvailabilityFailedInterface = createStageInterface({
+  instruments: [musicDiscoveryInstrument],
+  registrations: [
+    createMusicDiscoveryLookupRegistration({
+      retrievalQuery,
+      scopeAvailability: {
+        listAvailableMusicScopes() {
+          return {
+            ok: false,
+            error: {
+              code: "music_data_platform.scope_read_failed",
+              message: "scope read failed",
+              area: "music_data_platform",
+              retryable: true,
+            },
+          };
+        },
+      },
+      cursorKey,
+    }),
+  ],
+});
+const scopeAvailabilityFailedResult = await scopeAvailabilityFailedInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "library" }],
+  },
+});
+
+assert.equal(scopeAvailabilityFailedResult.ok, false);
+if (!scopeAvailabilityFailedResult.ok) {
+  assert.equal(scopeAvailabilityFailedResult.error.code, "scope_availability_failed");
+  assert.equal(scopeAvailabilityFailedResult.error.retryable, true);
+}
+
+const sourceLibraryTargetMismatch = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    targetKind: "album",
+    scopes: [{ kind: "source_library", id: "scope_saved_recording" }],
+  },
+});
+
+assert.equal(sourceLibraryTargetMismatch.ok, false);
+if (!sourceLibraryTargetMismatch.ok) {
+  assert.equal(sourceLibraryTargetMismatch.error.code, "unsupported_scope_target");
+  assert.equal(sourceLibraryTargetMismatch.error.retryable, true);
+}
+
+const relationTargetMismatch = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    targetKind: "album",
+    scopes: [{ kind: "relation", id: "scope_favorite_recording" }],
+  },
+});
+
+assert.equal(relationTargetMismatch.ok, false);
+if (!relationTargetMismatch.ok) {
+  assert.equal(relationTargetMismatch.error.code, "unsupported_scope_target");
+}
+
+const providerTargetMismatch = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    targetKind: "album",
+    scopes: [{ kind: "provider", providerId: "spotify" }],
+  },
+});
+
+assert.equal(providerTargetMismatch.ok, false);
+if (!providerTargetMismatch.ok) {
+  assert.equal(providerTargetMismatch.error.code, "unsupported_scope_target");
+}
+
+const nonComparableClockResult = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+  clock: () => "2026/06/17 00:00:00",
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    scopes: [{ kind: "library" }],
+  },
+});
+
+assert.equal(nonComparableClockResult.ok, false);
+if (!nonComparableClockResult.ok) {
+  // A host-injected non-fixed-width clock fails loud through the router-global handler-failure
+  // code rather than silently misordering the lexicographic expiry comparison.
+  assert.equal(nonComparableClockResult.error.code, "stage_interface.tool_handler_failed");
+}
+
+const matchingSourceLibraryScope = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    targetKind: "recording",
+    scopes: [{ kind: "source_library", id: "scope_saved_recording" }],
+  },
+});
+
+assert.equal(matchingSourceLibraryScope.ok, true);
+
+const matchingRelationScope = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    lookupText: "whoo",
+    targetKind: "recording",
+    scopes: [{ kind: "relation", id: "scope_favorite_recording" }],
+  },
+});
+
+assert.equal(matchingRelationScope.ok, true);
+
+const lookupInputSchemaJson = JSON.stringify(musicDiscoveryLookupDescriptor.inputSchema);
+assert.equal(lookupInputSchemaJson.includes('"type":"integer"'), true);
+assert.equal(lookupInputSchemaJson.includes('"minimum":1'), true);
+assert.equal(lookupInputSchemaJson.includes('"maximum":100'), true);
+assert.equal(lookupInputSchemaJson.includes('"limit":{"type":"number"'), false);
 
 function retrievalResult(input: {
   input: RetrievalQueryInput;

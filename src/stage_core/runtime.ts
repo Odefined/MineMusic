@@ -5,6 +5,7 @@ import {
   mergeRuntimeModuleContributions,
   validateRuntimeModules,
   type RuntimeModule,
+  type RuntimeModuleContribution,
   type RuntimeModuleContributionEntry,
 } from "./runtime_module.js";
 import { createRuntimeStatusModule } from "./runtime_status.js";
@@ -95,7 +96,19 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
       moduleState.status = "initializing";
       delete moduleState.error;
 
-      const initialized = await moduleState.module.initialize({});
+      let initialized: Result<RuntimeModuleContribution>;
+
+      try {
+        initialized = await moduleState.module.initialize({});
+      } catch (cause) {
+        // A module that throws (rather than returning { ok: false }) must still surface as a
+        // structured Result failure, not a rejected promise. Route the throw through the same
+        // failInitialization path used for Result-based failures.
+        const thrownError = toStageCoreError(cause, moduleState.module.descriptor.id, "initialize");
+        moduleState.status = "failed";
+        moduleState.error = summarizeError(thrownError);
+        return failInitialization(thrownError, initializedModuleStates);
+      }
 
       if (!initialized.ok) {
         moduleState.status = "failed";
@@ -224,7 +237,16 @@ export function createStageRuntime(input: CreateStageRuntimeInput = {}): StageRu
       return ok(undefined);
     }
 
-    const stopped = await moduleState.module.stop();
+    let stopped: Result<void>;
+
+    try {
+      stopped = await moduleState.module.stop();
+    } catch (cause) {
+      const thrownError = toStageCoreError(cause, moduleState.module.descriptor.id, "stop");
+      moduleState.status = "failed";
+      moduleState.error = summarizeError(thrownError);
+      return { ok: false, error: thrownError };
+    }
 
     if (!stopped.ok) {
       moduleState.status = "failed";
@@ -244,6 +266,26 @@ function toModuleSnapshot(moduleState: RuntimeModuleState): RuntimeModuleSnapsho
     ownerArea: moduleState.module.descriptor.ownerArea,
     status: moduleState.status,
     ...(moduleState.error === undefined ? {} : { error: moduleState.error }),
+  };
+}
+
+function toStageCoreError(
+  cause: unknown,
+  moduleId: string,
+  phase: "initialize" | "stop",
+): StageError {
+  const code = phase === "initialize"
+    ? "stage_core.runtime_module_initialize_failed"
+    : "stage_core.runtime_module_stop_failed";
+
+  return {
+    code,
+    message: cause instanceof Error
+      ? `Runtime module '${moduleId}' threw during ${phase}: ${cause.message}`
+      : `Runtime module '${moduleId}' threw during ${phase}.`,
+    area: "stage_core",
+    retryable: false,
+    cause,
   };
 }
 

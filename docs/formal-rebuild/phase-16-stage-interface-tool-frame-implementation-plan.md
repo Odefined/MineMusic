@@ -1,6 +1,6 @@
 # Phase 16 Stage Interface Tool Frame Implementation Plan
 
-> Status: Phase 16 sanctioned; PR 16A implemented in #96; PR 16B implemented; PR 16C–16D planned.
+> Status: Phase 16 complete; PR 16A (#96), PR 16B (#97), PR 16C+16D (#98) merged to main.
 > Spec: `docs/formal-rebuild/stage-interface-tool-frame.md` (now paired with
 > Phase 16), with ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0014, ADR-0015,
 > ADR-0016, ADR-0017, ADR-0019, ADR-0020
