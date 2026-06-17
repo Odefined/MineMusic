@@ -1,4 +1,4 @@
-import { isRefComponentSafe, refKey, type Ref } from "../contracts/kernel.js";
+import { isRefComponentSafe, parseRefKey, refKey, type Ref } from "../contracts/kernel.js";
 import {
   MusicDataPlatformError,
   type MusicDataPlatformErrorCode,
@@ -72,9 +72,8 @@ export function assertMusicDataPlatformPublicRefKey(input: {
     });
   }
 
-  const parts = input.refKey.split(":");
-
-  if (parts.length !== 3) {
+  const ref = parseRefKey(input.refKey);
+  if (ref === undefined) {
     throw new MusicDataPlatformError({
       code: input.code,
       message: `${input.fieldName} must be a namespace:kind:id ref key.`,
@@ -82,11 +81,7 @@ export function assertMusicDataPlatformPublicRefKey(input: {
   }
 
   assertMusicDataPlatformRefSafe({
-    ref: {
-      namespace: parts[0]!,
-      kind: parts[1]!,
-      id: parts[2]!,
-    },
+    ref,
     fieldName: input.fieldName,
     code: input.code,
   });
