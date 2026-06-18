@@ -1,7 +1,7 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 18C
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import source-listing stage adapter
+> Status: Current boundary authority through implemented Phase 18D/E
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import stage adapter tools
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
@@ -11,7 +11,7 @@ projection commands/read port, material text projection commands/read port,
 projection maintenance commands/reads/runner, the retrieval read port, mixed
 retrieval workspace, schema contributions, runtime retrieval result-set
 records/cache helpers, the Library Import stage-adapter RuntimeModule and
-metadata-only source-listing tool, a material
+metadata-only source-listing plus import drive/status tools, a material
 ref factory, a top-level source-of-truth write facade, and error types. It
 consumes generic Storage database ports and a
 narrow provider-library read port, but does not know SQLite primitives or

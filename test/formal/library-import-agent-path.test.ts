@@ -15,6 +15,9 @@ import type {
   LibraryImportDriveOutput,
   LibraryImportStatusOutput,
 } from "../../src/contracts/stage_interface.js";
+import type {
+  MaterialRefFactory,
+} from "../../src/music_data_platform/index.js";
 import {
   createLibraryImportServerRuntimeModule,
   createMusicDataPlatformRuntimeModule,
@@ -135,6 +138,99 @@ const stopped = await musicDataPlatformModule.stop?.();
 
 assert.equal(stopped?.ok, true);
 database.close();
+
+{
+  const writeFailureDatabase = SqliteMusicDatabase.open({
+    filename: ":memory:",
+  });
+  const invalidMaterialRefFactory: MaterialRefFactory = {
+    createMaterialRef(kind) {
+      return {
+        namespace: "material",
+        kind,
+        id: "invalid:material:id",
+      };
+    },
+  };
+
+  providerReadIndex = 0;
+  const writeFailureExtensionRuntime = extensionRuntimeForPages([
+    ["bad-track"],
+  ]);
+  const writeFailureMdp = createMusicDataPlatformRuntimeModule({
+    extensionRuntime: writeFailureExtensionRuntime,
+    database: writeFailureDatabase,
+    materialRefFactory: invalidMaterialRefFactory,
+    config: {
+      projectionMaintenance: {
+        enabled: false,
+      },
+    },
+  });
+  const initializedWriteFailureMdp = await writeFailureMdp.initialize({});
+
+  assert.equal(initializedWriteFailureMdp.ok, true);
+
+  const writeFailureServerModule = createLibraryImportServerRuntimeModule({
+    extensionRuntime: writeFailureExtensionRuntime,
+    musicDataPlatformModule: writeFailureMdp,
+  });
+  const initializedWriteFailureServerModule = await writeFailureServerModule.initialize({});
+
+  assert.equal(initializedWriteFailureServerModule.ok, true);
+
+  if (initializedWriteFailureServerModule.ok) {
+    const stageInterface = createStageInterface({
+      instruments: initializedWriteFailureServerModule.value.instruments ?? [],
+      registrations: initializedWriteFailureServerModule.value.tools ?? [],
+    });
+    const result = await stageInterface.dispatch(createStageToolContext({
+      ownerScope: "local",
+      sessionId: "library-import-write-failure-agent-path-test",
+      requestId: "library-import-write-failure-agent-path-test-request",
+      clock: () => now,
+    }), {
+      toolName: "library.import.start",
+      payload: {
+        providerId: "netease",
+        libraryKind: "saved_source_track",
+        limit: 10,
+      },
+    });
+
+    assert.equal(result.ok, false);
+
+    if (!result.ok) {
+      assert.equal(result.error.code, "write_failed");
+    }
+
+    assert.deepEqual(
+      writeFailureDatabase.context().all<{
+        status: string;
+        failure_code: string | null;
+      }>(
+        `
+          SELECT status, failure_code
+          FROM source_library_import_batches
+        `,
+      ).map((row) => ({
+        status: row.status,
+        failure_code: row.failure_code,
+      })),
+      [
+        {
+          status: "failed",
+          failure_code: "music_data.material_ref_invalid",
+        },
+      ],
+    );
+  }
+
+  const stoppedWriteFailureMdp = await writeFailureMdp.stop?.();
+
+  assert.equal(stoppedWriteFailureMdp?.ok, true);
+  writeFailureDatabase.close();
+}
 
 function extensionRuntimeForPages(
   pages: readonly (readonly string[])[],

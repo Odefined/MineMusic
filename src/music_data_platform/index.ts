@@ -266,6 +266,7 @@ export type {
 } from "./source_of_truth_write_commands.js";
 export {
   createSourceLibraryImportService,
+  isSourceLibraryImportWriteFailure,
 } from "./source_library_import.js";
 export type {
   CreateSourceLibraryImportServiceInput,
@@ -276,4 +277,5 @@ export type {
   SourceLibraryImportResult,
   SourceLibraryImportService,
   SourceLibraryImportStartInput,
+  SourceLibraryImportWriteFailure,
 } from "./source_library_import.js";

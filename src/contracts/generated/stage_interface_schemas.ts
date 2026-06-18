@@ -1136,7 +1136,8 @@ export const libraryImportContinueInputSchema = {
       "type": "object",
       "properties": {
         "batchId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "limit": {
           "type": "integer",
@@ -1160,7 +1161,8 @@ export const libraryImportStatusInputSchema = {
       "type": "object",
       "properties": {
         "batchId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [

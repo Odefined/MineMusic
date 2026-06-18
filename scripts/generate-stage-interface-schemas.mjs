@@ -124,6 +124,7 @@ function generatorFor(sourcePath) {
 }
 
 const TOOL_LIMIT_CONSTRAINT = { type: "integer", minimum: 1, maximum: 100 };
+const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
 
 // The TS source declares `limit?: number`, which the generator faithfully transcribes as
 // { type: "number" }. Lookup and library-import handlers enforce integer 1..100, so
@@ -157,7 +158,39 @@ const NON_EMPTY_SCOPE_DEFINITIONS = new Set([
   "MusicItemHandle",
   "ListedMusicScope",
 ]);
-const NON_EMPTY_STRING_CONSTRAINT = { type: "string", minLength: 1 };
+const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
+  "LibraryImportContinueInput",
+  "LibraryImportStatusInput",
+]);
+
+// Continue/status batch ids are structural input handles for an existing batch.
+// Keep the non-empty check at the schema gate so handlers do not need to
+// duplicate shape validation before reading the batch.
+function applyLibraryImportBatchIdNonEmptyOverlay(schema) {
+  const definitions = schema?.definitions;
+  if (definitions === null || typeof definitions !== "object") {
+    return;
+  }
+  for (const [name, def] of Object.entries(definitions)) {
+    if (
+      !NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS.has(name) ||
+      def === null ||
+      typeof def !== "object" ||
+      def.properties === undefined
+    ) {
+      continue;
+    }
+    const batchId = def.properties.batchId;
+    if (
+      batchId !== null &&
+      typeof batchId === "object" &&
+      batchId.type === "string" &&
+      batchId.minLength === undefined
+    ) {
+      def.properties.batchId = { ...NON_EMPTY_STRING_CONSTRAINT };
+    }
+  }
+}
 
 // The TS source declares scope-handle `id`/`providerId` as bare `string`, which the
 // generator transcribes as { type: "string" } with no minLength. An empty-string scope
@@ -241,6 +274,12 @@ const generatedSchemas = schemaTargets.map((target) => {
     target.exportName === "libraryImportContinueInputSchema"
   ) {
     applyToolLimitOverlay(schema);
+  }
+  if (
+    target.exportName === "libraryImportContinueInputSchema" ||
+    target.exportName === "libraryImportStatusInputSchema"
+  ) {
+    applyLibraryImportBatchIdNonEmptyOverlay(schema);
   }
   // Scope-handle definitions are inlined under multiple exports, so apply the
   // non-empty overlay to every target.

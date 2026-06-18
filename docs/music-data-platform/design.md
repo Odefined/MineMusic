@@ -1,7 +1,7 @@
 # Music Data Platform Design
 
-> Status: Current design authority through implemented Phase 18C
-> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import source-listing stage adapter
+> Status: Current design authority through implemented Phase 18D/E
+> Scope: Identity write model, source-library import, owner material relation foundation, owner catalog projection, material text projection, projection maintenance core, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import stage adapter tools
 > Not status ledger: Current implementation state lives in `progress.md`.
 
 Music Data Platform owns source/material/canonical identity records, current

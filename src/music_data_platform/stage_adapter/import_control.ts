@@ -26,6 +26,9 @@ import type {
   SourceLibraryImportResult,
 } from "../index.js";
 import {
+  isSourceLibraryImportWriteFailure,
+} from "../index.js";
+import {
   libraryImportInstrument,
 } from "./list_sources.js";
 
@@ -240,7 +243,9 @@ async function handleLibraryImportStart(
   payload: unknown,
   control: LibraryImportControlPort,
 ): Promise<Result<LibraryImportDriveOutput>> {
-  const started = await control.startImport(payload as LibraryImportStartInput);
+  const started = await invokeImportControl(() =>
+    control.startImport(payload as LibraryImportStartInput),
+  );
 
   if (!started.ok) {
     return publicImportError(started.error);
@@ -256,7 +261,9 @@ async function handleLibraryImportContinue(
   payload: unknown,
   control: LibraryImportControlPort,
 ): Promise<Result<LibraryImportDriveOutput>> {
-  const continued = await control.continueImport(payload as LibraryImportContinueInput);
+  const continued = await invokeImportControl(() =>
+    control.continueImport(payload as LibraryImportContinueInput),
+  );
 
   if (!continued.ok) {
     return publicImportError(continued.error);
@@ -287,6 +294,25 @@ async function handleLibraryImportStatus(
     ok: true,
     value: statusOutput(batch, control),
   };
+}
+
+// MDP Stage Adapter boundary: translate the import service's classified write
+// failure into the tool's declared public Result; programmer errors keep
+// throwing to the Tool Call Router.
+async function invokeImportControl<T>(
+  run: () => Promise<Result<T>>,
+): Promise<Result<T>> {
+  try {
+    return await run();
+  } catch (error) {
+    if (isSourceLibraryImportWriteFailure(error)) {
+      return {
+        ok: false,
+        error: error.failure,
+      };
+    }
+    throw error;
+  }
 }
 
 function driveOutput(
@@ -518,12 +544,18 @@ function publicImportError(error: StageError): Result<never> {
         suggestedFix: "Retry later after local storage is available.",
       });
     case "provider_unavailable":
-    case "unknown":
       return fail({
         code: "provider_unavailable",
         message: "Library import provider is unavailable or failed during read.",
         retryable: true,
         suggestedFix: "Retry later after the provider account and network are available.",
+      });
+    case "unknown":
+      return fail({
+        code: "write_failed",
+        message: "Library import failed before the cause could be categorized.",
+        retryable: true,
+        suggestedFix: "Retry later after local storage is available.",
       });
   }
 }

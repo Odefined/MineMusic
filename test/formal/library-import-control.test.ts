@@ -178,6 +178,10 @@ await assertStartError(
   error("music_data.source_library_import_write_failed"),
   "write_failed",
 );
+await assertStartError(
+  error("music_data.unmapped_internal_failure"),
+  "write_failed",
+);
 
 {
   const result = await interfaceFor(testControl({
@@ -216,6 +220,29 @@ await assertStartError(
     assert.equal("page" in output, false);
     assert.equal("providerTotalCountHint" in output, false);
     assertNoInternalImportKeys(output);
+  }
+}
+
+{
+  let continueCalls = 0;
+  const result = await interfaceFor(testControl({
+    async continueImport() {
+      continueCalls += 1;
+      throw new Error("empty batchId must be rejected by the schema gate");
+    },
+  })).dispatch(testStageToolContext(), {
+    toolName: "library.import.continue",
+    payload: {
+      batchId: "",
+      limit: 5,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(continueCalls, 0);
+
+  if (!result.ok) {
+    assert.equal(result.error.code, "stage_interface.invalid_input");
   }
 }
 
@@ -289,6 +316,28 @@ await assertContinueError(
       ],
     });
     assertNoInternalImportKeys(result.value.result);
+  }
+}
+
+{
+  let statusCalls = 0;
+  const result = await interfaceFor(testControl({
+    getStatus() {
+      statusCalls += 1;
+      return undefined;
+    },
+  })).dispatch(testStageToolContext(), {
+    toolName: "library.import.status",
+    payload: {
+      batchId: "",
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(statusCalls, 0);
+
+  if (!result.ok) {
+    assert.equal(result.error.code, "stage_interface.invalid_input");
   }
 }
 

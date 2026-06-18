@@ -949,6 +949,16 @@ class CandidateWriteFailureError extends Error {
   }
 }
 
+export type SourceLibraryImportWriteFailure = {
+  readonly failure: StageError;
+};
+
+export function isSourceLibraryImportWriteFailure(
+  error: unknown,
+): error is SourceLibraryImportWriteFailure {
+  return error instanceof CandidateWriteFailureError;
+}
+
 
 function systemProviderReadContractFailure(): StageError {
   return musicDataError(
