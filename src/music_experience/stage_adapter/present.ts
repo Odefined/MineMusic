@@ -98,6 +98,10 @@ export const musicExperiencePresentDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Call music.experience.present with item as a library or candidate MusicItemHandle.",
     },
   ],
+  resultSummary(result) {
+    const output = result as MusicExperiencePresentOutput;
+    return `Presented ${output.card.label} (${output.card.kind}) as library item ${output.item.id}.`;
+  },
 };
 
 export function createMusicExperiencePresentRegistration(

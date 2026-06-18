@@ -92,6 +92,11 @@ export const musicDiscoveryListScopesDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Retry music.discovery.list_scopes later to inspect available scopes.",
     },
   ],
+  resultSummary(result) {
+    const output = result as MusicListScopesOutput;
+    const count = Array.isArray(output.scopes) ? output.scopes.length : 0;
+    return `${count} selectable music scope(s) returned.`;
+  },
 };
 
 export function createMusicDiscoveryListScopesRegistration(

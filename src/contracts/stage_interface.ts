@@ -54,6 +54,8 @@ export type ToolAllowedAction = {
   toolName: string;
 };
 
+export type ToolResultSummary = (result: unknown) => string;
+
 export type ToolDeclaration = {
   name: string;
   instrumentId: string;
@@ -67,6 +69,12 @@ export type ToolDeclaration = {
   inputSchema: JsonSchema;
   outputSchema: JsonSchema;
   errors: readonly ToolDeclaredError[];
+  // Compact, transport-agnostic one-line summary of the tool's own typed output,
+  // consumed by host transports (e.g. the MCP content block) so a client that
+  // ignores structuredContent still gets a non-duplicative, model-oriented
+  // result line. The renderer is co-located with the descriptor and reads only
+  // public output fields; the transport veil-scrubs whatever it returns.
+  resultSummary: ToolResultSummary;
   allowedActions?: readonly ToolAllowedAction[];
   requiresProvider?: readonly string[];
 };
@@ -184,12 +192,19 @@ export type MusicAvailability =
   | "unknown";
 
 export type MusicCard = {
+  /** Material kind of the presented item. */
   kind: MusicTargetKind;
+  /** Primary display label (title or name). */
   label: string;
+  /** Artists text for display, if any. */
   artistsText?: string;
+  /** Album label for display, if any. */
   albumLabel?: string;
+  /** User-displayable links (URL plus optional label). */
   displayLinks: readonly PublicDisplayLink[];
+  /** Playability/availability of the item. */
   availability: MusicAvailability;
+  /** Version/edition label for display, if any. */
   versionLabel?: string;
 };
 
@@ -199,15 +214,33 @@ export type NonEmptyMusicTargetKinds = readonly [
 ];
 
 export type MusicAbstractScopeHandle =
-  | { kind: "all" }
-  | { kind: "library" };
+  | {
+    /** "all": the whole currently available surface (library plus connected providers, where supported). */
+    kind: "all";
+  }
+  | {
+    /** "library": the owner-visible MineMusic library baseline. */
+    kind: "library";
+  };
 
 export type MusicLibraryScopeHandle =
-  | { kind: "source_library"; id: string }
-  | { kind: "relation"; id: string };
+  | {
+    /** "source_library": a durable imported source-library subscope (opaque id from list_scopes). */
+    kind: "source_library";
+    /** Opaque scope id from list_scopes; pass it back unchanged. */
+    id: string;
+  }
+  | {
+    /** "relation": a durable positive owner-relation set such as saved or favorite. */
+    kind: "relation";
+    /** Opaque scope id from list_scopes; pass it back unchanged. */
+    id: string;
+  };
 
 export type MusicProviderScopeHandle = {
+  /** "provider": a connected searchable provider used as a scope. */
   kind: "provider";
+  /** Public provider id from list_scopes (do not invent one from natural language). */
   providerId: string;
 };
 
@@ -236,6 +269,7 @@ export type ListedMusicScope =
   });
 
 export type MusicListScopesInput = {
+  /** Optional filter: return only scopes of this kind. Omit for all selectable scopes. */
   kind?: ListedMusicScopeKind;
 };
 
@@ -268,17 +302,23 @@ export type LibraryImportListSourcesOutput = {
 };
 
 export type LibraryImportStartInput = {
+  /** Public provider id from list_sources that backs the library to import. */
   providerId: string;
+  /** Which platform library area to import (saved tracks / saved albums / followed artists). */
   libraryKind: LibraryImportLibraryKind;
+  /** Max new items to import this batch (1..100). */
   limit?: number;
 };
 
 export type LibraryImportContinueInput = {
+  /** The batchId from a prior start/continue, used to drive the next provider page. */
   batchId: string;
+  /** Max new items to import this page (1..100). */
   limit?: number;
 };
 
 export type LibraryImportStatusInput = {
+  /** The batchId to read status for (does not advance the import). */
   batchId: string;
 };
 
@@ -329,6 +369,7 @@ export type LibraryImportStatusOutput = {
 };
 
 export type LibraryRelationItemInput = {
+  /** The durable library item whose relation state to read or edit. Candidate handles are rejected. */
   item: Extract<MusicItemHandle, { kind: "library" }>;
 };
 
@@ -339,26 +380,44 @@ export type LibraryRelationState = {
 };
 
 export type LibraryRelationStateOutput = {
+  /** Current relation state for the item. */
   relations: LibraryRelationState;
 };
 
 export type MusicDiscoveryLookupInput =
   | {
+    /** Free-text music lookup (title, artist, album, etc.). Required for a fresh lookup. */
     lookupText: string;
+    /** Desired material kind of the results. */
     targetKind?: MusicTargetKind;
+    /** Where to look: "all", "library", a listed source-library/relation scope, or a provider. Omit for the whole available surface. */
     scopes?: readonly (MusicScope | ListedMusicScope)[];
+    /** Max items to return (1..100). */
     limit?: number;
   }
   | {
+    /** Opaque cursor from a prior lookup's nextCursor, to fetch the next page. */
     cursor: string;
+    /** Max items to return (1..100). */
     limit?: number;
   };
 
 export type MusicItemHandle =
-  | { kind: "library"; id: string }
-  | { kind: "candidate"; id: string };
+  | {
+    /** "library": a known, durable MineMusic item. Stable indefinitely. */
+    kind: "library";
+    /** Opaque handle id returned by a prior tool; pass it back unchanged. */
+    id: string;
+  }
+  | {
+    /** "candidate": an unconfirmed provider item not yet admitted to the library. */
+    kind: "candidate";
+    /** Opaque handle id returned by a prior tool; pass it back unchanged. */
+    id: string;
+  };
 
 export type MusicExperiencePresentInput = {
+  /** The music item to present. A "candidate" handle is admitted to the library first. */
   item: MusicItemHandle;
 };
 
@@ -380,6 +439,8 @@ export type MusicDiscoveryLookupItem = {
 };
 
 export type MusicDiscoveryLookupOutput = {
+  /** Matched items for this page (handles plus descriptions). */
   items: readonly MusicDiscoveryLookupItem[];
+  /** Opaque cursor for the next page, if more results exist. */
   nextCursor?: string;
 };

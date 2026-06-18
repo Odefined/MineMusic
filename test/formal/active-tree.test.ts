@@ -162,6 +162,11 @@ assert.deepEqual(
     "src/server/music_experience_runtime_module.ts",
     "src/server/projection_maintenance_scheduler.ts",
     "src/server/retrieval_provider_search_adapter.ts",
+    "src/server/stage_tool_context_assembly.ts",
+    "src/server/transports/mcp_framing.ts",
+    "src/server/transports/mcp_rendering.ts",
+    "src/server/transports/mcp_stdio_driver.ts",
+    "src/server/transports/mcp_translation.ts",
   ],
   "formal Server Host root must stay inside the Phase 13 runtime-orchestration boundary",
 );
@@ -396,6 +401,49 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/server"))) {
   }
 }
 assert.deepEqual(serverImportFailures, []);
+
+// PR 20B bespoke transport guard: the MCP stdio transport under
+// src/server/transports/ must depend only on contracts, the Stage Interface
+// veil guard / factory type surfaces, and its own pure modules — never on a
+// domain root or repository implementation. The generic src/server scan above
+// only inspects static `from` clauses, so this per-file guard covers all three
+// relative-edge vectors (static `from`, dynamic import(), and bare side-effect
+// import), mirroring the contracts-DAG regex. The root is extracted after
+// stripping leading `..` segments so the guard is depth-independent.
+const transportForbiddenRoots = new Set([
+  "music_data_platform",
+  "extension",
+  "storage",
+  "effect_boundary",
+  "music_intelligence",
+  "music_experience",
+]);
+const transportImportSpecifierPattern =
+  /\bfrom\s+["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)|\bimport\s+["']([^"']+)["']/gu;
+const transportImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/server/transports"))) {
+  const relativeFile = relative(repositoryRoot, file);
+  const text = await readFile(file, "utf8");
+
+  for (const match of text.matchAll(transportImportSpecifierPattern)) {
+    const specifier = match[1] ?? match[2] ?? match[3];
+    if (typeof specifier !== "string") {
+      continue;
+    }
+
+    const root = relativeImportRoot(specifier);
+    if (root !== undefined && transportForbiddenRoots.has(root)) {
+      transportImportFailures.push(
+        `${relativeFile} imports forbidden transport dependency '${root}' via '${specifier}'`,
+      );
+    }
+  }
+}
+assert.deepEqual(
+  transportImportFailures,
+  [],
+  "MCP stdio transport must import only contracts, Stage Interface veil/factory surfaces, and its own pure modules",
+);
 
 const projectionMaintenanceSchedulerText = await readFile(
   join(repositoryRoot, "src/server/projection_maintenance_scheduler.ts"),

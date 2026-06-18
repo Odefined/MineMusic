@@ -524,6 +524,9 @@ function musicDataPlatformModuleFor(input: {
     libraryRelation() {
       return undefined;
     },
+    handleMinting() {
+      return undefined;
+    },
   };
 }
 

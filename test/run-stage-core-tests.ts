@@ -10,6 +10,7 @@ const testModules = [
   "./formal/music-discovery-list-scopes.test.js",
   "./formal/music-discovery-lookup.test.js",
   "./formal/active-tree.test.js",
+  "./formal/mcp-stdio-transport.test.js",
   "./formal/extension-capability-slot.test.js",
   "./formal/ncm-plugin.test.js",
   "./formal/music-database.test.js",
@@ -31,6 +32,7 @@ const testModules = [
   "./formal/server-entrypoint.test.js",
   "./formal/stage-runtime.test.js",
   "./formal/server-host.test.js",
+  "./formal/stage-tool-context-factory.test.js",
 ];
 
 for (const testModule of testModules) {

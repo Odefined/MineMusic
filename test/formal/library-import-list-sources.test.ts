@@ -290,5 +290,8 @@ function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
     libraryRelation() {
       return undefined;
     },
+    handleMinting() {
+      return undefined;
+    },
   };
 }

@@ -321,6 +321,7 @@ const descriptor: ToolDeclaration = {
       suggestedFixTemplate: "Call this test tool with an empty object.",
     },
   ],
+  resultSummary: () => "test tool ok.",
 };
 
 const registration: StageToolRegistration = {

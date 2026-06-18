@@ -123,7 +123,7 @@ function generatorFor(sourcePath) {
       tsconfig: resolve(repositoryRoot, "tsconfig.json"),
       expose: "export",
       topRef: true,
-      jsDoc: "none",
+      jsDoc: "extended",
       sortProps: true,
       additionalProperties: false,
       skipTypeCheck: false,

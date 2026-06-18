@@ -540,6 +540,7 @@ function registrationFor(input: {
         suggestedFixTemplate: "Call this test tool with an empty object.",
       },
     ],
+    resultSummary: () => "test status ok.",
   };
 
   return {

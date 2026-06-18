@@ -26,6 +26,14 @@ export type {
   CreateStageToolContextInput,
 } from "./context.js";
 export {
+  createStageToolContextFactory,
+} from "./tool_context_factory.js";
+export type {
+  CreateStageToolContextFactoryInput,
+  CreateToolContextPerCallInput,
+  StageToolContextFactory,
+} from "./tool_context_factory.js";
+export {
   createStageInterfaceHandleMintingPort,
   createStageInterfaceHandleMintingPortFromRecords,
   createUnavailableHandleMintingPort,
@@ -301,6 +309,10 @@ function assertToolDeclarations(tools: readonly ToolDeclaration[]): void {
 
     if (tool.errors.length === 0) {
       throw new Error(`Tool '${tool.name}' must declare public errors.`);
+    }
+
+    if (typeof tool.resultSummary !== "function") {
+      throw new Error(`Tool '${tool.name}' must declare a resultSummary renderer.`);
     }
   }
 }

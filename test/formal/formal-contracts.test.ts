@@ -249,6 +249,7 @@ export type _stageToolDeclarationShape = Expect<
     | "inputSchema"
     | "outputSchema"
     | "errors"
+    | "resultSummary"
     | "allowedActions"
     | "requiresProvider"
   > &

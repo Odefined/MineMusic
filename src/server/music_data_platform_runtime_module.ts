@@ -43,6 +43,8 @@ import type {
   MusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
 import { stageInterfaceHandleRegistrySchema } from "../stage_interface/handle_registry_schema.js";
+import { createStageInterfaceHandleMintingPort } from "../stage_interface/handle_minting.js";
+import type { HandleMintingPort } from "../contracts/stage_interface.js";
 import {
   SqliteMusicDatabase,
   type MusicDatabase,
@@ -66,6 +68,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   candidateCommit(): CandidateCommitCommand | undefined;
   materialProjection(): MaterialProjection | undefined;
   libraryRelation(): LibraryRelationService | undefined;
+  handleMinting(): HandleMintingPort | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -89,6 +92,7 @@ export function createMusicDataPlatformRuntimeModule(
   let materialProjection: MaterialProjection | undefined;
   let libraryRelationService: LibraryRelationService | undefined;
   let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
+  let handleMintingPort: HandleMintingPort | undefined;
   const ownsDatabase = input.database === undefined;
 
   return {
@@ -155,6 +159,9 @@ export function createMusicDataPlatformRuntimeModule(
           db: database.context(),
           extensionRuntime: input.extensionRuntime,
         });
+        handleMintingPort = createStageInterfaceHandleMintingPort({
+          db: database.context(),
+        });
         projectionMaintenanceScheduler = createProjectionMaintenanceScheduler({
           database,
           ...(input.config?.projectionMaintenance === undefined
@@ -172,6 +179,7 @@ export function createMusicDataPlatformRuntimeModule(
         };
       } catch (cause) {
         projectionMaintenanceScheduler = undefined;
+        handleMintingPort = undefined;
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
@@ -198,6 +206,7 @@ export function createMusicDataPlatformRuntimeModule(
         projectionMaintenanceScheduler = undefined;
         await scheduler?.stop();
         closeOwnedDatabase();
+        handleMintingPort = undefined;
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
@@ -243,6 +252,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     libraryRelation() {
       return libraryRelationService;
+    },
+    handleMinting() {
+      return handleMintingPort;
     },
   };
 

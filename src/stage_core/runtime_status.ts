@@ -69,6 +69,11 @@ export const stageRuntimeStatusDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Call stage.runtime.status with an empty object.",
     },
   ],
+  resultSummary(result) {
+    const output = result as RuntimeStatusToolOutput;
+    const moduleCount = Array.isArray(output.modules) ? output.modules.length : 0;
+    return `Runtime ${output.status} (${output.interface.toolCount} tools, ${output.interface.instrumentCount} instruments, ${moduleCount} modules).`;
+  },
 };
 
 export function createRuntimeStatusModule({

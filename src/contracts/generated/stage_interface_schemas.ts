@@ -174,7 +174,8 @@ export const musicScopeSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "all"
+              "const": "all",
+              "description": "\"all\": the whole currently available surface (library plus connected providers, where supported)."
             }
           },
           "required": [
@@ -187,7 +188,8 @@ export const musicScopeSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library"
+              "const": "library",
+              "description": "\"library\": the owner-visible MineMusic library baseline."
             }
           },
           "required": [
@@ -204,7 +206,8 @@ export const musicScopeSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "source_library"
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -222,7 +225,8 @@ export const musicScopeSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "relation"
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
             },
             "id": {
               "type": "string",
@@ -242,7 +246,8 @@ export const musicScopeSchema = {
       "properties": {
         "kind": {
           "type": "string",
-          "const": "provider"
+          "const": "provider",
+          "description": "\"provider\": a connected searchable provider used as a scope."
         },
         "providerId": {
           "type": "string",
@@ -269,7 +274,8 @@ export const musicItemHandleSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library"
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -287,7 +293,8 @@ export const musicItemHandleSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "candidate"
+              "const": "candidate",
+              "description": "\"candidate\": an unconfirmed provider item not yet admitted to the library."
             },
             "id": {
               "type": "string",
@@ -313,28 +320,35 @@ export const musicCardSchema = {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/definitions/MusicTargetKind"
+          "$ref": "#/definitions/MusicTargetKind",
+          "description": "Material kind of the presented item."
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "Primary display label (title or name)."
         },
         "artistsText": {
-          "type": "string"
+          "type": "string",
+          "description": "Artists text for display, if any."
         },
         "albumLabel": {
-          "type": "string"
+          "type": "string",
+          "description": "Album label for display, if any."
         },
         "displayLinks": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/PublicDisplayLink"
-          }
+          },
+          "description": "User-displayable links (URL plus optional label)."
         },
         "availability": {
-          "$ref": "#/definitions/MusicAvailability"
+          "$ref": "#/definitions/MusicAvailability",
+          "description": "Playability/availability of the item."
         },
         "versionLabel": {
-          "type": "string"
+          "type": "string",
+          "description": "Version/edition label for display, if any."
         }
       },
       "required": [
@@ -388,7 +402,8 @@ export const musicExperiencePresentInputSchema = {
       "type": "object",
       "properties": {
         "item": {
-          "$ref": "#/definitions/MusicItemHandle"
+          "$ref": "#/definitions/MusicItemHandle",
+          "description": "The music item to present. A \"candidate\" handle is admitted to the library first."
         }
       },
       "required": [
@@ -403,7 +418,8 @@ export const musicExperiencePresentInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library"
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -421,7 +437,8 @@ export const musicExperiencePresentInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "candidate"
+              "const": "candidate",
+              "description": "\"candidate\": an unconfirmed provider item not yet admitted to the library."
             },
             "id": {
               "type": "string",
@@ -451,7 +468,8 @@ export const musicExperiencePresentOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library"
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -478,28 +496,35 @@ export const musicExperiencePresentOutputSchema = {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/definitions/MusicTargetKind"
+          "$ref": "#/definitions/MusicTargetKind",
+          "description": "Material kind of the presented item."
         },
         "label": {
-          "type": "string"
+          "type": "string",
+          "description": "Primary display label (title or name)."
         },
         "artistsText": {
-          "type": "string"
+          "type": "string",
+          "description": "Artists text for display, if any."
         },
         "albumLabel": {
-          "type": "string"
+          "type": "string",
+          "description": "Album label for display, if any."
         },
         "displayLinks": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/PublicDisplayLink"
-          }
+          },
+          "description": "User-displayable links (URL plus optional label)."
         },
         "availability": {
-          "$ref": "#/definitions/MusicAvailability"
+          "$ref": "#/definitions/MusicAvailability",
+          "description": "Playability/availability of the item."
         },
         "versionLabel": {
-          "type": "string"
+          "type": "string",
+          "description": "Version/edition label for display, if any."
         }
       },
       "required": [
@@ -555,10 +580,12 @@ export const musicDiscoveryLookupInputSchema = {
           "type": "object",
           "properties": {
             "lookupText": {
-              "type": "string"
+              "type": "string",
+              "description": "Free-text music lookup (title, artist, album, etc.). Required for a fresh lookup."
             },
             "targetKind": {
-              "$ref": "#/definitions/MusicTargetKind"
+              "$ref": "#/definitions/MusicTargetKind",
+              "description": "Desired material kind of the results."
             },
             "scopes": {
               "type": "array",
@@ -571,7 +598,8 @@ export const musicDiscoveryLookupInputSchema = {
                     "$ref": "#/definitions/ListedMusicScope"
                   }
                 ]
-              }
+              },
+              "description": "Where to look: \"all\", \"library\", a listed source-library/relation scope, or a provider. Omit for the whole available surface."
             },
             "limit": {
               "type": "integer",
@@ -588,7 +616,8 @@ export const musicDiscoveryLookupInputSchema = {
           "type": "object",
           "properties": {
             "cursor": {
-              "type": "string"
+              "type": "string",
+              "description": "Opaque cursor from a prior lookup's nextCursor, to fetch the next page."
             },
             "limit": {
               "type": "integer",
@@ -631,7 +660,8 @@ export const musicDiscoveryLookupInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "all"
+              "const": "all",
+              "description": "\"all\": the whole currently available surface (library plus connected providers, where supported)."
             }
           },
           "required": [
@@ -644,7 +674,8 @@ export const musicDiscoveryLookupInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library"
+              "const": "library",
+              "description": "\"library\": the owner-visible MineMusic library baseline."
             }
           },
           "required": [
@@ -661,7 +692,8 @@ export const musicDiscoveryLookupInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "source_library"
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -679,7 +711,8 @@ export const musicDiscoveryLookupInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "relation"
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
             },
             "id": {
               "type": "string",
@@ -699,7 +732,8 @@ export const musicDiscoveryLookupInputSchema = {
       "properties": {
         "kind": {
           "type": "string",
-          "const": "provider"
+          "const": "provider",
+          "description": "\"provider\": a connected searchable provider used as a scope."
         },
         "providerId": {
           "type": "string",
@@ -740,7 +774,8 @@ export const musicDiscoveryLookupInputSchema = {
             },
             "kind": {
               "type": "string",
-              "const": "source_library"
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -762,7 +797,8 @@ export const musicDiscoveryLookupInputSchema = {
             },
             "kind": {
               "type": "string",
-              "const": "relation"
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
             },
             "id": {
               "type": "string",
@@ -787,7 +823,8 @@ export const musicDiscoveryLookupInputSchema = {
             },
             "kind": {
               "type": "string",
-              "const": "provider"
+              "const": "provider",
+              "description": "\"provider\": a connected searchable provider used as a scope."
             },
             "providerId": {
               "type": "string",
@@ -839,7 +876,8 @@ export const musicListScopesInputSchema = {
       "type": "object",
       "properties": {
         "kind": {
-          "$ref": "#/definitions/ListedMusicScopeKind"
+          "$ref": "#/definitions/ListedMusicScopeKind",
+          "description": "Optional filter: return only scopes of this kind. Omit for all selectable scopes."
         }
       },
       "additionalProperties": false
@@ -903,7 +941,8 @@ export const musicListScopesOutputSchema = {
             },
             "kind": {
               "type": "string",
-              "const": "source_library"
+              "const": "source_library",
+              "description": "\"source_library\": a durable imported source-library subscope (opaque id from list_scopes)."
             },
             "id": {
               "type": "string",
@@ -925,7 +964,8 @@ export const musicListScopesOutputSchema = {
             },
             "kind": {
               "type": "string",
-              "const": "relation"
+              "const": "relation",
+              "description": "\"relation\": a durable positive owner-relation set such as saved or favorite."
             },
             "id": {
               "type": "string",
@@ -950,7 +990,8 @@ export const musicListScopesOutputSchema = {
             },
             "kind": {
               "type": "string",
-              "const": "provider"
+              "const": "provider",
+              "description": "\"provider\": a connected searchable provider used as a scope."
             },
             "providerId": {
               "type": "string",
@@ -1100,10 +1141,12 @@ export const libraryImportStartInputSchema = {
       "type": "object",
       "properties": {
         "providerId": {
-          "type": "string"
+          "type": "string",
+          "description": "Public provider id from list_sources that backs the library to import."
         },
         "libraryKind": {
-          "$ref": "#/definitions/LibraryImportLibraryKind"
+          "$ref": "#/definitions/LibraryImportLibraryKind",
+          "description": "Which platform library area to import (saved tracks / saved albums / followed artists)."
         },
         "limit": {
           "type": "integer",
@@ -1473,17 +1516,20 @@ export const libraryRelationItemInputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library"
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
             }
           },
           "required": [
             "kind",
             "id"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "The durable library item whose relation state to read or edit. Candidate handles are rejected."
         }
       },
       "required": [
@@ -1502,7 +1548,8 @@ export const libraryRelationStateOutputSchema = {
       "type": "object",
       "properties": {
         "relations": {
-          "$ref": "#/definitions/LibraryRelationState"
+          "$ref": "#/definitions/LibraryRelationState",
+          "description": "Current relation state for the item."
         }
       },
       "required": [
@@ -1544,10 +1591,12 @@ export const musicDiscoveryLookupOutputSchema = {
           "type": "array",
           "items": {
             "$ref": "#/definitions/MusicDiscoveryLookupItem"
-          }
+          },
+          "description": "Matched items for this page (handles plus descriptions)."
         },
         "nextCursor": {
-          "type": "string"
+          "type": "string",
+          "description": "Opaque cursor for the next page, if more results exist."
         }
       },
       "required": [
@@ -1578,7 +1627,8 @@ export const musicDiscoveryLookupOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "library"
+              "const": "library",
+              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
             },
             "id": {
               "type": "string",
@@ -1596,7 +1646,8 @@ export const musicDiscoveryLookupOutputSchema = {
           "properties": {
             "kind": {
               "type": "string",
-              "const": "candidate"
+              "const": "candidate",
+              "description": "\"candidate\": an unconfirmed provider item not yet admitted to the library."
             },
             "id": {
               "type": "string",

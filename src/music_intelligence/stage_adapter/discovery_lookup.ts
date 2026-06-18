@@ -203,6 +203,12 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Retry music.discovery.lookup later, or call music.discovery.list_scopes to inspect available scopes.",
     },
   ],
+  resultSummary(result) {
+    const output = result as MusicDiscoveryLookupOutput;
+    const count = Array.isArray(output.items) ? output.items.length : 0;
+    const hasMore = typeof output.nextCursor === "string" && output.nextCursor.length > 0;
+    return `${count} item(s) returned; ${hasMore ? "more available" : "end of results"}.`;
+  },
 };
 
 export function createMusicDiscoveryLookupRegistration(

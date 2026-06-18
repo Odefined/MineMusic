@@ -81,6 +81,11 @@ export const libraryImportListSourcesDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Call library.import.list_sources with an empty object.",
     },
   ],
+  resultSummary(result) {
+    const output = result as LibraryImportListSourcesOutput;
+    const count = Array.isArray(output.sources) ? output.sources.length : 0;
+    return `${count} library import source(s) available.`;
+  },
 };
 
 export function createLibraryImportListSourcesRegistration(

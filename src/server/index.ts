@@ -36,6 +36,12 @@ export {
 export type {
   CreateExtensionRuntimeRetrievalProviderSearchPortInput,
 } from "./retrieval_provider_search_adapter.js";
+export {
+  createStageToolContextAssembly,
+} from "./stage_tool_context_assembly.js";
+export type {
+  CreateStageToolContextAssemblyInput,
+} from "./stage_tool_context_assembly.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { createServerHost } = await import("./host.js");

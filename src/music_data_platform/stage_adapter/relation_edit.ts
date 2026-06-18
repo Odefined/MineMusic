@@ -126,6 +126,7 @@ export const libraryRelationGetDescriptor: ToolDeclaration = {
   invocationPolicy: readOnlyInvocationPolicy,
   ...commonInputOutput,
   errors: readErrors,
+  resultSummary: relationStateSummary,
 };
 
 export const libraryRelationSaveDescriptor = editDescriptor({
@@ -279,7 +280,14 @@ function editDescriptor(input: {
     invocationPolicy: editInvocationPolicy,
     ...commonInputOutput,
     errors: editErrors,
+    resultSummary: relationStateSummary,
   };
+}
+
+function relationStateSummary(result: unknown): string {
+  const output = result as LibraryRelationStateOutput;
+  const relations = output.relations;
+  return `saved=${relations.saved}, favorite=${relations.favorite}, blocked=${relations.blocked}.`;
 }
 
 function registration(

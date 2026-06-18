@@ -124,6 +124,7 @@ export const libraryImportStartDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Retry later after local storage is available.",
     },
   ],
+  resultSummary: importBatchSummary,
 };
 
 export const libraryImportContinueDescriptor: ToolDeclaration = {
@@ -210,6 +211,7 @@ export const libraryImportStatusDescriptor: ToolDeclaration = {
       suggestedFixTemplate: "Retry with a batchId returned by library.import.start, or start a new import.",
     },
   ],
+  resultSummary: importBatchSummary,
 };
 
 export function createLibraryImportStartRegistration(
@@ -649,6 +651,16 @@ function isStageErrorLike(value: unknown): value is StageError {
     typeof (value as { code?: unknown }).code === "string" &&
     typeof (value as { message?: unknown }).message === "string" &&
     typeof (value as { retryable?: unknown }).retryable === "boolean";
+}
+
+function importBatchSummary(result: unknown): string {
+  const output = result as {
+    batchId: string;
+    status: string;
+    totals: LibraryImportCounts;
+    hasMore: boolean;
+  };
+  return `Import batch ${output.batchId}: ${output.status}; imported ${output.totals.imported}, already present ${output.totals.alreadyPresent}, failed ${output.totals.failed}; hasMore=${output.hasMore}.`;
 }
 
 function fail(input: {

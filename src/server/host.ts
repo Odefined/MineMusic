@@ -25,6 +25,8 @@ import {
 import {
   createLibraryRelationServerRuntimeModule,
 } from "./library_relation_runtime_module.js";
+import { createStageToolContextAssembly } from "./stage_tool_context_assembly.js";
+import type { StageToolContextFactory } from "../stage_interface/index.js";
 import type { SourceLibraryImportService } from "../music_data_platform/index.js";
 import type { RetrievalQueryService } from "../music_intelligence/index.js";
 import {
@@ -39,6 +41,7 @@ export type ServerHost = {
   dispatch(ctx: StageToolContext, input: ToolCallInput): Promise<Result<ToolCallOutput>>;
   sourceLibraryImport(): SourceLibraryImportService | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
+  toolContextFactory(): StageToolContextFactory | undefined;
 };
 
 export type CreateServerHostInput = {
@@ -56,6 +59,10 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
           ...(input.config === undefined ? {} : { config: input.config }),
         })
       : undefined;
+  const stageToolContextFactory: StageToolContextFactory | undefined =
+    musicDataPlatformModule === undefined
+      ? undefined
+      : createStageToolContextAssembly({ musicDataPlatformModule });
   const lookupCursorKey = readLookupCursorKeyFromEnv();
   const musicDiscoveryModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
@@ -134,6 +141,9 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     },
     retrievalQuery() {
       return musicDataPlatformModule?.retrievalQuery();
+    },
+    toolContextFactory() {
+      return stageToolContextFactory;
     },
   };
 }
