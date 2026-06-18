@@ -1,7 +1,7 @@
 # Music Data Platform Ports
 
-> Status: Current boundary authority through implemented Phase 18D/E
-> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, mixed retrieval result-set/cache workspace, and the Library Import stage adapter tools
+> Status: Current boundary authority through implemented Phase 19
+> Scope: Identity write model, source-library import, owner relation, owner catalog projection, material text projection, projection maintenance, retrieval read port, mixed retrieval result-set/cache workspace, Library Import stage adapter tools, and Library Relation stage adapter tools
 
 Music Data Platform provides identity repositories, identity read/write
 boundaries, source-library repositories, source-library commands/read port,
@@ -11,7 +11,8 @@ projection commands/read port, material text projection commands/read port,
 projection maintenance commands/reads/runner, the retrieval read port, mixed
 retrieval workspace, schema contributions, runtime retrieval result-set
 records/cache helpers, the Library Import stage-adapter RuntimeModule and
-metadata-only source-listing plus import drive/status tools, a material
+metadata-only source-listing plus import drive/status tools, the Library
+Relation service/runtime module and relation get/edit tools, a material
 ref factory, a top-level source-of-truth write facade, and error types. It
 consumes generic Storage database ports and a
 narrow provider-library read port, but does not know SQLite primitives or
@@ -47,6 +48,9 @@ provider plugin implementations.
 | `createLibraryImportListSourcesRegistration` | Server Host composition / Stage Core | Stage Interface registration for read-only import source listing. Returns provider id/label/account requirement and provider-neutral importable library-kind descriptions without reading provider account pages. | `src/music_data_platform/stage_adapter/list_sources.ts` |
 | `createLibraryImportStartRegistration` / `createLibraryImportContinueRegistration` / `createLibraryImportStatusRegistration` | Server Host composition / Stage Core | Stage Interface registrations for compact agent-facing import drive/status tools over a narrow control port. | `src/music_data_platform/stage_adapter/import_control.ts` |
 | `publicSourceLibraryScope` / `sourceLibraryScopeId` | Server Host composition / MDP stage adapter | Build the reusable public source-library scope id/description for import summaries and scope availability without exposing internal refs. | `src/music_data_platform/stage_adapter/source_library_scope.ts` |
+| `createLibraryRelationService` | Server Host composition / MDP stage adapter | Workflow-facing relation service for reading current saved/favorite/blocked state and applying explicit save/unsave/favorite/unfavorite/block/unblock semantics through source-of-truth owner-relation commands. | `src/music_data_platform/owner_material_relation_service.ts` |
+| `createLibraryRelationRuntimeModule` | Server Host composition | MDP-owned Stage Adapter RuntimeModule for `library.relation.*`; contributes the `library.relation` instrument plus get/save/unsave/favorite/unfavorite/block/unblock tool registrations. | `src/music_data_platform/stage_adapter/index.ts` |
+| `createLibraryRelationGetRegistration` / `createLibraryRelationSaveRegistration` / `createLibraryRelationUnsaveRegistration` / `createLibraryRelationFavoriteRegistration` / `createLibraryRelationUnfavoriteRegistration` / `createLibraryRelationBlockRegistration` / `createLibraryRelationUnblockRegistration` | Server Host composition / Stage Core | Stage Interface registrations for compact agent-facing relation read/edit tools over a narrow relation control port. | `src/music_data_platform/stage_adapter/relation_edit.ts` |
 | `createOwnerMaterialRelationCommands` | Internal commands/tests | Record and remove current-state material-scope owner relation facts. | `src/music_data_platform/owner_material_relation_commands.ts` |
 | `createOwnerMaterialRelationRecords` | Internal commands/tests/later policy phases | Read internal owner material relation rows with explicit status handling. | `src/music_data_platform/owner_material_relation_records.ts` |
 | `createOwnerCatalogProjectionCommands` | Internal commands/tests | Rebuild library-scope source-library projection plus material-scope source-library and owner-relation catalog entries through transaction-scoped SQL commands. | `src/music_data_platform/owner_catalog_projection.ts` |
@@ -73,7 +77,8 @@ provider plugin implementations.
 | `PlatformLibraryReadPort` | Server Host composition, usually backed by Extension Runtime | Read provider account-library pages for one provider/kind/cursor. | `readPlatformLibraryProvider`. | None. |
 | `PlatformLibrarySourceListingPort` | Server Host composition, backed by Extension Runtime provider descriptors | Enumerate registered platform-library-provider descriptor metadata for `library.import.list_sources`. | `listPlatformLibrarySources`. | None. |
 | `LibraryImportControlPort` | Server Host composition, backed by `SourceLibraryImportService` and `SourceLibraryReadPort` | Start/continue import pages and read compact batch status for `library.import.*` tools. | `startImport`, `continueImport`, `getStatus`, `sourceLibraryScopeForBatch`. | None; durable writes stay inside `SourceLibraryImportService`. |
-| `RuntimeModule` | Stage Core | Contribute the `library-import` runtime module and its Stage Interface registrations from the Music Data Platform stage-adapter boundary. | Descriptor/initialize contract. | None. |
+| `LibraryRelationControlPort` | Server Host composition, backed by `createLibraryRelationService` | Read current relation state and apply compact relation edits for `library.relation.*` tools. | `getRelationState`. | None at the port surface; durable writes stay inside `LibraryRelationService.editRelation`. |
+| `RuntimeModule` | Stage Core | Contribute the `library-import` and `library-relation` runtime modules and their Stage Interface registrations from the Music Data Platform stage-adapter boundary. | Descriptor/initialize contract. | None. |
 
 ## Repository Ports
 

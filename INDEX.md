@@ -134,6 +134,17 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   command (ADR-0011), Material Projection first landing, Effect Boundary
   auto-pass widening (ADR-0021), and the `music.experience.present` consumption
   tool; split into PR 17A/17B/17D/17C; implemented in the current tree.
+- `docs/formal-rebuild/phase-18-library-import-tools-implementation-plan.md`:
+  Phase 18 execution plan for agent-facing library intake through
+  `library.import.list_sources`, `.start`, `.continue`, and `.status`; keeps
+  `library.` as a Public Agent Protocol namespace rather than a formal area and
+  records the ADR-0022 intake auto-pass boundary; implemented in the current
+  tree.
+- `docs/formal-rebuild/phase-19-library-relation-tools-implementation-plan.md`:
+  implemented Phase 19 execution plan for `library.relation.*` owner-relation get
+  and edit tools over existing Music Data Platform `saved`, `favorite`, and
+  `blocked` facts, including current relation-state output and an Effect
+  Boundary owner-relation auto-pass qualifier for edits.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

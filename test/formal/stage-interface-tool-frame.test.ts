@@ -538,6 +538,30 @@ assert.equal(
   qualifiedIntakeResult.internalReason,
   "auto owner-scoped library intake",
 );
+const qualifiedRelationDescriptor: ToolDeclaration = {
+  ...descriptor,
+  name: "library.relation.save",
+  ownerArea: "music_data_platform",
+  sideEffect: {
+    ...descriptor.sideEffect,
+    durableUserStateWrite: true,
+  },
+  invocationPolicy: {
+    ...descriptor.invocationPolicy,
+    defaultDecision: "auto",
+    ownerRelationDrivenByUserRequest: true,
+  },
+};
+const qualifiedRelationResult = await conservativeGate.preflight({
+  ...gateBaseInput,
+  descriptor: qualifiedRelationDescriptor,
+});
+
+assert.equal(qualifiedRelationResult.decision, "allow");
+assert.equal(
+  qualifiedRelationResult.internalReason,
+  "auto owner-scoped relation edit",
+);
 assert.equal((await conservativeGate.preflight({
   ...gateBaseInput,
   descriptor: {
@@ -548,7 +572,7 @@ assert.equal((await conservativeGate.preflight({
     },
   },
 })).decision, "deny");
-assert.equal(auditRecords.length, 7);
+assert.equal(auditRecords.length, 8);
 assert.equal(auditRecords.every((record) => record.auditLevel === "metadata"), true);
 assert.equal(
   auditRecords.some((record) => (
@@ -563,6 +587,14 @@ assert.equal(
     record.toolName === "library.import.start" &&
     record.decision === "allow" &&
     record.internalReason === "auto owner-scoped library intake"
+  )),
+  true,
+);
+assert.equal(
+  auditRecords.some((record) => (
+    record.toolName === "library.relation.save" &&
+    record.decision === "allow" &&
+    record.internalReason === "auto owner-scoped relation edit"
   )),
   true,
 );

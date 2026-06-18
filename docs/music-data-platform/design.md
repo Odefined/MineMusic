@@ -730,6 +730,15 @@ workflow code must not call lower-level identity/source-library/relation write
 factories directly, and workflow-facing owner-scoped writes currently reject
 non-default owner scopes.
 
+`createLibraryRelationService({ database })` is the workflow-facing Music Data
+Platform boundary for Phase 19 owner relation tools. It reads current active
+saved/favorite/blocked state for one material and applies explicit
+save/unsave/favorite/unfavorite/block/unblock semantics through the
+source-of-truth owner-relation commands. It preserves the public semantics that
+blocked is mutually exclusive with saved/favorite, saved and favorite are
+independent positive relations, and removing an already-absent relation returns
+the unchanged current state.
+
 ## Material Merge
 
 `mergeMaterialRecord(loser, winner)` is identity-level only.

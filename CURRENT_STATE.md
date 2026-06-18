@@ -73,7 +73,14 @@ owner-scoped `library.import.start` / `.continue` calls to auto-pass with
 metadata audit while unqualified durable writes still route to `ask`.
 Phase 18C-E add all four `library.import.*` tools: metadata-only source
 listing, page-by-page start/continue import drive tools, and a read-only status
-tool over durable import batches.
+tool over durable import batches. Phase 19 adds all seven
+`library.relation.*` tools over durable library item handles: read-only `get`,
+plus save/unsave/favorite/unfavorite/block/unblock edit tools. The edit tools
+write only local MineMusic owner-relation facts through Music Data Platform
+source-of-truth commands, return only current saved/favorite/blocked booleans,
+enforce blocked-vs-positive mutual exclusion and saved/favorite independence,
+and auto-pass through the Effect Boundary via ADR-0023's owner-relation
+qualifier.
 Old MVP implementation code and tests are no longer active-tree migration
 inventory; they are preserved by git history and archive docs only.
 

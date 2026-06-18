@@ -153,6 +153,15 @@ export type {
   OwnerRelationScopeSummaryRecord,
 } from "./owner_material_relation_records.js";
 export {
+  createLibraryRelationService,
+} from "./owner_material_relation_service.js";
+export type {
+  CreateLibraryRelationServiceInput,
+  LibraryRelationEdit,
+  LibraryRelationService,
+  LibraryRelationServiceState,
+} from "./owner_material_relation_service.js";
+export {
   createOwnerCatalogProjectionCommands,
 } from "./owner_catalog_projection.js";
 export type {

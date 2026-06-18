@@ -1461,6 +1461,78 @@ export const libraryImportStatusOutputSchema = {
   }
 } as const satisfies JsonSchema;
 
+export const libraryRelationItemInputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryRelationItemInput",
+  "definitions": {
+    "LibraryRelationItemInput": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "library"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
+export const libraryRelationStateOutputSchema = {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LibraryRelationStateOutput",
+  "definitions": {
+    "LibraryRelationStateOutput": {
+      "type": "object",
+      "properties": {
+        "relations": {
+          "$ref": "#/definitions/LibraryRelationState"
+        }
+      },
+      "required": [
+        "relations"
+      ],
+      "additionalProperties": false
+    },
+    "LibraryRelationState": {
+      "type": "object",
+      "properties": {
+        "saved": {
+          "type": "boolean"
+        },
+        "favorite": {
+          "type": "boolean"
+        },
+        "blocked": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "saved",
+        "favorite",
+        "blocked"
+      ],
+      "additionalProperties": false
+    }
+  }
+} as const satisfies JsonSchema;
+
 export const musicDiscoveryLookupOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$ref": "#/definitions/MusicDiscoveryLookupOutput",

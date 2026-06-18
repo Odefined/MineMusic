@@ -38,6 +38,7 @@ export type ToolInvocationPolicy = {
   destructiveHint: boolean;
   admissionDrivenByPresentation?: boolean;
   intakeDrivenByUserRequest?: boolean;
+  ownerRelationDrivenByUserRequest?: boolean;
   maxCallsPerTurn?: number;
 };
 
@@ -325,6 +326,20 @@ export type LibraryImportStatusOutput = {
   totals: LibraryImportCounts;
   hasMore: boolean;
   failureCategories?: readonly LibraryImportFailureCategoryCount[];
+};
+
+export type LibraryRelationItemInput = {
+  item: Extract<MusicItemHandle, { kind: "library" }>;
+};
+
+export type LibraryRelationState = {
+  saved: boolean;
+  favorite: boolean;
+  blocked: boolean;
+};
+
+export type LibraryRelationStateOutput = {
+  relations: LibraryRelationState;
 };
 
 export type MusicDiscoveryLookupInput =

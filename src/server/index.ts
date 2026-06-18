@@ -28,6 +28,9 @@ export {
   createLibraryImportServerRuntimeModule,
 } from "./library_import_runtime_module.js";
 export {
+  createLibraryRelationServerRuntimeModule,
+} from "./library_relation_runtime_module.js";
+export {
   createExtensionRuntimeRetrievalProviderSearchPort,
 } from "./retrieval_provider_search_adapter.js";
 export type {

@@ -226,6 +226,15 @@ only compact counts, batch status, public failure categories, and the public
 `sourceLibraryScope`; `library.import.status` reads the durable batch without
 advancing provider pages.
 
+Agent-facing Library Relation tools also live under the Music Data Platform
+`stage_adapter` boundary. `library.relation.get` reads current saved/favorite/
+blocked state for one durable library handle; `library.relation.save`,
+`.unsave`, `.favorite`, `.unfavorite`, `.block`, and `.unblock` mutate only
+local MineMusic owner-relation facts through MDP source-of-truth commands and
+return compact current relation booleans. The Server Host may wire the relation
+service into the runtime module, but it must not own relation mutual-exclusion
+semantics or write owner-relation rows directly.
+
 All MineMusic writes are command-owned. A write is any mutation of durable or
 runtime state, including source facts, import batches, item outcomes,
 projections, dirty targets, cache rows, events, snapshots, and external-effect

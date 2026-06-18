@@ -267,6 +267,32 @@ _Avoid_: every internal anchor in the Public Handle Veil (see Stage Interface
 Tool Frame): sourceLibraryRef, ownerRelationPoolRef, public `providerId`, raw
 owner or library key, Collection row id.
 
+### Library Relation Tools
+
+The Public Agent Protocol tools for reading and editing explicit owner-library
+relations: `library.relation.get`, `library.relation.save`,
+`library.relation.unsave`, `library.relation.favorite`,
+`library.relation.unfavorite`, `library.relation.block`, and
+`library.relation.unblock`.
+
+`get` reads the current owner relation state for one durable MineMusic library
+item. The edit tools express user intent to add or remove one current owner
+relation fact for one durable MineMusic library item. They are not generic
+relation setters, not Collection membership tools, and not candidate-admission
+tools; a candidate must first become a durable library item through a
+consumption tool such as `music.experience.present`.
+Each edit reports the item relation state after the edit: whether the item is
+currently saved, favorite, and blocked. `blocked` is mutually exclusive with
+the positive library relations: blocking an item clears saved and favorite;
+saving or favoriting an item clears blocked.
+`saved` and `favorite` are independent positive relations: favoriting does not
+implicitly save an item, and saving does not implicitly favorite it.
+Removing a relation through `unsave`, `unfavorite`, or `unblock` is idempotent
+at the Public Agent Protocol boundary: if that relation is already absent, the
+tool still succeeds and reports the unchanged current relation state.
+_Avoid_: generic `library.relation.set`, Collection add/remove, candidate
+commit, provider save/like API action, Memory preference update.
+
 ### Music Abstract Scope Handle
 
 A Public Agent Protocol handle for an aggregate or built-in music scope, such as

@@ -14,6 +14,19 @@ import {
 import type {
   PlatformLibrarySourceListingPort,
 } from "./list_sources.js";
+import {
+  createLibraryRelationBlockRegistration,
+  createLibraryRelationFavoriteRegistration,
+  createLibraryRelationGetRegistration,
+  createLibraryRelationSaveRegistration,
+  createLibraryRelationUnblockRegistration,
+  createLibraryRelationUnfavoriteRegistration,
+  createLibraryRelationUnsaveRegistration,
+  libraryRelationInstrument,
+} from "./relation_edit.js";
+import type {
+  LibraryRelationControlPort,
+} from "./relation_edit.js";
 
 export {
   createLibraryImportContinueRegistration,
@@ -38,6 +51,27 @@ export type {
   PlatformLibrarySourceListingPort,
 } from "./list_sources.js";
 export {
+  createLibraryRelationBlockRegistration,
+  createLibraryRelationFavoriteRegistration,
+  createLibraryRelationGetRegistration,
+  createLibraryRelationSaveRegistration,
+  createLibraryRelationUnblockRegistration,
+  createLibraryRelationUnfavoriteRegistration,
+  createLibraryRelationUnsaveRegistration,
+  libraryRelationBlockDescriptor,
+  libraryRelationFavoriteDescriptor,
+  libraryRelationGetDescriptor,
+  libraryRelationInstrument,
+  libraryRelationSaveDescriptor,
+  libraryRelationUnblockDescriptor,
+  libraryRelationUnfavoriteDescriptor,
+  libraryRelationUnsaveDescriptor,
+} from "./relation_edit.js";
+export type {
+  CreateLibraryRelationRegistrationInput,
+  LibraryRelationControlPort,
+} from "./relation_edit.js";
+export {
   publicSourceLibraryScope,
   sourceLibraryKindScopeMetadata,
   sourceLibraryScopeId,
@@ -46,6 +80,10 @@ export {
 export type CreateLibraryImportRuntimeModuleInput = {
   sourceListing: PlatformLibrarySourceListingPort;
   control: LibraryImportControlPort;
+};
+
+export type CreateLibraryRelationRuntimeModuleInput = {
+  control: LibraryRelationControlPort;
 };
 
 export function createLibraryImportRuntimeModule(
@@ -73,6 +111,49 @@ export function createLibraryImportRuntimeModule(
               control: input.control,
             }),
             createLibraryImportStatusRegistration({
+              control: input.control,
+            }),
+          ],
+        },
+      };
+    },
+  };
+}
+
+export function createLibraryRelationRuntimeModule(
+  input: CreateLibraryRelationRuntimeModuleInput,
+): RuntimeModule {
+  return {
+    descriptor: {
+      id: "library-relation",
+      ownerArea: "music_data_platform",
+      label: "Library Relation",
+    },
+    async initialize() {
+      return {
+        ok: true,
+        value: {
+          instruments: [libraryRelationInstrument],
+          tools: [
+            createLibraryRelationGetRegistration({
+              control: input.control,
+            }),
+            createLibraryRelationSaveRegistration({
+              control: input.control,
+            }),
+            createLibraryRelationUnsaveRegistration({
+              control: input.control,
+            }),
+            createLibraryRelationFavoriteRegistration({
+              control: input.control,
+            }),
+            createLibraryRelationUnfavoriteRegistration({
+              control: input.control,
+            }),
+            createLibraryRelationBlockRegistration({
+              control: input.control,
+            }),
+            createLibraryRelationUnblockRegistration({
               control: input.control,
             }),
           ],

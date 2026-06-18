@@ -5,8 +5,9 @@
 > commit), ADR-0012 (Music Discovery seam), and ADR-0014 (mandatory
 > model-visible guidance), ADR-0015 (invocation policy), and ADR-0016
 > (descriptor/handler split), ADR-0017 (router-owned tool name), ADR-0019 (veil
-> ownership split and handle scheme), and ADR-0020 (declared error vocabulary and
-> fail-whole recovery).
+> ownership split and handle scheme), ADR-0020 (declared error vocabulary and
+> fail-whole recovery), and ADR-0021 through ADR-0023 (narrow durable-write
+> auto-pass qualifiers).
 > Phase 16 (sanctioned). Implementation plan:
 > `phase-16-stage-interface-tool-frame-implementation-plan.md` (PR 16A–16D
 > planned).
@@ -50,9 +51,9 @@ with no shared guarantees.
   Platform; see ADR-0011). This frame only forbids tools from materializing.
 - No full Effect Boundary enforcement machinery itself (owned by Effect
   Boundary; see ADR-0010). This frame mandates the declaration and defines a v1
-  `StageToolExecutionGate` stub seam with the ADR-0021 / ADR-0022 auto-pass
-  qualifiers (see Permission, Visibility, and Auto-Invocation) so declarations
-  have a runtime home; full enforcement is deferred.
+  `StageToolExecutionGate` stub seam with the ADR-0021 / ADR-0022 / ADR-0023
+  auto-pass qualifiers (see Permission, Visibility, and Auto-Invocation) so
+  declarations have a runtime home; full enforcement is deferred.
 - No per-tool runtime-policy enforcement itself (owned by Stage Core). This frame
   requires a Stage Core global default timeout (see Runtime Policy) but defers
   per-tool `runtimePolicy`.
@@ -423,6 +424,7 @@ invocationPolicy = {
   destructiveHint: boolean,
   admissionDrivenByPresentation?: boolean,
   intakeDrivenByUserRequest?: boolean,
+  ownerRelationDrivenByUserRequest?: boolean,
   maxCallsPerTurn?: number
 }
 ```
@@ -446,10 +448,10 @@ provider-connection time, not per search.
 
 - Auto-invocation is derived from `sideEffect.durableUserStateWrite` and
   `invocationPolicy.defaultDecision`, plus narrow Effect Boundary-owned
-  durable-write qualifiers recorded by ADR-0021 and ADR-0022. The rule is owned
-  by Effect Boundary. A tool that writes durable user state cannot be
-  auto-invoked merely because it says `defaultDecision: "auto"`; it must either
-  be read-only on durable user state or satisfy one of those explicit
+  durable-write qualifiers recorded by ADR-0021, ADR-0022, and ADR-0023. The
+  rule is owned by Effect Boundary. A tool that writes durable user state cannot
+  be auto-invoked merely because it says `defaultDecision: "auto"`; it must
+  either be read-only on durable user state or satisfy one of those explicit
   qualifiers.
 - Provider/account availability that affects a tool's scopes is owned by
   Extension. Stage Interface reads it through a narrow
@@ -472,8 +474,8 @@ provider-connection time, not per search.
   Effect Boundary-owned `StageToolExecutionGate`, NOT the Tool Call Router
   interpreting policy. The boundary is crisp:
   - **Owner**: Effect Boundary owns `StageToolExecutionGate` (interface declared
-    at the contract layer; v1 ships the conservative stub plus the ADR-0021 and
-    ADR-0022 auto-pass qualifiers).
+    at the contract layer; v1 ships the conservative stub plus the ADR-0021,
+    ADR-0022, and ADR-0023 auto-pass qualifiers).
   - **Router -> gate**: before invoking the handler, the Tool Call Router calls
     `gate.preflight({ descriptor, sideEffect, invocationPolicy, ownerScope,
     sessionId, requestId, arguments })`. The router PASSES the declarations; it
@@ -496,11 +498,12 @@ provider-connection time, not per search.
     returns `allow` when `invocationPolicy.defaultDecision = "auto"` and
     either `sideEffect.durableUserStateWrite = false`,
     `admissionDrivenByPresentation = true` (ADR-0021), or
-    `intakeDrivenByUserRequest = true` (ADR-0022). Otherwise it returns `ask` /
-    `deny` per `defaultDecision`. This is the runtime half of the interim
-    fail-closed posture (the static half is the side-effect honesty import
-    guard), so `sideEffect` / `invocationPolicy` are never inert metadata before
-    full Effect Boundary enforcement ships.
+    `intakeDrivenByUserRequest = true` (ADR-0022), or
+    `ownerRelationDrivenByUserRequest = true` (ADR-0023). Otherwise it returns
+    `ask` / `deny` per `defaultDecision`. This is the runtime half of the
+    interim fail-closed posture (the static half is the side-effect honesty
+    import guard), so `sideEffect` / `invocationPolicy` are never inert metadata
+    before full Effect Boundary enforcement ships.
 
 ## Runtime Policy
 

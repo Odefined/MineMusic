@@ -287,5 +287,8 @@ function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
     materialProjection() {
       return undefined;
     },
+    libraryRelation() {
+      return undefined;
+    },
   };
 }

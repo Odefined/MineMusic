@@ -521,6 +521,9 @@ function musicDataPlatformModuleFor(input: {
     materialProjection() {
       return undefined;
     },
+    libraryRelation() {
+      return undefined;
+    },
   };
 }
 

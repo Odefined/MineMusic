@@ -5,6 +5,8 @@ const testModules = [
   "./formal/library-import-list-sources.test.js",
   "./formal/library-import-control.test.js",
   "./formal/library-import-agent-path.test.js",
+  "./formal/library-relation-control.test.js",
+  "./formal/library-relation-agent-path.test.js",
   "./formal/music-discovery-list-scopes.test.js",
   "./formal/music-discovery-lookup.test.js",
   "./formal/active-tree.test.js",

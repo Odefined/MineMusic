@@ -114,6 +114,18 @@ function decide(
     };
   }
 
+  if (
+    descriptor.invocationPolicy.defaultDecision === "auto" &&
+    descriptor.sideEffect.durableUserStateWrite === true &&
+    descriptor.invocationPolicy.ownerRelationDrivenByUserRequest === true
+  ) {
+    return {
+      decision: "allow",
+      auditLevel: "metadata",
+      internalReason: "auto owner-scoped relation edit",
+    };
+  }
+
   return {
     decision: "ask",
     auditLevel: "metadata",

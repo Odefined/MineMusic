@@ -97,6 +97,16 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
+    exportName: "libraryRelationItemInputSchema",
+    typeName: "LibraryRelationItemInput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
+    exportName: "libraryRelationStateOutputSchema",
+    typeName: "LibraryRelationStateOutput",
+    sourcePath: "src/contracts/stage_interface.ts",
+  },
+  {
     exportName: "musicDiscoveryLookupOutputSchema",
     typeName: "MusicDiscoveryLookupOutput",
     sourcePath: "src/contracts/stage_interface.ts",

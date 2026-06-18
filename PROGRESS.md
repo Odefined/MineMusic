@@ -1105,6 +1105,34 @@ agent-facing tools and wires them into the default Server Host:
   read-only behavior, Host/server wiring, and deterministic provider-exhausted
   reconciliation through the agent-facing import path.
 
+## 2026-06-18: Phase 19 Library Relation Tools
+
+Phase 19 exposes existing owner-relation facts through explicit
+`library.relation.*` tools:
+
+- `library.relation.get` reads current saved/favorite/blocked state for one
+  durable library item handle without writing.
+- `library.relation.save`, `.unsave`, `.favorite`, `.unfavorite`, `.block`, and
+  `.unblock` edit local MineMusic owner relations through the Music Data
+  Platform source-of-truth command boundary and return the current relation
+  booleans after the edit.
+- `blocked` is mutually exclusive with saved/favorite; save/favorite clear
+  blocked, and block clears saved/favorite. Saved and favorite remain
+  independent positive relations.
+- Remove tools are idempotent at the Public Agent Protocol boundary: removing
+  an absent relation returns the unchanged current state.
+- Candidate handles are rejected by schema; candidates must be presented first
+  through `music.experience.present`.
+- ADR-0023 adds the Effect Boundary
+  `ownerRelationDrivenByUserRequest` qualifier so explicit owner-relation edits
+  can auto-pass with metadata audit reason
+  `auto owner-scoped relation edit`.
+- The default Server Host exposes all seven relation tools through the
+  `library-relation` runtime module.
+- Tests cover descriptors, schemas, declared errors, output veil, relation
+  state semantics, idempotent removals, Host/server wiring, and active-tree
+  guard expectations.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

@@ -4,7 +4,7 @@ import type { CanonicalEntity, MaterialAvailability, MaterialEntity, MaterialEnt
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../../src/contracts/storage.js";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { RuntimeErrorSummary, RuntimeModuleOwnerArea, RuntimeModuleSnapshot, RuntimeModuleStatus, StageRuntimeSnapshot, StageRuntimeStatus } from "../../src/contracts/stage_core.js";
-import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
+import type { LibraryImportLibraryKind, LibraryImportListSourcesInput, LibraryImportListSourcesOutput, LibraryRelationItemInput, LibraryRelationStateOutput, MusicAvailability as PublicMusicAvailability, MusicCard, MusicExperiencePresentInput, MusicExperiencePresentOutput, PublicDisplayLink, StageInterfaceContract, StageToolContext, StageToolExecutionGatePreflightResult, ToolDeclaration, ToolInvocationPolicy } from "../../src/contracts/stage_interface.js";
 import { assertRefSafe, refKey } from "../../src/contracts/kernel.js";
 import { hasPrefixOrV1Token, tokenizePrefixOrV1Text } from "../../src/contracts/music_data_platform.js";
 
@@ -264,8 +264,16 @@ export type _toolInvocationPolicyShape = Expect<
     | "destructiveHint"
     | "admissionDrivenByPresentation"
     | "intakeDrivenByUserRequest"
+    | "ownerRelationDrivenByUserRequest"
     | "maxCallsPerTurn"
   >
+>;
+
+export type _libraryRelationPublicShapes = Expect<
+  Equal<keyof LibraryRelationItemInput, "item"> &
+    Equal<LibraryRelationItemInput["item"]["kind"], "library"> &
+    Equal<keyof LibraryRelationStateOutput, "relations"> &
+    Equal<keyof LibraryRelationStateOutput["relations"], "saved" | "favorite" | "blocked">
 >;
 
 export type _stageToolContextShape = Expect<

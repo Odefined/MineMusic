@@ -7,6 +7,7 @@ import {
 } from "../music_data_platform/stage_adapter/source_library_scope.js";
 import {
   createCandidateCommitCommand,
+  createLibraryRelationService,
   createMaterialRefFactory,
   createMaterialProjection,
   createMusicDataPlatformRetrievalReadPort,
@@ -24,6 +25,7 @@ import {
   musicDataPlatformRetrievalResultSetSchema,
   musicDataPlatformSourceLibrarySchema,
   type CandidateCommitCommand,
+  type LibraryRelationService,
   type MaterialRefFactory,
   type MaterialProjection,
   type OwnerRelationEntryKind,
@@ -63,6 +65,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   musicScopeAvailability(): MusicScopeAvailabilityPort | undefined;
   candidateCommit(): CandidateCommitCommand | undefined;
   materialProjection(): MaterialProjection | undefined;
+  libraryRelation(): LibraryRelationService | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -84,6 +87,7 @@ export function createMusicDataPlatformRuntimeModule(
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
   let candidateCommitCommand: CandidateCommitCommand | undefined;
   let materialProjection: MaterialProjection | undefined;
+  let libraryRelationService: LibraryRelationService | undefined;
   let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
   const ownsDatabase = input.database === undefined;
 
@@ -133,6 +137,9 @@ export function createMusicDataPlatformRuntimeModule(
         materialProjection = createMaterialProjection({
           db: database.context(),
         });
+        libraryRelationService = createLibraryRelationService({
+          database,
+        });
         retrievalQueryService = createRetrievalQueryService({
           readPort: createMusicDataPlatformRetrievalReadPort({
             db: database.context(),
@@ -167,6 +174,7 @@ export function createMusicDataPlatformRuntimeModule(
         projectionMaintenanceScheduler = undefined;
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
+        libraryRelationService = undefined;
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
@@ -192,6 +200,7 @@ export function createMusicDataPlatformRuntimeModule(
         closeOwnedDatabase();
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
+        libraryRelationService = undefined;
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
@@ -231,6 +240,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     materialProjection() {
       return materialProjection;
+    },
+    libraryRelation() {
+      return libraryRelationService;
     },
   };
 

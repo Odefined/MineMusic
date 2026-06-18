@@ -171,6 +171,12 @@
   projection and silently leave its dirty target pending.
 - Library Import now uses the top-level source-of-truth write facade and does
   not call lower-level identity/source-library write factories directly.
+- Library Relation now uses `createLibraryRelationService(...)` plus the
+  MDP-owned `library-relation` RuntimeModule to expose get/save/unsave/
+  favorite/unfavorite/block/unblock over durable library item handles. Relation
+  edits flow through source-of-truth owner-relation commands, return only
+  saved/favorite/blocked booleans, and preserve blocked-vs-positive mutual
+  exclusion plus saved/favorite independence.
 - `source_library_items` no longer store `last_seen_at`; unchanged repeated
   imports keep batch/outcome bookkeeping, do not rewrite the item row, and do
   not emit `source_library_item_written`; conservative identity writes may
