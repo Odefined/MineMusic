@@ -3,7 +3,7 @@ import type { MusicDatabaseContext } from "../storage/database.js";
 export type StageInterfaceLookupCursorBindingRecord = {
   cursorId: string;
   ownerScope: string;
-  internalCursorJson: string;
+  internalCursor: string;
   queryInputJson: string;
   issuedAt: string;
   expiresAt: string;
@@ -74,7 +74,7 @@ export function createStageInterfaceLookupCursorRegistryRecords(
         [
           record.cursorId,
           record.ownerScope,
-          record.internalCursorJson,
+          record.internalCursor,
           record.queryInputJson,
           record.issuedAt,
           record.expiresAt,
@@ -88,11 +88,15 @@ export function createStageInterfaceLookupCursorRegistryRecords(
   return { bindings };
 }
 
+// The DB column is named internal_cursor_json for historical reasons (this
+// registry has no migration story — schemas are append-only CREATE TABLE IF
+// NOT EXISTS), but it holds the opaque retrieval cursor verbatim as TEXT, not
+// JSON. The TS field is named to reflect what the value actually is.
 function bindingFromRow(row: StageInterfaceLookupCursorBindingRow): StageInterfaceLookupCursorBindingRecord {
   return {
     cursorId: row.cursor_id,
     ownerScope: row.owner_scope,
-    internalCursorJson: row.internal_cursor_json,
+    internalCursor: row.internal_cursor_json,
     queryInputJson: row.query_input_json,
     issuedAt: row.issued_at,
     expiresAt: row.expires_at,
@@ -102,7 +106,7 @@ function bindingFromRow(row: StageInterfaceLookupCursorBindingRow): StageInterfa
 function assertBindingRecord(record: StageInterfaceLookupCursorBindingRecord): void {
   assertNonEmptyString(record.cursorId, "cursorId");
   assertNonEmptyString(record.ownerScope, "ownerScope");
-  assertJsonString(record.internalCursorJson, "internalCursorJson");
+  assertNonEmptyString(record.internalCursor, "internalCursor");
   assertJsonString(record.queryInputJson, "queryInputJson");
   assertComparableTimestamp(record.issuedAt, "issuedAt");
   assertComparableTimestamp(record.expiresAt, "expiresAt");

@@ -64,10 +64,11 @@ export function createLookupCursorStoreFromRecords(
       assertOwnerScope(registerInput.ownerScope);
       const now = assertComparableClock(clock());
 
-      // internalCursor is the opaque retrieval nextCursor (a string); queryInput
-      // is the lookup handler's retrieval query context. Both are stored as JSON
-      // so the registry's json-string invariants hold and resolve can parse them.
-      const internalCursorJson = JSON.stringify(registerInput.internalCursor);
+      // internalCursor is the opaque retrieval nextCursor, stored verbatim as a
+      // TEXT string (the DB column is named internal_cursor_json for historical
+      // reasons but it is not JSON). queryInput is the lookup handler's retrieval
+      // query context and is the only JSON-serialized field on this binding.
+      const internalCursor = registerInput.internalCursor;
       const queryInputJson = JSON.stringify(registerInput.queryInput);
       const expiresAt = new Date(Date.parse(now) + input.ttlMs).toISOString();
 
@@ -87,7 +88,7 @@ export function createLookupCursorStoreFromRecords(
         input.records.bindings.createBinding({
           cursorId,
           ownerScope: registerInput.ownerScope,
-          internalCursorJson,
+          internalCursor,
           queryInputJson,
           issuedAt: now,
           expiresAt,
@@ -121,7 +122,7 @@ export function createLookupCursorStoreFromRecords(
       return {
         ok: true,
         value: {
-          internalCursor: JSON.parse(binding.internalCursorJson) as string,
+          internalCursor: binding.internalCursor,
           queryInput: JSON.parse(binding.queryInputJson) as unknown,
         },
       };
