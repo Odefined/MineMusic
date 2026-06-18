@@ -5,80 +5,72 @@ import type { JsonSchema } from "../stage_interface.js";
 
 export const stageRuntimeStatusInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/StageRuntimeStatusInput",
-  "definitions": {
-    "StageRuntimeStatusInput": {
-      "type": "object",
-      "additionalProperties": {
-        "not": {}
-      }
-    }
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
   }
 } as const satisfies JsonSchema;
 
 export const runtimeStatusToolOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/RuntimeStatusToolOutput",
-  "definitions": {
-    "RuntimeStatusToolOutput": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "$ref": "#/definitions/StageRuntimeStatus"
-        },
-        "modules": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "ownerArea": {
-                "$ref": "#/definitions/RuntimeModuleOwnerArea"
-              },
-              "status": {
-                "$ref": "#/definitions/RuntimeModuleStatus"
-              }
-            },
-            "required": [
-              "id",
-              "ownerArea",
-              "status"
-            ],
-            "additionalProperties": false
+  "type": "object",
+  "properties": {
+    "status": {
+      "$ref": "#/definitions/StageRuntimeStatus"
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ownerArea": {
+            "$ref": "#/definitions/RuntimeModuleOwnerArea"
+          },
+          "status": {
+            "$ref": "#/definitions/RuntimeModuleStatus"
           }
         },
-        "interface": {
-          "type": "object",
-          "properties": {
-            "instrumentCount": {
-              "type": "number"
-            },
-            "toolCount": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "instrumentCount",
-            "toolCount"
-          ],
-          "additionalProperties": false
+        "required": [
+          "id",
+          "ownerArea",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "interface": {
+      "type": "object",
+      "properties": {
+        "instrumentCount": {
+          "type": "number"
         },
-        "error": {
-          "$ref": "#/definitions/RuntimeErrorSummary"
-        },
-        "cleanupErrorCount": {
+        "toolCount": {
           "type": "number"
         }
       },
       "required": [
-        "status",
-        "modules",
-        "interface"
+        "instrumentCount",
+        "toolCount"
       ],
       "additionalProperties": false
     },
+    "error": {
+      "$ref": "#/definitions/RuntimeErrorSummary"
+    },
+    "cleanupErrorCount": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "status",
+    "modules",
+    "interface"
+  ],
+  "additionalProperties": false,
+  "definitions": {
     "StageRuntimeStatus": {
       "type": "string",
       "enum": [
@@ -396,21 +388,18 @@ export const musicCardSchema = {
 
 export const musicExperiencePresentInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/MusicExperiencePresentInput",
+  "type": "object",
+  "properties": {
+    "item": {
+      "$ref": "#/definitions/MusicItemHandle",
+      "description": "The music item to present. A \"candidate\" handle is admitted to the library first."
+    }
+  },
+  "required": [
+    "item"
+  ],
+  "additionalProperties": false,
   "definitions": {
-    "MusicExperiencePresentInput": {
-      "type": "object",
-      "properties": {
-        "item": {
-          "$ref": "#/definitions/MusicItemHandle",
-          "description": "The music item to present. A \"candidate\" handle is admitted to the library first."
-        }
-      },
-      "required": [
-        "item"
-      ],
-      "additionalProperties": false
-    },
     "MusicItemHandle": {
       "anyOf": [
         {
@@ -458,40 +447,37 @@ export const musicExperiencePresentInputSchema = {
 
 export const musicExperiencePresentOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/MusicExperiencePresentOutput",
-  "definitions": {
-    "MusicExperiencePresentOutput": {
+  "type": "object",
+  "properties": {
+    "item": {
       "type": "object",
       "properties": {
-        "item": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false
+        "kind": {
+          "type": "string",
+          "const": "library",
+          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
         },
-        "card": {
-          "$ref": "#/definitions/MusicCard"
+        "id": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
-        "item",
-        "card"
+        "kind",
+        "id"
       ],
       "additionalProperties": false
     },
+    "card": {
+      "$ref": "#/definitions/MusicCard"
+    }
+  },
+  "required": [
+    "item",
+    "card"
+  ],
+  "additionalProperties": false,
+  "definitions": {
     "MusicCard": {
       "type": "object",
       "properties": {
@@ -572,66 +558,42 @@ export const musicExperiencePresentOutputSchema = {
 
 export const musicDiscoveryLookupInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/MusicDiscoveryLookupInput",
-  "definitions": {
-    "MusicDiscoveryLookupInput": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "lookupText": {
-              "type": "string",
-              "description": "Free-text music lookup (title, artist, album, etc.). Required for a fresh lookup."
-            },
-            "targetKind": {
-              "$ref": "#/definitions/MusicTargetKind",
-              "description": "Desired material kind of the results."
-            },
-            "scopes": {
-              "type": "array",
-              "items": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/MusicScope"
-                  },
-                  {
-                    "$ref": "#/definitions/ListedMusicScope"
-                  }
-                ]
-              },
-              "description": "Where to look: \"all\", \"library\", a listed source-library/relation scope, or a provider. Omit for the whole available surface."
-            },
-            "limit": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          },
-          "required": [
-            "lookupText"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "cursor": {
-              "type": "string",
-              "description": "Opaque cursor from a prior lookup's nextCursor, to fetch the next page."
-            },
-            "limit": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            }
-          },
-          "required": [
-            "cursor"
-          ],
-          "additionalProperties": false
-        }
-      ]
+  "type": "object",
+  "properties": {
+    "lookupText": {
+      "type": "string",
+      "description": "Free-text music lookup (title, artist, album, etc.). Required for a fresh lookup."
     },
+    "targetKind": {
+      "$ref": "#/definitions/MusicTargetKind",
+      "description": "Desired material kind of the results."
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/definitions/MusicScope"
+          },
+          {
+            "$ref": "#/definitions/ListedMusicScope"
+          }
+        ]
+      },
+      "description": "Where to look: \"all\", \"library\", a listed source-library/relation scope, or a provider. Omit for the whole available surface."
+    },
+    "cursor": {
+      "type": "string",
+      "description": "Opaque cursor from a prior lookup's nextCursor, to fetch the next page."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
     "MusicTargetKind": {
       "type": "string",
       "enum": [
@@ -870,18 +832,15 @@ export const musicDiscoveryLookupInputSchema = {
 
 export const musicListScopesInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/MusicListScopesInput",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "$ref": "#/definitions/ListedMusicScopeKind",
+      "description": "Optional filter: return only scopes of this kind. Omit for all selectable scopes."
+    }
+  },
+  "additionalProperties": false,
   "definitions": {
-    "MusicListScopesInput": {
-      "type": "object",
-      "properties": {
-        "kind": {
-          "$ref": "#/definitions/ListedMusicScopeKind",
-          "description": "Optional filter: return only scopes of this kind. Omit for all selectable scopes."
-        }
-      },
-      "additionalProperties": false
-    },
     "ListedMusicScopeKind": {
       "type": "string",
       "enum": [
@@ -896,23 +855,20 @@ export const musicListScopesInputSchema = {
 
 export const musicListScopesOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/MusicListScopesOutput",
+  "type": "object",
+  "properties": {
+    "scopes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ListedMusicScope"
+      }
+    }
+  },
+  "required": [
+    "scopes"
+  ],
+  "additionalProperties": false,
   "definitions": {
-    "MusicListScopesOutput": {
-      "type": "object",
-      "properties": {
-        "scopes": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/ListedMusicScope"
-          }
-        }
-      },
-      "required": [
-        "scopes"
-      ],
-      "additionalProperties": false
-    },
     "ListedMusicScope": {
       "anyOf": [
         {
@@ -1045,36 +1001,28 @@ export const musicListScopesOutputSchema = {
 
 export const libraryImportListSourcesInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryImportListSourcesInput",
-  "definitions": {
-    "LibraryImportListSourcesInput": {
-      "type": "object",
-      "additionalProperties": {
-        "not": {}
-      }
-    }
+  "type": "object",
+  "additionalProperties": {
+    "not": {}
   }
 } as const satisfies JsonSchema;
 
 export const libraryImportListSourcesOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryImportListSourcesOutput",
+  "type": "object",
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryImportSource"
+      }
+    }
+  },
+  "required": [
+    "sources"
+  ],
+  "additionalProperties": false,
   "definitions": {
-    "LibraryImportListSourcesOutput": {
-      "type": "object",
-      "properties": {
-        "sources": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/LibraryImportSource"
-          }
-        }
-      },
-      "required": [
-        "sources"
-      ],
-      "additionalProperties": false
-    },
     "LibraryImportSource": {
       "type": "object",
       "properties": {
@@ -1135,31 +1083,28 @@ export const libraryImportListSourcesOutputSchema = {
 
 export const libraryImportStartInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryImportStartInput",
-  "definitions": {
-    "LibraryImportStartInput": {
-      "type": "object",
-      "properties": {
-        "providerId": {
-          "type": "string",
-          "description": "Public provider id from list_sources that backs the library to import."
-        },
-        "libraryKind": {
-          "$ref": "#/definitions/LibraryImportLibraryKind",
-          "description": "Which platform library area to import (saved tracks / saved albums / followed artists)."
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "providerId",
-        "libraryKind"
-      ],
-      "additionalProperties": false
+  "type": "object",
+  "properties": {
+    "providerId": {
+      "type": "string",
+      "description": "Public provider id from list_sources that backs the library to import."
     },
+    "libraryKind": {
+      "$ref": "#/definitions/LibraryImportLibraryKind",
+      "description": "Which platform library area to import (saved tracks / saved albums / followed artists)."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "providerId",
+    "libraryKind"
+  ],
+  "additionalProperties": false,
+  "definitions": {
     "LibraryImportLibraryKind": {
       "type": "string",
       "enum": [
@@ -1173,92 +1118,79 @@ export const libraryImportStartInputSchema = {
 
 export const libraryImportContinueInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryImportContinueInput",
-  "definitions": {
-    "LibraryImportContinueInput": {
-      "type": "object",
-      "properties": {
-        "batchId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "limit": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
-        }
-      },
-      "required": [
-        "batchId"
-      ],
-      "additionalProperties": false
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
     }
-  }
+  },
+  "required": [
+    "batchId"
+  ],
+  "additionalProperties": false
 } as const satisfies JsonSchema;
 
 export const libraryImportStatusInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryImportStatusInput",
-  "definitions": {
-    "LibraryImportStatusInput": {
-      "type": "object",
-      "properties": {
-        "batchId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "batchId"
-      ],
-      "additionalProperties": false
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string",
+      "minLength": 1
     }
-  }
+  },
+  "required": [
+    "batchId"
+  ],
+  "additionalProperties": false
 } as const satisfies JsonSchema;
 
 export const libraryImportDriveOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryImportDriveOutput",
-  "definitions": {
-    "LibraryImportDriveOutput": {
-      "type": "object",
-      "properties": {
-        "batchId": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/definitions/LibraryImportBatchStatus"
-        },
-        "sourceLibraryScope": {
-          "$ref": "#/definitions/LibraryImportSourceLibraryScope"
-        },
-        "totals": {
-          "$ref": "#/definitions/LibraryImportCounts"
-        },
-        "page": {
-          "$ref": "#/definitions/LibraryImportCounts"
-        },
-        "providerTotalCountHint": {
-          "type": "number"
-        },
-        "hasMore": {
-          "type": "boolean"
-        },
-        "failureCategories": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/LibraryImportFailureCategoryCount"
-          }
-        }
-      },
-      "required": [
-        "batchId",
-        "status",
-        "totals",
-        "hasMore"
-      ],
-      "additionalProperties": false
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string"
     },
+    "status": {
+      "$ref": "#/definitions/LibraryImportBatchStatus"
+    },
+    "sourceLibraryScope": {
+      "$ref": "#/definitions/LibraryImportSourceLibraryScope"
+    },
+    "totals": {
+      "$ref": "#/definitions/LibraryImportCounts"
+    },
+    "page": {
+      "$ref": "#/definitions/LibraryImportCounts"
+    },
+    "providerTotalCountHint": {
+      "type": "number"
+    },
+    "hasMore": {
+      "type": "boolean"
+    },
+    "failureCategories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryImportFailureCategoryCount"
+      }
+    }
+  },
+  "required": [
+    "batchId",
+    "status",
+    "totals",
+    "hasMore"
+  ],
+  "additionalProperties": false,
+  "definitions": {
     "LibraryImportBatchStatus": {
       "type": "string",
       "enum": [
@@ -1365,41 +1297,38 @@ export const libraryImportDriveOutputSchema = {
 
 export const libraryImportStatusOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryImportStatusOutput",
-  "definitions": {
-    "LibraryImportStatusOutput": {
-      "type": "object",
-      "properties": {
-        "batchId": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/definitions/LibraryImportBatchStatus"
-        },
-        "sourceLibraryScope": {
-          "$ref": "#/definitions/LibraryImportSourceLibraryScope"
-        },
-        "totals": {
-          "$ref": "#/definitions/LibraryImportCounts"
-        },
-        "hasMore": {
-          "type": "boolean"
-        },
-        "failureCategories": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/LibraryImportFailureCategoryCount"
-          }
-        }
-      },
-      "required": [
-        "batchId",
-        "status",
-        "totals",
-        "hasMore"
-      ],
-      "additionalProperties": false
+  "type": "object",
+  "properties": {
+    "batchId": {
+      "type": "string"
     },
+    "status": {
+      "$ref": "#/definitions/LibraryImportBatchStatus"
+    },
+    "sourceLibraryScope": {
+      "$ref": "#/definitions/LibraryImportSourceLibraryScope"
+    },
+    "totals": {
+      "$ref": "#/definitions/LibraryImportCounts"
+    },
+    "hasMore": {
+      "type": "boolean"
+    },
+    "failureCategories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LibraryImportFailureCategoryCount"
+      }
+    }
+  },
+  "required": [
+    "batchId",
+    "status",
+    "totals",
+    "hasMore"
+  ],
+  "additionalProperties": false,
+  "definitions": {
     "LibraryImportBatchStatus": {
       "type": "string",
       "enum": [
@@ -1506,57 +1435,49 @@ export const libraryImportStatusOutputSchema = {
 
 export const libraryRelationItemInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryRelationItemInput",
-  "definitions": {
-    "LibraryRelationItemInput": {
+  "type": "object",
+  "properties": {
+    "item": {
       "type": "object",
       "properties": {
-        "item": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "library",
-              "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
-            },
-            "id": {
-              "type": "string",
-              "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
-            }
-          },
-          "required": [
-            "kind",
-            "id"
-          ],
-          "additionalProperties": false,
-          "description": "The durable library item whose relation state to read or edit. Candidate handles are rejected."
+        "kind": {
+          "type": "string",
+          "const": "library",
+          "description": "\"library\": a known, durable MineMusic item. Stable indefinitely."
+        },
+        "id": {
+          "type": "string",
+          "description": "Opaque handle id returned by a prior tool; pass it back unchanged."
         }
       },
       "required": [
-        "item"
+        "kind",
+        "id"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "The durable library item whose relation state to read or edit. Candidate handles are rejected."
     }
-  }
+  },
+  "required": [
+    "item"
+  ],
+  "additionalProperties": false
 } as const satisfies JsonSchema;
 
 export const libraryRelationStateOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/LibraryRelationStateOutput",
+  "type": "object",
+  "properties": {
+    "relations": {
+      "$ref": "#/definitions/LibraryRelationState",
+      "description": "Current relation state for the item."
+    }
+  },
+  "required": [
+    "relations"
+  ],
+  "additionalProperties": false,
   "definitions": {
-    "LibraryRelationStateOutput": {
-      "type": "object",
-      "properties": {
-        "relations": {
-          "$ref": "#/definitions/LibraryRelationState",
-          "description": "Current relation state for the item."
-        }
-      },
-      "required": [
-        "relations"
-      ],
-      "additionalProperties": false
-    },
     "LibraryRelationState": {
       "type": "object",
       "properties": {
@@ -1582,28 +1503,25 @@ export const libraryRelationStateOutputSchema = {
 
 export const musicDiscoveryLookupOutputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$ref": "#/definitions/MusicDiscoveryLookupOutput",
-  "definitions": {
-    "MusicDiscoveryLookupOutput": {
-      "type": "object",
-      "properties": {
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/MusicDiscoveryLookupItem"
-          },
-          "description": "Matched items for this page (handles plus descriptions)."
-        },
-        "nextCursor": {
-          "type": "string",
-          "description": "Opaque cursor for the next page, if more results exist."
-        }
+  "type": "object",
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/MusicDiscoveryLookupItem"
       },
-      "required": [
-        "items"
-      ],
-      "additionalProperties": false
+      "description": "Matched items for this page (handles plus descriptions)."
     },
+    "nextCursor": {
+      "type": "string",
+      "description": "Opaque cursor for the next page, if more results exist."
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "definitions": {
     "MusicDiscoveryLookupItem": {
       "type": "object",
       "properties": {

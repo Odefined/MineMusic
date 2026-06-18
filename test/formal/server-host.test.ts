@@ -1,20 +1,34 @@
 import assert from "node:assert/strict";
 
 import type { StageError } from "../../src/contracts/kernel.js";
+import type { ProviderMaterialCandidate } from "../../src/contracts/music_data_platform.js";
 import type { StageToolContext } from "../../src/contracts/stage_interface.js";
 import type {
   ExtensionRuntime,
   ExtensionRuntimeSnapshot,
+  MineMusicPlugin,
+  PluginActivationContext,
 } from "../../src/extension/index.js";
+import { createExtensionRuntime, sourceProviderSlot } from "../../src/extension/index.js";
+import {
+  createMusicDiscoveryRuntimeModule,
+} from "../../src/music_intelligence/stage_adapter/index.js";
 import {
   isMusicIntelligenceError,
   type MusicIntelligenceErrorCode,
 } from "../../src/music_intelligence/index.js";
 import {
   createExtensionRuntimeRetrievalProviderSearchPort,
+  createMusicDataPlatformRuntimeModule,
+  createMusicExperienceServerRuntimeModule,
   createMineMusicExtensionRuntime,
   createServerHost,
+  createStageToolContextAssembly,
 } from "../../src/server/index.js";
+import {
+  createExtensionRuntimeModule,
+  createStageRuntime,
+} from "../../src/stage_core/index.js";
 
 const host = createServerHost({
   config: {
@@ -165,6 +179,103 @@ const stoppedAgain = await host.stop();
 assert.equal(stoppedAgain.ok, true);
 assert.equal(host.snapshot().status, "stopped");
 
+const fixtureExtensionRuntime = createExtensionRuntime({
+  plugins: [fixtureSourceProviderPlugin(providerCandidateFixture())],
+});
+const fixtureMusicDataPlatformModule = createMusicDataPlatformRuntimeModule({
+  extensionRuntime: fixtureExtensionRuntime,
+  config: {
+    projectionMaintenance: {
+      enabled: false,
+    },
+  },
+});
+const fixtureRuntime = createStageRuntime({
+  modules: [
+    fixtureMusicDataPlatformModule,
+    createExtensionRuntimeModule({ runtime: fixtureExtensionRuntime }),
+    createMusicDiscoveryRuntimeModule({
+      scopeAvailability: {
+        listAvailableMusicScopes(input) {
+          const port = fixtureMusicDataPlatformModule.musicScopeAvailability();
+          if (port === undefined) {
+            throw new Error("fixture music scope availability port is not initialized.");
+          }
+          return port.listAvailableMusicScopes(input);
+        },
+      },
+      retrievalQuery: {
+        query(input) {
+          const port = fixtureMusicDataPlatformModule.retrievalQuery();
+          if (port === undefined) {
+            throw new Error("fixture retrieval query port is not initialized.");
+          }
+          return port.query(input);
+        },
+      },
+    }),
+    createMusicExperienceServerRuntimeModule({
+      musicDataPlatformModule: fixtureMusicDataPlatformModule,
+    }),
+  ],
+});
+const fixtureContextFactory = createStageToolContextAssembly({
+  musicDataPlatformModule: fixtureMusicDataPlatformModule,
+});
+const fixtureStarted = await fixtureRuntime.initialize();
+
+assert.equal(fixtureStarted.ok, true);
+
+const fixtureLookup = await fixtureRuntime.interface.dispatch(
+  fixtureContextFactory.createToolContext({
+    sessionId: "server-host-provider-lookup-session",
+    requestId: "server-host-provider-lookup-request",
+  }),
+  {
+    toolName: "music.discovery.lookup",
+    payload: {
+      lookupText: "Iron Lotus Mili",
+      targetKind: "recording",
+      scopes: [{ kind: "provider", providerId: "netease" }],
+      limit: 1,
+    },
+  },
+);
+
+assert.equal(fixtureLookup.ok, true);
+
+if (fixtureLookup.ok) {
+  const lookupResult = fixtureLookup.value.result as {
+    items: {
+      handle: { kind: "library" | "candidate"; id: string };
+      description: { label: string };
+    }[];
+  };
+  const candidate = lookupResult.items.find((item) => item.handle.kind === "candidate");
+
+  assert.notEqual(candidate, undefined);
+  assert.equal(candidate?.description.label, "iron lotus - mili");
+
+  const fixturePresent = await fixtureRuntime.interface.dispatch(
+    fixtureContextFactory.createToolContext({
+      sessionId: "server-host-provider-present-session",
+      requestId: "server-host-provider-present-request",
+    }),
+    {
+      toolName: "music.experience.present",
+      payload: {
+        item: candidate!.handle,
+      },
+    },
+  );
+
+  assert.equal(fixturePresent.ok, true);
+}
+
+const fixtureStopped = await fixtureRuntime.stop();
+
+assert.equal(fixtureStopped.ok, true);
+
 let probedNcm = false;
 const configuredExtensionRuntime = createMineMusicExtensionRuntime({
   plugins: {
@@ -301,6 +412,57 @@ function testStageToolContext(): StageToolContext {
           auditLevel: "metadata",
         };
       },
+    },
+  };
+}
+
+function fixtureSourceProviderPlugin(candidate: ProviderMaterialCandidate): MineMusicPlugin {
+  return {
+    manifest: {
+      id: "test.netease-source",
+      displayName: "Test NetEase Source",
+      version: "0.0.0",
+      minCoreVersion: "0.0.0",
+      capabilities: [sourceProviderSlot.id],
+    },
+    activate(ctx: PluginActivationContext) {
+      return ctx.register(sourceProviderSlot, {
+        key: "netease",
+        value: {
+          descriptor: {
+            providerId: "netease",
+            label: "NetEase Cloud Music",
+            capabilities: ["search"],
+          },
+          async search() {
+            return {
+              ok: true,
+              value: [candidate],
+            };
+          },
+        },
+      });
+    },
+  };
+}
+
+function providerCandidateFixture(): ProviderMaterialCandidate {
+  return {
+    providerScore: 0.98,
+    sourceEntity: {
+      kind: "track",
+      providerId: "netease",
+      providerEntityId: "iron_lotus_fixture",
+      sourceRef: {
+        namespace: "source_netease",
+        kind: "track",
+        id: "iron_lotus_fixture",
+      },
+      label: "Iron Lotus - Mili",
+      title: "Iron Lotus",
+      artistLabels: ["Mili"],
+      albumLabel: "Iron Lotus",
+      availabilityHint: "playable",
     },
   };
 }

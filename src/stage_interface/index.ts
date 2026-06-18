@@ -34,12 +34,15 @@ export type {
   StageToolContextFactory,
 } from "./tool_context_factory.js";
 export {
+  createStageInterfaceCandidateHandleCachePort,
   createStageInterfaceHandleMintingPort,
   createStageInterfaceHandleMintingPortFromRecords,
   createUnavailableHandleMintingPort,
 } from "./handle_minting.js";
 export type {
+  CandidateHandleBackingCachePort,
   CandidateHandleCachePort,
+  CreateStageInterfaceCandidateHandleCachePortInput,
   CreateStageInterfaceHandleMintingPortFromRecordsInput,
   CreateStageInterfaceHandleMintingPortInput,
 } from "./handle_minting.js";

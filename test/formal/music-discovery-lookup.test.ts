@@ -589,6 +589,7 @@ const matchingRelationScope = await stageInterface.dispatch(testStageToolContext
 assert.equal(matchingRelationScope.ok, true);
 
 const lookupInputSchemaJson = JSON.stringify(musicDiscoveryLookupDescriptor.inputSchema);
+assert.equal((musicDiscoveryLookupDescriptor.inputSchema as { type?: unknown }).type, "object");
 assert.equal(lookupInputSchemaJson.includes('"type":"integer"'), true);
 assert.equal(lookupInputSchemaJson.includes('"minimum":1'), true);
 assert.equal(lookupInputSchemaJson.includes('"maximum":100'), true);
@@ -598,6 +599,26 @@ assert.equal(lookupInputSchemaJson.includes('"limit":{"type":"number"'), false);
 // minLength:1, so an empty id never reaches resolution as a bogus empty-key scope.
 assert.equal(lookupInputSchemaJson.includes('"id":{"type":"string","minLength":1}'), true);
 assert.equal(lookupInputSchemaJson.includes('"providerId":{"type":"string","minLength":1}'), true);
+
+const cursorPageWithFirstPageScope = await stageInterface.dispatch(testStageToolContext({
+  mintedAnchors: [],
+}), {
+  toolName: "music.discovery.lookup",
+  payload: {
+    cursor: "mlc1.forged.cursor.token",
+    scopes: [{ kind: "library" }],
+  },
+});
+
+assert.equal(cursorPageWithFirstPageScope.ok, false);
+if (!cursorPageWithFirstPageScope.ok) {
+  // Field isolation is now enforced by the handler, not the schema gate (the
+  // public schema has no top-level oneOf — the Anthropic API rejects top-level
+  // composition keywords), so this is a handler-driven invalid_input carrying
+  // the bare code declared in descriptor.errors, matching the other handler
+  // error codes above.
+  assert.equal(cursorPageWithFirstPageScope.error.code, "invalid_input");
+}
 
 function retrievalResult(input: {
   input: RetrievalQueryInput;

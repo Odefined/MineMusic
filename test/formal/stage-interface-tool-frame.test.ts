@@ -180,7 +180,12 @@ assert.equal(validateLookupInput({
   limit: 5,
 }), true);
 assert.equal(validateLookupInput({ cursor: "cursor_1", limit: 5 }), true);
-assert.equal(validateLookupInput({ lookupText: "whoo", cursor: "cursor_1" }), false);
+// The public schema no longer rejects a mixed first/cursor input via a
+// top-level oneOf (the Anthropic API rejects top-level composition keywords);
+// first-page vs cursor-page field isolation is enforced by the handler, which
+// returns invalid_input for a mixed call (covered in
+// music-discovery-lookup.test.ts). The schema therefore accepts this shape.
+assert.equal(validateLookupInput({ lookupText: "whoo", cursor: "cursor_1" }), true);
 
 assert.throws(() => assertSampleOutputHasNoInternalAnchors({
   label: "material-ref-key",

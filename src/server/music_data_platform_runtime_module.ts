@@ -34,6 +34,7 @@ import {
   type SourceLibraryImportService,
   type SourceLibraryReadPort,
 } from "../music_data_platform/index.js";
+import { createRetrievalResultSetRecords } from "../music_data_platform/retrieval_result_set_records.js";
 import {
   createRetrievalQueryService,
   type RetrievalQueryService,
@@ -43,7 +44,11 @@ import type {
   MusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
 import { stageInterfaceHandleRegistrySchema } from "../stage_interface/handle_registry_schema.js";
-import { createStageInterfaceHandleMintingPort } from "../stage_interface/handle_minting.js";
+import {
+  createStageInterfaceCandidateHandleCachePort,
+  createStageInterfaceHandleMintingPortFromRecords,
+} from "../stage_interface/handle_minting.js";
+import { createStageInterfaceHandleRegistryRecords } from "../stage_interface/handle_registry_records.js";
 import type { HandleMintingPort } from "../contracts/stage_interface.js";
 import {
   SqliteMusicDatabase,
@@ -159,8 +164,22 @@ export function createMusicDataPlatformRuntimeModule(
           db: database.context(),
           extensionRuntime: input.extensionRuntime,
         });
-        handleMintingPort = createStageInterfaceHandleMintingPort({
+        const handleRegistryRecords = createStageInterfaceHandleRegistryRecords({
           db: database.context(),
+        });
+        const materialCandidateCache = createRetrievalResultSetRecords({
+          db: database.context(),
+        }).materialCandidates;
+        handleMintingPort = createStageInterfaceHandleMintingPortFromRecords({
+          records: handleRegistryRecords,
+          candidateHandles: createStageInterfaceCandidateHandleCachePort({
+            records: handleRegistryRecords,
+            candidateCache: {
+              getByRefKey(readInput) {
+                return materialCandidateCache.getByRefKey(readInput);
+              },
+            },
+          }),
         });
         projectionMaintenanceScheduler = createProjectionMaintenanceScheduler({
           database,

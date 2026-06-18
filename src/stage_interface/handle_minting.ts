@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { parseRefKey, refKey } from "../contracts/kernel.js";
 import type {
   HandleMintingPort,
   MusicItemHandle,
@@ -21,6 +22,15 @@ export type CandidateHandleCachePort = {
   }): Promise<unknown | undefined>;
 };
 
+export type CandidateHandleBackingCachePort = {
+  getByRefKey(input: {
+    materialCandidateRefKey: string;
+  }): {
+    materialCandidateRefKey: string;
+    expiresAt: string;
+  } | undefined;
+};
+
 export type CreateStageInterfaceHandleMintingPortInput = {
   db: MusicDatabaseContext;
   clock?: () => string;
@@ -35,6 +45,13 @@ export type CreateStageInterfaceHandleMintingPortFromRecordsInput = {
   publicIdFactory?: () => string;
 };
 
+export type CreateStageInterfaceCandidateHandleCachePortInput = {
+  records: StageInterfaceHandleRegistryRecords;
+  candidateCache: CandidateHandleBackingCachePort;
+  clock?: () => string;
+  publicIdFactory?: () => string;
+};
+
 export function createStageInterfaceHandleMintingPort(
   input: CreateStageInterfaceHandleMintingPortInput,
 ): HandleMintingPort {
@@ -44,6 +61,75 @@ export function createStageInterfaceHandleMintingPort(
     ...(input.candidateHandles === undefined ? {} : { candidateHandles: input.candidateHandles }),
     ...(input.publicIdFactory === undefined ? {} : { publicIdFactory: input.publicIdFactory }),
   });
+}
+
+export function createStageInterfaceCandidateHandleCachePort(
+  input: CreateStageInterfaceCandidateHandleCachePortInput,
+): CandidateHandleCachePort {
+  const clock = input.clock ?? (() => new Date().toISOString());
+  const publicIdFactory = input.publicIdFactory ?? randomPublicHandleId;
+  const { records } = input;
+
+  return {
+    async mint(mintInput) {
+      assertOwnerScope(mintInput.ownerScope);
+
+      const anchor = candidateAnchorFromInternalAnchor(mintInput.internalAnchor);
+      const cacheRecord = input.candidateCache.getByRefKey({
+        materialCandidateRefKey: anchor.materialCandidateRef,
+      });
+
+      if (cacheRecord === undefined || isExpired(cacheRecord.expiresAt, clock())) {
+        throw new Error("Candidate handle minting requires a live material candidate cache entry.");
+      }
+
+      const internalAnchorJson = stableJsonStringify(anchor);
+      const existing = records.bindings.getByOwnerAnchor({
+        ownerScope: mintInput.ownerScope,
+        handleKind: "candidate",
+        internalAnchorJson,
+      });
+
+      if (existing !== undefined && !isExpired(existing.expiresAt, clock())) {
+        return existing.publicId;
+      }
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const publicId = publicIdFactory();
+
+        if (records.bindings.getByPublicId({ publicId }) !== undefined) {
+          continue;
+        }
+
+        records.bindings.createBinding({
+          publicId,
+          ownerScope: mintInput.ownerScope,
+          handleKind: "candidate",
+          internalAnchorJson,
+          issuedAt: clock(),
+        });
+
+        return publicId;
+      }
+
+      throw new Error("Could not mint a unique Stage Interface candidate handle id.");
+    },
+    async resolve(resolveInput) {
+      assertOwnerScope(resolveInput.ownerScope);
+
+      const binding = records.bindings.getByOwnerPublicId({
+        publicId: resolveInput.publicId,
+        ownerScope: resolveInput.ownerScope,
+        handleKind: "candidate",
+      });
+
+      if (binding === undefined || isExpired(binding.expiresAt, clock())) {
+        return undefined;
+      }
+
+      return JSON.parse(binding.internalAnchorJson) as unknown;
+    },
+  };
 }
 
 export function createStageInterfaceHandleMintingPortFromRecords(
@@ -139,6 +225,35 @@ export function createUnavailableHandleMintingPort(): HandleMintingPort {
 
 function randomPublicHandleId(): string {
   return `mh_${randomUUID().replaceAll("-", "").slice(0, 18)}`;
+}
+
+function candidateAnchorFromInternalAnchor(anchor: unknown): {
+  materialCandidateRef: string;
+} {
+  if (typeof anchor !== "object" || anchor === null || Array.isArray(anchor)) {
+    throw new Error("Candidate handle anchor must be an object.");
+  }
+
+  const materialCandidateRef = (anchor as { materialCandidateRef?: unknown }).materialCandidateRef;
+
+  if (typeof materialCandidateRef !== "string") {
+    throw new Error("Candidate handle anchor must include a materialCandidateRef ref key.");
+  }
+
+  const ref = parseRefKey(materialCandidateRef);
+
+  if (
+    ref === undefined ||
+    ref.namespace !== "material_candidate" ||
+    ref.kind !== "provider_candidate" ||
+    !ref.id.startsWith("mc_")
+  ) {
+    throw new Error("Candidate handle anchor must include a provider material candidate ref key.");
+  }
+
+  return {
+    materialCandidateRef: refKey(ref),
+  };
 }
 
 function assertHandleKind(handleKind: MusicItemHandle["kind"]): asserts handleKind is "library" {

@@ -241,10 +241,25 @@ async function handleMusicDiscoveryLookup(
   const input = payload as MusicDiscoveryLookupInput;
 
   if (isCursorPageInput(input)) {
+    // Cursor pages accept only cursor + optional limit. The public schema no
+    // longer enforces field isolation with a top-level oneOf (the Anthropic API
+    // rejects top-level composition keywords), so the handler owns the guard:
+    // first-page-only fields mixed into a cursor page are an invalid_input.
+    if (hasFirstPageOnlyField(input)) {
+      return invalidInput("music.discovery.lookup cursor pages must pass only cursor and optional limit; lookupText, targetKind, and scopes are not accepted on cursor pages.");
+    }
     return handleCursorPage(ctx, input, ports);
   }
 
   return handleFirstPage(ctx, input, ports);
+}
+
+// First-page-only fields that must not appear on a cursor-page request. The
+// lookup input is a first-page | cursor-page union; without a schema-level
+// oneOf (rejected by the Anthropic API), this runtime check keeps the two
+// pages from being mixed in a single call.
+function hasFirstPageOnlyField(input: MusicDiscoveryLookupInput): boolean {
+  return "lookupText" in input || "targetKind" in input || "scopes" in input;
 }
 
 async function handleFirstPage(
@@ -256,7 +271,10 @@ async function handleFirstPage(
     cursorCodec: LookupCursorCodec;
   },
 ): Promise<Result<MusicDiscoveryLookupOutput>> {
-  const lookupText = input.lookupText.trim();
+  // lookupText is optional at the schema root (the public schema has no top-
+  // level oneOf), so guard presence/emptiness here rather than relying on the
+  // schema gate to reject a missing lookupText.
+  const lookupText = (input.lookupText ?? "").trim();
 
   if (lookupText.length === 0) {
     return invalidInput("music.discovery.lookup requires non-empty lookupText on first-page calls.");

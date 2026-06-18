@@ -276,6 +276,119 @@ function applyPresentOutputHandleNonEmptyOverlay(schema) {
   }
 }
 
+// MCP and OpenAI-style function tools require the exposed input schema root to
+// be a JSON Schema object, and the Anthropic API rejects top-level composition
+// keywords (oneOf/anyOf/allOf). `MusicDiscoveryLookupInput` is a TS union of
+// two object inputs (first-page vs cursor-page); the generator emits that as a
+// top-level anyOf, which is valid JSON Schema but has no root `type`. Hoist
+// the union's branch properties into a single object-root schema. The mutually
+// exclusive first-page vs cursor-page contract is intentionally NOT expressed
+// with a top-level oneOf here (the Anthropic API would reject it, and does not
+// enforce composition keywords anyway); the lookup handler owns that field-
+// isolation guard instead.
+function applyMusicDiscoveryLookupObjectRootOverlay(schema) {
+  const definitions = schema?.definitions;
+  const def = definitions?.MusicDiscoveryLookupInput;
+  if (definitions === null || typeof definitions !== "object" || def === null || typeof def !== "object") {
+    throw new Error("MusicDiscoveryLookupInput schema definition is missing.");
+  }
+  if (!Array.isArray(def.anyOf)) {
+    throw new Error("MusicDiscoveryLookupInput is expected to be generated as an anyOf union.");
+  }
+
+  const firstPage = findObjectUnionBranch(def.anyOf, "lookupText");
+  const cursorPage = findObjectUnionBranch(def.anyOf, "cursor");
+
+  const properties = {
+    lookupText: requireGeneratedProperty(firstPage, "lookupText"),
+    targetKind: requireGeneratedProperty(firstPage, "targetKind"),
+    scopes: requireGeneratedProperty(firstPage, "scopes"),
+    cursor: requireGeneratedProperty(cursorPage, "cursor"),
+    limit: requireGeneratedProperty(firstPage, "limit"),
+  };
+
+  delete definitions.MusicDiscoveryLookupInput;
+
+  const schemaUri = schema.$schema;
+  for (const key of Object.keys(schema)) {
+    delete schema[key];
+  }
+
+  Object.assign(schema, {
+    "$schema": schemaUri,
+    type: "object",
+    properties,
+    additionalProperties: false,
+    definitions,
+  });
+}
+
+function findObjectUnionBranch(branches, requiredProperty) {
+  const branch = branches.find((candidate) =>
+    candidate !== null &&
+    typeof candidate === "object" &&
+    candidate.type === "object" &&
+    candidate.properties !== undefined &&
+    candidate.properties[requiredProperty] !== undefined
+  );
+
+  if (branch === undefined) {
+    throw new Error(`MusicDiscoveryLookupInput schema branch with ${requiredProperty} is missing.`);
+  }
+
+  return branch;
+}
+
+function requireGeneratedProperty(branch, propertyName) {
+  const property = branch.properties?.[propertyName];
+  if (property === undefined) {
+    throw new Error(`MusicDiscoveryLookupInput generated property ${propertyName} is missing.`);
+  }
+  return property;
+}
+
+// MCP and OpenAI-style function-tool clients require BOTH the input and output
+// schema roots to be JSON Schema objects (MCP: an outputSchema must carry a
+// top-level `type: "object"`). For non-union types, ts-json-schema-generator
+// emits a root `$ref` to an object definition; keep the generated definition as
+// the source of truth, then hoist that object shape to the exposed root so the
+// public root carries `type: "object"` instead of a bare `$ref`.
+function applyObjectSchemaRootOverlay(schema, typeName) {
+  if (schema === null || typeof schema !== "object") {
+    throw new Error(`${typeName} schema is not an object.`);
+  }
+  if (schema.type === "object") {
+    return;
+  }
+  if (schema.$ref !== `#/definitions/${typeName}`) {
+    throw new Error(`${typeName} schema root must be an object or a $ref to its generated definition.`);
+  }
+
+  const definitions = schema.definitions;
+  const def = definitions?.[typeName];
+  if (definitions === null || typeof definitions !== "object" || def === null || typeof def !== "object") {
+    throw new Error(`${typeName} schema definition is missing.`);
+  }
+  if (def.type !== "object") {
+    throw new Error(`${typeName} schema definition must be an object before root hoisting.`);
+  }
+
+  delete definitions[typeName];
+
+  const schemaUri = schema.$schema;
+  const root = {
+    "$schema": schemaUri,
+    ...def,
+    ...(Object.keys(definitions).length === 0 ? {} : { definitions }),
+  };
+
+  for (const key of Object.keys(schema)) {
+    delete schema[key];
+  }
+
+  Object.assign(schema, root);
+}
+
 const generatedSchemas = schemaTargets.map((target) => {
   const schema = generatorFor(target.sourcePath).createSchema(target.typeName);
   if (
@@ -284,6 +397,9 @@ const generatedSchemas = schemaTargets.map((target) => {
     target.exportName === "libraryImportContinueInputSchema"
   ) {
     applyToolLimitOverlay(schema);
+  }
+  if (target.exportName === "musicDiscoveryLookupInputSchema") {
+    applyMusicDiscoveryLookupObjectRootOverlay(schema);
   }
   if (
     target.exportName === "libraryImportContinueInputSchema" ||
@@ -296,6 +412,12 @@ const generatedSchemas = schemaTargets.map((target) => {
   applyScopeHandleNonEmptyOverlay(schema);
   if (target.exportName === "musicExperiencePresentOutputSchema") {
     applyPresentOutputHandleNonEmptyOverlay(schema);
+  }
+  if (
+    target.exportName.endsWith("InputSchema") ||
+    target.exportName.endsWith("OutputSchema")
+  ) {
+    applyObjectSchemaRootOverlay(schema, target.typeName);
   }
   return { ...target, schema };
 });

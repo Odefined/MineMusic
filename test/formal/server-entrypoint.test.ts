@@ -121,6 +121,12 @@ try {
   assert.equal(listTools.every((tool) => tool.description.length > 0), true);
   assert.equal(listTools.every((tool) => tool.inputSchema !== undefined), true);
   assert.equal(listTools.every((tool) => tool.outputSchema !== undefined), true);
+  assert.deepEqual(
+    listTools
+      .filter((tool) => !isObjectJsonSchema(tool.inputSchema))
+      .map((tool) => tool.name),
+    [],
+  );
   assert.equal(listTools.find((tool) => tool.name === "stage_runtime_status")?.annotations?.readOnlyHint, true);
 
   send({
@@ -153,3 +159,10 @@ const exitCode = await withTimeout(
 );
 
 assert.equal(exitCode, 0, `server exited non-zero; stderr: ${stderrText}`);
+
+function isObjectJsonSchema(schema: unknown): schema is { type: "object" } {
+  return schema !== null &&
+    typeof schema === "object" &&
+    !Array.isArray(schema) &&
+    (schema as { type?: unknown }).type === "object";
+}
