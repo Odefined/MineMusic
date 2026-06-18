@@ -996,9 +996,10 @@ Phase 16D ships the full text-driven Music Discovery lookup tool:
   `ctx.handleMinting`, paired with lookup descriptions from pure public
   description helpers. Internal material refs, candidate refs, provider entity
   ids, result-set ids, and internal cursors do not cross the output veil.
-- Public lookup pagination uses an AES-256-GCM AEAD cursor that encrypts the
-  internal Retrieval cursor, owner scope, expiry, and private query replay
-  state needed for cursor pages.
+- Public lookup pagination originally used an AES-256-GCM AEAD cursor that
+  encrypted the internal Retrieval cursor, owner scope, expiry, and private query
+  replay state needed for cursor pages. Phase 21 supersedes this with a
+  registry-backed Public Cursor Veil.
 - Tests guard library and candidate output veil behavior, cursor-page replay,
   forged and expired cursors, fail-whole provider-scope recovery,
   `all` fan-out budget failure, descriptor routing negatives, read-only
@@ -1169,6 +1170,34 @@ to the Server Host and dispatch the existing fifteen-tool Public Agent Protocol:
   (`test/formal/server-entrypoint.test.ts`) and the pure transport modules with
   a fake dispatch/factory (`test/formal/mcp-stdio-transport.test.ts`);
   `npm run smoke:mcp:stdio` is gated by `MINEMUSIC_LIVE_MCP_STDIO`.
+
+## 2026-06-19: Phase 21 Registry-Backed Public Lookup Cursors
+
+Phase 21 replaces `music.discovery.lookup`'s original self-contained AEAD public
+cursor with a Stage Interface-owned registry-backed Public Cursor Veil:
+
+- ADR-0024 accepts short opaque `lc_...` public lookup cursor ids and supersedes
+  the older AEAD cursor text in the Stage Interface Tool Frame.
+- `StageToolContext` now carries `lookupCursors`, mirroring `handleMinting` as a
+  Stage Interface public-veil port consumed by Stage Adapter handlers.
+- Stage Interface owns `LookupCursorStore`, the
+  `stage_interface_lookup_cursor_registry` schema, registry records, cursor id
+  minting, owner-scope isolation, TTL enforcement, and unavailable-default
+  behavior.
+- `music.discovery.lookup` stores normalized Retrieval replay input plus the
+  internal Retrieval cursor behind the public cursor id; cursor pages resolve
+  through `ctx.lookupCursors`, re-validate the replay input shape, and continue
+  Retrieval with the internal cursor.
+- Old `MUSIC_LOOKUP_CURSOR_KEY` / `mlc1.*` AEAD behavior is no longer live
+  behavior. Old cursor strings are treated as invalid/unknown cursors.
+- The current database initialization still wires the Stage Interface cursor
+  schema through the same composition path as the handle registry. Music Data
+  Platform hosts the concrete database module today but does not own cursor or
+  handle semantics; extracting Stage Interface runtime-state schema composition
+  remains a follow-up.
+- Tests cover `lc_` cursor replay, forged/unknown cursors, expiry, handler-level
+  cursor-page field isolation, output veil behavior, context factory wiring, and
+  active-tree write-boundary allow-listing.
 
 ## Next Formal Milestones
 

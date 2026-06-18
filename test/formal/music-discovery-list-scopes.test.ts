@@ -221,6 +221,14 @@ function testStageToolContext(): StageToolContext {
         return undefined;
       },
     },
+    lookupCursors: {
+      register() {
+        throw new Error("list_scopes tests must not touch lookup cursors");
+      },
+      resolve() {
+        throw new Error("list_scopes tests must not touch lookup cursors");
+      },
+    },
     providerAvailability: {
       async isProviderAvailable() {
         providerAvailabilityCalls += 1;

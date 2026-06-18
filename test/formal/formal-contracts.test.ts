@@ -286,6 +286,7 @@ export type _stageToolContextShape = Expect<
     | "clock"
     | "abortSignal"
     | "handleMinting"
+    | "lookupCursors"
     | "providerAvailability"
     | "executionGate"
     | "audit"

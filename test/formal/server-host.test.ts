@@ -400,6 +400,14 @@ function testStageToolContext(): StageToolContext {
         return undefined;
       },
     },
+    lookupCursors: {
+      register() {
+        throw new Error("server host tests must not touch lookup cursors");
+      },
+      resolve() {
+        throw new Error("server host tests must not touch lookup cursors");
+      },
+    },
     providerAvailability: {
       async isProviderAvailable() {
         return true;

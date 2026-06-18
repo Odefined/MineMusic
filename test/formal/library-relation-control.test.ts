@@ -328,6 +328,14 @@ function testStageToolContext(input: {
           : { materialRef: refKey(input.materialRef) };
       },
     },
+    lookupCursors: {
+      register() {
+        throw new Error("library relation tests must not touch lookup cursors");
+      },
+      resolve() {
+        throw new Error("library relation tests must not touch lookup cursors");
+      },
+    },
     providerAvailability: {
       async isProviderAvailable() {
         return true;

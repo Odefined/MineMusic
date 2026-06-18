@@ -241,6 +241,14 @@ function testStageToolContext(): StageToolContext {
         return undefined;
       },
     },
+    lookupCursors: {
+      register() {
+        throw new Error("library import list_sources tests must not touch lookup cursors");
+      },
+      resolve() {
+        throw new Error("library import list_sources tests must not touch lookup cursors");
+      },
+    },
     providerAvailability: {
       async isProviderAvailable() {
         return true;
@@ -291,6 +299,9 @@ function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
       return undefined;
     },
     handleMinting() {
+      return undefined;
+    },
+    lookupCursorStore() {
       return undefined;
     },
   };

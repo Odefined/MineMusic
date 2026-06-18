@@ -1,9 +1,10 @@
 // Stage Interface–owned transport-agnostic Tool Context Factory. It closes over
-// the real production ports (handle minting, execution gate, audit, clock, and a
-// fixed owner scope) and exposes a per-call `createToolContext` that takes only
-// the values that vary per request (sessionId / requestId / abortSignal). It
-// delegates to the existing `createStageToolContext`, so the per-call context
-// shape and its defaults stay owned in one place.
+// the real production ports (handle minting, lookup cursors, execution gate,
+// audit, clock, and a fixed owner scope) and exposes a per-call
+// `createToolContext` that takes only the values that vary per request
+// (sessionId / requestId / abortSignal). It delegates to the existing
+// `createStageToolContext`, so the per-call context shape and its defaults stay
+// owned in one place.
 //
 // `providerAvailability` is intentionally NOT bound here: no shipped Stage
 // Adapter handler reads `ctx.providerAvailability`, so the context keeps its
@@ -12,6 +13,7 @@
 
 import type {
   HandleMintingPort,
+  LookupCursorStore,
   StageToolAuditPort,
   StageToolContext,
   StageToolExecutionGate,
@@ -22,6 +24,7 @@ export type CreateStageToolContextFactoryInput = {
   ownerScope: string;
   clock: () => string;
   handleMinting: HandleMintingPort;
+  lookupCursors: LookupCursorStore;
   executionGate: StageToolExecutionGate;
   audit?: StageToolAuditPort;
 };
@@ -47,6 +50,7 @@ export function createStageToolContextFactory(
         requestId: perCall.requestId,
         clock: input.clock,
         handleMinting: input.handleMinting,
+        lookupCursors: input.lookupCursors,
         executionGate: input.executionGate,
         ...(input.audit === undefined ? {} : { audit: input.audit }),
         ...(perCall.abortSignal === undefined ? {} : { abortSignal: perCall.abortSignal }),

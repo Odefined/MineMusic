@@ -1354,6 +1354,8 @@ const directWriteAllowedFiles = new Set([
   "src/music_data_platform/source_library_schema.ts",
   "src/stage_interface/handle_registry_records.ts",
   "src/stage_interface/handle_registry_schema.ts",
+  "src/stage_interface/lookup_cursor_registry_records.ts",
+  "src/stage_interface/lookup_cursor_registry_schema.ts",
   "src/storage/sqlite/database.ts",
   "src/storage/sqlite/schema.ts",
 ]);

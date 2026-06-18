@@ -58,7 +58,9 @@ Phase 16A adds the Stage Interface Tool Frame contract/router skeleton,
 Phase 16B adds the Public Handle Veil, handle minting, execution-gate stub, and
 tool timeout layer, Phase 16C adds `music.discovery.list_scopes`, and
 Phase 16D adds the full `music.discovery.lookup` retrieval tool with public
-handles, descriptions, fail-whole provider errors, and AEAD cursor wrapping.
+handles, descriptions, fail-whole provider errors, and public lookup cursor
+wrapping. Phase 21 replaces the original AEAD public lookup cursor with the
+Stage Interface-owned registry-backed Public Cursor Veil described by ADR-0024.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
@@ -497,9 +499,13 @@ The active TypeScript tree is now a formal skeleton:
   wrapping;
 - `src/stage_interface/context.ts`, `src/stage_interface/handle_minting.ts`,
   `src/stage_interface/handle_registry_records.ts`,
-  `src/stage_interface/handle_registry_schema.ts`, and
-  `src/stage_interface/veil_guard.ts` own the Phase 16B public handle veil,
-  owner-bound handle registry, context factory, and leak guards;
+  `src/stage_interface/handle_registry_schema.ts`,
+  `src/stage_interface/lookup_cursor_registry_records.ts`,
+  `src/stage_interface/lookup_cursor_registry_schema.ts`,
+  `src/stage_interface/lookup_cursor_store.ts`, and
+  `src/stage_interface/veil_guard.ts` own the Stage Interface public veil
+  runtime state: owner-bound handle registry, registry-backed lookup cursor
+  store, context factory, and leak guards;
 - `src/effect_boundary/stage_tool_execution_gate.ts` owns the
   `StageToolExecutionGate` stub, audit recording seam, presentation-driven
   admission auto-pass qualifier, and owner-scoped library-intake auto-pass
@@ -611,7 +617,8 @@ The active TypeScript tree is now a formal skeleton:
 - `src/music_intelligence/stage_adapter/discovery_lookup.ts` owns the
   Phase 16D `music.discovery.lookup` descriptor and handler factory, public
   scope normalization, Retrieval query dispatch, public handle/description
-  mapping, declared error mapping, and AEAD public cursor wrapping;
+  mapping, declared error mapping, and cursor-page replay through
+  `StageToolContext.lookupCursors`;
 - `src/music_intelligence/stage_adapter/index.ts` owns the Stage Adapter
   subtree boundary and `music.discovery` RuntimeModule contribution;
 - `src/music_intelligence/index.ts` owns Music Intelligence public exports.
@@ -791,7 +798,7 @@ restored as compatibility layers.
   authority for the agent-facing Tool Framework skeleton (mandatory core plus
   owned extensible dimensions) with Music Discovery as the first concrete
   instance; it pairs with ADR-0009 through ADR-0012, ADR-0014 through ADR-0017,
-  ADR-0019, and ADR-0020.
+  ADR-0019, ADR-0020, and ADR-0024.
 - `docs/formal-rebuild/phase-16-stage-interface-tool-frame-implementation-plan.md`
   records the Phase 16 execution plan split into PR 16A framework contract layer,
   PR 16B Public Handle Veil + HandleMintingPort registry + execution gate stub +

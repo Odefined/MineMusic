@@ -1,9 +1,3 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  randomBytes,
-} from "node:crypto";
-
 import type { Ref, Result, StageError } from "../../contracts/kernel.js";
 import { refKey } from "../../contracts/kernel.js";
 import {
@@ -46,8 +40,6 @@ import { scopeAvailabilityFailed } from "./scope_availability.js";
 export type CreateMusicDiscoveryLookupRegistrationInput = {
   retrievalQuery: RetrievalQueryService;
   scopeAvailability: MusicScopeAvailabilityPort;
-  cursorKey?: Uint8Array;
-  cursorTtlMs?: number;
 };
 
 type LookupFirstPageInput = Extract<MusicDiscoveryLookupInput, { lookupText: string }>;
@@ -68,32 +60,6 @@ type LookupCursorQueryInput = Omit<RetrievalQueryInput, "cursor" | "limit" | "se
   order: "text_relevance";
 };
 
-type LookupCursorPayload = {
-  version: 1;
-  ownerScope: string;
-  expiresAt: string;
-  internalCursor: string;
-  queryInput: LookupCursorQueryInput;
-};
-
-type LookupCursorCodec = {
-  encode(input: {
-    ctx: StageToolContext;
-    internalCursor: string;
-    queryInput: LookupCursorQueryInput;
-  }): string;
-  decode(input: {
-    ctx: StageToolContext;
-    cursor: string;
-  }): Result<{
-    internalCursor: string;
-    queryInput: LookupCursorQueryInput;
-  }>;
-};
-
-const LOOKUP_CURSOR_VERSION = "mlc1";
-const LOOKUP_CURSOR_AAD = Buffer.from("music.discovery.lookup.cursor.v1", "utf8");
-const DEFAULT_LOOKUP_CURSOR_TTL_MS = 30 * 60 * 1000;
 const LOOKUP_MAX_PROVIDER_CALLS_PER_TURN = 4;
 
 export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
@@ -214,17 +180,11 @@ export const musicDiscoveryLookupDescriptor: ToolDeclaration = {
 export function createMusicDiscoveryLookupRegistration(
   input: CreateMusicDiscoveryLookupRegistrationInput,
 ): StageToolRegistration {
-  const cursorCodec = createLookupCursorCodec({
-    ...(input.cursorKey === undefined ? {} : { key: input.cursorKey }),
-    ...(input.cursorTtlMs === undefined ? {} : { ttlMs: input.cursorTtlMs }),
-  });
-
   return {
     descriptor: musicDiscoveryLookupDescriptor,
     handler: (ctx, payload) => handleMusicDiscoveryLookup(ctx, payload, {
       retrievalQuery: input.retrievalQuery,
       scopeAvailability: input.scopeAvailability,
-      cursorCodec,
     }),
   };
 }
@@ -235,7 +195,6 @@ async function handleMusicDiscoveryLookup(
   ports: {
     retrievalQuery: RetrievalQueryService;
     scopeAvailability: MusicScopeAvailabilityPort;
-    cursorCodec: LookupCursorCodec;
   },
 ): Promise<Result<MusicDiscoveryLookupOutput>> {
   const input = payload as MusicDiscoveryLookupInput;
@@ -268,7 +227,6 @@ async function handleFirstPage(
   ports: {
     retrievalQuery: RetrievalQueryService;
     scopeAvailability: MusicScopeAvailabilityPort;
-    cursorCodec: LookupCursorCodec;
   },
 ): Promise<Result<MusicDiscoveryLookupOutput>> {
   // lookupText is optional at the schema root (the public schema has no top-
@@ -312,7 +270,6 @@ async function handleFirstPage(
 
   return runLookupQuery(ctx, {
     retrievalQuery: ports.retrievalQuery,
-    cursorCodec: ports.cursorCodec,
     queryInput,
     limit: input.limit,
     providerScopeLabels: resolved.value.providerScopeLabels,
@@ -324,25 +281,29 @@ async function handleCursorPage(
   input: LookupCursorPageInput,
   ports: {
     retrievalQuery: RetrievalQueryService;
-    cursorCodec: LookupCursorCodec;
   },
 ): Promise<Result<MusicDiscoveryLookupOutput>> {
-  const decoded = ports.cursorCodec.decode({
-    ctx,
-    cursor: input.cursor,
+  const resolved = ctx.lookupCursors.resolve({
+    ownerScope: ctx.ownerScope,
+    cursorId: input.cursor,
   });
 
-  if (!decoded.ok) {
-    return decoded;
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  // The store returns queryInput as opaque JSON; re-validate its shape before
+  // using it, since it round-tripped through persistence.
+  if (!isLookupCursorQueryInput(resolved.value.queryInput)) {
+    return invalidCursor("music.discovery.lookup cursor payload is invalid.");
   }
 
   return runLookupQuery(ctx, {
     retrievalQuery: ports.retrievalQuery,
-    cursorCodec: ports.cursorCodec,
-    queryInput: decoded.value.queryInput,
-    internalCursor: decoded.value.internalCursor,
+    queryInput: resolved.value.queryInput,
+    internalCursor: resolved.value.internalCursor,
     limit: input.limit,
-    providerScopeLabels: providerScopeLabelsForQuery(decoded.value.queryInput),
+    providerScopeLabels: providerScopeLabelsForQuery(resolved.value.queryInput),
   });
 }
 
@@ -350,7 +311,6 @@ async function runLookupQuery(
   ctx: StageToolContext,
   input: {
     retrievalQuery: RetrievalQueryService;
-    cursorCodec: LookupCursorCodec;
     queryInput: LookupCursorQueryInput;
     internalCursor?: string;
     limit: number | undefined;
@@ -389,8 +349,8 @@ async function runLookupQuery(
       ...(result.page.nextCursor === undefined
         ? {}
         : {
-            nextCursor: input.cursorCodec.encode({
-              ctx,
+            nextCursor: ctx.lookupCursors.register({
+              ownerScope: ctx.ownerScope,
               internalCursor: result.page.nextCursor,
               queryInput: input.queryInput,
             }),
@@ -754,133 +714,6 @@ function isMusicTargetKind(value: unknown): value is MusicTargetKind {
   return value === "recording" || value === "album" || value === "artist";
 }
 
-function createLookupCursorCodec(input: {
-  key?: Uint8Array;
-  ttlMs?: number;
-} = {}): LookupCursorCodec {
-  const key = normalizeCursorKey(input.key ?? randomBytes(32));
-  const ttlMs = input.ttlMs ?? DEFAULT_LOOKUP_CURSOR_TTL_MS;
-
-  if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) {
-    throw new Error("music.discovery.lookup cursorTtlMs must be a positive safe integer.");
-  }
-
-  return {
-    encode(encodeInput) {
-      const iv = randomBytes(12);
-      const cipher = createCipheriv("aes-256-gcm", key, iv);
-      cipher.setAAD(LOOKUP_CURSOR_AAD);
-
-      const payload: LookupCursorPayload = {
-        version: 1,
-        ownerScope: encodeInput.ctx.ownerScope,
-        expiresAt: expiresAtFromClock({
-          now: encodeInput.ctx.clock(),
-          ttlMs,
-        }),
-        internalCursor: encodeInput.internalCursor,
-        queryInput: encodeInput.queryInput,
-      };
-      const encrypted = Buffer.concat([
-        cipher.update(JSON.stringify(payload), "utf8"),
-        cipher.final(),
-      ]);
-      const tag = cipher.getAuthTag();
-
-      return [
-        LOOKUP_CURSOR_VERSION,
-        iv.toString("base64url"),
-        encrypted.toString("base64url"),
-        tag.toString("base64url"),
-      ].join(".");
-    },
-    decode(decodeInput) {
-      const payload = decryptLookupCursorPayload({
-        key,
-        cursor: decodeInput.cursor,
-      });
-
-      if (!payload.ok) {
-        return payload;
-      }
-
-      if (payload.value.ownerScope !== decodeInput.ctx.ownerScope) {
-        return invalidCursor("music.discovery.lookup cursor does not belong to this owner.");
-      }
-
-      const clockNow = decodeInput.ctx.clock();
-      assertComparableLookupClock(clockNow);
-
-      if (payload.value.expiresAt <= clockNow) {
-        return resultWindowExpired("music.discovery.lookup result window expired.");
-      }
-
-      return {
-        ok: true,
-        value: {
-          internalCursor: payload.value.internalCursor,
-          queryInput: payload.value.queryInput,
-        },
-      };
-    },
-  };
-}
-
-function decryptLookupCursorPayload(input: {
-  key: Buffer;
-  cursor: string;
-}): Result<LookupCursorPayload> {
-  const parts = input.cursor.split(".");
-  if (parts.length !== 4 || parts[0] !== LOOKUP_CURSOR_VERSION) {
-    return invalidCursor("music.discovery.lookup cursor is malformed.");
-  }
-
-  try {
-    const iv = Buffer.from(parts[1]!, "base64url");
-    const encrypted = Buffer.from(parts[2]!, "base64url");
-    const tag = Buffer.from(parts[3]!, "base64url");
-
-    if (iv.length !== 12 || tag.length !== 16 || encrypted.length === 0) {
-      return invalidCursor("music.discovery.lookup cursor is malformed.");
-    }
-
-    const decipher = createDecipheriv("aes-256-gcm", input.key, iv);
-    decipher.setAAD(LOOKUP_CURSOR_AAD);
-    decipher.setAuthTag(tag);
-    const decrypted = Buffer.concat([
-      decipher.update(encrypted),
-      decipher.final(),
-    ]).toString("utf8");
-    const parsed = JSON.parse(decrypted) as unknown;
-
-    if (!isLookupCursorPayload(parsed)) {
-      return invalidCursor("music.discovery.lookup cursor payload is invalid.");
-    }
-
-    return {
-      ok: true,
-      value: parsed,
-    };
-  } catch {
-    return invalidCursor("music.discovery.lookup cursor could not be decrypted.");
-  }
-}
-
-function isLookupCursorPayload(value: unknown): value is LookupCursorPayload {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return value.version === 1 &&
-    typeof value.ownerScope === "string" &&
-    value.ownerScope.length > 0 &&
-    typeof value.expiresAt === "string" &&
-    value.expiresAt.length > 0 &&
-    typeof value.internalCursor === "string" &&
-    value.internalCursor.length > 0 &&
-    isLookupCursorQueryInput(value.queryInput);
-}
-
 function isLookupCursorQueryInput(value: unknown): value is LookupCursorQueryInput {
   if (!isRecord(value)) {
     return false;
@@ -925,37 +758,6 @@ function isRef(value: unknown): value is Ref {
     typeof value.namespace === "string" &&
     typeof value.kind === "string" &&
     typeof value.id === "string";
-}
-
-// The cursor expiry comparison relies on lexicographic ordering of fixed-width UTC ISO timestamps
-// (YYYY-MM-DDTHH:mm:ss.sssZ). This mirrors the comparable-timestamp invariant enforced by
-// src/stage_interface/handle_registry_records.ts and src/music_data_platform/timestamp_validation.ts;
-// extracting a shared validator is tracked as follow-up cleanup.
-const LOOKUP_COMPARABLE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
-
-function assertComparableLookupClock(now: string): void {
-  if (!LOOKUP_COMPARABLE_TIMESTAMP_PATTERN.test(now) || Number.isNaN(Date.parse(now))) {
-    throw new Error("music.discovery.lookup ctx.clock must return a fixed-width UTC ISO timestamp (YYYY-MM-DDTHH:mm:ss.sssZ).");
-  }
-}
-
-function normalizeCursorKey(key: Uint8Array): Buffer {
-  const buffer = Buffer.from(key);
-
-  if (buffer.length !== 32) {
-    throw new Error("music.discovery.lookup cursorKey must be 32 bytes for AES-256-GCM.");
-  }
-
-  return buffer;
-}
-
-function expiresAtFromClock(input: {
-  now: string;
-  ttlMs: number;
-}): string {
-  assertComparableLookupClock(input.now);
-
-  return new Date(Date.parse(input.now) + input.ttlMs).toISOString();
 }
 
 // Translates a KNOWN, classified MusicIntelligenceError from Retrieval into the

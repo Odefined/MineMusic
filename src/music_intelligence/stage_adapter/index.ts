@@ -41,8 +41,6 @@ export type {
 export function createMusicDiscoveryRuntimeModule(input: {
   scopeAvailability: MusicScopeAvailabilityPort;
   retrievalQuery?: RetrievalQueryService;
-  cursorKey?: Uint8Array;
-  cursorTtlMs?: number;
 }): RuntimeModule {
   return {
     descriptor: {
@@ -65,8 +63,6 @@ export function createMusicDiscoveryRuntimeModule(input: {
                   createMusicDiscoveryLookupRegistration({
                     retrievalQuery: input.retrievalQuery,
                     scopeAvailability: input.scopeAvailability,
-                    ...(input.cursorKey === undefined ? {} : { cursorKey: input.cursorKey }),
-                    ...(input.cursorTtlMs === undefined ? {} : { cursorTtlMs: input.cursorTtlMs }),
                   }),
                 ]),
           ],

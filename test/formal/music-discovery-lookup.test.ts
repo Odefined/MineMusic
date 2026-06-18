@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 
-import type { Ref } from "../../src/contracts/kernel.js";
+import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type {
+  LookupCursorStore,
   MusicDiscoveryLookupOutput,
   StageToolContext,
 } from "../../src/contracts/stage_interface.js";
@@ -22,7 +23,6 @@ import {
   createStageInterface,
 } from "../../src/stage_interface/index.js";
 
-const cursorKey = Buffer.alloc(32, 17);
 const libraryMaterialRef = ref("material", "recording", "m_library_whoo");
 const candidateRef = ref("material_candidate", "provider_candidate", "mc_provider_whoo");
 const sourceLibraryRef = ref("source_library", "saved_source_track", "l_saved_tracks");
@@ -98,12 +98,12 @@ const retrievalQuery: RetrievalQueryService = {
 const lookupRegistration = createMusicDiscoveryLookupRegistration({
   retrievalQuery,
   scopeAvailability,
-  cursorKey,
 });
 const stageInterface = createStageInterface({
   instruments: [musicDiscoveryInstrument],
   registrations: [lookupRegistration],
 });
+const lookupCursors = testLookupCursorStore();
 
 assert.deepEqual(
   musicDiscoveryLookupDescriptor.errors.map((error) => error.code),
@@ -208,7 +208,7 @@ if (lookupResult.ok) {
     },
   });
   assert.equal(typeof output.nextCursor, "string");
-  assert.equal(output.nextCursor?.startsWith("mlc1."), true);
+  assert.equal(output.nextCursor?.startsWith("lc_"), true);
   assertPublicLookupOutputIsVeiled(output);
 
   const cursorPage = await stageInterface.dispatch(testStageToolContext({
@@ -266,14 +266,14 @@ const expiringInterface = createStageInterface({
     createMusicDiscoveryLookupRegistration({
       retrievalQuery,
       scopeAvailability,
-      cursorKey,
-      cursorTtlMs: 1,
     }),
   ],
 });
+const expiringLookupCursors = testLookupCursorStore({ ttlMs: 1 });
+expiringLookupCursors.setNow("2026-06-17T00:00:00.000Z");
 const expiringFirstPage = await expiringInterface.dispatch(testStageToolContext({
   mintedAnchors: [],
-  clock: () => "2026-06-17T00:00:00.000Z",
+  lookupCursors: expiringLookupCursors,
 }), {
   toolName: "music.discovery.lookup",
   payload: {
@@ -287,9 +287,10 @@ if (expiringFirstPage.ok) {
   const expiredCursor = (expiringFirstPage.value.result as MusicDiscoveryLookupOutput).nextCursor;
   assert.equal(typeof expiredCursor, "string");
 
+  expiringLookupCursors.setNow("2026-06-17T00:00:00.001Z");
   const expiredCursorPage = await expiringInterface.dispatch(testStageToolContext({
     mintedAnchors: [],
-    clock: () => "2026-06-17T00:00:00.001Z",
+    lookupCursors: expiringLookupCursors,
   }), {
     toolName: "music.discovery.lookup",
     payload: {
@@ -316,7 +317,6 @@ const failingProviderInterface = createStageInterface({
         },
       },
       scopeAvailability,
-      cursorKey,
     }),
   ],
 });
@@ -436,7 +436,6 @@ const budgetInterface = createStageInterface({
           providerScope("provider_5"),
         ],
       }),
-      cursorKey,
     }),
   ],
 });
@@ -475,7 +474,6 @@ const scopeAvailabilityFailedInterface = createStageInterface({
           };
         },
       },
-      cursorKey,
     }),
   ],
 });
@@ -546,7 +544,14 @@ if (!providerTargetMismatch.ok) {
 
 const nonComparableClockResult = await stageInterface.dispatch(testStageToolContext({
   mintedAnchors: [],
-  clock: () => "2026/06/17 00:00:00",
+  lookupCursors: {
+    register() {
+      throw new Error("lookup cursor clock must return a fixed-width UTC ISO timestamp.");
+    },
+    resolve() {
+      throw new Error("unexpected cursor resolve");
+    },
+  },
 }), {
   toolName: "music.discovery.lookup",
   payload: {
@@ -557,7 +562,7 @@ const nonComparableClockResult = await stageInterface.dispatch(testStageToolCont
 
 assert.equal(nonComparableClockResult.ok, false);
 if (!nonComparableClockResult.ok) {
-  // A host-injected non-fixed-width clock fails loud through the router-global handler-failure
+  // A store-injected non-fixed-width clock fails loud through the router-global handler-failure
   // code rather than silently misordering the lexicographic expiry comparison.
   assert.equal(nonComparableClockResult.error.code, "stage_interface.tool_handler_failed");
 }
@@ -727,7 +732,6 @@ function lookupInterfaceForThrownRetrievalError(error: unknown): ReturnType<type
           },
         },
         scopeAvailability,
-        cursorKey,
       }),
     ],
   });
@@ -736,6 +740,7 @@ function lookupInterfaceForThrownRetrievalError(error: unknown): ReturnType<type
 function testStageToolContext(input: {
   mintedAnchors: unknown[];
   clock?: () => string;
+  lookupCursors?: LookupCursorStore;
 }): StageToolContext {
   return {
     ownerScope: "local",
@@ -751,6 +756,7 @@ function testStageToolContext(input: {
         return undefined;
       },
     },
+    lookupCursors: input.lookupCursors ?? lookupCursors,
     providerAvailability: {
       async isProviderAvailable() {
         return true;
@@ -765,6 +771,76 @@ function testStageToolContext(input: {
       },
     },
   };
+}
+
+type TestLookupCursorStore = LookupCursorStore & {
+  setNow(nextNow: string): void;
+};
+
+function testLookupCursorStore(input: {
+  ttlMs?: number;
+} = {}): TestLookupCursorStore {
+  const ttlMs = input.ttlMs ?? 30 * 60 * 1000;
+  let now = "2026-06-17T00:00:00.000Z";
+  let sequence = 0;
+  const rows = new Map<string, {
+    ownerScope: string;
+    internalCursor: string;
+    queryInput: unknown;
+    expiresAt: string;
+  }>();
+
+  return {
+    setNow(nextNow) {
+      now = nextNow;
+    },
+    register(registerInput) {
+      assertComparableTimestamp(now);
+      sequence += 1;
+      const cursorId = `lc_test_${sequence}`;
+      rows.set(cursorId, {
+        ownerScope: registerInput.ownerScope,
+        internalCursor: registerInput.internalCursor,
+        queryInput: registerInput.queryInput,
+        expiresAt: new Date(Date.parse(now) + ttlMs).toISOString(),
+      });
+      return cursorId;
+    },
+    resolve(resolveInput) {
+      assertComparableTimestamp(now);
+      const row = rows.get(resolveInput.cursorId);
+      if (row === undefined || row.ownerScope !== resolveInput.ownerScope) {
+        return cursorFailure("invalid_cursor", "music.discovery.lookup cursor is unknown for this owner.");
+      }
+      if (row.expiresAt <= now) {
+        return cursorFailure("result_window_expired", "music.discovery.lookup result window expired.");
+      }
+      return {
+        ok: true,
+        value: {
+          internalCursor: row.internalCursor,
+          queryInput: row.queryInput,
+        },
+      };
+    },
+  };
+}
+
+function cursorFailure(code: "invalid_cursor" | "result_window_expired", message: string): Result<never> {
+  const error: StageError = {
+    code,
+    message,
+    area: "music_intelligence",
+    retryable: true,
+    suggestedFix: "Start a fresh first-page music.discovery.lookup call.",
+  };
+  return { ok: false, error };
+}
+
+function assertComparableTimestamp(value: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value) || Number.isNaN(Date.parse(value))) {
+    throw new Error("test lookup cursor clock must return a fixed-width UTC ISO timestamp.");
+  }
 }
 
 function ref(namespace: string, kind: string, id: string): Ref {

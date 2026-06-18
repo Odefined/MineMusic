@@ -149,7 +149,8 @@ call provider APIs or refresh provider account state. Lookup normalizes public
 Music Scopes into Retrieval typed pools, calls the internal Retrieval query
 service through a narrow port, mints public `library` / `candidate` item handles
 through `StageToolContext.handleMinting`, and wraps internal Retrieval cursors
-with an AEAD public cursor.
+through the Stage Interface-owned registry-backed `LookupCursorStore`
+(ADR-0024).
 
 ## Extension And Providers
 

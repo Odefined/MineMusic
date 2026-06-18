@@ -109,7 +109,9 @@ this plan.
   `src/contracts/stage_interface.ts`). The context keeps its conservative default.
 - **Production `publicIdFactory` is a crypto-random opaque id** with
   registry-collision checking, not the test-local counter factory.
-  `MUSIC_LOOKUP_CURSOR_KEY` rules already documented on `host.ts` are unaffected.
+  The original `MUSIC_LOOKUP_CURSOR_KEY` rules were unaffected by Phase 20, but
+  were superseded by ADR-0024 when Phase 21 replaced AEAD lookup cursors with a
+  registry-backed Public Cursor Veil.
 
 ### MCP wire contract
 

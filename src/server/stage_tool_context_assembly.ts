@@ -4,13 +4,13 @@
 // accessor, so `host.ts` stays free of context-composition logic (Server Host
 // stays thin).
 //
-// The handle minting port is bound LAZILY: the factory is built at Server Host
-// creation time, before the Music Data Platform module is initialized, so it
-// closes over a thin proxy that resolves the real port from the owning module on
-// first use (after `start()`). This mirrors the lazy-port pattern used by the
-// Music Experience server shim (`lazyCandidateCommitCommand`).
+// Handle minting and lookup cursors are bound LAZILY: the factory is built at
+// Server Host creation time, before the Music Data Platform module is
+// initialized, so it closes over thin proxies that resolve the real ports from
+// the owning module on first use (after `start()`). This mirrors the lazy-port
+// pattern used by the Music Experience server shim (`lazyCandidateCommitCommand`).
 
-import type { HandleMintingPort } from "../contracts/stage_interface.js";
+import type { HandleMintingPort, LookupCursorStore } from "../contracts/stage_interface.js";
 import {
   createConservativeStageToolExecutionGate,
   createMemoryStageToolAuditPort,
@@ -22,7 +22,7 @@ import {
 import type { MusicDataPlatformRuntimeModule } from "./music_data_platform_runtime_module.js";
 
 export type CreateStageToolContextAssemblyInput = {
-  musicDataPlatformModule: Pick<MusicDataPlatformRuntimeModule, "handleMinting">;
+  musicDataPlatformModule: Pick<MusicDataPlatformRuntimeModule, "handleMinting" | "lookupCursorStore">;
   ownerScope?: string;
 };
 
@@ -48,6 +48,23 @@ export function createStageToolContextAssembly(
     },
   };
 
+  const resolveLookupCursorStore = (): LookupCursorStore => {
+    const store = input.musicDataPlatformModule.lookupCursorStore();
+    if (store === undefined) {
+      throw new Error("Stage Tool Context factory used before Music Data Platform initialization.");
+    }
+    return store;
+  };
+
+  const lazyLookupCursors: LookupCursorStore = {
+    register(registerInput) {
+      return resolveLookupCursorStore().register(registerInput);
+    },
+    resolve(resolveInput) {
+      return resolveLookupCursorStore().resolve(resolveInput);
+    },
+  };
+
   // A single audit port is shared by the conservative gate and the per-call
   // context so gate decisions and ctx.audit records land in the same buffer.
   const audit = createMemoryStageToolAuditPort();
@@ -55,6 +72,7 @@ export function createStageToolContextAssembly(
     ownerScope: input.ownerScope ?? "local",
     clock: () => new Date().toISOString(),
     handleMinting: lazyHandleMinting,
+    lookupCursors: lazyLookupCursors,
     executionGate: createConservativeStageToolExecutionGate({ audit }),
     audit,
   });

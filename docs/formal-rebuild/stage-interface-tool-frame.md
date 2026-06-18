@@ -7,7 +7,7 @@
 > (descriptor/handler split), ADR-0017 (router-owned tool name), ADR-0019 (veil
 > ownership split and handle scheme), ADR-0020 (declared error vocabulary and
 > fail-whole recovery), and ADR-0021 through ADR-0023 (narrow durable-write
-> auto-pass qualifiers).
+> auto-pass qualifiers), and ADR-0024 (registry-backed public lookup cursors).
 > Phase 16 (sanctioned). Implementation plan:
 > `phase-16-stage-interface-tool-frame-implementation-plan.md` (PR 16A–16D
 > planned).
@@ -1062,24 +1062,23 @@ Lookup scope semantics:
 
 ### Cursor and Pagination
 
-The public `nextCursor` is a Stage Interface re-wrapped opaque blob that veils
-the internal Retrieval cursor, binds `ownerScope`, and carries an expiry window.
-It is a **self-contained authenticated-encrypted (AEAD) token** (Stage Interface
-encrypts the internal cursor + ownerScope + expiry with AEAD or equivalent; the
-server decrypts it to continue pagination), NOT a registry-backed id like a
-`MusicItemHandle`. HMAC-signed plaintext JSON is NOT sufficient — the cursor must
-not expose ownerScope, providerId, or internal cursor plaintext, so it must be
-encrypted, not merely signed. This is
-deliberate and distinct from ADR-0019's handle scheme: a cursor is one blob per
-page (token-cost-insensitive), expiring, and self-contained with no
-reverse-resolution need, whereas handles are many per page (token-sensitive) and
-must be stable and reverse-resolvable. ADR-0019's "authenticated encoding
-rejected" therefore applies to HANDLES only (a many-per-page token tax), not to
-cursors; the two share at most a low-level signing/AEAD primitive while remaining
-independent mechanisms. Cursor-page calls use `{ cursor, limit? }` only; the agent must not repeat or
+The public `nextCursor` is a Stage Interface-owned opaque id that veils the
+internal Retrieval cursor plus the normalized query replay input behind a
+registry-backed Public Cursor Veil (ADR-0024). The id is currently minted as a
+short `lc_...` string for observability only; agents and host clients must treat
+it as an opaque string and must not parse it.
+
+Cursor-page calls use `{ cursor, limit? }` only; the agent must not repeat or
 change `lookupText`, `targetKind`, or `scopes` when following a cursor. The
-cursor already binds the first-page lookup text and resolved Music Scopes;
-`limit` remains a page size and is not part of result-set identity.
+cursor store already binds the first-page lookup text and resolved Music Scopes
+through normalized Retrieval replay input; `limit` remains a page size and is
+not part of result-set identity.
+
+The cursor veil follows the same Stage Interface ownership pattern as the
+Public Handle Veil, but it is not a `MusicItemHandle`, not a `handleKind`, and
+not stored in the handle registry. Handles represent music item identity and may
+deduplicate stable owner/anchor pairs; lookup cursors represent expiring
+result-window continuation state and mint a fresh id for each next page.
 Candidate item handles returned by lookup are not bound to the cursor or result
 window; they remain usable by future item/detail/commit-style tools while the
 candidate cache entry is live.
@@ -1088,9 +1087,11 @@ pagination. An expired candidate handle returns recoverable `candidate_expired`
 for future item/detail/commit-style tools. In both cases, the frame guides a
 fresh first-page lookup and never auto-reruns lookup, because rerunning is a
 provider call plus runtime write.
-AEAD cursor tests are deferred until cursor implementation, but cursor
-payloads must not expose plaintext internal refs, public `providerId` values,
-or result-set ids through the Public Agent Protocol.
+Cursor registry tests must prove that forged/unknown ids return
+`invalid_cursor`, expired rows return `result_window_expired`, owner-scope
+isolation holds, cursor-page replay continues the internal Retrieval cursor, and
+public outputs do not expose internal refs, provider raw ids, result-set ids, or
+the stored query replay payload.
 
 ## Deferred and Open Items
 

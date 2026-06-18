@@ -527,6 +527,9 @@ function musicDataPlatformModuleFor(input: {
     handleMinting() {
       return undefined;
     },
+    lookupCursorStore() {
+      return undefined;
+    },
   };
 }
 
@@ -695,6 +698,14 @@ function testStageToolContext(): StageToolContext {
       },
       async resolve() {
         return undefined;
+      },
+    },
+    lookupCursors: {
+      register() {
+        throw new Error("library import tests must not touch lookup cursors");
+      },
+      resolve() {
+        throw new Error("library import tests must not touch lookup cursors");
       },
     },
     providerAvailability: {

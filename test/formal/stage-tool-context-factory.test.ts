@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import type {
   HandleMintingPort,
+  LookupCursorStore,
   StageToolAuditPort,
   StageToolExecutionGate,
 } from "../../src/contracts/stage_interface.js";
@@ -20,6 +21,20 @@ const stubHandleMinting: HandleMintingPort = {
   },
   async resolve() {
     return undefined;
+  },
+};
+const stubLookupCursors: LookupCursorStore = {
+  register() {
+    return "lc_stub";
+  },
+  resolve() {
+    return {
+      ok: true,
+      value: {
+        internalCursor: "internal-cursor",
+        queryInput: {},
+      },
+    };
   },
 };
 const stubGate: StageToolExecutionGate = {
@@ -41,6 +56,7 @@ const stubAudit: StageToolAuditPort = {
     ownerScope: "local",
     clock: () => fixedNow,
     handleMinting: stubHandleMinting,
+    lookupCursors: stubLookupCursors,
     executionGate: stubGate,
     audit: stubAudit,
   });
@@ -55,6 +71,7 @@ const stubAudit: StageToolAuditPort = {
   assert.equal(ctx.requestId, "factory-request");
   assert.equal(ctx.clock(), fixedNow);
   assert.equal(ctx.handleMinting, stubHandleMinting);
+  assert.equal(ctx.lookupCursors, stubLookupCursors);
   assert.equal(ctx.executionGate, stubGate);
   assert.equal(ctx.audit, stubAudit);
   assert.equal(ctx.abortSignal, undefined);
@@ -88,6 +105,7 @@ const stubAudit: StageToolAuditPort = {
 // a real conservative gate + audit.
 {
   let mintCalls = 0;
+  let cursorRegisterCalls = 0;
   const port: HandleMintingPort = {
     async mint() {
       mintCalls += 1;
@@ -97,9 +115,27 @@ const stubAudit: StageToolAuditPort = {
       return undefined;
     },
   };
-  const mdp: Pick<MusicDataPlatformRuntimeModule, "handleMinting"> = {
+  const cursorStore: LookupCursorStore = {
+    register() {
+      cursorRegisterCalls += 1;
+      return "lc_assembly";
+    },
+    resolve() {
+      return {
+        ok: true,
+        value: {
+          internalCursor: "internal-cursor",
+          queryInput: {},
+        },
+      };
+    },
+  };
+  const mdp: Pick<MusicDataPlatformRuntimeModule, "handleMinting" | "lookupCursorStore"> = {
     handleMinting() {
       return port;
+    },
+    lookupCursorStore() {
+      return cursorStore;
     },
   };
 
@@ -116,6 +152,12 @@ const stubAudit: StageToolAuditPort = {
     "assembly-handle",
   );
   assert.equal(mintCalls, 1);
+  assert.equal(ctx.lookupCursors.register({
+    ownerScope: "local",
+    internalCursor: "internal-cursor",
+    queryInput: {},
+  }), "lc_assembly");
+  assert.equal(cursorRegisterCalls, 1);
 
   const scoped = createStageToolContextAssembly({ musicDataPlatformModule: mdp, ownerScope: "owner-b" });
   assert.equal(scoped.createToolContext({ sessionId: "s", requestId: "r" }).ownerScope, "owner-b");
@@ -124,8 +166,11 @@ const stubAudit: StageToolAuditPort = {
 // The lazy handleMinting fails loudly when the owning module is not initialized,
 // rather than silently falling back to the unavailable default.
 {
-  const uninitialized: Pick<MusicDataPlatformRuntimeModule, "handleMinting"> = {
+  const uninitialized: Pick<MusicDataPlatformRuntimeModule, "handleMinting" | "lookupCursorStore"> = {
     handleMinting() {
+      return undefined;
+    },
+    lookupCursorStore() {
       return undefined;
     },
   };
@@ -147,6 +192,14 @@ const stubAudit: StageToolAuditPort = {
       ownerScope: "local",
       handleKind: "library",
       publicId: "any",
+    }),
+    /Music Data Platform initialization/u,
+  );
+  assert.throws(
+    () => ctx.lookupCursors.register({
+      ownerScope: "local",
+      internalCursor: "internal-cursor",
+      queryInput: {},
     }),
     /Music Data Platform initialization/u,
   );

@@ -63,7 +63,6 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
     musicDataPlatformModule === undefined
       ? undefined
       : createStageToolContextAssembly({ musicDataPlatformModule });
-  const lookupCursorKey = readLookupCursorKeyFromEnv();
   const musicDiscoveryModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
       ? undefined
@@ -89,7 +88,6 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
               return port.query(queryInput);
             },
           },
-          ...(lookupCursorKey === undefined ? {} : { cursorKey: lookupCursorKey }),
         });
   const musicExperienceModule: RuntimeModule | undefined =
     musicDataPlatformModule === undefined
@@ -146,26 +144,4 @@ export function createServerHost(input: CreateServerHostInput = {}): ServerHost 
       return stageToolContextFactory;
     },
   };
-}
-
-// Production MUST provide a stable 32-byte base64url key via MUSIC_LOOKUP_CURSOR_KEY so that
-// music.discovery.lookup cursors survive restarts and work across host instances. When unset
-// (dev), the lookup falls back to a process-local random key (cursors then invalidate on
-// restart). A present-but-mis-sized key is rejected here with a named, actionable error
-// rather than failing opaquely inside the cursor codec at init.
-function readLookupCursorKeyFromEnv(): Uint8Array | undefined {
-  const encoded = process.env.MUSIC_LOOKUP_CURSOR_KEY;
-
-  if (encoded === undefined || encoded.length === 0) {
-    return undefined;
-  }
-
-  const key = new Uint8Array(Buffer.from(encoded, "base64url"));
-  if (key.length !== 32) {
-    throw new Error(
-      `MUSIC_LOOKUP_CURSOR_KEY must decode to exactly 32 bytes (base64url) for AES-256-GCM, but decoded to ${key.length} byte(s).`,
-    );
-  }
-
-  return key;
 }

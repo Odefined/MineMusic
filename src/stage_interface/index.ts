@@ -60,6 +60,28 @@ export {
   stageInterfaceHandleRegistrySchema,
 } from "./handle_registry_schema.js";
 export {
+  createLookupCursorStore,
+  createLookupCursorStoreFromRecords,
+  createUnavailableLookupCursorStore,
+  DEFAULT_LOOKUP_CURSOR_TTL_MS,
+} from "./lookup_cursor_store.js";
+export type {
+  CreateLookupCursorStoreFromRecordsInput,
+  CreateLookupCursorStoreInput,
+} from "./lookup_cursor_store.js";
+export {
+  createStageInterfaceLookupCursorRegistryRecords,
+} from "./lookup_cursor_registry_records.js";
+export type {
+  CreateStageInterfaceLookupCursorRegistryRecordsInput,
+  StageInterfaceLookupCursorBindingRecord,
+  StageInterfaceLookupCursorBindingRepository,
+  StageInterfaceLookupCursorRegistryRecords,
+} from "./lookup_cursor_registry_records.js";
+export {
+  stageInterfaceLookupCursorRegistrySchema,
+} from "./lookup_cursor_registry_schema.js";
+export {
   assertOutputSchemaHasNoInternalAnchors,
   assertSampleOutputHasNoInternalAnchors,
   freeTextContainsInternalAnchor,

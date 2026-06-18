@@ -4,12 +4,14 @@ import {
 } from "../effect_boundary/index.js";
 import type {
   HandleMintingPort,
+  LookupCursorStore,
   ProviderAvailabilityPort,
   StageToolAuditPort,
   StageToolContext,
   StageToolExecutionGate,
 } from "../contracts/stage_interface.js";
 import { createUnavailableHandleMintingPort } from "./handle_minting.js";
+import { createUnavailableLookupCursorStore } from "./lookup_cursor_store.js";
 
 export type CreateStageToolContextInput = {
   ownerScope: string;
@@ -18,6 +20,7 @@ export type CreateStageToolContextInput = {
   clock?: () => string;
   abortSignal?: AbortSignal;
   handleMinting?: HandleMintingPort;
+  lookupCursors?: LookupCursorStore;
   providerAvailability?: ProviderAvailabilityPort;
   audit?: StageToolAuditPort;
   executionGate?: StageToolExecutionGate;
@@ -33,6 +36,7 @@ export function createStageToolContext(input: CreateStageToolContextInput): Stag
     clock: input.clock ?? (() => new Date().toISOString()),
     ...(input.abortSignal === undefined ? {} : { abortSignal: input.abortSignal }),
     handleMinting: input.handleMinting ?? createUnavailableHandleMintingPort(),
+    lookupCursors: input.lookupCursors ?? createUnavailableLookupCursorStore(),
     providerAvailability: input.providerAvailability ?? unavailableProviderAvailability,
     executionGate: input.executionGate ?? createConservativeStageToolExecutionGate({ audit }),
     audit,

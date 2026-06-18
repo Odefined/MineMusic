@@ -88,9 +88,9 @@ minting with label synthesis.
   encoding the full ref plus an auth tag only lengthens ids (a token tax that
   scales with result count) for zero agent benefit. Statelessness here is bought
   with tokens the agent should not pay. This rejection is HANDLE-specific
-  (handles are many-per-page); the lookup cursor is a separate one-blob-per-page,
-  expiring, self-contained concern and uses authenticated encoding — see the Tool
-  Frame Cursor and Pagination section.
+  (handles are many-per-page). ADR-0024 later applies the same registry-backed
+  veil ownership pattern to lookup cursors, while keeping cursors separate from
+  handles and out of `HandleMintingPort`.
 - **Deterministic non-reversible hash of the ref**: rejected; it cannot resolve
   back to the material for future detail/save/commit tools without a store
   anyway, so the registry subsumes it.

@@ -145,6 +145,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   and edit tools over existing Music Data Platform `saved`, `favorite`, and
   `blocked` facts, including current relation-state output and an Effect
   Boundary owner-relation auto-pass qualifier for edits.
+- `docs/formal-rebuild/phase-20-server-host-mcp-stdio-transport-implementation-plan.md`:
+  implemented Phase 20 plan for the MCP-over-stdio Server Host transport,
+  production `StageToolContext` factory composition, MCP rendering/translation,
+  cancellation, entrypoint wiring, guards, and smoke verification.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -232,6 +236,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/adr/0022-effect-boundary-auto-pass-for-library-intake.md`: Effect
   Boundary auto-pass widened for owner-scoped, user-requested Library Import
   intake writes.
+- `docs/adr/0023-effect-boundary-auto-pass-for-owner-relation-edits.md`: Effect
+  Boundary auto-pass widened for explicit owner-relation edit tools.
+- `docs/adr/0024-registry-backed-public-lookup-cursors.md`: public lookup
+  cursors use a Stage Interface-owned registry-backed Public Cursor Veil.
 
 ## Pre-Formal ADR Evidence
 
@@ -297,13 +305,20 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   and router-owned `ToolCallOutput.toolName` wrapping.
 - `src/stage_interface/context.ts`: canonical `StageToolContext` factory wiring
   the conservative execution gate, audit port, provider availability default,
-  and handle-minting port dependency.
+  handle-minting port dependency, and lookup cursor port dependency.
 - `src/stage_interface/handle_registry_schema.ts`: Stage Interface-owned
   owner-bound public handle registry schema over Storage.
 - `src/stage_interface/handle_registry_records.ts`: Stage Interface handle
   registry repository for public id / owner / internal-anchor bindings.
 - `src/stage_interface/handle_minting.ts`: `HandleMintingPort`
   implementation for durable `library` handles plus candidate-cache delegation.
+- `src/stage_interface/lookup_cursor_registry_schema.ts`: Stage Interface-owned
+  lookup cursor registry schema over Storage.
+- `src/stage_interface/lookup_cursor_registry_records.ts`: Stage Interface
+  lookup cursor registry repository for owner-scoped cursor bindings.
+- `src/stage_interface/lookup_cursor_store.ts`: `LookupCursorStore`
+  implementation for registry-backed public lookup cursor ids, TTL enforcement,
+  and unavailable-default behavior.
 - `src/stage_interface/veil_guard.ts`: output-schema and sample-output internal
   anchor leak guards for the Public Agent Protocol veil.
 - `src/effect_boundary/index.ts` and
@@ -434,8 +449,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   `music.discovery.list_scopes` descriptor/handler factory.
 - `src/music_intelligence/stage_adapter/discovery_lookup.ts`: Phase 16D
   `music.discovery.lookup` descriptor/handler factory, scope normalization,
-  public handle/description mapping, declared error mapping, and AEAD cursor
-  wrapping over internal Retrieval cursors.
+  public handle/description mapping, declared error mapping, and cursor-page
+  replay through the Stage Interface `LookupCursorStore`.
 - `src/music_intelligence/stage_adapter/scope_availability.ts`: narrow
   Music Scope availability port and in-memory test adapter for Stage Adapter
   handlers.

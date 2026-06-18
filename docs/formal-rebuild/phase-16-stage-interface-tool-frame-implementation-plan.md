@@ -314,9 +314,10 @@ second vertical slice and the hardest one.
   `MusicItemHandle` (`library` / `candidate`) via `HandleMintingPort` and to
   the lookup item `description` via the pure label helper; no internal anchor
   crosses the veil.
-- AEAD cursor: Stage Interface encrypts the internal cursor + `ownerScope` +
-  expiry (HMAC-signed plaintext is insufficient); cursor-page input is only
-  `{ cursor, limit? }`.
+- Lookup cursor: Phase 16D originally used a Stage Interface-encrypted AEAD
+  cursor over the internal cursor + `ownerScope` + expiry; ADR-0024 supersedes
+  this with a Stage Interface-owned registry-backed public cursor id. Cursor-page
+  input remains only `{ cursor, limit? }`.
 
 ### Gates / acceptance
 

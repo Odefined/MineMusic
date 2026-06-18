@@ -98,6 +98,7 @@ export type StageToolContext = {
   clock: () => string;
   abortSignal?: AbortSignal;
   handleMinting: HandleMintingPort;
+  lookupCursors: LookupCursorStore;
   providerAvailability: ProviderAvailabilityPort;
   executionGate: StageToolExecutionGate;
   audit?: StageToolAuditPort;
@@ -114,6 +115,25 @@ export type HandleMintingPort = {
     handleKind: MusicItemHandle["kind"];
     publicId: string;
   }): Promise<unknown | undefined>;
+};
+
+// Transport-agnostic persistence of a music.discovery.lookup retrieval cursor.
+// A first-page call registers its {internalCursor, queryInput} and gets back a
+// short, unguessable cursor id; the matching cursor-page call resolves it back.
+// The store owns ownerScope isolation and TTL expiry. queryInput is opaque JSON
+// to the store (the lookup handler validates its shape on resolve). Persisted,
+// not in-memory, so cursors survive across requests/instances once MCP moves
+// from stdio to HTTP.
+export type LookupCursorStore = {
+  register(input: {
+    ownerScope: string;
+    internalCursor: string;
+    queryInput: unknown;
+  }): string;
+  resolve(input: {
+    ownerScope: string;
+    cursorId: string;
+  }): Result<{ internalCursor: string; queryInput: unknown }>;
 };
 
 export type ProviderAvailabilityPort = {

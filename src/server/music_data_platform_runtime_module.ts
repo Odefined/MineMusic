@@ -44,12 +44,14 @@ import type {
   MusicScopeAvailabilitySnapshot,
 } from "../music_intelligence/stage_adapter/index.js";
 import { stageInterfaceHandleRegistrySchema } from "../stage_interface/handle_registry_schema.js";
+import { stageInterfaceLookupCursorRegistrySchema } from "../stage_interface/lookup_cursor_registry_schema.js";
 import {
   createStageInterfaceCandidateHandleCachePort,
   createStageInterfaceHandleMintingPortFromRecords,
 } from "../stage_interface/handle_minting.js";
 import { createStageInterfaceHandleRegistryRecords } from "../stage_interface/handle_registry_records.js";
-import type { HandleMintingPort } from "../contracts/stage_interface.js";
+import { createLookupCursorStore, DEFAULT_LOOKUP_CURSOR_TTL_MS } from "../stage_interface/lookup_cursor_store.js";
+import type { HandleMintingPort, LookupCursorStore } from "../contracts/stage_interface.js";
 import {
   SqliteMusicDatabase,
   type MusicDatabase,
@@ -74,6 +76,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   materialProjection(): MaterialProjection | undefined;
   libraryRelation(): LibraryRelationService | undefined;
   handleMinting(): HandleMintingPort | undefined;
+  lookupCursorStore(): LookupCursorStore | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -98,6 +101,7 @@ export function createMusicDataPlatformRuntimeModule(
   let libraryRelationService: LibraryRelationService | undefined;
   let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
   let handleMintingPort: HandleMintingPort | undefined;
+  let lookupCursorStore: LookupCursorStore | undefined;
   const ownsDatabase = input.database === undefined;
 
   return {
@@ -122,6 +126,7 @@ export function createMusicDataPlatformRuntimeModule(
             musicDataPlatformProjectionMaintenanceSchema,
             musicDataPlatformRetrievalResultSetSchema,
             stageInterfaceHandleRegistrySchema,
+            stageInterfaceLookupCursorRegistrySchema,
           ],
         });
         const materialRefFactory = input.materialRefFactory ?? createMaterialRefFactory();
@@ -181,6 +186,10 @@ export function createMusicDataPlatformRuntimeModule(
             },
           }),
         });
+        lookupCursorStore = createLookupCursorStore({
+          db: database.context(),
+          ttlMs: DEFAULT_LOOKUP_CURSOR_TTL_MS,
+        });
         projectionMaintenanceScheduler = createProjectionMaintenanceScheduler({
           database,
           ...(input.config?.projectionMaintenance === undefined
@@ -199,6 +208,7 @@ export function createMusicDataPlatformRuntimeModule(
       } catch (cause) {
         projectionMaintenanceScheduler = undefined;
         handleMintingPort = undefined;
+        lookupCursorStore = undefined;
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
@@ -226,6 +236,7 @@ export function createMusicDataPlatformRuntimeModule(
         await scheduler?.stop();
         closeOwnedDatabase();
         handleMintingPort = undefined;
+        lookupCursorStore = undefined;
         musicScopeAvailabilityPort = undefined;
         materialProjection = undefined;
         libraryRelationService = undefined;
@@ -274,6 +285,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     handleMinting() {
       return handleMintingPort;
+    },
+    lookupCursorStore() {
+      return lookupCursorStore;
     },
   };
 
