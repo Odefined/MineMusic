@@ -56,7 +56,7 @@ if (!liveEnabled) {
     const toolNames = list.result?.tools?.map((tool) => tool.name) ?? [];
     console.log(`tools/list ok: ${toolNames.length} tools (${toolNames.slice(0, 3).join(", ")}, ...)`);
 
-    send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "stage.runtime.status", arguments: {} } });
+    send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "stage_runtime_status", arguments: {} } });
     const call = await nextResponse();
     const status = call.result?.structuredContent?.status;
     const summary = call.result?.content?.[0]?.text;

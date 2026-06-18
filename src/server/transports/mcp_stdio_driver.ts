@@ -31,7 +31,7 @@ import {
   resultResponse,
   type JsonRpcId,
 } from "./mcp_framing.js";
-import { renderMcpToolList } from "./mcp_rendering.js";
+import { renderMcpToolList, toMcpToolName } from "./mcp_rendering.js";
 import { translateToolCall } from "./mcp_translation.js";
 
 export type McpStdioTransportPorts = {
@@ -94,6 +94,11 @@ export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): Mc
   // stdout wire boundary, so a write failure must not crash the process or
   // abort the in-flight cancellation sweep.
   let closed = false;
+  // tools/call arrives with an MCP-exposed (underscored) tool name; map it back
+  // to the descriptor (and its internal dotted name) for dispatch.
+  const descriptorByMcpName = new Map<string, ToolDeclaration>(
+    input.ports.tools.map((tool) => [toMcpToolName(tool.name), tool]),
+  );
 
   return {
     async serve() {
@@ -198,14 +203,14 @@ export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): Mc
 
     try {
       const callParams = readToolCallParams(params);
-      const descriptor = input.ports.tools.find((tool) => tool.name === callParams.name);
+      const descriptor = descriptorByMcpName.get(callParams.name);
       const ctx = input.ports.contextFactory.createToolContext({
         sessionId,
         requestId: String(id),
         abortSignal: controller.signal,
       });
       const dispatchResult = await input.ports.dispatch(ctx, {
-        toolName: callParams.name,
+        toolName: descriptor === undefined ? callParams.name : descriptor.name,
         payload: callParams.arguments,
       });
       const outcome = translateToolCall({

@@ -8,6 +8,7 @@
     "check:stage-interface-schemas": "node scripts/generate-stage-interface-schemas.mjs --check",
     "build:test": "npm run check:stage-interface-schemas && rm -rf .tmp-test && tsc -p tsconfig.test.json",
     "server:minemusic": "npm run build:test && node ./.tmp-test/src/server/index.js",
+    "start": "node ./.tmp-test/src/server/index.js",
     "smoke:ncm": "npm run build:test && node ./.tmp-test/test/live/ncm-source-smoke.js",
     "smoke:ncm:library": "npm run build:test && node ./.tmp-test/test/live/ncm-source-library-smoke.js",
     "smoke:library:import": "npm run build:test && node ./.tmp-test/test/live/ncm-library-import-agent-smoke.js",

@@ -491,6 +491,14 @@ deviation recorded here):
   stdout failure into diagnostics, so a late-completing tools/call cannot write
   past the closed transport and a broken-pipe write cannot crash the process
   (confirmed by an adversarial review and locked in by regression tests).
+- MCP tool names are exposed underscored (`music_discovery_lookup`), not dotted:
+  MCP SEP-986 and the Anthropic API require tool names to match
+  `^[a-zA-Z0-9_-]{1,64}$`, so a dotted name is rejected downstream and the tools
+  never reach the model even though the server is "Connected". The transport
+  maps dots to underscores at the boundary (`toMcpToolName`) and keeps an
+  underscore-name → descriptor lookup so `tools/call` round-trips back to the
+  internal dotted name for dispatch. Internal `descriptor.name`, `instrumentId`,
+  dispatch, the formal vocabulary, and tests of the internal name are unchanged.
 
 Follow-ups recorded (out of Phase 20 scope): generalize the repeated lazy-port
 pattern into a shared helper; relocate `stageInterfaceHandleRegistrySchema` out

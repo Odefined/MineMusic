@@ -139,7 +139,7 @@ assert.deepEqual(errorResponse(null, JSON_RPC_PARSE_ERROR, "Invalid JSON."), {
 
 {
   const rendered = renderMcpTool(readOnlyTestDescriptor);
-  assert.equal(rendered.name, "stage.test.ping");
+  assert.equal(rendered.name, "stage_test_ping");
   assert.equal(rendered.inputSchema, readOnlyTestDescriptor.inputSchema);
   assert.equal(rendered.outputSchema, readOnlyTestDescriptor.outputSchema);
   assert.deepEqual(rendered.annotations, { readOnlyHint: true });
@@ -435,7 +435,7 @@ function line(obj: unknown): string {
   const list = responses[2];
   assert.equal(list.id, 3);
   assert.equal(list.result.tools.length, 2);
-  assert.equal(list.result.tools[0].name, "stage.test.ping");
+  assert.equal(list.result.tools[0].name, "stage_test_ping");
   assert.deepEqual(list.result.tools[0].annotations, { readOnlyHint: true });
   assert.equal(list.result.tools[1].annotations, undefined);
 }
@@ -473,7 +473,7 @@ function line(obj: unknown): string {
         jsonrpc: "2.0",
         id: 5,
         method: "tools/call",
-        params: { name: "stage.test.ping", arguments: {} },
+        params: { name: "stage_test_ping", arguments: {} },
       }),
     ],
     { holdOpen: true },
@@ -513,7 +513,7 @@ function line(obj: unknown): string {
         jsonrpc: "2.0",
         id: 6,
         method: "tools/call",
-        params: { name: "stage.test.ping", arguments: {} },
+        params: { name: "stage_test_ping", arguments: {} },
       }),
     ],
     { holdOpen: true },
@@ -553,7 +553,7 @@ function line(obj: unknown): string {
         jsonrpc: "2.0",
         id: 7,
         method: "tools/call",
-        params: { name: "stage.test.missing", arguments: {} },
+        params: { name: "stage_test_missing", arguments: {} },
       }),
     ],
     { holdOpen: true },
@@ -593,7 +593,7 @@ function line(obj: unknown): string {
         jsonrpc: "2.0",
         id: 8,
         method: "tools/call",
-        params: { name: "stage.test.ping", arguments: {} },
+        params: { name: "stage_test_ping", arguments: {} },
       }),
       line({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 8 } }),
     ],
@@ -646,7 +646,7 @@ function line(obj: unknown): string {
         jsonrpc: "2.0",
         id: 11,
         method: "tools/call",
-        params: { name: "stage.test.ping", arguments: {} },
+        params: { name: "stage_test_ping", arguments: {} },
       }),
     ],
     { holdOpen: true },
@@ -680,7 +680,7 @@ function line(obj: unknown): string {
       jsonrpc: "2.0",
       id: 12,
       method: "tools/call",
-      params: { name: "stage.test.ping", arguments: {} },
+      params: { name: "stage_test_ping", arguments: {} },
     }),
   ]);
   await createMcpStdioTransport({

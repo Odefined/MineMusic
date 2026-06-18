@@ -90,21 +90,21 @@ try {
   assert.deepEqual(
     ((list.result as { tools: { name: string }[] }).tools).map((tool) => tool.name),
     [
-      "library.import.list_sources",
-      "library.import.start",
-      "library.import.continue",
-      "library.import.status",
-      "library.relation.get",
-      "library.relation.save",
-      "library.relation.unsave",
-      "library.relation.favorite",
-      "library.relation.unfavorite",
-      "library.relation.block",
-      "library.relation.unblock",
-      "music.discovery.list_scopes",
-      "music.discovery.lookup",
-      "music.experience.present",
-      "stage.runtime.status",
+      "library_import_list_sources",
+      "library_import_start",
+      "library_import_continue",
+      "library_import_status",
+      "library_relation_get",
+      "library_relation_save",
+      "library_relation_unsave",
+      "library_relation_favorite",
+      "library_relation_unfavorite",
+      "library_relation_block",
+      "library_relation_unblock",
+      "music_discovery_list_scopes",
+      "music_discovery_lookup",
+      "music_experience_present",
+      "stage_runtime_status",
     ],
   );
   // Every listed tool carries a stitched description, inputSchema, outputSchema,
@@ -121,13 +121,13 @@ try {
   assert.equal(listTools.every((tool) => tool.description.length > 0), true);
   assert.equal(listTools.every((tool) => tool.inputSchema !== undefined), true);
   assert.equal(listTools.every((tool) => tool.outputSchema !== undefined), true);
-  assert.equal(listTools.find((tool) => tool.name === "stage.runtime.status")?.annotations?.readOnlyHint, true);
+  assert.equal(listTools.find((tool) => tool.name === "stage_runtime_status")?.annotations?.readOnlyHint, true);
 
   send({
     jsonrpc: "2.0",
     id: 3,
     method: "tools/call",
-    params: { name: "stage.runtime.status", arguments: {} },
+    params: { name: "stage_runtime_status", arguments: {} },
   });
   const call = await withTimeout(nextResponse(), 10_000, "tools/call stage.runtime.status");
   assert.equal(call.id, 3);

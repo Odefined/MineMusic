@@ -39,11 +39,23 @@ export function renderMcpToolList(descriptors: readonly ToolDeclaration[]): McpT
   return descriptors.map(renderMcpTool);
 }
 
+// MCP tool names must match `^[a-zA-Z0-9_-]{1,64}$` (SEP-986, and the Anthropic
+// API tool-name rule) — dots are not allowed. MineMusic's internal Public Agent
+// Protocol names use a dotted namespace (`music.discovery.lookup`), so the
+// transport maps dots to underscores at the MCP boundary. The internal
+// descriptor.name (and dispatch, instrumentId, formal vocabulary) keeps its
+// dots; only the MCP-exposed name is underscored. The driver keeps an
+// underscore-name -> descriptor lookup so a tools/call round-trips back to the
+// internal dotted name for dispatch.
+export function toMcpToolName(internalName: string): string {
+  return internalName.replace(/\./gu, "_");
+}
+
 export function renderMcpTool(descriptor: ToolDeclaration): McpToolDefinition {
   const annotations = deriveMcpAnnotations(descriptor);
 
   return {
-    name: descriptor.name,
+    name: toMcpToolName(descriptor.name),
     description: stitchToolDescription(descriptor),
     inputSchema: descriptor.inputSchema,
     outputSchema: descriptor.outputSchema,
