@@ -824,7 +824,7 @@ Current formal state does not implement:
 - provider account instances, login, cookies, OAuth, secrets, or reauth;
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
-- MCP/HTTP transport;
+- HTTP transport (MCP-over-stdio shipped in Phase 20; HTTP/CLI/Web UI remain);
 - presentation history beyond the immediate `music.experience.present` output;
 - update baselines, collection, additional owner catalog producers,
   wrong-version, not-playable, bad-match, feedback/correction facts, signals,

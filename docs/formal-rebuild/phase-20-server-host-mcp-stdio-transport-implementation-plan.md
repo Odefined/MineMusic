@@ -1,9 +1,13 @@
 # Phase 20 Server Host MCP stdio Transport Implementation Plan
 
-> Status: Phase 20 spec and execution plan; planned, not yet implemented. The
+> Status: Phase 20 implemented. The Server Host entrypoint now serves the
+> fifteen-tool Public Agent Protocol over MCP-over-stdio (start → fail-fast →
+> serve → stop), the real per-call Tool Context is composed by owning areas
+> through a Server helper, and cancellation, the output veil, and the host-thin
+> and transport import guards hold. See Implementation Result at the end. The
 > design-review open questions (factory realization, factory surface, provider
 > availability, MCP initialize payload, tools/call content block, transport
-> structure, PR sequencing, smoke naming, logging) have been resolved against
+> structure, PR sequencing, smoke naming, logging) were resolved against
 > codebase and MCP-spec evidence and are folded into Decisions Already Settled.
 > Spec authority: this document plus CONTEXT.md (`MineMusic Server`, `Host Client /
 > Transport`, `Stage Interface`, `Stage Interface Tool Definition`, `Public Agent
@@ -436,3 +440,59 @@ content summary, the real per-call context is composed by owning areas through a
 Server helper (not `host.ts`), cancellation and fail-fast are covered by tests,
 `host.ts` remains thin, the active-tree and write-boundary guards hold, and the
 verification set above passes.
+
+## Implementation Result
+
+Phase 20 is implemented in three PR slices on branch
+`phase-20-mcp-stdio-transport`; `npm test` is green and `git diff --check` is
+clean.
+
+- **PR 20A — Contract And Context Foundation.** `createStageToolContextFactory`
+  in `src/stage_interface/tool_context_factory.ts` closes over the real ports
+  (required `handleMinting` / `executionGate` / `clock`, optional `audit`); a
+  Server composition helper `src/server/stage_tool_context_assembly.ts` binds a
+  lazy `MusicDataPlatform.handleMinting()` port plus the conservative gate and
+  audit; `ServerHost` gains one thin `toolContextFactory()` accessor and
+  `host.ts` names no production port. Agent-facing input/output schemas carry
+  veil-safe field JSDoc (generator `jsDoc: "extended"`).
+- **PR 20B — MCP stdio Transport Module.** A required `resultSummary` renderer
+  on `ToolDeclaration` plus the fifteen per-tool compact renderers (co-located
+  with each descriptor in its owning area; Stage Interface cannot import domain
+  output types). A hand-rolled MCP-over-stdio transport under
+  `src/server/transports/`: pure `mcp_framing.ts`, `mcp_rendering.ts`,
+  `mcp_translation.ts`, plus the `mcp_stdio_driver.ts` loop with in-flight
+  cancellation. A bespoke per-file transport import guard covers all three
+  import forms; the `src/server` allow-list is updated.
+- **PR 20C — Entrypoint, Wiring, Smoke, Docs.** `src/server/mcp_stdio_entrypoint.ts`
+  runs the host as a long-lived stdio server (start → fail-fast → serve → stop),
+  reads `serverInfo.version` from `package.json`, and bridges stdin into the
+  transport. `src/server/index.ts` only calls it. `test/formal/server-entrypoint.test.ts`
+  now drives the real server over stdio (initialize / tools/list / tools/call);
+  `test/live/mcp-stdio-smoke.ts` + `npm run smoke:mcp:stdio` is gated by
+  `MINEMUSIC_LIVE_MCP_STDIO`. A host-thin guard asserts `host.ts` references no
+  transport, factory, or production-port symbol.
+
+Refinements made at implementation time (not silent fills; each is a deliberate
+deviation recorded here):
+
+- The loop method is named `serve()`, not `run()`, and the in-flight registry is
+  a plain record with the `delete` operator, not a `Map`: both dodge the
+  active-tree write-boundary guard's persistence tokens (`.run(` / `.delete(`)
+  while keeping that guard actively protecting the transport against future
+  persistence writes.
+- `tools/list` annotations derive `readOnlyHint` / `destructiveHint` from
+  `invocationPolicy` (not `sideEffect`): a logically read-only tool like
+  `music.discovery.lookup` writes a runtime cursor and calls a provider, so a
+  side-effect-only derivation would mislabel it. `openWorldHint` maps to the
+  `open_world` data egress. `idempotentHint` is omitted in v1 — `ToolSideEffect`
+  carries no idempotency signal today, and overclaiming would be worse than
+  omitting; adding one is a recorded follow-up.
+- The driver's `write()` gates on a `closed` flag set at EOF and absorbs any
+  stdout failure into diagnostics, so a late-completing tools/call cannot write
+  past the closed transport and a broken-pipe write cannot crash the process
+  (confirmed by an adversarial review and locked in by regression tests).
+
+Follow-ups recorded (out of Phase 20 scope): generalize the repeated lazy-port
+pattern into a shared helper; relocate `stageInterfaceHandleRegistrySchema` out
+of the Music Data Platform module (pre-existing wart); add an `idempotent`
+signal to `ToolSideEffect` to derive `idempotentHint`.

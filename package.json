@@ -14,6 +14,7 @@
     "smoke:ncm:retrieval": "npm run build:test && node ./.tmp-test/test/live/ncm-mixed-retrieval-smoke.js",
     "smoke:ncm:matrix": "npm run build:test && node ./.tmp-test/test/live/ncm-real-scenario-matrix.js",
     "smoke:ncm:perf": "npm run build:test && node ./.tmp-test/test/live/ncm-performance-smoke.js",
+    "smoke:mcp:stdio": "npm run build:test && node ./.tmp-test/test/live/mcp-stdio-smoke.js",
     "test": "npm run typecheck && npm run test:stage-core",
     "test:stage-core": "npm run build:test && node ./.tmp-test/test/run-stage-core-tests.js",
     "typecheck": "npm run check:stage-interface-schemas && tsc --noEmit -p tsconfig.json"

@@ -158,6 +158,7 @@ assert.deepEqual(
     "src/server/index.ts",
     "src/server/library_import_runtime_module.ts",
     "src/server/library_relation_runtime_module.ts",
+    "src/server/mcp_stdio_entrypoint.ts",
     "src/server/music_data_platform_runtime_module.ts",
     "src/server/music_experience_runtime_module.ts",
     "src/server/projection_maintenance_scheduler.ts",
@@ -443,6 +444,31 @@ assert.deepEqual(
   transportImportFailures,
   [],
   "MCP stdio transport must import only contracts, Stage Interface veil/factory surfaces, and its own pure modules",
+);
+
+// PR 20C host-thin guard: host.ts is the thin Server Host surface. It may
+// instantiate runtime modules and the Tool Context composition helper and
+// expose accessors, but it must not name production ports, the Stage Interface
+// factory, or the transport/entrypoint wiring (Server Host stays thin).
+const hostText = await readFile(join(repositoryRoot, "src/server/host.ts"), "utf8");
+const hostThinForbidden = [
+  "createStageToolContextFactory",
+  "createConservativeStageToolExecutionGate",
+  "createMemoryStageToolAuditPort",
+  "createStageInterfaceHandleMintingPort",
+  "./transports/",
+  "./mcp_stdio_entrypoint",
+];
+const hostThinFailures: string[] = [];
+for (const forbidden of hostThinForbidden) {
+  if (hostText.includes(forbidden)) {
+    hostThinFailures.push(`src/server/host.ts must not reference '${forbidden}' (Server Host stays thin)`);
+  }
+}
+assert.deepEqual(
+  hostThinFailures,
+  [],
+  "src/server/host.ts must stay thin: no production ports, Stage Interface factory, or transport/entrypoint wiring",
 );
 
 const projectionMaintenanceSchedulerText = await readFile(

@@ -332,7 +332,8 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module
   migrated to the Phase 16A static descriptor + payload handler shape.
 - `src/server/host.ts`: thin Server Host lifecycle owner, Stage Interface
-  dispatch entrypoint, and internal source library import seam accessor.
+  dispatch entrypoint, internal source library import seam accessor, and the
+  composed Tool Context Factory accessor.
 - `src/server/config.ts`: Server Host default runtime composition config.
 - `src/server/music_data_platform_runtime_module.ts`: Server Host composition
   module for Storage, Music Data Platform schemas, the Stage Interface handle
@@ -345,7 +346,18 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/server/retrieval_provider_search_adapter.ts`: Server Host adapter from
   Extension Runtime source-provider search to the Music Intelligence Retrieval
   provider-search port.
-- `src/server/index.ts`: minimal Server Host entrypoint and snapshot command.
+- `src/server/stage_tool_context_assembly.ts`: Server Host composition helper
+  that binds the real production ports into the Stage Interface Tool Context
+  Factory (lazy handle-minting, conservative gate, audit); keeps `host.ts` thin.
+- `src/server/mcp_stdio_entrypoint.ts`: Server Host process entrypoint that runs
+  the host as a long-lived MCP-over-stdio server (start → fail-fast → serve →
+  stop) and bridges stdin/stdout into the transport.
+- `src/server/transports/`: hand-rolled MCP-over-stdio transport — pure
+  `mcp_framing.ts` (JSON-RPC), `mcp_rendering.ts` (descriptor → MCP tool
+  definition), `mcp_translation.ts` (dispatch result → CallToolResult, content
+  veil), and the `mcp_stdio_driver.ts` loop with in-flight cancellation.
+- `src/server/index.ts`: Server Host entrypoint; runs the MCP-over-stdio server
+  when invoked as main.
 - `src/index.ts`: formal skeleton package exports.
 - `src/storage/database.ts`: generic `MusicDatabase` boundary.
 - `src/storage/sqlite/database.ts`: concrete `SqliteMusicDatabase` adapter.

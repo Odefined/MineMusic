@@ -1133,6 +1133,43 @@ Phase 19 exposes existing owner-relation facts through explicit
   state semantics, idempotent removals, Host/server wiring, and active-tree
   guard expectations.
 
+## 2026-06-19: Phase 20 Server Host MCP stdio Transport
+
+Phase 20 ships the first real host transport so a local MCP client can connect
+to the Server Host and dispatch the existing fifteen-tool Public Agent Protocol:
+
+- MCP-over-stdio only (JSON-RPC 2.0, line-delimited), hand-rolled so the runtime
+  dependency footprint stays at `ajv`. The supported method subset is
+  `initialize`, `notifications/initialized`, `tools/list`, `tools/call`, `ping`,
+  and `notifications/cancelled`; the negotiated protocolVersion is
+  `2025-11-25`.
+- The real per-call `StageToolContext` is now composed by owning areas: a new
+  Stage Interface Tool Context Factory closes over real production ports
+  (required `handleMinting` / gate / clock), and a Server composition helper
+  binds a lazy `MusicDataPlatform.handleMinting()` port plus the conservative
+  gate and audit. `ServerHost` gains one thin `toolContextFactory()` accessor;
+  `host.ts` names no production port.
+- `tools/list` renders one MCP tool definition per shipped `ToolDeclaration`
+  with a stitched description, the generated veil-safe input/output schemas
+  (field JSDoc via generator `jsDoc: "extended"`), and side-effect-derived
+  annotations.
+- `tools/call` success returns the typed `structuredContent` AND a non-empty
+  `content` block carrying the descriptor's compact `resultSummary` renderer (a
+  required new field on `ToolDeclaration`, co-located with each descriptor).
+  Declared tool errors and gate `ask` / `deny` return `isError: true`;
+  `tool_not_found` and router system failures return JSON-RPC errors.
+- `notifications/cancelled` aborts the matching in-flight `tools/call` through
+  its `AbortController`; the driver drops any response that resolves after EOF
+  and absorbs stdout failures into diagnostics.
+- The Server Host entrypoint (`src/server/index.ts` →
+  `src/server/mcp_stdio_entrypoint.ts`) runs start → fail-fast → serve → stop.
+  Guards: the `src/server` allow-list, a bespoke transport import guard (three
+  import forms), a host-thin guard, and the write-boundary guard all hold.
+- Tests drive the real server over stdio
+  (`test/formal/server-entrypoint.test.ts`) and the pure transport modules with
+  a fake dispatch/factory (`test/formal/mcp-stdio-transport.test.ts`);
+  `npm run smoke:mcp:stdio` is gated by `MINEMUSIC_LIVE_MCP_STDIO`.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

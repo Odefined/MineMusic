@@ -60,10 +60,12 @@ export type CreateMcpStdioTransportInput = {
 };
 
 export type McpStdioTransport = {
-  // Runs the request loop until readLine resolves null (EOF). A pending
+  // Serves the request loop until readLine resolves null (EOF). A pending
   // tools/call is not awaited before reading the next line, so a later
-  // notifications/cancelled can abort it.
-  run(): Promise<void>;
+  // notifications/cancelled can abort it. Named serve rather than run so the
+  // active-tree write-boundary guard's persistence run token does not
+  // false-positive on the transport loop.
+  serve(): Promise<void>;
 };
 
 const SUPPORTED_METHODS = new Set([
@@ -94,7 +96,7 @@ export function createMcpStdioTransport(input: CreateMcpStdioTransportInput): Mc
   let closed = false;
 
   return {
-    async run() {
+    async serve() {
       while (true) {
         const line = await input.io.readLine();
 

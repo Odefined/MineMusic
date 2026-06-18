@@ -44,22 +44,6 @@ export type {
 } from "./stage_tool_context_assembly.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { createServerHost } = await import("./host.js");
-  const host = createServerHost();
-  const started = await host.start();
-
-  try {
-    console.log(JSON.stringify(host.snapshot(), null, 2));
-
-    if (!started.ok) {
-      process.exitCode = 1;
-    }
-  } finally {
-    const stopped = await host.stop();
-
-    if (!stopped.ok) {
-      process.exitCode = 1;
-      console.error(JSON.stringify(stopped.error, null, 2));
-    }
-  }
+  const { runMineMusicMcpStdioServer } = await import("./mcp_stdio_entrypoint.js");
+  await runMineMusicMcpStdioServer();
 }

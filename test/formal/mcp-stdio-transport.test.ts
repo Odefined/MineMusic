@@ -419,7 +419,7 @@ function line(obj: unknown): string {
   await createMcpStdioTransport({
     ports: portsFor([readOnlyTestDescriptor, writeTestDescriptor], async () => okResult({ ok: true })),
     io: harness.io,
-  }).run();
+  }).serve();
 
   const responses = harness.written.map((entry) => JSON.parse(entry));
   assert.equal(responses.length, 3);
@@ -450,7 +450,7 @@ function line(obj: unknown): string {
   await createMcpStdioTransport({
     ports: portsFor([], async () => okResult({ ok: true })),
     io: harness.io,
-  }).run();
+  }).serve();
 
   const responses = harness.written.map((entry) => JSON.parse(entry));
   assert.equal(responses[0].id, null);
@@ -481,7 +481,7 @@ function line(obj: unknown): string {
   const runPromise = createMcpStdioTransport({
     ports: portsFor([readOnlyTestDescriptor], async () => pending),
     io: harness.io,
-  }).run();
+  }).serve();
   await flushMicrotasks();
 
   // Nothing written yet: the call awaits the deferred dispatch.
@@ -521,7 +521,7 @@ function line(obj: unknown): string {
   const runPromise = createMcpStdioTransport({
     ports: portsFor([readOnlyTestDescriptor], async () => pending),
     io: harness.io,
-  }).run();
+  }).serve();
   await flushMicrotasks();
 
   resolver?.(errorResult({
@@ -561,7 +561,7 @@ function line(obj: unknown): string {
   const runPromise = createMcpStdioTransport({
     ports: portsFor([readOnlyTestDescriptor], async () => pending),
     io: harness.io,
-  }).run();
+  }).serve();
   await flushMicrotasks();
 
   resolver?.(errorResult({
@@ -605,7 +605,7 @@ function line(obj: unknown): string {
       return pending;
     }),
     io: harness.io,
-  }).run();
+  }).serve();
   await flushMicrotasks();
 
   // The cancel notification was processed; the in-flight signal is now aborted.
@@ -634,7 +634,7 @@ function line(obj: unknown): string {
   await createMcpStdioTransport({
     ports: portsFor([], async () => okResult({ ok: true })),
     io: harness.io,
-  }).run();
+  }).serve();
   assert.equal(harness.written.length, 0);
 }
 
@@ -656,7 +656,7 @@ function line(obj: unknown): string {
       throw new Error("unexpected meltdown");
     }),
     io: harness.io,
-  }).run();
+  }).serve();
   await flushMicrotasks();
 
   assert.equal(harness.errors.length, 1);
@@ -686,7 +686,7 @@ function line(obj: unknown): string {
   await createMcpStdioTransport({
     ports: portsFor([readOnlyTestDescriptor], async () => pending),
     io: harness.io,
-  }).run();
+  }).serve();
 
   // run() returned at EOF with the call still pending; nothing written.
   assert.equal(harness.written.length, 0);
@@ -710,7 +710,7 @@ function line(obj: unknown): string {
   await createMcpStdioTransport({
     ports: portsFor([], async () => okResult({ ok: true })),
     io: harness.io,
-  }).run();
+  }).serve();
 
   assert.equal(harness.errors.length, 1);
   assert.equal(harness.errors[0]?.includes("transport write failed"), true);
