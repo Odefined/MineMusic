@@ -149,11 +149,6 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   implemented Phase 20 plan for the MCP-over-stdio Server Host transport,
   production `StageToolContext` factory composition, MCP rendering/translation,
   cancellation, entrypoint wiring, guards, and smoke verification.
-- `docs/formal-rebuild/phase-22-built-in-agent-frontend-implementation-plan.md`:
-  planned Phase 22 execution plan for the built-in local Pi-powered agent
-  frontend: Server Host web adapter, dynamic Stage Interface to Pi tool
-  adaptation, single in-memory session, browser workbench, guard plan, and
-  runtime/browser verification.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
