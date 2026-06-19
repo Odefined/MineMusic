@@ -1,6 +1,6 @@
 import { isRecord } from "../type_guards.js";
 import { isRefComponentSafe, type Ref, type Result, type StageError } from "../../contracts/kernel.js";
-import type { DownloadSource, PlayableLink, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntityKind, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../contracts/music_data_platform.js";
+import type { DownloadSource, PlayableLink, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, ProviderMaterialCandidate, SongLyrics, SourceAlbum, SourceArtist, SourceEntityKind, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../contracts/music_data_platform.js";
 import { failExtension, ok } from "../errors.js";
 import type { MineMusicPlugin } from "../plugin_runtime.js";
 import { platformLibraryProviderSlot } from "../platform_library_provider_slot.js";
@@ -24,6 +24,8 @@ type NcmArtist = {
   alia?: unknown;
   trans?: unknown;
   transNames?: unknown;
+  picUrl?: unknown;
+  img1v1Url?: unknown;
 };
 
 type NcmAlbum = {
@@ -37,6 +39,7 @@ type NcmAlbum = {
   alias?: unknown;
   alia?: unknown;
   transNames?: unknown;
+  picUrl?: unknown;
 };
 
 type NcmSong = {
@@ -106,9 +109,9 @@ export function createNcmPlugin(config: NcmPluginConfig = {}): MineMusicPlugin {
 function createNcmSourceProvider(config: unknown): SourceProvider {
   return {
     descriptor: {
-      providerId: ncmProviderId,
+    providerId: ncmProviderId,
       label: "NetEase Cloud Music",
-      capabilities: ["search", "playable_links", "download_source"],
+      capabilities: ["search", "playable_links", "download_source", "entity_picture_url", "song_lyrics"],
     },
     async search({ query }) {
       const text = query.text.trim();
@@ -180,13 +183,19 @@ function createNcmSourceProvider(config: unknown): SourceProvider {
     async getDownloadSource({ sourceRef, preferredBitrate }) {
       return readNcmDownloadSource(config, sourceRef, preferredBitrate);
     },
+    async getEntityPictureUrl({ sourceRef }) {
+      return readNcmEntityPictureUrl(config, sourceRef);
+    },
+    async getSongLyrics({ sourceRef }) {
+      return readNcmSongLyrics(config, sourceRef);
+    },
   };
 }
 
 function createNcmPlatformLibraryProvider(config: unknown): PlatformLibraryProvider {
   return {
     descriptor: {
-      providerId: ncmProviderId,
+    providerId: ncmProviderId,
       label: "NetEase Cloud Music",
       libraryKinds: [
         "saved_source_track",
@@ -263,6 +272,7 @@ async function readNcmSavedTracks(
   const nextOffset = offset.value + selected.length;
 
   return ok({
+    origin: "provider",
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "saved_source_track",
@@ -317,6 +327,7 @@ async function readNcmSavedAlbums(
   }
 
   return ok({
+    origin: "provider",
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "saved_source_album",
@@ -371,6 +382,7 @@ async function readNcmFollowedArtists(
   }
 
   return ok({
+    origin: "provider",
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "followed_source_artist",
@@ -1025,6 +1037,7 @@ function toTrackCandidate(song: NcmSong): ProviderMaterialCandidate | undefined 
       id,
       label,
     },
+    origin: "provider",
     providerId: ncmProviderId,
     providerEntityId: id,
     label,
@@ -1069,6 +1082,7 @@ function toAlbumCandidate(album: NcmAlbum): ProviderMaterialCandidate | undefine
       id,
       label,
     },
+    origin: "provider",
     providerId: ncmProviderId,
     providerEntityId: id,
     label,
@@ -1106,6 +1120,7 @@ function toArtistCandidate(artist: NcmArtist): ProviderMaterialCandidate | undef
       id,
       label: name,
     },
+    origin: "provider",
     providerId: ncmProviderId,
     providerEntityId: id,
     label: name,
@@ -1694,4 +1709,180 @@ async function readNcmDownloadSource(
 
 function defaultNcmDownloadBitrate(): number {
   return 999000;
+}
+
+// Entity picture URL: a public display image URL for a track/album/artist. A
+// track's picture is its album cover (al.picUrl); albums and artists carry
+// their own. Pictures are public — no account or copyright gating like audio —
+// so "no picture" (track with no album, an entity with no picUrl) is an honest
+// empty ok(undefined), never an error. Only an unreachable or structurally
+// malformed provider response is a failure, mirroring the readNcmSongUrl
+// precedent: a missing top-level container (songs not an array, album/artist
+// not an object) is a shape failure, while a present container without the
+// wanted field is ok(undefined).
+async function readNcmEntityPictureUrl(
+  config: unknown,
+  sourceRef: Ref,
+): Promise<Result<string | undefined>> {
+  const entityId = toUsableProviderId(sourceRef.id);
+
+  if (entityId === undefined) {
+    return ok(undefined);
+  }
+
+  if (sourceRef.kind === "track") {
+    return readNcmTrackPicture(config, entityId);
+  }
+
+  if (sourceRef.kind === "album") {
+    return readNcmAlbumPicture(config, entityId);
+  }
+
+  if (sourceRef.kind === "artist") {
+    return readNcmArtistPicture(config, entityId);
+  }
+
+  // An unrecognized kind has no picture concept — honest empty, not an error.
+  return ok(undefined);
+}
+
+async function readNcmTrackPicture(
+  config: unknown,
+  songId: string,
+): Promise<Result<string | undefined>> {
+  const payload = await requestNcmPath(config, "/song/detail", { ids: songId });
+
+  if (!payload.ok) {
+    return payload;
+  }
+
+  const songs = ncmLibraryArray<NcmSong>(payload.value, ["songs"]);
+
+  if (!songs.ok) {
+    return songs;
+  }
+
+  const song = songs.value[0];
+
+  if (song === undefined) {
+    return ok(undefined);
+  }
+
+  const album = albumRecord(song.album, song.al);
+
+  return ok(toNonEmptyString(album?.picUrl));
+}
+
+async function readNcmAlbumPicture(
+  config: unknown,
+  albumId: string,
+): Promise<Result<string | undefined>> {
+  const payload = await requestNcmPath(config, "/album", { id: albumId });
+
+  if (!payload.ok) {
+    return payload;
+  }
+
+  if (!isRecord(payload.value)) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM /album response was not an object.",
+    );
+  }
+
+  const album = payload.value.album;
+
+  if (!isRecord(album)) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM /album response did not include an album object.",
+    );
+  }
+
+  return ok(toNonEmptyString((album as NcmAlbum).picUrl));
+}
+
+async function readNcmArtistPicture(
+  config: unknown,
+  artistId: string,
+): Promise<Result<string | undefined>> {
+  const payload = await requestNcmPath(config, "/artist", { id: artistId });
+
+  if (!payload.ok) {
+    return payload;
+  }
+
+  if (!isRecord(payload.value)) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM /artist response was not an object.",
+    );
+  }
+
+  const artist = payload.value.artist;
+
+  if (!isRecord(artist)) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM /artist response did not include an artist object.",
+    );
+  }
+
+  const record = artist as NcmArtist;
+
+  return ok(toNonEmptyString(record.picUrl) ?? toNonEmptyString(record.img1v1Url));
+}
+
+// Song lyrics: a track's main lyric text plus optional translation and
+// romanization tracks, each the raw LRC the provider returns (timestamps
+// preserved; no lossy parse owned by this layer). Lyrics apply only to tracks;
+// albums/artists and an unresolvable id yield ok(undefined) (honest empty, never
+// an error). A track with no lyrics (instrumental, not provided — main lrc empty
+// or absent) is also ok(undefined). Only an unreachable or structurally malformed
+// /lyric response is a failure, mirroring readNcmEntityPictureUrl's discipline.
+async function readNcmSongLyrics(
+  config: unknown,
+  sourceRef: Ref,
+): Promise<Result<SongLyrics | undefined>> {
+  if (sourceRef.kind !== "track") {
+    return ok(undefined);
+  }
+
+  const songId = toUsableProviderId(sourceRef.id);
+
+  if (songId === undefined) {
+    return ok(undefined);
+  }
+
+  const payload = await requestNcmPath(config, "/lyric", { id: songId });
+
+  if (!payload.ok) {
+    return payload;
+  }
+
+  if (!isRecord(payload.value)) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM /lyric response was not an object.",
+    );
+  }
+
+  const mainLyric = lyricText(payload.value.lrc);
+
+  if (mainLyric === undefined) {
+    return ok(undefined);
+  }
+
+  const translation = lyricText(payload.value.tlyric);
+  const romanization = lyricText(payload.value.romalrc);
+
+  return ok({
+    lyrics: mainLyric,
+    ...(translation === undefined ? {} : { translation }),
+    ...(romanization === undefined ? {} : { romanization }),
+  });
+}
+
+function lyricText(node: unknown): string | undefined {
+  return isRecord(node) ? toNonEmptyString(node.lyric) : undefined;
 }

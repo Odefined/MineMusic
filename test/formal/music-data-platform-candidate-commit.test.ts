@@ -194,6 +194,7 @@ function tableCount(db: MusicDatabaseContext, tableName: string): number {
 function sourceTrack(id: string, title: string): SourceTrack {
   return {
     kind: "track",
+    origin: "provider",
     sourceRef: {
       namespace: "source_netease",
       kind: "track",
@@ -224,9 +225,9 @@ function candidateCacheRecord(input: {
 
   return {
     materialCandidateRefKey: input.materialCandidateRefKey,
-    providerId: input.source.providerId,
+    providerId: input.source.providerId!,
     sourceRefKey: refKey(input.source.sourceRef),
-    providerEntityId: input.source.providerEntityId,
+    providerEntityId: input.source.providerEntityId!,
     sourceKind: input.source.kind,
     materialCandidateKind: "provider_candidate",
     validatedProviderCandidateJson: JSON.stringify(providerCandidate),

@@ -336,6 +336,18 @@ function validateSourceProvider(provider: SourceProvider, registrationProviderId
     );
   }
 
+  if (seenCapabilities.has("entity_picture_url") && typeof provider.getEntityPictureUrl !== "function") {
+    return invalidSourceProviderDescriptor(
+      "Source provider descriptor declares entity_picture_url but provider.getEntityPictureUrl is not a function.",
+    );
+  }
+
+  if (seenCapabilities.has("song_lyrics") && typeof provider.getSongLyrics !== "function") {
+    return invalidSourceProviderDescriptor(
+      "Source provider descriptor declares song_lyrics but provider.getSongLyrics is not a function.",
+    );
+  }
+
   return ok(undefined);
 }
 
@@ -474,7 +486,9 @@ function invalidSourceProviderDescriptor(message: string): Result<never> {
 function isSourceProviderCapability(capability: unknown): capability is SourceProviderCapability {
   return capability === "search" ||
     capability === "playable_links" ||
-    capability === "download_source";
+    capability === "download_source" ||
+    capability === "entity_picture_url" ||
+    capability === "song_lyrics";
 }
 
 function validateSourceProviderDownloadSourceInput(input: SourceProviderDownloadSourceInput): Result<void> {

@@ -1010,6 +1010,7 @@ fixtureMixedDatabase.close();
             providerCandidate({
               kind: "track",
               sourceRef: sourceRefForProvider("netease", "track", "ncm_12345"),
+              origin: "provider",
               providerId: "netease",
               providerEntityId: "12345",
               label: "divergent id alpha",
@@ -1889,6 +1890,7 @@ function sourceTrackEntityForProvider(providerId: string, id: string, title: str
   return {
     kind: "track",
     sourceRef: sourceRefForProvider(providerId, "track", id),
+    origin: "provider",
     providerId,
     providerEntityId: id,
     label: title,

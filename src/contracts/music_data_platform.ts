@@ -57,6 +57,16 @@ export type DownloadSource = {
   expiresAt?: string;
 };
 
+// Lyrics for a track: the main lyric text plus optional translation and
+// romanization tracks. Each value is the raw LRC text the provider returns
+// (timestamps preserved; the provider does not own a lossy parse). "No lyrics"
+// (instrumental, not provided) is ok(undefined) at the provider method level.
+export type SongLyrics = {
+  lyrics: string;
+  translation?: string;
+  romanization?: string;
+};
+
 export type SourceEntityKind =
   | "track"
   | "album"
@@ -68,10 +78,18 @@ export type SourceAvailabilityHint =
   | "unavailable"
   | "unknown";
 
+export type SourceOrigin = "provider" | "local_file";
+
+// `origin` discriminates provider-backed sources (which carry providerId/
+// providerEntityId) from local-file sources (identified by file md5, with no
+// provider). It lives both on the entity — so entity_json is self-describing —
+// and as a source_records column, where it is the partial-index predicate.
+// Same both-places pattern the codebase already uses for kind/providerId.
 export type SourceEntityBase = {
   sourceRef: Ref;
-  providerId: string;
-  providerEntityId: string;
+  origin: SourceOrigin;
+  providerId?: string;
+  providerEntityId?: string;
   label: string;
   providerUrl?: string;
   links?: readonly PlayableLink[];
@@ -217,7 +235,9 @@ export type SourceQuery = {
 export type SourceProviderCapability =
   | "search"
   | "playable_links"
-  | "download_source";
+  | "download_source"
+  | "entity_picture_url"
+  | "song_lyrics";
 
 export type SourceProviderDescriptor = {
   providerId: string;
@@ -241,6 +261,23 @@ export type SourceProvider = {
     preferredBitrate?: number;
     sessionId?: string;
   }) => Promise<Result<DownloadSource>>;
+  // A public display picture URL for the entity. A track's picture is its album
+  // cover; albums and artists carry their own. Pictures are public (no account
+  // or copyright gating like audio), so "no picture" is an honest empty
+  // (ok(undefined)) rather than an error — the provider only fails when the
+  // response itself is unreachable or malformed. Pure read; no durable state.
+  getEntityPictureUrl?: (input: {
+    sourceRef: Ref;
+    sessionId?: string;
+  }) => Promise<Result<string | undefined>>;
+  // Lyrics for a track. Only tracks carry lyrics; albums/artists yield
+  // ok(undefined) (honest empty, never an error). "No lyrics" (instrumental,
+  // not provided) is also ok(undefined); the provider only fails when the
+  // response itself is unreachable or malformed. Pure read; no durable state.
+  getSongLyrics?: (input: {
+    sourceRef: Ref;
+    sessionId?: string;
+  }) => Promise<Result<SongLyrics | undefined>>;
 };
 
 export type PlatformLibraryKind =

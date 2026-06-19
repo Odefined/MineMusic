@@ -533,6 +533,9 @@ function musicDataPlatformModuleFor(input: {
     download() {
       return undefined;
     },
+    localSource() {
+      return undefined;
+    },
   };
 }
 
@@ -628,6 +631,7 @@ function platformCandidate(id: string): PlatformLibraryCandidate {
         kind: "track",
         id,
       },
+      origin: "provider",
       providerId: "netease",
       providerEntityId: id,
       label: `Track ${id}`,

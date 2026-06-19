@@ -617,6 +617,7 @@ function createStaleSourceLibraryFixture(input: {
   const entity: SourceEntity = {
     kind: "track",
     sourceRef,
+    origin: "provider",
     providerId: input.config.providerId,
     providerEntityId: `perf_stale_${safeSuffix}`,
     label: "MineMusic perf stale probe",
@@ -655,7 +656,7 @@ function createStaleSourceLibraryFixture(input: {
         batch: scopedBatch,
         sourceRef,
         providerId: input.config.providerId,
-        providerEntityId: entity.providerEntityId,
+        providerEntityId: entity.providerEntityId!,
         materialRef,
       });
     });

@@ -463,6 +463,7 @@ function providerCandidateFixture(): ProviderMaterialCandidate {
     providerScore: 0.98,
     sourceEntity: {
       kind: "track",
+      origin: "provider",
       providerId: "netease",
       providerEntityId: "iron_lotus_fixture",
       sourceRef: {

@@ -1064,6 +1064,163 @@ assertErrorCode(
   "extension.ncm_malformed_response",
 );
 
+// getEntityPictureUrl is declared as a provider capability.
+assert.ok(
+  (await sourceProviderFor({ fetch: fetchJson({ code: 200 }).fetch })).descriptor.capabilities.includes("entity_picture_url"),
+);
+
+// getEntityPictureUrl: an album maps to /album and returns album.picUrl.
+const albumPictureFetch = fetchJson({
+  code: 200,
+  album: { id: 3001, name: "Cover Album", picUrl: "http://ncm.test/album.jpg" },
+});
+const albumPictureProvider = await sourceProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: albumPictureFetch.fetch,
+});
+const albumPicture = await assertOk(albumPictureProvider.getEntityPictureUrl?.({
+  sourceRef: { namespace: "source_netease", kind: "album", id: "3001" },
+}) ?? fail("missing_entity_picture_url", "missing getEntityPictureUrl"));
+assert.equal(albumPictureFetch.urls[0]?.pathname, "/album");
+assert.equal(albumPictureFetch.urls[0]?.searchParams.get("id"), "3001");
+assert.equal(albumPicture, "http://ncm.test/album.jpg");
+
+// getEntityPictureUrl: a track maps to /song/detail and returns its album cover (al.picUrl).
+const trackPictureFetch = fetchJson({
+  code: 200,
+  songs: [{ id: 1001, al: { id: 3001, picUrl: "http://ncm.test/track.jpg" } }],
+});
+const trackPictureProvider = await sourceProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: trackPictureFetch.fetch,
+});
+const trackPicture = await assertOk(trackPictureProvider.getEntityPictureUrl?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_entity_picture_url", "missing getEntityPictureUrl"));
+assert.equal(trackPictureFetch.urls[0]?.pathname, "/song/detail");
+assert.equal(trackPictureFetch.urls[0]?.searchParams.get("ids"), "1001");
+assert.equal(trackPicture, "http://ncm.test/track.jpg");
+
+// getEntityPictureUrl: an artist maps to /artist and returns artist.picUrl.
+const artistPictureFetch = fetchJson({
+  code: 200,
+  artist: { id: 2001, name: "Pictured Artist", picUrl: "http://ncm.test/artist.jpg" },
+});
+const artistPictureProvider = await sourceProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: artistPictureFetch.fetch,
+});
+const artistPicture = await assertOk(artistPictureProvider.getEntityPictureUrl?.({
+  sourceRef: { namespace: "source_netease", kind: "artist", id: "2001" },
+}) ?? fail("missing_entity_picture_url", "missing getEntityPictureUrl"));
+assert.equal(artistPictureFetch.urls[0]?.pathname, "/artist");
+assert.equal(artistPictureFetch.urls[0]?.searchParams.get("id"), "2001");
+assert.equal(artistPicture, "http://ncm.test/artist.jpg");
+
+// getEntityPictureUrl: an artist without picUrl falls back to img1v1Url.
+const artistAvatarProvider = await sourceProviderFor({
+  fetch: fetchJson({
+    code: 200,
+    artist: { id: 2002, name: "Avatar Artist", img1v1Url: "http://ncm.test/avatar.jpg" },
+  }).fetch,
+});
+const artistAvatar = await assertOk(artistAvatarProvider.getEntityPictureUrl?.({
+  sourceRef: { namespace: "source_netease", kind: "artist", id: "2002" },
+}) ?? fail("missing_entity_picture_url", "missing getEntityPictureUrl"));
+assert.equal(artistAvatar, "http://ncm.test/avatar.jpg");
+
+// getEntityPictureUrl: an entity with no picture (album present, no picUrl) is an honest empty.
+const noPictureProvider = await sourceProviderFor({
+  fetch: fetchJson({ code: 200, album: { id: 3003, name: "Coverless Album" } }).fetch,
+});
+const noPicture = await assertOk(noPictureProvider.getEntityPictureUrl?.({
+  sourceRef: { namespace: "source_netease", kind: "album", id: "3003" },
+}) ?? fail("missing_entity_picture_url", "missing getEntityPictureUrl"));
+assert.equal(noPicture, undefined);
+
+// getEntityPictureUrl: a track with no album record is an honest empty.
+const tracklessProvider = await sourceProviderFor({
+  fetch: fetchJson({ code: 200, songs: [{ id: 1002 }] }).fetch,
+});
+const trackless = await assertOk(tracklessProvider.getEntityPictureUrl?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1002" },
+}) ?? fail("missing_entity_picture_url", "missing getEntityPictureUrl"));
+assert.equal(trackless, undefined);
+
+// getEntityPictureUrl: a structurally malformed /album payload (no album object) is a FAILURE.
+const malformedAlbumPictureProvider = await sourceProviderFor({
+  fetch: fetchJson({ code: 200, album: null }).fetch,
+});
+assertErrorCode(
+  await malformedAlbumPictureProvider.getEntityPictureUrl?.({
+    sourceRef: { namespace: "source_netease", kind: "album", id: "3001" },
+  }) ?? fail("missing_entity_picture_url", "missing getEntityPictureUrl"),
+  "extension.ncm_malformed_response",
+);
+
+// getSongLyrics is declared as a provider capability.
+assert.ok(
+  (await sourceProviderFor({ fetch: fetchJson({ code: 200 }).fetch })).descriptor.capabilities.includes("song_lyrics"),
+);
+
+// getSongLyrics: a track maps to /lyric and returns main lyrics + translation + romanization.
+const lyricsFetch = fetchJson({
+  code: 200,
+  lrc: { lyric: "[00:01.00]main line" },
+  tlyric: { lyric: "[00:01.00]translated line" },
+  romalrc: { lyric: "[00:01.00]romanized line" },
+});
+const lyricsProvider = await sourceProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: lyricsFetch.fetch,
+});
+const lyrics = await assertOk(lyricsProvider.getSongLyrics?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_song_lyrics", "missing getSongLyrics"));
+assert.equal(lyricsFetch.urls[0]?.pathname, "/lyric");
+assert.equal(lyricsFetch.urls[0]?.searchParams.get("id"), "1001");
+assert.deepEqual(lyrics, {
+  lyrics: "[00:01.00]main line",
+  translation: "[00:01.00]translated line",
+  romanization: "[00:01.00]romanized line",
+});
+
+// getSongLyrics: a track with only main lyrics omits translation/romanization keys.
+const mainOnlyProvider = await sourceProviderFor({
+  fetch: fetchJson({ code: 200, lrc: { lyric: "[00:02.00]solo" } }).fetch,
+});
+const mainOnly = await assertOk(mainOnlyProvider.getSongLyrics?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_song_lyrics", "missing getSongLyrics"));
+assert.deepEqual(mainOnly, { lyrics: "[00:02.00]solo" });
+
+// getSongLyrics: a track with no lyrics (lrc absent) is an honest empty.
+const noLyricsProvider = await sourceProviderFor({
+  fetch: fetchJson({ code: 200 }).fetch,
+});
+const noLyrics = await assertOk(noLyricsProvider.getSongLyrics?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_song_lyrics", "missing getSongLyrics"));
+assert.equal(noLyrics, undefined);
+
+// getSongLyrics: a non-track sourceRef is an honest empty, never an error.
+const albumLyrics = await assertOk(lyricsProvider.getSongLyrics?.({
+  sourceRef: { namespace: "source_netease", kind: "album", id: "3001" },
+}) ?? fail("missing_song_lyrics", "missing getSongLyrics"));
+assert.equal(albumLyrics, undefined);
+
+// getSongLyrics: an unreachable provider is a FAILURE (transport), never ok(undefined).
+const lyricsUnavailableProvider = await sourceProviderFor({
+  fetch: async () => new Response("unavailable", { status: 503 }),
+});
+assertErrorCode(
+  await lyricsUnavailableProvider.getSongLyrics?.({
+    sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+  }) ?? fail("missing_song_lyrics", "missing getSongLyrics"),
+  "extension.ncm_provider_unavailable",
+  true,
+);
+
 function fetchJson(payload: unknown): { fetch: typeof fetch; urls: URL[] } {
   return fetchSequence([payload]);
 }

@@ -703,6 +703,7 @@ function sourceTrack(
       kind: "track",
       id: `ncm_${id}`,
     },
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,
@@ -724,9 +725,9 @@ function candidateCacheRecord(input: {
 
   return {
     materialCandidateRefKey: input.materialCandidateRefKey,
-    providerId: input.source.providerId,
+    providerId: input.source.providerId!,
     sourceRefKey: refKey(input.source.sourceRef),
-    providerEntityId: input.source.providerEntityId,
+    providerEntityId: input.source.providerEntityId!,
     sourceKind: input.source.kind,
     materialCandidateKind: "provider_candidate",
     validatedProviderCandidateJson: JSON.stringify(providerCandidate),

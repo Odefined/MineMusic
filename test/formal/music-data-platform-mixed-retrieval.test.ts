@@ -610,6 +610,7 @@ function sourceTrack(id: string, title: string): SourceTrack {
       kind: "track",
       id,
     },
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,

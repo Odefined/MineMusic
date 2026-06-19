@@ -312,6 +312,7 @@ function platformCandidate(id: string): PlatformLibraryCandidate {
     providerAccountId: "test-account",
     sourceEntity: {
       kind: "track",
+      origin: "provider",
       sourceRef: {
         namespace: "source_netease",
         kind: "track",

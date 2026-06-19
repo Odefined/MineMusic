@@ -413,6 +413,7 @@ function sourceTrack(id: string, title: string): SourceEntity {
       kind: "track",
       id,
     },
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,

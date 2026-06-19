@@ -498,7 +498,7 @@ identity/source state, not Collection identity.
 
 ### Source Entity Store
 
-A provider-neutral Material Store area for provider-origin music objects and the
+A provider-neutral Material Store area for provider-origin or local music objects and the
 owner-scoped Source Library built from them.
 _Avoid_: NetEase-specific entities, Canonical Records, MusicBrainz normalization.
 
@@ -512,6 +512,19 @@ and import/update history such as batches, reports, snapshots, and absences.
 
 A Source Entity for one provider-owned playable or library track identity.
 _Avoid_: Canonical Recording, NetEase track table.
+
+### Local Source
+
+A Source Entity whose origin is a local audio file rather than a provider.
+Source identity is file-level: one local file is one Local Source, so the same
+song held as both flac and mp3 is two Local Sources, not one. Recording-level
+identity — which song a Local Source is — is a material concern, not a source
+concern; Local Sources (and provider sources) bind to the same material by
+recording-level identity, never by collapsing several files into one source.
+Local Sources enter through a local-source command, not the provider import /
+Source Library mirror.
+_Avoid_: provider source, Material, recording-level dedup key, audio fingerprint
+as source identity.
 
 ### Source Release
 

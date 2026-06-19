@@ -535,6 +535,7 @@ function initializedDatabase(): ReturnType<typeof SqliteMusicDatabase.open> {
 
 function sourceTrack(id: string, title: string): {
   kind: "track";
+  origin: "provider";
   sourceRef: Ref;
   providerId: string;
   providerEntityId: string;
@@ -543,6 +544,7 @@ function sourceTrack(id: string, title: string): {
 } {
   return {
     kind: "track",
+    origin: "provider",
     sourceRef: sourceRef("track", id),
     providerId: "netease",
     providerEntityId: id,

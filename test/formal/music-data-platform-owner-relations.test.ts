@@ -1197,6 +1197,7 @@ function insertOwnerMaterialRelationRow(
 function sourceTrack(id: string, title: string): {
   kind: "track";
   sourceRef: Ref;
+  origin: "provider";
   providerId: string;
   providerEntityId: string;
   label: string;
@@ -1205,6 +1206,7 @@ function sourceTrack(id: string, title: string): {
   return {
     kind: "track",
     sourceRef: sourceRef("track", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,

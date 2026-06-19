@@ -827,6 +827,7 @@ database.close();
 function sourceTrack(id: string, label: string): SourceEntity {
   return {
     sourceRef: sourceRef(id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     kind: "track",
@@ -838,6 +839,7 @@ function sourceTrack(id: string, label: string): SourceEntity {
 function sourceAlbum(id: string, label: string): SourceEntity {
   return {
     sourceRef: sourceRefWithKind("album", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     kind: "album",

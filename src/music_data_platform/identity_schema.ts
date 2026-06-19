@@ -6,15 +6,44 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
     context.run(`
       CREATE TABLE IF NOT EXISTS source_records (
         ref_key TEXT PRIMARY KEY,
-        provider_id TEXT NOT NULL,
-        provider_entity_id TEXT NOT NULL,
+        origin TEXT NOT NULL DEFAULT 'provider',
+        provider_id TEXT,
+        provider_entity_id TEXT,
         kind TEXT NOT NULL,
         entity_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        UNIQUE(provider_id, provider_entity_id, kind)
+        updated_at TEXT NOT NULL
       )
     `);
+
+    // The table-level UNIQUE was removed: SQLite treats multiple NULLs as
+    // distinct, so provider_id IS NULL local rows would never dedup. Two partial
+    // unique indexes (same shape as material_records_active_canonical_ref_key_uidx)
+    // make each origin's identity authoritative.
+    context.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS source_records_provider_identity_uidx
+      ON source_records(provider_id, provider_entity_id, kind)
+      WHERE origin = 'provider'
+    `);
+
+    context.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS source_records_local_md5_uidx
+      ON source_records(provider_entity_id, kind)
+      WHERE origin = 'local_file'
+    `);
+
+    // Rebuild-DB migration policy (no ALTER in this codebase): if an existing
+    // on-disk DB predates the origin column, CREATE TABLE IF NOT EXISTS silently
+    // skips and the new write path would throw on the missing column. Fail loud
+    // at initialize so a forgotten rebuild is caught here, not at INSERT time.
+    const sourceRecordColumns = context.all<{ name: string }>(
+      "PRAGMA table_info(source_records)",
+    );
+    if (!sourceRecordColumns.some((column) => column.name === "origin")) {
+      throw new Error(
+        "music_data_platform.identity: stale schema — source_records lacks the 'origin' column. Delete the on-disk DB file before initialize (rebuild policy; no in-place ALTER in this codebase).",
+      );
+    }
 
     context.run(`
       CREATE TABLE IF NOT EXISTS canonical_records (

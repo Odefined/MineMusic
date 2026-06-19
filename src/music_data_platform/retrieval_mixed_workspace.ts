@@ -489,9 +489,9 @@ function addProviderCandidateDescriptor(input: {
 
   input.records.materialCandidates.upsert({
     materialCandidateRefKey,
-    providerId: sourceEntity.providerId,
+    providerId: sourceEntity.providerId!,
     sourceRefKey,
-    providerEntityId: sourceEntity.providerEntityId,
+    providerEntityId: sourceEntity.providerEntityId!,
     sourceKind: sourceEntity.kind,
     materialCandidateKind: "provider_candidate",
     validatedProviderCandidateJson: JSON.stringify(input.candidate),

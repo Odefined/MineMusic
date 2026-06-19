@@ -1,5 +1,5 @@
 import { parseRefKey, refKey, type Ref } from "../contracts/kernel.js";
-import type { CanonicalEntity, MaterialEntity, SourceEntity, SourceEntityKind } from "../contracts/music_data_platform.js";
+import type { CanonicalEntity, MaterialEntity, SourceEntity, SourceEntityKind, SourceOrigin } from "../contracts/music_data_platform.js";
 import type { CanonicalRecord, CanonicalRecordStatus, MaterialRecord, SourceRecord } from "../contracts/storage.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 
@@ -29,6 +29,10 @@ export type SourceRecordRepository = {
     providerEntityId: string;
     kind: SourceEntityKind;
   }): SourceRecord | undefined;
+  findByLocalIdentity(input: {
+    md5: string;
+    kind: SourceEntityKind;
+  }): SourceRecord | undefined;
 };
 
 export type MaterialRecordRepository = {
@@ -51,8 +55,9 @@ export type SourceToMaterialBindingRepository = {
 
 type SourceRecordRow = {
   ref_key: string;
-  provider_id: string;
-  provider_entity_id: string;
+  origin: string;
+  provider_id: string | null;
+  provider_entity_id: string | null;
   kind: SourceEntityKind;
   entity_json: string;
   created_at: string;
@@ -101,6 +106,7 @@ export function createIdentityRepositories(
         `
           INSERT INTO source_records (
             ref_key,
+            origin,
             provider_id,
             provider_entity_id,
             kind,
@@ -108,8 +114,9 @@ export function createIdentityRepositories(
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(ref_key) DO UPDATE SET
+            origin = excluded.origin,
             provider_id = excluded.provider_id,
             provider_entity_id = excluded.provider_entity_id,
             kind = excluded.kind,
@@ -118,8 +125,9 @@ export function createIdentityRepositories(
         `,
         [
           refKey(record.entity.sourceRef),
-          record.lookup.providerId,
-          record.lookup.providerEntityId,
+          record.lookup.origin,
+          record.lookup.providerId ?? null,
+          record.lookup.providerEntityId ?? null,
           record.lookup.kind,
           JSON.stringify(record.entity),
           record.createdAt,
@@ -149,6 +157,19 @@ export function createIdentityRepositories(
             AND kind = ?
         `,
         [input.providerId, input.providerEntityId, input.kind],
+      );
+
+      return row === undefined ? undefined : sourceRecordFromRow(row);
+    },
+    findByLocalIdentity(input) {
+      const row = db.get<SourceRecordRow>(
+        `
+          SELECT * FROM source_records
+          WHERE origin = 'local_file'
+            AND provider_entity_id = ?
+            AND kind = ?
+        `,
+        [input.md5, input.kind],
       );
 
       return row === undefined ? undefined : sourceRecordFromRow(row);
@@ -344,16 +365,28 @@ export function createIdentityRepositories(
 }
 
 function sourceRecordFromRow(row: SourceRecordRow): SourceRecord {
+  const entity = normalizeSourceEntityOrigin(
+    JSON.parse(row.entity_json) as SourceEntity,
+    row.origin,
+  );
   return {
-    entity: JSON.parse(row.entity_json) as SourceEntity,
+    entity,
     lookup: {
-      providerId: row.provider_id,
-      providerEntityId: row.provider_entity_id,
+      origin: row.origin as SourceOrigin,
+      ...(row.provider_id === null ? {} : { providerId: row.provider_id }),
+      ...(row.provider_entity_id === null ? {} : { providerEntityId: row.provider_entity_id }),
       kind: row.kind,
     },
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+// Old entity_json (and candidate-cache records parsed elsewhere) may predate the
+// origin field. The origin column is authoritative — stamp it onto the entity so
+// the in-memory SourceEntity is self-describing and passes assertSourceEntityRefShape.
+function normalizeSourceEntityOrigin(entity: SourceEntity, origin: string): SourceEntity {
+  return { ...entity, origin: origin as SourceOrigin };
 }
 
 function materialRecordFromRow(row: MaterialRecordRow): MaterialRecord {

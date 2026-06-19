@@ -186,20 +186,45 @@ function upsertSourceRecord(
     code: "music_data.record_ref_key_mismatch",
   });
 
-  const lookup = {
-    providerId: input.entity.providerId,
-    providerEntityId: input.entity.providerEntityId,
+  const lookup: SourceRecord["lookup"] = {
+    origin: input.entity.origin,
     kind: input.entity.kind,
   };
+  if (input.entity.providerId !== undefined) {
+    lookup.providerId = input.entity.providerId;
+  }
+  if (input.entity.providerEntityId !== undefined) {
+    lookup.providerEntityId = input.entity.providerEntityId;
+  }
 
-  const existingByProvider = repositories.sourceRecords.findByProviderIdentity(lookup);
+  // Identity lookup branches on origin: provider rows resolve by (providerId,
+  // providerEntityId, kind); local_file rows by (md5, kind) via the local
+  // partial index. findByProviderIdentity's SQL is NULL-unsafe (provider_id =
+  // NULL never matches), so it cannot serve local rows.
+  const existingByIdentity =
+    input.entity.origin === "provider"
+      ? repositories.sourceRecords.findByProviderIdentity({
+          providerId: input.entity.providerId!,
+          providerEntityId: input.entity.providerEntityId!,
+          kind: input.entity.kind,
+        })
+      : repositories.sourceRecords.findByLocalIdentity({
+          md5: input.entity.providerEntityId!,
+          kind: input.entity.kind,
+        });
   if (
-    existingByProvider !== undefined &&
-    refKey(existingByProvider.entity.sourceRef) !== sourceRefKey
+    existingByIdentity !== undefined &&
+    refKey(existingByIdentity.entity.sourceRef) !== sourceRefKey
   ) {
     throwMusicDataError({
-      code: "music_data.source_provider_identity_conflict",
-      message: "Source provider identity already points to a different source ref.",
+      code:
+        input.entity.origin === "provider"
+          ? "music_data.source_provider_identity_conflict"
+          : "music_data.local_source_identity_conflict",
+      message:
+        input.entity.origin === "provider"
+          ? "Source provider identity already points to a different source ref."
+          : "Source local file identity (md5) already points to a different source ref.",
     });
   }
 
@@ -212,7 +237,7 @@ function upsertSourceRecord(
   ) {
     throwMusicDataError({
       code: "music_data.source_provider_identity_conflict",
-      message: "Source ref already points to a different provider identity.",
+      message: "Source ref already points to a different identity.",
     });
   }
 
@@ -627,6 +652,7 @@ function canonicalRefAfterMaterialMerge(
 
 function assertSourceRecordConsistency(record: SourceRecord): void {
   if (
+    record.entity.origin !== record.lookup.origin ||
     record.entity.providerId !== record.lookup.providerId ||
     record.entity.providerEntityId !== record.lookup.providerEntityId ||
     record.entity.kind !== record.lookup.kind
@@ -715,16 +741,45 @@ function assertCanonicalRecordConsistency(record: CanonicalRecord): void {
 }
 
 function assertSourceEntityRefShape(entity: SourceEntity): void {
+  musicDataPlatformRefKey({
+    ref: entity.sourceRef,
+    fieldName: "sourceRef",
+    code: "music_data.record_ref_key_mismatch",
+  });
+
+  if (entity.origin === "local_file") {
+    // Local sources have no provider; their identity is the file md5 carried in
+    // providerEntityId. providerId must be absent, not a 'local' sentinel.
+    if (entity.providerId !== undefined) {
+      throwMusicDataError({
+        code: "music_data.record_ref_key_mismatch",
+        message: "Local source entity must not carry a providerId.",
+      });
+    }
+    assertMusicDataPlatformRefComponentSafe({
+      value: entity.providerEntityId,
+      fieldName: "providerEntityId",
+      code: "music_data.record_ref_key_mismatch",
+      message: "Local source entity providerEntityId (md5) must be a non-empty ref-safe string.",
+    });
+    if (
+      entity.sourceRef.namespace !== "source_local" ||
+      entity.sourceRef.kind !== entity.kind
+    ) {
+      throwMusicDataError({
+        code: "music_data.record_ref_key_mismatch",
+        message: "Local source entity ref must be source_local:<kind>:<md5>.",
+      });
+    }
+    return;
+  }
+
+  // origin === "provider"
   assertMusicDataPlatformRefComponentSafe({
     value: entity.providerId,
     fieldName: "providerId",
     code: "music_data.record_ref_key_mismatch",
     message: "Source entity providerId must be a non-empty ref-safe string.",
-  });
-  musicDataPlatformRefKey({
-    ref: entity.sourceRef,
-    fieldName: "sourceRef",
-    code: "music_data.record_ref_key_mismatch",
   });
   const expectedNamespace = `source_${entity.providerId}`;
   if (
@@ -1046,7 +1101,8 @@ function sameSourceLookup(
   left: SourceRecord["lookup"],
   right: SourceRecord["lookup"],
 ): boolean {
-  return left.providerId === right.providerId &&
+  return left.origin === right.origin &&
+    left.providerId === right.providerId &&
     left.providerEntityId === right.providerEntityId &&
     left.kind === right.kind;
 }

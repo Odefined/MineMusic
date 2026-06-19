@@ -1902,6 +1902,7 @@ function scriptedNow(timestamps: readonly string[]): () => string {
 function sourceTrack(id: string, title: string): SourceEntity {
   return {
     kind: "track",
+    origin: "provider",
     sourceRef: sourceRef("track", id),
     providerId: "netease",
     providerEntityId: id,

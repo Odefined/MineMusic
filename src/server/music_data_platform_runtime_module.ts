@@ -38,6 +38,7 @@ import { createRetrievalResultSetRecords } from "../music_data_platform/retrieva
 import { createDownloadCommands, type DownloadCommands } from "../music_data_platform/download_commands.js";
 import { musicDataPlatformDownloadSchema } from "../music_data_platform/download_schema.js";
 import { createNodeMediaFileWriter } from "../music_data_platform/download_file_writer.js";
+import { createLocalSourceCommand, type LocalSourceCommand } from "../music_data_platform/local_source_commands.js";
 import {
   createRetrievalQueryService,
   type RetrievalQueryService,
@@ -81,6 +82,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   handleMinting(): HandleMintingPort | undefined;
   lookupCursorStore(): LookupCursorStore | undefined;
   download(): DownloadCommands | undefined;
+  localSource(): LocalSourceCommand | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -107,6 +109,7 @@ export function createMusicDataPlatformRuntimeModule(
   let handleMintingPort: HandleMintingPort | undefined;
   let lookupCursorStore: LookupCursorStore | undefined;
   let downloadCommand: DownloadCommands | undefined;
+  let localSourceCommand: LocalSourceCommand | undefined;
   const ownsDatabase = input.database === undefined;
 
   return {
@@ -151,6 +154,10 @@ export function createMusicDataPlatformRuntimeModule(
             : { defaultLimit: input.config.sourceLibraryImport.defaultLimit }),
         });
         candidateCommitCommand = createCandidateCommitCommand({
+          database,
+          materialRefFactory,
+        });
+        localSourceCommand = createLocalSourceCommand({
           database,
           materialRefFactory,
         });
@@ -246,6 +253,7 @@ export function createMusicDataPlatformRuntimeModule(
         sourceLibraryReadPort = undefined;
         retrievalQueryService = undefined;
         downloadCommand = undefined;
+        localSourceCommand = undefined;
         closeOwnedDatabase();
         return {
           ok: false,
@@ -276,6 +284,7 @@ export function createMusicDataPlatformRuntimeModule(
         sourceLibraryReadPort = undefined;
         retrievalQueryService = undefined;
         downloadCommand = undefined;
+        localSourceCommand = undefined;
 
         return {
           ok: true,
@@ -323,6 +332,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     download() {
       return downloadCommand;
+    },
+    localSource() {
+      return localSourceCommand;
     },
   };
 

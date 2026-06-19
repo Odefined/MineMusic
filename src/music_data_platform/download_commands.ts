@@ -448,6 +448,12 @@ function providerIdFromNamespace(namespace: string): string | undefined {
     return undefined;
   }
 
+  // source_local is the local-source namespace, not a provider; refuse it so a
+  // stray local sourceRef never fabricates a fake provider id "local".
+  if (namespace === "source_local") {
+    return undefined;
+  }
+
   const providerId = namespace.slice(SOURCE_NAMESPACE_PREFIX.length);
 
   // providerId inherits safety from the upstream-validated namespace (a safe

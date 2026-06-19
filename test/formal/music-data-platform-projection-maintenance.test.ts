@@ -1535,6 +1535,7 @@ function materialRef(kind: "recording" | "album" | "artist" | "work" | "release"
 function sourceTrack(id: string, title: string): {
   kind: "track";
   sourceRef: Ref;
+  origin: "provider";
   providerId: string;
   providerEntityId: string;
   label: string;
@@ -1547,6 +1548,7 @@ function sourceTrack(id: string, title: string): {
       kind: "track",
       id,
     },
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,

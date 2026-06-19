@@ -114,7 +114,10 @@ export function createCandidateCommitCommand(
 
 function sourceEntityFromCacheRecord(record: MaterialCandidateCacheRecord): SourceEntity {
   const parsed = parseProviderMaterialCandidate(record.validatedProviderCandidateJson);
-  const sourceEntity = parsed.sourceEntity;
+  // Cache records are provider candidates that may predate the origin field;
+  // stamp origin='provider' (authoritative for a provider candidate cache) so
+  // the entity is self-describing and passes assertSourceEntityRefShape.
+  const sourceEntity: SourceEntity = { ...parsed.sourceEntity, origin: "provider" };
 
   assertCandidateCacheRecordMatchesSource(record, sourceEntity);
   return sourceEntity;

@@ -307,5 +307,8 @@ function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
     download() {
       return undefined;
     },
+    localSource() {
+      return undefined;
+    },
   };
 }

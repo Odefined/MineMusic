@@ -278,6 +278,8 @@ for (const badProviderId of [
   "duplicate-provider-capability",
   "bad-search-method",
   "bad-playable-method",
+  "bad-entity-picture-url-method",
+  "bad-song-lyrics-method",
 ] as const) {
   const badProvider = badProviderFor(badProviderId);
 
@@ -807,6 +809,7 @@ const mutatingQueryRuntime = createExtensionRuntime({
                         kind: "album",
                         id: "album-1",
                       },
+                      origin: "provider",
                       providerId: "mutates-query",
                       providerEntityId: "album-1",
                       label: "Album 1",
@@ -1385,6 +1388,22 @@ function badProviderFor(providerId: string): SourceProvider {
           capabilities: ["playable_links"],
         },
       } as unknown as SourceProvider;
+    case "bad-entity-picture-url-method":
+      return {
+        descriptor: {
+          providerId,
+          label: providerId,
+          capabilities: ["entity_picture_url"],
+        },
+      } as unknown as SourceProvider;
+    case "bad-song-lyrics-method":
+      return {
+        descriptor: {
+          providerId,
+          label: providerId,
+          capabilities: ["song_lyrics"],
+        },
+      } as unknown as SourceProvider;
   }
 
   return provider(providerId);
@@ -1531,6 +1550,7 @@ function platformCandidateFor(
         id: providerEntityId,
         label: title,
       },
+      origin: "provider",
       providerId,
       providerEntityId,
       label: title,
@@ -1553,6 +1573,7 @@ function candidateFor(
         id: providerEntityId,
         label: title,
       },
+      origin: "provider",
       providerId,
       providerEntityId,
       label: title,

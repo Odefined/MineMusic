@@ -357,8 +357,8 @@ export function createSourceLibraryImportService(
       const itemWrite = sourceLibraryCommands.recordImportItem({
         batch,
         sourceRef: candidate.sourceEntity.sourceRef,
-        providerId: candidate.sourceEntity.providerId,
-        providerEntityId: candidate.sourceEntity.providerEntityId,
+        providerId: candidate.sourceEntity.providerId!,
+        providerEntityId: candidate.sourceEntity.providerEntityId!,
         materialRef,
         ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
       });

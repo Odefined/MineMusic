@@ -871,6 +871,7 @@ function createStaleSourceLibraryFixture(input: {
   };
   const entity: SourceEntity = {
     kind: "track",
+    origin: "provider",
     sourceRef,
     providerId: input.config.providerId,
     providerEntityId: `scenario_stale_${safeSuffix}`,
@@ -910,7 +911,7 @@ function createStaleSourceLibraryFixture(input: {
         batch: scopedBatch,
         sourceRef,
         providerId: input.config.providerId,
-        providerEntityId: entity.providerEntityId,
+        providerEntityId: entity.providerEntityId!,
         materialRef,
       });
     });

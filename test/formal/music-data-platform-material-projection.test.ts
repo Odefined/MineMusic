@@ -326,6 +326,7 @@ function sourceTrack(
   return {
     kind: "track",
     sourceRef: sourceRef("track", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,
@@ -342,6 +343,7 @@ function sourceAlbum(
   return {
     kind: "album",
     sourceRef: sourceRef("album", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,
@@ -358,6 +360,7 @@ function sourceArtist(
   return {
     kind: "artist",
     sourceRef: sourceRef("artist", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: name,

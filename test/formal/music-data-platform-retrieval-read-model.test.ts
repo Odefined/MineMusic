@@ -1347,6 +1347,7 @@ function sourceTrackWith(
   return {
     kind: "track",
     sourceRef: sourceRef("track", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,
@@ -1361,6 +1362,7 @@ function sourceAlbum(id: string, title: string): SourceAlbum {
   return {
     kind: "album",
     sourceRef: sourceRef("album", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: title,
@@ -1372,6 +1374,7 @@ function sourceArtist(id: string, name: string): SourceArtist {
   return {
     kind: "artist",
     sourceRef: sourceRef("artist", id),
+    origin: "provider",
     providerId: "netease",
     providerEntityId: id,
     label: name,
