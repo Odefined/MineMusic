@@ -953,6 +953,117 @@ assertErrorCode(
   "extension.ncm_invalid_config",
 );
 
+// getPlayableLinks: a resolved track maps to a single playable direct link.
+const playableLinksFetch = fetchJson({
+  code: 200,
+  data: [
+    {
+      url: "http://ncm.test/audio.flac",
+      br: 991769,
+      size: 26386023,
+      md5: "fa838839770f450c4170d6deafcb5488",
+      type: "flac",
+    },
+  ],
+});
+const playableLinksProvider = await sourceProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: playableLinksFetch.fetch,
+});
+const playableLinks = await assertOk(playableLinksProvider.getPlayableLinks?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_playable_links", "missing getPlayableLinks"));
+assert.equal(playableLinksFetch.urls[0]?.pathname, "/song/url");
+assert.equal(playableLinksFetch.urls[0]?.searchParams.get("id"), "1001");
+assert.equal(playableLinksFetch.urls[0]?.searchParams.get("br"), "999000");
+assert.deepEqual(playableLinks, [
+  { url: "http://ncm.test/audio.flac", label: "NetEase Cloud Music" },
+]);
+
+// getPlayableLinks: a non-track sourceRef yields an empty list, never an error.
+const albumPlayableLinks = await assertOk(playableLinksProvider.getPlayableLinks?.({
+  sourceRef: { namespace: "source_netease", kind: "album", id: "3001" },
+}) ?? fail("missing_playable_links", "missing getPlayableLinks"));
+assert.deepEqual(albumPlayableLinks, []);
+
+// getPlayableLinks: a track with no resolvable url (no copyright / expired cookie) -> empty list.
+const noUrlProvider = await sourceProviderFor({
+  fetch: fetchJson({ code: 200, data: [{ url: null }] }).fetch,
+});
+const noUrlPlayableLinks = await assertOk(noUrlProvider.getPlayableLinks?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_playable_links", "missing getPlayableLinks"));
+assert.deepEqual(noUrlPlayableLinks, []);
+
+// getDownloadSource: a resolved track maps to a DownloadSource with full facts.
+const downloadSourceFetch = fetchJson({
+  code: 200,
+  data: [
+    {
+      url: "http://ncm.test/audio.flac",
+      br: 991769,
+      size: 26386023,
+      md5: "fa838839770f450c4170d6deafcb5488",
+      type: "flac",
+    },
+  ],
+});
+const downloadSourceProvider = await sourceProviderFor({
+  baseUrl: "http://ncm.test",
+  fetch: downloadSourceFetch.fetch,
+});
+const downloadSource = await assertOk(downloadSourceProvider.getDownloadSource?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+}) ?? fail("missing_download_source", "missing getDownloadSource"));
+assert.equal(downloadSource.url, "http://ncm.test/audio.flac");
+assert.equal(downloadSource.container, "flac");
+assert.equal(downloadSource.bitrate, 991769);
+assert.equal(downloadSource.sizeBytes, 26386023);
+assert.equal(downloadSource.md5, "fa838839770f450c4170d6deafcb5488");
+
+// getDownloadSource: preferredBitrate is forwarded to /song/url as br.
+const preferredBitrateFetch = fetchJson({
+  code: 200,
+  data: [{ url: "http://ncm.test/audio.mp3", br: 320000, type: "mp3" }],
+});
+const preferredBitrateProvider = await sourceProviderFor({
+  fetch: preferredBitrateFetch.fetch,
+});
+await assertOk(preferredBitrateProvider.getDownloadSource?.({
+  sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+  preferredBitrate: 320000,
+}) ?? fail("missing_download_source", "missing getDownloadSource"));
+assert.equal(preferredBitrateFetch.urls[0]?.searchParams.get("br"), "320000");
+
+// getDownloadSource: a non-track sourceRef is an explicit failure (no audio stream).
+assertErrorCode(
+  await downloadSourceProvider.getDownloadSource?.({
+    sourceRef: { namespace: "source_netease", kind: "album", id: "3001" },
+  }) ?? fail("missing_download_source", "missing getDownloadSource"),
+  "extension.ncm_no_audio_stream",
+);
+
+// getDownloadSource: a track with no resolvable url is an explicit FAILURE, not a
+// silent empty — the playable/downloadable split. No copyright / expired cookie.
+assertErrorCode(
+  await noUrlProvider.getDownloadSource?.({
+    sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+  }) ?? fail("missing_download_source", "missing getDownloadSource"),
+  "extension.ncm_no_download_source",
+  true,
+);
+
+// getDownloadSource: a malformed /song/url payload shape is a FAILURE, not "no stream".
+const malformedSongUrlProvider = await sourceProviderFor({
+  fetch: fetchJson({ code: 200, data: "not-an-array" }).fetch,
+});
+assertErrorCode(
+  await malformedSongUrlProvider.getDownloadSource?.({
+    sourceRef: { namespace: "source_netease", kind: "track", id: "1001" },
+  }) ?? fail("missing_download_source", "missing getDownloadSource"),
+  "extension.ncm_malformed_response",
+);
+
 function fetchJson(payload: unknown): { fetch: typeof fetch; urls: URL[] } {
   return fetchSequence([payload]);
 }

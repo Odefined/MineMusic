@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { ExtensionRuntime } from "../extension/index.js";
 import {
@@ -35,6 +35,9 @@ import {
   type SourceLibraryReadPort,
 } from "../music_data_platform/index.js";
 import { createRetrievalResultSetRecords } from "../music_data_platform/retrieval_result_set_records.js";
+import { createDownloadCommands, type DownloadCommands } from "../music_data_platform/download_commands.js";
+import { musicDataPlatformDownloadSchema } from "../music_data_platform/download_schema.js";
+import { createNodeMediaFileWriter } from "../music_data_platform/download_file_writer.js";
 import {
   createRetrievalQueryService,
   type RetrievalQueryService,
@@ -77,6 +80,7 @@ export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   libraryRelation(): LibraryRelationService | undefined;
   handleMinting(): HandleMintingPort | undefined;
   lookupCursorStore(): LookupCursorStore | undefined;
+  download(): DownloadCommands | undefined;
 };
 
 export type CreateMusicDataPlatformRuntimeModuleInput = {
@@ -102,6 +106,7 @@ export function createMusicDataPlatformRuntimeModule(
   let projectionMaintenanceScheduler: ProjectionMaintenanceScheduler | undefined;
   let handleMintingPort: HandleMintingPort | undefined;
   let lookupCursorStore: LookupCursorStore | undefined;
+  let downloadCommand: DownloadCommands | undefined;
   const ownsDatabase = input.database === undefined;
 
   return {
@@ -125,6 +130,7 @@ export function createMusicDataPlatformRuntimeModule(
             musicDataPlatformMaterialTextProjectionSchema,
             musicDataPlatformProjectionMaintenanceSchema,
             musicDataPlatformRetrievalResultSetSchema,
+            musicDataPlatformDownloadSchema,
             stageInterfaceHandleRegistrySchema,
             stageInterfaceLookupCursorRegistrySchema,
           ],
@@ -190,6 +196,29 @@ export function createMusicDataPlatformRuntimeModule(
           db: database.context(),
           ttlMs: DEFAULT_LOOKUP_CURSOR_TTL_MS,
         });
+        downloadCommand = createDownloadCommands({
+          database,
+          downloadSourceProvider: {
+            async getDownloadSource(dsInput) {
+              const result = await input.extensionRuntime.getSourceProviderDownloadSource({
+                providerId: dsInput.providerId,
+                sourceRef: dsInput.sourceRef,
+                ...(dsInput.preferredBitrate === undefined ? {} : { preferredBitrate: dsInput.preferredBitrate }),
+                ...(dsInput.sessionId === undefined ? {} : { sessionId: dsInput.sessionId }),
+              });
+
+              if (!result.ok) {
+                return result;
+              }
+
+              return { ok: true, value: result.value.downloadSource };
+            },
+          },
+          fileWriter: createNodeMediaFileWriter(),
+          clock: () => new Date().toISOString(),
+          generateJobId: () =>
+            `dl_${createHash("sha256").update(`${Date.now()}-${randomUUID()}`).digest("base64url").slice(0, 16)}`,
+        });
         projectionMaintenanceScheduler = createProjectionMaintenanceScheduler({
           database,
           ...(input.config?.projectionMaintenance === undefined
@@ -216,6 +245,7 @@ export function createMusicDataPlatformRuntimeModule(
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
         retrievalQueryService = undefined;
+        downloadCommand = undefined;
         closeOwnedDatabase();
         return {
           ok: false,
@@ -234,6 +264,7 @@ export function createMusicDataPlatformRuntimeModule(
         const scheduler = projectionMaintenanceScheduler;
         projectionMaintenanceScheduler = undefined;
         await scheduler?.stop();
+        await downloadCommand?.drain();
         closeOwnedDatabase();
         handleMintingPort = undefined;
         lookupCursorStore = undefined;
@@ -244,6 +275,7 @@ export function createMusicDataPlatformRuntimeModule(
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
         retrievalQueryService = undefined;
+        downloadCommand = undefined;
 
         return {
           ok: true,
@@ -288,6 +320,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     lookupCursorStore() {
       return lookupCursorStore;
+    },
+    download() {
+      return downloadCommand;
     },
   };
 

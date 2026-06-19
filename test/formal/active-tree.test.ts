@@ -189,6 +189,10 @@ assert.deepEqual(
     .sort(),
   [
     "src/music_data_platform/candidate_commit_command.ts",
+    "src/music_data_platform/download_commands.ts",
+    "src/music_data_platform/download_file_writer.ts",
+    "src/music_data_platform/download_records.ts",
+    "src/music_data_platform/download_schema.ts",
     "src/music_data_platform/errors.ts",
     "src/music_data_platform/identity_read_model.ts",
     "src/music_data_platform/identity_records.ts",
@@ -1335,6 +1339,9 @@ for (const file of activeFiles) {
 assert.deepEqual(projectionMaintenanceRunnerFactoryFailures, []);
 
 const directWriteAllowedFiles = new Set([
+  "src/music_data_platform/download_commands.ts",
+  "src/music_data_platform/download_records.ts",
+  "src/music_data_platform/download_schema.ts",
   "src/music_data_platform/identity_records.ts",
   "src/music_data_platform/identity_schema.ts",
   "src/music_data_platform/identity_write_model.ts",

@@ -304,5 +304,8 @@ function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
     lookupCursorStore() {
       return undefined;
     },
+    download() {
+      return undefined;
+    },
   };
 }

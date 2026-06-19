@@ -353,6 +353,10 @@ function extensionRuntimeWithSearch(
     listSourceProviders: () => [],
     getSourceProvider: () => undefined,
     searchSourceProvider,
+    getSourceProviderDownloadSource: async () => ({
+      ok: false,
+      error: stageError("extension.source_provider_not_found"),
+    }),
     listPlatformLibraryProviders: () => [],
     getPlatformLibraryProvider: () => undefined,
     readPlatformLibraryProvider: async () => ({

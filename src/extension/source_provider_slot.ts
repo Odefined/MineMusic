@@ -1,6 +1,6 @@
 import { isRecord, isStageErrorLike, isSourceEntityKind } from "./type_guards.js";
-import { assertRefSafe, isRefComponentSafe, type Result } from "../contracts/kernel.js";
-import type { ProviderMaterialCandidate, SourceEntityKind, SourceQuery, SourceProvider, SourceProviderCapability } from "../contracts/music_data_platform.js";
+import { assertRefSafe, isRefComponentSafe, type Ref, type Result } from "../contracts/kernel.js";
+import type { DownloadSource, ProviderMaterialCandidate, SourceEntityKind, SourceQuery, SourceProvider, SourceProviderCapability } from "../contracts/music_data_platform.js";
 import type { CapabilityRegistry } from "./capability_registry.js";
 import { defineCapabilitySlot } from "./capability_slot.js";
 import { invokeCapability } from "./capability_dispatch.js";
@@ -80,6 +80,68 @@ export async function searchSourceProvider(
         providerId: input.providerId,
         query: querySnapshot,
         candidates: value as readonly ProviderMaterialCandidate[],
+      }),
+    },
+  );
+}
+
+export type SourceProviderDownloadSourceInput = {
+  providerId: string;
+  sourceRef: Ref;
+  preferredBitrate?: number;
+  sessionId?: string;
+};
+
+export type SourceProviderDownloadSourceResult = {
+  providerId: string;
+  downloadSource: DownloadSource;
+};
+
+export async function getSourceProviderDownloadSource(
+  registry: CapabilityRegistry,
+  input: SourceProviderDownloadSourceInput,
+): Promise<Result<SourceProviderDownloadSourceResult>> {
+  const inputValidation = validateSourceProviderDownloadSourceInput(input);
+
+  if (!inputValidation.ok) {
+    return inputValidation;
+  }
+
+  return invokeCapability<SourceProvider, SourceProviderDownloadSourceResult>(
+    registry,
+    sourceProviderSlot,
+    input.providerId,
+    {
+      label: "Source provider",
+      notFoundCode: "extension.source_provider_not_found",
+      failedCode: "extension.source_provider_download_source_failed",
+      capabilityCheck: (registration) => {
+        const provider = registration.value;
+        if (
+          !provider.descriptor.capabilities.includes("download_source") ||
+          provider.getDownloadSource === undefined
+        ) {
+          return failExtension(
+            "extension.source_provider_download_source_unsupported",
+            `Source provider '${input.providerId}' does not support download_source.`,
+          );
+        }
+        return ok(undefined);
+      },
+      invoke: (registration) =>
+        registration.value.getDownloadSource!({
+          sourceRef: input.sourceRef,
+          ...(input.preferredBitrate === undefined ? {} : { preferredBitrate: input.preferredBitrate }),
+          ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        }),
+      validateOutput: (value) =>
+        validateSourceProviderDownloadSourceResult({
+          providerId: input.providerId,
+          downloadSource: value as DownloadSource,
+        }),
+      shapeResult: (value) => ({
+        providerId: input.providerId,
+        downloadSource: value as DownloadSource,
       }),
     },
   );
@@ -268,6 +330,12 @@ function validateSourceProvider(provider: SourceProvider, registrationProviderId
     );
   }
 
+  if (seenCapabilities.has("download_source") && typeof provider.getDownloadSource !== "function") {
+    return invalidSourceProviderDescriptor(
+      "Source provider descriptor declares download_source but provider.getDownloadSource is not a function.",
+    );
+  }
+
   return ok(undefined);
 }
 
@@ -405,7 +473,160 @@ function invalidSourceProviderDescriptor(message: string): Result<never> {
 
 function isSourceProviderCapability(capability: unknown): capability is SourceProviderCapability {
   return capability === "search" ||
-    capability === "playable_links";
+    capability === "playable_links" ||
+    capability === "download_source";
+}
+
+function validateSourceProviderDownloadSourceInput(input: SourceProviderDownloadSourceInput): Result<void> {
+  if (!isRecord(input)) {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      "Source provider download_source input must be an object.",
+    );
+  }
+
+  if (!isRefComponentSafe(input.providerId)) {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      "Source provider id must be a non-empty string and must not contain ':'.",
+    );
+  }
+
+  const sourceRef = input.sourceRef;
+
+  if (!isRecord(sourceRef)) {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      "Source provider download_source sourceRef must be an object.",
+    );
+  }
+
+  if (
+    typeof sourceRef.namespace !== "string" ||
+    typeof sourceRef.kind !== "string" ||
+    typeof sourceRef.id !== "string"
+  ) {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      "Source provider download_source sourceRef must have string namespace, kind, and id.",
+    );
+  }
+
+  try {
+    assertRefSafe({
+      namespace: sourceRef.namespace,
+      kind: sourceRef.kind,
+      id: sourceRef.id,
+    });
+  } catch {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      "Source provider download_source sourceRef must be a safe ref.",
+    );
+  }
+
+  // A provider may only resolve its own namespace's refs — symmetric with the
+  // search output namespace check. Without this, a mismatched provider/ref
+  // pair could resolve another provider's id.
+  const expectedNamespace = `source_${input.providerId}`;
+  if (sourceRef.namespace !== expectedNamespace) {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      `Source provider download_source sourceRef namespace '${sourceRef.namespace}' must match '${expectedNamespace}'.`,
+    );
+  }
+
+  if (
+    input.preferredBitrate !== undefined &&
+    (typeof input.preferredBitrate !== "number" ||
+      !Number.isInteger(input.preferredBitrate) ||
+      input.preferredBitrate <= 0)
+  ) {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      "Source provider download_source preferredBitrate must be a positive integer when present.",
+    );
+  }
+
+  if (input.sessionId !== undefined && typeof input.sessionId !== "string") {
+    return failExtension(
+      "extension.invalid_source_provider_download_source_input",
+      "Source provider download_source sessionId must be a string when present.",
+    );
+  }
+
+  return ok(undefined);
+}
+
+function validateSourceProviderDownloadSourceResult(result: {
+  providerId: string;
+  downloadSource: unknown;
+}): Result<void> {
+  const downloadSource = result.downloadSource;
+
+  if (!isRecord(downloadSource)) {
+    return invalidDownloadSourceOutput(
+      `Source provider '${result.providerId}' returned a non-object download source.`,
+    );
+  }
+
+  if (typeof downloadSource.url !== "string" || downloadSource.url.trim().length === 0) {
+    return invalidDownloadSourceOutput(
+      `Source provider '${result.providerId}' returned a download source without a usable url.`,
+    );
+  }
+
+  if (typeof downloadSource.container !== "string" || downloadSource.container.trim().length === 0) {
+    return invalidDownloadSourceOutput(
+      `Source provider '${result.providerId}' returned a download source without a usable format.`,
+    );
+  }
+
+  if (
+    downloadSource.bitrate !== undefined &&
+    (typeof downloadSource.bitrate !== "number" ||
+      !Number.isFinite(downloadSource.bitrate) ||
+      downloadSource.bitrate <= 0)
+  ) {
+    return invalidDownloadSourceOutput(
+      `Source provider '${result.providerId}' returned a download source with an invalid bitrate.`,
+    );
+  }
+
+  if (
+    downloadSource.sizeBytes !== undefined &&
+    (typeof downloadSource.sizeBytes !== "number" ||
+      !Number.isInteger(downloadSource.sizeBytes) ||
+      downloadSource.sizeBytes < 0)
+  ) {
+    return invalidDownloadSourceOutput(
+      `Source provider '${result.providerId}' returned a download source with an invalid sizeBytes.`,
+    );
+  }
+
+  if (
+    downloadSource.md5 !== undefined &&
+    (typeof downloadSource.md5 !== "string" || downloadSource.md5.trim().length === 0)
+  ) {
+    return invalidDownloadSourceOutput(
+      `Source provider '${result.providerId}' returned a download source with an invalid md5.`,
+    );
+  }
+
+  if (
+    downloadSource.expiresAt !== undefined &&
+    (typeof downloadSource.expiresAt !== "string" || downloadSource.expiresAt.trim().length === 0)
+  ) {
+    return invalidDownloadSourceOutput(
+      `Source provider '${result.providerId}' returned a download source with an invalid expiresAt.`,
+    );
+  }
+
+  return ok(undefined);
+}
+
+function invalidDownloadSourceOutput(message: string): Result<never> {
+  return failExtension("extension.invalid_source_provider_download_source_output", message);
 }
 
 

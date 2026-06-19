@@ -19,8 +19,11 @@ import {
   type PlatformLibraryProviderRegistration,
 } from "./platform_library_provider_slot.js";
 import {
+  getSourceProviderDownloadSource,
   searchSourceProvider,
   sourceProviderSlot,
+  type SourceProviderDownloadSourceInput,
+  type SourceProviderDownloadSourceResult,
   type SourceProviderSearchInput,
   type SourceProviderSearchResult,
   type SourceProviderRegistration,
@@ -66,6 +69,7 @@ export type ExtensionRuntime = {
   listSourceProviders(): readonly SourceProviderRegistration[];
   getSourceProvider(providerId: string): SourceProviderRegistration | undefined;
   searchSourceProvider(input: SourceProviderSearchInput): Promise<Result<SourceProviderSearchResult>>;
+  getSourceProviderDownloadSource(input: SourceProviderDownloadSourceInput): Promise<Result<SourceProviderDownloadSourceResult>>;
   listPlatformLibraryProviders(): readonly PlatformLibraryProviderRegistration[];
   getPlatformLibraryProvider(providerId: string): PlatformLibraryProviderRegistration | undefined;
   readPlatformLibraryProvider(input: PlatformLibraryProviderReadInput): Promise<Result<PlatformLibraryProviderReadResult>>;
@@ -133,6 +137,30 @@ export function createExtensionRuntime(input: CreateExtensionRuntimeInput = {}):
       }
 
       return searchSourceProvider(registry, input);
+    },
+    getSourceProviderDownloadSource(input) {
+      if (status === "failed") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_failed",
+          "Extension runtime failed and cannot resolve download sources.",
+        ));
+      }
+
+      if (status === "stopped") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_stopped",
+          "Extension runtime has stopped and cannot resolve download sources.",
+        ));
+      }
+
+      if (status !== "ready") {
+        return Promise.resolve(failExtension(
+          "extension.runtime_not_ready",
+          "Extension runtime must be ready before source-provider download_source.",
+        ));
+      }
+
+      return getSourceProviderDownloadSource(registry, input);
     },
     listPlatformLibraryProviders() {
       return registry.list(platformLibraryProviderSlot).map((registration) => ({

@@ -530,6 +530,9 @@ function musicDataPlatformModuleFor(input: {
     lookupCursorStore() {
       return undefined;
     },
+    download() {
+      return undefined;
+    },
   };
 }
 

@@ -42,6 +42,21 @@ export type PlayableLink = {
   requiresAccount?: boolean;
 };
 
+// A downloadable audio source: a direct file URL (HTTP GET yields the complete
+// decodable audio) plus the facts a downloader needs to name, size-check, and
+// integrity-verify the file. This is deliberately separate from PlayableLink:
+// playable may be an HLS/DASH manifest or a DRM stream that can stream but
+// cannot be fetched as a single decodable file. Only providers that can hand
+// back a true file-direct URL declare the `download_source` capability.
+export type DownloadSource = {
+  url: string;
+  container: string;
+  bitrate?: number;
+  sizeBytes?: number;
+  md5?: string;
+  expiresAt?: string;
+};
+
 export type SourceEntityKind =
   | "track"
   | "album"
@@ -201,7 +216,8 @@ export type SourceQuery = {
 
 export type SourceProviderCapability =
   | "search"
-  | "playable_links";
+  | "playable_links"
+  | "download_source";
 
 export type SourceProviderDescriptor = {
   providerId: string;
@@ -220,6 +236,11 @@ export type SourceProvider = {
     sourceRef: Ref;
     sessionId?: string;
   }) => Promise<Result<readonly PlayableLink[]>>;
+  getDownloadSource?: (input: {
+    sourceRef: Ref;
+    preferredBitrate?: number;
+    sessionId?: string;
+  }) => Promise<Result<DownloadSource>>;
 };
 
 export type PlatformLibraryKind =

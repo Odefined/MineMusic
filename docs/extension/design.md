@@ -163,7 +163,7 @@ Rules:
 - `providerId` must equal `provider.descriptor.providerId`;
 - source-provider descriptor shape is validated at registration time, including
   non-empty label, array capability list, supported capability literals, and
-  declared method availability for `search` and `playable_links`;
+  declared method availability for `search`, `playable_links`, and `download_source`;
 - one plugin may register multiple source providers;
 - duplicate provider ids fail runtime initialization;
 - `source-provider.writePolicy` is `none`;

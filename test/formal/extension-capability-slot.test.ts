@@ -21,6 +21,7 @@ import {
   type SourceProviderSearchResult,
   type SourceProviderRegistration,
 } from "../../src/extension/index.js";
+import { getSourceProviderDownloadSource } from "../../src/extension/source_provider_slot.js";
 
 // Test-local helpers that mirror the removed per-slot register/list/get wrappers
 // (collapsed in ADR-0018). They keep the registry-direct assertions below terse.
@@ -1590,4 +1591,42 @@ function fail(code: string, message: string, retryable = false): Result<never> {
   };
 
   return { ok: false, error };
+}
+
+// download_source namespace ownership: a provider may only resolve its own
+// namespace's refs (symmetric with the search output namespace check). A
+// mismatched provider/ref pair is rejected at input validation, before the
+// provider is ever invoked.
+{
+  const downloadRegistry = createCapabilityRegistry({ slots: [sourceProviderSlot] });
+  let invoked = false;
+  registerSourceProvider(downloadRegistry, {
+    pluginId: "test.download-source",
+    providerId: "netease",
+    provider: {
+      descriptor: { providerId: "netease", label: "NetEase", capabilities: ["download_source"] },
+      async getDownloadSource() {
+        invoked = true;
+        return { ok: true, value: { url: "http://test/a.flac", container: "flac" } };
+      },
+    },
+  });
+
+  const mismatched = await getSourceProviderDownloadSource(downloadRegistry, {
+    providerId: "netease",
+    sourceRef: { namespace: "source_spotify", kind: "track", id: "1" },
+  });
+  assert.equal(mismatched.ok, false);
+  if (!mismatched.ok) {
+    assert.equal(mismatched.error.code, "extension.invalid_source_provider_download_source_input");
+  }
+  assert.equal(invoked, false);
+
+  // A matching namespace reaches the provider.
+  const matched = await getSourceProviderDownloadSource(downloadRegistry, {
+    providerId: "netease",
+    sourceRef: { namespace: "source_netease", kind: "track", id: "1" },
+  });
+  assert.equal(matched.ok, true);
+  assert.equal(invoked, true);
 }

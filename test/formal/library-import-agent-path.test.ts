@@ -276,6 +276,9 @@ function extensionRuntimeForPages(
     async searchSourceProvider() {
       return error("extension.source_provider_not_found");
     },
+    async getSourceProviderDownloadSource() {
+      return error("extension.source_provider_not_found");
+    },
     listPlatformLibraryProviders() {
       return [registration];
     },

@@ -1,6 +1,6 @@
 import { isRecord } from "../type_guards.js";
 import { isRefComponentSafe, type Ref, type Result, type StageError } from "../../contracts/kernel.js";
-import type { PlayableLink, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntityKind, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../contracts/music_data_platform.js";
+import type { DownloadSource, PlayableLink, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryProvider, PlatformLibraryReadInput, PlatformLibraryReadResult, ProviderMaterialCandidate, SourceAlbum, SourceArtist, SourceEntityKind, SourceProvider, SourceTrack, SourceTrackPosition, VersionInfo, VersionTag } from "../../contracts/music_data_platform.js";
 import { failExtension, ok } from "../errors.js";
 import type { MineMusicPlugin } from "../plugin_runtime.js";
 import { platformLibraryProviderSlot } from "../platform_library_provider_slot.js";
@@ -108,7 +108,7 @@ function createNcmSourceProvider(config: unknown): SourceProvider {
     descriptor: {
       providerId: ncmProviderId,
       label: "NetEase Cloud Music",
-      capabilities: ["search"],
+      capabilities: ["search", "playable_links", "download_source"],
     },
     async search({ query }) {
       const text = query.text.trim();
@@ -173,6 +173,12 @@ function createNcmSourceProvider(config: unknown): SourceProvider {
       }
 
       return ok(query.limit === undefined ? candidates : candidates.slice(0, query.limit));
+    },
+    async getPlayableLinks({ sourceRef }) {
+      return readNcmPlayableLinks(config, sourceRef);
+    },
+    async getDownloadSource({ sourceRef, preferredBitrate }) {
+      return readNcmDownloadSource(config, sourceRef, preferredBitrate);
     },
   };
 }
@@ -1513,4 +1519,179 @@ function isCompleteAlbumRecord(album: NcmAlbum | undefined): boolean {
   return album !== undefined &&
     toUsableProviderId(album.id) !== undefined &&
     toNonEmptyString(album.name) !== undefined;
+}
+
+type NcmSongUrl = {
+  url: string;
+  br?: number;
+  size?: number;
+  md5?: string;
+  type?: string;
+};
+
+// Resolve a real audio file direct URL for a track via ncmapi /song/url. The
+// ncmapi process holds the login cookie (built-in at startup), so VIP/fee!=0
+// tracks resolve as long as that cookie is valid. br requests a target bitrate;
+// ncmapi downgrades to whatever the account/track permits. A null/absent url
+// (no copyright, or cookie expired on a fee track) is the honest "no stream"
+// signal — returned as ok(undefined), leaving the caller to map it to empty
+// playable links (play semantics) or a download failure (download semantics).
+async function readNcmSongUrl(
+  config: unknown,
+  songId: string,
+  br: number,
+): Promise<Result<NcmSongUrl | undefined>> {
+  const payload = await requestNcmPath(config, "/song/url", {
+    id: songId,
+    br: String(br),
+  });
+
+  if (!payload.ok) {
+    return payload;
+  }
+
+  const json = payload.value;
+
+  if (!isRecord(json)) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM /song/url response was not an object.",
+    );
+  }
+
+  if (!Array.isArray(json.data)) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM /song/url response did not include a data array.",
+    );
+  }
+
+  const entry = (json.data as readonly unknown[]).find(
+    (item): item is Record<string, unknown> => isRecord(item) && typeof item.url === "string",
+  );
+
+  if (entry === undefined) {
+    return ok(undefined);
+  }
+
+  const url = toNonEmptyString(entry.url);
+
+  if (url === undefined) {
+    return ok(undefined);
+  }
+
+  const brValue = typeof entry.br === "number" && Number.isFinite(entry.br) && entry.br > 0
+    ? entry.br
+    : undefined;
+  const sizeValue = typeof entry.size === "number" && Number.isInteger(entry.size) && entry.size >= 0
+    ? entry.size
+    : undefined;
+  const md5Value = toNonEmptyString(entry.md5);
+  const typeValue = toNonEmptyString(entry.type);
+
+  return ok({
+    url,
+    ...(brValue === undefined ? {} : { br: brValue }),
+    ...(sizeValue === undefined ? {} : { size: sizeValue }),
+    ...(md5Value === undefined ? {} : { md5: md5Value }),
+    ...(typeValue === undefined ? {} : { type: typeValue }),
+  });
+}
+
+// Playable links: only tracks have an audio stream. A resolved direct URL maps
+// to a single PlayableLink for streaming. Albums/artists and any track the
+// provider cannot resolve (no copyright, expired cookie) yield an empty list —
+// the honest "nothing to play" signal, never an error.
+async function readNcmPlayableLinks(
+  config: unknown,
+  sourceRef: Ref,
+): Promise<Result<readonly PlayableLink[]>> {
+  if (sourceRef.kind !== "track") {
+    return ok([]);
+  }
+
+  const songId = toUsableProviderId(sourceRef.id);
+
+  if (songId === undefined) {
+    return ok([]);
+  }
+
+  const resolved = await readNcmSongUrl(config, songId, defaultNcmDownloadBitrate());
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  if (resolved.value === undefined) {
+    return ok([]);
+  }
+
+  return ok([
+    {
+      url: resolved.value.url,
+      label: "NetEase Cloud Music",
+    },
+  ]);
+}
+
+// Download source: only tracks have a downloadable file. Unlike playable links,
+// an unresolved URL is a FAILURE here — download semantics require an explicit
+// "no downloadable source" signal (no copyright / VIP-required-but-expired)
+// rather than a silent empty result. preferredBitrate selects target quality.
+async function readNcmDownloadSource(
+  config: unknown,
+  sourceRef: Ref,
+  preferredBitrate?: number,
+): Promise<Result<DownloadSource>> {
+  if (sourceRef.kind !== "track") {
+    return failExtension(
+      "extension.ncm_no_audio_stream",
+      "NCM provider can only resolve a download source for tracks.",
+    );
+  }
+
+  const songId = toUsableProviderId(sourceRef.id);
+
+  if (songId === undefined) {
+    return failExtension(
+      "extension.ncm_no_audio_stream",
+      "NCM provider download source requires a usable track id.",
+    );
+  }
+
+  const resolved = await readNcmSongUrl(config, songId, preferredBitrate ?? defaultNcmDownloadBitrate());
+
+  if (!resolved.ok) {
+    return resolved;
+  }
+
+  if (resolved.value === undefined) {
+    return failExtension(
+      "extension.ncm_no_download_source",
+      "NCM provider could not resolve a downloadable file URL for this track (no copyright or account cookie expired).",
+      undefined,
+      true,
+    );
+  }
+
+  const resolvedValue = resolved.value;
+
+  if (resolvedValue.type === undefined) {
+    return failExtension(
+      "extension.ncm_malformed_response",
+      "NCM provider download source response did not include a usable audio format.",
+    );
+  }
+
+  return ok({
+    url: resolvedValue.url,
+    container: resolvedValue.type,
+    ...(resolvedValue.br === undefined ? {} : { bitrate: resolvedValue.br }),
+    ...(resolvedValue.size === undefined ? {} : { sizeBytes: resolvedValue.size }),
+    ...(resolvedValue.md5 === undefined ? {} : { md5: resolvedValue.md5 }),
+  });
+}
+
+function defaultNcmDownloadBitrate(): number {
+  return 999000;
 }
