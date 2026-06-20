@@ -148,17 +148,17 @@ assert.equal(expiresAtFromResultSetCreatedAt({
             resultSetId: "rs_live",
             expiresAt: "2026-06-15T11:00:00.000Z",
         }));
-        for (const [key, title] of [
-            [liveCandidateKey, "Live Candidate"],
-            [expiredCandidateKey, "Expired Candidate"],
-            [unreferencedCandidateKey, "Unreferenced Candidate"],
+        for (const [key, title, expiresAt] of [
+            [liveCandidateKey, "Live Candidate", "2026-06-15T11:00:00.000Z"],
+            [expiredCandidateKey, "Expired Candidate", "2026-06-15T09:30:00.000Z"],
+            [unreferencedCandidateKey, "Unreferenced Candidate", "2026-06-15T09:30:00.000Z"],
         ] as const) {
             await records.materialCandidates.upsert(candidateCacheRecord({
                 materialCandidateRefKey: key,
                 source: sourceTrack(key, title),
                 title,
                 createdAt: "2026-06-15T09:00:00.000Z",
-                expiresAt: "2026-06-15T09:30:00.000Z",
+                expiresAt,
             }));
         }
         await records.resultRows.insertMany([

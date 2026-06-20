@@ -464,23 +464,20 @@ export function createRetrievalResultSetRecords(
         "music_data.retrieval_result_set_invalid",
       );
       const limit = validatedCleanupLimit(cleanupInput.limit);
+      // Candidate cache expiry is authoritative: the upsert keeps the MAX
+      // expires_at across every referencing result set, so an expired cache row
+      // is no longer pinned by any live result set and can be deleted. Read
+      // paths already surface "material_candidate_expired" for expired rows, so
+      // deleting the row changes nothing user-visible.
       const expiredKeys = (await db.all<{ material_candidate_ref_key: string }>(
         `
-          SELECT c.material_candidate_ref_key
-          FROM material_candidate_cache c
-          WHERE c.expires_at <= ?
-            AND NOT EXISTS (
-              SELECT 1
-              FROM retrieval_result_rows r
-              JOIN retrieval_result_sets s
-                ON s.result_set_id = r.result_set_id
-              WHERE r.material_candidate_ref_key = c.material_candidate_ref_key
-                AND s.expires_at > ?
-            )
-          ORDER BY c.expires_at ASC, c.material_candidate_ref_key ASC
+          SELECT material_candidate_ref_key
+          FROM material_candidate_cache
+          WHERE expires_at <= ?
+          ORDER BY expires_at ASC, material_candidate_ref_key ASC
           LIMIT ?
         `,
-        [cleanupInput.now, cleanupInput.now, limit],
+        [cleanupInput.now, limit],
       )).map((row) => row.material_candidate_ref_key);
 
       if (expiredKeys.length === 0) {
