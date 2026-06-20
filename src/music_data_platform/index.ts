@@ -274,6 +274,30 @@ export type {
   MusicDataPlatformSourceOfTruthWriteCommands,
 } from "./source_of_truth_write_commands.js";
 export {
+  createLocalizeProviderSourceCommand,
+  localizeProviderSourceIdempotencyKey,
+} from "./localize_provider_source_commands.js";
+export type {
+  CreateLocalizeProviderSourceCommandInput,
+  LocalizeProviderSourceCommand,
+  LocalizeProviderSourceRequest,
+  LocalizeProviderSourceSubmissionResult,
+} from "./localize_provider_source_commands.js";
+export {
+  createLocalizeProviderSourceJobHandler,
+  LOCALIZE_PROVIDER_SOURCE_JOB_TYPE,
+  LOCALIZE_PROVIDER_SOURCE_TARGET_POLICY_VERSION,
+  parseLocalizeProviderSourceJobPayload,
+  providerIdFromSourceNamespace,
+} from "./localize_provider_source_job.js";
+export type {
+  CreateLocalizeProviderSourceJobHandlerInput,
+  LocalizeProviderSourceBindingLookup,
+  LocalizeProviderSourceFileStore,
+  LocalizeProviderSourceJobPayload,
+  LocalizeProviderSourcePayloadRef,
+} from "./localize_provider_source_job.js";
+export {
   createSourceLibraryImportService,
   isSourceLibraryImportWriteFailure,
 } from "./source_library_import.js";

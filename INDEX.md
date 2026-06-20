@@ -152,8 +152,9 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-21-postgres-background-work-localize-implementation-plan.md`:
   active Phase 21 plan for destructive Postgres storage migration, Background
   Work v1 over `pg-boss`, and `localizeProviderSource`; storage migration is
-  complete through Slice 3, Background Work Slice 4 has landed, and Slice 5 has
-  extracted the reusable download-to-file helper.
+  complete through Slice 3, Background Work Slice 4 has landed, Slice 5 has
+  extracted the reusable download-to-file helper, and Slice 6 has added the
+  Music Data Platform localize submit command plus job handler.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 

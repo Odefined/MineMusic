@@ -1,6 +1,6 @@
 # Phase 21 Postgres Storage, Background Work, And Localize Implementation Plan
 
-> Status: Slice 5 complete; stopped before localize job submission and handler
+> Status: Slice 6 complete; stopped before runtime localize wiring
 > Owning bounded contexts: Storage, Server Host / Runtime Orchestration, Stage
 > Core, Music Data Platform
 
@@ -18,7 +18,7 @@ Postgres and background jobs are enabling infrastructure, not the domain goal.
 
 ## Current Stop Point
 
-Completed through Slice 5:
+Completed through Slice 6:
 
 - Postgres is the only active formal runtime storage adapter.
 - Runtime database config uses Postgres URL/schema settings.
@@ -39,10 +39,26 @@ Completed through Slice 5:
   `DownloadCommands` job status behavior is preserved.
 - The helper owns fetch/write streaming, integrity checks, and partial-file
   cleanup, without depending on Background Work or localize job state.
+- `music_data_platform.localize_provider_source` is now the first Music Data
+  Platform-owned Background Work job type.
+- The localize submit command computes an idempotency key from provider
+  `sourceRef`, requested bitrate policy, and localize target policy version,
+  then submits the compact payload through the Background Work port.
+- The localize handler validates payloads, resolves the existing
+  source/material binding, resolves provider download facts through an injected
+  download-source port, downloads to staging, finalizes to
+  `<root>/tracks/<md5-prefix>/<md5>.<ext>`, and registers the result through
+  `createLocalSource`.
+- Localize tests cover compact payload submission, non-provider/non-track
+  rejection, content-addressed finalization, idempotent existing Local Source
+  replay, final-path collision refusal, declared registration-failure cleanup,
+  and missing Local Source root config errors.
 
 Not started:
 
-- `localizeProviderSource` job submission or handler.
+- Runtime registration of the localize command and handler with Server Host /
+  Stage Core Background Work lifecycle.
+- Stage Interface localize tool surface, if separately scoped later.
 - Embedding, music-to-language, or any other background job type.
 
 ## Destructive Migration Definition

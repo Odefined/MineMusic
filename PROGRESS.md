@@ -1224,7 +1224,21 @@ Work runtime infrastructure, and Slice 5 extracts the reusable download helper:
   rather than owning stream mechanics directly.
 - `test/formal/download-command.test.ts` covers helper-level `actualMd5`
   behavior and the existing command behavior still passes.
-- `localizeProviderSource` job submission and handler remain the next slice.
+- `src/music_data_platform/localize_provider_source_commands.ts` now owns the
+  localize submit command, compact provider-source payload construction, and
+  sourceRef/bitrate/policy-version idempotency key.
+- `src/music_data_platform/localize_provider_source_job.ts` now owns the first
+  Music Data Platform Background Work job type,
+  `music_data_platform.localize_provider_source`, including payload validation,
+  injected provider download-source resolution, staged download, content-
+  addressed finalization, Local Source registration through `createLocalSource`,
+  matching-content idempotent success, final-path collision failure, declared
+  registration-failure cleanup, and missing root config failure.
+- `test/formal/music-data-platform-localize-provider-source.test.ts` covers the
+  localize submit/handler contract without importing pg-boss or Extension
+  Runtime into Music Data Platform.
+- Runtime wiring for Server Host localize config, handler registration, and any
+  public Stage Interface localize tool remains the next slice.
 
 ## Next Formal Milestones
 
