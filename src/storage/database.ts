@@ -40,6 +40,7 @@ export type MusicDatabase = {
 
 export type MusicDatabaseErrorCode =
   | "storage.invalid_database_filename"
+  | "storage.invalid_database_url"
   | "storage.database_not_initialized"
   | "storage.database_already_initialized"
   | "storage.database_initialization_failed"

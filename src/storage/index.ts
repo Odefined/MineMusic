@@ -24,3 +24,19 @@ export {
 export type {
   InitializeSqliteSchemaInput,
 } from "./sqlite/schema.js";
+export {
+  PostgresMusicDatabase,
+} from "./postgres/database.js";
+export type {
+  InitializePostgresMusicDatabaseInput,
+  OpenPostgresMusicDatabaseInput,
+  PostgresMusicDatabaseContext,
+  PostgresMusicDatabaseTransactionContext,
+} from "./postgres/database.js";
+export {
+  initializePostgresSchema,
+} from "./postgres/schema.js";
+export type {
+  InitializePostgresSchemaInput,
+  PostgresMusicDatabaseSchemaContribution,
+} from "./postgres/schema.js";
