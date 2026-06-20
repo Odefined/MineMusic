@@ -14,7 +14,6 @@ import type {
 } from "../../../music_data_platform/index.js";
 import { MusicIntelligenceError } from "../../errors.js";
 import {
-  type CreateRetrievalQueryServiceInput,
   type RetrievalEffectiveQuery,
   type RetrievalPool,
   type RetrievalPoolFilter,

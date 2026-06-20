@@ -219,8 +219,8 @@ export type {
   RetrievalOrder,
   RetrievalReadCursorPosition,
   RetrievalReadPoolFilter,
+  RetrievalTextField,
 } from "./retrieval_shared.js";
-export type { RetrievalTextField } from "./material_text_ranking.js";
 export {
   createMusicDataPlatformMetadataLookupSearchWorkspace,
 } from "./metadata_lookup_search_workspace.js";

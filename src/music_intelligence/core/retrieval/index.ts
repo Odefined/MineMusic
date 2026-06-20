@@ -7,7 +7,6 @@ export {
   RETRIEVAL_TEXT_MATCHING_STRATEGY,
 } from "./contracts.js";
 export type {
-  CreateRetrievalQueryServiceInput,
   MixedRetrievalCursorPosition,
   RetrievalEffectiveQuery,
   RetrievalPool,

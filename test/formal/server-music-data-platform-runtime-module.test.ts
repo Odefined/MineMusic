@@ -6,7 +6,6 @@ import type {
     BackgroundWorkSubmitInput,
 } from "../../src/background_work/index.js";
 import { createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createMusicDataPlatformSourceOfTruthWriteCommands, type ProjectionMaintenanceTargetRecord, } from "../../src/music_data_platform/index.js";
-import type { SourceEntity } from "../../src/contracts/music_data_platform.js";
 import { createMineMusicExtensionRuntime, createMusicDataPlatformRuntimeModule, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
@@ -300,21 +299,6 @@ function materialRef(kind: "recording" | "album" | "artist" | "work" | "release"
         namespace: "material",
         kind,
         id,
-    };
-}
-function sourceTrack(id: string, title: string): SourceEntity {
-    return {
-        kind: "track",
-        sourceRef: {
-            namespace: "source_netease",
-            kind: "track",
-            id,
-        },
-        origin: "provider",
-        providerId: "netease",
-        providerEntityId: id,
-        label: title,
-        title,
     };
 }
 function createFakeBackgroundWorkBackend(): BackgroundWorkBackend & {

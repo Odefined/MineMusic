@@ -127,10 +127,6 @@ export type RetrievalProviderSearchPort = {
   search(input: RetrievalProviderSearchInput): Promise<RetrievalProviderSearchResult>;
 };
 
-export type CreateRetrievalQueryServiceInput = {
-  providerSearch?: RetrievalProviderSearchPort;
-};
-
 export type RetrievalQueryService = {
   query(input: RetrievalQueryInput): Promise<RetrievalQueryResult>;
 };
