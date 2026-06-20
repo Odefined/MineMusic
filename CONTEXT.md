@@ -702,6 +702,15 @@ Stage Interface seam over Retrieval (ADR-0012), and Retrieval internals
 (`materialCandidateRef`, `resultSetId`, pool algebra) never cross that seam.
 _Avoid_: Stage Interface presentation, durable materialization, public handle.
 
+### Search Core
+
+The Music Intelligence-owned retrieval core that coordinates Search Corpus
+recall, Target Merge, Result Evidence selection, Result Scoring, and Ranked
+Result Set paging. It reads durable music facts through narrow ports and does
+not own Music Data Platform persistence semantics.
+_Avoid_: Music Data Platform store, Stage Interface tool, provider adapter,
+Postgres schema module.
+
 ### Search Target
 
 The final music identity a retrieval result can rank and return after candidate
@@ -753,9 +762,11 @@ corpus, embedding corpus.
 
 A Search Corpus over provider-returned music search candidates. It contributes
 provider evidence as Searchable Documents; it does not itself decide final
-Search Target identity.
-_Avoid_: Search Target, material candidate allocator, provider adapter, final
-result source.
+Search Target identity. Provider plugins expose provider-native search
+capabilities; the Search Core adapter turns those candidates into provider
+Searchable Documents.
+_Avoid_: Search Target, material candidate allocator, provider adapter-owned
+Searchable Document, final result source.
 
 ### Document Evidence
 
@@ -771,8 +782,11 @@ ranking model.
 
 Merged explanation for why one Search Target appears in the final retrieval
 result after combining one or more Searchable Documents. It may contain
-metadata, provider, tag, memory, embedding, or generated-description evidence.
-_Avoid_: document evidence, ranking score, cursor identity.
+selected metadata, provider, tag, memory, embedding, or generated-description
+evidence, but it is not a dump of every corpus-local match or raw provider
+payload.
+_Avoid_: document evidence, ranking score, cursor identity, debug dump, raw
+provider payload.
 
 ### Corpus-Local Score
 
@@ -781,13 +795,25 @@ Searchable Document. Corpus-Local Scores may inform result ranking, but final
 ordering is produced after documents are merged by Search Target.
 _Avoid_: final rank, global score, cursor order.
 
+### Result Scoring
+
+The Retrieval step that ranks Search Targets after Target Merge and Result
+Evidence selection. It may use Corpus-Local Scores as signals, but it owns the
+final result order because scores from different corpora are not directly
+comparable.
+_Avoid_: corpus-local score, SQL rank, BM25 score, embedding similarity,
+provider confidence.
+
 ### Ranked Result Set
 
 A TTL-bound retrieval result snapshot containing the final ordered Search
 Targets for one query after corpus recall, document merge, evidence merge, and
-result-level scoring. It stabilizes cursor paging and is not durable domain
-truth.
-_Avoid_: corpus result, provider cache, permanent playlist, domain record.
+result-level scoring. It may carry selected Result Evidence needed to explain
+the ordered results, but it is not a store for complete Searchable Documents,
+corpus internals, raw provider payloads, or vectors. It stabilizes cursor paging
+and is not durable domain truth.
+_Avoid_: corpus result, provider cache, permanent playlist, domain record, full
+document store.
 
 ### Direct Search
 
