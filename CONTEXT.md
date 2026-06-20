@@ -711,6 +711,47 @@ not own Music Data Platform persistence semantics.
 _Avoid_: Music Data Platform store, Stage Interface tool, provider adapter,
 Postgres schema module.
 
+### Search Query
+
+A structured retrieval request with an explicit Search Query Kind. Metadata
+lookup, natural-language description search, tag query, and similar-music query
+are different query kinds with different corpus selection and scoring
+semantics, not interchangeable signals in one bag. Search Core does not infer
+whether raw text is name lookup or natural-language description; the Search
+Query must say so.
+_Avoid_: plain text input, provider search text, SQL query, prompt, inferred
+query intent, query signal bag.
+
+### Search Query Kind
+
+The declared intent family of a Search Query. It is not a corpus name: one
+query kind may use multiple corpora, and one corpus may support multiple query
+kinds only when its semantics fit that kind.
+_Avoid_: corpus name, ranking score, raw prompt, inferred text meaning.
+
+### Metadata Lookup Query
+
+A Search Query Kind for finding music by explicit names or identifiers such as
+title, artist, album, version, alias, or provider lookup text. It may use local
+metadata and provider search corpora, but its intent remains name/metadata
+lookup.
+_Avoid_: natural-language description search, mood query, tag query,
+similar-music query, embedding prompt.
+
+### Description Search Query
+
+A Search Query Kind for finding music by natural-language description, mood,
+sound, usage context, or generated music-language text.
+_Avoid_: title lookup, artist lookup, provider search phrase.
+
+### Search Scope
+
+The part of a Search Query that constrains where retrieval may look and which
+Search Targets are visible. It is the Search Core input translated from
+existing Music Discovery and owner-scope semantics, not a replacement for the
+public Stage Interface scope language.
+_Avoid_: corpus result, public handle, provider raw parameter, ranking policy.
+
 ### Search Target
 
 The final music identity a retrieval result can rank and return after candidate
@@ -755,8 +796,11 @@ _Avoid_: table, repository, material catalog, provider adapter, ranking policy.
 A Search Corpus over MineMusic-owned descriptive music metadata, such as title,
 artist, album, version, and alias text. It is one corpus among others and must
 not define the general Retrieval model, result scoring, or evidence vocabulary.
+Metadata Search Corpus documents preserve metadata fields as first-class
+evidence dimensions; they must not collapse searchable metadata into one
+unstructured blob.
 _Avoid_: material text projection, matched-token ranking model, provider
-corpus, embedding corpus.
+corpus, embedding corpus, search_text-only blob.
 
 ### Provider Search Corpus
 
