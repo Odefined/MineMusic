@@ -95,6 +95,14 @@ assert.equal(await pathExists(join(repositoryRoot, "src/music_data_platform")), 
 assert.equal(await pathExists(join(repositoryRoot, "src/music_intelligence")), true, "formal Music Intelligence root must exist in active source after Phase 12C");
 assert.equal(await pathExists(join(repositoryRoot, "src/music_experience")), true, "formal Music Experience root must exist once music.experience.present lands");
 assert.equal(await pathExists(join(repositoryRoot, "src/effect_boundary")), true, "formal Effect Boundary root must exist once StageToolExecutionGate implementation lands");
+assert.equal(await pathExists(join(repositoryRoot, "src/background_work")), true, "formal Background Work runtime infrastructure root must exist once Phase 21 queue backend lands");
+assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/background_work")))
+    .map((file) => relative(repositoryRoot, file))
+    .sort(), [
+    "src/background_work/backend.ts",
+    "src/background_work/index.ts",
+    "src/background_work/pg_boss_backend.ts",
+], "formal Background Work root must stay focused on the MineMusic port and concrete backend adapter");
 assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/storage")))
     .map((file) => relative(repositoryRoot, file))
     .sort(), [
@@ -263,6 +271,35 @@ for (const file of activeFiles) {
     }
 }
 assert.deepEqual(veilDenylistDriftFailures, [], "every internal-anchor (Ref/RefKey/RefId) field in active source must be listed in the Stage Interface veil denylist");
+const pgBossImportFailures: string[] = [];
+for (const file of activeFiles) {
+    const relativeFile = relative(repositoryRoot, file);
+    const text = await readFile(file, "utf8");
+    if ((text.includes('from "pg-boss"') || text.includes("from 'pg-boss'")) &&
+        relativeFile !== "src/background_work/pg_boss_backend.ts") {
+        pgBossImportFailures.push(`${relativeFile} imports pg-boss outside the concrete Background Work adapter`);
+    }
+}
+assert.deepEqual(pgBossImportFailures, [], "pg-boss must stay behind the Background Work adapter");
+const backgroundWorkImportFailures: string[] = [];
+for (const file of await sourceFilesUnder(join(repositoryRoot, "src/background_work"))) {
+    const relativeFile = relative(repositoryRoot, file);
+    const text = await readFile(file, "utf8");
+    for (const forbiddenImport of [
+        "../music_data_platform/",
+        "../stage_interface/",
+        "../extension/",
+        "../music_intelligence/",
+        "../music_experience/",
+        "../server/",
+    ]) {
+        if (text.includes(`from "${forbiddenImport}`) ||
+            text.includes(`from '${forbiddenImport}`)) {
+            backgroundWorkImportFailures.push(`${relativeFile} imports forbidden domain/runtime boundary '${forbiddenImport}'`);
+        }
+    }
+}
+assert.deepEqual(backgroundWorkImportFailures, [], "Background Work must stay generic and not import domain or host modules");
 const forbiddenRuntimeImports = [
     "../material/",
     "../providers/",

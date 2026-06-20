@@ -15,6 +15,9 @@
     "smoke:ncm:retrieval": "npm run build:test && node ./.tmp-test/test/live/ncm-mixed-retrieval-smoke.js",
     "smoke:ncm:matrix": "npm run build:test && node ./.tmp-test/test/live/ncm-real-scenario-matrix.js",
     "smoke:ncm:perf": "npm run build:test && node ./.tmp-test/test/live/ncm-performance-smoke.js",
+    "smoke:qq": "npm run build:test && node ./.tmp-test/test/live/qq-source-smoke.js",
+    "smoke:qq:download": "npm run build:test && node ./.tmp-test/test/live/qq-download-smoke.js",
+    "smoke:qq:library": "npm run build:test && node ./.tmp-test/test/live/qq-source-library-smoke.js",
     "smoke:mcp:stdio": "npm run build:test && node ./.tmp-test/test/live/mcp-stdio-smoke.js",
     "test": "npm run typecheck && npm run test:stage-core",
     "test:stage-core": "npm run build:test && node ./.tmp-test/test/run-stage-core-tests.js",
@@ -29,6 +32,7 @@
   "dependencies": {
     "@types/pg": "^8.20.0",
     "ajv": "^8.20.0",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "pg-boss": "^12.20.0"
   }
 }

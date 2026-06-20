@@ -63,6 +63,249 @@ module.
 
 Current code mapping: `src/stage_core/index.ts`.
 
+### Background Work Backend
+
+Runtime infrastructure for durable asynchronous work execution.
+
+The Background Work Backend owns the MineMusic-facing port to mature job
+management. The concrete backend owns background job execution state, claiming,
+retry, scheduling, concurrency, stop/drain behavior, and worker lifecycle.
+MineMusic does not reimplement those mechanics. It does not own domain facts,
+domain persistence semantics, provider behavior, or public agent-facing outputs.
+
+The first MineMusic port should model one-time job submission with optional
+delayed execution. Recurring schedules and cron-like policies belong to Job
+Schedulers / Enqueuers, not to the Background Work Backend public port.
+Submitting a job may return whether the backend accepted a new job or resolved
+an existing job for the same Job Idempotency Key. The preferred result shape is
+`{ jobId, submission: "created" | "deduplicated" }`.
+`deduplicated` may refer to an existing queued, running, retry-waiting, or
+already succeeded backend job; domain completion is interpreted by the owning
+domain state, not by creating another backend job.
+
+Owning areas register Job Handlers through narrow runtime wiring. The backend
+stores only compact execution state and handler input/output envelopes; durable
+domain truth remains in the owning area.
+
+_Avoid_: domain service, localize worker, embedding service, provider adapter,
+Stage Interface tool, workflow layer.
+
+### Background Work
+
+Runtime infrastructure area for asynchronous job execution in MineMusic.
+
+Background Work owns the generic backend port, job type registry, and concrete
+backend adapters. Server Host owns runtime configuration and lifecycle wiring
+for the concrete backend. Stage Core wires the backend dependency through the
+runtime graph. Domain areas own their Job Types and Job Handlers.
+
+_Avoid_: Music Data Platform submodule, Stage Interface tool framework,
+domain workflow layer, provider capability slot.
+
+Background Work lifecycle: create backend, initialize runtime modules, register
+Job Handlers, then start backend workers. Shutdown stops the backend before
+closing shared runtime dependencies such as database and provider runtimes.
+Submitting jobs may be allowed after backend initialization and before worker
+start; worker start means begin claiming/executing jobs, not begin accepting
+durable submissions.
+
+### Job Handler
+
+Owning-area code that performs one registered background job type.
+
+A Job Handler owns the domain steps for its job type, such as resolving domain
+inputs, calling injected ports, and writing durable domain results through the
+owning command boundary. It does not own generic job state, queue mechanics,
+claiming, retry policy, worker lifecycle, or public agent-facing output.
+
+_Avoid_: Worker, Background Work Backend, Stage Interface handler, provider
+adapter, repository.
+
+### Job Type
+
+Stable Background Work contract name for one kind of background job.
+
+A Job Type must include its owning area prefix, such as
+`music_data_platform.localize_provider_source` or
+`music_intelligence.embed_material`. It is registered with a Job Handler and
+submitted through the Background Work Backend port.
+
+The owning area owns the Job Type constant, payload type, payload validation,
+and handler factory. Background Work owns only the generic job envelope and
+handler registry.
+
+_Avoid_: unscoped names such as `localize`, `download`, or `embedding`; worker
+names; provider raw operation names.
+
+### `music_data_platform.localize_provider_source`
+
+Music Data Platform Job Type that turns an existing provider source into a
+MineMusic-owned Local Source for the already-bound material.
+
+This is the first Background Work Job Type MineMusic should implement. It
+validates the Background Work port, handler registration, injected provider
+download-source port, staged file consistency, idempotency, and failure
+classification before future embedding or music-to-language jobs expand the
+surface.
+
+The job may download provider audio as one step, but its durable domain result
+is the Local Source record and source/material binding. It is not a generic
+download job.
+Background Work v1 should not add a separate pure-download Job Type for this
+work. Downloading to a staged file is an internal helper used by localize; the
+existing pure download command may be migrated or removed later in a separate
+task.
+
+The domain identity input is the provider `sourceRef`. The Job Handler resolves
+the bound `materialRef` through Music Data Platform state. The job payload must
+not accept a caller-supplied `materialRef` as competing identity.
+The Job Idempotency Key includes the provider `sourceRef`, requested bitrate
+policy, and localize target policy version.
+Music Data Platform owns the localize target policy version. Background Work may
+receive it inside the idempotency key, but it does not interpret the target
+policy.
+
+Music Data Platform owns the output path policy for localized provider sources.
+Providers supply downloadable source facts; Background Work runs the job;
+Stage Interface may request the operation later, but none of those surfaces
+own the MineMusic-owned file path decision.
+Local Source output is long-lived music storage, not cache. Localize requires an
+explicit Local Source root directory, configured as `localSources.rootDir` or
+`MINEMUSIC_LOCAL_SOURCES_ROOT`; missing configuration is a declared localize
+configuration error, not an invitation to choose a default directory.
+Canonical Local Source paths are content-addressed. Human-readable track,
+artist, or album names are metadata for presentation and export, not the
+long-lived storage identity. The preferred final path shape is
+`<root>/tracks/<md5-prefix>/<md5>.<ext>`. The localize handler writes first to a
+staging path such as `<root>/.staging/<jobId>.part`, verifies the downloaded
+file, computes the actual md5, then finalizes by moving to the content-addressed
+path. If the final path already exists with matching content, localize reuses it
+as idempotent success; if it exists with different content, localize fails and
+must not overwrite it.
+
+Localize consistency does not pretend that file writes and Postgres writes are
+one atomic transaction. The handler uses staged file writes, verification,
+finalization, cleanup, and later reconciliation for orphan staged files.
+
+Submission is owned by a Music Data Platform command boundary. Stage Interface
+may later call that command; providers and Background Work must not submit or
+shape localize jobs directly.
+
+The handler resolves provider download facts through an injected narrow
+download-source port. It must not import Extension Runtime, provider plugins,
+or provider registries directly.
+
+_Avoid_: download job, provider sync job, embedding job, Stage Interface tool.
+
+### Job Scheduler / Enqueuer
+
+Runtime or owning-area code that decides when background jobs should be
+created.
+
+A Job Scheduler / Enqueuer is a producer of background jobs. It may be timer
+driven, event driven, or explicitly triggered, but it does not execute job
+handlers and does not own backend worker mechanics. Background Work Backend
+receives jobs from schedulers/enqueuers and runs the registered Job Handler.
+
+_Avoid_: Background Work Backend, Worker, Job Handler, domain truth.
+
+### Job State
+
+Infrastructure-owned execution state for one background job.
+
+Job State may record job type, compact input envelope, status, attempts,
+timestamps, worker/claim metadata, failure code/message, and compact result
+references. It must not become domain truth. Durable domain results belong in
+the owning area tables and are written through that area's command boundary.
+
+_Avoid_: Local Source record, embedding vector row, Music Data Platform fact,
+provider payload archive, public agent output.
+
+### Public Job Status
+
+Agent-facing or host-facing status for a domain operation backed by background
+work.
+
+Public Job Status, when exposed, is owned by the domain-facing tool or
+instrument that submitted the work. It should describe the user-visible domain
+operation, not backend worker internals, queue attempts, raw job payloads, or
+provider/runtime diagnostics.
+
+MineMusic should not add a generic public job-status tool by default. A domain
+operation backed by background work exposes status only through its owning
+domain language when that status is needed.
+
+_Avoid_: raw Job State, generic queue inspector, worker diagnostic payload,
+backend attempt history.
+
+### Retryable Job Failure
+
+A background job failure caused by a temporary external or infrastructure
+condition where running the same Job Handler again may succeed without changing
+the domain request.
+
+Examples include transient network failures, provider 5xx responses, temporary
+database serialization/deadlock failures, temporary filesystem errors, and
+temporarily unavailable model services.
+
+_Avoid_: invalid input, missing domain identity, permanent provider denial,
+broken invariant.
+
+### Permanent Job Failure
+
+A background job failure where retrying the same input should not be expected
+to succeed.
+
+Examples include invalid job input, missing source/material identity, missing
+required source-to-material binding, provider-declared no downloadable source,
+and domain command failures that indicate the request is not valid.
+
+_Avoid_: temporary network failure, provider 5xx, transient database conflict,
+temporary filesystem failure.
+
+### Job Idempotency Key
+
+Owning-area identity for a domain request submitted as background work.
+
+The Background Work Backend may use a Job Idempotency Key for enqueue dedupe,
+but it does not provide exactly-once domain semantics. Each Job Handler must
+make repeated execution safe by checking existing durable domain results before
+performing external effects and by treating equivalent existing results as
+success.
+
+_Avoid_: exactly-once guarantee, database primary key, public handle,
+provider raw id.
+
+### Worker
+
+An execution loop or process inside the Background Work Backend.
+
+Worker is infrastructure vocabulary only. Domain areas should not name their
+job logic as workers; they register Job Handlers instead.
+
+_Avoid_: localize worker, embedding worker, Music Data Platform service.
+
+### In-Process Worker
+
+A Worker running inside the MineMusic Server process.
+
+The first Background Work deployment may use an In-Process Worker for local
+simplicity, while preserving the same backend and handler contracts a future
+separate worker process would use. MineMusic Server shutdown must stop claiming
+new work and drain or release in-flight work according to the backend contract.
+
+_Avoid_: exactly-once guarantee, domain service, public Stage Interface surface.
+
+### Worker Process
+
+A future separately launched process that runs Background Work Backend workers
+against the same Postgres-backed job state and registered Job Handlers.
+
+Worker Process is a deployment shape, not a different domain model.
+
+_Avoid_: different job semantics, separate domain database, provider-owned
+worker.
+
 ### Stage Interface
 
 The LLM-facing and host-facing MineMusic interface.
@@ -458,6 +701,74 @@ Platform; it does not own durable identity writes. Music Discovery is the public
 Stage Interface seam over Retrieval (ADR-0012), and Retrieval internals
 (`materialCandidateRef`, `resultSetId`, pool algebra) never cross that seam.
 _Avoid_: Stage Interface presentation, durable materialization, public handle.
+
+### Search Target
+
+The final music identity a retrieval result can rank and return after candidate
+generation and evidence merge. Current Search Targets are durable `material`
+and runtime `material_candidate`; sources, tags, memories, embeddings, and
+search documents are evidence sources rather than final result identities.
+_Avoid_: source result, tag result, memory result, embedding row, document id.
+
+### Searchable Document
+
+A corpus-owned evidence carrier that can be matched by retrieval and points to a
+Search Target. It is never the final result identity; multiple Searchable
+Documents may explain the same Search Target. Provider search results are
+Searchable Documents from a provider corpus; their final Search Target is either
+a runtime `material_candidate` or an existing bound `material`. Each Searchable
+Document points to exactly one Search Target; multi-target evidence is split
+into one document per target with shared provenance.
+_Avoid_: result item, material, source, tag, memory, embedding row.
+
+### Search Corpus
+
+A retrieval source or capability that can produce Searchable Documents for a
+query. A Search Corpus may be backed by a Postgres text index, provider API,
+embedding index, memory store, tag assertions, or generated music description;
+it is not synonymous with one storage table.
+_Avoid_: table, repository, material catalog, provider adapter, ranking policy.
+
+### Document Evidence
+
+Corpus-local explanation for why one Searchable Document matched a retrieval
+query. It explains the line of evidence, not the final merged result.
+_Avoid_: final score, result card text, ranked result identity.
+
+### Result Evidence
+
+Merged explanation for why one Search Target appears in the final retrieval
+result after combining one or more Searchable Documents. It may contain
+metadata, provider, tag, memory, embedding, or generated-description evidence.
+_Avoid_: document evidence, ranking score, cursor identity.
+
+### Corpus-Local Score
+
+A score whose meaning is valid only inside the Search Corpus that produced a
+Searchable Document. Corpus-Local Scores may inform result ranking, but final
+ordering is produced after documents are merged by Search Target.
+_Avoid_: final rank, global score, cursor order.
+
+### Ranked Result Set
+
+A TTL-bound retrieval result snapshot containing the final ordered Search
+Targets for one query after corpus recall, document merge, evidence merge, and
+result-level scoring. It stabilizes cursor paging and is not durable domain
+truth.
+_Avoid_: corpus result, provider cache, permanent playlist, domain record.
+
+### Direct Search
+
+A retrieval execution mode that reads a single cheap local corpus directly and
+uses stable keyset paging without creating a Ranked Result Set. It is suitable
+for simple metadata-only lookup, not provider or multi-corpus retrieval.
+_Avoid_: provider search, multi-corpus search, ranked result-set paging.
+
+### Ranked Result Set Search
+
+A retrieval execution mode that creates or reads a Ranked Result Set for
+provider, multi-corpus, expensive, or cross-page-stability-sensitive lookup.
+_Avoid_: direct metadata lookup, permanent material collection.
 
 ### Music Analysis Artifact
 

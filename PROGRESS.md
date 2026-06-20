@@ -1195,6 +1195,28 @@ cursor with a Stage Interface-owned registry-backed Public Cursor Veil:
   cursor-page field isolation, output veil behavior, context factory wiring, and
   active-tree write-boundary allow-listing.
 
+## 2026-06-20: Phase 21 Postgres And Background Work Slice 4
+
+The Postgres / Background Work / localize Phase 21 track is active. Storage
+migration through Slice 3 is complete, and Slice 4 establishes the first
+Background Work runtime infrastructure:
+
+- `src/background_work/backend.ts` defines the MineMusic-owned v1 port:
+  `submit`, `registerHandler`, `start`, and `stop`.
+- `src/background_work/pg_boss_backend.ts` implements the first concrete backend
+  with `pg-boss`, while `test/formal/active-tree.test.ts` guards that `pg-boss`
+  imports remain confined to that adapter.
+- `submit(...)` supports one-time jobs, optional `runAfter`, and idempotent
+  submission results `{ jobId, submission: "created" | "deduplicated" }`.
+- `registerHandler(...)` must happen before worker start; `submit(...)` can
+  initialize pg-boss and create queues without registering workers.
+- `test/formal/background-work-backend.test.ts` covers deferred worker start,
+  queue creation, idempotent dedupe, handler payload delivery, duplicate
+  registration rejection, and graceful stop behavior using a fake
+  `PgBossBackgroundWorkClient`.
+- `pg-boss@12.20.0` is now a runtime dependency. Background Work remains generic
+  runtime infrastructure; `localizeProviderSource` is still the next slice.
+
 ## Next Formal Milestones
 
 ### Later Formal Phases

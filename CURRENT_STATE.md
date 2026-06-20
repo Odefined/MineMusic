@@ -61,6 +61,14 @@ Phase 16D adds the full `music.discovery.lookup` retrieval tool with public
 handles, descriptions, fail-whole provider errors, and public lookup cursor
 wrapping. Phase 21 replaces the original AEAD public lookup cursor with the
 Stage Interface-owned registry-backed Public Cursor Veil described by ADR-0024.
+The current Phase 21 Postgres / Background Work / localize track has completed
+the destructive Postgres runtime-storage migration through Slice 3 and now adds
+Background Work v1: a MineMusic-owned `BackgroundWorkBackend` port with
+`submit`, `registerHandler`, `start`, and `stop`, backed first by a concrete
+`pg-boss` adapter behind `src/background_work/pg_boss_backend.ts`. Background
+Work is runtime infrastructure, not a top-level formal area; job state is
+backend-owned execution state only. `localizeProviderSource` remains the next
+slice and is not implemented yet.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
@@ -831,6 +839,8 @@ Current formal state does not implement:
 - dynamic plugin loading, plugin dependencies, marketplace behavior, signing,
   sandboxing, or process isolation;
 - HTTP transport (MCP-over-stdio shipped in Phase 20; HTTP/CLI/Web UI remain);
+- `localizeProviderSource` job submission/handler and Local Source file
+  finalization;
 - presentation history beyond the immediate `music.experience.present` output;
 - update baselines, collection, additional owner catalog producers,
   wrong-version, not-playable, bad-match, feedback/correction facts, signals,

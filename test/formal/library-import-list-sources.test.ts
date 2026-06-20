@@ -154,6 +154,16 @@ if (initializedServerModule.ok) {
                     "followed_source_artist",
                 ],
             },
+            {
+                providerId: "qq",
+                label: "QQ Music",
+                accountRequired: true,
+                kinds: [
+                    "saved_source_track",
+                    "saved_source_album",
+                    "followed_source_artist",
+                ],
+            },
         ]);
     }
 }

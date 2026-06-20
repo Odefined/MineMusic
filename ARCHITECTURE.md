@@ -98,6 +98,15 @@ enabled adapters, shared provider dependencies, config, auth, cache, rate
 limits, storage handles, and capability ports. Stage Core does not own plugin
 semantics.
 
+Background Work is runtime infrastructure owned through Stage Core / Server
+Host composition, not a top-level formal area and not a generic workflow layer.
+Owning areas register typed job handlers through a MineMusic-owned
+`BackgroundWorkBackend` port. The concrete v1 backend is `pg-boss` behind the
+Background Work adapter; domain areas, Stage Interface, and Music Data Platform
+must not import `pg-boss` APIs or tables directly. Job state is backend-owned
+execution state only; durable domain truth remains in the owning area tables and
+command boundaries.
+
 Stage Interface is the only formal agent-facing callable boundary. It owns
 Instrument Catalog, Tool Registry, Handbook, schemas, validation, compact
 outputs, dispatch, and session-aware availability.

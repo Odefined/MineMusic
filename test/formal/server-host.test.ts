@@ -270,9 +270,11 @@ assert.equal(configuredExtensionStarted.ok, true);
 assert.equal(probedNcm, false);
 assert.deepEqual((await configuredExtensionRuntime.listSourceProviders()).map((provider) => provider.providerId), [
     "netease",
+    "qq",
 ]);
 assert.deepEqual((await configuredExtensionRuntime.listPlatformLibraryProviders()).map((provider) => provider.providerId), [
     "netease",
+    "qq",
 ]);
 for (const [extensionCode, musicIntelligenceCode] of [
     ["extension.source_provider_not_found", "music_intelligence.provider_search_unavailable"],

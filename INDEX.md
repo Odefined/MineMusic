@@ -149,6 +149,10 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   implemented Phase 20 plan for the MCP-over-stdio Server Host transport,
   production `StageToolContext` factory composition, MCP rendering/translation,
   cancellation, entrypoint wiring, guards, and smoke verification.
+- `docs/formal-rebuild/phase-21-postgres-background-work-localize-implementation-plan.md`:
+  active Phase 21 plan for destructive Postgres storage migration, Background
+  Work v1 over `pg-boss`, and `localizeProviderSource`; storage migration is
+  complete through Slice 3 and Background Work Slice 4 has landed.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -240,6 +244,15 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
   Boundary auto-pass widened for explicit owner-relation edit tools.
 - `docs/adr/0024-registry-backed-public-lookup-cursors.md`: public lookup
   cursors use a Stage Interface-owned registry-backed Public Cursor Veil.
+- `docs/adr/0025-background-work-v1-in-process-workers.md`: Background Work v1
+  uses in-process workers while preserving a future worker-process contract.
+- `docs/adr/0026-localize-uses-staged-file-consistency.md`: localize uses staged
+  file consistency rather than pretending file writes and Postgres writes are
+  atomic together.
+- `docs/adr/0027-background-work-uses-pg-boss-behind-adapter.md`: Background
+  Work uses `pg-boss` behind a MineMusic-owned adapter.
+- `docs/adr/0028-localize-uses-content-addressed-local-source-paths.md`:
+  localized audio uses content-addressed canonical Local Source paths.
 
 ## Pre-Formal ADR Evidence
 
@@ -346,6 +359,11 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
   boundary using `StageToolRegistration` entries.
 - `src/stage_core/runtime_status.ts`: internal `stage.runtime.status` module
   migrated to the Phase 16A static descriptor + payload handler shape.
+- `src/background_work/backend.ts`: MineMusic-owned Background Work v1 port
+  (`submit`, `registerHandler`, `start`, `stop`) for durable one-time jobs.
+- `src/background_work/pg_boss_backend.ts`: concrete `pg-boss` adapter confined
+  behind the Background Work port.
+- `src/background_work/index.ts`: Background Work public exports.
 - `src/server/host.ts`: thin Server Host lifecycle owner, Stage Interface
   dispatch entrypoint, internal source library import seam accessor, and the
   composed Tool Context Factory accessor.

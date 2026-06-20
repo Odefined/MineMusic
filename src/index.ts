@@ -4,6 +4,7 @@ export * from "./contracts/storage.js";
 export * from "./contracts/stage_interface.js";
 export * from "./contracts/stage_core.js";
 export * from "./extension/index.js";
+export * from "./background_work/index.js";
 export * from "./music_intelligence/index.js";
 export * from "./music_data_platform/index.js";
 export * from "./storage/index.js";

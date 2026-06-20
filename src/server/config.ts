@@ -2,7 +2,7 @@ import {
   createExtensionRuntime,
   type ExtensionRuntime,
 } from "../extension/index.js";
-import { createNcmPlugin, type NcmPluginConfig } from "../extension/plugins/index.js";
+import { createNcmPlugin, createQqPlugin, type NcmPluginConfig, type QqPluginConfig } from "../extension/plugins/index.js";
 
 export type MineMusicRuntimeConfig = {
   database?: {
@@ -20,6 +20,7 @@ export type MineMusicRuntimeConfig = {
   };
   plugins?: {
     "minemusic.ncm"?: NcmPluginConfig;
+    "minemusic.qq"?: QqPluginConfig;
   };
 };
 
@@ -44,6 +45,7 @@ export function createMineMusicExtensionRuntime(
   return createExtensionRuntime({
     plugins: [
       createNcmPlugin(config.plugins?.["minemusic.ncm"]),
+      createQqPlugin(config.plugins?.["minemusic.qq"]),
     ],
   });
 }
