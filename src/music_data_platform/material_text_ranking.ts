@@ -1,15 +1,9 @@
-// Material Text Ranking — the shared Postgres text-ranking SQL engine for
-// retrieval (architecture deepening candidate #2). Parameterised by the FTS
-// table name so the local retrieval read model (material_text_fts) and the
-// mixed retrieval workspace (retrieval_result_text_fts) share ONE ranking
-// implementation instead of the two byte-identical copies that previously lived
-// in retrieval_read_model.ts and retrieval_mixed_workspace.ts.
+// Material Text Ranking — the Postgres text-ranking SQL engine used by the
+// material_text projection (material_text_fts). Parameterised by the FTS table
+// name; only material_text_fts remains after the old retrieval query path
+// (retrieval_result_text_fts) was deleted.
 //
-// Scope: only the ranking expressions and the field set they rank over. The
-// text cursor clause and the matched-text evidence SQL are NOT shared — they
-// diverge materially between the two callers (order switch vs single
-// text-relevance tie-break; material_ref_key vs result-row keying) and stay in
-// their owning files.
+// Scope: only the ranking expressions and the field set they rank over.
 
 export type RetrievalTextField =
   | "title"
@@ -18,7 +12,7 @@ export type RetrievalTextField =
   | "version"
   | "alias";
 
-export type RetrievalFtsTableName = "material_text_fts" | "retrieval_result_text_fts";
+export type RetrievalFtsTableName = "material_text_fts";
 
 export function sqlStringLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
