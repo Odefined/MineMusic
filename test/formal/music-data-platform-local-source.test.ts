@@ -10,9 +10,11 @@ import {
 } from "../../src/music_data_platform/index.js";
 import { createIdentityRepositories } from "../../src/music_data_platform/identity_records.js";
 import { createMusicDataPlatformSourceOfTruthWriteCommands } from "../../src/music_data_platform/source_of_truth_write_commands.js";
+import { MusicDataPlatformError } from "../../src/music_data_platform/errors.js";
 import { SqliteMusicDatabase, type MusicDatabaseContext } from "../../src/storage/index.js";
 
 const now = "2026-06-17T12:00:00.000Z";
+const trackFilePath = "/library/track.flac";
 
 function initializedDatabase() {
   const database = SqliteMusicDatabase.open({ filename: ":memory:" });
@@ -72,7 +74,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
     materialRefFactory: createMaterialRefFactory({ nextOpaqueId: () => `local_${++count}` }),
   });
 
-  const result = command.createLocalSource({ md5, kind: "track" });
+  const result = command.createLocalSource({ md5, kind: "track", filePath: trackFilePath });
   assert.equal(result.ok, true);
   if (!result.ok) {
     throw new Error("expected createLocalSource A to succeed");
@@ -94,6 +96,11 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
   assert.equal(sourceRecord?.lookup.origin, "local_file");
   assert.equal(sourceRecord?.lookup.providerId, undefined);
   assert.equal(sourceRecord?.lookup.providerEntityId, md5);
+  // filePath is stored verbatim from the caller-supplied path.
+  if (sourceRecord?.entity.origin !== "local_file") {
+    throw new Error("expected local_file entity for filePath assertion");
+  }
+  assert.equal(sourceRecord.entity.filePath, trackFilePath);
 
   const materialRecord = repositories.materialRecords.get({ materialRef: result.value.materialRef });
   assert.notEqual(materialRecord, undefined);
@@ -112,7 +119,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
     materialRefFactory: createMaterialRefFactory({ nextOpaqueId: () => "b" }),
   });
 
-  const result = command.createLocalSource({ md5, kind: "track", materialRef: providerMaterialRef });
+  const result = command.createLocalSource({ md5, kind: "track", filePath: trackFilePath, materialRef: providerMaterialRef });
   assert.equal(result.ok, true);
   if (!result.ok) {
     throw new Error("expected createLocalSource B to succeed");
@@ -151,8 +158,8 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
     materialRefFactory: createMaterialRefFactory({ nextOpaqueId: () => `idem_${++count}` }),
   });
 
-  const first = command.createLocalSource({ md5, kind: "track" });
-  const second = command.createLocalSource({ md5, kind: "track" });
+  const first = command.createLocalSource({ md5, kind: "track", filePath: trackFilePath });
+  const second = command.createLocalSource({ md5, kind: "track", filePath: trackFilePath });
   assert.equal(first.ok && second.ok, true);
   if (!first.ok || !second.ok) {
     throw new Error("expected both createLocalSource calls to succeed");
@@ -176,7 +183,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
     materialRefFactory: createMaterialRefFactory({ nextOpaqueId: () => "lc" }),
   });
 
-  const upper = command.createLocalSource({ md5: "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", kind: "track" });
+  const upper = command.createLocalSource({ md5: "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", kind: "track", filePath: trackFilePath });
   assert.equal(upper.ok, true);
   if (!upper.ok) {
     throw new Error("expected uppercase md5 to succeed");
@@ -191,7 +198,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
     undefined,
   );
   // a second call with lowercase equivalent is the same source (idempotent)
-  const lower = command.createLocalSource({ md5: "dddddddddddddddddddddddddddddddd", kind: "track" });
+  const lower = command.createLocalSource({ md5: "dddddddddddddddddddddddddddddddd", kind: "track", filePath: trackFilePath });
   assert.equal(lower.ok, true);
   if (!lower.ok) {
     throw new Error("expected lowercase md5 to succeed");
@@ -211,7 +218,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
     materialRefFactory: createMaterialRefFactory({ nextOpaqueId: () => `ab_${++count}` }),
   });
 
-  const first = command.createLocalSource({ md5, kind: "track" });
+  const first = command.createLocalSource({ md5, kind: "track", filePath: trackFilePath });
   assert.equal(first.ok && first.value.created, true);
   if (!first.ok) {
     throw new Error("expected first A to succeed");
@@ -219,7 +226,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
 
   // A later B call naming a DIFFERENT material is a conflict, not a silent rebind.
   const otherMaterialRef = seedProviderMaterial(database, "3001");
-  const conflict = command.createLocalSource({ md5, kind: "track", materialRef: otherMaterialRef });
+  const conflict = command.createLocalSource({ md5, kind: "track", filePath: trackFilePath, materialRef: otherMaterialRef });
   assert.equal(conflict.ok, false);
   if (conflict.ok) {
     throw new Error("expected A->B conflict failure");
@@ -227,7 +234,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
   assert.equal(conflict.error.code, "music_data.local_source_material_conflict");
 
   // A->B replay with the SAME material the source is already bound to is not a conflict.
-  const replay = command.createLocalSource({ md5, kind: "track", materialRef: first.value.materialRef });
+  const replay = command.createLocalSource({ md5, kind: "track", filePath: trackFilePath, materialRef: first.value.materialRef });
   assert.equal(replay.ok, true);
   if (!replay.ok) {
     throw new Error("expected A->B same-material replay to succeed");
@@ -251,6 +258,7 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
   const result = command.createLocalSource({
     md5: "ffffffffffffffffffffffffffffffff",
     kind: "track",
+    filePath: trackFilePath,
     materialRef: fakeMaterialRef,
   });
   assert.equal(result.ok, false);
@@ -258,4 +266,98 @@ function seedProviderMaterial(database: SqliteMusicDatabase, songId: string): Re
     throw new Error("expected missing materialRef to fail");
   }
   assert.equal(result.error.area, "music_data_platform");
+}
+
+// --- Bypass guard: a malformed local_file entity fed DIRECTLY to
+// upsertSourceRecord (not via createLocalSourceRef) is still rejected at the
+// write boundary. The discriminated union cannot express ref.id===md5, the
+// local providerId ban, the source_local namespace, or the md5 hex format, so
+// assertSourceEntityRefShape owns those invariants and must throw for each. ---
+{
+  const database = initializedDatabase();
+  const md5 = "11111111111111111111111111111111";
+
+  const upsert = (entity: SourceTrack): void => {
+    database.transaction((db) => {
+      createMusicDataPlatformSourceOfTruthWriteCommands({ db, now }).identity.upsertSourceRecord({ entity });
+    });
+  };
+
+  const expectsRefKeyMismatch = (error: unknown): error is MusicDataPlatformError =>
+    error instanceof MusicDataPlatformError && error.code === "music_data.record_ref_key_mismatch";
+
+  // (1) sourceRef.id !== providerEntityId — ref identity and md5 identity diverge.
+  assert.throws(
+    () => upsert({
+      origin: "local_file",
+      sourceRef: { namespace: "source_local", kind: "track", id: "22222222222222222222222222222222" },
+      providerEntityId: md5,
+      kind: "track",
+      label: "x",
+      title: "x",
+      filePath: trackFilePath,
+    }),
+    expectsRefKeyMismatch,
+  );
+
+  // (2) providerId present on a local_file entity (forbidden).
+  assert.throws(
+    () => upsert({
+      origin: "local_file",
+      sourceRef: { namespace: "source_local", kind: "track", id: md5 },
+      providerId: "netease",
+      providerEntityId: md5,
+      kind: "track",
+      label: "x",
+      title: "x",
+      filePath: trackFilePath,
+    } as SourceTrack),
+    expectsRefKeyMismatch,
+  );
+
+  // (3) namespace !== source_local.
+  assert.throws(
+    () => upsert({
+      origin: "local_file",
+      sourceRef: { namespace: "source_netease", kind: "track", id: md5 },
+      providerEntityId: md5,
+      kind: "track",
+      label: "x",
+      title: "x",
+      filePath: trackFilePath,
+    }),
+    expectsRefKeyMismatch,
+  );
+
+  // (4) providerEntityId is not a 32-lowercase-hex md5 (write-model hex guard,
+  //     independent of createLocalSourceRef).
+  assert.throws(
+    () => upsert({
+      origin: "local_file",
+      sourceRef: { namespace: "source_local", kind: "track", id: "not_a_valid_md5_value" },
+      providerEntityId: "not_a_valid_md5_value",
+      kind: "track",
+      label: "x",
+      title: "x",
+      filePath: trackFilePath,
+    }),
+    expectsRefKeyMismatch,
+  );
+
+  // (5) filePath missing/empty — a local source must carry an on-disk location.
+  assert.throws(
+    () => upsert({
+      origin: "local_file",
+      sourceRef: { namespace: "source_local", kind: "track", id: md5 },
+      providerEntityId: md5,
+      kind: "track",
+      label: "x",
+      title: "x",
+      filePath: "",
+    }),
+    expectsRefKeyMismatch,
+  );
+
+  // No malformed entity was persisted.
+  assert.equal(tableCount(database.context(), "source_records"), 0);
 }

@@ -249,10 +249,12 @@ Storage records and domain entities are different objects. SQL keys,
 denormalized lookup columns, indexes, and persistence-only values belong to
 records, not public/domain entity contracts.
 
-`SourceEntity` is normalized provider/source fact state. It may contain
-provider ids, explicit normalized facts, source-owned links, and source-side
-version information. It does not own material identity, owner facts, public
-presentation, or raw provider payload.
+`SourceEntity` is normalized provider/source fact state, discriminated by
+`origin = provider | local_file`: provider-backed sources carry a required
+(providerId, providerEntityId) pair, while local-file sources are identified by
+file md5 with no provider. It may contain explicit normalized facts,
+source-owned links, and source-side version information. It does not own
+material identity, owner facts, public presentation, or raw provider payload.
 
 `MaterialEntity` is a MineMusic material identity anchor. It does not own
 playable links, public display links, availability, query score,

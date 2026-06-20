@@ -1,7 +1,7 @@
 import { refKey, type Ref, type Result } from "../contracts/kernel.js";
 import type { SourceEntity, SourceTrack } from "../contracts/music_data_platform.js";
 import type { MusicDatabase } from "../storage/database.js";
-import { MusicDataPlatformError } from "./errors.js";
+import { MusicDataPlatformError, type MusicDataPlatformErrorCode } from "./errors.js";
 import { createIdentityReadPort } from "./identity_read_model.js";
 import { materialKindForSourceKind } from "./material_ref.js";
 import type { MaterialRefFactory } from "./material_ref_factory.js";
@@ -29,6 +29,7 @@ export type LocalSourceCommand = {
 export type CreateLocalSourceInput = {
   md5: string;
   kind: "track";
+  filePath: string;
   materialRef?: Ref;
 };
 
@@ -36,6 +37,16 @@ export type CreateLocalSourceResult = {
   materialRef: Ref;
   created: boolean;
 };
+
+// Scenario-B caller-input failures that bindSourceToMaterial surfaces as
+// MusicDataPlatformError. Only these are translated to Result at the
+// createLocalSource boundary; every other throw is an invariant (source/identity
+// shape, primary-source binding) and must crash rather than become a Result.
+const CREATE_LOCAL_SOURCE_RESULT_FAILURE_CODES: ReadonlySet<MusicDataPlatformErrorCode> = new Set([
+  "music_data.material_not_found",
+  "music_data.material_not_writable",
+  "music_data.record_kind_mismatch",
+]);
 
 export function createLocalSourceCommand(
   input: CreateLocalSourceCommandInput,
@@ -45,12 +56,11 @@ export function createLocalSourceCommand(
   return {
     createLocalSource(commandInput) {
       // createLocalSource is the owning command boundary for local-source
-      // registration. The transaction body may throw MusicDataPlatformError for
-      // an expected caller-input failure in scenario B (caller-supplied
-      // materialRef missing or kind-incompatible, surfaced via
-      // bindSourceToMaterial). Per CLAUDE.md expected failures are Result<T>,
-      // so translate at this boundary — the transaction has already rolled
-      // back, so there is no partial write.
+      // registration. The transaction body may throw MusicDataPlatformError,
+      // but only declared scenario-B caller-input failures (missing / wrong-kind
+      // / non-writable materialRef) become Result — invariant violations
+      // propagate as throws (one failure channel; let broken invariants crash).
+      // The transaction has already rolled back, so there is no partial write.
       try {
         return input.database.transaction((db) => {
           const timestamp = now();
@@ -87,6 +97,7 @@ export function createLocalSourceCommand(
           const localSourceEntity = buildLocalSourceEntity({
             sourceRef,
             md5: commandInput.md5,
+            filePath: commandInput.filePath,
           });
           writes.identity.upsertSourceRecord({ entity: localSourceEntity });
 
@@ -110,7 +121,10 @@ export function createLocalSourceCommand(
           return ok({ materialRef: commandInput.materialRef, created: true });
         });
       } catch (cause) {
-        if (cause instanceof MusicDataPlatformError) {
+        if (
+          cause instanceof MusicDataPlatformError &&
+          CREATE_LOCAL_SOURCE_RESULT_FAILURE_CODES.has(cause.code)
+        ) {
           return failLocalSource(cause.code, cause.message);
         }
         throw cause;
@@ -122,17 +136,20 @@ export function createLocalSourceCommand(
 function buildLocalSourceEntity(input: {
   sourceRef: Ref;
   md5: string;
+  filePath: string;
 }): SourceEntity {
   // The entity carries no rich metadata here: the import layer fills
   // title/artist from file tags (follow-up) and upserts again. Until then
   // label/title are placeholders. origin/providerEntityId (md5) are the dedup
-  // identity and must not change on that re-upsert.
+  // identity and must not change on that re-upsert. filePath is the caller-
+  // supplied on-disk location, stored verbatim.
   const normalizedMd5 = input.md5.toLowerCase();
   const placeholder = `Local file ${normalizedMd5.slice(0, 8)}`;
   const entity: SourceTrack = {
     origin: "local_file",
     sourceRef: input.sourceRef,
     providerEntityId: normalizedMd5,
+    filePath: input.filePath,
     kind: "track",
     label: placeholder,
     title: placeholder,
@@ -144,7 +161,7 @@ function ok<T>(value: T): Result<T> {
   return { ok: true, value };
 }
 
-function failLocalSource(code: string, message: string, retryable = false): Result<never> {
+function failLocalSource(code: MusicDataPlatformErrorCode, message: string, retryable = false): Result<never> {
   return {
     ok: false,
     error: {

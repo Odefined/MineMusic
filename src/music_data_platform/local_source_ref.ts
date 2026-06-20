@@ -1,6 +1,6 @@
 import type { SourceEntityKind } from "../contracts/music_data_platform.js";
 import type { Ref } from "../contracts/kernel.js";
-import { MusicDataPlatformError } from "./errors.js";
+import { MusicDataPlatformError, type MusicDataPlatformErrorCode } from "./errors.js";
 import {
   assertMusicDataPlatformRefComponentSafe,
   assertMusicDataPlatformRefSafe,
@@ -51,13 +51,22 @@ export function assertLocalSourceRef(ref: Ref): void {
   }
 }
 
-function assertSafeMd5(value: string): void {
+export function assertSafeMd5(
+  value: string,
+  code: MusicDataPlatformErrorCode = "music_data.local_source_ref_invalid",
+): void {
   assertMusicDataPlatformRefComponentSafe({
     value,
     fieldName: "md5",
-    code: "music_data.local_source_ref_invalid",
+    code,
     message: "md5 must be a non-empty ref-safe string.",
   });
+  if (!/^[0-9a-f]{32}$/.test(value)) {
+    throw new MusicDataPlatformError({
+      code,
+      message: "Local source md5 must be 32 lowercase hex characters.",
+    });
+  }
 }
 
 function invalidLocalSourceRef(message: string): MusicDataPlatformError {

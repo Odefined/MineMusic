@@ -6,7 +6,7 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
     context.run(`
       CREATE TABLE IF NOT EXISTS source_records (
         ref_key TEXT PRIMARY KEY,
-        origin TEXT NOT NULL DEFAULT 'provider',
+        origin TEXT NOT NULL CHECK (origin IN ('provider', 'local_file')),
         provider_id TEXT,
         provider_entity_id TEXT,
         kind TEXT NOT NULL,

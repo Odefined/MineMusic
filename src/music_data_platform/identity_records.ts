@@ -365,10 +365,8 @@ export function createIdentityRepositories(
 }
 
 function sourceRecordFromRow(row: SourceRecordRow): SourceRecord {
-  const entity = normalizeSourceEntityOrigin(
-    JSON.parse(row.entity_json) as SourceEntity,
-    row.origin,
-  );
+  const entity = JSON.parse(row.entity_json) as SourceEntity;
+  assertSourceRecordRowIntegrity(row, entity);
   return {
     entity,
     lookup: {
@@ -382,11 +380,43 @@ function sourceRecordFromRow(row: SourceRecordRow): SourceRecord {
   };
 }
 
-// Old entity_json (and candidate-cache records parsed elsewhere) may predate the
-// origin field. The origin column is authoritative — stamp it onto the entity so
-// the in-memory SourceEntity is self-describing and passes assertSourceEntityRefShape.
-function normalizeSourceEntityOrigin(entity: SourceEntity, origin: string): SourceEntity {
-  return { ...entity, origin: origin as SourceOrigin };
+// Read-boundary integrity guard. source_records rows are written only through
+// upsertSourceRecord, which serializes entity_json and the lookup columns from
+// the same entity after assertSourceRecordConsistency. A row whose entity_json
+// disagrees with its columns — or whose origin is outside the SourceOrigin union
+// — is corruption, not a legacy shape to silently normalize. Fail loud at the
+// read boundary so a corrupt row never flows into projections, nor surfaces
+// later as a misleading identity_conflict on the next write touching that ref.
+function assertSourceRecordRowIntegrity(row: SourceRecordRow, entity: SourceEntity): void {
+  // entity_json is parsed JSON; treat origin as an untrusted string rather than
+  // the narrowed SourceOrigin literal, so a corrupt origin is reported rather
+  // than narrowed to `never`.
+  const origin = entity.origin as string;
+  if (origin !== "provider" && origin !== "local_file") {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity_json origin '${origin}' is not a valid SourceOrigin.`,
+    );
+  }
+  if (origin !== row.origin) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity_json origin '${origin}' disagrees with origin column '${row.origin}'.`,
+    );
+  }
+  if (entity.kind !== row.kind) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity kind '${String(entity.kind)}' disagrees with kind column '${row.kind}'.`,
+    );
+  }
+  if ((entity.providerId ?? null) !== row.provider_id) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity providerId '${String(entity.providerId)}' disagrees with provider_id column '${row.provider_id}'.`,
+    );
+  }
+  if ((entity.providerEntityId ?? null) !== row.provider_entity_id) {
+    throw new Error(
+      `source_records row corrupt (ref_key=${row.ref_key}): entity providerEntityId '${String(entity.providerEntityId)}' disagrees with provider_entity_id column '${row.provider_entity_id}'.`,
+    );
+  }
 }
 
 function materialRecordFromRow(row: MaterialRecordRow): MaterialRecord {

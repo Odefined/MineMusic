@@ -80,22 +80,46 @@ export type SourceAvailabilityHint =
 
 export type SourceOrigin = "provider" | "local_file";
 
-// `origin` discriminates provider-backed sources (which carry providerId/
-// providerEntityId) from local-file sources (identified by file md5, with no
-// provider). It lives both on the entity — so entity_json is self-describing —
-// and as a source_records column, where it is the partial-index predicate.
-// Same both-places pattern the codebase already uses for kind/providerId.
-export type SourceEntityBase = {
+// Fields shared by both origins.
+type SourceEntitySharedFields = {
   sourceRef: Ref;
-  origin: SourceOrigin;
-  providerId?: string;
-  providerEntityId?: string;
   label: string;
   providerUrl?: string;
   links?: readonly PlayableLink[];
   availabilityHint?: SourceAvailabilityHint;
   versionInfo?: VersionInfo;
 };
+
+// Provider-backed source: identified by (providerId, providerEntityId), both
+// required — the contract cannot be constructed without them.
+export type ProviderOriginSourceEntity = SourceEntitySharedFields & {
+  origin: "provider";
+  providerId: string;
+  providerEntityId: string;
+};
+
+// Local-file source: identified by file md5 (carried in providerEntityId), with
+// no provider — providerId is forbidden (never). filePath is the on-disk
+// location of the audio file, supplied verbatim by the caller (download
+// outputDir/filename or scan); MineMusic does not own a music-library root, so
+// it stores the path as given rather than interpreting absolute vs relative.
+export type LocalFileOriginSourceEntity = SourceEntitySharedFields & {
+  origin: "local_file";
+  providerId?: never;
+  providerEntityId: string;
+  filePath: string;
+};
+
+// `origin` discriminates provider-backed sources (providerId/providerEntityId
+// required) from local-file sources (md5 identity, no provider). The union
+// makes the per-origin contract unbreakable at construction: a provider entity
+// cannot omit providerId/providerEntityId, and a local entity cannot carry a
+// providerId. `origin` also lives as a source_records column, where it is the
+// partial-index predicate. Same both-places pattern the codebase uses for
+// kind/providerEntityId.
+export type SourceEntityBase =
+  | ProviderOriginSourceEntity
+  | LocalFileOriginSourceEntity;
 
 export type SourceTrack = SourceEntityBase & {
   kind: "track";

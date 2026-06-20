@@ -272,7 +272,6 @@ async function readNcmSavedTracks(
   const nextOffset = offset.value + selected.length;
 
   return ok({
-    origin: "provider",
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "saved_source_track",
@@ -327,7 +326,6 @@ async function readNcmSavedAlbums(
   }
 
   return ok({
-    origin: "provider",
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "saved_source_album",
@@ -382,7 +380,6 @@ async function readNcmFollowedArtists(
   }
 
   return ok({
-    origin: "provider",
     providerId: ncmProviderId,
     providerAccountId: accountId.value,
     kind: "followed_source_artist",

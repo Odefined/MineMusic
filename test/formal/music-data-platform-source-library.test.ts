@@ -1620,7 +1620,7 @@ for (const invalidPageCase of [
               kind: "track",
               id: "1001",
             },
-          },
+          } as SourceEntity,
         ),
       ],
     }),

@@ -694,7 +694,7 @@ function materialRefFor(kind: "recording", id: string): Ref {
 function sourceTrack(
   id: string,
   title: string,
-  input: Partial<Omit<SourceTrack, "kind" | "sourceRef" | "providerId" | "providerEntityId" | "label" | "title">> = {},
+  input: Partial<Omit<SourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">> = {},
 ): SourceTrack {
   return {
     kind: "track",

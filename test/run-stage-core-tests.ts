@@ -13,6 +13,7 @@ const testModules = [
   "./formal/mcp-stdio-transport.test.js",
   "./formal/extension-capability-slot.test.js",
   "./formal/ncm-plugin.test.js",
+  "./formal/qq-qrc-decrypt.test.js",
   "./formal/music-database.test.js",
   "./formal/music-data-platform-identity.test.js",
   "./formal/music-data-platform-source-library.test.js",

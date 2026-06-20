@@ -314,9 +314,9 @@ database.transaction((db) => {
 
 database.close();
 
-type SourceTrackOverrides = Partial<Omit<SourceTrack, "kind" | "sourceRef" | "providerId" | "providerEntityId" | "label" | "title">>;
-type SourceAlbumOverrides = Partial<Omit<SourceAlbum, "kind" | "sourceRef" | "providerId" | "providerEntityId" | "label" | "title">>;
-type SourceArtistOverrides = Partial<Omit<SourceArtist, "kind" | "sourceRef" | "providerId" | "providerEntityId" | "label" | "name">>;
+type SourceTrackOverrides = Partial<Omit<SourceTrack, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
+type SourceAlbumOverrides = Partial<Omit<SourceAlbum, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "title">>;
+type SourceArtistOverrides = Partial<Omit<SourceArtist, "kind" | "sourceRef" | "origin" | "providerId" | "providerEntityId" | "label" | "name">>;
 
 function sourceTrack(
   id: string,

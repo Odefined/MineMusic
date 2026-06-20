@@ -139,6 +139,9 @@ Accepted vocabulary includes:
 - `MaterialEntity` / `MaterialRecord`;
 - `CanonicalEntity` / `CanonicalRecord`;
 - `SourceEntity.kind = track | album | artist`;
+- `SourceEntity.origin = provider | local_file`, discriminating provider-backed
+  sources (providerId/providerEntityId required) from local-file sources
+  (md5 identity, no providerId);
 - material/canonical kinds `recording | album | artist | work | release`;
 - first-class `VersionInfo`;
 - source-owned `PlayableLink = { url, label?, requiresAccount? }`;

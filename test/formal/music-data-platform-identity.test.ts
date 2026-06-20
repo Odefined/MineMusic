@@ -96,7 +96,7 @@ database.transaction((db) => {
       entity: {
         ...sourceTrack("source-provider-mismatch", "Source Provider Mismatch"),
         providerId: "spotify",
-      },
+      } as SourceEntity,
     }),
     "music_data.record_ref_key_mismatch",
   );
@@ -111,7 +111,7 @@ database.transaction((db) => {
           kind: "track",
           id: "source-provider-unsafe",
         },
-      },
+      } as SourceEntity,
     }),
     "music_data.record_ref_key_mismatch",
   );

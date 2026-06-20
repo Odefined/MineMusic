@@ -459,6 +459,13 @@ Stage Interface seam over Retrieval (ADR-0012), and Retrieval internals
 (`materialCandidateRef`, `resultSetId`, pool algebra) never cross that seam.
 _Avoid_: Stage Interface presentation, durable materialization, public handle.
 
+### Music Analysis Artifact
+
+A durable MineMusic asset produced by analyzing music material, such as an
+embedding or music-to-language description. It is not a background job record,
+temporary cache entry, or provider fact.
+_Avoid_: job output, transient cache, provider metadata.
+
 ### Candidate Commit
 
 The owning-command materialization boundary in Music Data Platform that turns

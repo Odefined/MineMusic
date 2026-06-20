@@ -17,6 +17,7 @@ import {
   assertMusicDataPlatformRefComponentSafe,
   musicDataPlatformRefKey,
 } from "./ref_validation.js";
+import { assertSafeMd5 } from "./local_source_ref.js";
 
 export type CreateIdentityWriteCommandsInput = {
   db: MusicDatabaseTransactionContext;
@@ -204,12 +205,12 @@ function upsertSourceRecord(
   const existingByIdentity =
     input.entity.origin === "provider"
       ? repositories.sourceRecords.findByProviderIdentity({
-          providerId: input.entity.providerId!,
-          providerEntityId: input.entity.providerEntityId!,
+          providerId: input.entity.providerId,
+          providerEntityId: input.entity.providerEntityId,
           kind: input.entity.kind,
         })
       : repositories.sourceRecords.findByLocalIdentity({
-          md5: input.entity.providerEntityId!,
+          md5: input.entity.providerEntityId,
           kind: input.entity.kind,
         });
   if (
@@ -762,6 +763,13 @@ function assertSourceEntityRefShape(entity: SourceEntity): void {
       code: "music_data.record_ref_key_mismatch",
       message: "Local source entity providerEntityId (md5) must be a non-empty ref-safe string.",
     });
+    assertSafeMd5(entity.providerEntityId, "music_data.record_ref_key_mismatch");
+    if (typeof entity.filePath !== "string" || entity.filePath.length === 0) {
+      throwMusicDataError({
+        code: "music_data.record_ref_key_mismatch",
+        message: "Local source entity filePath must be a non-empty string.",
+      });
+    }
     if (
       entity.sourceRef.namespace !== "source_local" ||
       entity.sourceRef.kind !== entity.kind
@@ -769,6 +777,15 @@ function assertSourceEntityRefShape(entity: SourceEntity): void {
       throwMusicDataError({
         code: "music_data.record_ref_key_mismatch",
         message: "Local source entity ref must be source_local:<kind>:<md5>.",
+      });
+    }
+    // ref identity (sourceRef.id) and lookup identity (providerEntityId = md5)
+    // must be the same value; otherwise ref identity and dedup identity diverge
+    // and the same file could bind under two different refs.
+    if (entity.sourceRef.id !== entity.providerEntityId) {
+      throwMusicDataError({
+        code: "music_data.record_ref_key_mismatch",
+        message: "Local source entity ref id must equal its providerEntityId (md5).",
       });
     }
     return;
