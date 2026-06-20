@@ -452,7 +452,6 @@ async function bindSourceToMaterial(identity: ReturnType<typeof createIdentityTe
     await identity.bindSourceToMaterial({
         sourceRef: source.sourceRef,
         materialRef: nextMaterialRef,
-        makePrimary: true,
     });
 }
 async function upsertLibrary(libraries: ReturnType<typeof createSourceLibraryRepositories>, libraryRef: Ref, providerAccountId: string): Promise<void> {

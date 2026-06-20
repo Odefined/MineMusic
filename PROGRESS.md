@@ -1013,8 +1013,9 @@ Phase 17 ships the first durable-write consumption path:
   `MusicMaterial` read models from current bound sources. It applies
   Source Preference Policy at read time, uses `MaterialEntity.sourceRefs` only
   as stable tie-break order among current bindings, no longer exposes
-  `primarySourceRef` in `MusicMaterial`, and projects `sourceNavigationLinks`
-  from source navigation facts such as `providerUrl`.
+  `primarySourceRef` in `MusicMaterial`, no longer accepts or persists durable
+  `primarySourceRef` / `makePrimary` through identity writes, and projects
+  `sourceNavigationLinks` from source navigation facts such as `providerUrl`.
 - Candidate Commit is owned by Music Data Platform and admits provider
   candidates from runtime candidate cache into durable material/source identity,
   idempotently reusing existing source-material bindings.

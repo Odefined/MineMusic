@@ -191,7 +191,6 @@ await recordingDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: primaryPlainsongSource.sourceRef,
         materialRef: plainsongMaterialRef,
-        makePrimary: true,
     });
     await identity.bindSourceToMaterial({
         sourceRef: duplicatePlainsongSource.sourceRef,
@@ -204,22 +203,18 @@ await recordingDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("track", "1003"),
         materialRef: plainsongLiveMaterialRef,
-        makePrimary: true,
     });
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("track", "1004"),
         materialRef: longOnlyMaterialRef,
-        makePrimary: true,
     });
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("track", "1005"),
         materialRef: seasonOnlyMaterialRef,
-        makePrimary: true,
     });
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("track", "1006"),
         materialRef: longSeasonMaterialRef,
-        makePrimary: true,
     });
     const commands = createMaterialTextProjectionCommands({
         db,
@@ -282,30 +277,30 @@ assert.deepEqual(plainsongDocument, {
     titleText: "plainsong",
     artistText: "the cure",
     albumText: "disintegration",
-    versionText: "edit\nsingle edit\nremix\n2010 remaster\nremaster\nalbum mix\ndemo",
+    versionText: "edit\nremix\nsingle edit\n2010 remaster\nremaster\nalbum mix\ndemo",
     aliasText: "plain song",
     searchText: [
         "plainsong",
         "the cure",
         "disintegration",
-        "edit\nsingle edit\nremix\n2010 remaster\nremaster\nalbum mix\ndemo",
+        "edit\nremix\nsingle edit\n2010 remaster\nremaster\nalbum mix\ndemo",
         "plain song",
     ].join("\n"),
     documentJson: JSON.stringify({
         fields: {
             title: [
-                { source: "primary_source", basis: "title", value: "plainsong" },
+                { source: "source", basis: "title", value: "plainsong" },
             ],
             artist: [
-                { source: "primary_source", basis: "artist", value: "the cure" },
+                { source: "source", basis: "artist", value: "the cure" },
             ],
             album: [
-                { source: "primary_source", basis: "album", value: "disintegration" },
+                { source: "source", basis: "album", value: "disintegration" },
             ],
             version: [
-                { source: "primary_source", basis: "version_tag", value: "edit" },
-                { source: "primary_source", basis: "version_label", value: "single edit" },
-                { source: "bound_source", basis: "version_tag", value: "remix" },
+                { source: "source", basis: "version_tag", value: "edit" },
+                { source: "source", basis: "version_tag", value: "remix" },
+                { source: "source", basis: "version_label", value: "single edit" },
                 { source: "material", basis: "version_label", value: "2010 remaster" },
                 { source: "material", basis: "version_tag", value: "remaster" },
                 { source: "canonical", basis: "version_label", value: "album mix" },
@@ -379,7 +374,6 @@ await orderingDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("track", "1100"),
         materialRef: orderingMaterialRef,
-        makePrimary: true,
     });
     await identity.bindMaterialToCanonical({
         materialRef: orderingMaterialRef,
@@ -406,7 +400,7 @@ assert.deepEqual(await createMaterialTextProjectionRecords({ db: orderingDatabas
     documentJson: JSON.stringify({
         fields: {
             title: [
-                { source: "primary_source", basis: "title", value: "ordering probe" },
+                { source: "source", basis: "title", value: "ordering probe" },
             ],
             artist: [],
             album: [],
@@ -532,11 +526,10 @@ await staleBindingDatabase.transaction(async (db) => {
         materialRef: staleMaterialRef,
         kind: "recording",
         lifecycleStatus: "active",
-        identityStatus: "source_backed",
-        sourceRefs: [staleSource.sourceRef],
-        primarySourceRef: staleSource.sourceRef,
-        updatedAt: "2026-06-13T13:01:00.000Z",
-    });
+    identityStatus: "source_backed",
+    sourceRefs: [staleSource.sourceRef],
+    updatedAt: "2026-06-13T13:01:00.000Z",
+  });
     await createMaterialTextProjectionCommands({
         db,
         now: "2026-06-13T13:02:00.000Z",
@@ -644,12 +637,10 @@ await canonicalGuardDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("track", "3001"),
         materialRef: sourceBackedMaterialRef,
-        makePrimary: true,
     });
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("track", "3002"),
         materialRef: archivedCanonicalMaterialRef,
-        makePrimary: true,
     });
     await identity.bindMaterialToCanonical({
         materialRef: archivedCanonicalMaterialRef,
@@ -661,7 +652,6 @@ await canonicalGuardDatabase.transaction(async (db) => {
         lifecycleStatus: "active",
         identityStatus: "source_backed",
         sourceRefs: [sourceRef("track", "3001")],
-        primarySourceRef: sourceRef("track", "3001"),
         canonicalRef: sourceBackedCanonicalRef,
         updatedAt: "2026-06-13T14:01:00.000Z",
     });
@@ -693,10 +683,10 @@ assert.deepEqual(await canonicalGuardReadPort.getMaterialTextDocument({ material
     documentJson: JSON.stringify({
         fields: {
             title: [
-                { source: "primary_source", basis: "title", value: "source backed title" },
+                { source: "source", basis: "title", value: "source backed title" },
             ],
             artist: [
-                { source: "primary_source", basis: "artist", value: "test artist" },
+                { source: "source", basis: "artist", value: "test artist" },
             ],
             album: [],
             version: [],
@@ -717,10 +707,10 @@ assert.deepEqual(await canonicalGuardReadPort.getMaterialTextDocument({ material
     documentJson: JSON.stringify({
         fields: {
             title: [
-                { source: "primary_source", basis: "title", value: "archived canonical title" },
+                { source: "source", basis: "title", value: "archived canonical title" },
             ],
             artist: [
-                { source: "primary_source", basis: "artist", value: "test artist" },
+                { source: "source", basis: "artist", value: "test artist" },
             ],
             album: [],
             version: [],
@@ -779,12 +769,10 @@ await albumArtistDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("album", "4001"),
         materialRef: albumMaterialRef,
-        makePrimary: true,
     });
     await identity.bindSourceToMaterial({
         sourceRef: sourceRef("artist", "4002"),
         materialRef: artistMaterialRef,
-        makePrimary: true,
     });
     await identity.bindMaterialToCanonical({
         materialRef: albumMaterialRef,
@@ -816,14 +804,14 @@ assert.deepEqual(await albumArtistReadPort.getMaterialTextDocument({ materialRef
     documentJson: JSON.stringify({
         fields: {
             title: [
-                { source: "primary_source", basis: "title", value: "kid a" },
+                { source: "source", basis: "title", value: "kid a" },
             ],
             artist: [
-                { source: "primary_source", basis: "artist", value: "radiohead" },
+                { source: "source", basis: "artist", value: "radiohead" },
             ],
             album: [],
             version: [
-                { source: "primary_source", basis: "version_tag", value: "deluxe" },
+                { source: "source", basis: "version_tag", value: "deluxe" },
             ],
             alias: [
                 { source: "canonical", basis: "alias", value: "kid a lp" },
@@ -845,12 +833,12 @@ assert.deepEqual(await albumArtistReadPort.getMaterialTextDocument({ materialRef
         fields: {
             title: [],
             artist: [
-                { source: "primary_source", basis: "artist", value: "mili" },
+                { source: "source", basis: "artist", value: "mili" },
             ],
             album: [],
             version: [],
             alias: [
-                { source: "primary_source", basis: "alias", value: "mili project" },
+                { source: "source", basis: "alias", value: "mili project" },
                 { source: "canonical", basis: "alias", value: "momocashew project" },
             ],
         },
@@ -891,17 +879,14 @@ async function seedOperatorProjection(database: MusicDatabase): Promise<Material
         await identity.bindSourceToMaterial({
             sourceRef: sourceRef("track", "5001"),
             materialRef: orMaterialRef,
-            makePrimary: true,
         });
         await identity.bindSourceToMaterial({
             sourceRef: sourceRef("track", "5002"),
             materialRef: andMaterialRef,
-            makePrimary: true,
         });
         await identity.bindSourceToMaterial({
             sourceRef: sourceRef("track", "5003"),
             materialRef: notMaterialRef,
-            makePrimary: true,
         });
         await createMaterialTextProjectionCommands({
             db,
@@ -1039,7 +1024,6 @@ async function overwriteMaterialEntity(db: MusicDatabaseTransactionContext, inpu
     lifecycleStatus: "active" | "merged" | "archived";
     identityStatus: "canonical_confirmed" | "source_backed" | "unresolved_identity";
     sourceRefs: readonly Ref[];
-    primarySourceRef?: Ref;
     canonicalRef?: Ref;
     updatedAt: string;
 }): Promise<void> {
@@ -1049,7 +1033,6 @@ async function overwriteMaterialEntity(db: MusicDatabaseTransactionContext, inpu
         lifecycleStatus: input.lifecycleStatus,
         identityStatus: input.identityStatus,
         sourceRefs: input.sourceRefs,
-        ...(input.primarySourceRef === undefined ? {} : { primarySourceRef: input.primarySourceRef }),
         ...(input.canonicalRef === undefined ? {} : { canonicalRef: input.canonicalRef }),
     };
     await db.run(`
@@ -1057,7 +1040,6 @@ async function overwriteMaterialEntity(db: MusicDatabaseTransactionContext, inpu
       SET lifecycle_status = ?,
           identity_status = ?,
           canonical_ref_key = ?,
-          primary_source_ref_key = ?,
           entity_json = ?,
           updated_at = ?
       WHERE ref_key = ?
@@ -1065,7 +1047,6 @@ async function overwriteMaterialEntity(db: MusicDatabaseTransactionContext, inpu
         input.lifecycleStatus,
         input.identityStatus,
         input.canonicalRef === undefined ? null : refKey(input.canonicalRef),
-        input.primarySourceRef === undefined ? null : refKey(input.primarySourceRef),
         JSON.stringify(entity),
         input.updatedAt,
         refKey(input.materialRef),

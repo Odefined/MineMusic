@@ -38,7 +38,6 @@ await database.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: source.sourceRef,
         materialRef: material,
-        makePrimary: true,
     });
     assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: material }), {
         kind: "recording",
@@ -104,7 +103,6 @@ await database.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: providerSource.sourceRef,
         materialRef: material,
-        makePrimary: true,
     });
     await commands.bindSourceToMaterial({
         sourceRef: localSource.sourceRef,
@@ -166,7 +164,6 @@ await database.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: source.sourceRef,
         materialRef: material,
-        makePrimary: true,
     });
     assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: material }), {
         kind: "album",
@@ -200,7 +197,6 @@ await database.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: source.sourceRef,
         materialRef: material,
-        makePrimary: true,
     });
     assert.deepEqual(await createMaterialProjection({ db }).projectMusicMaterial({ materialRef: material }), {
         kind: "artist",
@@ -252,7 +248,6 @@ await database.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: primary.sourceRef,
         materialRef: material,
-        makePrimary: true,
     });
     assert.deepEqual(rankBoundSources({
         sources: [primary, secondary],
@@ -300,12 +295,10 @@ await database.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: loserSource.sourceRef,
         materialRef: loser,
-        makePrimary: true,
     });
     await commands.bindSourceToMaterial({
         sourceRef: winnerSource.sourceRef,
         materialRef: winner,
-        makePrimary: true,
     });
     await commands.mergeMaterialRecord({
         loserMaterialRef: loser,

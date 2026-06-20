@@ -123,7 +123,6 @@ export function createLocalSourceCommand(
             await writes.identity.bindSourceToMaterial({
               sourceRef,
               materialRef,
-              makePrimary: true,
             });
             return ok({ materialRef, created: true });
           }
@@ -131,7 +130,6 @@ export function createLocalSourceCommand(
           await writes.identity.bindSourceToMaterial({
             sourceRef,
             materialRef: commandInput.materialRef,
-            makePrimary: false,
           });
           return ok({ materialRef: commandInput.materialRef, created: true });
         });

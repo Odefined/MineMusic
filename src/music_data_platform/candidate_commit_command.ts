@@ -100,7 +100,6 @@ export function createCandidateCommitCommand(
         await writes.identity.bindSourceToMaterial({
           sourceRef: sourceEntity.sourceRef,
           materialRef,
-          makePrimary: true,
         });
 
         return ok({

@@ -60,9 +60,7 @@ const now = "2026-06-17T12:00:00.000Z";
     assert.notEqual(materialRecord, undefined);
     assert.equal(materialRecord?.entity.kind, "recording");
     assert.equal(materialRecord?.entity.identityStatus, "source_backed");
-    assert.equal(materialRecord?.entity.primarySourceRef === undefined
-        ? undefined
-        : refKey(materialRecord.entity.primarySourceRef), refKey(source.sourceRef));
+    assert.deepEqual(materialRecord?.entity.sourceRefs.map(refKey), [refKey(source.sourceRef)]);
     assert.deepEqual((await repositories.sourceMaterialBindings
         .listSourcesForMaterial({ materialRef: first.value.materialRef })).map((binding) => refKey(binding.sourceRef)), [refKey(source.sourceRef)]);
     const projectionKinds = (await createProjectionMaintenanceRecords({

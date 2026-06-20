@@ -1402,7 +1402,7 @@ function pushContribution(
   value: string,
 ): void {
   target.push({
-    source: "primary_source",
+    source: "source",
     basis,
     value,
   });

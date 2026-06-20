@@ -15,7 +15,7 @@ const thirdNow = "2026-06-07T00:02:00.000Z";
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;
 type Expect<Check extends true> = Check;
 export type _sourceMaterialBindingRecordShape = Expect<Equal<keyof SourceToMaterialBindingRecord, "sourceRef" | "materialRef" | "createdAt" | "updatedAt">>;
-export type _upsertMaterialRecordInputShape = Expect<Equal<keyof UpsertMaterialRecordInput, "materialRef" | "kind" | "primarySourceRef" | "versionInfo">>;
+export type _upsertMaterialRecordInputShape = Expect<Equal<keyof UpsertMaterialRecordInput, "materialRef" | "kind" | "versionInfo">>;
 declare const nonTransactionContext: MusicDatabaseContext;
 if (false) {
     const projectionInvalidationCommands = createRecordingProjectionInvalidationCommands();
@@ -109,15 +109,9 @@ await database.transaction(async (db) => {
         },
         kind: "recording",
     }), "music_data.record_ref_key_mismatch");
-    await assertMusicDataError(() => commands.upsertMaterialRecord({
-        materialRef: materialRef("material-1"),
-        kind: "recording",
-        primarySourceRef: sourceRef("source-1"),
-    }), "music_data.material_primary_source_not_bound");
     const bindResult = await commands.bindSourceToMaterial({
         sourceRef: sourceRef("source-1"),
         materialRef: materialRef("material-1"),
-        makePrimary: true,
     });
     assert.equal(refKey(bindResult.binding.sourceRef), refKey(sourceRef("source-1")));
     assert.equal(refKey(bindResult.binding.materialRef), refKey(materialRef("material-1")));
@@ -125,7 +119,6 @@ await database.transaction(async (db) => {
     assert.equal(bindResult.binding.updatedAt, firstNow);
     assert.equal(bindResult.materialRecord.entity.identityStatus, "source_backed");
     assert.deepEqual(bindResult.materialRecord.entity.sourceRefs.map(refKey), [refKey(sourceRef("source-1"))]);
-    assert.equal(refKey(requiredRef(bindResult.materialRecord.entity.primarySourceRef)), refKey(sourceRef("source-1")));
     await assertMusicDataError(() => commands.bindSourceToMaterial({
         sourceRef: sourceRef("source-1"),
         materialRef: {
@@ -255,7 +248,6 @@ await database.transaction(async (db) => {
         refKey(sourceRef("source-1")),
     ]);
     assert.equal(rebindResult.previousMaterialRecord?.entity.sourceRefs.length, 0);
-    assert.equal(rebindResult.previousMaterialRecord?.entity.primarySourceRef, undefined);
     assert.equal(rebindResult.previousMaterialRecord?.entity.identityStatus, "canonical_confirmed");
     assert.equal(refKey(requiredBinding(await repositories.sourceMaterialBindings.findMaterialForSource({
         sourceRef: sourceRef("source-1"),
@@ -278,21 +270,11 @@ await database.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: sourceRef("source-2"),
         materialRef: materialRef("loser"),
-        makePrimary: true,
     });
     await commands.bindMaterialToCanonical({
         materialRef: materialRef("loser"),
         canonicalRef: canonicalRef("canonical-3"),
     });
-    await assertMusicDataError(() => commands.mergeMaterialRecord({
-        loserMaterialRef: materialRef("loser"),
-        winnerMaterialRef: materialRef("material-2"),
-        primarySourceRef: {
-            namespace: "source_netease",
-            kind: "track",
-            id: "bad:id",
-        },
-    }), "music_data.record_ref_key_mismatch");
     assert.equal(refKey(requiredBinding(await repositories.sourceMaterialBindings.findMaterialForSource({
         sourceRef: sourceRef("source-2"),
     })).materialRef), refKey(materialRef("loser")));
@@ -305,11 +287,9 @@ await database.transaction(async (db) => {
     assert.deepEqual(mergeResult.loserRecord.entity.sourceRefs.map(refKey), [
         refKey(sourceRef("source-2")),
     ]);
-    assert.equal(refKey(requiredRef(mergeResult.loserRecord.entity.primarySourceRef)), refKey(sourceRef("source-2")));
     assert.equal(refKey(requiredRef(mergeResult.loserRecord.entity.canonicalRef)), refKey(canonicalRef("canonical-3")));
     assert.equal(mergeResult.winnerRecord.entity.identityStatus, "canonical_confirmed");
     assert.equal(refKey(requiredRef(mergeResult.winnerRecord.entity.canonicalRef)), refKey(canonicalRef("canonical-3")));
-    assert.equal(mergeResult.winnerRecord.entity.primarySourceRef, undefined);
     assert.deepEqual(mergeResult.winnerRecord.entity.sourceRefs.map(refKey).sort(), [refKey(sourceRef("source-1")), refKey(sourceRef("source-2"))].sort());
     assert.deepEqual(mergeResult.movedBindings.map((binding) => [
         refKey(binding.sourceRef),
@@ -424,7 +404,6 @@ await invalidationDatabase.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: sourceOne.sourceRef,
         materialRef: firstMaterialRef,
-        makePrimary: true,
     });
     assert.deepEqual(recordedInvalidation.batches, [[
             {
@@ -479,7 +458,6 @@ await invalidationDatabase.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: sourceTwo.sourceRef,
         materialRef: loserMaterialRef,
-        makePrimary: true,
     });
     await recordedInvalidation.clear();
     await commands.mergeMaterialRecord({

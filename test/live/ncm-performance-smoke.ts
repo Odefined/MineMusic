@@ -505,7 +505,6 @@ async function createStaleSourceLibraryFixture(input: {
             await commands.identity.bindSourceToMaterial({
                 sourceRef,
                 materialRef,
-                makePrimary: true,
             });
             const batch = await commands.sourceLibrary.createImportBatch({
                 batchId: `perf_stale_seed_${safeSuffix}`,

@@ -51,7 +51,6 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
         await writes.identity.bindSourceToMaterial({
             sourceRef: providerSourceRef,
             materialRef,
-            makePrimary: true,
         });
         return materialRef;
     });
@@ -93,10 +92,9 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
     assert.equal(sourceRecord.entity.filePath, trackFilePath);
     const materialRecord = await repositories.materialRecords.get({ materialRef: result.value.materialRef });
     assert.notEqual(materialRecord, undefined);
-    // scenario A: local source IS the primary source
-    assert.equal(materialRecord?.entity.primarySourceRef?.namespace, "source_local");
+    assert.deepEqual(materialRecord?.entity.sourceRefs.map((sourceRef) => sourceRef.namespace), ["source_local"]);
 }
-// --- Scenario B: download product binds to an existing provider material without stealing primary ---
+// --- Scenario B: download product binds to an existing provider material ---
 {
     const database = await initializedDatabase();
     const providerMaterialRef = await seedProviderMaterial(database, "2001");
@@ -121,8 +119,7 @@ async function seedProviderMaterial(database: MusicDatabase, songId: string): Pr
     assert.equal(await tableCount(context, "source_material_bindings"), 2);
     const materialRecord = await repositories.materialRecords.get({ materialRef: providerMaterialRef });
     assert.notEqual(materialRecord, undefined);
-    // provider source keeps primary; local source did not steal it
-    assert.equal(materialRecord?.entity.primarySourceRef?.namespace, "source_netease");
+    assert.deepEqual(materialRecord?.entity.sourceRefs.map((sourceRef) => sourceRef.namespace).sort(), ["source_local", "source_netease"]);
     assert.deepEqual((await repositories.sourceMaterialBindings
         .listSourcesForMaterial({ materialRef: providerMaterialRef })).map((binding) => binding.sourceRef.namespace)
         .sort(), ["source_local", "source_netease"]);

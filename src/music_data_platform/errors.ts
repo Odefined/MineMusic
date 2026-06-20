@@ -39,7 +39,6 @@ export type MusicDataPlatformErrorCode =
   | "music_data.source_library_import_batch_not_found"
   | "music_data.source_library_import_batch_scope_missing"
   | "music_data.material_source_binding_invalid"
-  | "music_data.material_primary_source_not_bound"
   | "music_data.material_not_writable"
   | "music_data.material_canonical_conflict"
   | "music_data.material_merge_canonical_conflict"

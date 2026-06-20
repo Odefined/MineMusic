@@ -116,7 +116,6 @@ kind
 lifecycle_status
 identity_status
 canonical_ref_key
-primary_source_ref_key
 merged_into_material_ref_key
 entity_json
 created_at
@@ -142,15 +141,9 @@ It also cannot write `identityStatus`, `lifecycleStatus`, or `canonicalRef`.
 `identityStatus` is derived from current canonical/source anchors.
 Material-to-canonical confirmation uses `bindMaterialToCanonical`.
 
-`primarySourceRef` may be set or cleared by material upsert, bind, or merge
-commands, but any non-empty primary source must already be bound to that
-material.
-
-`primarySourceRef` is now a legacy identity-write signal, not Material
-Projection's presentation source selector. Material Projection derives
-`MusicMaterial` read models from current source-material bindings and applies
-Source Preference Policy at read time; durable primary-source migration for
-write-model/schema/text-projection paths is a later step.
+There is no durable `primarySourceRef` or `makePrimary` command input.
+Presentation/source-navigation/playback preference is a read-time
+Source Preference Policy concern, not Material identity truth.
 
 ## Canonical Records
 
@@ -544,8 +537,6 @@ Text projection derives only from current durable facts:
 
 - `MaterialEntity.versionInfo`;
 - current `source_material_bindings -> source_records`;
-- current `MaterialEntity.primarySourceRef` only as a label for an already
-  bound source contribution;
 - current `CanonicalRecord` only when the material is
   `identityStatus = canonical_confirmed`, has `canonicalRef`, and that
   canonical record is `status = active`.
@@ -756,7 +747,6 @@ It:
 - keeps loser entity fields as a merge-time snapshot;
 - moves current source-material bindings to winner;
 - merges/de-duplicates winner `sourceRefs`;
-- does not automatically inherit loser `primarySourceRef`;
 - may inherit an unambiguous loser `canonicalRef`;
 - rejects conflicting winner/loser canonical refs.
 

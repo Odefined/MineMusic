@@ -41,7 +41,6 @@ export type UpsertSourceRecordInput = {
 export type UpsertMaterialRecordInput = {
   materialRef: Ref;
   kind: MaterialEntityKind;
-  primarySourceRef?: Ref | null;
   versionInfo?: VersionInfo | null;
 };
 
@@ -54,7 +53,6 @@ export type UpsertCanonicalRecordInput = {
 export type BindSourceToMaterialInput = {
   sourceRef: Ref;
   materialRef: Ref;
-  makePrimary?: boolean;
 };
 
 export type BindSourceToMaterialResult = {
@@ -71,7 +69,6 @@ export type BindMaterialToCanonicalInput = {
 export type MergeMaterialRecordInput = {
   loserMaterialRef: Ref;
   winnerMaterialRef: Ref;
-  primarySourceRef?: Ref | null;
 };
 
 export type MergeMaterialRecordResult = {
@@ -269,14 +266,8 @@ async function upsertMaterialRecord(
 
   const sourceRefs = existing?.entity.sourceRefs ?? [];
   const canonicalRef = existing?.entity.canonicalRef;
-  const primarySourceRef = optionalPatchRef(input.primarySourceRef, existing?.entity.primarySourceRef);
   const versionInfo = optionalPatchValue(input.versionInfo, existing?.entity.versionInfo);
   const lifecycleStatus = existing?.entity.lifecycleStatus ?? "active";
-
-  if (primarySourceRef !== undefined) {
-    assertSourceRefCompatibleWithMaterial(primarySourceRef, input.kind);
-    await assertPrimarySourceBound(repositories, input.materialRef, primarySourceRef);
-  }
 
   const entity = buildMaterialEntity({
     materialRef: input.materialRef,
@@ -285,7 +276,6 @@ async function upsertMaterialRecord(
     identityStatus: deriveMaterialIdentityStatus(canonicalRef, sourceRefs),
     sourceRefs,
     canonicalRef,
-    primarySourceRef,
     versionInfo,
   });
   const record = buildMaterialRecord({
@@ -384,13 +374,6 @@ async function bindSourceToMaterial(
     ...freshTargetRecord.entity.sourceRefs,
     input.sourceRef,
   ]);
-  const targetPrimarySourceRef = input.makePrimary === true
-    ? input.sourceRef
-    : freshTargetRecord.entity.primarySourceRef;
-
-  if (targetPrimarySourceRef !== undefined) {
-    assertPrimarySourceInRefs(targetPrimarySourceRef, targetSourceRefs);
-  }
 
   const materialRecord = await repositories.materialRecords.upsert(buildMaterialRecord({
     entity: buildMaterialEntity({
@@ -403,7 +386,6 @@ async function bindSourceToMaterial(
       ),
       sourceRefs: targetSourceRefs,
       canonicalRef: freshTargetRecord.entity.canonicalRef,
-      primarySourceRef: targetPrimarySourceRef,
       versionInfo: freshTargetRecord.entity.versionInfo,
     }),
     mergedIntoMaterialRef: freshTargetRecord.mergedIntoMaterialRef,
@@ -479,7 +461,6 @@ async function bindMaterialToCanonical(
       identityStatus: "canonical_confirmed",
       sourceRefs: materialRecord.entity.sourceRefs,
       canonicalRef: input.canonicalRef,
-      primarySourceRef: materialRecord.entity.primarySourceRef,
       versionInfo: materialRecord.entity.versionInfo,
     }),
     mergedIntoMaterialRef: materialRecord.mergedIntoMaterialRef,
@@ -536,15 +517,6 @@ async function mergeMaterialRecord(
     ...loser.entity.sourceRefs,
     ...loserBindings.map((binding) => binding.sourceRef),
   ]);
-  const winnerPrimarySourceRef = optionalPatchRef(
-    input.primarySourceRef,
-    winner.entity.primarySourceRef,
-  );
-
-  if (winnerPrimarySourceRef !== undefined) {
-    assertSourceRefCompatibleWithMaterial(winnerPrimarySourceRef, winner.entity.kind);
-    assertPrimarySourceInRefs(winnerPrimarySourceRef, winnerSourceRefs);
-  }
 
   const movedBindings = await Promise.all(loserBindings.map((binding) => repositories.sourceMaterialBindings.upsertCurrentBinding({
     sourceRef: binding.sourceRef,
@@ -564,7 +536,6 @@ async function mergeMaterialRecord(
       ),
       sourceRefs: loser.entity.sourceRefs,
       canonicalRef: loser.entity.canonicalRef,
-      primarySourceRef: loser.entity.primarySourceRef,
       versionInfo: loser.entity.versionInfo,
     }),
     mergedIntoMaterialRef: winner.entity.materialRef,
@@ -580,7 +551,6 @@ async function mergeMaterialRecord(
       identityStatus: deriveMaterialIdentityStatus(winnerCanonicalRef, winnerSourceRefs),
       sourceRefs: winnerSourceRefs,
       canonicalRef: winnerCanonicalRef,
-      primarySourceRef: winnerPrimarySourceRef,
       versionInfo: winner.entity.versionInfo,
     }),
     mergedIntoMaterialRef: winner.mergedIntoMaterialRef,
@@ -609,9 +579,6 @@ async function removeSourceFromPreviousMaterial(
   assertMaterialWritable(previous);
 
   const sourceRefs = previous.entity.sourceRefs.filter((ref) => !sameRef(ref, sourceRef));
-  const primarySourceRef = sameOptionalRef(previous.entity.primarySourceRef, sourceRef)
-    ? undefined
-    : previous.entity.primarySourceRef;
 
   return repositories.materialRecords.upsert(buildMaterialRecord({
     entity: buildMaterialEntity({
@@ -621,7 +588,6 @@ async function removeSourceFromPreviousMaterial(
       identityStatus: deriveMaterialIdentityStatus(previous.entity.canonicalRef, sourceRefs),
       sourceRefs,
       canonicalRef: previous.entity.canonicalRef,
-      primarySourceRef,
       versionInfo: previous.entity.versionInfo,
     }),
     mergedIntoMaterialRef: previous.mergedIntoMaterialRef,
@@ -682,11 +648,6 @@ function assertMaterialRecordConsistency(record: MaterialRecord): void {
 
   for (const sourceRef of record.entity.sourceRefs) {
     assertSourceRefCompatibleWithMaterial(sourceRef, record.entity.kind);
-  }
-
-  if (record.entity.primarySourceRef !== undefined) {
-    assertSourceRefCompatibleWithMaterial(record.entity.primarySourceRef, record.entity.kind);
-    assertPrimarySourceInRefs(record.entity.primarySourceRef, record.entity.sourceRefs);
   }
 
   const expectedIdentityStatus = deriveMaterialIdentityStatus(
@@ -997,35 +958,6 @@ function materialKindForSourceKind(sourceKind: string): MaterialEntityKind | und
   }
 }
 
-async function assertPrimarySourceBound(
-  repositories: IdentityRepositories,
-  materialRef: Ref,
-  primarySourceRef: Ref,
-): Promise<void> {
-  const binding = await repositories.sourceMaterialBindings.findMaterialForSource({
-    sourceRef: primarySourceRef,
-  });
-
-  if (binding === undefined || !sameRef(binding.materialRef, materialRef)) {
-    throwMusicDataError({
-      code: "music_data.material_primary_source_not_bound",
-      message: "Material primary source must already be bound to that material.",
-    });
-  }
-}
-
-function assertPrimarySourceInRefs(
-  primarySourceRef: Ref,
-  sourceRefs: readonly Ref[],
-): void {
-  if (!sourceRefs.some((ref) => sameRef(ref, primarySourceRef))) {
-    throwMusicDataError({
-      code: "music_data.material_primary_source_not_bound",
-      message: "Material primary source must be one of the material source refs.",
-    });
-  }
-}
-
 function deriveMaterialIdentityStatus(
   canonicalRef: Ref | undefined,
   sourceRefs: readonly Ref[],
@@ -1048,7 +980,6 @@ function buildMaterialEntity(input: {
   identityStatus: MaterialIdentityStatus;
   sourceRefs: readonly Ref[];
   canonicalRef: Ref | undefined;
-  primarySourceRef: Ref | undefined;
   versionInfo: VersionInfo | undefined;
 }): MaterialEntity {
   return {
@@ -1058,7 +989,6 @@ function buildMaterialEntity(input: {
     identityStatus: input.identityStatus,
     sourceRefs: input.sourceRefs,
     ...(input.canonicalRef === undefined ? {} : { canonicalRef: input.canonicalRef }),
-    ...(input.primarySourceRef === undefined ? {} : { primarySourceRef: input.primarySourceRef }),
     ...(input.versionInfo === undefined ? {} : { versionInfo: input.versionInfo }),
   };
 }
@@ -1099,17 +1029,6 @@ function buildCanonicalRecord(input: {
   };
 }
 
-function optionalPatchRef(
-  patch: Ref | null | undefined,
-  existing: Ref | undefined,
-): Ref | undefined {
-  if (patch === null) {
-    return undefined;
-  }
-
-  return patch ?? existing;
-}
-
 function optionalPatchValue<Value>(
   patch: Value | null | undefined,
   existing: Value | undefined,
@@ -1146,14 +1065,6 @@ function uniqueRefs(refs: readonly Ref[]): readonly Ref[] {
   }
 
   return unique;
-}
-
-function sameOptionalRef(left: Ref | undefined, right: Ref | undefined): boolean {
-  if (left === undefined || right === undefined) {
-    return left === right;
-  }
-
-  return sameRef(left, right);
 }
 
 function sameRef(left: Ref, right: Ref): boolean {

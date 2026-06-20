@@ -240,14 +240,12 @@ assert.deepEqual(musicExperiencePresentDescriptor.errors.map((error) => error.co
         await commands.bindSourceToMaterial({
             sourceRef: winnerSource.sourceRef,
             materialRef: winnerRef,
-            makePrimary: true,
         });
         await commands.upsertSourceRecord({ entity: loserSource });
         await commands.upsertMaterialRecord({ materialRef: loserRef, kind: "recording" });
         await commands.bindSourceToMaterial({
             sourceRef: loserSource.sourceRef,
             materialRef: loserRef,
-            makePrimary: true,
         });
         await commands.mergeMaterialRecord({
             loserMaterialRef: loserRef,
@@ -560,7 +558,6 @@ async function writeMaterialFixture(db: MusicDatabaseTransactionContext, input: 
     await commands.bindSourceToMaterial({
         sourceRef: input.source.sourceRef,
         materialRef: input.materialRef,
-        makePrimary: true,
     });
 }
 async function tableCount(db: MusicDatabaseContext, tableName: string): Promise<number> {

@@ -70,7 +70,6 @@ type MaterialRecordRow = {
   lifecycle_status: MaterialEntity["lifecycleStatus"];
   identity_status: MaterialEntity["identityStatus"];
   canonical_ref_key: string | null;
-  primary_source_ref_key: string | null;
   merged_into_material_ref_key: string | null;
   entity_json: string;
   created_at: string;
@@ -179,6 +178,10 @@ export function createIdentityRepositories(
 
   const materialRecords: MaterialRecordRepository = {
     async upsert(record) {
+      assertMaterialEntityHasNoPrimarySourceRef(
+        record.entity,
+        refKey(record.entity.materialRef),
+      );
       await db.run(
         `
           INSERT INTO material_records (
@@ -187,19 +190,17 @@ export function createIdentityRepositories(
             lifecycle_status,
             identity_status,
             canonical_ref_key,
-            primary_source_ref_key,
             merged_into_material_ref_key,
             entity_json,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(ref_key) DO UPDATE SET
             kind = excluded.kind,
             lifecycle_status = excluded.lifecycle_status,
             identity_status = excluded.identity_status,
             canonical_ref_key = excluded.canonical_ref_key,
-            primary_source_ref_key = excluded.primary_source_ref_key,
             merged_into_material_ref_key = excluded.merged_into_material_ref_key,
             entity_json = excluded.entity_json,
             updated_at = excluded.updated_at
@@ -210,7 +211,6 @@ export function createIdentityRepositories(
           record.entity.lifecycleStatus,
           record.entity.identityStatus,
           optionalRefKey(record.entity.canonicalRef),
-          optionalRefKey(record.entity.primarySourceRef),
           optionalRefKey(record.mergedIntoMaterialRef),
           JSON.stringify(record.entity),
           record.createdAt,
@@ -431,8 +431,11 @@ function assertSourceEntityHasNoStoredLinks(entity: SourceEntity, refKeyForMessa
 }
 
 function materialRecordFromRow(row: MaterialRecordRow): MaterialRecord {
+  const entity = JSON.parse(row.entity_json) as MaterialEntity;
+  assertMaterialEntityHasNoPrimarySourceRef(entity, row.ref_key);
+
   const record: MaterialRecord = {
-    entity: JSON.parse(row.entity_json) as MaterialEntity,
+    entity,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -445,6 +448,17 @@ function materialRecordFromRow(row: MaterialRecordRow): MaterialRecord {
   }
 
   return record;
+}
+
+function assertMaterialEntityHasNoPrimarySourceRef(
+  entity: MaterialEntity,
+  refKeyForMessage: string,
+): void {
+  if (Object.prototype.hasOwnProperty.call(entity, "primarySourceRef")) {
+    throw new Error(
+      `material_records row corrupt (ref_key=${refKeyForMessage}): MaterialEntity must not store primarySourceRef.`,
+    );
+  }
 }
 
 function canonicalRecordFromRow(row: CanonicalRecordRow): CanonicalRecord {

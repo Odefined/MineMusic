@@ -252,16 +252,12 @@ async function deleteMaterialTextRows(
 async function boundSourceRecordsForMaterial(input: {
   materialRecord: MaterialRecord;
   repositories: ReturnType<typeof createIdentityRepositories>;
-}): Promise<readonly { source: SourceEntity; contributionSource: MaterialTextContributionSource }[]> {
-  const primaryRefKey = input.materialRecord.entity.primarySourceRef === undefined
-    ? undefined
-    : refKey(input.materialRecord.entity.primarySourceRef);
-
+}): Promise<readonly SourceEntity[]> {
   const bindings = await input.repositories.sourceMaterialBindings.listSourcesForMaterial({
     materialRef: input.materialRecord.entity.materialRef,
   });
 
-  const sources: { source: SourceEntity; contributionSource: MaterialTextContributionSource }[] = [];
+  const sources: SourceEntity[] = [];
   for (const binding of bindings) {
     const sourceRecord = await input.repositories.sourceRecords.get({ sourceRef: binding.sourceRef });
 
@@ -272,12 +268,7 @@ async function boundSourceRecordsForMaterial(input: {
       });
     }
 
-    sources.push({
-      source: sourceRecord.entity,
-      contributionSource: primaryRefKey !== undefined && primaryRefKey === refKey(binding.sourceRef)
-        ? "primary_source"
-        : "bound_source",
-    });
+    sources.push(sourceRecord.entity);
   }
 
   return sources;
@@ -307,7 +298,7 @@ async function confirmedActiveCanonicalRecordForMaterial(input: {
 
 function buildMaterialTextDocument(input: {
   materialRecord: MaterialRecord;
-  sourceRecords: readonly { source: SourceEntity; contributionSource: MaterialTextContributionSource }[];
+  sourceRecords: readonly SourceEntity[];
   canonicalRecord: CanonicalRecord | undefined;
   updatedAt: string;
 }): MaterialTextDocumentValue {
@@ -323,8 +314,8 @@ function buildMaterialTextDocument(input: {
   for (const sourceRecord of input.sourceRecords) {
     appendSourceContributions({
       kind: materialKind,
-      source: sourceRecord.source,
-      contributionSource: sourceRecord.contributionSource,
+      source: sourceRecord,
+      contributionSource: "source",
       titleContributions,
       artistContributions,
       albumContributions,

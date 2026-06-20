@@ -231,7 +231,6 @@ async function seedProviderMaterial(database: MusicDatabase, sourceRef: Ref): Pr
     await writes.identity.bindSourceToMaterial({
       sourceRef,
       materialRef,
-      makePrimary: true,
     });
     return materialRef;
   });
@@ -434,7 +433,10 @@ function expectMusicDataPlatformError(code: string): (error: unknown) => boolean
   assert.equal(localBinding === undefined ? undefined : refKey(localBinding.materialRef), refKey(materialRef));
 
   const materialRecord = await repositories.materialRecords.get({ materialRef });
-  assert.equal(materialRecord?.entity.primarySourceRef === undefined ? undefined : refKey(materialRecord.entity.primarySourceRef), refKey(trackRef));
+  assert.deepEqual(materialRecord?.entity.sourceRefs.map(refKey).sort(), [
+    refKey(localSourceRef),
+    refKey(trackRef),
+  ].sort());
 
   await handler(localizeJob({ jobId: "job-2" }));
   assert.deepEqual(files.files.get(expectedFinalPath), audio);

@@ -1472,7 +1472,6 @@ async function bindSourceToMaterial(identity: ReturnType<typeof createIdentityTe
     await identity.bindSourceToMaterial({
         sourceRef: source.sourceRef,
         materialRef: nextMaterialRef,
-        makePrimary: true,
     });
 }
 async function upsertActualLibrary(libraries: ReturnType<typeof createSourceLibraryRepositories>, libraryRef: Ref, ownerScope: string, providerAccountId: string, libraryKind: "saved_source_track" | "saved_source_album" | "followed_source_artist"): Promise<void> {

@@ -656,7 +656,6 @@ await mixedDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: mixedSource.sourceRef,
         materialRef: mixedMaterialRef,
-        makePrimary: true,
     });
     await libraries.libraries.upsert({
         libraryRef: mixedLibraryRef,

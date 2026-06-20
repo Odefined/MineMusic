@@ -66,7 +66,6 @@ await groupedDatabase.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: firstSource.sourceRef,
         materialRef: groupedMaterialRef,
-        makePrimary: true,
     });
     await commands.bindSourceToMaterial({
         sourceRef: secondSource.sourceRef,
@@ -207,7 +206,6 @@ await rebindDatabase.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: rebindSource.sourceRef,
         materialRef: firstMaterialRef,
-        makePrimary: true,
     });
     await repositories.libraries.upsert({
         libraryRef: rebindLibraryRef,
@@ -243,7 +241,6 @@ const rebindSummaries = await rebindDatabase.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: rebindSource.sourceRef,
         materialRef: secondMaterialRef,
-        makePrimary: true,
     });
     const projectionCommands = createOwnerCatalogProjectionCommands({
         db,
@@ -301,7 +298,6 @@ await mergeDatabase.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: mergeSource.sourceRef,
         materialRef: loserMaterialRef,
-        makePrimary: true,
     });
     await repositories.libraries.upsert({
         libraryRef: mergeLibraryRef,

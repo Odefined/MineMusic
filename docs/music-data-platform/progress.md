@@ -209,8 +209,8 @@
   current `source_material_bindings -> source_records`, and confirmed active
   canonical rows.
 - Material text rebuild treats `source_material_bindings` as the current bound
-  source truth and uses `primarySourceRef` only to label a currently bound
-  source contribution.
+  source truth and labels source contributions uniformly as `source`; it no
+  longer has a primary-source contribution label.
 - Material text projection stores structured text fields plus deterministic
   `document_json`; `material_kind` remains a structured column and does not
   enter FTS text or contribution JSON.

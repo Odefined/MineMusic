@@ -248,7 +248,6 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
         await writes.identity.bindSourceToMaterial({
             sourceRef: source.sourceRef,
             materialRef: material,
-            makePrimary: true,
         });
         const createdBatch = await writes.sourceLibrary.createImportBatch({
             batchId: "freshness-closure-batch",

@@ -351,7 +351,6 @@ export function createSourceLibraryImportService(
       await identityCommands.bindSourceToMaterial({
         sourceRef: candidate.sourceEntity.sourceRef,
         materialRef,
-        makePrimary: existingBinding === undefined,
       });
 
       const itemWrite = await sourceLibraryCommands.recordImportItem({

@@ -53,13 +53,11 @@ export const musicDataPlatformIdentitySchema: MusicDatabaseSchemaContribution = 
         lifecycle_status TEXT NOT NULL,
         identity_status TEXT NOT NULL,
         canonical_ref_key TEXT,
-        primary_source_ref_key TEXT,
         merged_into_material_ref_key TEXT,
         entity_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(canonical_ref_key) REFERENCES canonical_records(ref_key),
-        FOREIGN KEY(primary_source_ref_key) REFERENCES source_records(ref_key),
         FOREIGN KEY(merged_into_material_ref_key) REFERENCES material_records(ref_key)
       )
     `);

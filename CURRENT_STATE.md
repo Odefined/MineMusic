@@ -90,9 +90,9 @@ Boundary auto-pass widening for presentation-driven admission (ADR-0021), and
 the `music.experience.present` consumption tool that returns a stable library
 handle and a leak-free `MusicCard`. Material Projection now applies
 Source Preference Policy to current bound sources at read time and no longer
-exposes `primarySourceRef` in `MusicMaterial`; the durable
-`MaterialEntity.primarySourceRef` field remains a legacy identity-write signal
-until its later migration. Phase 18A introduces the `library.`
+exposes `primarySourceRef` in `MusicMaterial`; Music Data Platform identity
+writes no longer accept or persist durable `primarySourceRef` / `makePrimary`.
+Phase 18A introduces the `library.`
 Public Agent Protocol namespace, keeps Library Import owned by Music Data
 Platform rather than a new top-level area, and adds the initially empty
 MDP-owned `library-import` RuntimeModule under

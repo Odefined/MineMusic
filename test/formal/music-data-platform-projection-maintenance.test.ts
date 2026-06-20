@@ -285,7 +285,6 @@ await plannerDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: plannerSource.sourceRef,
         materialRef: plannerBoundMaterialRef,
-        makePrimary: true,
     });
     await identity.upsertMaterialRecord({
         materialRef: plannerCanonicalMaterialRef,
@@ -418,7 +417,6 @@ await facadeImportDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: facadeImportSource.sourceRef,
         materialRef: facadeImportMaterialRef,
-        makePrimary: true,
     });
 });
 await facadeImportDatabase.transaction(async (db) => {
@@ -677,7 +675,6 @@ await runnerSuccessDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: runnerSource.sourceRef,
         materialRef: runnerMaterialRef,
-        makePrimary: true,
     });
     await libraries.libraries.upsert({
         libraryRef: runnerLibraryRef,
@@ -747,7 +744,6 @@ await runnerLibraryScopeDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: runnerLibraryScopeSource.sourceRef,
         materialRef: runnerLibraryScopeMaterialRef,
-        makePrimary: true,
     });
     await libraries.libraries.upsert({
         libraryRef: runnerLibraryScopeLibraryRef,

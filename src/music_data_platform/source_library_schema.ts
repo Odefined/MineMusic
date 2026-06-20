@@ -1,7 +1,7 @@
 import type { MusicDatabaseSchemaContribution } from "../storage/database.js";
 
 export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContribution = {
-  id: "music_data_platform.source_library_v3",
+  id: "music_data_platform.source_library_v4",
   async apply(context) {
     await context.run(`
       CREATE TABLE IF NOT EXISTS source_libraries (
@@ -83,6 +83,21 @@ export const musicDataPlatformSourceLibrarySchema: MusicDatabaseSchemaContributi
     await context.run(`
       CREATE INDEX IF NOT EXISTS source_library_import_item_outcomes_batch_source_outcome_idx
       ON source_library_import_item_outcomes(batch_id, source_ref_key, outcome)
+    `);
+
+    // At most one running import batch per (owner, provider, library kind). A partial
+    // unique index over running rows makes library.import.start idempotent at the database
+    // boundary: a repeated start whose insert hits this constraint catches it and returns
+    // the existing running batch; a completed/failed batch drops out of the index so a
+    // fresh import can start. Excludes provider_account_id on purpose: account is resolved
+    // from provider config / first page and may be NULL at insert time, and Postgres treats
+    // NULLs as distinct in a unique index, so including it would let concurrent starts
+    // through while account is unresolved. The single-account NCM/QQ model does not
+    // differentiate account within (provider, library kind).
+    await context.run(`
+      CREATE UNIQUE INDEX IF NOT EXISTS source_library_import_batches_running_uniq
+      ON source_library_import_batches(owner_scope, provider_id, library_kind)
+      WHERE status = 'running'
     `);
   },
 };

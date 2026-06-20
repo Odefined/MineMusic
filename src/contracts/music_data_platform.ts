@@ -244,7 +244,6 @@ export type MaterialEntity = {
   lifecycleStatus: MaterialLifecycleStatus;
   identityStatus: MaterialIdentityStatus;
   canonicalRef?: Ref;
-  primarySourceRef?: Ref;
   sourceRefs: readonly Ref[];
   versionInfo?: VersionInfo;
   createdAt?: string;

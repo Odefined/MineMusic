@@ -60,7 +60,6 @@ await repositoryDatabase.transaction(async (db) => {
     await commands.bindSourceToMaterial({
         sourceRef: source.sourceRef,
         materialRef,
-        makePrimary: true,
     });
 });
 await repositoryDatabase.transaction(async (db) => {
@@ -191,7 +190,6 @@ await reconciliationRepositoryDatabase.transaction(async (db) => {
         await identity.bindSourceToMaterial({
             sourceRef: source.sourceRef,
             materialRef: sourceMaterialRef,
-            makePrimary: true,
         });
     }
     await repositories.libraries.upsert({
@@ -287,7 +285,6 @@ await reconciliationMismatchRepositoryDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: reconciliationMismatchSource.sourceRef,
         materialRef: mismatchMaterialRef,
-        makePrimary: true,
     });
     for (const libraryRef of [
         reconciliationMismatchTargetLibraryRef,
@@ -348,7 +345,6 @@ await invalidationDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: invalidationSource.sourceRef,
         materialRef: invalidationMaterialRef,
-        makePrimary: true,
     });
 });
 const recordedInvalidation = createRecordingProjectionInvalidationCommands();
@@ -428,7 +424,6 @@ await reconciliationCommandDatabase.transaction(async (db) => {
         await identity.bindSourceToMaterial({
             sourceRef: source.sourceRef,
             materialRef: sourceMaterialRef,
-            makePrimary: true,
         });
     }
     for (const libraryRef of [
@@ -533,7 +528,6 @@ await emptyReconciliationCommandDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: emptyReconciliationStaleSource.sourceRef,
         materialRef: emptyMaterialRef,
-        makePrimary: true,
     });
     await repositories.libraries.upsert({
         libraryRef: emptyReconciliationCommandLibraryRef,
@@ -601,7 +595,6 @@ await failedReconciliationDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: failedReconciliationStaleSource.sourceRef,
         materialRef: failedMaterialRef,
-        makePrimary: true,
     });
     await repositories.libraries.upsert({
         libraryRef: failedReconciliationLibraryRef,
@@ -668,7 +661,6 @@ await boundedReconciliationDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: boundedReconciliationStaleSource.sourceRef,
         materialRef: boundedMaterialRef,
-        makePrimary: true,
     });
     await repositories.libraries.upsert({
         libraryRef: boundedReconciliationLibraryRef,
@@ -727,7 +719,6 @@ await bindingMismatchDatabase.transaction(async (db) => {
     await identity.bindSourceToMaterial({
         sourceRef: bindingMismatchSource.sourceRef,
         materialRef: boundMaterialRef,
-        makePrimary: true,
     });
 });
 await bindingMismatchDatabase.transaction(async (db) => {

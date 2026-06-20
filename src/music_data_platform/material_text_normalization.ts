@@ -2,8 +2,7 @@ import { tokenizePrefixOrV1Text } from "../contracts/music_data_platform.js";
 
 export type MaterialTextContributionSource =
   | "material"
-  | "primary_source"
-  | "bound_source"
+  | "source"
   | "canonical";
 
 export type MaterialTextContributionBasis =
@@ -26,10 +25,9 @@ export type MaterialTextFieldState = {
 };
 
 const sourcePriority: Readonly<Record<MaterialTextContributionSource, number>> = {
-  primary_source: 0,
-  bound_source: 1,
-  material: 2,
-  canonical: 3,
+  source: 0,
+  material: 1,
+  canonical: 2,
 };
 const maxMaterialTextPrefixQueryTokens = 12;
 

@@ -114,9 +114,9 @@ Commands are created with `db: MusicDatabaseTransactionContext` and
 | `upsertSourceRecord` | full `SourceEntity` | `SourceRecord` | `source_records` |
 | `upsertMaterialRecord` | patch-style material input without `sourceRefs`, `identityStatus`, `lifecycleStatus`, or `canonicalRef` | `MaterialRecord` | `material_records` |
 | `upsertCanonicalRecord` | full `CanonicalEntity` plus record status/facts | `CanonicalRecord` | `canonical_records` |
-| `bindSourceToMaterial` | `sourceRef`, `materialRef`, optional `makePrimary` | after-state binding/material records | `source_material_bindings`, `material_records` |
+| `bindSourceToMaterial` | `sourceRef`, `materialRef` | after-state binding/material records | `source_material_bindings`, `material_records` |
 | `bindMaterialToCanonical` | `materialRef`, `canonicalRef` | after-state material record | `material_records` |
-| `mergeMaterialRecord` | loser/winner material refs, optional primary override | after-state loser/winner records and moved bindings | `source_material_bindings`, `material_records` |
+| `mergeMaterialRecord` | loser/winner material refs | after-state loser/winner records and moved bindings | `source_material_bindings`, `material_records` |
 | `createImportBatch` | batch id, owner scope, provider id/account, library kind, optional `maxNewItems` | source-library import batch record | `source_library_import_batches` |
 | `resolveImportBatchLibraryScope` | batch plus resolved provider account id | after-state source-library import batch record | `source_libraries`, `source_library_import_batches` |
 | `recordImportItem` | resolved batch, `sourceRef`, provider identity, `materialRef`, optional provider added time | source-library item, item outcome, and after-state batch records | `source_library_items`, `source_library_import_item_outcomes`, `source_library_import_batches` |
