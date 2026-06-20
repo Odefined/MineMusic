@@ -5,7 +5,7 @@ import type {
     BackgroundWorkHandler,
     BackgroundWorkSubmitInput,
 } from "../../src/background_work/index.js";
-import { DEFAULT_OWNER_SCOPE, createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createMusicDataPlatformRetrievalReadPort, createMusicDataPlatformSourceOfTruthWriteCommands, type ProjectionMaintenanceTargetRecord, } from "../../src/music_data_platform/index.js";
+import { createProjectionMaintenanceCommands, createProjectionMaintenanceRecords, createMusicDataPlatformSourceOfTruthWriteCommands, type ProjectionMaintenanceTargetRecord, } from "../../src/music_data_platform/index.js";
 import type { SourceEntity } from "../../src/contracts/music_data_platform.js";
 import { createMineMusicExtensionRuntime, createMusicDataPlatformRuntimeModule, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
@@ -218,107 +218,6 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     assert.equal(stopped.ok, true);
     assert.equal(stopResolved, true);
     assert.equal((await listPendingProjectionTargets(database)).length, 0);
-    await database.close();
-}
-{
-    const timers = createFakeTimerQueue();
-    const database = await openUninitializedPostgresTestMusicDatabase();
-    const module = createMusicDataPlatformRuntimeModule({
-        extensionRuntime: createMineMusicExtensionRuntime(),
-        database,
-        projectionMaintenanceSchedulerDependencies: {
-            ...timers.dependencies(),
-            now: () => "2026-06-14T16:10:00.000Z",
-        },
-    });
-    const initialized = await module.initialize({});
-    assert.equal(initialized.ok, true);
-    const readPort = createMusicDataPlatformRetrievalReadPort({
-        db: database.context(),
-    });
-    const source = sourceTrack("5101", "Freshness Closure Song");
-    const material = materialRef("recording", "m_freshness_closure");
-    await database.transaction(async (db) => {
-        const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
-            db,
-            now: "2026-06-14T16:09:00.000Z",
-        });
-        await writes.identity.upsertSourceRecord({ entity: source });
-        await writes.identity.upsertMaterialRecord({
-            materialRef: material,
-            kind: "recording",
-        });
-        await writes.identity.bindSourceToMaterial({
-            sourceRef: source.sourceRef,
-            materialRef: material,
-        });
-        const createdBatch = await writes.sourceLibrary.createImportBatch({
-            batchId: "freshness-closure-batch",
-            ownerScope: DEFAULT_OWNER_SCOPE,
-            providerId: "netease",
-            libraryKind: "saved_source_track",
-        });
-        const batch = await writes.sourceLibrary.resolveImportBatchLibraryScope({
-            batch: createdBatch,
-            providerAccountId: "130950621",
-        });
-        const recorded = await writes.sourceLibrary.recordImportItem({
-            batch,
-            sourceRef: source.sourceRef,
-            providerId: "netease",
-            providerEntityId: "5101",
-            materialRef: material,
-            providerAddedAt: "2026-06-13T12:00:00.000Z",
-        });
-        await writes.sourceLibrary.completeImportBatch({
-            batch: recorded.batch,
-            completionReason: "provider_exhausted",
-        });
-    });
-    const staleFreshness = await readPort.getRetrievalFreshness({
-        ownerScope: DEFAULT_OWNER_SCOPE,
-    });
-    assert.equal(staleFreshness.status, "possibly_stale");
-    assert.equal((staleFreshness.dirtyTargetCount ?? 0) >= 1, true);
-    assert.equal(staleFreshness.failedTargetCount ?? 0, 0);
-    assert.equal((await listPendingProjectionTargets(database)).length >= 1, true);
-    assert.deepEqual((await readPort.searchOwnerCatalogMaterials({
-        ownerScope: DEFAULT_OWNER_SCOPE,
-        order: "recently_added",
-        limit: 10,
-    })).rows, []);
-    assert.deepEqual((await readPort.searchOwnerCatalogMaterials({
-        ownerScope: DEFAULT_OWNER_SCOPE,
-        text: "freshness closure",
-        order: "text_relevance",
-        limit: 10,
-    })).rows, []);
-    timers.runNext(0);
-    await waitForPendingProjectionTargetCount(database, 0);
-    assert.deepEqual(await readPort.getRetrievalFreshness({
-        ownerScope: DEFAULT_OWNER_SCOPE,
-    }), { status: "current" });
-    assert.deepEqual(await listPendingProjectionTargets(database), []);
-    const recentlyAddedPage = await readPort.searchOwnerCatalogMaterials({
-        ownerScope: DEFAULT_OWNER_SCOPE,
-        order: "recently_added",
-        limit: 10,
-    });
-    assert.equal(recentlyAddedPage.rows.length, 1);
-    assert.deepEqual(recentlyAddedPage.rows[0]?.materialRef, material);
-    assert.equal(recentlyAddedPage.rows[0]?.titleText, "freshness closure song");
-    const textPage = await readPort.searchOwnerCatalogMaterials({
-        ownerScope: DEFAULT_OWNER_SCOPE,
-        text: "freshness closure",
-        order: "text_relevance",
-        limit: 10,
-    });
-    assert.equal(textPage.rows.length, 1);
-    assert.deepEqual(textPage.rows[0]?.materialRef, material);
-    assert.deepEqual(textPage.rows[0]?.matchedTextFields, ["title"]);
-    assert.equal(textPage.rows[0]?.matchedTokenCount, 2);
-    const stopped = await stopModule(module);
-    assert.equal(stopped.ok, true);
     await database.close();
 }
 async function stopModule(module: MusicDataPlatformRuntimeModule): Promise<Awaited<ReturnType<NonNullable<MusicDataPlatformRuntimeModule["stop"]>>>> {

@@ -2,9 +2,6 @@ import type { MaterialEntityKind, ProviderMaterialCandidate, SourceQuery } from 
 import type { Ref } from "../../../contracts/kernel.js";
 import type {
   MixedRetrievalCursorPosition,
-  MusicDataPlatformMixedRetrievalRow,
-  MusicDataPlatformRetrievalWorkspace,
-  MusicDataPlatformRetrievalReadPort,
   RetrievalFreshness,
   RetrievalMatchedTextTokenEvidence,
   RetrievalOrder,
@@ -131,13 +128,9 @@ export type RetrievalProviderSearchPort = {
 };
 
 export type CreateRetrievalQueryServiceInput = {
-  readPort: MusicDataPlatformRetrievalReadPort;
-  mixedRetrievalWorkspace?: MusicDataPlatformRetrievalWorkspace;
   providerSearch?: RetrievalProviderSearchPort;
 };
 
 export type RetrievalQueryService = {
   query(input: RetrievalQueryInput): Promise<RetrievalQueryResult>;
 };
-
-export type RetrievalQueryServiceMixedRow = MusicDataPlatformMixedRetrievalRow;

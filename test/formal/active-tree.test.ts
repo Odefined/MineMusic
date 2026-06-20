@@ -182,8 +182,6 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_pl
     "src/music_data_platform/projection_maintenance_schema.ts",
     "src/music_data_platform/ref_digest.ts",
     "src/music_data_platform/ref_validation.ts",
-    "src/music_data_platform/retrieval_mixed_workspace.ts",
-    "src/music_data_platform/retrieval_read_model.ts",
     "src/music_data_platform/retrieval_result_set_records.ts",
     "src/music_data_platform/retrieval_result_set_schema.ts",
     "src/music_data_platform/retrieval_shared.ts",
@@ -214,7 +212,6 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_intelli
     "src/music_intelligence/core/retrieval/cursor.ts",
     "src/music_intelligence/core/retrieval/index.ts",
     "src/music_intelligence/core/retrieval/query_normalization.ts",
-    "src/music_intelligence/core/retrieval/query_service.ts",
     "src/music_intelligence/core/search/index.ts",
     "src/music_intelligence/core/search/metadata_lookup_retrieval_adapter.ts",
     "src/music_intelligence/errors.ts",
@@ -597,15 +594,10 @@ const musicIntelligenceImportFailures: string[] = [];
 const musicIntelligenceAllowedMdpImports = new Set([
     "MixedRetrievalCursorPosition",
     "MetadataLookupSearchCursorPosition",
-    "MusicDataPlatformMixedRetrievalPage",
-    "MusicDataPlatformMixedRetrievalRow",
     "MusicDataPlatformMetadataLookupSearchPage",
     "MusicDataPlatformMetadataLookupSearchRow",
     "MusicDataPlatformMetadataLookupSearchWorkspace",
-    "MusicDataPlatformRetrievalMaterialRow",
-    "MusicDataPlatformRetrievalReadPort",
     "MusicDataPlatformRetrievalSearchInput",
-    "MusicDataPlatformRetrievalWorkspace",
     "RetrievalFreshness",
     "RetrievalMatchedTextTokenEvidence",
     "RetrievalOrder",
@@ -841,15 +833,6 @@ for (const file of await sourceFilesUnder(join(repositoryRoot, "src/music_intell
     }
 }
 assert.deepEqual(musicIntelligenceRuntimeResultSetFailures, [], "Music Intelligence must not write or shape SQL around Music Data Platform runtime result-set/cache tables");
-const retrievalServiceText = await readFile(join(repositoryRoot, "src/music_intelligence/core/retrieval/query_service.ts"), "utf8");
-assert.equal(retrievalServiceText.includes(".sort("), false, "Retrieval query service must preserve Music Data Platform row order instead of sorting hits");
-const retrievalMixedWorkspaceText = await readFile(join(repositoryRoot, "src/music_data_platform/retrieval_mixed_workspace.ts"), "utf8");
-assert.equal(retrievalMixedWorkspaceText.includes(".sort("), false, "Mixed retrieval workspace must use SQL ranking/keyset pagination instead of TypeScript sorting");
-const retrievalReadModelText = await readFile(join(repositoryRoot, "src/music_data_platform/retrieval_read_model.ts"), "utf8");
-assert.equal(retrievalReadModelText.includes("provider_search"), false, "Music Data Platform local retrieval read model must not accept provider_search typed pools in Phase 15A");
-assert.equal(retrievalReadModelText.includes("RetrievalPool"), false, "Music Data Platform local retrieval read model must not depend on Music Intelligence typed pool objects");
-assert.equal(retrievalReadModelText.includes("retrieval_result_sets") ||
-    retrievalReadModelText.includes("material_candidate"), false, "Music Data Platform local retrieval read model must stay local-only and must not gain runtime mixed result-set/candidate behavior");
 const musicDataPlatformRawRefAssertFailures: string[] = [];
 const rawRefPrimitiveAllowedFiles = new Set([
     "src/music_data_platform/ref_validation.ts",
@@ -1009,7 +992,6 @@ const directWriteAllowedFiles = new Set([
     "src/music_data_platform/owner_material_relation_schema.ts",
     "src/music_data_platform/projection_maintenance_commands.ts",
     "src/music_data_platform/projection_maintenance_schema.ts",
-    "src/music_data_platform/retrieval_mixed_workspace.ts",
     "src/music_data_platform/retrieval_result_set_records.ts",
     "src/music_data_platform/retrieval_result_set_schema.ts",
     "src/music_data_platform/search_metadata_projection_commands.ts",

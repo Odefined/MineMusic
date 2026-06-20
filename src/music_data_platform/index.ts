@@ -211,37 +211,16 @@ export type {
   ProjectionMaintenanceRecords,
   ProjectionMaintenanceTargetRecord,
 } from "./projection_maintenance_records.js";
-export {
-  createMusicDataPlatformRetrievalReadPort,
-} from "./retrieval_read_model.js";
-export type {
-  CreateMusicDataPlatformRetrievalReadPortInput,
-  MusicDataPlatformRetrievalMaterialRow,
-  MusicDataPlatformRetrievalReadPort,
-  MusicDataPlatformRetrievalSearchPage,
-  RetrievalMatchedTextTokenEvidence,
-  RetrievalReadPoolFilter,
-  RetrievalTextField,
-} from "./retrieval_read_model.js";
 export type {
   MixedRetrievalCursorPosition,
   MusicDataPlatformRetrievalSearchInput,
   RetrievalFreshness,
+  RetrievalMatchedTextTokenEvidence,
   RetrievalOrder,
   RetrievalReadCursorPosition,
+  RetrievalReadPoolFilter,
 } from "./retrieval_shared.js";
-export {
-  createMusicDataPlatformRetrievalWorkspace,
-} from "./retrieval_mixed_workspace.js";
-export type {
-  CreateMusicDataPlatformRetrievalWorkspaceInput,
-  MusicDataPlatformMixedRetrievalMaterialCandidateRow,
-  MusicDataPlatformMixedRetrievalMaterialRow,
-  MusicDataPlatformMixedRetrievalPage,
-  MusicDataPlatformMixedRetrievalRow,
-  MusicDataPlatformRetrievalWorkspace,
-  MusicDataPlatformMixedRetrievalSearchInput,
-} from "./retrieval_mixed_workspace.js";
+export type { RetrievalTextField } from "./material_text_ranking.js";
 export {
   createMusicDataPlatformMetadataLookupSearchWorkspace,
 } from "./metadata_lookup_search_workspace.js";
