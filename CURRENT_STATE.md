@@ -67,8 +67,11 @@ Background Work v1: a MineMusic-owned `BackgroundWorkBackend` port with
 `submit`, `registerHandler`, `start`, and `stop`, backed first by a concrete
 `pg-boss` adapter behind `src/background_work/pg_boss_backend.ts`. Background
 Work is runtime infrastructure, not a top-level formal area; job state is
-backend-owned execution state only. `localizeProviderSource` remains the next
-slice and is not implemented yet.
+backend-owned execution state only. Slice 5 extracts `downloadToFile` behind a
+narrow `MediaFileWriter` port for reuse by existing download commands and the
+future localize handler; it returns byte count and `actualMd5` without owning
+job or domain state. `localizeProviderSource` remains the next slice and is not
+implemented yet.
 Phase 17 adds the internal Music Data Platform Candidate Commit owning command
 (ADR-0011), Material Projection (`materialRef` -> `MusicMaterial`), the Effect
 Boundary auto-pass widening for presentation-driven admission (ADR-0021), and

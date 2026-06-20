@@ -1195,11 +1195,11 @@ cursor with a Stage Interface-owned registry-backed Public Cursor Veil:
   cursor-page field isolation, output veil behavior, context factory wiring, and
   active-tree write-boundary allow-listing.
 
-## 2026-06-20: Phase 21 Postgres And Background Work Slice 4
+## 2026-06-20: Phase 21 Postgres, Background Work, And Download Helper
 
 The Postgres / Background Work / localize Phase 21 track is active. Storage
-migration through Slice 3 is complete, and Slice 4 establishes the first
-Background Work runtime infrastructure:
+migration through Slice 3 is complete, Slice 4 establishes the first Background
+Work runtime infrastructure, and Slice 5 extracts the reusable download helper:
 
 - `src/background_work/backend.ts` defines the MineMusic-owned v1 port:
   `submit`, `registerHandler`, `start`, and `stop`.
@@ -1215,7 +1215,16 @@ Background Work runtime infrastructure:
   registration rejection, and graceful stop behavior using a fake
   `PgBossBackgroundWorkClient`.
 - `pg-boss@12.20.0` is now a runtime dependency. Background Work remains generic
-  runtime infrastructure; `localizeProviderSource` is still the next slice.
+  runtime infrastructure.
+- `src/music_data_platform/download_to_file.ts` now owns fetch/write streaming,
+  byte counting, actual md5 calculation, provider-md5/size integrity checks,
+  and partial-file cleanup behind a narrow `MediaFileWriter` port.
+- Existing `DownloadCommands` still own provider resolution, job rows, status,
+  overwrite/skip behavior, and drain semantics; they now call `downloadToFile`
+  rather than owning stream mechanics directly.
+- `test/formal/download-command.test.ts` covers helper-level `actualMd5`
+  behavior and the existing command behavior still passes.
+- `localizeProviderSource` job submission and handler remain the next slice.
 
 ## Next Formal Milestones
 

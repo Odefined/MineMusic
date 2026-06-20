@@ -1,6 +1,6 @@
 # Phase 21 Postgres Storage, Background Work, And Localize Implementation Plan
 
-> Status: Slice 4 complete; stopped before download-to-file helper and localize
+> Status: Slice 5 complete; stopped before localize job submission and handler
 > Owning bounded contexts: Storage, Server Host / Runtime Orchestration, Stage
 > Core, Music Data Platform
 
@@ -18,7 +18,7 @@ Postgres and background jobs are enabling infrastructure, not the domain goal.
 
 ## Current Stop Point
 
-Completed through Slice 4:
+Completed through Slice 5:
 
 - Postgres is the only active formal runtime storage adapter.
 - Runtime database config uses Postgres URL/schema settings.
@@ -33,10 +33,15 @@ Completed through Slice 4:
 - `pg-boss` imports are guarded so they stay confined to the concrete adapter.
 - Background Work tests cover deferred worker start, queue creation,
   idempotent submission, handler invocation, and graceful stop behavior.
+- `downloadToFile` is extracted behind a narrow `MediaFileWriter` port for
+  reuse by download and localize flows.
+- `downloadToFile` returns byte count and `actualMd5`, while the existing
+  `DownloadCommands` job status behavior is preserved.
+- The helper owns fetch/write streaming, integrity checks, and partial-file
+  cleanup, without depending on Background Work or localize job state.
 
 Not started:
 
-- Download-to-file helper extraction for localize.
 - `localizeProviderSource` job submission or handler.
 - Embedding, music-to-language, or any other background job type.
 

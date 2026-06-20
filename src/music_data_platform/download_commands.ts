@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
-
 import {
   type Ref,
   type Result,
 } from "../contracts/kernel.js";
 import type { DownloadSource } from "../contracts/music_data_platform.js";
 import type { MusicDatabase } from "../storage/database.js";
+import { downloadToFile, type MediaFileWriter } from "./download_to_file.js";
 import {
   createDownloadJobRepository,
   type DownloadJobRecord,
@@ -64,23 +63,6 @@ export type DownloadSourceProvider = {
     preferredBitrate?: number;
     sessionId?: string;
   }): Promise<Result<DownloadSource>>;
-};
-
-// Asynchronous, backpressured write sink. Streaming the body chunk-by-chunk
-// (instead of writeFileSync on a full buffer) keeps large downloads from
-// blocking the event loop or buffering the whole file in memory.
-export type MediaFileSink = {
-  append(chunk: Uint8Array): Promise<void>;
-  close(): Promise<void>;
-};
-
-// Narrow filesystem write port. Production wraps node:fs streams; tests inject
-// an in-memory sink. The command never touches the filesystem directly.
-export type MediaFileWriter = {
-  exists(path: string): boolean;
-  ensureDir(dir: string): void;
-  remove(path: string): void;
-  openSink(path: string): MediaFileSink;
 };
 
 export type CreateDownloadCommandsInput = {
@@ -227,67 +209,19 @@ async function runDownload(
   jobs: DownloadJobRepository,
   clock: () => string,
 ): Promise<void> {
-  let sink: MediaFileSink | undefined;
+  const result = await downloadToFile({
+    source,
+    outputPath,
+    fetch: fetchImpl,
+    fileWriter,
+  });
+
+  if (!result.ok) {
+    await markFailed(jobs, jobId, clock, result.errorCode, result.errorMessage);
+    return;
+  }
 
   try {
-    const response = await fetchImpl(source.url);
-
-    if (!response.ok) {
-      await markFailed(jobs, jobId, clock, "music_data.download_http_failed", `Download HTTP ${response.status}.`);
-      return;
-    }
-
-    if (response.body === null) {
-      await markFailed(jobs, jobId, clock, "music_data.download_http_failed", "Download response had no body.");
-      return;
-    }
-
-    // Stream the body chunk-by-chunk: append to the sink (backpressured), fold
-    // each chunk into the md5, and count bytes — never buffering the whole file
-    // in memory and never blocking the event loop on a synchronous write.
-    sink = fileWriter.openSink(outputPath);
-    const hash = createHash("md5");
-    let bytes = 0;
-    const reader = response.body.getReader();
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          break;
-        }
-
-        const buffer = value instanceof Uint8Array ? value : new Uint8Array(value);
-        await sink.append(buffer);
-        hash.update(buffer);
-        bytes += buffer.length;
-      }
-    } finally {
-      reader.releaseLock();
-    }
-
-    await sink.close();
-    sink = undefined;
-
-    // Integrity checks AFTER streaming, BEFORE recording completed. On failure
-    // the partial file is removed so the output path is either correct or absent.
-    if (source.sizeBytes !== undefined && bytes !== source.sizeBytes) {
-      fileWriter.remove(outputPath);
-      await markFailed(jobs, jobId, clock, "music_data.download_size_mismatch", `Expected ${source.sizeBytes} bytes but received ${bytes}.`);
-      return;
-    }
-
-    if (source.md5 !== undefined) {
-      const actualMd5 = hash.digest("hex");
-
-      if (actualMd5 !== source.md5) {
-        fileWriter.remove(outputPath);
-        await markFailed(jobs, jobId, clock, "music_data.download_integrity_failed", `md5 ${actualMd5} does not match provider ${source.md5}.`);
-        return;
-      }
-    }
-
     const current = await jobs.get({ jobId });
 
     if (current === undefined) {
@@ -297,20 +231,14 @@ async function runDownload(
     await jobs.update({
       ...current,
       state: "completed",
-      bytesDownloaded: bytes,
+      bytesDownloaded: result.bytesDownloaded,
       updatedAt: clock(),
     });
   } catch (cause) {
-    if (sink !== undefined) {
-      await sink.close().catch(() => {
-        // best-effort: the sink may already be broken
-      });
-    }
-
     try {
       fileWriter.remove(outputPath);
     } catch {
-      // best-effort cleanup of a partial file
+      // best-effort cleanup of a file that could not be recorded durably
     }
 
     await markFailed(

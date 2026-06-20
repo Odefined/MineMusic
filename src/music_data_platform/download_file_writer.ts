@@ -1,7 +1,7 @@
 import { createWriteStream, existsSync, mkdirSync, rmSync } from "node:fs";
 import { once } from "node:events";
 import { finished } from "node:stream/promises";
-import type { MediaFileWriter } from "./download_commands.js";
+import type { MediaFileWriter } from "./download_to_file.js";
 
 // Production MediaFileWriter over node:fs. Writes stream asynchronously
 // (createWriteStream + backpressure via 'drain') so a large download never

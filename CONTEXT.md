@@ -710,6 +710,15 @@ and runtime `material_candidate`; sources, tags, memories, embeddings, and
 search documents are evidence sources rather than final result identities.
 _Avoid_: source result, tag result, memory result, embedding row, document id.
 
+### Target Merge
+
+The Retrieval step that assigns Searchable Documents to final Search Targets
+and collapses documents that explain the same target. Provider documents that
+can be confirmed as already bound to a durable material merge into that
+`material`; otherwise they may produce a runtime `material_candidate`.
+_Avoid_: provider search, ranking policy, corpus-local matching, candidate
+commit.
+
 ### Searchable Document
 
 A corpus-owned evidence carrier that can be matched by retrieval and points to a
@@ -718,8 +727,11 @@ Documents may explain the same Search Target. Provider search results are
 Searchable Documents from a provider corpus; their final Search Target is either
 a runtime `material_candidate` or an existing bound `material`. Each Searchable
 Document points to exactly one Search Target; multi-target evidence is split
-into one document per target with shared provenance.
-_Avoid_: result item, material, source, tag, memory, embedding row.
+into one document per target with shared provenance. A Searchable Document is a
+retrieval boundary shape, not a requirement that every corpus write into one
+global durable document table.
+_Avoid_: result item, material, source, tag, memory, embedding row, global
+searchable_documents table.
 
 ### Search Corpus
 
@@ -729,11 +741,31 @@ embedding index, memory store, tag assertions, or generated music description;
 it is not synonymous with one storage table.
 _Avoid_: table, repository, material catalog, provider adapter, ranking policy.
 
+### Metadata Search Corpus
+
+A Search Corpus over MineMusic-owned descriptive music metadata, such as title,
+artist, album, version, and alias text. It is one corpus among others and must
+not define the general Retrieval model, result scoring, or evidence vocabulary.
+_Avoid_: material text projection, matched-token ranking model, provider
+corpus, embedding corpus.
+
+### Provider Search Corpus
+
+A Search Corpus over provider-returned music search candidates. It contributes
+provider evidence as Searchable Documents; it does not itself decide final
+Search Target identity.
+_Avoid_: Search Target, material candidate allocator, provider adapter, final
+result source.
+
 ### Document Evidence
 
 Corpus-local explanation for why one Searchable Document matched a retrieval
-query. It explains the line of evidence, not the final merged result.
-_Avoid_: final score, result card text, ranked result identity.
+query. It may name the evidence source, field, value, and match kind, but it
+does not expose old token-count, field-priority, or SQL-rank mechanics as
+Retrieval language. It explains the line of evidence, not the final merged
+result.
+_Avoid_: final score, result card text, ranked result identity, matched-token
+ranking model.
 
 ### Result Evidence
 

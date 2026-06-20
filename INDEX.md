@@ -152,7 +152,8 @@ lives under `docs/archive/` or git history. Evidence is not current authority.
 - `docs/formal-rebuild/phase-21-postgres-background-work-localize-implementation-plan.md`:
   active Phase 21 plan for destructive Postgres storage migration, Background
   Work v1 over `pg-boss`, and `localizeProviderSource`; storage migration is
-  complete through Slice 3 and Background Work Slice 4 has landed.
+  complete through Slice 3, Background Work Slice 4 has landed, and Slice 5 has
+  extracted the reusable download-to-file helper.
 - `MineMusic_Formal_Project_Architecture_Audit_v3.md`: audit evidence and
   decision trace only.
 
@@ -399,6 +400,9 @@ The active source tree is the formal rebuild skeleton, not the old MVP runtime.
 - `src/storage/index.ts`: Storage public exports.
 - `src/music_data_platform/errors.ts`: Music Data Platform invariant error
   type.
+- `src/music_data_platform/download_to_file.ts`: reusable provider audio
+  download helper behind `MediaFileWriter`, returning byte count and actual md5
+  without owning job or domain state.
 - `src/music_data_platform/identity_schema.ts`: Phase 5 identity schema
   contribution.
 - `src/music_data_platform/identity_records.ts`: low-level identity

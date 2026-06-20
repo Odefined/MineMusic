@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import type { DownloadSource } from "../../src/contracts/music_data_platform.js";
 import type { Ref, Result } from "../../src/contracts/kernel.js";
-import { createDownloadCommands, type DownloadCommands, type DownloadJobStatus, type DownloadSourceProvider, type MediaFileWriter, } from "../../src/music_data_platform/download_commands.js";
+import { createDownloadCommands, type DownloadCommands, type DownloadJobStatus, type DownloadSourceProvider, } from "../../src/music_data_platform/download_commands.js";
+import { downloadToFile, type MediaFileWriter } from "../../src/music_data_platform/download_to_file.js";
 import { musicDataPlatformDownloadSchema } from "../../src/music_data_platform/download_schema.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
 import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.js";
@@ -144,6 +145,24 @@ async function openDatabase(): Promise<MusicDatabase> {
     const database = await openUninitializedPostgresTestMusicDatabase();
     await database.initialize({ schemas: [musicDataPlatformDownloadSchema] });
     return database;
+}
+// --- helper: downloadToFile returns the actual md5 even when the provider did not supply one ---
+{
+    const audio = new Uint8Array([8, 6, 7, 5, 3, 0, 9]);
+    const audioMd5 = (await createHash("md5").update(audio)).digest("hex");
+    const { writer, files } = createMemoryFileWriter();
+    const downloaded = await downloadToFile({
+        source: okSource({ sizeBytes: audio.length }),
+        outputPath: "/staging/job-1.part",
+        fetch: (async () => new Response(audio)) as typeof fetch,
+        fileWriter: writer,
+    });
+    assert.deepEqual(downloaded, {
+        ok: true,
+        bytesDownloaded: audio.length,
+        actualMd5: audioMd5,
+    });
+    assert.deepEqual(await files.get("/staging/job-1.part"), audio);
 }
 // --- happy path: start a track download, background fetch writes the file ---
 {
