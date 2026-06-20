@@ -77,11 +77,6 @@ const schemaTargets = [
     sourcePath: "src/contracts/stage_interface.ts",
   },
   {
-    exportName: "libraryImportContinueInputSchema",
-    typeName: "LibraryImportContinueInput",
-    sourcePath: "src/contracts/stage_interface.ts",
-  },
-  {
     exportName: "libraryImportStatusInputSchema",
     typeName: "LibraryImportStatusInput",
     sourcePath: "src/contracts/stage_interface.ts",
@@ -169,13 +164,12 @@ const NON_EMPTY_SCOPE_DEFINITIONS = new Set([
   "ListedMusicScope",
 ]);
 const NON_EMPTY_LIBRARY_IMPORT_BATCH_ID_DEFINITIONS = new Set([
-  "LibraryImportContinueInput",
   "LibraryImportStatusInput",
 ]);
 
-// Continue/status batch ids are structural input handles for an existing batch.
-// Keep the non-empty check at the schema gate so handlers do not need to
-// duplicate shape validation before reading the batch.
+// Status batch ids are structural input handles for an existing batch. Keep the
+// non-empty check at the schema gate so handlers do not need to duplicate shape
+// validation before reading the batch.
 function applyLibraryImportBatchIdNonEmptyOverlay(schema) {
   const definitions = schema?.definitions;
   if (definitions === null || typeof definitions !== "object") {
@@ -393,8 +387,7 @@ const generatedSchemas = schemaTargets.map((target) => {
   const schema = generatorFor(target.sourcePath).createSchema(target.typeName);
   if (
     target.exportName === "musicDiscoveryLookupInputSchema" ||
-    target.exportName === "libraryImportStartInputSchema" ||
-    target.exportName === "libraryImportContinueInputSchema"
+    target.exportName === "libraryImportStartInputSchema"
   ) {
     applyToolLimitOverlay(schema);
   }
@@ -402,7 +395,6 @@ const generatedSchemas = schemaTargets.map((target) => {
     applyMusicDiscoveryLookupObjectRootOverlay(schema);
   }
   if (
-    target.exportName === "libraryImportContinueInputSchema" ||
     target.exportName === "libraryImportStatusInputSchema"
   ) {
     applyLibraryImportBatchIdNonEmptyOverlay(schema);

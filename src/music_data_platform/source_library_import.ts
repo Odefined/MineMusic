@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import { assertRefSafe, isRefComponentSafe, type Ref, type Result, type StageError } from "../contracts/kernel.js";
 import type { MaterialEntityKind, PlatformLibraryCandidate, PlatformLibraryKind, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntity, SourceLibraryImportCompletionReason } from "../contracts/music_data_platform.js";
-import type { SourceRecord } from "../contracts/storage.js";
 import { isMusicDatabaseError, type MusicDatabase } from "../storage/database.js";
 import { isMusicDataPlatformError } from "./errors.js";
 import {
@@ -13,8 +12,6 @@ import type { MaterialRefFactory } from "./material_ref_factory.js";
 import { DEFAULT_OWNER_SCOPE } from "./owner_scope.js";
 import {
   type SourceLibraryImportBatchRecord,
-  type SourceLibraryImportItemOutcomeRecord,
-  type SourceLibraryItemRecord,
 } from "./source_library_records.js";
 import { createSourceLibraryReadPort } from "./source_library_read_model.js";
 import { createMusicDataPlatformSourceOfTruthWriteCommands } from "./source_of_truth_write_commands.js";
@@ -36,8 +33,9 @@ export type CreateSourceLibraryImportServiceInput = {
 };
 
 export type SourceLibraryImportService = {
-  startImport(input: SourceLibraryImportStartInput): Promise<Result<SourceLibraryImportResult>>;
-  continueImport(input: SourceLibraryImportContinueInput): Promise<Result<SourceLibraryImportResult>>;
+  startImport(input: SourceLibraryImportStartInput): Promise<Result<{ batch: SourceLibraryImportBatchRecord }>>;
+  advanceOnePage(input: { batchId: string }): Promise<Result<{ batch: SourceLibraryImportBatchRecord }>>;
+  markBatchFailed(input: { batchId: string; error: StageError }): Promise<void>;
 };
 
 export type SourceLibraryImportStartInput = {
@@ -46,38 +44,6 @@ export type SourceLibraryImportStartInput = {
   libraryKind: PlatformLibraryKind;
   limit?: number;
   maxNewItems?: number;
-};
-
-export type SourceLibraryImportContinueInput = {
-  batchId: string;
-  limit?: number;
-};
-
-export type SourceLibraryImportResult = {
-  batch: SourceLibraryImportBatchRecord;
-  providerPage?: SourceLibraryImportProviderPage;
-  itemResults: readonly SourceLibraryImportItemResult[];
-};
-
-export type SourceLibraryImportProviderPage = {
-  providerId: string;
-  providerAccountId: string;
-  libraryKind: PlatformLibraryKind;
-  candidateCount: number;
-  nextCursor?: string;
-  totalCountHint?: number;
-};
-
-export type SourceLibraryImportItemResult = {
-  candidate: PlatformLibraryCandidate;
-  outcome: SourceLibraryImportItemOutcomeRecord;
-  sourceRecord?: SourceRecord;
-  sourceLibraryItem?: SourceLibraryItemRecord;
-  materialRef?: Ref;
-  error?: {
-    code: string;
-    message: string;
-  };
 };
 
 const defaultImportLimit = 50;
@@ -96,12 +62,6 @@ export function createSourceLibraryImportService(
 
       if (!validation.ok) {
         return validation;
-      }
-
-      const callLimit = resolveCallLimit(startInput.limit, defaultLimit);
-
-      if (!callLimit.ok) {
-        return callLimit;
       }
 
       const created = await input.database.transaction(async (db) => {
@@ -126,27 +86,18 @@ export function createSourceLibraryImportService(
         return created;
       }
 
-      return await processNextPage(created.value.batchId, callLimit.value);
+      // Fire-and-forget: only the batch record is created here. The background work job
+      // handler drives pagination via advanceOnePage; the start command submits the first
+      // job after this returns.
+      return ok({ batch: created.value });
     },
-    async continueImport(continueInput) {
-      const validation = validateContinueInput(continueInput);
-
-      if (!validation.ok) {
-        return validation;
-      }
-
-      const callLimit = resolveCallLimit(continueInput.limit, defaultLimit);
-
-      if (!callLimit.ok) {
-        return callLimit;
-      }
-
-      const batch = await getBatch(continueInput.batchId);
+    async advanceOnePage({ batchId }: { batchId: string }) {
+      const batch = await getBatch(batchId);
 
       if (batch === undefined) {
         return failMusicData(
           "music_data.source_library_import_batch_not_found",
-          `Source library import batch '${continueInput.batchId}' was not found.`,
+          `Source library import batch '${batchId}' was not found.`,
         );
       }
 
@@ -158,35 +109,34 @@ export function createSourceLibraryImportService(
       }
 
       if (batch.status === "completed") {
-        return ok({
-          batch,
-          itemResults: [],
-        });
+        return ok({ batch });
       }
 
       if (batch.status === "failed") {
         return failMusicData(
           "music_data.source_library_import_batch_failed",
-          `Source library import batch '${continueInput.batchId}' has failed.`,
+          `Source library import batch '${batchId}' has failed.`,
         );
       }
 
-      return await processNextPage(batch.batchId, callLimit.value);
+      return await advanceImportPage(batch);
+    },
+    async markBatchFailed({ batchId, error }: { batchId: string; error: StageError }) {
+      await markBatchFailed(batchId, error, now());
     },
   };
 
-  async function processNextPage(
-    batchId: string,
-    callLimit: number,
-  ): Promise<Result<SourceLibraryImportResult>> {
-    const initialBatch = await getBatch(batchId);
-
-    if (initialBatch === undefined) {
-      return failMusicData(
-        "music_data.source_library_import_batch_not_found",
-        `Source library import batch '${batchId}' was not found.`,
-      );
-    }
+  // Advances one provider page for an already-validated running batch. Driven by the
+  // background work job handler. Provider-page failures (read call, batch-membership
+  // validation) are returned as Result WITHOUT marking the batch failed — the job
+  // handler retries them and marks failed only on retry exhaustion. A post-Extension
+  // contract violation is a broken integration invariant (throws, batch marked failed,
+  // not retried). A candidate write failure throws CandidateWriteFailureError (batch
+  // already marked failed, not retried).
+  async function advanceImportPage(
+    initialBatch: SourceLibraryImportBatchRecord,
+  ): Promise<Result<{ batch: SourceLibraryImportBatchRecord }>> {
+    const callLimit = defaultLimit;
 
     const allowance = providerReadLimit(initialBatch, callLimit);
 
@@ -201,10 +151,7 @@ export function createSourceLibraryImportService(
         now(),
       );
 
-      return ok({
-        batch,
-        itemResults: [],
-      });
+      return ok({ batch });
     }
 
     const read = await input.platformLibraryProvider.readPlatformLibraryProvider({
@@ -218,7 +165,6 @@ export function createSourceLibraryImportService(
     });
 
     if (!read.ok) {
-      await markBatchFailed(initialBatch.batchId, read.error, now());
       return read;
     }
 
@@ -247,14 +193,12 @@ export function createSourceLibraryImportService(
     const pageValidation = validateProviderPageForBatch(initialBatch, read.value);
 
     if (!pageValidation.ok) {
-      await markBatchFailed(initialBatch.batchId, pageValidation.error, now());
       return pageValidation;
     }
 
     const accountValidation = resolvedProviderAccountId(initialBatch, read.value);
 
     if (!accountValidation.ok) {
-      await markBatchFailed(initialBatch.batchId, accountValidation.error, now());
       return accountValidation;
     }
 
@@ -262,20 +206,10 @@ export function createSourceLibraryImportService(
     const candidateValidation = validateProviderCandidatesForBatch(initialBatch, read.value, providerAccountId);
 
     if (!candidateValidation.ok) {
-      await markBatchFailed(initialBatch.batchId, candidateValidation.error, now());
       return candidateValidation;
     }
 
     let batch = await persistBatchLibraryScope(initialBatch, providerAccountId, now());
-    const page: SourceLibraryImportProviderPage = {
-      providerId: read.value.providerId,
-      providerAccountId,
-      libraryKind: read.value.kind,
-      candidateCount: read.value.candidates.length,
-      ...(read.value.nextCursor === undefined ? {} : { nextCursor: read.value.nextCursor }),
-      ...(read.value.totalCountHint === undefined ? {} : { totalCountHint: read.value.totalCountHint }),
-    };
-    const itemResults: SourceLibraryImportItemResult[] = [];
 
     for (const candidate of read.value.candidates) {
       const latestBatch = await requireBatch(batch.batchId);
@@ -285,9 +219,8 @@ export function createSourceLibraryImportService(
         break;
       }
 
-      let itemResult: SourceLibraryImportItemResult;
       try {
-        itemResult = await processCandidate(latestBatch, candidate);
+        await processCandidate(latestBatch, candidate);
       } catch (error) {
         // TRANSLATE, never silence: classify the write failure so the durable
         // batch record carries the real cause, then rethrow with the original as
@@ -297,7 +230,6 @@ export function createSourceLibraryImportService(
         throw new CandidateWriteFailureError(failure, error);
       }
 
-      itemResults.push(itemResult);
       batch = await requireBatch(batch.batchId);
     }
 
@@ -311,18 +243,14 @@ export function createSourceLibraryImportService(
       batch = await updateBatchCursor(latestBatch, read.value.nextCursor, now());
     }
 
-    return ok({
-      batch,
-      providerPage: page,
-      itemResults,
-    });
+    return ok({ batch });
   }
 
   async function processCandidate(
     batch: SourceLibraryImportBatchRecord,
     candidate: PlatformLibraryCandidate,
-  ): Promise<SourceLibraryImportItemResult> {
-    return input.database.transaction(async (db) => {
+  ): Promise<void> {
+    await input.database.transaction(async (db) => {
       const timestamp = now();
       const identityRead = createIdentityReadPort({ db });
       const writes = createMusicDataPlatformSourceOfTruthWriteCommands({
@@ -331,7 +259,7 @@ export function createSourceLibraryImportService(
       });
       const identityCommands = writes.identity;
       const sourceLibraryCommands = writes.sourceLibrary;
-      const sourceRecord = await identityCommands.upsertSourceRecord({
+      await identityCommands.upsertSourceRecord({
         entity: candidate.sourceEntity,
       });
       const existingBinding = await identityRead.findMaterialForSource({
@@ -353,7 +281,7 @@ export function createSourceLibraryImportService(
         materialRef,
       });
 
-      const itemWrite = await sourceLibraryCommands.recordImportItem({
+      await sourceLibraryCommands.recordImportItem({
         batch,
         sourceRef: candidate.sourceEntity.sourceRef,
         providerId: candidate.sourceEntity.providerId!,
@@ -361,14 +289,6 @@ export function createSourceLibraryImportService(
         materialRef,
         ...(candidate.providerAddedAt === undefined ? {} : { providerAddedAt: candidate.providerAddedAt }),
       });
-
-      return {
-        candidate,
-        outcome: itemWrite.outcome,
-        sourceRecord,
-        sourceLibraryItem: itemWrite.sourceLibraryItem,
-        materialRef,
-      };
     });
   }
 
@@ -493,42 +413,6 @@ function validateStartInput(
   }
 
   return ok(undefined);
-}
-
-function validateContinueInput(
-  input: SourceLibraryImportContinueInput,
-): Result<void> {
-  if (typeof input.batchId !== "string" || input.batchId.length === 0) {
-    return failMusicData(
-      "music_data.invalid_source_library_import_input",
-      "Source library import batchId must be a non-empty string.",
-    );
-  }
-
-  if (!isOptionalReadLimit(input.limit)) {
-    return failMusicData(
-      "music_data.invalid_source_library_import_input",
-      "Source library import limit must be an integer from 1 through 100 when present.",
-    );
-  }
-
-  return ok(undefined);
-}
-
-function resolveCallLimit(
-  requestedLimit: number | undefined,
-  defaultLimit: number,
-): Result<number> {
-  const callLimit = requestedLimit ?? defaultLimit;
-
-  if (!isReadLimit(callLimit)) {
-    return failMusicData(
-      "music_data.invalid_source_library_import_input",
-      "Source library import limit must be an integer from 1 through 100.",
-    );
-  }
-
-  return ok(callLimit);
 }
 
 function providerReadLimit(

@@ -249,6 +249,9 @@ function importlessMusicDataPlatformModule(): MusicDataPlatformRuntimeModule {
         sourceLibraryRead() {
             throw new Error("list_sources must not touch source library read port");
         },
+        libraryImportStart() {
+            throw new Error("list_sources must not touch library import start command");
+        },
         retrievalQuery() {
             return undefined;
         },

@@ -10,6 +10,7 @@ const liveEnabled = process.env.MINEMUSIC_LIVE_NCM_LIBRARY === "1";
 const baseUrl = process.env.MINEMUSIC_NCM_BASE_URL;
 const kind = platformLibraryKindFromEnv(process.env.MINEMUSIC_NCM_LIBRARY_KIND);
 const limit = positiveIntegerFromEnv(process.env.MINEMUSIC_NCM_LIBRARY_LIMIT) ?? 1;
+const maxAdvanceCalls = positiveIntegerFromEnv(process.env.MINEMUSIC_NCM_LIBRARY_MAX_ADVANCE_CALLS) ?? 1;
 if (!liveEnabled) {
     console.log("Skipping NCM source-library live smoke. Set MINEMUSIC_LIVE_NCM_LIBRARY=1 to enable.");
 }
@@ -42,19 +43,25 @@ else {
             process.exitCode = 1;
         }
         else {
-            const imported = await sourceLibraryImport.startImport({
+            let imported = await sourceLibraryImport.startImport({
                 providerId: "netease",
                 libraryKind: kind,
                 limit,
                 maxNewItems: limit,
             });
+            let advanceCalls = 0;
+            while (imported.ok && imported.value.batch.status === "running" && advanceCalls < maxAdvanceCalls) {
+                advanceCalls += 1;
+                imported = await sourceLibraryImport.advanceOnePage({
+                    batchId: imported.value.batch.batchId,
+                });
+            }
             if (!imported.ok) {
                 console.error(`NCM source-library smoke failed: ${imported.error.code} ${imported.error.message}`);
                 process.exitCode = 1;
             }
             else {
-                console.log(`NCM source-library smoke read ${imported.value.providerPage?.candidateCount ?? 0} candidate(s).`);
-                console.log(`Batch ${imported.value.batch.batchId}: ${imported.value.batch.importedCount} imported, ${imported.value.batch.alreadyPresentCount} already present, ${imported.value.batch.failedCount} failed.`);
+                console.log(`Batch ${imported.value.batch.batchId}: ${imported.value.batch.status}; ${imported.value.batch.importedCount} imported, ${imported.value.batch.alreadyPresentCount} already present, ${imported.value.batch.failedCount} failed after ${advanceCalls} advance call(s).`);
             }
         }
     }

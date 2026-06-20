@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { refKey, type Ref, type Result } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryCandidate, PlatformLibraryReadInput, PlatformLibraryReadResult, SourceEntity } from "../../src/contracts/music_data_platform.js";
-import { DEFAULT_OWNER_SCOPE, createMaterialTextProjectionRecords, createMaterialRefFactory, createOwnerCatalogRecords, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, createSourceLibraryImportService, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSourceLibrarySchema, type PlatformLibraryReadPort, type SourceLibraryImportBatchRecord, type SourceLibraryImportItemOutcomeRecord, type SourceLibraryRecord, type SourceLibraryItemRecord, type SourceLibraryCommands, type SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
+import { DEFAULT_OWNER_SCOPE, createMaterialTextProjectionRecords, createMaterialRefFactory, createOwnerCatalogRecords, createProjectionMaintenanceRecords, createProjectionMaintenanceRunner, createSourceLibraryRef, createSourceLibraryImportService, isMusicDataPlatformError, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformSourceLibrarySchema, type PlatformLibraryReadPort, type SourceLibraryImportBatchRecord, type SourceLibraryImportItemOutcomeRecord, type SourceLibraryImportService, type SourceLibraryRecord, type SourceLibraryItemRecord, type SourceLibraryCommands, type SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
 import { createIdentityWriteCommands } from "../../src/music_data_platform/identity_write_model.js";
 import { createSourceLibraryCommands } from "../../src/music_data_platform/source_library_commands.js";
 import { createSourceLibraryRepositories } from "../../src/music_data_platform/source_library_records.js";
@@ -28,7 +28,7 @@ export type _sourceLibraryItemRecordShape = Expect<Equal<keyof SourceLibraryItem
 export type _sourceLibraryBatchRecordShape = Expect<Equal<keyof SourceLibraryImportBatchRecord, "batchId" | "ownerScope" | "providerId" | "providerAccountId" | "libraryKind" | "libraryRef" | "status" | "cursor" | "maxNewItems" | "processedCount" | "importedCount" | "alreadyPresentCount" | "failedCount" | "completionReason" | "failureCode" | "failureMessage" | "createdAt" | "updatedAt">>;
 export type _sourceLibraryItemOutcomeRecordShape = Expect<Equal<keyof SourceLibraryImportItemOutcomeRecord, "batchId" | "sequence" | "outcome" | "sourceRefKey" | "providerId" | "providerEntityId" | "materialRefKey" | "errorCode" | "errorMessage" | "createdAt">>;
 export type _sourceLibraryCommandKeys = Expect<Equal<keyof SourceLibraryCommands, "createImportBatch" | "resolveImportBatchLibraryScope" | "recordImportItem" | "recordImportItemFailure" | "failImportBatch" | "completeImportBatch" | "advanceImportBatchCursor">>;
-export type _sourceLibraryReadPortKeys = Expect<Equal<keyof SourceLibraryReadPort, "getImportBatch" | "listSourceLibraries">>;
+export type _sourceLibraryReadPortKeys = Expect<Equal<keyof SourceLibraryReadPort, "getImportBatch" | "findRunningBatch" | "listSourceLibraries">>;
 const repositoryDatabase = await openUninitializedPostgresTestMusicDatabase();
 await repositoryDatabase.initialize({
     schemas: [
@@ -220,11 +220,12 @@ await reconciliationRepositoryDatabase.transaction(async (db) => {
         providerAccountId: "130950710",
         libraryKind: "saved_source_track",
         libraryRef: reconciliationRepositoryLibraryRef,
-        status: "running",
+        status: "completed",
         processedCount: 1,
         importedCount: 1,
         alreadyPresentCount: 0,
         failedCount: 0,
+        completionReason: "provider_exhausted",
         createdAt: "2026-06-08T00:10:20.000Z",
         updatedAt: "2026-06-08T00:10:20.000Z",
     });
@@ -252,11 +253,12 @@ await reconciliationRepositoryDatabase.transaction(async (db) => {
         providerAccountId: "130950710",
         libraryKind: "saved_source_track",
         libraryRef: reconciliationRepositoryLibraryRef,
-        status: "running",
+        status: "completed",
         processedCount: 0,
         importedCount: 0,
         alreadyPresentCount: 0,
         failedCount: 0,
+        completionReason: "provider_exhausted",
         createdAt: "2026-06-08T00:10:30.000Z",
         updatedAt: "2026-06-08T00:10:30.000Z",
     });
@@ -788,23 +790,27 @@ const duplicateImport = createSourceLibraryImportService({
     }),
     now: fixedNow("2026-06-08T01:00:00.000Z"),
     newBatchId: () => "duplicate-batch",
+    defaultLimit: 2,
 });
-const duplicateResult = await assertOk(await duplicateImport.startImport({
+const duplicateStart = await assertOk(await duplicateImport.startImport({
     providerId: "netease",
     libraryKind: "saved_source_track",
     limit: 2,
 }));
+assert.equal(duplicateStart.batch.status, "running");
+assert.equal(duplicateReads.requests.length, 0);
+const duplicateResult = await advanceImportUntilSettled(duplicateImport, duplicateStart.batch);
 assert.equal(duplicateReads.requests[0]?.request.providerAccountId, undefined);
 assert.equal(duplicateReads.requests[0]?.request.limit, 2);
-assert.equal(duplicateResult.batch.status, "completed");
-assert.equal(duplicateResult.batch.ownerScope, DEFAULT_OWNER_SCOPE);
-assert.equal(duplicateResult.batch.providerAccountId, "130950618");
-assert.equal(refKey(duplicateResult.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")), refKey(sourceLibraryRef("130950618", "saved_source_track")));
-assert.equal(duplicateResult.batch.completionReason, "provider_exhausted");
-assert.equal(duplicateResult.batch.processedCount, 2);
-assert.equal(duplicateResult.batch.importedCount, 1);
-assert.equal(duplicateResult.batch.alreadyPresentCount, 1);
-assert.deepEqual(duplicateResult.itemResults.map((item) => item.outcome.outcome), [
+assert.equal(duplicateResult.status, "completed");
+assert.equal(duplicateResult.ownerScope, DEFAULT_OWNER_SCOPE);
+assert.equal(duplicateResult.providerAccountId, "130950618");
+assert.equal(refKey(duplicateResult.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")), refKey(sourceLibraryRef("130950618", "saved_source_track")));
+assert.equal(duplicateResult.completionReason, "provider_exhausted");
+assert.equal(duplicateResult.processedCount, 2);
+assert.equal(duplicateResult.importedCount, 1);
+assert.equal(duplicateResult.alreadyPresentCount, 1);
+assert.deepEqual((await importOutcomes(duplicateDatabase, "duplicate-batch")).map((item) => item.outcome), [
     "imported",
     "already_present",
 ]);
@@ -872,6 +878,7 @@ const providerAddedAtImport = createSourceLibraryImportService({
         "2026-06-08T06:05:00.000Z",
     ]),
     newBatchId: () => "provider-added-batch",
+    defaultLimit: 1,
 });
 const providerAddedAtStart = await assertOk(await providerAddedAtImport.startImport({
     providerId: "netease",
@@ -879,17 +886,32 @@ const providerAddedAtStart = await assertOk(await providerAddedAtImport.startImp
     limit: 1,
 }));
 assert.equal(providerAddedAtStart.batch.status, "running");
-assert.equal(refKey(providerAddedAtStart.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")), refKey(sourceLibraryRef("130950618", "saved_source_track")));
-assert.equal(providerAddedAtStart.itemResults[0]?.sourceLibraryItem?.addedAt, "2026-06-08T06:02:00.000Z");
-assert.equal(providerAddedAtStart.itemResults[0]?.sourceLibraryItem?.providerAddedAt, "2026-06-07T01:00:00.000Z");
-const providerAddedAtContinue = await assertOk(await providerAddedAtImport.continueImport({
+assert.equal(providerAddedAtReads.requests.length, 0);
+const providerAddedAtFirstPage = await assertOk(await providerAddedAtImport.advanceOnePage({
     batchId: "provider-added-batch",
-    limit: 1,
 }));
-assert.equal(providerAddedAtContinue.batch.status, "completed");
-assert.equal(refKey(providerAddedAtContinue.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")), refKey(sourceLibraryRef("130950618", "saved_source_track")));
-assert.equal(providerAddedAtContinue.itemResults[0]?.sourceLibraryItem?.addedAt, "2026-06-08T06:02:00.000Z");
-assert.equal(providerAddedAtContinue.itemResults[0]?.sourceLibraryItem?.providerAddedAt, "2026-06-07T01:00:00.000Z");
+assert.equal(providerAddedAtFirstPage.batch.status, "running");
+assert.equal(refKey(providerAddedAtFirstPage.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")), refKey(sourceLibraryRef("130950618", "saved_source_track")));
+assert.deepEqual({
+    ...await providerAddedAtDatabase.context().get<{
+        added_at: string;
+        provider_added_at: string;
+    }>(`
+        SELECT
+          added_at,
+          provider_added_at
+        FROM source_library_items
+        WHERE source_ref_key = ?
+      `, [refKey(sourceRef("track", "1001"))]),
+}, {
+    added_at: "2026-06-08T06:02:00.000Z",
+    provider_added_at: "2026-06-07T01:00:00.000Z",
+});
+const providerAddedAtCompleted = await assertOk(await providerAddedAtImport.advanceOnePage({
+    batchId: "provider-added-batch",
+}));
+assert.equal(providerAddedAtCompleted.batch.status, "completed");
+assert.equal(refKey(providerAddedAtCompleted.batch.libraryRef ?? sourceLibraryRef("130950618", "saved_source_track")), refKey(sourceLibraryRef("130950618", "saved_source_track")));
 assert.deepEqual({
     ...await providerAddedAtDatabase.context().get<{
         library_ref_key: string;
@@ -912,9 +934,8 @@ assert.deepEqual({
     first_imported_at: "2026-06-08T06:02:00.000Z",
 });
 await providerAddedAtDatabase.close();
-const completedContinue = await assertOk(await duplicateImport.continueImport({
+const completedContinue = await assertOk(await duplicateImport.advanceOnePage({
     batchId: "duplicate-batch",
-    limit: 1,
 }));
 assert.equal(completedContinue.batch.status, "completed");
 assert.equal(duplicateReads.requests.length, 1);
@@ -951,9 +972,8 @@ const foreignOwnerContinueImport = createSourceLibraryImportService({
     }),
     now: fixedNow("2026-06-08T01:11:00.000Z"),
 });
-assertErrorCode(await foreignOwnerContinueImport.continueImport({
+assertErrorCode(await foreignOwnerContinueImport.advanceOnePage({
     batchId: "foreign-owner-batch",
-    limit: 1,
 }), "music_data.owner_scope_unsupported");
 assert.equal(foreignOwnerContinueReads.requests.length, 0);
 await foreignOwnerContinueDatabase.close();
@@ -982,7 +1002,10 @@ const projectionMaintenanceResult = await assertOk(await projectionMaintenanceIm
     libraryKind: "saved_source_track",
     limit: 1,
 }));
-assert.equal(projectionMaintenanceResult.batch.status, "completed");
+const projectionMaintenanceBatch = await advanceImportUntilSettled(projectionMaintenanceImport, projectionMaintenanceResult.batch);
+assert.equal(projectionMaintenanceBatch.status, "completed");
+const projectionMaintenanceMaterialRef = materialRef("recording", "m_projection_maintenance_material");
+assert.equal((await importOutcomes(projectionMaintenanceDatabase, "projection-maintenance-batch"))[0]?.materialRefKey, refKey(projectionMaintenanceMaterialRef));
 assert.deepEqual((await createProjectionMaintenanceRecords({ db: projectionMaintenanceDatabase.context() })
     .listPendingProjectionTargets()).map((target) => target.projectionKind)
     .sort(), [
@@ -1001,15 +1024,13 @@ assert.deepEqual(await createProjectionMaintenanceRunner({
 });
 assert.equal((await createProjectionMaintenanceRecords({ db: projectionMaintenanceDatabase.context() })
     .listPendingProjectionTargets()).length, 0);
-const projectionMaintenanceMaterialRef = projectionMaintenanceResult.itemResults[0]?.materialRef;
-assert.notEqual(projectionMaintenanceMaterialRef, undefined);
 assert.equal((await createMaterialTextProjectionRecords({ db: projectionMaintenanceDatabase.context() })
-    .getMaterialTextDocument({ materialRef: projectionMaintenanceMaterialRef! }))?.materialRefKey, refKey(projectionMaintenanceMaterialRef!));
-assert.notEqual(projectionMaintenanceResult.batch.libraryRef, undefined);
+    .getMaterialTextDocument({ materialRef: projectionMaintenanceMaterialRef }))?.materialRefKey, refKey(projectionMaintenanceMaterialRef));
+assert.notEqual(projectionMaintenanceBatch.libraryRef, undefined);
 assert.equal((await createOwnerCatalogRecords({ db: projectionMaintenanceDatabase.context() })
     .listOwnerMaterialEntries({
     ownerScope: DEFAULT_OWNER_SCOPE,
-    entryRef: projectionMaintenanceResult.batch.libraryRef!,
+    entryRef: projectionMaintenanceBatch.libraryRef!,
 })).length, 1);
 await projectionMaintenanceDatabase.close();
 const invalidLimitDatabase = await initializedDatabase();
@@ -1056,13 +1077,17 @@ const invalidDefaultLimitImport = createSourceLibraryImportService({
     newBatchId: () => "invalid-default-limit-batch",
     defaultLimit: 101,
 });
-assertErrorCode(await invalidDefaultLimitImport.startImport({
+const invalidDefaultLimitStart = await assertOk(await invalidDefaultLimitImport.startImport({
     providerId: "netease",
     libraryKind: "saved_source_track",
+}));
+assert.equal(invalidDefaultLimitStart.batch.status, "running");
+assertErrorCode(await invalidDefaultLimitImport.advanceOnePage({
+    batchId: "invalid-default-limit-batch",
 }), "music_data.invalid_source_library_import_input");
 assert.equal(invalidDefaultLimitReads.requests.length, 0);
-assert.equal(await createSourceLibraryRepositories({ db: invalidDefaultLimitDatabase.context() })
-    .batches.get({ batchId: "invalid-default-limit-batch" }), undefined);
+assert.equal((await createSourceLibraryRepositories({ db: invalidDefaultLimitDatabase.context() })
+    .batches.get({ batchId: "invalid-default-limit-batch" }))?.status, "running");
 await invalidDefaultLimitDatabase.close();
 const collisionDatabase = await initializedDatabase();
 const collisionReads = scriptedReadPort([
@@ -1092,7 +1117,7 @@ assertErrorCode(await collisionImport.startImport({
     libraryKind: "saved_source_track",
     limit: 1,
 }), "music_data.source_library_import_batch_id_collision");
-assert.equal(collisionReads.requests.length, 1);
+assert.equal(collisionReads.requests.length, 0);
 await collisionDatabase.close();
 const failedItemDatabase = await initializedDatabase();
 let materialIdIndex = 0;
@@ -1116,11 +1141,14 @@ const failedItemImport = createSourceLibraryImportService({
     now: fixedNow("2026-06-08T02:00:00.000Z"),
     newBatchId: () => "failed-item-batch",
 });
-await assert.rejects(async () => await failedItemImport.startImport({
+const failedItemStart = await assertOk(await failedItemImport.startImport({
     providerId: "netease",
     providerAccountId: "130950618",
     libraryKind: "saved_source_track",
     limit: 2,
+}));
+await assert.rejects(async () => await failedItemImport.advanceOnePage({
+    batchId: failedItemStart.batch.batchId,
 }), /Material ref id must be a non-empty ref-safe string/u);
 const failedItemBatch = await createSourceLibraryRepositories({ db: failedItemDatabase.context() })
     .batches.get({ batchId: "failed-item-batch" });
@@ -1151,13 +1179,16 @@ const unresolvedAccountImport = createSourceLibraryImportService({
     now: fixedNow("2026-06-08T03:00:00.000Z"),
     newBatchId: () => "unresolved-account-batch",
 });
-assertErrorCode(await unresolvedAccountImport.startImport({
+const unresolvedAccountStart = await assertOk(await unresolvedAccountImport.startImport({
     providerId: "netease",
     libraryKind: "saved_source_track",
     limit: 1,
+}));
+assertErrorCode(await unresolvedAccountImport.advanceOnePage({
+    batchId: unresolvedAccountStart.batch.batchId,
 }), "music_data.source_library_account_unresolved");
 assert.equal((await createSourceLibraryRepositories({ db: unresolvedAccountDatabase.context() })
-    .batches.get({ batchId: "unresolved-account-batch" }))?.status, "failed");
+    .batches.get({ batchId: "unresolved-account-batch" }))?.status, "running");
 await unresolvedAccountDatabase.close();
 const invalidAccountDatabase = await initializedDatabase();
 const invalidAccountImport = createSourceLibraryImportService({
@@ -1176,10 +1207,13 @@ const invalidAccountImport = createSourceLibraryImportService({
     now: fixedNow("2026-06-08T03:30:00.000Z"),
     newBatchId: () => "invalid-account-batch",
 });
-await assert.rejects(async () => await invalidAccountImport.startImport({
+const invalidAccountStart = await assertOk(await invalidAccountImport.startImport({
     providerId: "netease",
     libraryKind: "saved_source_track",
     limit: 1,
+}));
+await assert.rejects(async () => await invalidAccountImport.advanceOnePage({
+    batchId: invalidAccountStart.batch.batchId,
 }), /unsafe provider account id after Extension validation/u);
 assert.equal((await createSourceLibraryRepositories({ db: invalidAccountDatabase.context() })
     .batches.get({ batchId: "invalid-account-batch" }))?.status, "failed");
@@ -1261,14 +1295,17 @@ for (const invalidPageCase of [
         now: fixedNow("2026-06-08T03:45:00.000Z"),
         newBatchId: () => invalidPageCase.batchId,
     });
-    assertErrorCode(await invalidPageImport.startImport({
+    const invalidPageStart = await assertOk(await invalidPageImport.startImport({
         providerId: "netease",
         libraryKind: "saved_source_track",
         limit: 1,
+    }));
+    assertErrorCode(await invalidPageImport.advanceOnePage({
+        batchId: invalidPageStart.batch.batchId,
     }), "music_data.source_library_provider_page_invalid");
     assert.equal(invalidPageReads.requests.length, 1);
     assert.equal((await createSourceLibraryRepositories({ db: invalidPageDatabase.context() })
-        .batches.get({ batchId: invalidPageCase.batchId }))?.status, "failed");
+        .batches.get({ batchId: invalidPageCase.batchId }))?.status, "running");
     assert.equal(await countRows(invalidPageDatabase, "source_records"), 0);
     assert.equal(await countRows(invalidPageDatabase, "source_library_items"), 0);
     await invalidPageDatabase.close();
@@ -1311,10 +1348,13 @@ for (const invalidProviderContractCase of [
         now: fixedNow("2026-06-08T03:45:00.000Z"),
         newBatchId: () => invalidProviderContractCase.batchId,
     });
-    await assert.rejects(async () => await invalidProviderContractImport.startImport({
+    const invalidProviderContractStart = await assertOk(await invalidProviderContractImport.startImport({
         providerId: "netease",
         libraryKind: "saved_source_track",
         limit: 1,
+    }));
+    await assert.rejects(async () => await invalidProviderContractImport.advanceOnePage({
+        batchId: invalidProviderContractStart.batch.batchId,
     }), /after Extension validation/u);
     assert.equal(invalidProviderContractReads.requests.length, 1);
     const failedBatch = await createSourceLibraryRepositories({ db: invalidProviderContractDatabase.context() })
@@ -1356,17 +1396,22 @@ const mismatchStart = await assertOk(await mismatchImport.startImport({
     limit: 1,
 }));
 assert.equal(mismatchStart.batch.status, "running");
-assert.equal(mismatchStart.batch.cursor, "1");
-assert.equal(mismatchReads.requests.length, 1);
-assertErrorCode(await mismatchImport.continueImport({
+assert.equal(mismatchStart.batch.cursor, undefined);
+assert.equal(mismatchReads.requests.length, 0);
+const mismatchFirstPage = await assertOk(await mismatchImport.advanceOnePage({
     batchId: "mismatch-batch",
-    limit: 1,
+}));
+assert.equal(mismatchFirstPage.batch.status, "running");
+assert.equal(mismatchFirstPage.batch.cursor, "1");
+assert.equal(mismatchReads.requests.length, 1);
+assertErrorCode(await mismatchImport.advanceOnePage({
+    batchId: "mismatch-batch",
 }), "music_data.source_library_account_mismatch");
 const mismatchContinueRequest = requestAt(mismatchReads.requests, 1);
 assert.equal(mismatchContinueRequest.request.providerAccountId, "130950618");
 assert.equal(mismatchContinueRequest.request.cursor, "1");
 assert.equal((await createSourceLibraryRepositories({ db: mismatchDatabase.context() })
-    .batches.get({ batchId: "mismatch-batch" }))?.status, "failed");
+    .batches.get({ batchId: "mismatch-batch" }))?.status, "running");
 await mismatchDatabase.close();
 const maxNewDatabase = await initializedDatabase();
 const maxNewReads = scriptedReadPort([
@@ -1393,11 +1438,28 @@ const maxNewResult = await assertOk(await maxNewImport.startImport({
     limit: 10,
     maxNewItems: 1,
 }));
+const maxNewBatch = await advanceImportUntilSettled(maxNewImport, maxNewResult.batch);
 assert.equal(maxNewReads.requests[0]?.request.limit, 1);
-assert.equal(maxNewResult.batch.status, "completed");
-assert.equal(maxNewResult.batch.completionReason, "max_new_items_reached");
-assert.equal(maxNewResult.batch.cursor, undefined);
+assert.equal(maxNewBatch.status, "completed");
+assert.equal(maxNewBatch.completionReason, "max_new_items_reached");
+assert.equal(maxNewBatch.cursor, undefined);
 await maxNewDatabase.close();
+async function advanceImportUntilSettled(
+    service: Pick<SourceLibraryImportService, "advanceOnePage">,
+    initialBatch: SourceLibraryImportBatchRecord,
+): Promise<SourceLibraryImportBatchRecord> {
+    let batch = initialBatch;
+    while (batch.status === "running") {
+        batch = (await assertOk(await service.advanceOnePage({ batchId: batch.batchId }))).batch;
+    }
+    return batch;
+}
+async function importOutcomes(
+    database: MusicDatabase,
+    batchId: string,
+): Promise<readonly SourceLibraryImportItemOutcomeRecord[]> {
+    return createSourceLibraryRepositories({ db: database.context() }).itemOutcomes.listForBatch({ batchId });
+}
 async function initializedDatabase(): Promise<MusicDatabase> {
     const database = await openUninitializedPostgresTestMusicDatabase();
     await database.initialize({

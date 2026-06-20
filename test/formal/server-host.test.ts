@@ -57,6 +57,7 @@ assert.equal(host.retrievalQuery() === undefined, false);
 assert.equal(host.localizeProviderSource() === undefined, false);
 assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.localize_provider_source",
+    "register:music_data_platform.library_import_advance",
     "start",
 ]);
 assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
@@ -108,7 +109,6 @@ assert.deepEqual(host.snapshot().modules.map(({ id, ownerArea, status }) => ({
 assert.deepEqual(host.snapshot().interfaceContract.tools.map((tool) => tool.name), [
     "library.import.list_sources",
     "library.import.start",
-    "library.import.continue",
     "library.import.status",
     "library.relation.get",
     "library.relation.save",
@@ -137,6 +137,7 @@ assert.equal(host.retrievalQuery(), undefined);
 assert.equal(host.localizeProviderSource(), undefined);
 assert.deepEqual(serverHostBackgroundWork.log, [
     "register:music_data_platform.localize_provider_source",
+    "register:music_data_platform.library_import_advance",
     "start",
     "stop",
 ]);

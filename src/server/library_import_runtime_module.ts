@@ -29,11 +29,16 @@ export function createLibraryImportServerRuntimeModule(
       },
     },
     control: {
-      startImport(startInput) {
-        return sourceLibraryImportService().startImport(startInput);
-      },
-      continueImport(continueInput) {
-        return sourceLibraryImportService().continueImport(continueInput);
+      async startImport(startInput) {
+        const submitted = await libraryImportStartCommand().submit({
+          providerId: startInput.providerId,
+          libraryKind: startInput.libraryKind,
+          ...(startInput.limit === undefined ? {} : { maxNewItems: startInput.limit }),
+        });
+        if (!submitted.ok) {
+          return submitted;
+        }
+        return { ok: true, value: { batch: submitted.value.batch } };
       },
       getStatus(statusInput) {
         return sourceLibraryReadPort().getImportBatch(statusInput);
@@ -53,14 +58,14 @@ export function createLibraryImportServerRuntimeModule(
     },
   });
 
-  function sourceLibraryImportService() {
-    const service = input.musicDataPlatformModule.sourceLibraryImport();
+  function libraryImportStartCommand() {
+    const command = input.musicDataPlatformModule.libraryImportStart();
 
-    if (service === undefined) {
-      throw new Error("Source library import service is not initialized.");
+    if (command === undefined) {
+      throw new Error("Library import start command is not initialized.");
     }
 
-    return service;
+    return command;
   }
 
   function sourceLibraryReadPort() {

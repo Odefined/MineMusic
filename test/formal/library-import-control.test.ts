@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import type { Ref, Result, StageError } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryCandidate, } from "../../src/contracts/music_data_platform.js";
 import type { LibraryImportDriveOutput, StageToolContext, } from "../../src/contracts/stage_interface.js";
-import type { SourceLibraryImportBatchRecord, SourceLibraryImportService, SourceLibraryImportResult, SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
-import { createLibraryImportContinueRegistration, createLibraryImportStartRegistration, createLibraryImportStatusRegistration, libraryImportContinueDescriptor, libraryImportInstrument, libraryImportStartDescriptor, libraryImportStatusDescriptor, type LibraryImportControlPort, } from "../../src/music_data_platform/stage_adapter/index.js";
+import type { SourceLibraryImportBatchRecord, SourceLibraryImportService, SourceLibraryReadPort, } from "../../src/music_data_platform/index.js";
+import { createLibraryImportStartRegistration, createLibraryImportStatusRegistration, libraryImportInstrument, libraryImportStartDescriptor, libraryImportStatusDescriptor, type LibraryImportControlPort, } from "../../src/music_data_platform/stage_adapter/index.js";
 import { assertSampleOutputHasNoInternalAnchors, createStageInterface, } from "../../src/stage_interface/index.js";
 import { createLibraryImportServerRuntimeModule, type MusicDataPlatformRuntimeModule, } from "../../src/server/index.js";
 const now = "2026-06-18T00:00:00.000Z";
@@ -25,8 +25,6 @@ assert.equal(libraryImportStartDescriptor.sideEffect.durableUserStateWrite, true
 assert.equal(libraryImportStartDescriptor.sideEffect.externalCall, true);
 assert.equal(libraryImportStartDescriptor.invocationPolicy.dataEgress, "provider_account");
 assert.equal(libraryImportStartDescriptor.invocationPolicy.intakeDrivenByUserRequest, true);
-assert.equal(libraryImportContinueDescriptor.name, "library.import.continue");
-assert.equal(libraryImportContinueDescriptor.invocationPolicy.intakeDrivenByUserRequest, true);
 assert.equal(libraryImportStatusDescriptor.name, "library.import.status");
 assert.equal(libraryImportStatusDescriptor.sideEffect.durableUserStateWrite, false);
 assert.equal(libraryImportStatusDescriptor.sideEffect.externalCall, false);
@@ -49,18 +47,6 @@ assert.equal(libraryImportStatusDescriptor.invocationPolicy.readOnlyHint, true);
                     importedCount: 1,
                     alreadyPresentCount: 1,
                 }),
-                providerPage: {
-                    providerId: "netease",
-                    providerAccountId: "130950618",
-                    libraryKind: "saved_source_track",
-                    candidateCount: 2,
-                    nextCursor: "internal-provider-cursor",
-                    totalCountHint: 10,
-                },
-                itemResults: [
-                    itemResult("imported", 1),
-                    itemResult("already_present", 2),
-                ],
             });
         },
     });
@@ -75,6 +61,8 @@ assert.equal(libraryImportStatusDescriptor.invocationPolicy.readOnlyHint, true);
     assert.equal(result.ok, true);
     assert.equal(startCalls, 1);
     if (result.ok) {
+        // Fire-and-forget: start returns the batch summary (no page results — the first
+        // page is advanced by a background job, not synchronously here).
         assert.deepEqual(result.value.result, {
             batchId: "batch-1",
             status: "running",
@@ -84,12 +72,6 @@ assert.equal(libraryImportStatusDescriptor.invocationPolicy.readOnlyHint, true);
                 alreadyPresent: 1,
                 failed: 0,
             },
-            page: {
-                imported: 1,
-                alreadyPresent: 1,
-                failed: 0,
-            },
-            providerTotalCountHint: 10,
             hasMore: true,
         });
         assertSampleOutputHasNoInternalAnchors({
@@ -127,77 +109,15 @@ await assertStartError(error("extension.platform_library_provider_read_failed", 
 }), "provider_response_invalid");
 await assertStartError(error("music_data.source_library_account_unresolved"), "account_unavailable");
 await assertStartError(error("music_data.source_library_import_write_failed"), "write_failed");
+await assertStartError(error("music_data.source_library_import_job_submit_failed"), "write_failed");
 await assertStartError(error("music_data.unmapped_internal_failure"), "write_failed");
 {
-    const result = await interfaceFor(testControl({
-        async continueImport() {
-            return ok({
-                batch: batchRecord({
-                    status: "completed",
-                    libraryRef,
-                    processedCount: 8,
-                    importedCount: 5,
-                    alreadyPresentCount: 3,
-                }),
-                itemResults: [],
-            });
-        },
-    })).dispatch(testStageToolContext(), {
-        toolName: "library.import.continue",
-        payload: {
-            batchId: "batch-1",
-            limit: 5,
-        },
-    });
-    assert.equal(result.ok, true);
-    if (result.ok) {
-        const output = result.value.result as LibraryImportDriveOutput;
-        assert.deepEqual(output.totals, {
-            imported: 5,
-            alreadyPresent: 3,
-            failed: 0,
-        });
-        assert.equal(output.status, "completed");
-        assert.equal(output.hasMore, false);
-        assert.equal("page" in output, false);
-        assert.equal("providerTotalCountHint" in output, false);
-        assertNoInternalImportKeys(output);
-    }
-}
-{
-    let continueCalls = 0;
-    const result = await interfaceFor(testControl({
-        async continueImport() {
-            continueCalls += 1;
-            throw new Error("empty batchId must be rejected by the schema gate");
-        },
-    })).dispatch(testStageToolContext(), {
-        toolName: "library.import.continue",
-        payload: {
-            batchId: "",
-            limit: 5,
-        },
-    });
-    assert.equal(result.ok, false);
-    assert.equal(continueCalls, 0);
-    if (!result.ok) {
-        assert.equal(result.error.code, "stage_interface.invalid_input");
-    }
-}
-await assertContinueError(error("music_data.source_library_import_batch_not_found"), "batch_not_found");
-await assertContinueError(error("music_data.source_library_import_batch_failed"), "batch_failed");
-{
     let startCalls = 0;
-    let continueCalls = 0;
     let statusCalls = 0;
     const result = await interfaceFor(testControl({
         async startImport() {
             startCalls += 1;
             throw new Error("status must not call startImport");
-        },
-        async continueImport() {
-            continueCalls += 1;
-            throw new Error("status must not call continueImport");
         },
         async getStatus(input) {
             statusCalls += 1;
@@ -223,7 +143,6 @@ await assertContinueError(error("music_data.source_library_import_batch_failed")
     });
     assert.equal(result.ok, true);
     assert.equal(startCalls, 0);
-    assert.equal(continueCalls, 0);
     assert.equal(statusCalls, 1);
     if (result.ok) {
         assert.deepEqual(result.value.result, {
@@ -282,7 +201,7 @@ await assertContinueError(error("music_data.source_library_import_batch_failed")
     }
 }
 {
-    let serviceStartCalls = 0;
+    let startCommandCalls = 0;
     let statusReadCalls = 0;
     const serverModule = createLibraryImportServerRuntimeModule({
         extensionRuntime: {
@@ -307,21 +226,13 @@ await assertContinueError(error("music_data.source_library_import_batch_failed")
         musicDataPlatformModule: musicDataPlatformModuleFor({
             importService: {
                 async startImport() {
-                    serviceStartCalls += 1;
-                    return ok({
-                        batch: batchRecord({
-                            status: "completed",
-                            libraryRef,
-                            processedCount: 1,
-                            importedCount: 1,
-                        }),
-                        itemResults: [
-                            itemResult("imported", 1),
-                        ],
-                    });
+                    throw new Error("server wiring start test must submit through start command");
                 },
-                async continueImport() {
-                    throw new Error("server wiring start test must not continue import");
+                async advanceOnePage() {
+                    throw new Error("server wiring start test must not advance import");
+                },
+                async markBatchFailed() {
+                    throw new Error("server wiring start test must not mark batch failed");
                 },
             },
             readPort: {
@@ -334,8 +245,30 @@ await assertContinueError(error("music_data.source_library_import_batch_failed")
                         importedCount: 1,
                     });
                 },
+                async findRunningBatch() {
+                    return undefined;
+                },
                 async listSourceLibraries() {
                     return [];
+                },
+            },
+            startCommand: {
+                async submit(input) {
+                    startCommandCalls += 1;
+                    assert.deepEqual(input, {
+                        providerId: "netease",
+                        libraryKind: "saved_source_track",
+                    });
+                    return ok({
+                        batch: batchRecord({
+                            status: "running",
+                            libraryRef,
+                            processedCount: 0,
+                            importedCount: 0,
+                        }),
+                        started: "created",
+                        jobId: "job-1",
+                    });
                 },
             },
         }),
@@ -362,7 +295,7 @@ await assertContinueError(error("music_data.source_library_import_batch_failed")
         });
         assert.equal(start.ok, true);
         assert.equal(status.ok, true);
-        assert.equal(serviceStartCalls, 1);
+        assert.equal(startCommandCalls, 1);
         assert.equal(statusReadCalls, 1);
         if (start.ok) {
             const output = start.value.result as LibraryImportDriveOutput;
@@ -377,7 +310,6 @@ function interfaceFor(control: LibraryImportControlPort) {
         instruments: [libraryImportInstrument],
         registrations: [
             createLibraryImportStartRegistration({ control }),
-            createLibraryImportContinueRegistration({ control }),
             createLibraryImportStatusRegistration({ control }),
         ],
     });
@@ -386,9 +318,6 @@ function testControl(overrides: Partial<LibraryImportControlPort>): LibraryImpor
     return {
         async startImport() {
             throw new Error("unexpected startImport call");
-        },
-        async continueImport() {
-            throw new Error("unexpected continueImport call");
         },
         async getStatus() {
             throw new Error("unexpected getStatus call");
@@ -402,6 +331,7 @@ function testControl(overrides: Partial<LibraryImportControlPort>): LibraryImpor
 function musicDataPlatformModuleFor(input: {
     importService: SourceLibraryImportService;
     readPort: SourceLibraryReadPort;
+    startCommand: { submit(input: unknown): Promise<unknown> };
 }): MusicDataPlatformRuntimeModule {
     return {
         descriptor: {
@@ -419,6 +349,9 @@ function musicDataPlatformModuleFor(input: {
         },
         sourceLibraryRead() {
             return input.readPort;
+        },
+        libraryImportStart() {
+            return input.startCommand as never;
         },
         retrievalQuery() {
             return undefined;
@@ -452,7 +385,7 @@ function musicDataPlatformModuleFor(input: {
         },
     };
 }
-async function assertStartError(failure: Result<SourceLibraryImportResult>, expectedCode: string): Promise<void> {
+async function assertStartError(failure: Result<{ batch: SourceLibraryImportBatchRecord }>, expectedCode: string): Promise<void> {
     const result = await interfaceFor(testControl({
         async startImport() {
             return failure;
@@ -462,22 +395,6 @@ async function assertStartError(failure: Result<SourceLibraryImportResult>, expe
         payload: {
             providerId: "netease",
             libraryKind: "saved_source_track",
-        },
-    });
-    assert.equal(result.ok, false);
-    if (!result.ok) {
-        assert.equal(result.error.code, expectedCode);
-    }
-}
-async function assertContinueError(failure: Result<SourceLibraryImportResult>, expectedCode: string): Promise<void> {
-    const result = await interfaceFor(testControl({
-        async continueImport() {
-            return failure;
-        },
-    })).dispatch(testStageToolContext(), {
-        toolName: "library.import.continue",
-        payload: {
-            batchId: "batch-1",
         },
     });
     assert.equal(result.ok, false);
@@ -500,18 +417,6 @@ function batchRecord(overrides: Partial<SourceLibraryImportBatchRecord> = {}): S
         createdAt: now,
         updatedAt: now,
         ...overrides,
-    };
-}
-function itemResult(outcome: "imported" | "already_present" | "failed", sequence: number) {
-    return {
-        candidate: platformCandidate(`track-${sequence}`),
-        outcome: {
-            batchId: "batch-1",
-            sequence,
-            outcome,
-            createdAt: now,
-            ...(outcome === "failed" ? { errorCode: "music_data.test_failure" } : {}),
-        },
     };
 }
 function platformCandidate(id: string): PlatformLibraryCandidate {

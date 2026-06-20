@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import type { BackgroundWorkBackend, BackgroundWorkHandler, BackgroundWorkSubmitInput, } from "../../src/background_work/index.js";
 import type { Result, StageError } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryProviderRegistration, ExtensionRuntime, ExtensionRuntimeSnapshot, } from "../../src/extension/index.js";
 import type { PlatformLibraryCandidate, PlatformLibraryReadInput, PlatformLibraryReadResult, } from "../../src/contracts/music_data_platform.js";
@@ -15,10 +16,15 @@ const extensionRuntime = extensionRuntimeForPages([
     ["old-track", "keep-track"],
     ["keep-track"],
 ]);
+const backgroundWork = createFakeBackgroundWork();
 const musicDataPlatformModule = createMusicDataPlatformRuntimeModule({
     extensionRuntime,
     database,
+    backgroundWork,
     config: {
+        localSources: {
+            rootDir: "/tmp/minemusic-library-import-agent-path-local-sources",
+        },
         projectionMaintenance: {
             enabled: false,
         },
@@ -52,6 +58,19 @@ if (initializedServerModule.ok) {
         },
     });
     assert.equal(firstImport.ok, true);
+    if (firstImport.ok) {
+        const output = firstImport.value.result as LibraryImportDriveOutput;
+        assert.equal(output.status, "running");
+        assert.equal(output.hasMore, true);
+        assert.deepEqual(output.totals, {
+            imported: 0,
+            alreadyPresent: 0,
+            failed: 0,
+        });
+        assert.equal(output.sourceLibraryScope, undefined);
+    }
+    assert.deepEqual(await sourceLibraryItemKeys(), []);
+    await backgroundWork.drain();
     assert.deepEqual(await sourceLibraryItemKeys(), [
         "source_netease:track:keep-track",
         "source_netease:track:old-track",
@@ -69,15 +88,16 @@ if (initializedServerModule.ok) {
     if (secondImport.ok) {
         const output = secondImport.value.result as LibraryImportDriveOutput;
         secondBatchId = output.batchId;
-        assert.equal(output.status, "completed");
-        assert.equal(output.hasMore, false);
+        assert.equal(output.status, "running");
+        assert.equal(output.hasMore, true);
         assert.deepEqual(output.totals, {
             imported: 0,
-            alreadyPresent: 1,
+            alreadyPresent: 0,
             failed: 0,
         });
-        assert.equal(output.sourceLibraryScope?.kind, "source_library");
+        assert.equal(output.sourceLibraryScope, undefined);
     }
+    await backgroundWork.drain();
     assert.deepEqual(await sourceLibraryItemKeys(), [
         "source_netease:track:keep-track",
     ]);
@@ -92,6 +112,12 @@ if (initializedServerModule.ok) {
         const output = secondStatus.value.result as LibraryImportStatusOutput;
         assert.equal(output.status, "completed");
         assert.equal(output.hasMore, false);
+        assert.deepEqual(output.totals, {
+            imported: 0,
+            alreadyPresent: 1,
+            failed: 0,
+        });
+        assert.equal(output.sourceLibraryScope?.kind, "source_library");
         assert.equal("page" in output, false);
     }
 }
@@ -113,11 +139,16 @@ await database.close();
     const writeFailureExtensionRuntime = extensionRuntimeForPages([
         ["bad-track"],
     ]);
+    const writeFailureBackgroundWork = createFakeBackgroundWork();
     const writeFailureMdp = createMusicDataPlatformRuntimeModule({
         extensionRuntime: writeFailureExtensionRuntime,
         database: writeFailureDatabase,
+        backgroundWork: writeFailureBackgroundWork,
         materialRefFactory: invalidMaterialRefFactory,
         config: {
+            localSources: {
+                rootDir: "/tmp/minemusic-library-import-write-failure-agent-path-local-sources",
+            },
             projectionMaintenance: {
                 enabled: false,
             },
@@ -149,10 +180,13 @@ await database.close();
                 limit: 10,
             },
         });
-        assert.equal(result.ok, false);
-        if (!result.ok) {
-            assert.equal(result.error.code, "write_failed");
+        assert.equal(result.ok, true);
+        if (result.ok) {
+            const output = result.value.result as LibraryImportDriveOutput;
+            assert.equal(output.status, "running");
+            assert.equal(output.hasMore, true);
         }
+        await assert.rejects(async () => await writeFailureBackgroundWork.drain(), /music_data\.material_ref_invalid/u);
         assert.deepEqual((await writeFailureDatabase.context().all<{
             status: string;
             failure_code: string | null;
@@ -172,6 +206,58 @@ await database.close();
     const stoppedWriteFailureMdp = await writeFailureMdp.stop?.();
     assert.equal(stoppedWriteFailureMdp?.ok, true);
     await writeFailureDatabase.close();
+}
+type FakeBackgroundWork = BackgroundWorkBackend & {
+    drain(): Promise<void>;
+    submissions: BackgroundWorkSubmitInput<Record<string, unknown>>[];
+};
+function createFakeBackgroundWork(): FakeBackgroundWork {
+    const handlers = new Map<string, BackgroundWorkHandler<Record<string, unknown>>>();
+    const queue: {
+        jobId: string;
+        jobType: string;
+        payload: Record<string, unknown>;
+    }[] = [];
+    const submissions: BackgroundWorkSubmitInput<Record<string, unknown>>[] = [];
+    let nextJob = 0;
+    return {
+        submissions,
+        async submit(input) {
+            const jobId = `fake-library-import-job-${nextJob}`;
+            nextJob += 1;
+            submissions.push(input as BackgroundWorkSubmitInput<Record<string, unknown>>);
+            queue.push({
+                jobId,
+                jobType: input.jobType,
+                payload: input.payload as Record<string, unknown>,
+            });
+            return {
+                jobId,
+                submission: "created",
+            };
+        },
+        registerHandler(input) {
+            handlers.set(input.jobType, input.handler as BackgroundWorkHandler<Record<string, unknown>>);
+        },
+        async start() {},
+        async stop() {},
+        async drain() {
+            while (queue.length > 0) {
+                const job = queue.shift();
+                if (job === undefined) {
+                    throw new Error("Fake background work queue shifted no job.");
+                }
+                const handler = handlers.get(job.jobType);
+                if (handler === undefined) {
+                    throw new Error(`No fake background work handler registered for '${job.jobType}'.`);
+                }
+                await handler({
+                    ...job,
+                    signal: new AbortController().signal,
+                });
+            }
+        },
+    };
 }
 function extensionRuntimeForPages(pages: readonly (readonly string[])[]): ExtensionRuntime {
     const snapshot: ExtensionRuntimeSnapshot = {

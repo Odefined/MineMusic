@@ -106,7 +106,6 @@ try {
     }).tools).map((tool) => tool.name), [
         "library_import_list_sources",
         "library_import_start",
-        "library_import_continue",
         "library_import_status",
         "library_relation_get",
         "library_relation_save",
@@ -161,7 +160,7 @@ try {
         };
     };
     assert.equal(callResult.structuredContent.status, "ready");
-    assert.equal(callResult.structuredContent.interface.toolCount, 15);
+    assert.equal(callResult.structuredContent.interface.toolCount, 14);
     assert.equal(callResult.content.length, 1);
     assert.equal(callResult.content[0]?.type, "text");
     assert.equal(callResult.content[0]?.text.startsWith("Runtime ready"), true);

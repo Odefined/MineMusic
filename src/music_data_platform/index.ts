@@ -306,11 +306,25 @@ export {
 export type {
   CreateSourceLibraryImportServiceInput,
   PlatformLibraryReadPort,
-  SourceLibraryImportContinueInput,
-  SourceLibraryImportItemResult,
-  SourceLibraryImportProviderPage,
-  SourceLibraryImportResult,
   SourceLibraryImportService,
   SourceLibraryImportStartInput,
   SourceLibraryImportWriteFailure,
 } from "./source_library_import.js";
+export {
+  createLibraryImportStartCommand,
+  libraryImportAdvanceIdempotencyKey,
+  LIBRARY_IMPORT_ADVANCE_JOB_TYPE,
+} from "./library_import_commands.js";
+export type {
+  CreateLibraryImportStartCommandInput,
+  LibraryImportStartCommand,
+  LibraryImportStartRequest,
+  LibraryImportStartSubmission,
+} from "./library_import_commands.js";
+export {
+  createLibraryImportJobHandler,
+} from "./library_import_job.js";
+export type {
+  CreateLibraryImportJobHandlerInput,
+  LibraryImportJobRetryPolicy,
+} from "./library_import_job.js";

@@ -1,13 +1,11 @@
 import type { Result, StageError } from "../../contracts/kernel.js";
 import {
-  libraryImportContinueInputSchema,
   libraryImportDriveOutputSchema,
   libraryImportStartInputSchema,
   libraryImportStatusInputSchema,
   libraryImportStatusOutputSchema,
 } from "../../contracts/generated/stage_interface_schemas.js";
 import type {
-  LibraryImportContinueInput,
   LibraryImportCounts,
   LibraryImportDriveOutput,
   LibraryImportFailureCategory,
@@ -21,20 +19,13 @@ import type {
 } from "../../contracts/stage_interface.js";
 import type {
   SourceLibraryImportBatchRecord,
-  SourceLibraryImportItemOutcomeRecord,
-  SourceLibraryImportItemResult,
-  SourceLibraryImportResult,
-} from "../index.js";
-import {
-  isSourceLibraryImportWriteFailure,
 } from "../index.js";
 import {
   libraryImportInstrument,
 } from "./list_sources.js";
 
 export type LibraryImportControlPort = {
-  startImport(input: LibraryImportStartInput): Promise<Result<SourceLibraryImportResult>>;
-  continueImport(input: LibraryImportContinueInput): Promise<Result<SourceLibraryImportResult>>;
+  startImport(input: LibraryImportStartInput): Promise<Result<{ batch: SourceLibraryImportBatchRecord }>>;
   getStatus(input: LibraryImportStatusInput): Promise<SourceLibraryImportBatchRecord | undefined>;
   sourceLibraryScopeForBatch(input: {
     batch: SourceLibraryImportBatchRecord;
@@ -52,7 +43,7 @@ export const libraryImportStartDescriptor: ToolDeclaration = {
   ownerArea: "music_data_platform",
   description: "Start importing one provider library area into the owner's MineMusic library.",
   usage: {
-    useWhen: "Use after library.import.list_sources when the user asks to import a provider library and the agent has a valid providerId and libraryKind.",
+    useWhen: "Use after library.import.list_sources when the user asks to import a provider library and the agent has a valid providerId and libraryKind. The import runs in the background; poll library.import.status for progress instead of expecting page results here.",
     doNotUseWhen: "Do not use to search, browse, diagnose provider cookies, inspect raw provider pages, or import a provider/library kind not returned by library.import.list_sources.",
     outputSemantics: "Returns a compact import batch summary and public source-library scope when resolved; it does not expose provider cursors, account ids, raw source refs, item payloads, or storage rows.",
   },
@@ -70,7 +61,7 @@ export const libraryImportStartDescriptor: ToolDeclaration = {
   ],
   sideEffect: {
     durableUserStateWrite: true,
-    runtimeStateWrite: false,
+    runtimeStateWrite: true,
     externalCall: true,
   },
   invocationPolicy: {
@@ -86,7 +77,7 @@ export const libraryImportStartDescriptor: ToolDeclaration = {
     {
       code: "invalid_input",
       retryable: false,
-      suggestedFixTemplate: "Retry with providerId, libraryKind, and optional integer limit from 1 through 100.",
+      suggestedFixTemplate: "Retry with providerId, libraryKind, and optional maxNewItems positive integer.",
     },
     {
       code: "provider_not_found",
@@ -127,43 +118,6 @@ export const libraryImportStartDescriptor: ToolDeclaration = {
   resultSummary: importBatchSummary,
 };
 
-export const libraryImportContinueDescriptor: ToolDeclaration = {
-  ...libraryImportStartDescriptor,
-  name: "library.import.continue",
-  label: "Continue Library Import",
-  description: "Continue an existing library import batch by reading and importing the next provider page.",
-  usage: {
-    useWhen: "Use when library.import.start or a previous library.import.continue returned hasMore true for a batchId.",
-    doNotUseWhen: "Do not use to restart a new provider library import, inspect raw cursors, search imported music, or continue a failed batch before checking status.",
-    outputSemantics: "Returns the same compact import batch summary as start; it advances by batchId without exposing provider cursors or raw rows.",
-  },
-  examples: [
-    {
-      prompt: "keep importing the rest of that batch",
-      expects: "call",
-    },
-    {
-      prompt: "import my NetEase liked songs from scratch",
-      expects: "avoid",
-      note: "use library.import.start for a new import batch",
-    },
-  ],
-  inputSchema: libraryImportContinueInputSchema,
-  errors: [
-    ...libraryImportStartDescriptor.errors,
-    {
-      code: "batch_not_found",
-      retryable: true,
-      suggestedFixTemplate: "Retry with a batchId returned by library.import.start, or start a new import.",
-    },
-    {
-      code: "batch_failed",
-      retryable: false,
-      suggestedFixTemplate: "Call library.import.status for the failed batch summary, then start a new import if needed.",
-    },
-  ],
-};
-
 export const libraryImportStatusDescriptor: ToolDeclaration = {
   name: "library.import.status",
   instrumentId: libraryImportInstrument.id,
@@ -181,9 +135,9 @@ export const libraryImportStatusDescriptor: ToolDeclaration = {
       expects: "call",
     },
     {
-      prompt: "continue importing the next page",
+      prompt: "import my NetEase liked songs",
       expects: "avoid",
-      note: "use library.import.continue when hasMore is true",
+      note: "use library.import.start to begin a new import",
     },
   ],
   sideEffect: {
@@ -223,15 +177,6 @@ export function createLibraryImportStartRegistration(
   };
 }
 
-export function createLibraryImportContinueRegistration(
-  input: CreateLibraryImportControlRegistrationInput,
-): StageToolRegistration {
-  return {
-    descriptor: libraryImportContinueDescriptor,
-    handler: (_ctx, payload) => handleLibraryImportContinue(payload, input.control),
-  };
-}
-
 export function createLibraryImportStatusRegistration(
   input: CreateLibraryImportControlRegistrationInput,
 ): StageToolRegistration {
@@ -245,9 +190,7 @@ async function handleLibraryImportStart(
   payload: unknown,
   control: LibraryImportControlPort,
 ): Promise<Result<LibraryImportDriveOutput>> {
-  const started = await invokeImportControl(() =>
-    control.startImport(payload as LibraryImportStartInput),
-  );
+  const started = await control.startImport(payload as LibraryImportStartInput);
 
   if (!started.ok) {
     return publicImportError(started.error);
@@ -255,25 +198,7 @@ async function handleLibraryImportStart(
 
   return {
     ok: true,
-    value: driveOutput(started.value, control),
-  };
-}
-
-async function handleLibraryImportContinue(
-  payload: unknown,
-  control: LibraryImportControlPort,
-): Promise<Result<LibraryImportDriveOutput>> {
-  const continued = await invokeImportControl(() =>
-    control.continueImport(payload as LibraryImportContinueInput),
-  );
-
-  if (!continued.ok) {
-    return publicImportError(continued.error);
-  }
-
-  return {
-    ok: true,
-    value: driveOutput(continued.value, control),
+    value: statusOutput(started.value.batch, control),
   };
 }
 
@@ -295,48 +220,6 @@ async function handleLibraryImportStatus(
   return {
     ok: true,
     value: statusOutput(batch, control),
-  };
-}
-
-// MDP Stage Adapter boundary: translate the import service's classified write
-// failure into the tool's declared public Result; programmer errors keep
-// throwing to the Tool Call Router.
-async function invokeImportControl<T>(
-  run: () => Promise<Result<T>>,
-): Promise<Result<T>> {
-  try {
-    return await run();
-  } catch (error) {
-    if (isSourceLibraryImportWriteFailure(error)) {
-      return {
-        ok: false,
-        error: error.failure,
-      };
-    }
-    throw error;
-  }
-}
-
-function driveOutput(
-  result: SourceLibraryImportResult,
-  control: LibraryImportControlPort,
-): LibraryImportDriveOutput {
-  const batch = result.batch;
-  const failureCategories = failureCategoriesForResult(result);
-
-  return {
-    batchId: batch.batchId,
-    status: batch.status,
-    ...sourceLibraryScopeField(batch, control),
-    totals: batchCounts(batch),
-    ...(result.providerPage === undefined && result.itemResults.length === 0
-      ? {}
-      : { page: pageCounts(result.itemResults) }),
-    ...(result.providerPage?.totalCountHint === undefined
-      ? {}
-      : { providerTotalCountHint: result.providerPage.totalCountHint }),
-    hasMore: batch.status === "running",
-    ...(failureCategories === undefined ? {} : { failureCategories }),
   };
 }
 
@@ -371,55 +254,6 @@ function batchCounts(batch: SourceLibraryImportBatchRecord): LibraryImportCounts
     alreadyPresent: batch.alreadyPresentCount,
     failed: batch.failedCount,
   };
-}
-
-function pageCounts(items: readonly SourceLibraryImportItemResult[]): LibraryImportCounts {
-  const counts: LibraryImportCounts = {
-    imported: 0,
-    alreadyPresent: 0,
-    failed: 0,
-  };
-
-  for (const item of items) {
-    incrementCounts(counts, item.outcome);
-  }
-
-  return counts;
-}
-
-function incrementCounts(
-  counts: LibraryImportCounts,
-  outcome: SourceLibraryImportItemOutcomeRecord,
-): void {
-  switch (outcome.outcome) {
-    case "imported":
-      counts.imported += 1;
-      break;
-    case "already_present":
-      counts.alreadyPresent += 1;
-      break;
-    case "failed":
-      counts.failed += 1;
-      break;
-  }
-}
-
-function failureCategoriesForResult(
-  result: SourceLibraryImportResult,
-): readonly LibraryImportFailureCategoryCount[] | undefined {
-  const codes = new Map<string, number>();
-
-  addBatchFailureCode(codes, result.batch);
-  for (const item of result.itemResults) {
-    if (item.outcome.errorCode !== undefined) {
-      addCode(codes, item.outcome.errorCode);
-    }
-    if (item.error?.code !== undefined) {
-      addCode(codes, item.error.code);
-    }
-  }
-
-  return failureCategoryCounts(codes);
 }
 
 function failureCategoriesForBatch(
@@ -472,7 +306,7 @@ function publicImportError(error: StageError): Result<never> {
       code: "invalid_input",
       message: "Library import request is invalid.",
       retryable: false,
-      suggestedFix: "Retry with providerId, libraryKind or batchId, and optional integer limit from 1 through 100.",
+      suggestedFix: "Retry with providerId, libraryKind, and optional maxNewItems positive integer.",
     });
   }
 
@@ -491,24 +325,6 @@ function publicImportError(error: StageError): Result<never> {
       message: "Library import provider does not support the requested libraryKind.",
       retryable: false,
       suggestedFix: "Call library.import.list_sources and choose a libraryKind supported by that provider.",
-    });
-  }
-
-  if (codes.includes("music_data.source_library_import_batch_not_found")) {
-    return fail({
-      code: "batch_not_found",
-      message: "Library import batch was not found.",
-      retryable: true,
-      suggestedFix: "Retry with a batchId returned by library.import.start, or start a new import.",
-    });
-  }
-
-  if (codes.includes("music_data.source_library_import_batch_failed")) {
-    return fail({
-      code: "batch_failed",
-      message: "Library import batch has failed.",
-      retryable: false,
-      suggestedFix: "Call library.import.status for the failed batch summary, then start a new import if needed.",
     });
   }
 
@@ -541,7 +357,7 @@ function publicImportError(error: StageError): Result<never> {
     case "write_failed":
       return fail({
         code: "write_failed",
-        message: "Library import could not write imported items.",
+        message: "Library import could not start or write imported items.",
         retryable: true,
         suggestedFix: "Retry later after local storage is available.",
       });
@@ -625,6 +441,7 @@ function failureCategoryForCode(code: string): LibraryImportFailureCategory {
     code === "music_data.source_library_import_constraint_conflict" ||
     code === "music_data.source_library_material_binding_mismatch" ||
     code === "music_data.source_library_import_batch_scope_missing" ||
+    code === "music_data.source_library_import_job_submit_failed" ||
     code === "music_data.material_ref_invalid"
   ) {
     return "write_failed";

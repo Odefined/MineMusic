@@ -65,28 +65,28 @@ else {
             process.exitCode = 1;
         }
         else {
-            let drive = await dispatch<LibraryImportDriveOutput>(host, ctx, "library.import.start", {
+            const drive = await dispatch<LibraryImportDriveOutput>(host, ctx, "library.import.start", {
                 providerId: "netease",
                 libraryKind: kind,
                 limit,
             });
-            let pages = drive === undefined ? 0 : 1;
+            let status: LibraryImportStatusOutput | undefined;
+            let polls = 0;
             while (process.exitCode !== 1 &&
                 drive !== undefined &&
-                drive.hasMore &&
-                (maxPages === undefined || pages < maxPages)) {
-                drive = await dispatch<LibraryImportDriveOutput>(host, ctx, "library.import.continue", {
+                (maxPages === undefined || polls < maxPages)) {
+                status = await dispatch<LibraryImportStatusOutput>(host, ctx, "library.import.status", {
                     batchId: drive.batchId,
-                    limit,
                 });
-                pages += 1;
+                polls += 1;
+                if (status === undefined || !status.hasMore) {
+                    break;
+                }
+                await sleep(3500);
             }
             if (drive !== undefined && process.exitCode !== 1) {
-                const status = await dispatch<LibraryImportStatusOutput>(host, ctx, "library.import.status", {
-                    batchId: drive.batchId,
-                });
                 if (status !== undefined) {
-                    console.log(`NCM library-import agent smoke processed ${pages} page(s).`);
+                    console.log(`NCM library-import agent smoke observed ${polls} status poll(s).`);
                     console.log(`Batch ${status.batchId}: ${status.status}; imported=${status.totals.imported}, alreadyPresent=${status.totals.alreadyPresent}, failed=${status.totals.failed}.`);
                     if (status.hasMore) {
                         console.log("Batch still has more pages; increase MINEMUSIC_NCM_LIBRARY_IMPORT_MAX_PAGES or unset it to drive to exhaustion.");

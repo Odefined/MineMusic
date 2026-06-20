@@ -151,6 +151,8 @@ assert.deepEqual((await sourceFilesUnder(join(repositoryRoot, "src/music_data_pl
     "src/music_data_platform/identity_schema.ts",
     "src/music_data_platform/identity_write_model.ts",
     "src/music_data_platform/index.ts",
+    "src/music_data_platform/library_import_commands.ts",
+    "src/music_data_platform/library_import_job.ts",
     "src/music_data_platform/local_source_commands.ts",
     "src/music_data_platform/local_source_ref.ts",
     "src/music_data_platform/localize_provider_source_commands.ts",

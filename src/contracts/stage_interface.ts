@@ -330,13 +330,6 @@ export type LibraryImportStartInput = {
   limit?: number;
 };
 
-export type LibraryImportContinueInput = {
-  /** The batchId from a prior start/continue, used to drive the next provider page. */
-  batchId: string;
-  /** Max new items to import this page (1..100). */
-  limit?: number;
-};
-
 export type LibraryImportStatusInput = {
   /** The batchId to read status for (does not advance the import). */
   batchId: string;
@@ -373,8 +366,6 @@ export type LibraryImportDriveOutput = {
   status: LibraryImportBatchStatus;
   sourceLibraryScope?: LibraryImportSourceLibraryScope;
   totals: LibraryImportCounts;
-  page?: LibraryImportCounts;
-  providerTotalCountHint?: number;
   hasMore: boolean;
   failureCategories?: readonly LibraryImportFailureCategoryCount[];
 };

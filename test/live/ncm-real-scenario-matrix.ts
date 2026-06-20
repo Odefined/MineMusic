@@ -2,7 +2,7 @@ import { refKey, type Ref } from "../../src/contracts/kernel.js";
 import type { PlatformLibraryKind, SourceEntity, } from "../../src/contracts/music_data_platform.js";
 import { createServerHost, } from "../../src/server/index.js";
 import { DEFAULT_OWNER_SCOPE, createMusicDataPlatformSourceOfTruthWriteCommands, createOwnerRelationPoolRef, createProjectionMaintenanceRunner, createSourceLibraryRef, musicDataPlatformIdentitySchema, musicDataPlatformMaterialTextProjectionSchema, musicDataPlatformOwnerCatalogEntriesSchema, musicDataPlatformOwnerCatalogViewSchema, musicDataPlatformOwnerRelationSchema, musicDataPlatformProjectionMaintenanceSchema, musicDataPlatformRetrievalResultSetSchema, musicDataPlatformSourceLibrarySchema, } from "../../src/music_data_platform/index.js";
-import type { OwnerMaterialRelationKind, SourceLibraryImportResult, } from "../../src/music_data_platform/index.js";
+import type { OwnerMaterialRelationKind, SourceLibraryImportBatchRecord, } from "../../src/music_data_platform/index.js";
 import type { RetrievalQueryHit, RetrievalQueryInput, RetrievalQueryResult, } from "../../src/music_intelligence/index.js";
 import { type MusicDatabase } from "../../src/storage/index.js";
 import { createPostgresTestSchema, openUninitializedPostgresTestMusicDatabase, postgresTestDatabaseUrl } from "../support/postgres.js";
@@ -364,10 +364,9 @@ async function runImport(input: {
 }): Promise<{
     ok: true;
     calls: number;
-    batch: Pick<SourceLibraryImportResult["batch"], "batchId" | "status" | "processedCount" | "importedCount" | "alreadyPresentCount" | "failedCount"> & {
-        completionReason?: NonNullable<SourceLibraryImportResult["batch"]["completionReason"]>;
+    batch: Pick<SourceLibraryImportBatchRecord, "batchId" | "status" | "processedCount" | "importedCount" | "alreadyPresentCount" | "failedCount"> & {
+        completionReason?: NonNullable<SourceLibraryImportBatchRecord["completionReason"]>;
     };
-    lastPage?: SourceLibraryImportResult["providerPage"];
 }> {
     return withHost(input.database, input.config, async (host) => {
         const sourceLibraryImport = host.sourceLibraryImport();
@@ -389,9 +388,8 @@ async function runImport(input: {
             value.batch.status === "running" &&
             calls < input.config.updateMaxCalls) {
             calls += 1;
-            result = await sourceLibraryImport.continueImport({
+            result = await sourceLibraryImport.advanceOnePage({
                 batchId: value.batch.batchId,
-                limit: input.config.importPageLimit,
             });
             if (!result.ok) {
                 throw new Error(`${result.error.code}: ${result.error.message}`);
@@ -415,7 +413,6 @@ async function runImport(input: {
                     ? {}
                     : { completionReason: value.batch.completionReason }),
             },
-            ...(value.providerPage === undefined ? {} : { lastPage: value.providerPage }),
         };
     });
 }

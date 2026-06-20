@@ -1,6 +1,5 @@
 import type { RuntimeModule } from "../../stage_core/runtime_module.js";
 import {
-  createLibraryImportContinueRegistration,
   createLibraryImportStartRegistration,
   createLibraryImportStatusRegistration,
 } from "./import_control.js";
@@ -29,10 +28,8 @@ import type {
 } from "./relation_edit.js";
 
 export {
-  createLibraryImportContinueRegistration,
   createLibraryImportStartRegistration,
   createLibraryImportStatusRegistration,
-  libraryImportContinueDescriptor,
   libraryImportStartDescriptor,
   libraryImportStatusDescriptor,
 } from "./import_control.js";
@@ -105,9 +102,6 @@ export function createLibraryImportRuntimeModule(
               sourceListing: input.sourceListing,
             }),
             createLibraryImportStartRegistration({
-              control: input.control,
-            }),
-            createLibraryImportContinueRegistration({
               control: input.control,
             }),
             createLibraryImportStatusRegistration({

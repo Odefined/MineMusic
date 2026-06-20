@@ -91,8 +91,10 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     const initialized = await module.initialize({});
     assert.equal(initialized.ok, true);
     assert.equal(module.localizeProviderSource() === undefined, false);
+    assert.equal(module.libraryImportStart() === undefined, false);
     assert.deepEqual(backgroundWork.registrations.map((registration) => registration.jobType), [
         "music_data_platform.localize_provider_source",
+        "music_data_platform.library_import_advance",
     ]);
     assert.equal(backgroundWork.startCount, 0);
     const submitted = await module.localizeProviderSource()?.submit({
@@ -116,6 +118,7 @@ import { openUninitializedPostgresTestMusicDatabase } from "../support/postgres.
     const stopped = await stopModule(module);
     assert.equal(stopped.ok, true);
     assert.equal(module.localizeProviderSource(), undefined);
+    assert.equal(module.libraryImportStart(), undefined);
     await database.close();
 }
 {

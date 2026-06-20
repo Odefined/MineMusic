@@ -6,6 +6,7 @@ import {
   sourceLibraryKindScopeMetadata,
   sourceLibraryScopeId,
 } from "../music_data_platform/stage_adapter/source_library_scope.js";
+import { DEFAULT_OWNER_SCOPE } from "../music_data_platform/owner_scope.js";
 import {
   createCandidateCommitCommand,
   createLibraryRelationService,
@@ -20,7 +21,10 @@ import {
   createOwnerRelationPoolRef,
   createSourceLibraryImportService,
   createSourceLibraryReadPort,
+  createLibraryImportStartCommand,
+  createLibraryImportJobHandler,
   LOCALIZE_PROVIDER_SOURCE_JOB_TYPE,
+  LIBRARY_IMPORT_ADVANCE_JOB_TYPE,
   musicDataPlatformIdentitySchema,
   musicDataPlatformMaterialTextProjectionSchema,
   musicDataPlatformOwnerCatalogEntriesSchema,
@@ -39,6 +43,7 @@ import {
   type SourceLibraryRecord,
   type SourceLibraryImportService,
   type SourceLibraryReadPort,
+  type LibraryImportStartCommand,
 } from "../music_data_platform/index.js";
 import { createRetrievalResultSetRecords } from "../music_data_platform/retrieval_result_set_records.js";
 import { createDownloadCommands, type DownloadCommands, type DownloadSourceProvider } from "../music_data_platform/download_commands.js";
@@ -83,9 +88,15 @@ import {
 } from "./projection_maintenance_scheduler.js";
 import { createExtensionRuntimeRetrievalProviderSearchPort } from "./retrieval_provider_search_adapter.js";
 
+// Library import background work tuning. Pacing spaces provider page reads to protect
+// NCM/QQ rate limits; retry limits provider-page read retries with exponential backoff.
+const LIBRARY_IMPORT_PACING_DELAY_MS = 3000;
+const LIBRARY_IMPORT_RETRY = { limit: 3, backoffMs: 1000 };
+
 export type MusicDataPlatformRuntimeModule = RuntimeModule & {
   sourceLibraryImport(): SourceLibraryImportService | undefined;
   sourceLibraryRead(): SourceLibraryReadPort | undefined;
+  libraryImportStart(): LibraryImportStartCommand | undefined;
   retrievalQuery(): RetrievalQueryService | undefined;
   musicScopeAvailability(): MusicScopeAvailabilityPort | undefined;
   candidateCommit(): CandidateCommitCommand | undefined;
@@ -114,6 +125,7 @@ export function createMusicDataPlatformRuntimeModule(
   let database: MusicDatabase | undefined;
   let sourceLibraryImportService: SourceLibraryImportService | undefined;
   let sourceLibraryReadPort: SourceLibraryReadPort | undefined;
+  let libraryImportStartCommand: LibraryImportStartCommand | undefined;
   let retrievalQueryService: RetrievalQueryService | undefined;
   let musicScopeAvailabilityPort: MusicScopeAvailabilityPort | undefined;
   let candidateCommitCommand: CandidateCommitCommand | undefined;
@@ -203,6 +215,26 @@ export function createMusicDataPlatformRuntimeModule(
               fileStore: createNodeLocalizeProviderSourceFileStore(),
             }),
           });
+          // Library import: chained self-driving jobs. Each job advances one provider
+          // page, retries provider-page failures with exponential backoff, and submits
+          // the next job when the batch is still running with a cursor.
+          libraryImportStartCommand = createLibraryImportStartCommand({
+            start: sourceLibraryImportService,
+            failBatch: sourceLibraryImportService,
+            findRunningBatch: (lookup) => sourceLibraryReadPort!.findRunningBatch(lookup),
+            backgroundWork: input.backgroundWork,
+            ownerScope: DEFAULT_OWNER_SCOPE,
+          });
+          input.backgroundWork.registerHandler({
+            jobType: LIBRARY_IMPORT_ADVANCE_JOB_TYPE,
+            handler: createLibraryImportJobHandler({
+              advance: sourceLibraryImportService,
+              failBatch: sourceLibraryImportService,
+              backgroundWork: input.backgroundWork,
+              pacingDelayMs: LIBRARY_IMPORT_PACING_DELAY_MS,
+              retry: LIBRARY_IMPORT_RETRY,
+            }),
+          });
         }
         materialProjection = createMaterialProjection({
           db: database.context(),
@@ -279,6 +311,7 @@ export function createMusicDataPlatformRuntimeModule(
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
+        libraryImportStartCommand = undefined;
         retrievalQueryService = undefined;
         downloadCommand = undefined;
         localSourceCommand = undefined;
@@ -311,6 +344,7 @@ export function createMusicDataPlatformRuntimeModule(
         candidateCommitCommand = undefined;
         sourceLibraryImportService = undefined;
         sourceLibraryReadPort = undefined;
+        libraryImportStartCommand = undefined;
         retrievalQueryService = undefined;
         downloadCommand = undefined;
         localSourceCommand = undefined;
@@ -338,6 +372,9 @@ export function createMusicDataPlatformRuntimeModule(
     },
     sourceLibraryRead() {
       return sourceLibraryReadPort;
+    },
+    libraryImportStart() {
+      return libraryImportStartCommand;
     },
     retrievalQuery() {
       return retrievalQueryService;

@@ -1116,26 +1116,6 @@ export const libraryImportStartInputSchema = {
   }
 } as const satisfies JsonSchema;
 
-export const libraryImportContinueInputSchema = {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "batchId": {
-      "type": "string",
-      "minLength": 1
-    },
-    "limit": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 100
-    }
-  },
-  "required": [
-    "batchId"
-  ],
-  "additionalProperties": false
-} as const satisfies JsonSchema;
-
 export const libraryImportStatusInputSchema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
@@ -1166,12 +1146,6 @@ export const libraryImportDriveOutputSchema = {
     },
     "totals": {
       "$ref": "#/definitions/LibraryImportCounts"
-    },
-    "page": {
-      "$ref": "#/definitions/LibraryImportCounts"
-    },
-    "providerTotalCountHint": {
-      "type": "number"
     },
     "hasMore": {
       "type": "boolean"

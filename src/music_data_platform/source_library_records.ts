@@ -101,6 +101,11 @@ export type SourceLibraryImportBatchRepository = {
   get(input: { batchId: string }): Promise<SourceLibraryImportBatchRecord | undefined>;
   insert(record: SourceLibraryImportBatchRecord): Promise<SourceLibraryImportBatchRecord>;
   upsert(record: SourceLibraryImportBatchRecord): Promise<SourceLibraryImportBatchRecord>;
+  findRunningByOwnerProviderKind(input: {
+    ownerScope: string;
+    providerId: string;
+    libraryKind: PlatformLibraryKind;
+  }): Promise<SourceLibraryImportBatchRecord | undefined>;
 };
 
 export type SourceLibraryImportItemOutcomeRepository = {
@@ -486,6 +491,22 @@ export function createSourceLibraryRepositories(
         await batches.get({ batchId: record.batchId }),
         "source library import batch upsert did not return a stored record",
       );
+    },
+    async findRunningByOwnerProviderKind(input) {
+      const row = await db.get<SourceLibraryImportBatchRow>(
+        `
+          SELECT * FROM source_library_import_batches
+          WHERE owner_scope = ?
+            AND provider_id = ?
+            AND library_kind = ?
+            AND status = 'running'
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [input.ownerScope, input.providerId, input.libraryKind],
+      );
+
+      return row === undefined ? undefined : sourceLibraryImportBatchFromRow(row);
     },
   };
 

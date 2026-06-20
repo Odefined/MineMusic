@@ -1,3 +1,4 @@
+import type { PlatformLibraryKind } from "../contracts/music_data_platform.js";
 import type { MusicDatabaseContext } from "../storage/database.js";
 import {
   createSourceLibraryRepositories,
@@ -11,6 +12,11 @@ export type CreateSourceLibraryReadPortInput = {
 
 export type SourceLibraryReadPort = {
   getImportBatch(input: { batchId: string }): Promise<SourceLibraryImportBatchRecord | undefined>;
+  findRunningBatch(input: {
+    ownerScope: string;
+    providerId: string;
+    libraryKind: PlatformLibraryKind;
+  }): Promise<SourceLibraryImportBatchRecord | undefined>;
   listSourceLibraries(input: { ownerScope: string }): Promise<readonly SourceLibraryRecord[]>;
 };
 
@@ -22,6 +28,9 @@ export function createSourceLibraryReadPort(
   return {
     async getImportBatch(readInput) {
       return repositories.batches.get(readInput);
+    },
+    async findRunningBatch(readInput) {
+      return repositories.batches.findRunningByOwnerProviderKind(readInput);
     },
     async listSourceLibraries(readInput) {
       return repositories.libraries.listByOwnerScope(readInput);
